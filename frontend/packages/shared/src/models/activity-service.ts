@@ -518,6 +518,19 @@ export async function loadRefEvent(
       grpcClient.documents.getRef({id: event.newBlob.cid}).catch(() => null),
     ])
 
+    // Publish messages live on the Change blob, not the Ref. Resolve the head
+    // change CID from the Ref's version target (dot-separated CIDs) and fetch
+    // the change itself to read its message.
+    let publishMessage: string | undefined
+    const versionTarget = grpcRef?.target?.target
+    if (versionTarget?.case === 'version') {
+      const headCid = versionTarget.value.version.split('.')[0]
+      if (headCid) {
+        const headChange = await grpcClient.documents.getDocumentChange({id: headCid}).catch(() => null)
+        if (headChange?.message) publishMessage = headChange.message
+      }
+    }
+
     return docId
       ? {
           id: event.newBlob.cid,
@@ -526,7 +539,7 @@ export async function loadRefEvent(
           docId,
           author,
           document: prepareHMDocument(grpcDocument),
-          message: grpcRef?.message || undefined,
+          message: publishMessage,
         }
       : null
   } catch (error) {

@@ -10,6 +10,7 @@ export const PrepareDocumentChange: HMRequestImplementation<HMPrepareDocumentCha
       baseVersion: input.baseVersion ?? '',
       capability: input.capability ?? '',
       visibility: input.visibility ?? 0,
+      message: input.message ?? '',
       changes: input.changes.map((c) => new DocumentChange(c as ConstructorParameters<typeof DocumentChange>[0])),
     })
     return {unsignedChange: result.unsignedChange}

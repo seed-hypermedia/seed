@@ -32,6 +32,12 @@ func (b *ChangeBuilder) SetCapability(cpbID string) *ChangeBuilder {
 	return b
 }
 
+// SetMessage sets the optional human-readable publish message on the request.
+func (b *ChangeBuilder) SetMessage(message string) *ChangeBuilder {
+	b.req.Message = message
+	return b
+}
+
 // SetMetadata adds a SetMetadata change to the request.
 func (b *ChangeBuilder) SetMetadata(key, value string) *ChangeBuilder {
 	b.req.Changes = append(b.req.Changes, &documents.DocumentChange{

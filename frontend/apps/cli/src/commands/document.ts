@@ -417,6 +417,7 @@ export function registerDocumentCommands(program: Command) {
           genesisCid: genesisBlock.cid,
           deps: [genesisBlock.cid],
           depth: 1,
+          message: options.message,
         })
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
@@ -428,7 +429,6 @@ export function registerDocumentCommands(program: Command) {
             version: changeBlock.cid.toString(),
             generation,
             capability,
-            message: options.message,
           },
           signer,
         )
@@ -582,7 +582,13 @@ export function registerDocumentCommands(program: Command) {
 
         const signer = createSignerFromKey(key)
         const capability = await resolveCapability(client, docAccount, key.accountId)
-        const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
+        const {unsignedBytes, ts} = createChangeOps({
+          ops,
+          genesisCid,
+          deps: depCids,
+          depth: newDepth,
+          message: options.message,
+        })
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
         const refInput = await createVersionRef(
@@ -593,7 +599,6 @@ export function registerDocumentCommands(program: Command) {
             version: changeBlock.cid.toString(),
             generation,
             capability,
-            message: options.message,
           },
           signer,
         )

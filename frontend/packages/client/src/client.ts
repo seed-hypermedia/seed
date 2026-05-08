@@ -252,6 +252,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
           genesisCid: genesisChange.cid,
           deps: [genesisChange.cid],
           depth: 1,
+          message: input.message,
         },
         signer,
       )
@@ -263,7 +264,6 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
           version: contentChange.cid.toString(),
           generation: input.generation != null ? Number(input.generation) : 1,
           capability: input.capability,
-          message: input.message,
         },
         signer,
       )
@@ -278,7 +278,9 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     }
 
     // Use PrepareDocumentChange for both new and existing documents so the server
-    // can prepare all supported ops.
+    // can prepare all supported ops. The message is passed in the prepare
+    // request so the daemon can embed it into the unsigned Change blob — it
+    // lives on the Change, not the Ref.
     const {unsignedChange} = (await request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,
@@ -286,6 +288,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       changes: input.changes,
       capability: input.capability,
       visibility: input.visibility,
+      message: input.message,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
     const {publishInput} = await signDocumentChange(
       {
@@ -296,7 +299,6 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
         generation: input.generation,
         capability: input.capability,
         visibility: input.visibility,
-        message: input.message,
       },
       signer,
     )

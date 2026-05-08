@@ -222,12 +222,12 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 	var docChange blob.Encoded[*blob.Change]
 	if in.Timestamp != nil {
-		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime())
+		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime(), in.Message)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create document change with the provided timestamp: %w", err)
 		}
 	} else {
-		docChange, err = doc.SignChange(kp)
+		docChange, err = doc.SignChange(kp, in.Message)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create document change: %w", err)
 		}
@@ -247,7 +247,7 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
 	}
 
-	ref, err := doc.Ref(kp, visibility, in.Message)
+	ref, err := doc.Ref(kp, visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +281,9 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 	}
 
 	// Use NopSigner to create the Change without actually signing it.
-	// The client will sign it themselves.
-	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now())
+	// The client will sign it themselves. The optional message is embedded in
+	// the unsigned bytes so the client doesn't need to know about it.
+	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now(), in.Message)
 	if err != nil {
 		return nil, err
 	}
@@ -1442,7 +1443,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			}
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts, blob.VisibilityPublic, in.Message)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts, blob.VisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -1461,7 +1462,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts, blob.VisibilityPublic, in.Message)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts, blob.VisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -1506,7 +1507,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			Republish: rt.Redirect.Republish,
 		}
 
-		refBlob, err = blob.NewRefRedirect(kp, in.Generation, genesis, ns, in.Path, target, ts, in.Message)
+		refBlob, err = blob.NewRefRedirect(kp, in.Generation, genesis, ns, in.Path, target, ts)
 		if err != nil {
 			return nil, err
 		}
@@ -1667,7 +1668,6 @@ func refToProto(c cid.Cid, ref *blob.Ref) (*documents.Ref, error) {
 			Genesis:    ref.GenesisBlob.String(),
 			Generation: ref.Generation,
 		},
-		Message: ref.Message,
 	}
 
 	switch {
@@ -1711,7 +1711,7 @@ func (srv *Server) getRef(ctx context.Context, c cid.Cid) (hb blob.WithCID[*blob
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) error {
-	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime(), "")
 	if err != nil {
 		return err
 	}
@@ -1726,7 +1726,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) e
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic, "")
+	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic)
 	if err != nil {
 		return err
 	}

@@ -235,7 +235,13 @@ export function usePublishResource(
     mutationFn: (signingKeyName: string) => client.recentSigners.writeRecentSigner.mutate(signingKeyName),
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
-    mutationFn: async ({draft, destinationId, accountId, pathOverride, message}: PublishDraftInput): Promise<HMDocument> => {
+    mutationFn: async ({
+      draft,
+      destinationId,
+      accountId,
+      pathOverride,
+      message,
+    }: PublishDraftInput): Promise<HMDocument> => {
       const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 

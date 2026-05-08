@@ -47,11 +47,10 @@ type Ref struct {
 	Redirect    *RedirectTarget `refmt:"redirect,omitempty"`
 	Generation  int64           `refmt:"generation,omitempty"`
 	Visibility  Visibility      `refmt:"visibility,omitempty"`
-	Message     string          `refmt:"message,omitempty"`
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time, visibility Visibility, message string) (eb Encoded[*Ref], err error) {
+func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time, visibility Visibility) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		BaseBlob: BaseBlob{
 			Type:   TypeRef,
@@ -63,7 +62,6 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 		Heads:       heads,
 		Generation:  generation,
 		Visibility:  visibility,
-		Message:     message,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -78,7 +76,7 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 }
 
 // NewRefRedirect creates a new Ref blob that redirects to another document.
-func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, rt RedirectTarget, ts time.Time, message string) (eb Encoded[*Ref], err error) {
+func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, rt RedirectTarget, ts time.Time) (eb Encoded[*Ref], err error) {
 	// If we redirect within the same space, we don't need to specify the space in the redirect target.
 	if space.Equal(rt.Space) {
 		rt.Space = nil
@@ -94,7 +92,6 @@ func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space c
 		GenesisBlob: genesis,
 		Redirect:    &rt,
 		Generation:  generation,
-		Message:     message,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -183,7 +180,6 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 		RedirectTarget string     `json:"redirect,omitempty"`
 		Republish      bool       `json:"republish,omitempty"`
 		Visibility     Visibility `json:"visibility,omitempty"`
-		Message        string     `json:"message,omitempty"`
 	}
 
 	// We decided not to allow redirects or tombstones for home documents for now.
@@ -218,7 +214,6 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	meta := Meta{
 		Generation: v.Generation,
 		Visibility: v.Visibility,
-		Message:    v.Message,
 	}
 
 	switch {

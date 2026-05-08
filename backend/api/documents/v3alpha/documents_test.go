@@ -1840,7 +1840,6 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 		[]cid.Cid{signedChange.CID},
 		time.Now().Round(blob.ClockPrecision),
 		blob.VisibilityPublic,
-		"",
 	)
 	require.NoError(t, err)
 
@@ -1927,7 +1926,6 @@ func TestPrepareChangeBlockReordering(t *testing.T) {
 		[]cid.Cid{signedChange.CID},
 		time.Now().Round(blob.ClockPrecision),
 		blob.VisibilityPublic,
-		"",
 	)
 	require.NoError(t, err)
 
@@ -1993,7 +1991,6 @@ func TestPrepareChangeMetadataUpdate(t *testing.T) {
 		[]cid.Cid{signedChange.CID},
 		time.Now().Round(blob.ClockPrecision),
 		blob.VisibilityPublic,
-		"",
 	)
 	require.NoError(t, err)
 
