@@ -136,22 +136,26 @@ export const fetchResource = createResourceFetcher(grpcClient)
 
 export const fetchQuery = createQueryResolver(grpcClient)
 
-// Discovery state streams - managed locally but updated via tRPC subscriptions
+// Discovery state streams - one per entity ID, persists for the lifetime of
+// the renderer process. The live tRPC update subscription is owned by the
+// matching entity state (see `entityStates` below) so that multiple callers
+// for the same entity share one update stream rather than racing each other.
 const discoveryStreams = new Map<
   string,
   {
     write: (state: DiscoveryState | null) => void
     stream: StateStream<DiscoveryState | null>
-    unsubscribe?: () => void
   }
 >()
 
 function getOrCreateDiscoveryStream(entityId: string) {
-  if (!discoveryStreams.has(entityId)) {
+  let entry = discoveryStreams.get(entityId)
+  if (!entry) {
     const [write, stream] = writeableStateStream<DiscoveryState | null>(null)
-    discoveryStreams.set(entityId, {write, stream})
+    entry = {write, stream}
+    discoveryStreams.set(entityId, entry)
   }
-  return discoveryStreams.get(entityId)!
+  return entry
 }
 
 export function getDiscoveryStream(entityId: string): StateStream<DiscoveryState | null> {
@@ -215,20 +219,12 @@ export function cleanupAllEntitySubscriptions() {
     activeDiscoveriesSubscription = null
   }
 
-  // Clean up all entity subscriptions
-  for (const key of Object.keys(entitySubscriptions)) {
-    entitySubscriptions[key]?.unsubscribe()
-    delete entitySubscriptions[key]
+  // Tear down per-entity tRPC subs
+  for (const state of entityStates.values()) {
+    state.daemonSub?.unsubscribe()
+    state.discoveryStateSub?.unsubscribe()
   }
-  // Reset counts
-  for (const key of Object.keys(entitySubscriptionCounts)) {
-    delete entitySubscriptionCounts[key]
-  }
-
-  // Clean up all discovery streams
-  discoveryStreams.forEach((entry) => {
-    entry.unsubscribe?.()
-  })
+  entityStates.clear()
   discoveryStreams.clear()
 }
 
@@ -241,9 +237,38 @@ export type EntitySubscription = {
   scope?: 'all' | 'profile'
 }
 
-// Entity subscription management - delegates to main process via tRPC
-const entitySubscriptions: Record<string, {unsubscribe: () => void}> = {}
-const entitySubscriptionCounts: Record<string, number> = {}
+// Entity subscription management - dedupes by entity ID across all callers.
+//
+// Why entity-ID-only (and not also recursive/priority/scope)?
+//   - The daemon-side `subscribe` tRPC API only accepts `{id, recursive}`, and
+//     internally collapses non-recursive subs that are covered by a parent
+//     recursive sub. Priority and scope have no representation on the wire.
+//   - When the dedup key included priority/scope, two callers for the same
+//     entity (e.g. the resource page with priority 'high' and an embed with
+//     priority 'normal') created separate ref-counted entries, separate tRPC
+//     streams, and — worse — overwrote each other's discovery-state subscription
+//     handle, leaking one of them and causing the shared stream entry to be
+//     deleted out from under the still-active caller.
+//   - Dedup by entity ID lets us run one tRPC sub and one discovery-state sub
+//     per entity, and merge caller options (currently just `recursive`) up to
+//     the strongest requested value. The daemon dedups again on its side.
+type CallerOptions = {
+  recursive: boolean
+  priority: 'normal' | 'high'
+  scope: 'all' | 'profile'
+}
+
+type EntityState = {
+  id: UnpackedHypermediaId
+  /** Map keyed by sub object identity so add/remove of the same caller pair correctly. */
+  callers: Map<EntitySubscription, CallerOptions>
+  daemonSub: {unsubscribe: () => void} | null
+  discoveryStateSub: {unsubscribe: () => void} | null
+  /** The recursive value currently applied to the daemon sub. */
+  currentRecursive: boolean
+}
+
+const entityStates = new Map<string, EntityState>()
 
 /** Stream of current subscription display keys for the footer panel. */
 const [writeSubscriptionKeys, subscriptionKeysStream] = writeableStateStream<string[]>([])
@@ -254,42 +279,47 @@ export function getSubscriptionKeysStream(): StateStream<string[]> {
 }
 
 function emitSubscriptionKeys() {
-  const keys = new Set<string>()
-  for (const key of Object.keys(entitySubscriptionCounts)) {
-    if (entitySubscriptionCounts[key] > 0) {
-      // Strip !high priority suffix — it's an internal detail, not relevant for display
-      const displayKey = key.replace('!high', '')
-      keys.add(displayKey)
+  const keys: string[] = []
+  for (const state of entityStates.values()) {
+    if (state.callers.size === 0) continue
+    keys.push(state.id.id + (state.currentRecursive ? '/*' : ''))
+  }
+  keys.sort()
+  writeSubscriptionKeys(keys)
+}
+
+function mergeCallerOptions(callers: Iterable<CallerOptions>): {recursive: boolean} {
+  let recursive = false
+  for (const c of callers) {
+    if (c.recursive) {
+      recursive = true
+      break
     }
   }
-  const sorted = Array.from(keys).sort()
-  writeSubscriptionKeys(sorted)
+  return {recursive}
 }
 
-function getEntitySubscriptionKey(sub: EntitySubscription) {
-  const {id, recursive} = sub
-  if (!id) return null
-  // Priority is part of the key so a normal-priority sub doesn't shadow a
-  // high-priority one (or vice versa) when both are added concurrently.
-  const priorityKey = sub.priority === 'high' ? '!high' : ''
-  const scopeKey = sub.scope === 'profile' ? ':profile' : ''
-  return id.id + (recursive ? '/*' : '') + priorityKey + scopeKey
-}
+function syncEntityState(state: EntityState) {
+  if (state.callers.size === 0) {
+    state.daemonSub?.unsubscribe()
+    state.daemonSub = null
+    state.discoveryStateSub?.unsubscribe()
+    state.discoveryStateSub = null
+    entityStates.delete(state.id.id)
+    return
+  }
 
-export function addSubscribedEntity(sub: EntitySubscription) {
-  const key = getEntitySubscriptionKey(sub)
-  if (!key || !sub.id) return
+  const merged = mergeCallerOptions(state.callers.values())
 
-  const currentCount = entitySubscriptionCounts[key] || 0
-  entitySubscriptionCounts[key] = currentCount + 1
-
-  // Only create subscription on first reference
-  if (currentCount === 0) {
-    // Subscribe via tRPC to the main process
-    const subscription = client.sync.subscribe.subscribe(
+  if (!state.daemonSub || state.currentRecursive !== merged.recursive) {
+    // (Re)issue the daemon sub when the merged options change. This is the
+    // only place we touch the daemon sub, so we never end up with two streams
+    // racing for the same entity.
+    state.daemonSub?.unsubscribe()
+    state.daemonSub = client.sync.subscribe.subscribe(
       {
-        id: sub.id,
-        recursive: sub.recursive,
+        id: state.id,
+        recursive: merged.recursive,
       },
       {
         onData: () => {
@@ -297,45 +327,60 @@ export function addSubscribedEntity(sub: EntitySubscription) {
         },
       },
     )
-    entitySubscriptions[key] = subscription
-
-    // Also subscribe to discovery state updates for this entity
-    const discoveryStreamEntry = getOrCreateDiscoveryStream(sub.id.id)
-    const discoveryStateSub = client.sync.discoveryState.subscribe(sub.id.id, {
-      onData: (state) => {
-        discoveryStreamEntry.write(state)
-      },
-    })
-    discoveryStreamEntry.unsubscribe = () => discoveryStateSub.unsubscribe()
+    state.currentRecursive = merged.recursive
   }
 
+  if (!state.discoveryStateSub) {
+    const stream = getOrCreateDiscoveryStream(state.id.id)
+    const sub = client.sync.discoveryState.subscribe(state.id.id, {
+      onData: (s) => stream.write(s),
+    })
+    state.discoveryStateSub = sub
+  }
+}
+
+export function addSubscribedEntity(sub: EntitySubscription) {
+  if (!sub.id) return
+  const entityId = sub.id.id
+
+  let state = entityStates.get(entityId)
+  if (!state) {
+    state = {
+      id: sub.id,
+      callers: new Map(),
+      daemonSub: null,
+      discoveryStateSub: null,
+      currentRecursive: false,
+    }
+    entityStates.set(entityId, state)
+  }
+
+  state.callers.set(sub, {
+    recursive: !!sub.recursive,
+    priority: sub.priority || 'normal',
+    scope: sub.scope || 'all',
+  })
+
+  syncEntityState(state)
   emitSubscriptionKeys()
 }
 
 export function removeSubscribedEntity(sub: EntitySubscription) {
-  const key = getEntitySubscriptionKey(sub)
-  if (!key) return
-  if (!entitySubscriptionCounts[key]) return
+  if (!sub.id) return
+  const entityId = sub.id.id
+  const state = entityStates.get(entityId)
+  if (!state) return
 
-  entitySubscriptionCounts[key] = entitySubscriptionCounts[key] - 1
-  if (entitySubscriptionCounts[key] === 0) {
-    queueMicrotask(() => {
-      // microtask lets React 18 batch cleanup+setup in the same commit,
-      // so rapid unmount/remount won't trigger unnecessary unsubscribe+resubscribe.
-      // Unlike the previous 300ms setTimeout, this completes before window destruction.
-      if (entitySubscriptionCounts[key] === 0) {
-        entitySubscriptions[key]?.unsubscribe()
-        delete entitySubscriptions[key]
+  state.callers.delete(sub)
 
-        // Also cleanup discovery state subscription AND delete from map to prevent memory leak
-        if (sub.id) {
-          const discoveryStreamEntry = discoveryStreams.get(sub.id.id)
-          discoveryStreamEntry?.unsubscribe?.()
-          discoveryStreams.delete(sub.id.id)
-        }
-
-        emitSubscriptionKeys()
-      }
-    })
-  }
+  // Defer the actual sync so React 18 can batch cleanup+setup in the same
+  // commit without churning the daemon subscription on rapid unmount/remount.
+  // If a new caller is added before the microtask runs, the current sub stays
+  // in place; if no caller arrives, the microtask tears it down.
+  queueMicrotask(() => {
+    const cur = entityStates.get(entityId)
+    if (!cur) return
+    syncEntityState(cur)
+    emitSubscriptionKeys()
+  })
 }
