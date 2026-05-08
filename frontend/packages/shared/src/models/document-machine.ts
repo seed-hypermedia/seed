@@ -82,6 +82,13 @@ export type DocumentMachineContext = {
    * on cleanup so it does not leak to a subsequent publish.
    */
   pendingPathOverride: string[] | null
+  /**
+   * True when `publish.start` is received while an autosave/create is in flight
+   * or while the draft has unsaved changes. Causes the machine to flush the
+   * pending save and then enter `publishing` once `_save.completed` raises.
+   * Cleared on entry to `publishing` so a second publish click does not double-fire.
+   */
+  pendingPublish: boolean
   error: unknown
 }
 
@@ -275,6 +282,7 @@ export const documentMachine = setup({
       pendingRemoteDocument: null,
       pendingRebase: null,
       pendingPathOverride: null,
+      pendingPublish: false,
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -287,6 +295,7 @@ export const documentMachine = setup({
       pendingRemoteDocument: null,
       pendingRebase: null,
       pendingPathOverride: null,
+      pendingPublish: false,
     }),
     snapshotBaseBlocks: assign({
       baseBlocks: ({context}) => {
@@ -387,11 +396,21 @@ export const documentMachine = setup({
       pendingRebase: null,
     }),
     setPathOverrideFromEvent: assign({
-      pendingPathOverride: ({event}) =>
-        event.type === 'publish.start' && event.pathOverride ? event.pathOverride : null,
+      pendingPathOverride: ({context, event}) => {
+        if (event.type !== 'publish.start') return context.pendingPathOverride
+        // Preserve a previously captured override when a queued publish click
+        // arrives without one — first click wins for the path argument.
+        return event.pathOverride ?? context.pendingPathOverride
+      },
     }),
     clearPathOverride: assign({
       pendingPathOverride: null,
+    }),
+    markPendingPublish: assign({
+      pendingPublish: true,
+    }),
+    clearPendingPublish: assign({
+      pendingPublish: false,
     }),
     markDocumentReady: assign({
       documentReady: true,
@@ -523,6 +542,7 @@ export const documentMachine = setup({
     hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
+    hasPendingPublish: ({context}) => context.pendingPublish,
   },
   actors: {
     writeDraft: fromPromise<{id: string}, WriteDraftInput>(async () => {
@@ -582,6 +602,7 @@ export const documentMachine = setup({
     pendingRemoteDocument: null,
     pendingRebase: null,
     pendingPathOverride: null,
+    pendingPublish: false,
     error: null,
   }),
   initial: 'loading',
@@ -766,6 +787,13 @@ export const documentMachine = setup({
                   guard: 'hasDraftId',
                   actions: ['setPathOverrideFromEvent'],
                 },
+                // A `publish.start` queued during a previous saving/creating
+                // raises `_save.completed` from the actor's onDone, lands here,
+                // and immediately flushes into `publishing`.
+                '_save.completed': {
+                  target: '#DocumentLifecycle.publishing',
+                  guard: 'hasPendingPublish',
+                },
               },
             },
             changed: {
@@ -779,6 +807,20 @@ export const documentMachine = setup({
                   target: 'changed',
                   reenter: true,
                 },
+                // Publish during the autosave debounce window: skip the timer,
+                // jump straight into saving/creating, and queue the publish to
+                // fire once the save completes.
+                'publish.start': [
+                  {
+                    target: 'saving',
+                    guard: 'hasDraftId',
+                    actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
+                  },
+                  {
+                    target: 'creating',
+                    actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
+                  },
+                ],
               },
               after: {
                 autosaveTimeout: [
@@ -800,6 +842,11 @@ export const documentMachine = setup({
                 },
                 'reset.content': {
                   actions: ['setHasChangedWhileSaving'],
+                },
+                // Queue the publish; flushed when the in-flight create resolves
+                // and onDone raises `_save.completed` in idle.
+                'publish.start': {
+                  actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                 },
               },
               invoke: {
@@ -862,6 +909,12 @@ export const documentMachine = setup({
                 },
                 'reset.content': {
                   actions: ['setHasChangedWhileSaving'],
+                },
+                // Same flush semantics as `creating`. Repeated clicks are
+                // idempotent thanks to `markPendingPublish` being a constant
+                // assign.
+                'publish.start': {
+                  actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                 },
               },
               invoke: {
@@ -978,6 +1031,7 @@ export const documentMachine = setup({
 
     publishing: {
       initial: 'inProgress',
+      entry: ['clearPendingPublish'],
       states: {
         inProgress: {
           invoke: {

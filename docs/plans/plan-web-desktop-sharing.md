@@ -315,7 +315,7 @@ Track each PR's status. Update at end of each session — append PR number, stat
 |-------|--------|----|----|----------|---------|------|-------|
 | Round 1 — Web editing wiring | ✅ done | (initial) | Horacio | main | — | 2026-05 | IDB drafts, capability hook, web actors, toolbar (bottom-right — to be moved in Phase 1), image upload, cleanup. |
 | Phase 0 — Options Panel gate removal + delete dead desktop options-panel.tsx | ⬜ pending | — | — | — | — | — | One-line removal at `resource-page-common.tsx:1258`. Verify menu item appears on web. |
-| Phase 2 — Machine `publish.start` flush from `changed`/`saving`/`creating` + tests | ⬜ pending | — | — | — | — | — | Machine context flag `pendingPublish`. Add 3 unit tests in `document-machine.test.ts`. |
+| Phase 2 — Machine `publish.start` flush from `changed`/`saving`/`creating` + tests | 🟡 in-progress | — | Horacio | `doc-web-editing` (branch `web-document-changes`) | 2026-05-09 | — | Machine context flag `pendingPublish`. Add 3 unit tests in `document-machine.test.ts`. |
 | Phase 3 — `useResourceEditAccess` shared hook + desktop & web migration | ⬜ pending | — | — | — | — | — | Web drops `useWebCanEdit`. Site-scope rule moves to `applySiteScope` opt. |
 | Phase 4 — Lift `EditNavHeaderPane` + `EditNavPopover` to `@shm/ui` + wire into web | ⬜ pending | — | — | — | — | — | Both files already pure. Mechanical lift. |
 | Phase 5 — `useCommentTargetNavigation` shared hook + apply both apps | ⬜ pending | — | — | — | — | — | Optional `onCommentDraftFocus` callback for desktop. |
