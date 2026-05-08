@@ -3,24 +3,18 @@ import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {computeInlineDraftPublishPath} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
-import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {
   selectDocument,
   selectDraftId,
-  selectEditorBaseline,
   selectMetadata,
-  selectNavigation,
   selectSaveIndicatorStatus,
-  selectSaveStatus,
   useDocumentSelector,
   useDocumentSend,
 } from '@shm/shared/models/use-document-machine'
-import {getNavigationChanges} from '@/models/navigation'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
-import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '@shm/shared/utils/document-changes'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -69,36 +63,6 @@ function formatRelativeTime(updateTime: AnyTimestamp): string | null {
   if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
   if (diffSeconds < 86400 * 7) return `${Math.floor(diffSeconds / 86400)}d ago`
   return formattedDateShort(date)
-}
-
-/**
- * Count of unpublished changes: block diffs against the editor baseline plus any
- * metadata fields touched this session (title, summary, etc.). Reads
- * `editor.topLevelBlocks` directly and reruns whenever `selectSaveStatus` ticks.
- */
-function useUnpublishedChangeCount(): number {
-  const handlersRef = useEditorHandlersRef()
-  const baseline = useDocumentSelector(selectEditorBaseline)
-  const metadata = useDocumentSelector(selectMetadata)
-  const navigation = useDocumentSelector(selectNavigation)
-  const publishedDoc = useDocumentSelector(selectDocument)
-  const saveStatus = useDocumentSelector(selectSaveStatus)
-
-  return useMemo(() => {
-    const metadataChangeCount = Object.keys(metadata ?? {}).length
-    // Site-header nav edits don't touch the editor or metadata, so count
-    // them via the same diff used at publish time. `navigation === undefined`
-    // means no nav edits this session — return 0 ops.
-    const navigationChangeCount = getNavigationChanges(navigation, publishedDoc?.detachedBlocks?.navigation).length
-    if (!baseline) return metadataChangeCount + navigationChangeCount
-    const editorBlocks = handlersRef.current?.getCurrentBlocks() ?? []
-    if (editorBlocks.length === 0) return metadataChangeCount + navigationChangeCount
-    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(baseline), '')
-    const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, editorBlocks, '')
-    const deletes = extractDeletes(baselineMap, touchedBlocks)
-    return changes.length + deletes.length + metadataChangeCount + navigationChangeCount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseline, metadata, navigation, publishedDoc, saveStatus, handlersRef])
 }
 
 /** The public URL where this document is or will be available. */

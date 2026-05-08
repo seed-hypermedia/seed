@@ -1,5 +1,5 @@
-import {HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useJoinSite, useUniversalAppContext} from '@shm/shared'
+import {HMComment, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {
   CommentsProvider,
   InlineEditCommentProps,
@@ -8,6 +8,7 @@ import {
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
+import {useQuery} from '@tanstack/react-query'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
@@ -15,12 +16,17 @@ import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
-import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
+import {EditProfileDialog, LogoutButton, getCurrentSigner, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell} from './web-utils'
+import {useWebCanEdit} from './document-edit/use-web-can-edit'
+import {createWebDocumentMachine, type WebEditorAccessor} from './document-edit/web-document-actors'
+import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
+import {WebEditingToolbar} from './document-edit/web-editing-toolbar'
+import {makeWebFileUpload} from './document-edit/web-image-upload'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -66,6 +72,63 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const userKeyPair = useLocalKeyPair()
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const vaultSuccessContent = useVaultSuccessDialog()
+  const universalClient = useUniversalClient()
+  const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
+  const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
+
+  // Editor accessor — populated by the editor's onEditorReady callback.
+  const editorRef = useRef<any>(null)
+  const editorAccessor = useMemo<WebEditorAccessor>(
+    () => ({
+      getTopLevelBlocks: () => editorRef.current?.topLevelBlocks ?? null,
+      getCursorPosition: () => editorRef.current?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? null,
+    }),
+    [],
+  )
+  const onEditorReady = useCallback((editor: any) => {
+    editorRef.current = editor
+  }, [])
+
+  // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
+  const machine = useMemo(() => {
+    return createWebDocumentMachine({
+      docId,
+      getEditor: () => editorAccessor,
+      client: universalClient,
+      getSigner: (accountUid: string) => {
+        if (!universalClient.getSigner) {
+          throw new Error('Universal client does not provide a signer; cannot publish from web')
+        }
+        return universalClient.getSigner(accountUid)
+      },
+      getCapabilityCid: () => (capability && capability.id !== '_owner' ? capability.id : undefined),
+    })
+  }, [docId.id, universalClient, editorAccessor, capability?.id])
+
+  // Load any local IDB draft for this doc. Used to seed the machine's draft.resolved event.
+  const draftQuery = useQuery({
+    queryKey: ['web-doc-draft', docId.id, signingAccountId ?? null] as const,
+    queryFn: async () => {
+      if (!signingAccountId) return null
+      return getLatestWebDocDraftForDoc(docId.id)
+    },
+    enabled: typeof window !== 'undefined' && canEdit,
+    staleTime: 60_000,
+  })
+  const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
+    if (!canEdit) return false
+    if (draftQuery.isLoading) return undefined
+    const d = draftQuery.data
+    if (!d) return false
+    return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
+  }, [canEdit, draftQuery.isLoading, draftQuery.data])
+  const existingDraftContent = draftQuery.data?.content ?? undefined
+  const existingDraftCursorPosition = draftQuery.data?.cursorPosition ?? undefined
+
+  // Garbage-collect old IDB drafts once per session.
+  useEffect(() => {
+    cleanupOldWebDocDrafts().catch((err) => console.warn('cleanupOldWebDocDrafts failed', err))
+  }, [])
 
   // Determine if viewing own profile on site-profile page
   const isSiteProfile = route.key === 'site-profile'
@@ -232,6 +295,16 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           DocumentContentComponent={DocumentContentComponent}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={ownAccountUid}
+          canEdit={canEdit}
+          machine={machine}
+          signingAccountId={signingAccountId ?? undefined}
+          publishAccountUid={signingAccountId ?? undefined}
+          onEditorReady={onEditorReady}
+          existingDraft={existingDraft}
+          existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          machineExtras={<WebEditingToolbar />}
+          fileUpload={fileUpload}
         />
       </CommentsProvider>
       {editProfileDialog.content}
