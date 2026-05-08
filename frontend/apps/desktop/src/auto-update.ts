@@ -2,9 +2,12 @@ import {AVOID_UPDATES, IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared/constants
 import {app, BrowserWindow, dialog, ipcMain, session, shell} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import {getLastFocusedWindow} from './app-windows'
+import {getAllWindows, getLastFocusedWindow} from './app-windows'
 import * as log from './logger'
 import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
+import {shutdownDaemonForUpdate} from './daemon'
+import {stopApiServer} from './app-http-server'
+import {stopLocalServer} from './local-server'
 
 export const checkForUpdates = customAutoUpdates
 
@@ -854,87 +857,164 @@ ${packageName}
             } else if (process.platform === 'win32') {
               log.info('[AUTO-UPDATE] Starting Windows update process')
               try {
-                const {exec} = require('child_process')
+                const {exec, spawn} = require('child_process')
                 const util = require('util')
                 const execPromise = util.promisify(exec)
-                const fs = require('fs/promises')
+                const fsPromises = require('fs/promises')
 
-                // Windows installer should be .exe or .msi
                 const isExe = filePath.endsWith('.exe')
                 const isMsi = filePath.endsWith('.msi')
                 const appName = IS_PROD_DEV ? 'SeedDev' : 'Seed'
+                const exeName = IS_PROD_DEV ? 'SeedDev.exe' : 'Seed.exe'
                 const tempPath = path.join(app.getPath('temp'), 'SeedUpdate')
-                const backupPath = path.join(tempPath, 'backup')
 
-                log.info(`[AUTO-UPDATE] Variables for Windows update:`)
+                log.info(`[AUTO-UPDATE] Windows update variables:`)
                 log.info(`[AUTO-UPDATE] - Is EXE: ${isExe}`)
                 log.info(`[AUTO-UPDATE] - Is MSI: ${isMsi}`)
                 log.info(`[AUTO-UPDATE] - App name: ${appName}`)
+                log.info(`[AUTO-UPDATE] - Exe name: ${exeName}`)
                 log.info(`[AUTO-UPDATE] - Temp path: ${tempPath}`)
-                log.info(`[AUTO-UPDATE] - Backup path: ${backupPath}`)
                 log.info(`[AUTO-UPDATE] - File path: ${filePath}`)
+                log.info(`[AUTO-UPDATE] - Current exe path: ${app.getPath('exe')}`)
+
+                if (!isExe && !isMsi) {
+                  throw new Error('Unsupported Windows installer format. Expected .exe or .msi')
+                }
 
                 const cleanup = async () => {
                   log.info('[AUTO-UPDATE] Cleaning up Windows update files...')
                   try {
-                    await fs.rm(tempPath, {recursive: true, force: true}).catch(() => {})
-                    await fs.rm(filePath, {force: true}).catch(() => {})
+                    await fsPromises.rm(tempPath, {recursive: true, force: true}).catch(() => {})
+                    await fsPromises.rm(filePath, {force: true}).catch(() => {})
                   } catch (error) {
                     log.error(`[AUTO-UPDATE] Error during Windows cleanup: ${error}`)
                   }
                 }
 
-                // Create temp directories
-                await fs.mkdir(tempPath, {recursive: true})
-                await fs.mkdir(backupPath, {recursive: true})
+                // PHASE 1: Shutdown all app processes before running installer
+                log.info('[AUTO-UPDATE] Phase 1: Shutting down app processes before update')
 
-                if (isExe || isMsi) {
-                  log.info(`[AUTO-UPDATE] Installing Windows ${isExe ? 'EXE' : 'MSI'} package...`)
+                // 1a. Shutdown the daemon (uses taskkill /F /T on Windows)
+                log.info('[AUTO-UPDATE] Shutting down daemon...')
+                await shutdownDaemonForUpdate()
+                log.info('[AUTO-UPDATE] Daemon shut down')
 
-                  // For EXE installers, run silently
-                  if (isExe) {
-                    const installResult = await execPromise(`"${filePath}" /S`)
-                    log.info(`[AUTO-UPDATE] EXE installation output: ${installResult.stdout}`)
-                  } else if (isMsi) {
-                    // For MSI installers, use msiexec
-                    const installResult = await execPromise(`msiexec /i "${filePath}" /quiet /norestart`)
-                    log.info(`[AUTO-UPDATE] MSI installation output: ${installResult.stdout}`)
+                // 1b. Close all BrowserWindows
+                log.info('[AUTO-UPDATE] Closing all windows...')
+                const allWindows = getAllWindows()
+                log.info(`[AUTO-UPDATE] Closing ${allWindows.size} windows`)
+                allWindows.forEach((w) => {
+                  if (!w.isDestroyed()) {
+                    w.removeAllListeners('close')
+                    w.close()
                   }
+                })
 
-                  // Clean up
-                  await cleanup()
+                // 1c. Stop servers
+                log.info('[AUTO-UPDATE] Stopping API server...')
+                stopApiServer()
+                log.info('[AUTO-UPDATE] Stopping local server...')
+                stopLocalServer()
 
-                  log.info('[AUTO-UPDATE] Windows update completed successfully')
+                // 1d. Wait for file handles to be released
+                log.info('[AUTO-UPDATE] Waiting for file handles to release...')
+                await new Promise((resolve) => setTimeout(resolve, 3000))
 
-                  // Create a temporary batch script to restart the app
-                  const launchScriptPath = path.join(tempPath, 'launch-seed.bat')
-                  const windowsScriptContent = `@echo off
-timeout /t 2 /nobreak >nul
-start "" "${app.getPath('exe')}"
-`
+                // PHASE 2: Run the Squirrel installer
+                log.info(`[AUTO-UPDATE] Phase 2: Installing Windows ${isExe ? 'EXE' : 'MSI'} package`)
 
-                  log.info(`[AUTO-UPDATE] Creating Windows launch script at: ${launchScriptPath}`)
-                  log.info(`[AUTO-UPDATE] Windows script content: ${windowsScriptContent}`)
+                const installPromise = isExe
+                  ? new Promise<string>((resolve, reject) => {
+                      const installer = spawn(`"${filePath}"`, ['/S'], {
+                        shell: true,
+                        stdio: 'pipe',
+                      })
+                      let stdout = ''
+                      let stderr = ''
+                      installer.stdout?.on('data', (data: Buffer) => {
+                        stdout += data.toString()
+                      })
+                      installer.stderr?.on('data', (data: Buffer) => {
+                        stderr += data.toString()
+                      })
+                      installer.on('close', (code: number | null) => {
+                        if (code === 0) resolve(stdout)
+                        else reject(new Error(`Installer exited with code ${code}: ${stderr}`))
+                      })
+                      installer.on('error', reject)
+                    })
+                  : execPromise(`msiexec /i "${filePath}" /quiet /norestart`)
 
-                  // Recreate temp directory for the script
-                  await fs.mkdir(tempPath, {recursive: true})
-                  await fs.writeFile(launchScriptPath, windowsScriptContent)
+                const installTimeoutMs = 120_000
+                const installResult = await Promise.race([
+                  installPromise,
+                  new Promise<string>((_, reject) =>
+                    setTimeout(
+                      () => reject(new Error('Installer timed out after ' + installTimeoutMs / 1000 + 's')),
+                      installTimeoutMs,
+                    ),
+                  ),
+                ])
+                log.info(`[AUTO-UPDATE] Installation complete: ${installResult}`)
 
-                  // Execute the script in the background
-                  exec(`"${launchScriptPath}"`, {
+                // PHASE 3: Cleanup and launch new version
+                await cleanup()
+                log.info('[AUTO-UPDATE] Windows update completed successfully')
+
+                // PHASE 4: Launch the new version via Squirrel.Windows Update.exe stub
+                // Squirrel.Windows installs a version-resolution stub at:
+                //   %LOCALAPPDATA%\Seed\Update.exe
+                // which is two levels up from app.getPath('exe')
+                const squirrelRoot = path.resolve(app.getPath('exe'), '..', '..')
+                const updateExePath = path.join(squirrelRoot, 'Update.exe')
+                log.info(`[AUTO-UPDATE] Squirrel root: ${squirrelRoot}`)
+                log.info(`[AUTO-UPDATE] Update.exe path: ${updateExePath}`)
+                log.info(`[AUTO-UPDATE] Exe name for processStart: ${exeName}`)
+
+                if (fs.existsSync(updateExePath)) {
+                  log.info(`[AUTO-UPDATE] Launching via Update.exe --processStart ${exeName}`)
+                  spawn(`"${updateExePath}"`, ['--processStart', exeName], {
+                    shell: true,
                     detached: true,
                     stdio: 'ignore',
-                  })
-
-                  // Quit current app
-                  log.info('[AUTO-UPDATE] Quitting Windows app...')
-                  app.quit()
+                  }).unref()
                 } else {
-                  throw new Error('Unsupported Windows installer format. Expected .exe or .msi')
+                  log.warn('[AUTO-UPDATE] Update.exe not found, falling back to direct launch path')
+                  // Fallback: try to find the correct launch shortcut or direct exe
+                  const startMenuPath = path.join(
+                    app.getPath('home'),
+                    'AppData',
+                    'Roaming',
+                    'Microsoft',
+                    'Windows',
+                    'Start Menu',
+                    'Programs',
+                    appName,
+                    `${appName}.lnk`,
+                  )
+                  log.info(`[AUTO-UPDATE] Trying Start Menu shortcut: ${startMenuPath}`)
+                  if (fs.existsSync(startMenuPath)) {
+                    spawn('cmd.exe', ['/c', 'start', '', `"${startMenuPath}"`], {
+                      detached: true,
+                      stdio: 'ignore',
+                    }).unref()
+                  } else {
+                    log.warn('[AUTO-UPDATE] Start Menu shortcut not found, launching exe directly')
+                    spawn(`"${app.getPath('exe')}"`, [], {
+                      shell: true,
+                      detached: true,
+                      stdio: 'ignore',
+                    }).unref()
+                  }
                 }
+
+                // Use app.exit() to exit immediately without triggering close handlers again
+                log.info('[AUTO-UPDATE] Exiting app (app.exit(0))...')
+                app.exit(0)
               } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error)
                 log.error(`[AUTO-UPDATE] Windows installation error: ${errorMessage}`)
+                log.error(`[AUTO-UPDATE] Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`)
                 this.status = {
                   type: 'error',
                   error: errorMessage,
