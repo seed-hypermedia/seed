@@ -6,9 +6,11 @@ import {
   HMAccountPayload,
   HMAccountRequest,
   HMAccountResult,
+  HMMetadata,
   HMMetadataPayload,
 } from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMNotFoundError} from './models/entity'
+import {registerAlias} from './models/alias-registry'
 import {hmId} from './utils'
 
 export const AccountParams: HMRequestParams<HMAccountRequest> = {
@@ -16,38 +18,98 @@ export const AccountParams: HMRequestParams<HMAccountRequest> = {
   paramsToInput: (params: Record<string, string>) => params.id!,
 }
 
+/** A single hop in an alias chain: source aliases to target. */
+export type AccountChainHop = {source: string; target: string}
+
+/** The terminal step of an alias chain — either a leaf account or not-found. */
+export type AccountChainResult =
+  | {
+      type: 'account'
+      uid: string
+      metadata: HMMetadata | null
+      version: string | null
+    }
+  | {type: 'account-not-found'; uid: string}
+
 /**
- * Load a single account with alias resolution.
+ * Walks the alias chain starting from `uid` until it finds a non-alias
+ * account, runs out of hops at `maxDepth`, or hits a not-found / gRPC error.
+ *
+ * Pure: does not register aliases or touch any cache. Returns the hops
+ * traversed so callers can decide whether to register them.
+ *
+ * Behavior change vs. legacy recursive `loadAccount`: this caps depth at 10
+ * by default, so a malformed cyclic alias configuration returns `not-found`
+ * cleanly instead of overflowing the stack.
  */
-export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
-  try {
-    const grpcAccount = await client.documents.getAccount({id: uid})
+export async function resolveAccountChain(
+  client: GRPCClient,
+  uid: string,
+  maxDepth = 10,
+): Promise<{hops: AccountChainHop[]; result: AccountChainResult}> {
+  const hops: AccountChainHop[] = []
+  let currentUid = uid
+  for (let i = 0; i < maxDepth; i++) {
+    let grpcAccount
+    try {
+      grpcAccount = await client.documents.getAccount({id: currentUid})
+    } catch (e) {
+      const err = getErrorMessage(e)
+      if (!(err instanceof HMNotFoundError)) {
+        console.error(`Error loading account ${currentUid}:`, e)
+      }
+      return {hops, result: {type: 'account-not-found', uid: currentUid}}
+    }
     if (grpcAccount.aliasAccount) {
-      return await loadAccount(client, grpcAccount.aliasAccount)
+      hops.push({source: currentUid, target: grpcAccount.aliasAccount})
+      currentUid = grpcAccount.aliasAccount
+      continue
     }
     return {
-      type: 'account',
-      id: hmId(uid, {version: grpcAccount.homeDocumentInfo?.version}),
-      metadata: accountMetadataFromAccount(grpcAccount),
-    } satisfies HMAccountPayload
-  } catch (e) {
-    const err = getErrorMessage(e)
-    if (err instanceof HMNotFoundError) {
-      return {
-        type: 'account-not-found',
-        uid,
-      } satisfies HMAccountNotFound
+      hops,
+      result: {
+        type: 'account',
+        uid: currentUid,
+        metadata: accountMetadataFromAccount(grpcAccount),
+        version: grpcAccount.homeDocumentInfo?.version ?? null,
+      },
     }
-    console.error(`Error loading account ${uid}:`, e)
-    return {
-      type: 'account-not-found',
-      uid,
-    } satisfies HMAccountNotFound
   }
+  return {hops, result: {type: 'account-not-found', uid: currentUid}}
 }
 
 /**
- * Load multiple accounts individually.
+ * Load an account, transparently following aliases.
+ *
+ * Behavior preserved from the legacy recursive implementation:
+ * - For an A→B alias, the returned `result.id.uid` is the resolved target
+ *   (B), not the requested input (A). Callers depending on the resolved-uid
+ *   semantics (e.g. notify's signer-to-effective-account resolution) keep
+ *   working unchanged.
+ *
+ * Side effect added in Phase 2 of the account-normalization plan: each alias
+ * hop discovered during resolution is registered with the alias registry, so
+ * future profile changes on the target can fan out invalidations to every
+ * account that aliases to it.
+ */
+export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
+  const {hops, result} = await resolveAccountChain(client, uid)
+  for (const hop of hops) {
+    registerAlias(hop.source, hop.target)
+  }
+  if (result.type === 'account-not-found') {
+    return {type: 'account-not-found', uid: result.uid} satisfies HMAccountNotFound
+  }
+  return {
+    type: 'account',
+    id: hmId(result.uid, {version: result.version ?? undefined}),
+    metadata: result.metadata,
+  } satisfies HMAccountPayload
+}
+
+/**
+ * Load multiple accounts individually. Aliases discovered during resolution
+ * are registered as a side effect (via `loadAccount`).
  */
 export async function loadAccounts(client: GRPCClient, uids: string[]): Promise<Record<string, HMMetadataPayload>> {
   const results = await Promise.all(uids.map((uid) => loadAccount(client, uid)))

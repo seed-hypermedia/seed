@@ -11,6 +11,7 @@ import {HMContactItem} from '@seed-hypermedia/client/hm-types'
 import {accountMetadataFromAccount} from './account-metadata'
 import {Comment, Document} from './client'
 import {GRPCClient} from './grpc-client'
+import {registerAlias} from './models/alias-registry'
 import {hmId} from './utils'
 import {abbreviateUid} from './utils/abbreviate'
 
@@ -163,6 +164,7 @@ async function resolveAccountWithCache(
 
   // Check if it's an alias account - if so, recursively resolve
   if (grpcAccount.aliasAccount) {
+    registerAlias(accountId, grpcAccount.aliasAccount)
     return cache.getAccount(grpcAccount.aliasAccount, currentAccount)
   }
 

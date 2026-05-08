@@ -34,11 +34,13 @@ export function registerAlias(sourceUid: string, targetUid: string) {
  * Remove any alias registration where `sourceUid` is the source.
  */
 export function unregisterAlias(sourceUid: string) {
-  for (const [target, sources] of aliasRegistry) {
+  const empties: string[] = []
+  aliasRegistry.forEach((sources, target) => {
     if (sources.delete(sourceUid) && sources.size === 0) {
-      aliasRegistry.delete(target)
+      empties.push(target)
     }
-  }
+  })
+  empties.forEach((target) => aliasRegistry.delete(target))
 }
 
 /**
@@ -62,7 +64,7 @@ export function collectAliasClosure(uid: string): string[] {
     visited.add(current)
     const sources = aliasRegistry.get(current)
     if (sources) {
-      for (const source of sources) stack.push(source)
+      sources.forEach((source) => stack.push(source))
     }
   }
   return Array.from(visited)
