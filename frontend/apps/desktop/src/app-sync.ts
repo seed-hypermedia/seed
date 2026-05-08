@@ -66,16 +66,6 @@ async function timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-function getPriorityBreakdown(): {high: number; normal: number} {
-  let high = 0
-  let normal = 0
-  state.subscriptionCounts.forEach((_count, key) => {
-    if (key.includes('!high')) high++
-    else normal++
-  })
-  return {high, normal}
-}
-
 // Polling intervals (base values, multiplied by getPollingMultiplier())
 const DISCOVERY_POLL_INTERVAL_MS = 14_000
 const ACTIVITY_POLL_INTERVAL_MS = 1_000
@@ -249,11 +239,10 @@ function flushInvalidations() {
   state.debounceTimer = null
   const resources = Array.from(state.pendingInvalidations)
   if (PROFILE_ENABLED) {
-    const {high, normal} = getPriorityBreakdown()
     profileLog(
       `flushInvalidations: pending=${resources.length} subs=${
         state.subscriptions.size
-      } (high=${high} normal=${normal}) handlers=${getInvalidationHandlerCount()}`,
+      } handlers=${getInvalidationHandlerCount()}`,
     )
   }
   timeSync('flushInvalidations', () => {

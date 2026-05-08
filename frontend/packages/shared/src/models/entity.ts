@@ -117,13 +117,11 @@ export function useResource(
   options?: UseQueryOptions<HMResource | null> & {
     subscribed?: boolean
     recursive?: boolean
-    /** `'high'` requests faster discovery polling for the active document. */
-    priority?: 'normal' | 'high'
     onRedirectOrDeleted?: (opts: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => void
   },
 ) {
   const client = useUniversalClient()
-  const {subscribed, recursive, priority, onRedirectOrDeleted, ...queryOptions} = options ?? {}
+  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} = options ?? {}
 
   // Discovery subscription (desktop only)
   useEffect(() => {
@@ -139,14 +137,13 @@ export function useResource(
     console.log('[Rebase sub] useResource calling subscribeEntity', {
       idStr: id.id,
       recursive: !!recursive,
-      priority: priority ?? 'normal',
     })
-    const cleanup = client.subscribeEntity({id, recursive, priority})
+    const cleanup = client.subscribeEntity({id, recursive})
     return () => {
       console.log('[Rebase sub] useResource unsubscribing', {idStr: id.id})
       cleanup()
     }
-  }, [subscribed, recursive, priority, id?.id, client.subscribeEntity])
+  }, [subscribed, recursive, id?.id, client.subscribeEntity])
 
   const result = useQuery({
     ...queryResource(client, id),
