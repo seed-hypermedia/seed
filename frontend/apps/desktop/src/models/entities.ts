@@ -221,10 +221,10 @@ export function cleanupAllEntitySubscriptions() {
   }
 
   // Tear down per-entity tRPC subs
-  for (const state of entityStates.values()) {
+  entityStates.forEach((state) => {
     state.daemonSub?.unsubscribe()
     state.discoveryStateSub?.unsubscribe()
-  }
+  })
   entityStates.clear()
   discoveryStreams.clear()
 }
@@ -289,22 +289,19 @@ export function getSubscriptionKeysStream(): StateStream<string[]> {
 
 function emitSubscriptionKeys() {
   const keys: string[] = []
-  for (const state of entityStates.values()) {
-    if (state.callers.size === 0) continue
+  entityStates.forEach((state) => {
+    if (state.callers.size === 0) return
     keys.push(state.id.id + (state.currentRecursive ? '/*' : ''))
-  }
+  })
   keys.sort()
   writeSubscriptionKeys(keys)
 }
 
-function mergeCallerOptions(callers: Iterable<CallerOptions>): {recursive: boolean} {
+function mergeCallerOptions(callers: Map<EntitySubscription, CallerOptions>): {recursive: boolean} {
   let recursive = false
-  for (const c of callers) {
-    if (c.recursive) {
-      recursive = true
-      break
-    }
-  }
+  callers.forEach((c) => {
+    if (c.recursive) recursive = true
+  })
   return {recursive}
 }
 
@@ -332,7 +329,7 @@ function syncEntityState(state: EntityState) {
     return
   }
 
-  const merged = mergeCallerOptions(state.callers.values())
+  const merged = mergeCallerOptions(state.callers)
 
   if (!state.daemonSub || state.currentRecursive !== merged.recursive) {
     // (Re)issue the daemon sub when the merged options change. This is the
@@ -363,10 +360,12 @@ function syncEntityState(state: EntityState) {
 }
 
 function syncAllEntityStates() {
-  // Iterate over a snapshot — syncEntityState may delete from entityStates
-  // when a state has zero callers.
-  for (const state of Array.from(entityStates.values())) {
-    syncEntityState(state)
+  // Snapshot first — syncEntityState may delete from entityStates when a state
+  // has zero callers, which would invalidate a live iterator.
+  const snapshot: EntityState[] = []
+  entityStates.forEach((state) => snapshot.push(state))
+  for (let i = 0; i < snapshot.length; i++) {
+    syncEntityState(snapshot[i]!)
   }
 }
 
