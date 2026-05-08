@@ -18,7 +18,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
-import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
 import {
   useAccount,
@@ -53,7 +53,13 @@ import {
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
-import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {
+  activityFilterToSlug,
+  createWebHMUrl,
+  getCommentTargetId,
+  hmIdToURL,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {FilePen, Layers, Link2, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -78,7 +84,7 @@ import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './doc
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
-import {HistoryIcon} from './icons'
+import {Globe, HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
@@ -113,21 +119,55 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
   const navigate = useNavigate()
   const media = useMedia()
   const isMobile = media.xs
-  const {onCopyReference} = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
 
   return useMemo(
     () => [
       {
         key: 'copy-link',
-        label: 'Share link',
-        icon: <Link2 className="size-4 -rotate-45" />,
-        onClick: () => {
-          if (onCopyReference) {
-            onCopyReference(docId)
-          } else if (typeof window !== 'undefined') {
-            copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-          }
-        },
+        label: 'Copy Link',
+        icon: <Link className="size-4" />,
+        children: [
+          {
+            key: 'copy-canonical',
+            label: 'Copy Canonical URL',
+            icon: <Globe className="size-4" />,
+            onClick: () => {
+              if (onCopyReference) {
+                onCopyReference(docId)
+              } else if (typeof window !== 'undefined') {
+                copyUrlToClipboardWithFeedback(window.location.href, 'Link')
+              }
+            },
+          },
+          {
+            key: 'copy-gateway',
+            label: 'Copy Gateway URL',
+            icon: <Link className="size-4" />,
+            onClick: async () => {
+              const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+              const url = createWebHMUrl(docId.uid, {
+                path: docId.path,
+                version: docId.version,
+                latest: docId.latest,
+                blockRef: docId.blockRef,
+                blockRange: docId.blockRange,
+                hostname: gwUrl,
+              })
+              await copyUrlToClipboardWithFeedback(url, 'Gateway')
+              onPushReference?.(docId)
+            },
+          },
+          {
+            key: 'copy-hm',
+            label: 'Copy Hypermedia URL',
+            icon: <Link2 className="size-4" />,
+            onClick: async () => {
+              const url = hmIdToURL(docId)
+              await copyUrlToClipboardWithFeedback(url, 'Hypermedia')
+            },
+          },
+        ],
       },
       {
         key: 'versions',
@@ -158,7 +198,7 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
         },
       },
     ],
-    [navigate, docId, isMobile, onCopyReference],
+    [navigate, docId, isMobile, onCopyReference, onPushReference, origin],
   )
 }
 

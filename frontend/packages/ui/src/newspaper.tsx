@@ -1,12 +1,14 @@
 import {HMAccountsMetadata, HMResourceFetchResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getDocumentImage, hmId, plainTextOfContent, useRouteLink} from '@shm/shared'
+import {getDocumentImage, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Copy, Forward, GitFork, Link, MessageSquare, Pencil} from 'lucide-react'
+import {Bookmark, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
@@ -47,6 +49,7 @@ export function DocumentCard({
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const actions = useDocumentActions()
+  const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
 
   const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
   const interactionSummary = useInteractionSummary(summaryId)
@@ -102,10 +105,50 @@ export function DocumentCard({
         key: 'copy-link',
         label: 'Copy Link',
         icon: <Link className="size-4" />,
-        onClick: (e) => {
-          e?.stopPropagation()
-          actions.onCopyLink!(docId)
-        },
+        children: [
+          {
+            key: 'copy-canonical',
+            label: 'Copy Canonical URL',
+            icon: <Globe className="size-4" />,
+            onClick: (e) => {
+              e?.stopPropagation()
+              if (onCopyReference) {
+                onCopyReference(docId)
+              } else if (typeof window !== 'undefined') {
+                copyUrlToClipboardWithFeedback(window.location.href, 'Link')
+              }
+            },
+          },
+          {
+            key: 'copy-gateway',
+            label: 'Copy Gateway URL',
+            icon: <Link className="size-4" />,
+            onClick: async (e) => {
+              e?.stopPropagation()
+              const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+              const url = createWebHMUrl(docId.uid, {
+                path: docId.path,
+                version: docId.version,
+                latest: docId.latest,
+                blockRef: docId.blockRef,
+                blockRange: docId.blockRange,
+                hostname: gwUrl,
+              })
+              await copyUrlToClipboardWithFeedback(url, 'Gateway')
+              onPushReference?.(docId)
+            },
+          },
+          {
+            key: 'copy-hm',
+            label: 'Copy Hypermedia URL',
+            icon: <Link2 className="size-4" />,
+            onClick: async (e) => {
+              e?.stopPropagation()
+              const url = hmIdToURL(docId)
+              await copyUrlToClipboardWithFeedback(url, 'Hypermedia')
+            },
+          },
+        ],
       })
     }
     if (actions.onMoveDocument && isOwner && hasPath) {
