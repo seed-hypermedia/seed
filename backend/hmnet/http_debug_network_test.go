@@ -2,7 +2,10 @@ package hmnet
 
 import (
 	"math"
+	"strings"
 	"testing"
+
+	"seed/backend/hmnet/syncing"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
@@ -61,6 +64,60 @@ func TestHistStatsPercentileFallsBackForInfBucket(t *testing.T) {
 		},
 	}
 	require.Equal(t, 2.0, h.percentile(0.99))
+}
+
+func TestBuildScheduler_NilSnap(t *testing.T) {
+	// A nil snapshot func must produce no scheduler section.
+	require.Nil(t, buildScheduler(nil))
+}
+
+func TestBuildScheduler_WithSnap(t *testing.T) {
+	snap := func() syncing.SchedulerSnapshot {
+		return syncing.SchedulerSnapshot{
+			TasksTotal:             5,
+			QueueLen:               2,
+			InProgress:             3,
+			InProgressHot:          2,
+			InProgressSubscription: 1,
+			PreemptHotCount:        7,
+			PreemptSubsCount:       11,
+		}
+	}
+
+	got := buildScheduler(snap)
+	require.NotNil(t, got)
+	require.Equal(t, "5", got.TasksTotal)
+	require.Equal(t, "2", got.QueueLen)
+	require.Equal(t, "3", got.InProgress)
+	require.Equal(t, "2", got.InProgressHot)
+	require.Equal(t, "1", got.InProgressSubscription)
+	require.Equal(t, "7", got.PreemptHotCount)
+	require.Equal(t, "11", got.PreemptSubsCount)
+}
+
+// TestPageTpl_RendersSchedulerSection runs the actual page template with
+// a populated Scheduler section to make sure the new <h2> block renders
+// without template errors and contains the snapshot's numeric values.
+func TestPageTpl_RendersSchedulerSection(t *testing.T) {
+	page := networkPage{
+		PeerID:     "peer-1",
+		ProtocolID: "/test/0.0.1",
+		Scheduler: &schedulerDebugSection{
+			TasksTotal:             "42",
+			QueueLen:               "5",
+			InProgress:             "3",
+			InProgressHot:          "2",
+			InProgressSubscription: "1",
+			PreemptHotCount:        "9",
+			PreemptSubsCount:       "13",
+		},
+	}
+	var sb strings.Builder
+	require.NoError(t, pageTpl.Execute(&sb, page))
+	html := sb.String()
+	require.Contains(t, html, "Discovery scheduler")
+	require.Contains(t, html, "42")
+	require.Contains(t, html, "preempt total — older hot cancelled for newer hot")
 }
 
 func TestHistStatsPercentileSkipsEmptyEarlyBuckets(t *testing.T) {

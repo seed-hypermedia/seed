@@ -13,6 +13,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/hmnet"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/trcstats"
@@ -138,6 +139,7 @@ func initHTTP(
 	blobs blockstore.Blockstore,
 	ipfsHandler *hmnet.FileManager,
 	p2pnet *hmnet.Node,
+	schedulerSnap func() syncing.SchedulerSnapshot,
 	daemonServer *daemonapi.Server,
 	extraHandlers ...func(*Router),
 ) (srv *http.Server, lis net.Listener, err error) {
@@ -178,7 +180,7 @@ func initHTTP(
 		router.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
 		router.Handle("/debug/events", http.DefaultServeMux, RouteNav)
 		router.Handle("/debug/p2p", p2pnet.DebugHandler(), RouteNav)
-		router.Handle("/debug/network", p2pnet.NetworkDebugHandler(), RouteNav)
+		router.Handle("/debug/network", p2pnet.NetworkDebugHandler(schedulerSnap), RouteNav)
 
 		router.Handle("/hm/api/config", p2pnet.HMAPIConfigHandler(), RouteNav)
 		router.Handle(vaultConnectionHandoffPath, corsMiddleware(http.HandlerFunc(daemonServer.HandleVaultHandoff)), 0)
