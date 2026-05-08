@@ -170,7 +170,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         // )
         const matches = find(textContent)
 
-        const link =
+        const candidate =
           matches.length === 1 &&
           // @ts-ignore
           matches[0].isLink &&
@@ -178,6 +178,13 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           textContent.trim().startsWith(matches[0].href)
             ? matches[0]
             : null
+        const link = candidate
+          ? {
+              ...candidate,
+              // @ts-ignore
+              href: restoreBlockRangeSuffix(candidate.href, textContent.trim()),
+            }
+          : null
 
         const unpackedHmId =
           isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl)
@@ -642,6 +649,28 @@ function getPastedNodes(parent: any, editor: any): any[] {
   })
 
   return nodes
+}
+
+/**
+ * Recover the trailing block-range fragment (`[start:end]` or `+`) that
+ * linkifyjs drops when it tokenizes a Hypermedia URL.
+ *
+ * Hypermedia encodes a block range as `#blockId[start:end]` or `#blockId+`,
+ * but `[`/`]` are RFC 3986 gen-delims and aren't allowed in a URL fragment
+ * unencoded — linkifyjs ends the URL token at the `[`. Without this, pasting
+ * `https://site.example/path#blockId[20:52]` resolves to a link/embed scoped
+ * to the whole block instead of the highlighted range.
+ *
+ * Only re-attaches when `href` already has a fragment, so unrelated trailing
+ * brackets in plain web URLs (e.g. markdown-style references) aren't pulled
+ * into the URL.
+ */
+export function restoreBlockRangeSuffix(href: string, fullText: string): string {
+  if (!fullText.startsWith(href)) return href
+  if (href.indexOf('#') === -1) return href
+  const remainder = fullText.slice(href.length)
+  const match = remainder.match(/^(\[\d+:\d+\]|\+)/)
+  return match ? href + match[0] : href
 }
 
 async function fetchEntityTitle(hmId: UnpackedHypermediaId, grpcClient: GRPCClient, blockRef?: string | null) {

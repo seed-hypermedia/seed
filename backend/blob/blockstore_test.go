@@ -284,7 +284,7 @@ func makeBlockstore(t testing.TB) *blockStore {
 
 	pool := newTestSQLite(t)
 
-	bs := newBlockstore(pool)
+	bs := newBlockstore(pool, nil)
 
 	return bs
 }

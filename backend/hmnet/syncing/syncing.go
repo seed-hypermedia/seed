@@ -12,7 +12,6 @@ import (
 	docspb "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
-	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -160,6 +159,84 @@ var (
 		Buckets: diagBuckets,
 	}, []string{"outcome"})
 
+	// MSyncDiscardedBlobs counts blocks that bitswap successfully delivered
+	// but were thrown away because the per-peer sync ctx was already cancelled
+	// by the time we reached the persist phase. Each one was paid for on the
+	// wire and will be re-fetched on the next sync cycle. Surfaced on
+	// /debug/network so the magnitude of "wasted bandwidth from late
+	// cancellation" is visible.
+	MSyncDiscardedBlobs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_discarded_blobs_total",
+		Help: "Blocks downloaded by bitswap then discarded because sync ctx was cancelled before persist.",
+	})
+
+	// MSyncDiscardedEvents counts how many sync attempts ended in this
+	// "downloaded then discarded" state. Lets us tell "many discards over a
+	// few events" (one big sync got cut short) from "many events" (chronic
+	// cancellation pattern).
+	MSyncDiscardedEvents = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_discarded_events_total",
+		Help: "Sync attempts that downloaded blocks then discarded them due to ctx cancellation.",
+	})
+
+	// MSyncWantedBlobsPerPeer is the size of the bitswap wantlist RBSR
+	// produces per peer-sync. A healthy distribution clusters near zero with
+	// a long tail of small numbers — the diff is small because we already
+	// have most of what the peer has. Persistent high values mean RBSR's
+	// local-set query is undercounting what we actually have on disk, so
+	// every sync re-fetches the same blobs.
+	MSyncWantedBlobsPerPeer = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_wanted_blobs",
+		Help:    "Number of blobs RBSR identified as missing from us per peer-sync.",
+		Buckets: []float64{1, 10, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000},
+	})
+
+	// MSyncPersistRollbackTotal counts streaming-persist batches that failed
+	// PutMany — most often because indexBlob hit a cross-blob reference whose
+	// referent hadn't arrived yet (e.g. a Change ahead of its genesis_blob).
+	// Those blobs come back next sync cycle and converge once order doesn't
+	// matter; a small steady value here is expected during big initial syncs,
+	// while a sustained high value points at a real ordering / dependency bug.
+	MSyncPersistRollbackTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_persist_rollback_total",
+		Help: "Streaming-persist PutMany batch failures (likely ordering dependency).",
+	})
+
+	// MSyncPersistRollbackBlocks counts the number of individual blocks lost
+	// to PutMany batch rollbacks. Useful alongside MSyncPersistRollbackTotal
+	// to size the cost: 1 rollback × 10-blob batch = 10 lost blocks.
+	MSyncPersistRollbackBlocks = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_persist_rollback_blocks_total",
+		Help: "Blocks lost to PutMany batch rollbacks during streaming persist.",
+	})
+
+	// MSyncPreflightSkipped counts CIDs that RBSR put on the wantlist but our
+	// blockstore already has by multihash. RBSR identifies items by full CID
+	// (codec + multihash); the blockstore is keyed by multihash alone, so the
+	// same content tagged under a different codec on a peer (raw=85 vs
+	// dag-pb=112 is the typical case) shows up as "they have, we don't" in
+	// the diff and gets fetched, only to be dropped at putBlock with the
+	// `exists` outcome. Filtering before bitswap saves the WANT_HAVE → HAVE →
+	// WANT_BLOCK → BLOCK round-trip and the block delivery itself. Should
+	// closely shadow the rate at which mPutBlockOutcome{outcome="exists"}
+	// would have grown without the filter — a non-zero value here is direct
+	// inbound bandwidth saved.
+	MSyncPreflightSkipped = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_syncpeer_preflight_skipped_total",
+		Help: "Wantlist CIDs skipped because the blockstore already has the multihash.",
+	})
+
+	// MSyncPreflightWantsPerPeer is the post-filter wantlist size per
+	// peer-sync. Compare against MSyncWantedBlobsPerPeer (pre-filter) to see
+	// how much of the diff RBSR produced was wasted re-fetch and how much
+	// was real new content.
+	MSyncPreflightWantsPerPeer = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_syncpeer_preflight_wants",
+		Help:    "Number of blobs we'll actually bitswap-fetch per peer-sync, after the local-Has pre-flight filter.",
+		Buckets: []float64{1, 10, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000},
+	})
+
+
 	// Server-side ReconcileBlobs handler sub-phase timing. Our daemon serves
 	// reconcile requests from other peers; gateways run the same code so this
 	// is a structural proxy for what they spend per-request when we're the
@@ -296,6 +373,10 @@ type ResourceAPI interface {
 type Index interface {
 	Put(context.Context, blocks.Block) error
 	PutMany(context.Context, []blocks.Block) error
+	// Has must be a multihash-keyed lookup so the syncing pre-flight filter
+	// can drop CIDs whose bytes we already have under a different codec —
+	// see the preflight_has phase in syncResources.
+	Has(context.Context, cid.Cid) (bool, error)
 	GetAuthorizedSpacesForPeer(ctx context.Context, peerID peer.ID, requestedResources []blob.IRI) ([]core.Principal, error)
 	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
 	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
@@ -539,6 +620,13 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
+	// One bitswap session for the entire discovery task instead of one per
+	// peer-sync. boxo bitswap allocates a session goroutine plus a handful
+	// of messagequeue / donthave-timeout goroutines per session, so with
+	// maxPeerConcurrency=20 the prior per-peer-sync model spun up O(20)
+	// sessions per task. Sharing within a task drops that to 1.
+	bswap := s.bitswap.NewSession(ctx)
+
 	var g errgroup.Group
 	g.SetLimit(maxPeerConcurrency)
 
@@ -547,7 +635,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		g.Go(func() error {
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes, bswap); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -585,7 +673,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -643,8 +731,6 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		return err
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
-
-	bswap := s.bitswap.NewSession(ctx)
 
 	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, blobTypes, filteredStore, prog, &lastPhase, connCachedBefore)
 }
@@ -790,8 +876,55 @@ func syncResources(
 		log.Debug("Blobs Reconciled", zap.Int("round", rounds), zap.Int("wants", len(allWants)))
 	}
 
+	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
+
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
+		return nil
+	}
+
+	// Pre-flight Has filter. RBSR identifies items by full CID
+	// (codec + multihash); the blockstore is keyed by multihash. Same
+	// content tagged under different codecs across nodes (raw=85 vs
+	// dag-pb=112 is the typical case) shows up as "they have, we don't"
+	// in the diff. Without this filter the spurious wants pay full
+	// network cost and get dropped at putBlock with the `exists`
+	// outcome. We mirror what blockservice.GetBlock does upstream of
+	// bitswap in the standard IPFS stack — bitswap.Session.GetBlocks
+	// itself does NOT consult the local blockstore, so the filter has
+	// to live here.
+	*phase = "preflight_has"
+	preflightStart := time.Now()
+	filtered := allWants[:0]
+	var preflightSkipped int
+	for _, wc := range allWants {
+		has, herr := idx.Has(ctx, wc)
+		if herr != nil {
+			// Don't silently drop on lookup error — better to fetch and
+			// have putBlock bounce a duplicate than to skip a block we
+			// genuinely need.
+			filtered = append(filtered, wc)
+			continue
+		}
+		if has {
+			preflightSkipped++
+			continue
+		}
+		filtered = append(filtered, wc)
+	}
+	allWants = filtered
+	MSyncPeerPhaseSeconds.WithLabelValues("preflight_has").Observe(time.Since(preflightStart).Seconds())
+	if preflightSkipped > 0 {
+		MSyncPreflightSkipped.Add(float64(preflightSkipped))
+		log.Debug("PreflightSkipped",
+			zap.Int("skipped", preflightSkipped),
+			zap.Int("remaining", len(allWants)),
+		)
+	}
+	MSyncPreflightWantsPerPeer.Observe(float64(len(allWants)))
+
+	if len(allWants) == 0 {
+		log.Debug("Peer does not have new content (all wants filtered by preflight Has)")
 		return nil
 	}
 
@@ -800,13 +933,44 @@ func syncResources(
 
 	*phase = "bitswap_fetch"
 	bitswapStart := time.Now()
-	downloaded := make([]blocks.Block, len(allWants))
 	ch, err := sess.GetBlocks(ctx, allWants)
 	if err != nil {
 		MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(time.Since(bitswapStart).Seconds())
 		MSyncBitswapOutcome.WithLabelValues("ctx_done").Inc()
 		return fmt.Errorf("failed to initiate bitswap session for syncing: %w", err)
 	}
+
+	// Streaming persist worker (per-peer). Bitswap is IO-bound (network),
+	// PutMany is CPU/disk-bound (SQLite write tx + indexBlob). Pre-fix these
+	// ran strictly sequentially: download all → accumulate → PutMany at the
+	// end. That held the entire wantlist in RAM and lost everything when the
+	// per-peer ctx fired before persist could begin. Streaming dispatches
+	// small batches as they arrive and persists them on a detached ctx so
+	// already-fetched bytes always land on disk.
+	const persistBatchSize = 10
+	const persistChCap = 4
+	persistCtx := context.WithoutCancel(ctx)
+	persistCh := make(chan []blocks.Block, persistChCap)
+	persistDone := make(chan struct{})
+
+	go func() {
+		defer close(persistDone)
+		for batch := range persistCh {
+			putmanyStart := time.Now()
+			err := idx.PutMany(persistCtx, batch)
+			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
+			if err != nil {
+				MSyncPersistRollbackTotal.Inc()
+				MSyncPersistRollbackBlocks.Add(float64(len(batch)))
+				log.Warn("PutManyBatchRolledBack",
+					zap.String("peerID", pid.String()),
+					zap.Int("batchSize", len(batch)),
+					zap.Error(err),
+				)
+				continue
+			}
+		}
+	}()
 
 	// bitswapOutcome is set by the download closure below and consumed by the
 	// metric observations after it returns.
@@ -816,6 +980,16 @@ func syncResources(
 	// that gap distinguishes "channel closed right after last block"
 	// (productive exit) from "we sat on the idle timer" (dead wait).
 	lastBlockAt := bitswapStart
+	var downloadedTotal int64
+	batch := make([]blocks.Block, 0, persistBatchSize)
+	flushBatch := func() {
+		if len(batch) == 0 {
+			return
+		}
+		// Hand off ownership; allocate a fresh slice for the next batch.
+		persistCh <- batch
+		batch = make([]blocks.Block, 0, persistBatchSize)
+	}
 	download := func() {
 		const idleTimeout = 10 * time.Second
 		t := time.NewTimer(idleTimeout)
@@ -836,8 +1010,12 @@ func syncResources(
 				}
 				t.Reset(idleTimeout)
 				lastBlockAt = time.Now()
-				downloaded[wantsIdx[blk.Cid()]] = blk
 				prog.BlobsDownloaded.Add(1)
+				downloadedTotal++
+				batch = append(batch, blk)
+				if len(batch) >= persistBatchSize {
+					flushBatch()
+				}
 			case <-t.C:
 				prog.BlobsFailed.Add(int32(len(allWants)) - prog.BlobsDownloaded.Load()) //nolint:gosec
 				bitswapOutcome = "idle_timeout"
@@ -847,38 +1025,34 @@ func syncResources(
 	}
 
 	download()
-	downloaded = slices.DeleteFunc(downloaded, func(x blocks.Block) bool { return x == nil })
+	flushBatch()     // partial trailing batch
+	close(persistCh) // signal persist worker to drain and exit
+
 	fetchElapsed := time.Since(bitswapStart).Seconds()
 	MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(fetchElapsed)
 	MSyncBitswapFetchSeconds.WithLabelValues(bitswapOutcome).Observe(fetchElapsed)
 	MSyncBitswapOutcome.WithLabelValues(bitswapOutcome).Inc()
 	MSyncBitswapLastBlockAge.WithLabelValues(bitswapOutcome).Observe(time.Since(lastBlockAt).Seconds())
 	if len(allWants) > 0 {
-		MSyncBitswapCompleteness.Observe(float64(len(downloaded)) / float64(len(allWants)))
+		MSyncBitswapCompleteness.Observe(float64(downloadedTotal) / float64(len(allWants)))
 	}
 
-	if len(downloaded) == 0 {
+	if downloadedTotal == 0 {
+		<-persistDone
 		return nil
 	}
 
 	tracker := longrunning.Start(log, "ReconcileBlobsWrite", 30*time.Second,
 		zap.String("peerID", pid.String()),
 		zap.Int("wantedCount", len(allWants)),
-		zap.Int("downloadedCount", len(downloaded)),
+		zap.Int64("downloadedCount", downloadedTotal),
 	)
 	defer func() {
 		tracker.Finish(nil)
 	}()
 
 	*phase = "putmany"
-	putmanyStart := time.Now()
-	if err := idx.PutMany(ctx, downloaded); err != nil {
-		MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-		tracker.Finish(err)
-		return fmt.Errorf("failed to put reconciled blobs: %w", err)
-	}
-	MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-
+	<-persistDone // wait for our per-peer persist worker to drain remaining batches
 	return nil
 }
 

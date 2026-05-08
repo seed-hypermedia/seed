@@ -28,13 +28,57 @@ import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
-import {appInvalidateQueries} from './app-invalidation'
+import {appInvalidateQueries, getInvalidationHandlerCount} from './app-invalidation'
 import {t} from './app-trpc'
 
+// ============ Profile instrumentation ============
+
+const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
+const PROFILE_FRAME_THRESHOLD_MS = 16
+
+function profileLog(msg: string) {
+  if (PROFILE_ENABLED) console.log(`[SyncProfile] ${msg}`)
+}
+
+function timeSync<T>(label: string, fn: () => T): T {
+  if (!PROFILE_ENABLED) return fn()
+  const start = performance.now()
+  try {
+    return fn()
+  } finally {
+    const dur = performance.now() - start
+    if (dur >= PROFILE_FRAME_THRESHOLD_MS) {
+      console.log(`[SyncProfile] ${label} took ${dur.toFixed(2)}ms`)
+    }
+  }
+}
+
+async function timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  if (!PROFILE_ENABLED) return fn()
+  const start = performance.now()
+  try {
+    return await fn()
+  } finally {
+    const dur = performance.now() - start
+    if (dur >= PROFILE_FRAME_THRESHOLD_MS) {
+      console.log(`[SyncProfile] ${label} took ${dur.toFixed(2)}ms`)
+    }
+  }
+}
+
+function getPriorityBreakdown(): {high: number; normal: number} {
+  let high = 0
+  let normal = 0
+  state.subscriptionCounts.forEach((_count, key) => {
+    if (key.includes('!high')) high++
+    else normal++
+  })
+  return {high, normal}
+}
+
 // Polling intervals (base values, multiplied by getPollingMultiplier())
-const DISCOVERY_POLL_INTERVAL_MS = 20_000
-const HIGH_PRIORITY_DISCOVERY_POLL_INTERVAL_MS = 3_000
-const ACTIVITY_POLL_INTERVAL_MS = 15_000 // was 3_000
+const DISCOVERY_POLL_INTERVAL_MS = 14_000
+const ACTIVITY_POLL_INTERVAL_MS = 1_000
 const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
 
 /** Returns 1 when app is focused, 10 when backgrounded. */
@@ -45,19 +89,6 @@ function getPollingMultiplier(): number {
 /** Apply adaptive multiplier to a base interval. */
 function getAdaptiveInterval(baseMs: number): number {
   return baseMs * getPollingMultiplier()
-}
-
-/**
- * Resolve the discovery poll interval for a subscription. High-priority
- * subs (active document under edit/view) poll faster while focused; in the
- * background they fall back to the normal cadence to avoid burning network
- * for windows the user isn't looking at.
- */
-function getDiscoveryInterval(priority: 'normal' | 'high' = 'normal'): number {
-  if (priority === 'high' && isAnyWindowFocused()) {
-    return HIGH_PRIORITY_DISCOVERY_POLL_INTERVAL_MS
-  }
-  return getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS)
 }
 
 // Debounce window for batching invalidations
@@ -72,13 +103,6 @@ const MAX_KNOWN_VERSIONS = 500
 export type ResourceSubscription = {
   id: UnpackedHypermediaId
   recursive?: boolean
-  /**
-   * `'high'` polls faster (3s while focused) — use for the active document
-   * the user is currently editing/viewing. Defaults to `'normal'` (20s).
-   */
-  priority?: 'normal' | 'high'
-  /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
-  scope?: DiscoveryScope
 }
 
 type SubscriptionState = {
@@ -224,9 +248,19 @@ function invalidateResource(resource: string) {
 function flushInvalidations() {
   state.debounceTimer = null
   const resources = Array.from(state.pendingInvalidations)
-  for (let i = 0; i < resources.length; i++) {
-    invalidateResource(resources[i]!)
+  if (PROFILE_ENABLED) {
+    const {high, normal} = getPriorityBreakdown()
+    profileLog(
+      `flushInvalidations: pending=${resources.length} subs=${
+        state.subscriptions.size
+      } (high=${high} normal=${normal}) handlers=${getInvalidationHandlerCount()}`,
+    )
   }
+  timeSync('flushInvalidations', () => {
+    for (let i = 0; i < resources.length; i++) {
+      invalidateResource(resources[i]!)
+    }
+  })
   state.pendingInvalidations.clear()
 }
 
@@ -290,18 +324,17 @@ function isResourceSubscribed(resource: string): boolean {
  * Returns the unconditional query key invalidations that should fire for a given event,
  * regardless of subscription status. Exported for testing.
  */
-export function getUnconditionalInvalidations(event: Event): Array<[string, string]> {
-  const invalidations: Array<[string, string]> = []
+export function getUnconditionalInvalidations(event: Event): Array<string[]> {
+  const invalidations: Array<string[]> = []
   if (event.data.case !== 'newBlob') return invalidations
 
   const blobType = event.data.value.blobType?.toLowerCase()
   const resource = event.data.value.resource
 
-  if (blobType === 'profile' && resource) {
-    const id = unpackHmId(resource.split('?')[0] || '')
-    if (id) {
-      invalidations.push([queryKeys.ACCOUNT, id.uid])
-    }
+  // Profile events blanket-invalidate all ACCOUNT queries (aliases make per-uid targeting unreliable)
+  if (blobType === 'profile') {
+    invalidations.push([queryKeys.ACCOUNT])
+    invalidations.push([queryKeys.LIST_ACCOUNTS])
   }
 
   if (blobType === 'capability' && resource) {
@@ -316,85 +349,160 @@ export function getUnconditionalInvalidations(event: Event): Array<[string, stri
 
 /** Processes activity events and fires invalidations. Exported for testing. */
 export function processEvents(events: Event[]) {
+  return timeSync(`processEvents(${events.length})`, () => processEventsInner(events))
+}
+
+function processEventsInner(events: Event[]) {
+  // ── First pass: collect event data for batched invalidation ──
+  const seenBlobTypes = new Set<string>()
+  const commentCids: string[] = []
+  const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
+  const contactData: {author: string; extraAttrs: string}[] = []
+  let hasMentions = false
+
   for (const event of events) {
+    // Subscribed-resource invalidation (debounced via scheduleInvalidation)
     const resource = extractResource(event)
     if (resource && isResourceSubscribed(resource)) {
+      console.log(`[Sync] Invalidating ${event.data.case}: ${resource}`)
       scheduleInvalidation(resource)
     }
 
-    // Handle profile events specially - always invalidate account queries regardless of subscription
-    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'profile') {
-      const resource = event.data.value.resource
-      if (resource) {
-        const id = unpackHmId(resource.split('?')[0] || '')
-        if (id) {
-          appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+    if (event.data.case === 'newBlob') {
+      const blobType = event.data.value.blobType?.toLowerCase()
+      if (blobType) seenBlobTypes.add(blobType)
+
+      if (blobType === 'comment') {
+        const cid = event.data.value.cid
+        if (cid) commentCids.push(cid)
+      }
+
+      if (blobType === 'capability') {
+        const res = event.data.value.resource
+        if (res) {
+          const id = unpackHmId(res.split('?')[0] || '')
+          if (id) capabilityData.push({id, extraAttrs: event.data.value.extraAttrs})
         }
+      }
+
+      if (blobType === 'contact') {
+        const author = event.data.value.author
+        if (author) contactData.push({author, extraAttrs: event.data.value.extraAttrs})
       }
     }
 
-    // Handle capability events - invalidate capabilities queries for the target and its ancestors
-    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'capability') {
-      const resource = event.data.value.resource
-      if (resource) {
-        const id = unpackHmId(resource.split('?')[0] || '')
-        if (id) {
-          // Invalidate capabilities for the exact target
-          appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
-          // Invalidate parent paths too, since child docs inherit parent capabilities
-          getParentPaths(id.path).forEach((parentPath) => {
-            appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...parentPath])
-          })
-          // Root capabilities
-          appInvalidateQueries([queryKeys.CAPABILITIES, id.uid])
-          // Also invalidate the delegate's account capabilities
-          const delegate = event.data.value.extraAttrs
-          if (delegate) {
-            try {
-              const attrs = JSON.parse(delegate) as {del?: string}
-              if (attrs.del) {
-                appInvalidateQueries([queryKeys.ACCOUNT_CAPABILITIES, attrs.del])
-              }
-            } catch {
-              // Ignore JSON parse errors
-            }
+    if (event.data.case === 'newMention') {
+      hasMentions = true
+    }
+  }
+
+  // ── Second pass: batched invalidations by event type ──
+
+  // Profile changes: blanket-invalidate all ACCOUNT queries + account list.
+  // We can't target specific UIDs because accounts may be aliases (A→B):
+  // when B updates, [ACCOUNT, A] must also be invalidated since it resolves to B's data.
+  // A blanket [ACCOUNT] prefix invalidation catches all aliases.
+  if (seenBlobTypes.has('profile')) {
+    appInvalidateQueries([queryKeys.ACCOUNT])
+    appInvalidateQueries([queryKeys.LIST_ACCOUNTS])
+  }
+
+  // Comment changes: invalidate all comment-related caches once (not per-event)
+  if (seenBlobTypes.has('comment')) {
+    appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+    appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+    appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+    appInvalidateQueries([queryKeys.COMMENTS])
+    appInvalidateQueries([queryKeys.AUTHORED_COMMENTS])
+    appInvalidateQueries([queryKeys.COMMENT_VERSIONS])
+
+    // Async batch: look up comment targets for targeted DOCUMENT_INTERACTION_SUMMARY invalidation.
+    // All CIDs are fetched in parallel; results are deduplicated by target doc before invalidating.
+    if (commentCids.length > 0) {
+      Promise.allSettled(commentCids.map((cid) => grpcClient.comments.getComment({id: cid}))).then((results) => {
+        const targetIds = new Set<string>()
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value.targetAccount) {
+            const targetId = hmId(result.value.targetAccount, {
+              path: result.value.targetPath?.split('/').filter(Boolean) || null,
+            })
+            targetIds.add(targetId.id)
           }
         }
-      }
+        targetIds.forEach((id) => {
+          appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id])
+        })
+      })
     }
+  }
 
-    // Handle contact events specially - invalidate contact queries
-    if (event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === 'contact') {
-      const author = event.data.value.author
-      const extraAttrsStr = event.data.value.extraAttrs
-      if (author) {
-        // Invalidate contacts owned by this account
-        appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
+  // Capability changes: invalidate target + ancestor capabilities
+  if (seenBlobTypes.has('capability')) {
+    for (const {id, extraAttrs} of capabilityData) {
+      appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+      getParentPaths(id.path).forEach((parentPath) => {
+        appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...parentPath])
+      })
+      appInvalidateQueries([queryKeys.CAPABILITIES, id.uid])
 
-        // Parse extra_attrs to get tsid, then fetch contact for subject
-        // extra_attrs is a JSON string like {"tsid": "abc123"}
-        if (extraAttrsStr) {
-          try {
-            const extraAttrs = JSON.parse(extraAttrsStr) as {tsid?: string}
-            if (extraAttrs.tsid) {
-              const contactId = `${author}/${extraAttrs.tsid}`
-              grpcClient.documents
-                .getContact({id: contactId})
-                .then((contact) => {
-                  if (contact.subject) {
-                    appInvalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
-                  }
-                })
-                .catch(() => {
-                  // Ignore errors - contact might be a tombstone or unavailable
-                })
-            }
-          } catch {
-            // Ignore JSON parse errors
+      if (extraAttrs) {
+        try {
+          const attrs = JSON.parse(extraAttrs) as {del?: string}
+          if (attrs.del) {
+            appInvalidateQueries([queryKeys.ACCOUNT_CAPABILITIES, attrs.del])
           }
+        } catch {
+          // Ignore JSON parse errors
         }
       }
     }
+  }
+
+  // Contact changes: invalidate contact caches + async subject lookup
+  if (seenBlobTypes.has('contact')) {
+    for (const {author, extraAttrs} of contactData) {
+      appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
+
+      if (extraAttrs) {
+        try {
+          const parsed = JSON.parse(extraAttrs) as {tsid?: string}
+          if (parsed.tsid) {
+            const contactId = `${author}/${parsed.tsid}`
+            grpcClient.documents
+              .getContact({id: contactId})
+              .then((contact) => {
+                if (contact.subject) {
+                  appInvalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
+                }
+              })
+              .catch(() => {})
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+      }
+    }
+  }
+
+  // Document update changes: invalidate listing/library caches
+  if (seenBlobTypes.has('ref')) {
+    appInvalidateQueries([queryKeys.LIBRARY])
+    appInvalidateQueries([queryKeys.SITE_LIBRARY])
+    appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+    appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
+  }
+
+  // Citation/mention changes
+  if (hasMentions) {
+    appInvalidateQueries([queryKeys.CITATIONS])
+    appInvalidateQueries([queryKeys.DOC_CITATIONS])
+  }
+
+  // Any feed-visible event type → invalidate feed caches once for the whole batch
+  const feedTypes = ['comment', 'ref', 'capability', 'contact']
+  if (feedTypes.some((t) => seenBlobTypes.has(t)) || hasMentions) {
+    appInvalidateQueries([queryKeys.ACTIVITY_FEED])
+    appInvalidateQueries([queryKeys.FEED])
   }
 }
 
@@ -445,11 +553,16 @@ async function pollActivity() {
   state.isPolling = true
 
   try {
-    const newEvents = await fetchNewEvents()
-    if (newEvents.length > 0) {
-      processEvents(newEvents)
-      state.lastEventId = getEventId(newEvents[0]!)
-    }
+    await timeAsync('pollActivity', async () => {
+      const newEvents = await fetchNewEvents()
+      if (newEvents.length > 0) {
+        if (PROFILE_ENABLED) {
+          profileLog(`pollActivity: ${newEvents.length} new events`)
+        }
+        processEvents(newEvents)
+        state.lastEventId = getEventId(newEvents[0]!)
+      }
+    })
   } catch (error) {
     console.error('Sync poll error:', error)
   } finally {
@@ -561,7 +674,7 @@ type DiscoveryResult = {
 }
 
 async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
-  const {id, recursive, scope} = sub
+  const {id, recursive} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
   // Use effective recursive value - if any recursive subscription exists, report as recursive
@@ -571,58 +684,37 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
   let discoveryResult: {version: string} | null = null
   let blobsDownloaded = 0
   try {
-    discoveryResult = await discoverDocument(
-      id.uid,
-      id.path,
-      undefined,
-      recursive,
-      (progress) => {
-        blobsDownloaded = progress.blobsDownloaded
-        // Don't overwrite settled state (not-found/tombstone) with discovering
-        const currentState = discoveryStream.stream.get()
-        if (currentState?.isNotFound || currentState?.isTombstone) return
+    discoveryResult = await discoverDocument(id.uid, id.path, undefined, recursive, (progress) => {
+      blobsDownloaded = progress.blobsDownloaded
+      // Don't overwrite settled state (not-found/tombstone) with discovering
+      const currentState = discoveryStream.stream.get()
+      if (currentState?.isNotFound || currentState?.isTombstone) return
 
-        discoveryStream.write({
-          isDiscovering: true,
-          startedAt: Date.now(),
-          entityId: id.id,
-          recursive: getEffectiveRecursive(),
-          progress,
-        })
-        updateAggregatedDiscoveryState()
-      },
-      scope,
-    )
+      discoveryStream.write({
+        isDiscovering: true,
+        startedAt: Date.now(),
+        entityId: id.id,
+        recursive: getEffectiveRecursive(),
+        progress,
+      })
+    })
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
-    const errMsg = e instanceof Error ? e.message : String(e)
-    // Single-line so `tail | grep` doesn't truncate the error.
-    const errSingle = errMsg.replace(/\s+/g, ' ').slice(0, 240)
-    console.log(`[Discovery] ${id.id}: discovery error: ${errSingle}`)
+    console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
   }
 
-  // Profile-scoped discovery doesn't produce a full document, so checkResourceStatus
-  // (which calls GetResource) would always return 'not-found'. Instead, invalidate
-  // the ACCOUNT query directly after discovery so useAccount refetches the profile.
-  if (scope === 'profile') {
-    discoveryStream.write(null)
-    updateAggregatedDiscoveryState()
-    // Always invalidate after profile discovery — the Account RPC may now
-    // return data even if zero new blobs were downloaded this round (e.g.
-    // blobs were synced via activity polling or a prior discovery attempt).
-    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-    return discoveryResult
-  }
+  updateAggregatedDiscoveryState()
 
   // After discovery, check resource status via GetResource
   const status = await checkResourceStatus(id)
-  console.log(`[Discovery] ${id.id}: status=${status}`)
+  if (!PROFILE_ENABLED) {
+    console.log(`[Discovery] ${id.id}: status=${status}`)
+  }
 
   // Get current stream state to detect transitions
   const currentState = discoveryStream.stream.get()
-  const wasSettled = currentState?.isNotFound || currentState?.isTombstone
-  const wasDiscovering = currentState?.isDiscovering
+  const {isNotFound, isTombstone, isDiscovering} = currentState ?? {}
 
   if (status === 'tombstone') {
     // Resource is deleted - update stream
@@ -633,21 +725,12 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
       entityId: id.id,
       recursive: getEffectiveRecursive(),
     })
-    updateAggregatedDiscoveryState()
-
-    // Invalidate so UI shows tombstone
-    appInvalidateQueries([queryKeys.ENTITY, id.id])
-    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-
     return {isTombstone: true}
   }
 
   if (status === 'redirect') {
     // Resource redirects - clear stream
     discoveryStream.write(null)
-    updateAggregatedDiscoveryState()
-    appInvalidateQueries([queryKeys.ENTITY, id.id])
-    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
     return {isRedirect: true}
   }
 
@@ -660,81 +743,12 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
       entityId: id.id,
       recursive: getEffectiveRecursive(),
     })
-    updateAggregatedDiscoveryState()
-
     return {isNotFound: true}
   }
 
-  // Resource exists - clear stream and invalidate if transitioning from any tracked state
-  const needsInvalidation = wasSettled || wasDiscovering
-  if (needsInvalidation) {
+  // Resource exists - clear stream
+  if (isNotFound || isTombstone || isDiscovering) {
     discoveryStream.write(null)
-    updateAggregatedDiscoveryState()
-    // Invalidate so UI shows the found resource
-    appInvalidateQueries([queryKeys.ENTITY, id.id])
-    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-    // Always invalidate the directory for the discovered entity itself
-    // so site header navigation updates after discovery
-    appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
-
-    // For recursive subscriptions, also invalidate parent directory queries
-    // so query blocks refresh when discovery completes
-    if (recursive) {
-      getParentPaths(id.path).forEach((parentPath) => {
-        const parentId = hmId(id.uid, {path: parentPath})
-        appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-      })
-      const rootId = hmId(id.uid)
-      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
-    }
-  }
-
-  // Also check for version changes (for resources already known but updated)
-  const newVersion = discoveryResult?.version
-  const lastKnownVersion = state.lastKnownVersions.get(id.id)
-
-  const shouldInvalidate = !needsInvalidation && newVersion && newVersion !== lastKnownVersion
-  console.log(
-    `[Discovery] ${id.id}: newVersion=${newVersion}, lastKnown=${lastKnownVersion}, shouldInvalidate=${shouldInvalidate}`,
-  )
-
-  if (shouldInvalidate) {
-    // Update tracked version with eviction to prevent unbounded growth
-    if (state.lastKnownVersions.size >= MAX_KNOWN_VERSIONS) {
-      // Evict oldest entries (first 20% of max)
-      const toDelete = Math.floor(MAX_KNOWN_VERSIONS * 0.2)
-      const keys = state.lastKnownVersions.keys()
-      for (let i = 0; i < toDelete; i++) {
-        const key = keys.next().value
-        if (key) state.lastKnownVersions.delete(key)
-      }
-    }
-    state.lastKnownVersions.set(id.id, newVersion)
-
-    // Invalidate relevant queries since data changed
-    appInvalidateQueries([queryKeys.ENTITY, id.id])
-    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-
-    // Invalidate activity feed when an account (root document) is discovered
-    // The feed contains pre-resolved account metadata, so when an account is discovered
-    // the feed needs to refetch to show the proper account name/icon
-    const isAccountDiscovery = !id.path?.length
-    if (isAccountDiscovery) {
-      appInvalidateQueries([queryKeys.ACTIVITY_FEED])
-    }
-
-    // For recursive subscriptions, also invalidate directory queries
-    if (recursive) {
-      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
-      getParentPaths(id.path).forEach((parentPath) => {
-        const parentId = hmId(id.uid, {path: parentPath})
-        appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-      })
-      const rootId = hmId(id.uid)
-      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
-    }
   }
 
   return discoveryResult
@@ -743,9 +757,7 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
 // ============ Resource Subscriptions ============
 
 function getSubscriptionKey(sub: ResourceSubscription): string {
-  const prioritySuffix = sub.priority === 'high' ? '!high' : ''
-  const scopeSuffix = sub.scope === 'profile' ? ':profile' : ''
-  return sub.id.id + (sub.recursive ? '/*' : '') + prioritySuffix + scopeSuffix
+  return sub.id.id + (sub.recursive ? '/*' : '')
 }
 
 // Check if there's a recursive subscription for this entity (used for stream writes)
@@ -809,7 +821,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
 
     if (nowCovered) {
       // Defer to the recursive subscription
-      discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
+      discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       return
     }
 
@@ -827,12 +839,12 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
         // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
-        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
+        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
       .catch(() => {
         if (cancelled) return
         // Keep discovering state and retry on errors
-        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryInterval(sub.priority))
+        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
   }
 
@@ -852,6 +864,10 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   return {unsubscribe, discoveryTimer, isCovered}
 }
 
+function logSubscriptions() {
+  // console.log('[Sync] Subscribed entities:', Array.from(state.subscriptions.keys()))
+}
+
 export function subscribe(sub: ResourceSubscription): () => void {
   const key = getSubscriptionKey(sub)
   const currentCount = state.subscriptionCounts.get(key) || 0
@@ -863,6 +879,7 @@ export function subscribe(sub: ResourceSubscription): () => void {
 
     state.subscriptions.set(key, createSubscription(sub))
     ensureActivityPolling()
+    logSubscriptions()
   }
 
   state.subscriptionCounts.set(key, currentCount + 1)
@@ -881,6 +898,7 @@ export function subscribe(sub: ResourceSubscription): () => void {
       if (state.subscriptions.size === 0) {
         stopActivityPolling()
       }
+      logSubscriptions()
     } else {
       state.subscriptionCounts.set(key, count - 1)
     }
@@ -939,8 +957,6 @@ export const syncApi = t.router({
       z.object({
         id: unpackedHmIdSchema,
         recursive: z.boolean().optional(),
-        priority: z.enum(['normal', 'high']).optional(),
-        scope: z.enum(['all', 'profile']).optional(),
       }),
     )
     .subscription(({input}) => {
@@ -948,8 +964,6 @@ export const syncApi = t.router({
         const unsubscribe = subscribe({
           id: input.id as UnpackedHypermediaId,
           recursive: input.recursive,
-          priority: input.priority,
-          scope: input.scope,
         })
 
         emit.next({status: 'subscribed'})

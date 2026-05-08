@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"time"
 
+	"seed/backend/util/bwcounter"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/must"
 
@@ -59,7 +60,10 @@ type Routing interface {
 // To actually enable relay you also need to pass EnableAutoRelay, and optionally enable HolePunching.
 // The returning node won't be listening on the network by default, so users have to start listening manually,
 // using the Listen() method on the underlying P2P network.
-func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
+//
+// If httpBW is non-nil, the delegated-DHT HTTP client transport is wrapped to
+// count bytes against it (bucketed by destination host).
+func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, httpBW *bwcounter.Counter, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
 	const unlimitedResources = true
 	defer func() {
@@ -93,9 +97,16 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	transport.MaxIdleConns = 500
 	transport.MaxIdleConnsPerHost = 100
 
+	// The delegated-routing client type-asserts Transport.(*ResponseBodyLimitedTransport)
+	// at construction time, so the bandwidth counter must wrap the *inner*
+	// transport, not the outer one.
+	var innerRT http.RoundTripper = transport
+	if httpBW != nil {
+		innerRT = bwcounter.NewTransport(innerRT, httpBW)
+	}
 	delegateHTTPClient := &http.Client{
 		Transport: &delegated_routing.ResponseBodyLimitedTransport{
-			RoundTripper: transport,
+			RoundTripper: innerRT,
 			LimitBytes:   1 << 20,
 		},
 	}

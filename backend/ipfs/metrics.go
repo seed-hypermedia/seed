@@ -1,13 +1,19 @@
 package ipfs
 
 import (
+	"sort"
 	"sync"
 	"time"
 
+	"seed/backend/util/bwcounter"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -22,6 +28,7 @@ type Libp2pMetrics struct {
 	totalOut       prometheus.Counter
 	protocolIn     *prometheus.CounterVec
 	protocolOut    *prometheus.CounterVec
+	scopeBytes     *prometheus.CounterVec
 	openConns      prometheus.Gauge
 	connectedPeers *prometheus.GaugeVec
 
@@ -32,6 +39,29 @@ type Libp2pMetrics struct {
 	ExportInterval time.Duration
 	mu             sync.Mutex
 	lastExportTime time.Time
+
+	// Bandwidth split by loopback vs remote scope, keyed by libp2p protocol ID.
+	// Surfaced on /debug/network alongside per-peer breakdown.
+	BW *bwcounter.Counter
+
+	// peerScope tracks each connected peer's loopback-vs-remote classification,
+	// updated on Connected/Disconnected via the network.Notifiee implementation.
+	// A peer is loopback if any of its current connections has a loopback
+	// remote multiaddr.
+	peerScopeMu sync.RWMutex
+	peerScope   map[peer.ID]bool
+
+	// peerBytes accumulates per-peer in/out totals plus last activity time.
+	// Read on the /debug/network page; written on every libp2p stream message.
+	peerBytesMu sync.Mutex
+	peerBytes   map[peer.ID]*peerBytesEntry
+}
+
+type peerBytesEntry struct {
+	In         uint64
+	Out        uint64
+	LastActive time.Time
+	Loopback   bool
 }
 
 // NewLibp2pMetrics creates new Libp2pMetricsCollector.
@@ -65,6 +95,11 @@ func NewLibp2pMetrics() *Libp2pMetrics {
 			Help: "Total number of bytes sent on a specified Libp2p protocol.",
 		}, []string{"protocol"}), // Be careful changing labels, we're using WithLabelValues.
 
+		scopeBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "seed_libp2p_scope_bytes_total",
+			Help: "Total libp2p stream bytes split by direction and scope (loopback vs remote).",
+		}, []string{"direction", "scope"}),
+
 		openConns: prometheus.NewGauge(prometheus.GaugeOpts{
 			Name: "libp2p_open_connections",
 			Help: "Number of currently open Libp2p connections.",
@@ -76,6 +111,9 @@ func NewLibp2pMetrics() *Libp2pMetrics {
 		}, []string{"protocol"}),
 
 		ExportInterval: 15 * time.Second,
+		BW:             &bwcounter.Counter{},
+		peerScope:      make(map[peer.ID]bool),
+		peerBytes:      make(map[peer.ID]*peerBytesEntry),
 	}
 
 	m.allMetrics = []prometheus.Collector{
@@ -84,6 +122,7 @@ func NewLibp2pMetrics() *Libp2pMetrics {
 		m.totalOut,
 		m.protocolIn,
 		m.protocolOut,
+		m.scopeBytes,
 		m.openConns,
 		m.connectedPeers,
 	}
@@ -190,11 +229,149 @@ func (m *Libp2pMetrics) LogRecvMessage(v int64) {
 // LogSentMessageStream implements libp2p metrics.Reporter.
 func (m *Libp2pMetrics) LogSentMessageStream(v int64, proto protocol.ID, pid peer.ID) {
 	m.protocolOut.WithLabelValues(string(proto)).Add(float64(v))
+	m.recordStream(v, proto, pid, bwcounter.DirOut)
 }
 
 // LogRecvMessageStream implements libp2p metrics.Reporter.
 func (m *Libp2pMetrics) LogRecvMessageStream(v int64, proto protocol.ID, pid peer.ID) {
 	m.protocolIn.WithLabelValues(string(proto)).Add(float64(v))
+	m.recordStream(v, proto, pid, bwcounter.DirIn)
+}
+
+// recordStream classifies a stream message by scope and updates the bandwidth
+// counter and per-peer book-keeping.
+func (m *Libp2pMetrics) recordStream(v int64, proto protocol.ID, pid peer.ID, dir bwcounter.Direction) {
+	if v <= 0 {
+		return
+	}
+	loopback := m.PeerIsLoopback(pid)
+	scope := bwcounter.ScopeRemote
+	scopeLabel := "remote"
+	if loopback {
+		scope = bwcounter.ScopeLoopback
+		scopeLabel = "loopback"
+	}
+
+	dirLabel := "out"
+	if dir == bwcounter.DirIn {
+		dirLabel = "in"
+	}
+	m.scopeBytes.WithLabelValues(dirLabel, scopeLabel).Add(float64(v))
+	m.BW.Add(scope, dir, string(proto), v)
+
+	m.peerBytesMu.Lock()
+	e, ok := m.peerBytes[pid]
+	if !ok {
+		e = &peerBytesEntry{}
+		m.peerBytes[pid] = e
+	}
+	if dir == bwcounter.DirIn {
+		e.In += uint64(v)
+	} else {
+		e.Out += uint64(v)
+	}
+	e.Loopback = loopback
+	e.LastActive = time.Now()
+	m.peerBytesMu.Unlock()
+}
+
+// PeerIsLoopback reports whether the peer currently has at least one loopback
+// connection. Falls back to inspecting the host's live connections if the
+// Notifiee hasn't recorded the peer yet (covers the brief window between
+// Connect and the Notifiee callback).
+func (m *Libp2pMetrics) PeerIsLoopback(pid peer.ID) bool {
+	m.peerScopeMu.RLock()
+	loopback, ok := m.peerScope[pid]
+	m.peerScopeMu.RUnlock()
+	if ok {
+		return loopback
+	}
+	if m.h == nil {
+		return false
+	}
+	return anyLoopbackConn(m.h.Network().ConnsToPeer(pid))
+}
+
+// PeerBytesSnapshotEntry is one row in PeerBytesSnapshot.
+type PeerBytesSnapshotEntry struct {
+	PeerID     peer.ID
+	In         uint64
+	Out        uint64
+	LastActive time.Time
+	Loopback   bool
+}
+
+// Total returns In+Out.
+func (e PeerBytesSnapshotEntry) Total() uint64 { return e.In + e.Out }
+
+// PeerBytesSnapshot returns the top-N peers by total bytes (in+out), sorted
+// descending. N <= 0 returns all peers.
+func (m *Libp2pMetrics) PeerBytesSnapshot(n int) []PeerBytesSnapshotEntry {
+	m.peerBytesMu.Lock()
+	rows := make([]PeerBytesSnapshotEntry, 0, len(m.peerBytes))
+	for pid, e := range m.peerBytes {
+		rows = append(rows, PeerBytesSnapshotEntry{
+			PeerID:     pid,
+			In:         e.In,
+			Out:        e.Out,
+			LastActive: e.LastActive,
+			Loopback:   e.Loopback,
+		})
+	}
+	m.peerBytesMu.Unlock()
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Total() > rows[j].Total()
+	})
+	if n > 0 && len(rows) > n {
+		rows = rows[:n]
+	}
+	return rows
+}
+
+// network.Notifiee implementation: keeps peerScope in sync with the host's
+// connection state so that LogSent/RecvMessageStream can classify scope in O(1).
+
+// Listen implements network.Notifiee.
+func (m *Libp2pMetrics) Listen(network.Network, multiaddr.Multiaddr) {}
+
+// ListenClose implements network.Notifiee.
+func (m *Libp2pMetrics) ListenClose(network.Network, multiaddr.Multiaddr) {}
+
+// Connected implements network.Notifiee.
+func (m *Libp2pMetrics) Connected(_ network.Network, c network.Conn) {
+	pid := c.RemotePeer()
+	loopback := manet.IsIPLoopback(c.RemoteMultiaddr())
+	m.peerScopeMu.Lock()
+	if loopback {
+		// Once any connection is loopback, treat the peer as loopback for as
+		// long as that conn is alive. Disconnected will recompute when it goes.
+		m.peerScope[pid] = true
+	} else if _, ok := m.peerScope[pid]; !ok {
+		m.peerScope[pid] = false
+	}
+	m.peerScopeMu.Unlock()
+}
+
+// Disconnected implements network.Notifiee.
+func (m *Libp2pMetrics) Disconnected(net network.Network, c network.Conn) {
+	pid := c.RemotePeer()
+	conns := net.ConnsToPeer(pid)
+	m.peerScopeMu.Lock()
+	if len(conns) == 0 {
+		delete(m.peerScope, pid)
+	} else {
+		m.peerScope[pid] = anyLoopbackConn(conns)
+	}
+	m.peerScopeMu.Unlock()
+}
+
+func anyLoopbackConn(conns []network.Conn) bool {
+	for _, c := range conns {
+		if manet.IsIPLoopback(c.RemoteMultiaddr()) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetBandwidthForPeer implements libp2p metrics.Reporter.

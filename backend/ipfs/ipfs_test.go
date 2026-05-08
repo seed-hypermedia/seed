@@ -75,7 +75,13 @@ func makePeer(t *testing.T, k crypto.PrivKey) *testNode {
 	n, err := NewLibp2pNode(k, ds, ps, "/hypermedia/0.4.1", "", logging.New("test", "debug"), nil)
 	require.NoError(t, err)
 
-	ma, err := multiaddr.NewMultiaddr("/ip4/0.0.0.0/tcp/0")
+	// Bind to loopback explicitly. /ip4/0.0.0.0 listens on every interface, and
+	// on hosts with non-loopback IPv4 (e.g. GitHub Actions runners with RFC1918
+	// addresses) libp2p will dial peers via that interface, causing tests that
+	// assert loopback classification to fail. Pinning the listener to 127.0.0.1
+	// keeps the connection on lo and matches what the tests are actually trying
+	// to exercise.
+	ma, err := multiaddr.NewMultiaddr("/ip4/127.0.0.1/tcp/0")
 	require.NoError(t, err)
 
 	bs := blockstore.NewBlockstore(ds)

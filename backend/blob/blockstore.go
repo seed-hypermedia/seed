@@ -2,11 +2,14 @@ package blob
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlitegen"
+	"strconv"
+	"sync/atomic"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -21,6 +24,7 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/zap"
 )
 
 // MaxBlobSize is the maximum size of a single blob.
@@ -32,6 +36,62 @@ var (
 		Name: "seed_ipfs_blockstore_calls_total",
 		Help: "The total of method calls on the IPFS' Blockstore public interface.",
 	}, []string{"method"})
+
+	// mPutBlockOutcome counts putBlock invocations bucketed by what happened to
+	// the incoming block: did we already have it, did we fill in a placeholder,
+	// or did we insert a fresh row. The "exists" outcome quantifies "block
+	// arrived from the network but local DB already had it" — the smoking gun
+	// for re-fetch loops surfaced on /debug/network.
+	mPutBlockOutcome = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_outcome_total",
+		Help: "putBlock outcome counts by disposition (exists|update|new).",
+	}, []string{"outcome"})
+
+	// mPutBlockBytes is the byte count for each putBlock outcome, using the
+	// incoming uncompressed blob length. Lets us compare bytes-already-stored
+	// against bitswap.Stat().DataReceived to confirm/refute the re-fetch
+	// hypothesis without staring at block counts.
+	mPutBlockBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_bytes_total",
+		Help: "putBlock byte counts (uncompressed input) by disposition.",
+	}, []string{"outcome"})
+
+	// mPutBlockExistsByCodec breaks the `exists` outcome down by the codec of
+	// the incoming CID. Tells us at a glance whether the re-fetch loop is
+	// concentrated on media (raw=85, dag-pb=112) or also affects Hypermedia
+	// structural blobs (dag-cbor=113). Lets us confirm or refute the
+	// "media-only" hypothesis over the full session, not just sampled logs.
+	mPutBlockExistsByCodec = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_exists_by_codec_total",
+		Help: "putBlock 'exists' hits broken down by incoming CID codec.",
+	}, []string{"codec"})
+
+	// mPutBlockCodecMismatch counts every time putBlock takes the `exists`
+	// branch for a multihash whose stored codec differs from the codec the
+	// caller passed in. Direct evidence of "peer ships CID(codec_A, H), we
+	// have CID(codec_B, H), RBSR sees them as different items, bitswap
+	// fetches, blockstore drops". Labels carry both codec values so we can
+	// see the actual asymmetry distribution across the network.
+	mPutBlockCodecMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blob_putblock_codec_mismatch_total",
+		Help: "putBlock 'exists' hits where the incoming CID's codec differs from the stored codec for the same multihash.",
+	}, []string{"stored_codec", "incoming_codec"})
+
+	// mHasInconsistent counts cases where blockStore.Has returned false but
+	// the blob IS present (size>=0) when looked up without filters. This is
+	// the smoking gun for "we keep asking peers for blobs we already have":
+	// bitswap consults Has, gets false, broadcasts a WANT, peer ships, the
+	// block lands at putBlock which then finds it under the unfiltered
+	// blobs lookup and bounces it as `exists`.
+	//
+	// Buckets:
+	//   reason="public_only_filter" — Has used IsPublicOnly(ctx)=true and the blob is private
+	//   reason="entity_cid_no_change" — CID is an entity-CID; resource exists but no Change blob, yet the blob row IS in blobs
+	//   reason="other"               — neither of the above; deeper bug
+	mHasInconsistent = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_blockstore_has_false_but_present_total",
+		Help: "blockStore.Has returned false but the blob is present in the unfiltered blobs table; broken down by likely cause.",
+	}, []string{"reason"})
 )
 
 var _ blockstore.Blockstore = (*blockStore)(nil)
@@ -41,12 +101,21 @@ type blockStore struct {
 	db      *sqlitex.Pool
 	encoder *zstd.Encoder
 	decoder *zstd.Decoder
+	log     *zap.Logger
+
+	// existsSampleCount caps how many `exists` putBlock outcomes get logged
+	// at info level with the CID + multihash. Lets a session capture ~30
+	// concrete examples of redundant fetches; after that, the counter
+	// stays beyond the limit and the cheap atomic read short-circuits.
+	existsSampleCount atomic.Int64
 }
+
+const existsSampleLimit int64 = 30
 
 // newBlockstore creates a new block store from a given connection pool.
 // The corresponding table and columns must be created beforehand.
 // Use DefaultConfig() for default table and column names.
-func newBlockstore(db *sqlitex.Pool) *blockStore {
+func newBlockstore(db *sqlitex.Pool, log *zap.Logger) *blockStore {
 	enc, err := zstd.NewWriter(nil)
 	if err != nil {
 		panic(err)
@@ -57,14 +126,24 @@ func newBlockstore(db *sqlitex.Pool) *blockStore {
 		panic(err)
 	}
 
+	if log == nil {
+		log = zap.NewNop()
+	}
+
 	return &blockStore{
 		db:      db,
 		encoder: enc,
 		decoder: dec,
+		log:     log,
 	}
 }
 
 // Has implements blockstore.Blockstore interface.
+//
+// On a "false" return, this also runs an unfiltered lookup against `blobs`
+// and increments mHasInconsistent if the row is actually present. Lets
+// /debug/network distinguish "we genuinely don't have it" from "we have it
+// but Has lied" (the symptom that drives bitswap re-fetch loops).
 func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	mCallsTotal.WithLabelValues("Has").Inc()
 
@@ -78,11 +157,39 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		}
 		defer release()
 
-		return b.has(conn, c, publicOnly)
+		ok, err := b.has(conn, c, publicOnly)
+		if err == nil && !ok {
+			// Cross-check: is the row actually present without filters?
+			// If yes, Has lied — the next step is bitswap will fetch it
+			// from peers and putBlock will bounce it as "exists".
+			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
+			if perr == nil && res.BlobsID != 0 && res.BlobsSize >= 0 {
+				if publicOnly {
+					mHasInconsistent.WithLabelValues("public_only_filter").Inc()
+				} else {
+					mHasInconsistent.WithLabelValues("other").Inc()
+				}
+			}
+		}
+		return ok, err
 	}
+
 	ok, err := b.checkEntityExists(ctx, eid)
 	if err != nil {
 		return false, err
+	}
+	if !ok {
+		// Cross-check: entity-CID branch said "no Change blob exists for this
+		// entity", yet maybe the entity-CID's own blob row IS in `blobs`. If
+		// so, putBlock will see it and bounce as "exists" — that's the loop.
+		conn, release, cerr := b.db.Conn(ctx)
+		if cerr == nil {
+			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
+			release()
+			if perr == nil && res.BlobsID != 0 && res.BlobsSize >= 0 {
+				mHasInconsistent.WithLabelValues("entity_cid_no_change").Inc()
+			}
+		}
 	}
 
 	return ok, nil
@@ -303,6 +410,39 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 	switch {
 	// We have this blob already. Size can be 0 if data is inlined in the CID.
 	case size.BlobsID != 0 && size.BlobsSize >= 0:
+		mPutBlockOutcome.WithLabelValues("exists").Inc()
+		mPutBlockBytes.WithLabelValues("exists").Add(float64(len(data)))
+		mPutBlockExistsByCodec.WithLabelValues(strconv.FormatUint(codec, 10)).Inc()
+
+		// Cheap second lookup for the stored codec so we can detect the
+		// codec-mismatch pattern: same multihash, different codec on the
+		// wire vs in our DB. Only runs on the cold path (we already have
+		// the blob), so the cost is bounded by the re-fetch rate itself.
+		var storedCodec int64
+		_ = sqlitex.Exec(conn, `SELECT codec FROM blobs INDEXED BY blobs_metadata_by_hash WHERE multihash = ? LIMIT 1`,
+			func(stmt *sqlite.Stmt) error { storedCodec = stmt.ColumnInt64(0); return nil },
+			[]byte(hash),
+		)
+		if storedCodec > 0 && uint64(storedCodec) != codec {
+			mPutBlockCodecMismatch.WithLabelValues(
+				strconv.FormatInt(storedCodec, 10),
+				strconv.FormatUint(codec, 10),
+			).Inc()
+		}
+
+		// Sample-log the first existsSampleLimit redundant deliveries with
+		// CID + multihash + codec, so we can pattern-match the actual
+		// CIDs that bitswap is fetching for content we already have.
+		if n := b.existsSampleCount.Add(1); n <= existsSampleLimit {
+			b.log.Info("PutBlockExistsSample",
+				zap.Int64("sample", n),
+				zap.Int64("blobsID", size.BlobsID),
+				zap.Uint64("codec", codec),
+				zap.Int64("storedCodec", storedCodec),
+				zap.String("multihash_hex", hex.EncodeToString(hash)),
+				zap.Int("dataLen", len(data)),
+			)
+		}
 		return size.BlobsID, true, nil
 	// We know about the blob, but we don't have it.
 	case size.BlobsID != 0 && size.BlobsSize < 0:
@@ -330,10 +470,16 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 		if err != nil {
 			return 0, false, err
 		}
+		mPutBlockOutcome.WithLabelValues("update").Inc()
+		mPutBlockBytes.WithLabelValues("update").Add(float64(len(data)))
 		return newID, false, blobsUpdateMissingData(conn, compressed, int64(len(data)), newID, size.BlobsID)
 	}
 
 	ins, err := dbBlobsInsert(conn, inID, hash, int64(codec), compressed, int64(len(data)))
+	if err == nil {
+		mPutBlockOutcome.WithLabelValues("new").Inc()
+		mPutBlockBytes.WithLabelValues("new").Add(float64(len(data)))
+	}
 	return ins, false, err
 }
 

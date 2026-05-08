@@ -3858,6 +3858,140 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 }
 
+func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	app := makeTestApp(t, "alice", makeTestConfig(t), true)
+	account := coretest.NewTester("alice").Account.PublicKey.String()
+
+	const (
+		oldPath    = "/moved-doc-search-src"
+		newPath    = "/moved-doc-search-dst"
+		titleText  = "MovedDocSearchTitleUnique"
+		bodyText   = "MovedDocSearchBodyUnique"
+		blockID    = "body"
+		targetType = "document"
+	)
+
+	doc, err := app.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        account,
+		Path:           oldPath,
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: titleText},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: blockID, Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: blockID, Type: "paragraph", Text: bodyText},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           newPath,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{
+					Genesis: doc.Genesis,
+					Version: doc.Version,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        account,
+		Path:           oldPath,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Redirect_{
+				Redirect: &documents.RefTarget_Redirect{
+					Account: account,
+					Path:    newPath,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("body", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "moved document body search must still return the document")
+
+		found := false
+		for _, entity := range search.Entities {
+			if entity.Type == targetType && strings.Contains(entity.Content, bodyText) {
+				found = true
+				require.Equal(t, "hm://"+account+newPath, entity.DocId)
+				require.Contains(t, entity.Id, newPath)
+			}
+		}
+		require.True(t, found, "moved document body search must return the current document path")
+	})
+
+	t.Run("title", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      titleText,
+			PageSize:   10,
+			SearchType: entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "moved document title search must still return the document")
+
+		found := false
+		for _, entity := range search.Entities {
+			if entity.Type == "title" && strings.Contains(entity.Content, titleText) {
+				found = true
+				require.Equal(t, "hm://"+account+newPath, entity.DocId)
+				require.Contains(t, entity.Id, newPath)
+			}
+		}
+		require.True(t, found, "moved document title search must return the current document path")
+	})
+
+	t.Run("new path filter", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + newPath,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "current path filter must return moved document body search result")
+	})
+
+	t.Run("old path filter returns current path", func(t *testing.T) {
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       bodyText,
+			IncludeBody: true,
+			IriFilter:   "hm://" + account + oldPath,
+			PageSize:    10,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, search.Entities, "old moved-away path filter should still find moved document")
+		for _, entity := range search.Entities {
+			require.Equal(t, "hm://"+account+newPath, entity.DocId)
+			require.Contains(t, entity.Id, newPath)
+		}
+	})
+}
+
 // TestSearchProfileOnlyAccount verifies that accounts with only a profile (no published documents)
 // are discoverable via SearchEntities. This is the fix for https://github.com/seed-hypermedia/seed/issues/426.
 func TestSearchProfileOnlyAccount(t *testing.T) {
@@ -4706,19 +4840,24 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 	t.Run("ListComments", func(t *testing.T) {
 		ctx, app, account, comment := setup(t, "alice")
 
+		// After a document move, querying any path in the redirect chain (original,
+		// intermediate, or destination) must return the same comments. This ensures
+		// that notification links — which store the historical path — still work.
 		srcComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-src",
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcComments.Comments, "comments must not remain listed on the original moved path")
+		require.Len(t, srcComments.Comments, 1, "comments must be accessible via the original moved path")
+		require.Equal(t, comment.Id, srcComments.Comments[0].Id)
 
 		midComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,
 			TargetPath:    "/comments-move-mid",
 		})
 		require.NoError(t, err)
-		require.Empty(t, midComments.Comments, "comments must not remain listed on an intermediate moved path")
+		require.Len(t, midComments.Comments, 1, "comments must be accessible via an intermediate moved path")
+		require.Equal(t, comment.Id, midComments.Comments[0].Id)
 
 		dstComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: account,

@@ -167,9 +167,9 @@ export const MediaContainer = ({
     },
   }
 
-  // DocumentMachineProvider isn't available in the comment editor, so canEdit
-  // is always false there. Fall back to editor.isEditable for that case.
-  const canAuthor = canEdit || editor.isEditable
+  // The editor accepts authoring when the user has edit permission
+  // or when the editor instance itself is editable
+  const canAuthor = editor.renderType !== 'viewer' && (canEdit || editor.isEditable)
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
@@ -224,7 +224,7 @@ export const MediaContainer = ({
       )}
       <div
         className={cn(
-          'group relative flex flex-col rounded-md border-2 transition-colors',
+          'group relative flex max-w-full flex-col rounded-md border-2 transition-colors',
           mediaType === 'file' ? 'w-full' : 'w-full',
           drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
           drag && 'border-dashed',
@@ -235,7 +235,7 @@ export const MediaContainer = ({
         {...mediaProps}
         contentEditable={false}
       >
-        {mediaType !== 'embed' && canEdit && (mediaType !== 'file' || isEditing) && (
+        {mediaType !== 'embed' && editor.renderType !== 'viewer' && canEdit && (mediaType !== 'file' || isEditing) && (
           <>
             <input
               ref={fileInputRef}

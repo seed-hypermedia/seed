@@ -1,8 +1,10 @@
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {afterEach, describe, expect, mock, test} from 'bun:test'
 import * as blobs from '@shm/shared/blobs'
+import {Account, Profile} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {MemoryRouter} from 'react-router-dom'
 import {StoreContext, createStore} from '@/frontend/store'
+import {APIError} from '@/frontend/api-client'
 import {createMockBlockstore, createSuccessMockClient} from '@/frontend/test-utils'
 import {VaultView} from './VaultView'
 
@@ -11,7 +13,12 @@ describe('VaultView', () => {
     cleanup()
   })
 
-  function createVaultStore(names = ['Alice'], notificationServerUrl = '', createTime = 123456789) {
+  function createVaultStore(
+    names = ['Alice'],
+    notificationServerUrl = '',
+    createTime = 123456789,
+    populateProfiles = true,
+  ) {
     const store = createStore(
       createSuccessMockClient(),
       createMockBlockstore(),
@@ -32,7 +39,9 @@ describe('VaultView', () => {
         const seed = new Uint8Array(32).fill(index + 1)
         const principal = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
         principals.push(principal)
-        store.state.profiles[principal] = {name}
+        if (populateProfiles) {
+          store.state.profiles[principal] = {name}
+        }
 
         return {
           seed,
@@ -135,6 +144,76 @@ describe('VaultView', () => {
       })
     } finally {
       global.fetch = originalFetch
+      history.replaceState(null, '', originalPath)
+    }
+  })
+
+  test('refreshes missing account profile names when the picker opens', async () => {
+    const originalPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    const seed = new Uint8Array(32).fill(1)
+    const principal = blobs.principalToString(blobs.nobleKeyPairFromSeed(seed).principal)
+    let getAccountCalls = 0
+    const getAccount = mock(async () => {
+      getAccountCalls += 1
+      if (getAccountCalls === 1) {
+        throw new APIError('Account not found', 404)
+      }
+
+      return new Account({
+        id: principal,
+        profile: new Profile({
+          name: 'Alice',
+        }),
+      })
+    })
+    const store = createStore(
+      createSuccessMockClient({getAccount}),
+      createMockBlockstore(),
+      'https://daemon.example.com',
+      'https://notify.example.com',
+    )
+    store.state.sessionChecked = true
+    store.state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      email: 'test@example.com',
+    }
+    store.state.decryptedDEK = new Uint8Array(32)
+    store.state.vaultData = {
+      version: 2,
+      accounts: [
+        {
+          seed,
+          createTime: 123456789,
+          delegations: [],
+        },
+      ],
+    }
+    store.state.selectedAccountIndex = 0
+    history.replaceState(null, '', '/vault')
+
+    try {
+      render(
+        <MemoryRouter>
+          <StoreContext.Provider value={store}>
+            <VaultView />
+          </StoreContext.Provider>
+        </MemoryRouter>,
+      )
+
+      await waitFor(() => {
+        expect(getAccountCalls).toBe(1)
+      })
+
+      const pickerButton = screen.getAllByRole('button').find((button) => button.textContent?.includes(principal))
+      expect(pickerButton).toBeDefined()
+      fireEvent.click(pickerButton!)
+
+      await waitFor(() => {
+        expect(getAccountCalls).toBe(2)
+        expect(screen.getAllByText('Alice').length).toBeGreaterThan(0)
+      })
+    } finally {
       history.replaceState(null, '', originalPath)
     }
   })

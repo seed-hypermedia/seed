@@ -405,7 +405,8 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
       setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
-        if (canEdit || editor.isEditable) {
+        // Suppress resize handles in viewer render type (discussion panel)
+        if (editor.renderType !== 'viewer' && (canEdit || editor.isEditable)) {
           setShowHandle(true)
         }
       }}

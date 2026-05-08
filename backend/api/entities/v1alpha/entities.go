@@ -298,6 +298,35 @@ effective_comment_resources AS (
     FROM comment_resource_chain cr
   )
   WHERE rn = 1
+),
+current_document_resources AS (
+  SELECT rowid, resource, metadata, heads, is_deleted
+  FROM (
+    SELECT
+      f.rowid,
+      resources.id AS resource,
+      dg.metadata,
+      dg.heads,
+      dg.is_deleted,
+      ROW_NUMBER() OVER (
+        PARTITION BY f.rowid
+        ORDER BY dg.last_alive_ref_time DESC, resources.id DESC
+      ) AS rn
+    FROM fts_data f
+    CROSS JOIN resources INDEXED BY resources_by_genesis_blob
+    JOIN document_generations dg
+      ON dg.resource = resources.id
+    WHERE f.type IN ('title', 'document')
+    AND resources.genesis_blob = COALESCE(f.genesis_blob, f.blob_id)
+    AND dg.generation = (
+      SELECT MAX(dg2.generation)
+      FROM document_generations dg2
+      WHERE dg2.resource = resources.id
+    )
+    AND dg.is_deleted = False
+    AND dg.metadata->>'$."$db.redirect".v' IS NULL
+  )
+  WHERE rn = 1
 )
 
 SELECT
@@ -312,7 +341,7 @@ SELECT
   pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
-  COALESCE(current_document_generation.metadata, document_generations.metadata, structural_blobs.extra_attrs, '{}'),
+  COALESCE(current_document_resources.metadata, current_document_generation.metadata, document_generations.metadata, structural_blobs.extra_attrs, '{}'),
   dg_subject.metadata AS subject_metadata,
   COALESCE((
     SELECT json_group_array(
@@ -321,7 +350,7 @@ SELECT
                'multihash', hex(b2.multihash)
              )
            )
-    FROM json_each(COALESCE(current_document_generation.heads, document_generations.heads, '[]')) AS a
+    FROM json_each(COALESCE(current_document_resources.heads, current_document_generation.heads, document_generations.heads, '[]')) AS a
       JOIN blobs AS b2
         ON b2.id = a.value
   ), '[]') AS heads,
@@ -343,9 +372,14 @@ FROM fts_data AS f
   LEFT JOIN effective_comment_resources ecr
     ON ecr.origin_resource = f.resource
 
+  LEFT JOIN current_document_resources
+    ON current_document_resources.rowid = f.rowid
+
   LEFT JOIN resources
     ON resources.id = COALESCE(
       CASE WHEN f.type = 'comment' THEN ecr.resource END,
+      CASE WHEN f.type IN ('title', 'document') THEN current_document_resources.resource END,
+      CASE WHEN f.type NOT IN ('comment', 'title', 'document') THEN
       (SELECT resource from structural_blobs WHERE
 	     (f.blob_id       = structural_blobs.genesis_blob
            AND structural_blobs.type = 'Ref')
@@ -358,11 +392,12 @@ FROM fts_data AS f
            AND structural_blobs.author = ?)
       OR (f.blob_id       = structural_blobs.id
            AND structural_blobs.type = 'Profile')
-     limit 1))
+     limit 1)
+      END)
 
   LEFT JOIN document_generations
     ON document_generations.resource = resources.id
-    AND f.type != 'comment'
+    AND f.type NOT IN ('comment', 'title', 'document')
 
   LEFT JOIN latest_document_generations AS current_document_generation
     ON current_document_generation.resource = resources.id
@@ -374,7 +409,7 @@ FROM fts_data AS f
   LEFT JOIN public_keys pk_subject
     ON pk_subject.id = structural_blobs.extra_attrs->>'subject'
 
-WHERE (f.type = 'profile' OR COALESCE(current_document_generation.is_deleted, document_generations.is_deleted) = False)
+WHERE (f.type = 'profile' OR COALESCE(current_document_resources.is_deleted, current_document_generation.is_deleted, document_generations.is_deleted) = False)
 `)
 
 var qKeywordSearch = dqb.Str(`

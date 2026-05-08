@@ -193,9 +193,9 @@ export const MediaRender: React.FC<RenderProps> = ({
           setSelected={setSelection}
           DisplayComponent={DisplayComponent}
         />
-      ) : canEdit || editor.isEditable ? (
-        // DocumentMachineProvider isn't available in the comment editor, so canEdit
-        // is always false there. Fall back to editor.isEditable for that case.
+      ) : editor.renderType !== 'viewer' && (canEdit || editor.isEditable) ? (
+        // The editor accepts authoring when the user has edit permission
+        // or when the editor instance itself is editable
         <MediaForm
           block={block}
           assign={assignMedia}

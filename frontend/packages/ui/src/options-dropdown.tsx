@@ -1,4 +1,5 @@
-import {MoreHorizontal} from 'lucide-react'
+import {HelpCircle, MoreHorizontal} from 'lucide-react'
+import {useRef, useState} from 'react'
 import {ButtonProps, buttonVariants} from './button'
 import {
   DropdownMenu,
@@ -12,8 +13,42 @@ import {
   DropdownMenuTrigger,
 } from './components/dropdown-menu'
 import {SizableText} from './text'
+import {Tooltip} from './tooltip'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
+
+const TOOLTIP_MAX_WIDTH = 320
+const TOOLTIP_VIEWPORT_PADDING = 16
+
+// Renders a question mark icon with a hover tooltip.
+// Picks right vs top based on actual viewport room at hover time.
+function MenuItemHelpIcon({content}: {content: string}) {
+  const [side, setSide] = useState<'right' | 'top'>('right')
+  const ref = useRef<HTMLSpanElement>(null)
+  const measure = () => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const fitsRight = rect.right + TOOLTIP_MAX_WIDTH + TOOLTIP_VIEWPORT_PADDING < window.innerWidth
+    setSide(fitsRight ? 'right' : 'top')
+  }
+  return (
+    <Tooltip content={content} side={side} delay={150} asChild>
+      <span
+        ref={ref}
+        onMouseEnter={measure}
+        onFocus={measure}
+        className="text-muted-foreground ml-auto inline-flex"
+        onClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+        }}
+      >
+        <HelpCircle className="size-3.5" />
+      </span>
+    </Tooltip>
+  )
+}
 
 export type MenuItemType = {
   key: string
@@ -23,6 +58,7 @@ export type MenuItemType = {
   onClick?: ButtonProps['onClick']
   variant?: 'default' | 'destructive'
   children?: MenuItemType[]
+  tooltip?: string
 }
 
 export function OptionsDropdown({
@@ -111,15 +147,16 @@ export function OptionsDropdown({
                         <div className="flex flex-col gap-1">
                           <SizableText>{item.label}</SizableText>
 
-                          <SizableText size="sm" className="text-muted-foreground text-xs">
-                            {item.subLabel}
-                          </SizableText>
-                        </div>
-                      ) : (
-                        <SizableText>{item.label}</SizableText>
-                      )}
-                    </DropdownMenuItem>
+                      <SizableText size="sm" className="text-muted-foreground text-xs">
+                        {item.subLabel}
+                      </SizableText>
+                    </div>
+                  ) : (
+                    <SizableText>{item.label}</SizableText>
                   )}
+                  {item.tooltip ? <MenuItemHelpIcon content={item.tooltip} /> : null}
+                </DropdownMenuItem>
+              )}
                 </div>
               ))
             })()}

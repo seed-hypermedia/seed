@@ -9,6 +9,8 @@ import (
 	"sort"
 	"time"
 
+	"seed/backend/util/bwcounter"
+
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,7 +42,142 @@ type networkPage struct {
 	ProtocolID   string
 	HowToRead    template.HTML
 	Sections     []section
+	Bandwidth    bandwidthSection
 	Reachability reachSection
+}
+
+// bandwidthSection holds all bandwidth-related tables for the page. Each table
+// is independent and may be empty if no traffic has been recorded for that
+// layer yet. The layout is intentionally a single H2 with multiple sub-tables
+// so the user can compare loopback vs remote across libp2p / HTTP server /
+// HTTP client without scrolling.
+type bandwidthSection struct {
+	Help          template.HTML
+	Layers        []bwLayerRow
+	Protocols     []bwTagRow // libp2p protocol breakdown
+	Peers         []bwPeerRow
+	HTTPIn        []bwTagRow // inbound HTTP by URL-prefix tag
+	HTTPOut       []bwTagRow // outbound HTTP by destination host
+	Bitswap       *bitswapDedupRow
+	DB            *dbGrowthRow
+	SyncDiscard   *syncDiscardRow
+	Drift         *indexDriftRow
+	CodecMismatch []codecMismatchRow
+	Preflight     *preflightRow
+}
+
+// preflightRow shows how many CIDs the syncing pre-flight Has filter has
+// dropped from RBSR-produced wantlists before bitswap got to fetch them.
+// Each skipped CID is one WANT_HAVE → HAVE → WANT_BLOCK → BLOCK round-trip
+// AND one block delivery NOT paid for on the wire — the inbound bandwidth
+// the filter is actively saving versus letting the request go through and
+// dropping at putBlock with the `exists` outcome.
+type preflightRow struct {
+	Skipped string
+	// SkippedClass goes "good" when we're saving real fetches, neutral
+	// when nothing has been filtered yet (newly started daemon).
+	SkippedClass string
+}
+
+// indexDriftRow surfaces the count of blobs present on disk but missing from
+// structural_blobs — exactly the rows RBSR's local-set query (collectBlobs in
+// discovery.go) cannot see. Non-zero DagCbor here is the smoking gun for
+// "RBSR keeps asking for blobs we already have."
+type indexDriftRow struct {
+	Total      string
+	TotalBytes string
+	DagCbor    string
+	DagPb      string
+	Other      string
+	Class      string
+}
+
+// codecMismatchRow shows the (stored_codec → incoming_codec) pairs whenever
+// putBlock takes the `exists` branch. Non-zero rows mean RBSR's CID-keyed set
+// diff is asymmetric for the same content because peers ship the same
+// multihash under a different codec than we have stored.
+type codecMismatchRow struct {
+	StoredCodec   string
+	IncomingCodec string
+	Count         string
+}
+
+// dbGrowthRow shows SQLite logical size at startup vs now, with the absolute
+// growth and the implied compression-ratio against bitswap-received unique
+// bytes. Surfaced so a user can compare on-the-wire downloads against actual
+// disk growth in the same session.
+type dbGrowthRow struct {
+	StartSize    string
+	NowSize      string
+	Growth       string
+	Elapsed      string
+	GrowthVsRecv string // e.g. "growth / unique recv = 0.42 (i.e. ~58% of unique blob bytes never reached disk)"
+}
+
+// syncDiscardRow now surfaces persist-pipeline health. The original "ctx
+// cancelled before persist" path no longer exists post-streaming refactor,
+// but we keep the discard counter (should be 0) and add the rollback counter
+// for the new failure mode: a streaming PutMany batch that fails inside
+// indexBlob (most often a cross-blob ordering dependency).
+type syncDiscardRow struct {
+	Events            string
+	Blocks            string
+	RollbackBatches   string
+	RollbackBlocks    string
+	HasDiscard        bool
+	HasRollback       bool
+}
+
+// bitswapDedupRow shows how much of the bitswap recv stream is wasted on
+// duplicate blocks (the same blob delivered by multiple peers). A high
+// duplicate share is the smoking gun for "WANT broadcast to N peers, M
+// peers raced to send the block" — it directly explains spikes in libp2p
+// remote-in without corresponding new content downloaded.
+//
+// The Already* fields surface putBlock outcome counters so we can see the
+// distinct case "block delivered from the network but blobs row already
+// populated" — that means we re-fetched something we already had.
+type bitswapDedupRow struct {
+	BlocksReceived  string
+	DataReceived    string
+	DupBlocks       string
+	DupData         string
+	DupDataPct      string
+	DupDataPctClass string
+	BlocksSent      string
+	DataSent        string
+	NewBlocks       string
+	NewBytes        string
+	UpdateBlocks    string
+	UpdateBytes     string
+	AlreadyBlocks   string
+	AlreadyBytes    string
+	AlreadyPct      string
+	AlreadyPctClass string
+}
+
+type bwLayerRow struct {
+	Layer       string
+	LoopbackIn  string
+	LoopbackOut string
+	RemoteIn    string
+	RemoteOut   string
+	Total       string
+}
+
+type bwTagRow struct {
+	Scope string // "loopback" or "remote"
+	Tag   string
+	In    string
+	Out   string
+}
+
+type bwPeerRow struct {
+	PeerID     string
+	Scope      string
+	In         string
+	Out        string
+	LastActive string
 }
 
 type section struct {
@@ -199,6 +336,13 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 			[]string{"complete", "idle_timeout", "ctx_done"},
 		), helpBitswapLastBlockAge),
 		withHelp(buildBitswapCompletenessSection(), helpBitswapCompleteness),
+		withHelp(buildBucketSection(
+			"Wantlist size per peer-sync (RBSR diff)",
+			"how many blobs RBSR identified as missing from us, per peer. Healthy: clusters near 0. High and stable: RBSR's local-set query is undercounting what we have on disk and we re-fetch every cycle.",
+			"<= wants",
+			"seed_syncpeer_wanted_blobs",
+			"%.0f",
+		), helpWantlistSize),
 		withHelp(buildLatencySection(
 			"Reconcile server sub-phase",
 			"when other peers call OUR ReconcileBlobs, what we spend time on (proxy for what gateways spend when WE call them)",
@@ -225,8 +369,321 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 		withHelp(buildSyncOutcomesSection(), helpSyncOutcomes),
 	}
 
+	page.Bandwidth = n.buildBandwidth(ctx)
 	page.Reachability = n.buildReachability()
 	return page
+}
+
+// buildBandwidth assembles the bandwidth section from the libp2p metrics and
+// the two HTTP counters owned by the Node. Numbers are pre-formatted into
+// human-readable strings so the template stays simple.
+func (n *Node) buildBandwidth(ctx context.Context) bandwidthSection {
+	out := bandwidthSection{Help: helpBandwidth}
+
+	var p2p bwcounter.Snapshot
+	if n.metrics != nil {
+		p2p = n.metrics.BW.Snapshot()
+	}
+	srv := bwcounter.Snapshot{}
+	if n.httpServerBW != nil {
+		srv = n.httpServerBW.Snapshot()
+	}
+	cli := bwcounter.Snapshot{}
+	if n.httpClientBW != nil {
+		cli = n.httpClientBW.Snapshot()
+	}
+
+	out.Layers = []bwLayerRow{
+		makeLayerRow("libp2p", p2p),
+		makeLayerRow("http server", srv),
+		makeLayerRow("http client", cli),
+		makeTotalLayerRow(p2p, srv, cli),
+	}
+
+	for _, t := range topNTagRows(p2p.Tags, 12) {
+		out.Protocols = append(out.Protocols, formatTagRow(t))
+	}
+	for _, t := range topNTagRows(srv.Tags, 12) {
+		out.HTTPIn = append(out.HTTPIn, formatTagRow(t))
+	}
+	for _, t := range topNTagRows(cli.Tags, 12) {
+		out.HTTPOut = append(out.HTTPOut, formatTagRow(t))
+	}
+
+	if n.metrics != nil {
+		now := time.Now()
+		for _, p := range n.metrics.PeerBytesSnapshot(10) {
+			scope := "remote"
+			if p.Loopback {
+				scope = "loopback"
+			}
+			last := "—"
+			if !p.LastActive.IsZero() {
+				last = humanAgo(now.Sub(p.LastActive))
+			}
+			out.Peers = append(out.Peers, bwPeerRow{
+				PeerID:     p.PeerID.String(),
+				Scope:      scope,
+				In:         humanBytes(p.In),
+				Out:        humanBytes(p.Out),
+				LastActive: last,
+			})
+		}
+	}
+
+	var bitswapUniqueRecv uint64 // for the DB growth ratio below
+	if n.bitswap != nil && n.bitswap.Bitswap != nil {
+		if st, err := n.bitswap.Bitswap.Stat(); err == nil && st != nil {
+			row := &bitswapDedupRow{
+				BlocksReceived: fmt.Sprintf("%d", st.BlocksReceived),
+				DataReceived:   humanBytes(st.DataReceived),
+				DupBlocks:      fmt.Sprintf("%d", st.DupBlksReceived),
+				DupData:        humanBytes(st.DupDataReceived),
+				BlocksSent:     fmt.Sprintf("%d", st.BlocksSent),
+				DataSent:       humanBytes(st.DataSent),
+			}
+			if st.DataReceived > 0 {
+				pct := float64(st.DupDataReceived) / float64(st.DataReceived) * 100
+				row.DupDataPct = fmt.Sprintf("%.1f%%", pct)
+				if pct > 20 {
+					row.DupDataPctClass = "warn"
+				}
+			} else {
+				row.DupDataPct = "—"
+			}
+
+			outcomeCounts, _ := collectCounterVec("seed_blob_putblock_outcome_total")
+			outcomeBytes, _ := collectCounterVec("seed_blob_putblock_bytes_total")
+			newBlocks := outcomeCounts["new"]
+			newBytes := outcomeBytes["new"]
+			updBlocks := outcomeCounts["update"]
+			updBytes := outcomeBytes["update"]
+			alrBlocks := outcomeCounts["exists"]
+			alrBytes := outcomeBytes["exists"]
+			row.NewBlocks = fmt.Sprintf("%.0f", newBlocks)
+			row.NewBytes = humanBytes(uint64(newBytes))
+			row.UpdateBlocks = fmt.Sprintf("%.0f", updBlocks)
+			row.UpdateBytes = humanBytes(uint64(updBytes))
+			row.AlreadyBlocks = fmt.Sprintf("%.0f", alrBlocks)
+			row.AlreadyBytes = humanBytes(uint64(alrBytes))
+			if total := newBytes + updBytes + alrBytes; total > 0 {
+				pct := alrBytes / total * 100
+				row.AlreadyPct = fmt.Sprintf("%.1f%%", pct)
+				if pct > 20 {
+					row.AlreadyPctClass = "warn"
+				}
+			} else {
+				row.AlreadyPct = "—"
+			}
+
+			out.Bitswap = row
+
+			if st.DataReceived > st.DupDataReceived {
+				bitswapUniqueRecv = st.DataReceived - st.DupDataReceived
+			}
+		}
+	}
+
+	// codec-mismatch table: rows are (stored,incoming) → count, sorted desc
+	if mfs, err := prometheus.DefaultGatherer.Gather(); err == nil {
+		var rows []codecMismatchRow
+		for _, mf := range mfs {
+			if mf.GetName() != "seed_blob_putblock_codec_mismatch_total" {
+				continue
+			}
+			for _, m := range mf.GetMetric() {
+				if m.Counter == nil {
+					continue
+				}
+				var stored, incoming string
+				for _, l := range m.GetLabel() {
+					switch l.GetName() {
+					case "stored_codec":
+						stored = l.GetValue()
+					case "incoming_codec":
+						incoming = l.GetValue()
+					}
+				}
+				rows = append(rows, codecMismatchRow{
+					StoredCodec:   stored + " (" + codecName(stored) + ")",
+					IncomingCodec: incoming + " (" + codecName(incoming) + ")",
+					Count:         fmt.Sprintf("%.0f", m.Counter.GetValue()),
+				})
+			}
+		}
+		if len(rows) > 0 {
+			out.CodecMismatch = rows
+		}
+	}
+
+	if drift, err := n.IndexDrift(ctx); err == nil {
+		row := &indexDriftRow{
+			Total:      fmt.Sprintf("%d", drift.Total),
+			TotalBytes: humanBytes(uint64(drift.TotalBytes)),
+			DagCbor:    fmt.Sprintf("%d", drift.DagCbor),
+			DagPb:      fmt.Sprintf("%d", drift.DagPb),
+			Other:      fmt.Sprintf("%d", drift.Other),
+		}
+		if drift.DagCbor > 0 {
+			row.Class = "warn"
+		}
+		out.Drift = row
+	}
+
+	discardEvents, _ := collectSingleMetricValue("seed_syncpeer_discarded_events_total")
+	discardBlocks, _ := collectSingleMetricValue("seed_syncpeer_discarded_blobs_total")
+	rollbackBatches, _ := collectSingleMetricValue("seed_syncpeer_persist_rollback_total")
+	rollbackBlocks, _ := collectSingleMetricValue("seed_syncpeer_persist_rollback_blocks_total")
+	preflightSkipped, _ := collectSingleMetricValue("seed_syncpeer_preflight_skipped_total")
+	{
+		row := &preflightRow{
+			Skipped: fmt.Sprintf("%.0f", preflightSkipped),
+		}
+		if preflightSkipped > 0 {
+			row.SkippedClass = "good"
+		}
+		out.Preflight = row
+	}
+	if discardEvents > 0 || rollbackBatches > 0 {
+		out.SyncDiscard = &syncDiscardRow{
+			Events:          fmt.Sprintf("%.0f", discardEvents),
+			Blocks:          fmt.Sprintf("%.0f", discardBlocks),
+			RollbackBatches: fmt.Sprintf("%.0f", rollbackBatches),
+			RollbackBlocks:  fmt.Sprintf("%.0f", rollbackBlocks),
+			HasDiscard:      discardEvents > 0,
+			HasRollback:     rollbackBatches > 0,
+		}
+	}
+
+	startSize, startTime := n.DBSizeAtStart()
+	if startSize > 0 {
+		nowSize, err := n.DBSizeNow(ctx)
+		if err == nil {
+			var growth uint64
+			if nowSize > startSize {
+				growth = nowSize - startSize
+			}
+			elapsed := "—"
+			if !startTime.IsZero() {
+				elapsed = time.Since(startTime).Truncate(time.Second).String()
+			}
+			row := &dbGrowthRow{
+				StartSize: humanBytes(startSize),
+				NowSize:   humanBytes(nowSize),
+				Growth:    humanBytes(growth),
+				Elapsed:   elapsed,
+			}
+			if bitswapUniqueRecv > 0 {
+				ratio := float64(growth) / float64(bitswapUniqueRecv)
+				gone := 1 - ratio
+				row.GrowthVsRecv = fmt.Sprintf(
+					"growth / unique-bitswap-recv = %s / %s = %.2f (≈%.0f%% of unique recv never reached disk)",
+					humanBytes(growth), humanBytes(bitswapUniqueRecv), ratio, gone*100,
+				)
+			}
+			out.DB = row
+		}
+	}
+
+	return out
+}
+
+func makeLayerRow(name string, s bwcounter.Snapshot) bwLayerRow {
+	return bwLayerRow{
+		Layer:       name,
+		LoopbackIn:  humanBytes(s.LoopbackIn),
+		LoopbackOut: humanBytes(s.LoopbackOut),
+		RemoteIn:    humanBytes(s.RemoteIn),
+		RemoteOut:   humanBytes(s.RemoteOut),
+		Total:       humanBytes(s.LoopbackIn + s.LoopbackOut + s.RemoteIn + s.RemoteOut),
+	}
+}
+
+func makeTotalLayerRow(snaps ...bwcounter.Snapshot) bwLayerRow {
+	var li, lo, ri, ro uint64
+	for _, s := range snaps {
+		li += s.LoopbackIn
+		lo += s.LoopbackOut
+		ri += s.RemoteIn
+		ro += s.RemoteOut
+	}
+	return bwLayerRow{
+		Layer:       "TOTAL",
+		LoopbackIn:  humanBytes(li),
+		LoopbackOut: humanBytes(lo),
+		RemoteIn:    humanBytes(ri),
+		RemoteOut:   humanBytes(ro),
+		Total:       humanBytes(li + lo + ri + ro),
+	}
+}
+
+func topNTagRows(rows []bwcounter.TagRow, n int) []bwcounter.TagRow {
+	// Snapshot already sorts by Total() desc.
+	if n > 0 && len(rows) > n {
+		return rows[:n]
+	}
+	return rows
+}
+
+func formatTagRow(t bwcounter.TagRow) bwTagRow {
+	scope := "remote"
+	if t.Scope == bwcounter.ScopeLoopback {
+		scope = "loopback"
+	}
+	tag := t.Tag
+	if tag == "" {
+		tag = "(unlabeled)"
+	}
+	return bwTagRow{
+		Scope: scope,
+		Tag:   tag,
+		In:    humanBytes(t.In),
+		Out:   humanBytes(t.Out),
+	}
+}
+
+// humanBytes formats a byte count as a short string (e.g. "1.2 MB").
+// Uses 1024-based units to match what users see in OS-level network monitors.
+func humanBytes(n uint64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for x := n / unit; x >= unit; x /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// codecName returns the short multicodec name for a numeric codec string.
+// Covers the codecs we actually see in this codebase; everything else is "?".
+func codecName(s string) string {
+	switch s {
+	case "85":
+		return "raw"
+	case "112":
+		return "dag-pb"
+	case "113":
+		return "dag-cbor"
+	case "0":
+		return "identity"
+	}
+	return "?"
+}
+
+func humanAgo(d time.Duration) string {
+	if d < time.Second {
+		return "just now"
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%ds ago", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	}
+	return fmt.Sprintf("%dh ago", int(d.Hours()))
 }
 
 func buildLatencySection(title, subtitle, header, family string, rowLabels []string) section {
@@ -785,6 +1242,34 @@ const helpSyncOutcomes template.HTML = `
 </dl>
 <p>Highlighted red if any non-<code>ok</code> row is &gt;5% of total. <code>protocol_mismatch</code> volume is fine; the others should be near zero.</p>`
 
+const helpWantlistSize template.HTML = `
+<p>For each peer we sync with, RBSR computes "blobs the peer has that I don't" and asks bitswap to fetch them. This histogram is the size of that wantlist per peer-sync.</p>
+<dl>
+<dt>healthy</dt><dd>Mean near 0, with most observations in the <code>≤ 1</code> or <code>≤ 10</code> buckets — the diff is small because we already have most of what each peer has.</dd>
+<dt>unhealthy</dt><dd>Persistent observations in <code>≤ 1000</code>+ buckets. Each one means we asked bitswap to fetch hundreds-to-thousands of blobs from this peer. If the <em>putBlock disposition → exists</em> share is also high, RBSR is undercounting our local set: it tells every peer we're missing blobs we actually have, peers ship them, the blockstore drops them, and the next sync repeats. Combined with the 2-minute <code>TimeoutPerPeer</code> hard cap, large wantlists trigger the <em>sync — late-cancellation waste</em> path.</dd>
+</dl>`
+
+const helpBandwidth template.HTML = `
+<p>Where the daemon's bytes are going since startup. Three layers are tracked independently — they don't double-count each other:</p>
+<dl>
+<dt>libp2p</dt><dd>Raw stream bytes on the libp2p transport (bitswap, kad-dht, hypermedia gRPC-over-libp2p, identify, ping, autonat, holepunch, relay). The big libp2p protocols are broken out below.</dd>
+<dt>http server</dt><dd>Bytes through the daemon's HTTP listener — gRPC-Web from the local desktop/web frontend, the public file gateway (<code>/ipfs/&lt;cid&gt;</code>), debug pages. <strong>The desktop app's gRPC-Web traffic shows up here as <em>loopback</em></strong> since the frontend connects to <code>127.0.0.1</code>.</dd>
+<dt>http client</dt><dd>Outbound HTTP we own — primarily the delegated DHT client. Counted at our wrapper, so libp2p-internal HTTP probes (which we don't wrap) aren't included.</dd>
+</dl>
+<p><strong>scope</strong>: <em>loopback</em> means the remote endpoint is <code>127.0.0.0/8</code> or <code>::1</code>. <em>remote</em> means anything else, including LAN. So if your bandwidth feels too high but the loopback row is the dominant chunk, the bytes never left the machine.</p>
+<p><strong>bitswap duplicate-block waste</strong>: bitswap broadcasts WANT messages to every connected peer. When several peers race to send the same block, we accept all copies. <em>Duplicate data received</em> is the share of the bitswap recv stream that was wasted on blocks we already had. A high value (red &gt;20%) means most of the bitswap inbound traffic is amplification, not new content. Multiplied across a few hundred connected peers this is usually the dominant source of "why is my bandwidth so high".</p>
+<p><strong>putBlock disposition</strong>: every block that reaches our blockstore (delivered by bitswap or pushed via PutMany) goes through one of three branches in <code>blockStore.putBlock</code>: <em>new</em> writes a fresh row, <em>update</em> fills in a previously-known placeholder, <em>exists</em> means we already had a complete row and the data is dropped. A large <em>exists</em> share (red &gt;20%) means we paid full network cost to receive content already on disk — i.e. RBSR or bitswap thought we were missing blobs we actually have. Cross-check against <em>SQLite size — this session</em> below: if the DB barely grew but bitswap recv was big, the <em>exists</em> row is almost certainly where it went.</p>
+<p><strong>codec mismatch</strong>: when a peer ships a block, the bitswap-delivered CID carries a codec (raw, dag-pb, dag-cbor, …). When that block reaches <code>putBlock</code> and we already have the same multihash stored under a <em>different</em> codec, we hit the <code>exists</code> branch and drop the data. RBSR's set diff identifies items by full CID — codec + multihash — so two valid encodings of the same content (e.g. small UnixFS files stored as <code>raw</code> by some peers and as <code>dag-pb</code> by others) look like different items and get repeatedly fetched and dropped. Each row is a (stored→incoming) codec pair we observed, with the count of redundant deliveries. Empty table means peers and us agree on codecs; non-empty means we're paying real bandwidth for content we already have under a different CID.</p>
+<p><strong>syncing pre-flight Has filter</strong>: after RBSR computes a wantlist of CIDs the peer has and we don't, we run a multihash-keyed <code>blockstore.Has</code> on each before handing it to bitswap. CIDs we already have (codec mismatch or scope/orphan reachability — see the codec-mismatch table above) get filtered out at zero network cost, sparing us the WANT_HAVE → HAVE → WANT_BLOCK → BLOCK round-trip and the block delivery itself. The counter shows lifetime saved fetches; expect it to grow at the rate <code>putBlock disposition: exists</code> would have grown without the filter. A green non-zero value is direct inbound bandwidth saved; zero on a freshly-started daemon is normal.</p>
+<p><strong>blob index drift</strong>: count of rows in <code>blobs</code> with <code>size &gt;= 0</code> that have NO matching row in <code>structural_blobs</code>. RBSR builds its local-set view from <code>structural_blobs</code> via <code>collectBlobs</code>, so these blobs are present on disk but invisible to the diff. Each one will be re-fetched from peers every sync cycle and dropped at <code>putBlock</code> as <code>exists</code>. Red when the dag-cbor count is non-zero — those <em>should</em> be indexed and aren't.</p>
+<p><strong>persist pipeline — failures</strong>: post-streaming-refactor, fetched blocks are pipelined into <code>PutMany</code> batches and persisted on a detached ctx. Two failure modes can show up:</p>
+<dl>
+<dt>late-cancel discard</dt><dd>Legacy code path that lost work when the per-peer ctx fired during fetch. Should stay at 0 with the streaming refactor — non-zero here means a path slipped through and is still using the old all-or-nothing persist.</dd>
+<dt>PutMany batch rollbacks</dt><dd>A streaming batch's <code>PutMany</code> tx rolled back, most often because <code>indexBlob</code> hit a cross-blob reference whose referent isn't in the DB yet (e.g. a Change ahead of its <code>genesis_blob</code>, a Capability before its parent). Those blocks come back from peers next sync and the order resolves. A small steady value during initial big syncs is expected; a sustained high value points at a real ordering / dependency bug worth chasing.</dd>
+</dl>
+<p><strong>SQLite size — this session</strong>: <code>page_count × page_size</code> sampled at daemon start vs now. Compared against bitswap unique-recv (data received minus duplicates). If <em>vs bitswap unique recv</em> is much less than 1, then unique blob bytes were received from peers but didn't reach disk — either still buffered, dropped by indexer validation, or never persisted. If it's roughly 1×, the on-the-wire bytes really did become disk bytes. The ratio assumes blob content is incompressible-ish; if your storage path applies compression this ratio drops accordingly without indicating a leak.</p>
+<p>All counters reset on daemon restart; numbers are cumulative since then.</p>`
+
 const helpHowToRead template.HTML = `
 <p>This page is a live snapshot of how syncing is performing on this daemon.</p>
 <ul>
@@ -929,6 +1414,148 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 </details>
 {{end}}
 {{end}}
+
+<h2>Bandwidth (since startup)</h2>
+<div class="subtitle">bytes split by scope (loopback vs remote) across libp2p / HTTP server / HTTP client. Loopback is anything on 127.0.0.0/8 or ::1.</div>
+<table>
+<tr><th>layer</th><th>loopback in</th><th>loopback out</th><th>remote in</th><th>remote out</th><th>total</th></tr>
+{{range .Bandwidth.Layers}}
+<tr>
+<td>{{.Layer}}</td>
+<td class="num">{{.LoopbackIn}}</td>
+<td class="num">{{.LoopbackOut}}</td>
+<td class="num">{{.RemoteIn}}</td>
+<td class="num">{{.RemoteOut}}</td>
+<td class="num">{{.Total}}</td>
+</tr>
+{{end}}
+</table>
+
+{{if .Bandwidth.Protocols}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">libp2p — top protocols by bytes</h3>
+<table>
+<tr><th>protocol</th><th>scope</th><th>recv</th><th>sent</th></tr>
+{{range .Bandwidth.Protocols}}
+<tr><td><code>{{.Tag}}</code></td><td>{{.Scope}}</td><td class="num">{{.In}}</td><td class="num">{{.Out}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+{{if .Bandwidth.Peers}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">libp2p — top peers by bytes (top 10)</h3>
+<table>
+<tr><th>peer ID</th><th>scope</th><th>recv</th><th>sent</th><th>last activity</th></tr>
+{{range .Bandwidth.Peers}}
+<tr><td><code>{{.PeerID}}</code></td><td>{{.Scope}}</td><td class="num">{{.In}}</td><td class="num">{{.Out}}</td><td>{{.LastActive}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+{{if .Bandwidth.HTTPIn}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">http server — by URL prefix</h3>
+<table>
+<tr><th>tag</th><th>scope</th><th>recv</th><th>sent</th></tr>
+{{range .Bandwidth.HTTPIn}}
+<tr><td>{{.Tag}}</td><td>{{.Scope}}</td><td class="num">{{.In}}</td><td class="num">{{.Out}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+{{if .Bandwidth.HTTPOut}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">http client — by destination host</h3>
+<table>
+<tr><th>host</th><th>scope</th><th>recv</th><th>sent</th></tr>
+{{range .Bandwidth.HTTPOut}}
+<tr><td><code>{{.Tag}}</code></td><td>{{.Scope}}</td><td class="num">{{.In}}</td><td class="num">{{.Out}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+{{if .Bandwidth.Bitswap}}
+{{with .Bandwidth.Bitswap}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">bitswap — duplicate-block waste</h3>
+<table class="kv">
+<tr><td>blocks received</td><td class="num">{{.BlocksReceived}}</td></tr>
+<tr><td>data received</td><td class="num">{{.DataReceived}}</td></tr>
+<tr><td>duplicate blocks received</td><td class="num">{{.DupBlocks}}</td></tr>
+<tr><td>duplicate data received</td><td class="num {{.DupDataPctClass}}">{{.DupData}} ({{.DupDataPct}})</td></tr>
+<tr><td>blocks sent</td><td class="num">{{.BlocksSent}}</td></tr>
+<tr><td>data sent</td><td class="num">{{.DataSent}}</td></tr>
+</table>
+
+<h3 style="font-size:13px;margin:14px 0 4px 0">putBlock disposition — what happened to received blocks</h3>
+<table class="kv">
+<tr><td>new (fresh insert into blobs)</td><td class="num">{{.NewBlocks}} blocks · {{.NewBytes}}</td></tr>
+<tr><td>update (placeholder filled)</td><td class="num">{{.UpdateBlocks}} blocks · {{.UpdateBytes}}</td></tr>
+<tr><td>exists (already had it, dropped)</td><td class="num {{.AlreadyPctClass}}">{{.AlreadyBlocks}} blocks · {{.AlreadyBytes}} ({{.AlreadyPct}} of bytes)</td></tr>
+</table>
+{{end}}
+{{end}}
+
+{{if .Bandwidth.CodecMismatch}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">codec mismatch — same multihash, different codec on the wire vs in our DB</h3>
+<table>
+<tr><th>stored codec</th><th>incoming codec (from peer)</th><th>count</th></tr>
+{{range .Bandwidth.CodecMismatch}}
+<tr><td>{{.StoredCodec}}</td><td>{{.IncomingCodec}}</td><td class="num warn">{{.Count}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+{{if .Bandwidth.Drift}}
+{{with .Bandwidth.Drift}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">blob index drift — invisible to RBSR</h3>
+<table class="kv">
+<tr><td>blobs in <code>blobs</code> but NOT in <code>structural_blobs</code></td><td class="num {{.Class}}">{{.Total}} ({{.TotalBytes}})</td></tr>
+<tr><td>&nbsp;&nbsp;dag-cbor (Hypermedia structural — should be indexed)</td><td class="num {{.Class}}">{{.DagCbor}}</td></tr>
+<tr><td>&nbsp;&nbsp;dag-pb (UnixFS chunks — usually fine to be unindexed)</td><td class="num">{{.DagPb}}</td></tr>
+<tr><td>&nbsp;&nbsp;other codec</td><td class="num">{{.Other}}</td></tr>
+</table>
+{{end}}
+{{end}}
+
+{{if .Bandwidth.Preflight}}
+{{with .Bandwidth.Preflight}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">syncing pre-flight Has filter — wantlist CIDs we already have</h3>
+<table class="kv">
+<tr><td>CIDs skipped before bitswap (would have hit putBlock as <code>exists</code>)</td><td class="num {{.SkippedClass}}">{{.Skipped}}</td></tr>
+</table>
+{{end}}
+{{end}}
+
+{{if .Bandwidth.SyncDiscard}}
+{{with .Bandwidth.SyncDiscard}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">persist pipeline — failures</h3>
+<table class="kv">
+{{if .HasDiscard}}
+<tr><td>late-cancel discard events (legacy path; should stay at 0)</td><td class="num warn">{{.Events}}</td></tr>
+<tr><td>late-cancel blocks discarded</td><td class="num warn">{{.Blocks}}</td></tr>
+{{end}}
+{{if .HasRollback}}
+<tr><td>PutMany batch rollbacks (likely indexBlob ordering)</td><td class="num warn">{{.RollbackBatches}}</td></tr>
+<tr><td>blocks rolled back (will return next sync cycle)</td><td class="num warn">{{.RollbackBlocks}}</td></tr>
+{{end}}
+</table>
+{{end}}
+{{end}}
+
+{{if .Bandwidth.DB}}
+{{with .Bandwidth.DB}}
+<h3 style="font-size:13px;margin:14px 0 4px 0">SQLite size — this session</h3>
+<table class="kv">
+<tr><td>at startup</td><td class="num">{{.StartSize}}</td></tr>
+<tr><td>now</td><td class="num">{{.NowSize}}</td></tr>
+<tr><td>grew by</td><td class="num">{{.Growth}}</td></tr>
+<tr><td>elapsed since startup snapshot</td><td>{{.Elapsed}}</td></tr>
+{{if .GrowthVsRecv}}<tr><td>vs bitswap unique recv</td><td>{{.GrowthVsRecv}}</td></tr>{{end}}
+</table>
+{{end}}
+{{end}}
+
+<details class="help">
+<summary>What does this mean?</summary>
+{{.Bandwidth.Help}}
+</details>
 
 <h2>Reachability snapshot</h2>
 <div class="subtitle">peerstore peers, connected first; showing top {{len .Reachability.Rows}} of {{.Reachability.Total}}</div>

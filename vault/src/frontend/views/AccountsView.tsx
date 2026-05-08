@@ -22,7 +22,7 @@ import {
 } from '@/frontend/profile'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
-import type * as vault from '@/frontend/vault'
+import * as vault from '@/frontend/vault'
 import {
   closestCenter,
   DndContext,
@@ -286,6 +286,7 @@ function AccountPicker({
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const actions = useActions()
 
   useEffect(() => {
     if (!open) return
@@ -302,12 +303,23 @@ function AccountPicker({
   const selectedKp = selectedAccount ? blobs.nobleKeyPairFromSeed(selectedAccount.seed) : null
   const selectedPrincipal = selectedKp ? blobs.principalToString(selectedKp.principal) : null
   const selectedProfile = selectedPrincipal ? profiles[selectedPrincipal] : undefined
-  const selectedProfileLoadState = selectedPrincipal ? profileLoadStates[selectedPrincipal] : undefined
-  const selectedName = getProfileDisplayName(selectedProfile, selectedProfileLoadState)
+  const selectedName = getAccountPickerDisplayName(selectedAccount, selectedProfile)
   const selectedAvatarSrc =
     selectedProfile?.avatar && backendHttpBaseUrl
       ? getProfileAvatarImageSrc(backendHttpBaseUrl, selectedProfile.avatar)
       : undefined
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    accounts.forEach((account) => {
+      const kp = blobs.nobleKeyPairFromSeed(account.seed)
+      const principal = blobs.principalToString(kp.principal)
+      actions.ensureProfileLoaded(principal)
+    })
+  }, [accounts, actions, open])
 
   return (
     <div className="relative" ref={containerRef}>
@@ -340,8 +352,7 @@ function AccountPicker({
             const kp = blobs.nobleKeyPairFromSeed(account.seed)
             const principal = blobs.principalToString(kp.principal)
             const profile = profiles[principal]
-            const profileLoadState = profileLoadStates[principal]
-            const name = getProfileDisplayName(profile, profileLoadState)
+            const name = getAccountPickerDisplayName(account, profile)
             const avatarSrc =
               profile?.avatar && backendHttpBaseUrl
                 ? getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)
@@ -372,6 +383,15 @@ function AccountPicker({
       ) : null}
     </div>
   )
+}
+
+function getAccountPickerDisplayName(account: vault.Account | undefined, profile?: AccountProfileSummary) {
+  const profileName = profile?.name?.trim()
+  if (profileName) {
+    return profileName
+  }
+
+  return account ? vault.getAccountName(account) : 'Account'
 }
 
 function EmptyState({onImport}: {onImport: () => void}) {
