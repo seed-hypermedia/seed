@@ -4619,6 +4619,163 @@ func TestSearchVersionConsistency(t *testing.T) {
 	})
 }
 
+func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T, name string) (ctx context.Context, app *App, account string, comment *documents.Comment) {
+		t.Helper()
+
+		ctx = context.Background()
+		app = makeTestApp(t, name, makeTestConfig(t), true)
+		account = coretest.NewTester(name).Account.PublicKey.String()
+
+		doc, err := app.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			Account:        account,
+			Path:           "/comments-move-src",
+			SigningKeyName: "main",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Comment Move Source"},
+				}},
+				{Op: &documents.DocumentChange_MoveBlock_{
+					MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "body", Parent: "", LeftSibling: ""},
+				}},
+				{Op: &documents.DocumentChange_ReplaceBlock{
+					ReplaceBlock: &documents.Block{Id: "body", Type: "paragraph", Text: "document body"},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		comment, err = app.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+			SigningKeyName: "main",
+			TargetAccount:  account,
+			TargetPath:     "/comments-move-src",
+			TargetVersion:  doc.Version,
+			Content: []*documents.BlockNode{
+				{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "helloPearMovedUnique"}},
+			},
+		})
+		require.NoError(t, err)
+
+		moveDocument := func(from, to string) {
+			t.Helper()
+			info, err := app.RPC.DocumentsV3.GetDocumentInfo(ctx, &documents.GetDocumentInfoRequest{
+				Account: account,
+				Path:    from,
+			})
+			require.NoError(t, err)
+
+			_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+				Account:        account,
+				Path:           to,
+				SigningKeyName: "main",
+				Target: &documents.RefTarget{
+					Target: &documents.RefTarget_Version_{
+						Version: &documents.RefTarget_Version{
+							Genesis: info.Genesis,
+							Version: info.Version,
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = app.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+				Account:        account,
+				Path:           from,
+				SigningKeyName: "main",
+				Target: &documents.RefTarget{
+					Target: &documents.RefTarget_Redirect_{
+						Redirect: &documents.RefTarget_Redirect{
+							Account: account,
+							Path:    to,
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+		}
+
+		moveDocument("/comments-move-src", "/comments-move-mid")
+		moveDocument("/comments-move-mid", "/comments-move-dst")
+
+		return ctx, app, account, comment
+	}
+
+	t.Run("ListComments", func(t *testing.T) {
+		ctx, app, account, comment := setup(t, "alice")
+
+		srcComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+			TargetAccount: account,
+			TargetPath:    "/comments-move-src",
+		})
+		require.NoError(t, err)
+		require.Empty(t, srcComments.Comments, "comments must not remain listed on the original moved path")
+
+		midComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+			TargetAccount: account,
+			TargetPath:    "/comments-move-mid",
+		})
+		require.NoError(t, err)
+		require.Empty(t, midComments.Comments, "comments must not remain listed on an intermediate moved path")
+
+		dstComments, err := app.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+			TargetAccount: account,
+			TargetPath:    "/comments-move-dst",
+		})
+		require.NoError(t, err)
+		require.Len(t, dstComments.Comments, 1, "comments must follow multi-hop document redirects")
+		require.Equal(t, comment.Id, dstComments.Comments[0].Id)
+		require.Equal(t, account, dstComments.Comments[0].TargetAccount)
+		require.Equal(t, "/comments-move-dst", dstComments.Comments[0].TargetPath)
+	})
+
+	t.Run("SearchEntities", func(t *testing.T) {
+		ctx, app, account, comment := setup(t, "alice")
+
+		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "helloPearMovedUnique",
+			IncludeBody: true,
+			PageSize:    10,
+		})
+		require.NoError(t, err)
+		require.Len(t, search.Entities, 1, "comment search result must survive document moves")
+		require.Equal(t, "comment", search.Entities[0].Type)
+		require.Equal(t, "hm://"+comment.Id, search.Entities[0].Id)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", search.Entities[0].DocId)
+		require.Contains(t, search.Entities[0].Content, "helloPearMovedUnique")
+	})
+
+	t.Run("ListEntityMentions", func(t *testing.T) {
+		ctx, app, account, comment := setup(t, "alice")
+
+		srcMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
+			Id:       "hm://" + account + "/comments-move-src",
+			PageSize: 10,
+		})
+		require.NoError(t, err)
+		require.Empty(t, srcMentions.Mentions, "comment mentions must not remain on the original moved path")
+
+		midMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
+			Id:       "hm://" + account + "/comments-move-mid",
+			PageSize: 10,
+		})
+		require.NoError(t, err)
+		require.Empty(t, midMentions.Mentions, "comment mentions must not remain on an intermediate moved path")
+
+		dstMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
+			Id:       "hm://" + account + "/comments-move-dst",
+			PageSize: 10,
+		})
+		require.NoError(t, err)
+		require.Len(t, dstMentions.Mentions, 1, "interaction summary must count comments after document moves")
+		require.Equal(t, "Comment", dstMentions.Mentions[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, dstMentions.Mentions[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", dstMentions.Mentions[0].SourceDocument)
+	})
+}
+
 func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	t.Parallel()
 

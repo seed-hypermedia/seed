@@ -204,6 +204,7 @@ function _CommentBox(props: {
       invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
+      invalidateQueries([queryKeys.SEARCH])
 
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])

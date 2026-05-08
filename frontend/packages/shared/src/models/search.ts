@@ -7,13 +7,14 @@ import {useUniversalClient} from '../routing'
 
 export type SearchResultItem = {
   id: UnpackedHypermediaId
+  commentId?: string
   metadata?: HMDocument['metadata']
   title: string
   icon: string
   parentNames: string[]
   versionTime?: string
   searchQuery: string
-  type: 'document' | 'contact'
+  type: 'document' | 'contact' | 'comment'
 }
 
 export type SearchPayload = {
@@ -77,7 +78,7 @@ export function useSearch(
       for (const result of out.entities) {
         if (entities.length >= limit) break
 
-        const key = packHmId(result.id)
+        const key = result.commentId ? `${packHmId(result.id)}:comments/${result.commentId}` : packHmId(result.id)
         if (!alreadySeenIds.has(key)) {
           alreadySeenIds.add(key)
           entities.push(result)

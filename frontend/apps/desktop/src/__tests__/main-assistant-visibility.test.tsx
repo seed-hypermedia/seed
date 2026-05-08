@@ -63,6 +63,22 @@ vi.mock('@/models/daemon', () => ({
   useMyAccounts: () => [],
 }))
 
+vi.mock('@/models/accounts', () => ({
+  useDraft: () => ({data: undefined, isLoading: false}),
+}))
+
+vi.mock('@/models/documents', () => ({
+  useCreateDraft: () => async () => {},
+}))
+
+vi.mock('@/selected-account', () => ({
+  useSelectedAccountId: () => null,
+}))
+
+vi.mock('@shm/shared', () => ({
+  hmId: (uid: string, opts?: {path?: string[]}) => ({uid, path: opts?.path ?? []}),
+}))
+
 vi.mock('@/sidebar-context', async () => {
   const React = await import('react')
 

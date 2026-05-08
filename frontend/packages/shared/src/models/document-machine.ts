@@ -637,6 +637,9 @@ export const documentMachine = setup({
             actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
           },
         ],
+        'edit.discard': {
+          actions: ['clearDraftState'],
+        },
         'document.remoteUpdate': {
           target: 'loaded',
           actions: ['setDocumentData'],

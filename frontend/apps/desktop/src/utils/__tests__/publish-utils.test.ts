@@ -2,8 +2,8 @@ import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
 import {
-  computeDraftRoute,
   computeInlineDraftPublishPath,
+  computeNewDraftParams,
   computePublishPath,
   resolvePublishPath,
   shouldAutoLinkParent,
@@ -323,90 +323,106 @@ describe('resolvePublishPath', () => {
   })
 })
 
-describe('computeDraftRoute', () => {
+describe('computeNewDraftParams', () => {
   const mockGenerateId = () => 'draft-id-10'
   const mockGeneratePath = () => 'random-path-21'
 
   it('private doc uses draftParams.locationUid, not selectedAccountId', () => {
-    const result = computeDraftRoute(
+    const result = computeNewDraftParams(
       'PRIVATE',
       {locationUid: 'location-uid', locationPath: ['docs']},
       'selected-account-uid',
       mockGenerateId,
       mockGeneratePath,
     )
-    expect(result).toEqual({
-      key: 'draft',
+    expect(result?.draftId).toBe('draft-id-10')
+    expect(result?.writeParams).toEqual({
       id: 'draft-id-10',
       locationUid: 'location-uid',
       locationPath: ['random-path-21'],
+      editUid: 'location-uid',
+      editPath: ['random-path-21'],
       visibility: 'PRIVATE',
     })
+    expect(result?.routeId.uid).toBe('location-uid')
+    expect(result?.routeId.path).toEqual(['random-path-21'])
   })
 
   it('private doc falls back to selectedAccountId when no locationUid', () => {
-    const result = computeDraftRoute('PRIVATE', {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
-    expect(result).toEqual({
-      key: 'draft',
-      id: 'draft-id-10',
-      locationUid: 'selected-account-uid',
-      locationPath: ['random-path-21'],
-      visibility: 'PRIVATE',
-    })
+    const result = computeNewDraftParams('PRIVATE', {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
+    expect(result?.writeParams.locationUid).toBe('selected-account-uid')
+    expect(result?.writeParams.editUid).toBe('selected-account-uid')
+    expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
+    expect(result?.routeId.uid).toBe('selected-account-uid')
   })
 
   it('private doc returns null when no locationUid and no selectedAccountId', () => {
-    const result = computeDraftRoute('PRIVATE', {}, undefined, mockGenerateId, mockGeneratePath)
+    const result = computeNewDraftParams('PRIVATE', {}, undefined, mockGenerateId, mockGeneratePath)
     expect(result).toBeNull()
   })
 
   it('private doc ignores draftParams.locationPath and uses random path', () => {
-    const result = computeDraftRoute(
+    const result = computeNewDraftParams(
       'PRIVATE',
       {locationUid: 'location-uid', locationPath: ['existing', 'path']},
       'selected-account-uid',
       mockGenerateId,
       mockGeneratePath,
     )
-    expect(result?.locationPath).toEqual(['random-path-21'])
+    expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
   })
 
-  it('public doc uses draftParams as-is', () => {
+  it('public new doc encodes draft id placeholder in editPath', () => {
     const draftParams = {
       locationUid: 'location-uid',
       locationPath: ['docs', 'sub'],
     }
-    const result = computeDraftRoute('PUBLIC', draftParams, 'selected-account-uid', mockGenerateId, mockGeneratePath)
-    expect(result).toEqual({
-      key: 'draft',
+    const result = computeNewDraftParams(
+      'PUBLIC',
+      draftParams,
+      'selected-account-uid',
+      mockGenerateId,
+      mockGeneratePath,
+    )
+    expect(result?.writeParams).toEqual({
       id: 'draft-id-10',
       locationUid: 'location-uid',
       locationPath: ['docs', 'sub'],
+      editUid: 'location-uid',
+      editPath: ['docs', 'sub', '-draft-id-10'],
+      deps: undefined,
       visibility: 'PUBLIC',
     })
+    expect(result?.routeId.uid).toBe('location-uid')
+    expect(result?.routeId.path).toEqual(['docs', 'sub', '-draft-id-10'])
   })
 
-  it('no visibility uses draftParams and sets visibility undefined', () => {
+  it('editing existing doc uses editUid/editPath and preserves deps', () => {
     const draftParams = {
-      locationUid: 'location-uid',
-      locationPath: ['docs'],
+      editUid: 'edit-uid',
+      editPath: ['existing', 'doc'],
+      deps: ['v1'],
     }
-    const result = computeDraftRoute(undefined, draftParams, 'selected-account-uid', mockGenerateId, mockGeneratePath)
-    expect(result).toEqual({
-      key: 'draft',
+    const result = computeNewDraftParams(
+      undefined,
+      draftParams,
+      'selected-account-uid',
+      mockGenerateId,
+      mockGeneratePath,
+    )
+    expect(result?.writeParams).toEqual({
       id: 'draft-id-10',
-      locationUid: 'location-uid',
-      locationPath: ['docs'],
-      visibility: undefined,
+      editUid: 'edit-uid',
+      editPath: ['existing', 'doc'],
+      deps: ['v1'],
+      visibility: 'PUBLIC',
     })
+    expect(result?.routeId.uid).toBe('edit-uid')
+    expect(result?.routeId.path).toEqual(['existing', 'doc'])
   })
 
-  it('public doc with empty draftParams still works', () => {
-    const result = computeDraftRoute(undefined, {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
-    expect(result).toEqual({
-      key: 'draft',
-      id: 'draft-id-10',
-      visibility: undefined,
-    })
+  it('returns null when no edit anchor and no location', () => {
+    const result = computeNewDraftParams(undefined, {}, undefined, mockGenerateId, mockGeneratePath)
+    expect(result).toBeNull()
   })
 })

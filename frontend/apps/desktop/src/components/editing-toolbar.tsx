@@ -350,18 +350,17 @@ const PublishTrigger = forwardRef<
 PublishTrigger.displayName = 'PublishTrigger'
 
 /**
- * Combined right-actions for DocumentTools when editing.
- * Renders: save indicator, publish (with popover), new button, three-dots (merged menu).
+ * Shared publish button + popover + options dropdown, used in both editing and
+ * non-editing toolbars. Manages the first-click-popover / second-click-publish
+ * flow internally.
  * Must be rendered inside DocumentMachineProvider.
  */
-export function EditingDocToolsRight({
+export function PublishButtonWithPopover({
   docId,
   existingMenuItems,
-  newButton,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
-  newButton?: ReactNode
 }) {
   const draftId = useDocumentSelector(selectDraftId)
   const changeCount = useUnpublishedChangeCount()
@@ -369,9 +368,6 @@ export function EditingDocToolsRight({
   const send = useDocumentSend()
   const deleteDraftDialog = useDeleteDraftDialog()
 
-  // Track first-time popover behavior. Flipped when the user actually triggers a
-  // publish from inside the popover. Persisted at module scope keyed by docId so
-  // the flag survives the remount that happens after a successful publish.
   const [hasTriggeredPublish, setHasTriggeredPublishState] = useState(() => publishTriggeredForDoc.has(docId.id))
   const setHasTriggeredPublish = () => {
     publishTriggeredForDoc.add(docId.id)
@@ -379,8 +375,6 @@ export function EditingDocToolsRight({
   }
   const popoverState = usePopoverState()
 
-  // Destructive "Discard Changes" is appended so it sits with other destructive
-  // actions at the bottom.
   const editingTrailingItems: MenuItemType[] = []
 
   if (draftId) {
@@ -403,6 +397,10 @@ export function EditingDocToolsRight({
   const publishNow = (pathOverride?: string[]) => {
     popoverState.onOpenChange(false)
     setHasTriggeredPublish()
+    // From non-editing state (e.g. DraftActionsToolbar), enter editing before
+    // publishing so the machine can process publish.start from editing.draft.idle.
+    // When already editing, edit.start is a no-op (unhandled in editing state).
+    send({type: 'edit.start'})
     send({type: 'publish.start', pathOverride})
   }
 
@@ -416,9 +414,7 @@ export function EditingDocToolsRight({
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <SaveIndicator />
-
+    <>
       <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <PopoverAnchor asChild>
           <PublishTrigger hasUnsavedChanges={hasUnpublishedChanges} onClick={handlePublishTriggerClick} />
@@ -433,11 +429,52 @@ export function EditingDocToolsRight({
           />
         </PopoverContent>
       </Popover>
-
-      {newButton}
-
       <OptionsDropdown menuItems={allItems} align="end" side="bottom" />
       {deleteDraftDialog.content}
+    </>
+  )
+}
+
+/**
+ * Combined right-actions for DocumentTools when editing.
+ * Renders: save indicator, publish (with popover), new button, three-dots (merged menu).
+ * Must be rendered inside DocumentMachineProvider.
+ */
+export function EditingDocToolsRight({
+  docId,
+  existingMenuItems,
+  newButton,
+}: {
+  docId: UnpackedHypermediaId
+  existingMenuItems: MenuItemType[]
+  newButton?: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <SaveIndicator />
+      <PublishButtonWithPopover docId={docId} existingMenuItems={existingMenuItems} />
+      {newButton}
+    </div>
+  )
+}
+
+/**
+ * Slim toolbar shown when a draft exists but the user is not actively editing.
+ * Shows the publish button (with pulsing dot for unsaved changes) and the
+ * options dropdown (with "Discard Changes" when a draft is present).
+ * No SaveIndicator — autosave only runs during editing.
+ * Must be rendered inside DocumentMachineProvider.
+ */
+export function DraftActionsToolbar({
+  docId,
+  existingMenuItems,
+}: {
+  docId: UnpackedHypermediaId
+  existingMenuItems: MenuItemType[]
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <PublishButtonWithPopover docId={docId} existingMenuItems={existingMenuItems} />
     </div>
   )
 }

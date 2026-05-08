@@ -213,7 +213,7 @@ function getRoleDisplayName(role: string | undefined): string {
 /** Publisher/Owner display component */
 function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
   const publisherId = hmId(uid)
-  const account = useAccount(uid)
+  const account = useAccount(uid, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(siteUid),
@@ -233,10 +233,11 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
         size={32}
       />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate">
-          {isLoading ? 'Loading...' : metadata?.name || uid}
+        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
+          {metadata?.name || abbreviateUid(uid)}
         </SizableText>
-        <SizableText size="xs" color="muted">
+        {!metadata?.name ? <Spinner size="small" /> : null}
+        <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           Publisher
         </SizableText>
       </div>
@@ -246,7 +247,7 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
 
 function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
   const collaboratorId = hmId(capability.accountUid)
-  const account = useAccount(capability.accountUid)
+  const account = useAccount(capability.accountUid, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(docId.uid),
@@ -267,10 +268,11 @@ function CollaboratorListItem({capability, docId}: {capability: HMCapability; do
         size={32}
       />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate">
-          {isLoading ? 'Loading...' : metadata?.name || capability.accountUid}
+        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
+          {metadata?.name || abbreviateUid(capability.accountUid)}
         </SizableText>
-        <SizableText size="xs" color="muted">
+        {!metadata?.name ? <Spinner size="small" /> : null}
+        <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           {getRoleDisplayName(capability.role)}
           {isParentCapability ? ' (Parent Capability)' : ''}
         </SizableText>
@@ -331,7 +333,7 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
 }
 
 function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: string}) {
-  const resource = useAccount(member.account.uid)
+  const account = useAccount(member.account.uid, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(siteUid),
@@ -339,8 +341,8 @@ function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: strin
     tab: 'profile',
   })
 
-  const metadata = resource.data?.metadata
-  const isLoading = resource.isLoading
+  const metadata = account.data?.metadata
+  const isLoading = account.isLoading
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
@@ -351,10 +353,11 @@ function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: strin
         size={32}
       />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate">
-          {isLoading ? 'Loading...' : metadata?.name || member.account.uid}
+        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
+          {metadata?.name || abbreviateUid(member.account.uid)}
         </SizableText>
-        <SizableText size="xs" color="muted">
+        {!metadata?.name ? <Spinner size="small" /> : null}
+        <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           {getRoleDisplayName(member.role)}
         </SizableText>
       </div>
@@ -563,7 +566,7 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
 })
 
 function UnresolvedItem({value}: {value: SearchResult}) {
-  const account = useAccount(value.id.uid)
+  const account = useAccount(value.id.uid, {subscribe: true})
   const metadata = account.data?.metadata
   const label = metadata?.name || abbreviateUid(value.id.uid)
   return (

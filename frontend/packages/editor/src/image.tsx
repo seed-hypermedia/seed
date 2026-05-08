@@ -405,7 +405,7 @@ const display = ({editor, block, selected, setSelected, assign}: DisplayComponen
       setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
-        if (canEdit) {
+        if (canEdit || editor.isEditable) {
           setShowHandle(true)
         }
       }}

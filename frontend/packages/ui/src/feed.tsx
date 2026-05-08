@@ -256,7 +256,7 @@ function EventHeaderContent({
                         hostname: targetDomain ?? null,
                         latest: routeLatest ?? null,
                       },
-                      commentId: commentIdToHmId(event.comment.id, event.comment.version),
+                      commentId: commentIdToHmId(event.comment.id),
                       gatewayUrl: appOrigin ?? undefined,
                     })
                   }}

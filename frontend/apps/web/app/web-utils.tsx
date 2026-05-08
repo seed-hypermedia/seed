@@ -10,10 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {FloatingAccountFooter} from '@shm/ui/floating-account-footer'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
-import {Link} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
@@ -53,45 +51,13 @@ export function useWebMenuItems(): MenuItemType[] {
 }
 
 /**
- * Join button for the site header
+ * Site-header join button or avatar with notifications bell
  */
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
-
-  const {content: createAccountContent, createAccount} = useCreateAccount({})
-
-  const {isJoined, joinSite} = useJoinSite({siteUid})
-
-  let joinButton = null
-  if (keyPair) {
-    if (!isJoined) {
-      joinButton = <JoinButton onClick={() => joinSite()} />
-    }
-  } else {
-    joinButton = <JoinButton onClick={() => createAccount()} />
-  }
-
-  return (
-    <>
-      {joinButton}
-      {createAccountContent}
-    </>
-  )
-}
-
-/**
- * Wrapper for web pages that shows the floating account avatar in the bottom-left.
- */
-export function WebAccountFooter({
-  children,
-  liftForPageFooter = false,
-}: {
-  children?: ReactNode
-  siteUid?: string
-  liftForPageFooter?: boolean
-}) {
-  const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
+  const {content: createAccountContent, createAccount} = useCreateAccount({})
+  const {isJoined, joinSite} = useJoinSite({siteUid})
   const logoutDialog = useAppDialog(LogoutDialog)
 
   const myAccount = useAccount(accountId || undefined, {
@@ -117,6 +83,26 @@ export function WebAccountFooter({
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  // Show the join button if not joined the site
+  if (!keyPair) {
+    return (
+      <>
+        <JoinButton onClick={() => createAccount()} />
+        {createAccountContent}
+      </>
+    )
+  }
+
+  if (!isJoined) {
+    return (
+      <>
+        <JoinButton onClick={() => joinSite()} />
+        {createAccountContent}
+      </>
+    )
+  }
+
+  // How the avatar and bell if joined.
   const avatarIcon = (
     <HMIcon
       id={account?.id ?? hmId(accountId!, {latest: true})}
@@ -168,102 +154,88 @@ export function WebAccountFooter({
     </>
   )
 
-  const accountButton = keyPair ? (
-    isMobile ? (
-      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
-        <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
-          {avatarIcon}
-        </button>
-        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
-        <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
-          <div className="flex items-center gap-3 px-4 py-4">
+  return (
+    <>
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
             {avatarIcon}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
-            </div>
-          </div>
-          <div className="bg-border h-px" />
-          {menuItems}
-        </MobilePanelSheet>
-      </div>
-    ) : (
-      <div className="flex items-center gap-2 rounded-full bg-white p-1 dark:bg-black">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start" className="min-w-[200px]">
-            <div className="flex items-center gap-3 px-2 py-2">
+          </button>
+          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
+            <div className="flex items-center gap-3 px-4 py-4">
               {avatarIcon}
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
               </div>
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                if (accountId) {
-                  navigate({key: 'profile', id: hmId(accountId, {latest: true})})
-                }
-              }}
-            >
-              <User className="size-4" />
-              My Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                if (vaultAccountSettingsUrl) {
-                  window.open(vaultAccountSettingsUrl, '_blank')
-                }
-              }}
-              disabled={!vaultAccountSettingsUrl}
-            >
-              <UserCog className="size-4" />
-              Manage account
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
-              <LogOut className="size-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {keyPair.notifyServerUrl ? <NotifsButton /> : null}
-      </div>
-    )
-  ) : null
-
-  return (
-    <FloatingAccountFooter
-      floatingButton={accountButton}
-      extraContent={logoutDialog.content}
-      liftForPageFooter={liftForPageFooter}
-    >
-      {children}
-    </FloatingAccountFooter>
+            <div className="bg-border h-px" />
+            {menuItems}
+          </MobilePanelSheet>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end" className="min-w-[200px]">
+              <div className="flex items-center gap-3 px-2 py-2">
+                {avatarIcon}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+                </div>
+              </div>
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <DropdownMenuItem
+                onClick={() => {
+                  if (accountId) {
+                    navigate({key: 'profile', id: hmId(accountId, {latest: true})})
+                  }
+                }}
+              >
+                <User className="size-4" />
+                My Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  if (vaultAccountSettingsUrl) {
+                    window.open(vaultAccountSettingsUrl, '_blank')
+                  }
+                }}
+                disabled={!vaultAccountSettingsUrl}
+              >
+                <UserCog className="size-4" />
+                Manage account
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+                <LogOut className="size-4" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+        </div>
+      )}
+      {logoutDialog.content}
+      {createAccountContent}
+    </>
   )
 }
 
 /**
  * Shared shell for site-scoped web pages that need consistent top-level chrome.
  */
-export function WebSitePageShell({
-  children,
-  siteUid,
-  liftForPageFooter = false,
-}: {
-  children?: ReactNode
-  siteUid: string
-  liftForPageFooter?: boolean
-}) {
+export function WebSitePageShell({children, siteUid}: {children?: ReactNode; siteUid: string}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const shouldShowHostBanner = origin && originHomeId && siteUid !== originHomeId.uid
 
   return (
-    <WebAccountFooter siteUid={siteUid} liftForPageFooter={liftForPageFooter}>
+    <>
       {shouldShowHostBanner ? <HypermediaHostBanner origin={origin} /> : null}
       {children}
-    </WebAccountFooter>
+    </>
   )
 }
 

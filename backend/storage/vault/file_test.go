@@ -21,7 +21,7 @@ func TestLocal(t *testing.T) {
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
 	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
 	firstStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, firstStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, firstStore.Store(localVaultKEKName, "", keyMaterial))
 
 	first, err := New(dir, firstStore)
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestLocalPersistsAcrossInstances(t *testing.T) {
 
 	secondStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secondStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secondStore.Store(localVaultKEKName, "", keyMaterial))
 	second, err := New(dir, secondStore)
 	require.NoError(t, err)
 
@@ -123,7 +123,7 @@ func TestLocalConcurrentReadsAndWrites(t *testing.T) {
 	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
 	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestLocalStoreKeyWithMetadata(t *testing.T) {
 	keyMaterial := []byte("fedcba9876543210fedcba9876543210")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
 	ks, err := New(dir, secretStore)
 	require.NoError(t, err)
@@ -251,7 +251,7 @@ func TestLocalStoreKeyWithMetadata(t *testing.T) {
 func TestLocalRejectsInvalidConfiguration(t *testing.T) {
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, []byte("0123456789abcdef0123456789abcdef")))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", []byte("0123456789abcdef0123456789abcdef")))
 	_, err = New("relative/path", secretStore)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "must be absolute")
@@ -270,10 +270,10 @@ func TestFileStoreReadsAndWritesRemoteEnvelope(t *testing.T) {
 	remoteSecret := []byte("fedcba9876543210fedcba9876543210")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
-	remoteKEKName, err := remoteVaultKEKName("https://example.com/vault", testRemoteUserID)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
+	remoteKey, err := remoteVaultKEKName("https://example.com/vault", testRemoteUserID)
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(remoteKEKName, remoteSecret))
+	require.NoError(t, secretStore.Store(remoteKey, testRemoteCredentialID, remoteSecret))
 
 	dek := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	plaintext, err := encodeState(newEmptyState())
@@ -287,7 +287,7 @@ func TestFileStoreReadsAndWritesRemoteEnvelope(t *testing.T) {
 		EncryptedData: encryptedData,
 		WrappedDEK:    wrappedDEK,
 		Remote: &RemoteState{
-			RemoteURL:     "https://example.com/vault",
+			VaultURL:      "https://example.com/vault",
 			UserID:        testRemoteUserID,
 			CredentialID:  testRemoteCredentialID,
 			LocalVersion:  7,
@@ -320,7 +320,7 @@ func TestFileStoreReadsAndWritesRemoteEnvelope(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, envelope)
 	require.NotNil(t, envelope.Remote)
-	require.Equal(t, "https://example.com/vault", envelope.Remote.RemoteURL)
+	require.Equal(t, "https://example.com/vault", envelope.Remote.VaultURL)
 	require.Equal(t, 8, envelope.Remote.LocalVersion)
 	require.Equal(t, 6, envelope.Remote.RemoteVersion)
 	require.Equal(t, int64(1234), envelope.Remote.LastSyncTime)
@@ -332,7 +332,7 @@ func TestLocalRejectsUndecryptablePayload(t *testing.T) {
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
 	require.NoError(t, saveEnvelopeFile(dir, &Envelope{
 		EncryptedData: []byte("short"),
@@ -354,7 +354,7 @@ func TestLocalRejectsWrongKeyForExisting(t *testing.T) {
 	differentKeyMaterial := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	firstStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, firstStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, firstStore.Store(localVaultKEKName, "", keyMaterial))
 
 	first, err := New(dir, firstStore)
 	require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestLocalRejectsWrongKeyForExisting(t *testing.T) {
 
 	secondStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secondStore.Store(localVaultKEKName, differentKeyMaterial))
+	require.NoError(t, secondStore.Store(localVaultKEKName, "", differentKeyMaterial))
 	second, err := New(dir, secondStore)
 	require.NoError(t, err)
 
@@ -380,7 +380,7 @@ func TestLocalRejectsCorruptStatePayload(t *testing.T) {
 	dek := []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	secretStore, err := NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store(localVaultKEKName, keyMaterial))
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
 
 	aead, err := chacha20poly1305.NewX(dek)
 	require.NoError(t, err)

@@ -31,8 +31,8 @@ export const desktopUniversalClient: UniversalClient = {
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
 
-  subscribeEntity: ({id, recursive, priority}) => {
-    const sub = {id, recursive, priority}
+  subscribeEntity: ({id, recursive, priority, scope}) => {
+    const sub = {id, recursive, priority, scope}
     addSubscribedEntity(sub)
     return () => removeSubscribedEntity(sub)
   },

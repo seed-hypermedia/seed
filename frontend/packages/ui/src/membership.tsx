@@ -39,7 +39,7 @@ export function MembershipContent({accountUid}: {accountUid: string}) {
 
 /** Single item showing a site/account membership. */
 function MembershipItem({contact}: {contact: HMContactRecord}) {
-  const subject = useAccount(contact.subject)
+  const subject = useAccount(contact.subject, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'document',
     id: hmId(contact.subject),
@@ -50,10 +50,11 @@ function MembershipItem({contact}: {contact: HMContactRecord}) {
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-lg px-6 py-3 transition-colors">
       <HMIcon id={hmId(contact.subject)} size={40} icon={icon} name={name} />
-      <div className="min-w-0 flex-1">
-        <SizableText weight="medium" className="truncate">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <SizableText weight="medium" className={`truncate ${name ? '' : 'text-muted-foreground'}`}>
           {name || 'Untitled'}
         </SizableText>
+        {!name ? <Spinner size="small" /> : null}
       </div>
     </a>
   )

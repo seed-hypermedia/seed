@@ -293,7 +293,6 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     return createCommentUrl({
       docId: id,
       commentId: packedCommentId,
-      commentVersion: commentId.version ?? null,
       siteUrl: id.hostname ?? null,
       blockRef: id.blockRef,
       blockRange: effectiveRange,

@@ -38,6 +38,7 @@ type VaultConnectionRequest = {
 
 type VaultConnectionHandoffResponse = {
   success: boolean
+  connected?: boolean
 }
 
 const VAULT_CONNECTION_SUCCESS_MESSAGE = 'Your Seed desktop app has been linked with this remote vault successfully.'
@@ -281,6 +282,16 @@ function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequ
     handoffToken,
     callbackURL: normalizeCallbackURL(callback),
   }
+}
+
+function clearCurrentURLFragment() {
+  if (typeof window === 'undefined' || !window.location.hash || typeof window.history?.replaceState !== 'function') {
+    return
+  }
+
+  const scrubbed = new URL(window.location.href)
+  scrubbed.hash = ''
+  window.history.replaceState(window.history.state, '', scrubbed.toString())
 }
 
 /** Creates actions bound to a specific state proxy and client. */
@@ -1762,15 +1773,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         }
 
         state.vaultConnectionRequest = request
+        clearCurrentURLFragment()
       } catch (e) {
         state.error = getErrorMessage(e, 'Invalid vault connection request')
         state.vaultConnectionRequest = null
       }
     },
 
-    /**
-     * Complete vault handoff by registering a daemon credential and sending it to the desktop callback.
-     */
+    /** Complete vault handoff by reusing or registering a daemon credential. */
     async completeVaultConnection() {
       if (state.vaultConnectionInProgress) {
         return
@@ -1799,34 +1809,58 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           throw new Error('Session is missing the authenticated user ID')
         }
 
-        const daemonSecret = crypto.getRandomValues(new Uint8Array(32))
-        const encodedSecret = base64.encode(daemonSecret)
-        const authKey = await localCrypto.deriveSecretCredentialAuthKey(daemonSecret)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, daemonSecret)
-        const credential = await client.addSecretCredential({
-          authKey: base64.encode(authKey),
-          wrappedDEK: base64.encode(wrappedDEK),
-        })
-        const handoffResp = await fetch(callbackURL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            handoffToken,
-            vaultUrl: expectedVaultBaseURL,
-            userId,
-            credentialId: credential.credentialId,
-            secret: encodedSecret,
-          }),
-        })
-        if (!handoffResp.ok) {
-          const bodyText = await handoffResp.text()
-          throw new Error(bodyText || 'Failed to complete vault handoff')
+        let connected = false
+        try {
+          const probeResp = await fetch(callbackURL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              handoffToken,
+              vaultUrl: expectedVaultBaseURL,
+              userId,
+            }),
+          })
+          if (probeResp.ok) {
+            const probe = (await probeResp.json()) as VaultConnectionHandoffResponse
+            connected = probe.success && probe.connected === true
+          }
+        } catch {
+          // Credential probing is best-effort so older daemons and transient probe failures still connect with a fresh secret.
         }
-        const handoff = (await handoffResp.json()) as VaultConnectionHandoffResponse
-        if (!handoff.success) {
-          throw new Error('Failed to complete vault handoff')
+
+        if (!connected) {
+          const daemonSecret = crypto.getRandomValues(new Uint8Array(32))
+          const encodedSecret = base64.encode(daemonSecret)
+          const authKey = await localCrypto.deriveSecretCredentialAuthKey(daemonSecret)
+          const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, daemonSecret)
+          const credential = await client.addSecretCredential({
+            authKey: base64.encode(authKey),
+            wrappedDEK: base64.encode(wrappedDEK),
+          })
+
+          const handoffResp = await fetch(callbackURL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              handoffToken,
+              vaultUrl: expectedVaultBaseURL,
+              userId,
+              credentialId: credential.credentialId,
+              secret: encodedSecret,
+            }),
+          })
+          if (!handoffResp.ok) {
+            const bodyText = await handoffResp.text()
+            throw new Error(bodyText || 'Failed to complete vault handoff')
+          }
+          const handoff = (await handoffResp.json()) as VaultConnectionHandoffResponse
+          if (!handoff.success) {
+            throw new Error('Failed to complete vault handoff')
+          }
         }
 
         state.vaultConnectionRequest = null

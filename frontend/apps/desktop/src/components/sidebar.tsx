@@ -3,6 +3,7 @@ import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
 import {useSelectedAccountId} from '@/selected-account'
+import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMAccountsMetadata,
@@ -624,14 +625,22 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
         <Button
           className="w-full"
           variant="default"
-          onClick={() =>
-            navigate({
-              key: 'draft',
-              id: nanoid(10),
+          onClick={async () => {
+            const draftId = nanoid(10)
+            await client.drafts.write.mutate({
+              id: draftId,
               editUid: selectedAccountId,
               editPath: [],
+              metadata: {},
+              content: [],
+              deps: [],
+              visibility: 'PUBLIC',
             })
-          }
+            navigate({
+              key: 'document',
+              id: hmId(selectedAccountId, {path: []}),
+            })
+          }}
         >
           Create my Site
         </Button>

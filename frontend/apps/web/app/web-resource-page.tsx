@@ -214,7 +214,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
 
   return (
-    <WebSitePageShell liftForPageFooter={true} siteUid={docId.uid}>
+    <WebSitePageShell siteUid={docId.uid}>
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
@@ -244,7 +244,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 /** Web-specific wrapper for the dedicated inspector page. */
 export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <WebSitePageShell liftForPageFooter={true} siteUid={docId.uid}>
+    <WebSitePageShell siteUid={docId.uid}>
       <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />} />
     </WebSitePageShell>
   )

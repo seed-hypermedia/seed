@@ -7,7 +7,7 @@ import {DesktopDocumentActionsProvider} from '@/components/document-actions-prov
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {EditingDocToolsRight} from '@/components/editing-toolbar'
+import {DraftActionsToolbar, EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
@@ -472,10 +472,13 @@ export default function DesktopResourcePage() {
           const draftId = nanoid(10)
           const parentPath = docId.path?.slice(0, -1) || []
 
+          const draftEditPath = [...parentPath, `-${draftId}`]
           await client.drafts.write.mutate({
             id: draftId,
             locationUid: docId.uid,
             locationPath: parentPath,
+            editUid: docId.uid,
+            editPath: draftEditPath,
             metadata: {...doc.metadata, name: copyName},
             content: editorContent,
             deps: [],
@@ -483,7 +486,11 @@ export default function DesktopResourcePage() {
           })
 
           sessionStorage.setItem('duplicate-draft-focus', draftId)
-          navigate({key: 'draft', id: draftId, panel: null})
+          navigate({
+            key: 'document',
+            id: hmId(docId.uid, {path: draftEditPath}),
+            panel: null,
+          })
           toast.success(`Duplicated "${sourceName}"`)
         } catch (error) {
           console.error('Error duplicating document:', error)
@@ -625,6 +632,10 @@ export default function DesktopResourcePage() {
       )
     : undefined
 
+  const draftActions = canEdit
+    ? ({menuItems}: {menuItems: any[]}) => <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
+    : undefined
+
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
       const replyVersionData = {
@@ -742,6 +753,7 @@ export default function DesktopResourcePage() {
                 onEditorReady={handleEditorReady}
                 machineExtras={null}
                 editingFloatingActions={editingFloatingActions}
+                draftActions={draftActions}
                 newButton={newButton}
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}

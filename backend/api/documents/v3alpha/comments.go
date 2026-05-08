@@ -176,6 +176,8 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 			if err != nil {
 				return nil, err
 			}
+			pb.TargetAccount = acc.String()
+			pb.TargetPath = in.TargetPath
 
 			resp.Comments = append(resp.Comments, pb)
 		}
@@ -281,7 +283,40 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 	}
 }
 
-var qIterComments = dqb.Str(`
+// redirectAncestorsCTE collects every resource whose latest generation transitively
+// redirects to :iri (plus :iri's own resource). Seeded from :iri so the recursion
+// only walks the redirect chain relevant to the requested document, not every
+// Comment in the database. The seed is suppressed when :iri's own latest
+// generation is itself a redirect, so comments on a moved-away source/intermediate
+// path do not surface when querying that path.
+const redirectAncestorsCTE = `
+	WITH RECURSIVE
+	latest_document_generations AS (
+		SELECT dg.*
+		FROM document_generations dg
+		GROUP BY dg.resource
+		HAVING dg.generation = MAX(dg.generation)
+	),
+	redirect_ancestors(resource, iri, depth) AS (
+		SELECT r.id, r.iri, 0
+		FROM resources r
+		LEFT JOIN latest_document_generations dg ON dg.resource = r.id
+		WHERE r.iri = :iri
+		AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
+
+		UNION ALL
+
+		SELECT r.id, r.iri, ra.depth + 1
+		FROM redirect_ancestors ra
+		JOIN latest_document_generations dg
+			ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+		JOIN resources r ON r.id = dg.resource
+		WHERE r.iri != ra.iri
+		AND ra.depth < 16
+	)
+`
+
+var qIterComments = dqb.Str(redirectAncestorsCTE + `
 	SELECT
 		sb.id,
         b.codec,
@@ -293,8 +328,8 @@ var qIterComments = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+		WHERE sb.type = 'Comment'
+		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -302,7 +337,7 @@ var qIterComments = dqb.Str(`
 	ORDER BY sb.ts
 `)
 
-var qIterCommentsPublicOnly = dqb.Str(`
+var qIterCommentsPublicOnly = dqb.Str(redirectAncestorsCTE + `
 	SELECT
 		sb.id,
         b.codec,
@@ -314,8 +349,8 @@ var qIterCommentsPublicOnly = dqb.Str(`
         	sb.*,
          	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
         FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.resource = (SELECT id FROM resources WHERE iri = :iri)
+		WHERE sb.type = 'Comment'
+		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1

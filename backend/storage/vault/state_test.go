@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"seed/backend/core"
@@ -450,33 +451,47 @@ func (fixture compatibilityFixture) expectedState(t *testing.T) State {
 }
 
 type fixedTestSecretStore struct {
-	secrets map[string][]byte
+	bundles map[string]secretBundle
 }
 
 func newFixedTestSecretStore(secrets map[string][]byte) SecretStore {
-	cloned := make(map[string][]byte, len(secrets))
+	bundles := make(map[string]secretBundle, len(secrets))
 	for name, secret := range secrets {
-		cloned[name] = slices.Clone(secret)
+		bundles[name] = newSecretBundle("", secret)
 	}
 
-	return fixedTestSecretStore{secrets: cloned}
+	return fixedTestSecretStore{bundles: bundles}
 }
 
-func (s fixedTestSecretStore) Load(name string) ([]byte, error) {
-	secret, ok := s.secrets[name]
+func (s fixedTestSecretStore) Load(key string, credentialID string) ([]byte, error) {
+	bundle, ok := s.bundles[key]
 	if !ok {
-		return nil, fmt.Errorf("missing secret %q", name)
+		return nil, fmt.Errorf("missing credential bundle %q", key)
 	}
-
+	secret, ok := bundle.Credentials[strings.TrimSpace(credentialID)]
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrRemoteCredentialNotFound, credentialID)
+	}
 	return slices.Clone(secret), nil
 }
 
-func (s fixedTestSecretStore) Store(name string, secret []byte) error {
-	s.secrets[name] = slices.Clone(secret)
+func (s fixedTestSecretStore) Store(key string, credentialID string, secret []byte) error {
+	if len(secret) != vaultSecretSize {
+		return fmt.Errorf("invalid vault KEK length: got %d bytes", len(secret))
+	}
+	bundle := s.bundles[key]
+	if bundle.Credentials == nil {
+		bundle = secretBundle{Credentials: make(map[string][]byte)}
+		s.bundles[key] = bundle
+	}
+	bundle.Credentials[strings.TrimSpace(credentialID)] = slices.Clone(secret)
 	return nil
 }
 
-func (s fixedTestSecretStore) Delete(name string) error {
-	delete(s.secrets, name)
-	return nil
+func (s fixedTestSecretStore) ListCredentialIDs(key string) ([]string, error) {
+	bundle, ok := s.bundles[key]
+	if !ok {
+		return nil, fmt.Errorf("missing credential bundle %q", key)
+	}
+	return sortedCredentialIDs(bundle), nil
 }

@@ -61,7 +61,8 @@ func testVaultRemoteAuthKey(t *testing.T) string {
 
 // vaultConnectionHandoffResponse mirrors the anonymous struct returned by HandleConnectionHandoff.
 type vaultConnectionHandoffResponse struct {
-	Success bool `json:"success"`
+	Success   bool `json:"success"`
+	Connected bool `json:"connected"`
 }
 
 func TestGenMnemonic(t *testing.T) {
@@ -185,6 +186,45 @@ func TestHandleConnectionHandoff(t *testing.T) {
 	var resp vaultConnectionHandoffResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.True(t, resp.Success)
+}
+
+func TestHandleConnectionHandoffProbeConnectsStoredCredential(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	remoteServer := newRemoteVaultServer(t)
+
+	firstStart, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
+		VaultUrl: remoteServer.URL,
+	})
+	require.NoError(t, err)
+	firstRec := performVaultHandoffRequest(t, srv, http.MethodPost, `{"handoffToken":"`+firstStart.HandoffToken+`","vaultUrl":"`+remoteServer.URL+`","userId":"user-123","credentialId":"cred-1","secret":"`+testVaultRemoteCredential()+`"}`)
+	require.Equal(t, http.StatusOK, firstRec.Code)
+
+	startResp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
+		VaultUrl: remoteServer.URL,
+		Force:    true,
+	})
+	require.NoError(t, err)
+
+	probeRec := performVaultHandoffRequest(t, srv, http.MethodPost, `{"handoffToken":"`+startResp.HandoffToken+`","vaultUrl":"`+remoteServer.URL+`","userId":"user-123"}`)
+	require.Equal(t, http.StatusOK, probeRec.Code)
+	var probeResp vaultConnectionHandoffResponse
+	require.NoError(t, json.Unmarshal(probeRec.Body.Bytes(), &probeResp))
+	require.True(t, probeResp.Success)
+	require.True(t, probeResp.Connected)
+}
+
+func TestHandleConnectionHandoffSecretlessFinishRequiresStoredCredential(t *testing.T) {
+	srv := newTestServer(t, "alice")
+	remoteServer := newRemoteVaultServer(t)
+
+	startResp, err := srv.StartVaultConnection(t.Context(), &daemon.StartVaultConnectionRequest{
+		VaultUrl: remoteServer.URL,
+	})
+	require.NoError(t, err)
+
+	rec := performVaultHandoffRequest(t, srv, http.MethodPost, `{"handoffToken":"`+startResp.HandoffToken+`","vaultUrl":"`+remoteServer.URL+`","userId":"user-123","credentialId":"cred-1"}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "remote credential not found")
 }
 
 func TestForceReindexTracksTaskWhileRemainingActive(t *testing.T) {
@@ -616,7 +656,7 @@ func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Serve
 	dataDir := t.TempDir()
 	secretStore, err := vault.NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store("local", keyMaterial))
+	require.NoError(t, secretStore.Store("local", "", keyMaterial))
 
 	ks, err := vault.New(dataDir, secretStore, opts...)
 	require.NoError(t, err)
@@ -637,7 +677,7 @@ func newConnectedTestVault(t *testing.T, dataDir string, localKey []byte, kp *co
 	remoteServer := newRemoteVaultServer(t)
 	secretStore, err := vault.NewMemorySecretStore()
 	require.NoError(t, err)
-	require.NoError(t, secretStore.Store("local", localKey))
+	require.NoError(t, secretStore.Store("local", "", localKey))
 
 	ks, err := vault.New(
 		dataDir,
@@ -653,7 +693,7 @@ func newConnectedTestVault(t *testing.T, dataDir string, localKey []byte, kp *co
 
 	start, err := ks.StartConnection(remoteServer.URL, false)
 	require.NoError(t, err)
-	err = ks.HandleConnection(start.HandoffToken, vault.ConnectionHandoff{
+	err = ks.HandleConnection(t.Context(), start.HandoffToken, vault.ConnectionHandoff{
 		RemoteURL:    remoteServer.URL,
 		UserID:       "user-123",
 		CredentialID: "cred-1",
@@ -757,7 +797,7 @@ func performVaultHandoffRequest(t *testing.T, srv *Server, method string, body s
 	req := httptest.NewRequest(method, "/vault-handoff", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	srv.HandleConnectionHandoff(rec, req)
+	srv.HandleVaultHandoff(rec, req)
 	return rec
 }
 

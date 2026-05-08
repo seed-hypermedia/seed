@@ -24,6 +24,7 @@ import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
+import {DragExtension} from './extensions/DragMedia/DragExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
 import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
@@ -122,8 +123,6 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     ret.push(
       // DevTools,
       Gapcursor,
-
-      // DropCursor,
       Placeholder.configure({
         emptyNodeClass: blockStyles.isEmpty,
         hasAnchorClass: blockStyles.hasAnchor,
@@ -142,6 +141,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
 
       LocalMediaPastePlugin.configure({
         editor: opts.editor,
+      }),
+      DragExtension.configure({
+        editor: opts.editor as any,
       }),
 
       // Drop cursor replaced by Pragmatic DnD DropIndicator

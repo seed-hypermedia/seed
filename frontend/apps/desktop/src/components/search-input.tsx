@@ -178,9 +178,15 @@ export const SearchInput = forwardRef<
       ?.slice(0, 50)
       ?.map((item, index) => {
         const title = item.title || item.id.uid
-        const route = item.type === 'contact' ? ({key: 'profile', id: item.id} as NavRoute) : appRouteOfId(item.id)
+        const route =
+          item.type === 'contact'
+            ? ({key: 'profile', id: item.id} as NavRoute)
+            : item.type === 'comment' && item.commentId
+            ? ({key: 'comments', id: item.id, openComment: item.commentId} as NavRoute)
+            : appRouteOfId(item.id)
+        const subtitle = item.type === 'contact' ? 'Contact' : item.type === 'comment' ? 'Comment' : 'Document'
         return {
-          key: packHmId(item.id),
+          key: item.commentId ? `${packHmId(item.id)}:comments/${item.commentId}` : packHmId(item.id),
           title,
           path: item.parentNames,
           icon: item.icon,
@@ -191,7 +197,7 @@ export const SearchInput = forwardRef<
             setFocusedIndex(index)
           },
           onSelect: () => onSelect({id: item.id, route}),
-          subtitle: item.type === 'contact' ? 'Contact' : 'Document',
+          subtitle,
           searchQuery: item.searchQuery,
           versionTime: item.versionTime || '',
         }

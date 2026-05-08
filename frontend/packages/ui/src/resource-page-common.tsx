@@ -105,7 +105,7 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
-import {UnreferencedDocuments} from './unreferenced-documents'
+// import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
@@ -289,6 +289,8 @@ export interface ResourcePageProps {
   machineExtras?: ReactNode
   /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Render prop for floating overlay when a draft exists but not actively editing. Shown when a draft exists and isEditing is false. */
+  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
   newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only). Flows into machine context. */
@@ -348,6 +350,7 @@ export function ResourcePage({
   onEditorReady,
   machineExtras,
   editingFloatingActions,
+  draftActions,
   newButton,
   signingAccountId,
   publishAccountUid,
@@ -627,6 +630,7 @@ export function ResourcePage({
           onEditorReady={onEditorReady}
           canEdit={canEdit}
           editingFloatingActions={editingFloatingActions}
+          draftActions={draftActions}
           newButton={newButton}
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
@@ -809,6 +813,7 @@ function DocumentBody({
   onEditorReady,
   canEdit = false,
   editingFloatingActions,
+  draftActions,
   newButton,
   signingAccountId,
   publishAccountUid,
@@ -845,6 +850,8 @@ function DocumentBody({
   canEdit?: boolean
   /** Render prop for floating overlay when editing */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  /** Render prop for floating overlay when a draft exists but not actively editing */
+  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
   newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only) */
@@ -1028,7 +1035,7 @@ function DocumentBody({
   const isHomeDoc = !docId.path?.length
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   const siteMembers = useSiteMembers(siteId)
-  const directory = useDirectory(docId)
+  // const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
@@ -1544,7 +1551,7 @@ function DocumentBody({
           onBlockCommentClick={handleBlockCommentClick}
           onBlockSelect={isUnpublishedDraft ? undefined : handleBlockSelect}
           CommentEditor={CommentEditor}
-          directory={directory.data}
+          // directory={directory.data}
           siteUrl={siteUrl}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
@@ -1653,7 +1660,9 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
-        {/* Floating action buttons — when editing, show editing toolbar; otherwise show new button + options menu */}
+        {/* Floating action buttons — when editing, show editing toolbar;
+            when a draft exists but not editing, show draft toolbar (publish + menu);
+            otherwise show new button + options menu */}
         {isEditing && editingFloatingActions ? (
           <div
             className={cn(
@@ -1661,6 +1670,14 @@ function DocumentBody({
             )}
           >
             {editingFloatingActions({menuItems: allMenuItems})}
+          </div>
+        ) : !isEditing && ctx.draftId !== null && draftActions ? (
+          <div
+            className={cn(
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            )}
+          >
+            {draftActions({menuItems: allMenuItems})}
           </div>
         ) : newButton || actionButtons ? (
           <div
@@ -2013,7 +2030,7 @@ function MainContent({
   onBlockCommentClick,
   onBlockSelect,
   CommentEditor,
-  directory,
+  // directory,
   siteUrl,
   inlineCards,
   inlineInsert,
@@ -2139,7 +2156,7 @@ function MainContent({
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
-          directory={directory}
+          // directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
@@ -2167,7 +2184,7 @@ function ContentViewWithOutline({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
-  directory,
+  // directory,
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
@@ -2257,12 +2274,12 @@ function ContentViewWithOutline({
         ) : null}
         {inlineInsert}
         {inlineCards}
-        <UnreferencedDocuments
+        {/* <UnreferencedDocuments
           docId={docId}
           content={document.content}
           draftContent={existingDraftContent}
           directory={directory}
-        />
+        /> */}
       </div>
 
       {showSidebars && <div {...sidebarProps} />}

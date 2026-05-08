@@ -3,6 +3,7 @@ import {getDocument} from '@/loaders'
 import {HMBlockNode, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
 import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {BIG_INT, DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findIpfsUrlCid} from '@shm/ui/get-file-url'
 
@@ -11,12 +12,11 @@ export async function discoverDocument(
   path: string[],
   version?: string,
   latest?: boolean | undefined | null,
+  scope: DiscoveryScope = 'all',
 ): Promise<{version: string} | true | null> {
   const discoverRequest = {
-    account: uid,
-    path: hmIdPathToEntityQueryPath(path),
+    id: discoveryUrl({uid, path, recursion: 'descendants', scope}),
     version: version || undefined,
-    recursive: true,
   } as const
   function checkDiscoverySuccess(discoveredVersion: string) {
     if (latest && discoveredVersion) return true

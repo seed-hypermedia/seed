@@ -22,6 +22,7 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -41,8 +42,8 @@ type Vault struct {
 }
 
 // New creates a vault-backed keystore with optional remote-sync support.
-func New(dataDir string, secretStore SecretStore, opts ...RemoteOption) (*Vault, error) {
-	ks := &Vault{
+func New(dataDir string, secretStore SecretStore, opts ...RemoteOption) (v *Vault, err error) {
+	v = &Vault{
 		secretStore:  secretStore,
 		httpClient:   defaultRemoteHTTPClient(),
 		pollInterval: defaultPollInterval,
@@ -50,19 +51,113 @@ func New(dataDir string, secretStore SecretStore, opts ...RemoteOption) (*Vault,
 	}
 	for _, opt := range opts {
 		if opt != nil {
-			opt(ks)
+			opt(v)
 		}
 	}
-	if ks.httpClient == nil {
-		ks.httpClient = defaultRemoteHTTPClient()
+	if v.httpClient == nil {
+		v.httpClient = defaultRemoteHTTPClient()
 	}
-	store, err := newFileStore(dataDir, ks.secretStore)
+	v.store, err = newFileStore(dataDir, v.secretStore)
 	if err != nil {
 		return nil, err
 	}
-	ks.store = store
 
-	return ks, nil
+	if err := v.migrateLegacyCredentialRecords(); err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+func (ks *Vault) migrateLegacyCredentialRecords() error {
+	if err := ks.migrateLegacyLocalCredentialRecord(); err != nil {
+		return err
+	}
+	if err := ks.migrateLegacyRemoteCredentialRecord(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ks *Vault) migrateLegacyLocalCredentialRecord() error {
+	localSecret, err := ks.secretStore.Load(localVaultKEKName, "")
+	if err != nil {
+		return fmt.Errorf("failed to load local vault KEK for credential migration: %w", err)
+	}
+	if len(localSecret) != vaultSecretSize {
+		return fmt.Errorf("invalid local vault KEK length: got %d bytes", len(localSecret))
+	}
+	if err := ks.secretStore.Store(localVaultKEKName, "", localSecret); err != nil {
+		return fmt.Errorf("failed to upgrade local credential record: %w", err)
+	}
+	return nil
+}
+
+func (ks *Vault) migrateLegacyRemoteCredentialRecord() error {
+	envelope, err := ks.store.LoadEnvelope()
+	if err != nil {
+		return fmt.Errorf("failed to load vault envelope for remote credential migration: %w", err)
+	}
+	if envelope == nil || envelope.Remote == nil {
+		return nil
+	}
+
+	remote := envelope.Remote
+	remoteKey, err := remoteVaultKEKName(remote.VaultURL, remote.UserID)
+	if err != nil {
+		return err
+	}
+
+	credentialID := strings.TrimSpace(remote.CredentialID)
+	if credentialID == "" {
+		return fmt.Errorf("remote vault credential ID is required for remote credential migration")
+	}
+
+	// First try the current format. A successful load means the keychain
+	// record is already a bundle and already contains the credential that
+	// vault.json points at.
+	_, err = ks.secretStore.Load(remoteKey, credentialID)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, errLegacyRemoteCredentialRecord):
+	default:
+		return fmt.Errorf("failed to load remote credential %q: %w", credentialID, err)
+	}
+
+	// Loading a non-empty credential ID from a legacy record reports
+	// errLegacyRemoteCredentialRecord. The same key with the empty credential
+	// ID is the compatibility read for the old raw base64 secret.
+	legacySecret, err := ks.secretStore.Load(remoteKey, "")
+	if err != nil {
+		return fmt.Errorf("failed to load legacy remote vault secret: %w", err)
+	}
+	if len(legacySecret) != vaultSecretSize {
+		return fmt.Errorf("invalid legacy remote secret length: got %d bytes", len(legacySecret))
+	}
+
+	// Do not rewrite the keychain just because a legacy-shaped value exists.
+	// The only safe upgrade is one where the legacy secret unwraps the DEK,
+	// decrypts the current vault payload, and the plaintext decodes as a vault
+	// state. If any of those checks fail, startup fails and no keychain write
+	// happens.
+	dek, err := decryptXChaCha20Payload(envelope.WrappedDEK, legacySecret, "wrapped DEK")
+	if err != nil {
+		return fmt.Errorf("failed to verify legacy remote vault secret: %w", err)
+	}
+	plaintext, err := ks.store.decrypt(envelope.EncryptedData, dek)
+	if err != nil {
+		return fmt.Errorf("failed to verify legacy remote vault payload: %w", err)
+	}
+	if _, err := decodeState(plaintext); err != nil {
+		return fmt.Errorf("failed to verify legacy remote vault state: %w", err)
+	}
+
+	if err := ks.secretStore.Store(remoteKey, credentialID, legacySecret); err != nil {
+		return fmt.Errorf("failed to upgrade legacy remote credential record: %w", err)
+	}
+
+	return nil
 }
 
 // KeyMetadata describes vault-specific metadata attached to a stored key.
@@ -180,6 +275,11 @@ type ConnectionHandoff struct {
 	Credential   string
 }
 
+// ConnectionProbe describes whether an existing remote credential completed a browser handoff.
+type ConnectionProbe struct {
+	Connected bool
+}
+
 type connectionState struct {
 	remoteURL  string
 	token      string
@@ -234,6 +334,28 @@ func mergeCredentialJSONs(existing []Credential, incoming []Credential) []Creden
 	}
 
 	return merged
+}
+
+func loadRemoteCredentialSecret(secretStore SecretStore, remoteURL string, userID string, credentialID string) ([]byte, error) {
+	if secretStore == nil {
+		return nil, fmt.Errorf("vault KEK store is required")
+	}
+	key, err := remoteVaultKEKName(remoteURL, userID)
+	if err != nil {
+		return nil, err
+	}
+	secret, err := secretStore.Load(key, credentialID)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) || errors.Is(err, errLegacyRemoteCredentialRecord) {
+			return nil, fmt.Errorf("%w: %q", ErrRemoteCredentialNotFound, credentialID)
+		}
+		return nil, err
+	}
+	if len(secret) != vaultSecretSize {
+		return nil, fmt.Errorf("invalid remote secret length: got %d bytes", len(secret))
+	}
+
+	return secret, nil
 }
 
 type saveRequest struct {
@@ -517,7 +639,7 @@ func (ks *Vault) Status() (Status, error) {
 	status := Status{}
 	if envelope.Remote != nil {
 		status.RemoteMode = true
-		status.RemoteURL = envelope.Remote.RemoteURL
+		status.RemoteURL = envelope.Remote.VaultURL
 		status.LocalVersion = envelope.Remote.LocalVersion
 		status.RemoteVersion = envelope.Remote.RemoteVersion
 		status.LastSyncError = envelope.Remote.LastSyncError
@@ -573,47 +695,117 @@ func (ks *Vault) StartConnection(remoteURL string, force bool) (ConnectionStart,
 }
 
 // HandleConnection finalizes a browser-mediated remote vault connection.
-func (ks *Vault) HandleConnection(handoffToken string, handoff ConnectionHandoff) error {
-	normalizedURL, err := normalizeOriginURL(strings.TrimSpace(handoff.RemoteURL))
+func (ks *Vault) HandleConnection(ctx context.Context, handoffToken string, handoff ConnectionHandoff) error {
+	normalizedURL, err := normalizeOriginURL(handoff.RemoteURL)
 	if err != nil {
 		return err
 	}
 
-	userID := strings.TrimSpace(handoff.UserID)
+	userID := handoff.UserID
 	if userID == "" {
 		return fmt.Errorf("remote vault user ID is required")
 	}
 
-	credentialID := strings.TrimSpace(handoff.CredentialID)
+	credentialID := handoff.CredentialID
 	if credentialID == "" {
 		return fmt.Errorf("remote credential ID is required")
 	}
+	if err := ks.validateConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+		return err
+	}
 
-	encodedSecret := strings.TrimSpace(handoff.Credential)
+	encodedSecret := handoff.Credential
+	var decodedSecret []byte
 	if encodedSecret == "" {
-		return fmt.Errorf("remote secret is required")
+		decodedSecret, err = loadRemoteCredentialSecret(ks.secretStore, normalizedURL, userID, credentialID)
+		if err != nil {
+			return err
+		}
+		encodedSecret = base64.RawURLEncoding.EncodeToString(decodedSecret)
+	} else {
+		decodedSecret, err = decodeBase64URLField(encodedSecret, "remote secret")
+		if err != nil {
+			return err
+		}
+		if len(decodedSecret) != vaultSecretSize {
+			return fmt.Errorf("invalid remote secret length: got %d bytes", len(decodedSecret))
+		}
 	}
 
-	decodedSecret, err := decodeBase64URLField(encodedSecret, "remote secret")
+	if err := ks.consumeConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+		return err
+	}
+
+	return ks.finishConnection(ctx, normalizedURL, userID, credentialID, encodedSecret)
+}
+
+// ProbeConnectionCredentials tries existing remote credentials and completes the handoff if one works.
+func (ks *Vault) ProbeConnectionCredentials(ctx context.Context, handoffToken string, remoteURL string, userID string) (ConnectionProbe, error) {
+	normalizedURL, err := normalizeOriginURL(remoteURL)
 	if err != nil {
-		return err
+		return ConnectionProbe{}, err
 	}
-	if len(decodedSecret) != vaultSecretSize {
-		return fmt.Errorf("invalid remote secret length: got %d bytes", len(decodedSecret))
+	if userID == "" {
+		return ConnectionProbe{}, fmt.Errorf("remote vault user ID is required")
+	}
+	if err := ks.validateConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+		return ConnectionProbe{}, err
 	}
 
-	if err := ks.consumeConnectionHandoff(strings.TrimSpace(handoffToken), normalizedURL, time.Now().UTC()); err != nil {
-		return err
-	}
-	remoteKEKName, err := remoteVaultKEKName(normalizedURL, userID)
+	key, err := remoteVaultKEKName(normalizedURL, userID)
 	if err != nil {
-		return err
+		return ConnectionProbe{}, err
 	}
-	if err := ks.secretStore.Store(remoteKEKName, decodedSecret); err != nil {
-		return err
+	credentialIDs, err := ks.secretStore.ListCredentialIDs(key)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) || errors.Is(err, errLegacyRemoteCredentialRecord) {
+			return ConnectionProbe{}, nil
+		}
+		return ConnectionProbe{}, err
 	}
 
-	return ks.finishConnection(context.Background(), normalizedURL, userID, credentialID, encodedSecret)
+	for _, credentialID := range credentialIDs {
+		secret, err := ks.secretStore.Load(key, credentialID)
+		if err != nil {
+			continue
+		}
+		if len(secret) != vaultSecretSize {
+			continue
+		}
+		encodedSecret := base64.RawURLEncoding.EncodeToString(secret)
+		if !ks.probeConnectionCredential(ctx, normalizedURL, credentialID, encodedSecret) {
+			continue
+		}
+		if err := ks.finishConnection(ctx, normalizedURL, userID, credentialID, encodedSecret); err != nil {
+			return ConnectionProbe{}, err
+		}
+		if err := ks.clearConnectionHandoff(handoffToken, normalizedURL); err != nil {
+			return ConnectionProbe{}, err
+		}
+		return ConnectionProbe{Connected: true}, nil
+	}
+	return ConnectionProbe{}, nil
+}
+
+func (ks *Vault) probeConnectionCredential(ctx context.Context, remoteURL string, credentialID string, secret string) bool {
+	bearerAuth, err := buildRemoteBearerAuth(credentialID, secret)
+	if err != nil {
+		return false
+	}
+	remoteSnapshot, err := ks.getRemote(ctx, remoteURL, bearerAuth, 0)
+	if err != nil {
+		return false
+	}
+	credential, err := remoteSnapshot.findCredential(credentialID)
+	if err != nil {
+		return false
+	}
+	if !remoteSnapshot.Unchanged && remoteSnapshot.EncryptedData != "" {
+		_, err := decodeRemoteState(secret, credential.WrappedDEK, remoteSnapshot)
+		return err == nil
+	}
+	_, err = decodeRemoteDataEncryptionKey(secret, credential.WrappedDEK)
+	return err == nil
 }
 
 // Disconnect clears remote vault metadata/state and switches back to local mode.
@@ -630,17 +822,10 @@ func (ks *Vault) Disconnect() error {
 		return nil
 	}
 
-	previousRemote := cloneRemoteState(snapshot.Envelope.Remote)
 	snapshot.Envelope.Remote = nil
 	snapshot.Envelope.Credentials = nil
 	if err := ks.saveSnapshotLocked(snapshot); err != nil {
 		return fmt.Errorf("failed to save disconnected vault envelope: %w", err)
-	}
-	if previousRemote != nil {
-		remoteKEKName, err := remoteVaultKEKName(previousRemote.RemoteURL, previousRemote.UserID)
-		if err == nil {
-			_ = ks.secretStore.Delete(remoteKEKName)
-		}
 	}
 
 	ks.connection = nil
@@ -704,6 +889,39 @@ func (ks *Vault) consumeConnectionHandoff(handoffToken string, remoteURL string,
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
+	if err := ks.validateConnectionHandoffLocked(handoffToken, remoteURL, now); err != nil {
+		return err
+	}
+
+	ks.connection = nil
+	return nil
+}
+
+func (ks *Vault) clearConnectionHandoff(handoffToken string, remoteURL string) error {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	if ks.connection == nil {
+		return ErrConnectionTokenInvalid
+	}
+	if subtle.ConstantTimeCompare([]byte(handoffToken), []byte(ks.connection.token)) != 1 {
+		return ErrConnectionTokenInvalid
+	}
+	if ks.connection.remoteURL != remoteURL {
+		return fmt.Errorf("%w: expected %s, got %s", ErrConnectionRemoteURLMismatch, ks.connection.remoteURL, remoteURL)
+	}
+	ks.connection = nil
+	return nil
+}
+
+func (ks *Vault) validateConnectionHandoff(handoffToken string, remoteURL string, now time.Time) error {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	return ks.validateConnectionHandoffLocked(handoffToken, remoteURL, now)
+}
+
+func (ks *Vault) validateConnectionHandoffLocked(handoffToken string, remoteURL string, now time.Time) error {
 	if ks.connection == nil {
 		return ErrConnectionTokenInvalid
 	}
@@ -714,11 +932,10 @@ func (ks *Vault) consumeConnectionHandoff(handoffToken string, remoteURL string,
 	if subtle.ConstantTimeCompare([]byte(handoffToken), []byte(ks.connection.token)) != 1 {
 		return ErrConnectionTokenInvalid
 	}
-	if strings.TrimSpace(ks.connection.remoteURL) != strings.TrimSpace(remoteURL) {
+	if ks.connection.remoteURL != remoteURL {
 		return fmt.Errorf("%w: expected %s, got %s", ErrConnectionRemoteURLMismatch, ks.connection.remoteURL, remoteURL)
 	}
 
-	ks.connection = nil
 	return nil
 }
 
@@ -774,6 +991,17 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	}
 
 	credentials := mergeCredentialJSONs(remoteSnapshot.Credentials, []Credential{credential})
+	decodedSecret, err := decodeBase64URLField(secret, "remote secret")
+	if err != nil {
+		return err
+	}
+	remoteKey, err := remoteVaultKEKName(remoteURL, userID)
+	if err != nil {
+		return err
+	}
+	if err := ks.secretStore.Store(remoteKey, credentialID, decodedSecret); err != nil {
+		return err
+	}
 	if err := ks.connect(remoteURL, userID, credentialID, secret, credential.WrappedDEK, credentials, remoteVersion, syncedLocalVersion, time.Now().UTC()); err != nil {
 		return fmt.Errorf("failed to persist remote vault connection: %w", err)
 	}
@@ -824,7 +1052,7 @@ func (ks *Vault) syncRemote(ctx context.Context) error {
 			return fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
 		}
 
-		remoteSnapshot, err := ks.getRemote(ctx, localRemote.RemoteURL, bearerAuth, localRemote.RemoteVersion)
+		remoteSnapshot, err := ks.getRemote(ctx, localRemote.VaultURL, bearerAuth, localRemote.RemoteVersion)
 		if err != nil {
 			return fmt.Errorf("failed to fetch remote snapshot: %w", err)
 		}
@@ -854,7 +1082,7 @@ func (ks *Vault) syncRemote(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if err := ks.saveRemoteSnapshot(ctx, localRemote.RemoteURL, bearerAuth, saveReq); err != nil {
+			if err := ks.saveRemoteSnapshot(ctx, localRemote.VaultURL, bearerAuth, saveReq); err != nil {
 				if errors.Is(err, errRemoteWriteConflict) && attempt < maxAttempts {
 					continue
 				}
@@ -895,7 +1123,7 @@ func (ks *Vault) recordRemoteSyncSuccess(
 		return nil
 	}
 	remote := snapshot.Envelope.Remote
-	if remote.RemoteURL != expectedRemote.RemoteURL ||
+	if remote.VaultURL != expectedRemote.VaultURL ||
 		remote.UserID != expectedRemote.UserID ||
 		remote.CredentialID != expectedRemote.CredentialID {
 		return nil
@@ -959,7 +1187,7 @@ func (ks *Vault) loadRemoteSyncState() (remote RemoteState, credential Credentia
 	if err != nil {
 		return RemoteState{}, Credential{}, "", false, fmt.Errorf("failed to read local vault status: %w", err)
 	}
-	if envelope == nil || envelope.Remote == nil || strings.TrimSpace(envelope.Remote.RemoteURL) == "" {
+	if envelope == nil || envelope.Remote == nil || strings.TrimSpace(envelope.Remote.VaultURL) == "" {
 		return RemoteState{}, Credential{}, "", false, nil
 	}
 	remote = *envelope.Remote
@@ -971,11 +1199,7 @@ func (ks *Vault) loadRemoteSyncState() (remote RemoteState, credential Credentia
 	if ks.secretStore == nil {
 		return RemoteState{}, Credential{}, "", false, fmt.Errorf("vault KEK store is required")
 	}
-	remoteKEKName, err := remoteVaultKEKName(remote.RemoteURL, remote.UserID)
-	if err != nil {
-		return RemoteState{}, Credential{}, "", false, err
-	}
-	remoteSecretBytes, err := ks.secretStore.Load(remoteKEKName)
+	remoteSecretBytes, err := loadRemoteCredentialSecret(ks.secretStore, remote.VaultURL, remote.UserID, remote.CredentialID)
 	if err != nil {
 		return RemoteState{}, Credential{}, "", false, fmt.Errorf("failed to load remote auth secret: %w", err)
 	}
@@ -1270,7 +1494,7 @@ func (ks *Vault) connect(
 	}
 
 	remote := &RemoteState{
-		RemoteURL:          normalizedURL,
+		VaultURL:           normalizedURL,
 		UserID:             normalizedUserID,
 		CredentialID:       normalizedCredentialID,
 		RemoteVersion:      remoteVersion,
@@ -1481,24 +1705,24 @@ func decodeBase64URLField(encoded string, fieldName string) ([]byte, error) {
 	return decoded, nil
 }
 
-func decryptXChaCha20Payload(ciphertext []byte, key []byte, fieldName string) ([]byte, error) {
+func decryptXChaCha20Payload(ciphertext []byte, key []byte, errmsg string) ([]byte, error) {
 	if len(key) < chacha20poly1305.KeySize {
-		return nil, fmt.Errorf("%s decryption key is too short: got %d bytes", fieldName, len(key))
+		return nil, fmt.Errorf("%s decryption key is too short: got %d bytes", errmsg, len(key))
 	}
 	if len(ciphertext) < chacha20poly1305.NonceSizeX {
-		return nil, fmt.Errorf("invalid %s ciphertext: expected at least %d bytes, got %d", fieldName, chacha20poly1305.NonceSizeX, len(ciphertext))
+		return nil, fmt.Errorf("invalid %s ciphertext: expected at least %d bytes, got %d", errmsg, chacha20poly1305.NonceSizeX, len(ciphertext))
 	}
 
 	aead, err := chacha20poly1305.NewX(key[:chacha20poly1305.KeySize])
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize %s cipher: %w", fieldName, err)
+		return nil, fmt.Errorf("failed to initialize %s cipher: %w", errmsg, err)
 	}
 
 	nonce := ciphertext[:chacha20poly1305.NonceSizeX]
 	encryptedData := ciphertext[chacha20poly1305.NonceSizeX:]
 	plaintext, err := aead.Open(nil, nonce, encryptedData, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt %s: %w", fieldName, err)
+		return nil, fmt.Errorf("failed to decrypt %s: %w", errmsg, err)
 	}
 
 	return plaintext, nil

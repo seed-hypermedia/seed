@@ -150,16 +150,16 @@ export function DocumentHeader({
 /** Renders a clickable author name with a spinner while the account is loading. */
 function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string}) {
   const currentRoute = useNavRoute()
-  const account = useAccount(id.uid)
+  const account = useAccount(id.uid, {subscribe: true})
   const resolvedName = account.data?.metadata?.name
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
   return (
     <a
       {...linkProps}
-      className={`no-underline underline-offset-4 hover:underline${resolvedName ? '' : 'text-muted-foreground'}`}
+      className={`no-underline underline-offset-4 hover:underline ${resolvedName ? '' : 'text-muted-foreground'}`}
     >
       {resolvedName || abbreviateUid(id.uid)}
-      {account.isLoading ? (
+      {!resolvedName ? (
         <span className="ml-1">
           <Spinner size="small" />
         </span>

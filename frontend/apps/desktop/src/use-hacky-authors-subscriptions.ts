@@ -27,10 +27,11 @@ export function useHackyAuthorsSubscriptions(authorIds: string[]) {
     return hmIdsRef.current
   }, [idsKey, authorIds])
 
-  // Subscribe directly without useResources to avoid re-render cascade
+  // Subscribe directly without useResources to avoid re-render cascade.
+  // Uses profile scope to only discover name + icon, not full resource.
   useEffect(() => {
     if (!client.subscribeEntity) return
-    const cleanups = hmIds.filter((id) => !!id).map((id) => client.subscribeEntity!({id}))
+    const cleanups = hmIds.filter((id) => !!id).map((id) => client.subscribeEntity!({id, scope: 'profile'}))
     return () => cleanups.forEach((cleanup) => cleanup())
   }, [idsKey, client.subscribeEntity])
 }

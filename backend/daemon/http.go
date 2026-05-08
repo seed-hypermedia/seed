@@ -158,7 +158,7 @@ func initHTTP(
 		router.Handle("/debug/network", p2pnet.NetworkDebugHandler(), RouteNav)
 
 		router.Handle("/hm/api/config", p2pnet.HMAPIConfigHandler(), RouteNav)
-		router.Handle(vaultConnectionHandoffPath, corsMiddleware(http.HandlerFunc(daemonServer.HandleConnectionHandoff)), 0)
+		router.Handle(vaultConnectionHandoffPath, corsMiddleware(http.HandlerFunc(daemonServer.HandleVaultHandoff)), 0)
 
 		for _, handle := range extraHandlers {
 			handle(router)

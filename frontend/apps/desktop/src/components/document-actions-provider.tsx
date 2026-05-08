@@ -15,7 +15,7 @@ import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {queryResource} from '@shm/shared/models/queries'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {pathMatches} from '@shm/shared/utils/entity-id-url'
+import {hmId, pathMatches} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -61,19 +61,22 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   )
 
   const onEditDocument = useCallback(
-    (id: UnpackedHypermediaId, existingDraftId?: string) => {
+    async (id: UnpackedHypermediaId, existingDraftId?: string) => {
       if (existingDraftId) {
-        navigate({key: 'draft', id: existingDraftId, panel: null})
-      } else {
-        navigate({
-          key: 'draft',
-          id: nanoid(10),
-          editUid: id.uid,
-          editPath: id.path || [],
-          deps: id.version ? [id.version] : undefined,
-          panel: null,
-        })
+        navigate({key: 'document', id, panel: null})
+        return
       }
+      const draftId = nanoid(10)
+      await client.drafts.write.mutate({
+        id: draftId,
+        editUid: id.uid,
+        editPath: id.path || [],
+        metadata: {},
+        content: [],
+        deps: id.version ? [id.version] : [],
+        visibility: 'PUBLIC',
+      })
+      navigate({key: 'document', id, panel: null})
     },
     [navigate],
   )
@@ -147,10 +150,13 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         const draftId = nanoid(10)
         const parentPath = id.path?.slice(0, -1) || []
 
+        const draftEditPath = [...parentPath, `-${draftId}`]
         await client.drafts.write.mutate({
           id: draftId,
           locationUid: id.uid,
           locationPath: parentPath,
+          editUid: id.uid,
+          editPath: draftEditPath,
           metadata: {...doc.metadata, name: copyName},
           content: editorContent,
           deps: [],
@@ -158,7 +164,11 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         })
 
         sessionStorage.setItem('duplicate-draft-focus', draftId)
-        navigate({key: 'draft', id: draftId, panel: null})
+        navigate({
+          key: 'document',
+          id: hmId(id.uid, {path: draftEditPath}),
+          panel: null,
+        })
         toast.success(`Duplicated "${sourceName}"`)
       } catch (error) {
         console.error('Error duplicating document:', error)

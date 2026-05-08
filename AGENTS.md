@@ -50,6 +50,9 @@
 ## Coding Guidelines
 
 - Keep changes minimal and consistent with nearby code.
+- Normalize, trim, canonicalize, or otherwise clean input at system boundaries only (HTTP handlers, CLI parsing, config
+  loading, deserialization edges). Do not repeat defensive string normalization in deeper internal functions; internal
+  APIs should receive already-normalized values and compare them exactly unless the domain explicitly requires otherwise.
 - Prefer existing files over creating new tiny one-off modules. Add a new file only when it materially improves
   structure, ownership, or reuse.
 - Avoid writing tiny helper functions, especially if they are not used elsewhere. Colocate related code for better

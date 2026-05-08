@@ -103,6 +103,41 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.comment-editor .ProseMirror,
+.comment-editor .ProseMirror:focus,
+.comment-editor .ProseMirror-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.hm-file-drop-indicator {
+  background: rgba(59, 130, 246, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.22);
+}
+
+.hm-file-drop-indicator-dot {
+  position: absolute;
+  top: 50%;
+  left: -1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 1);
+  transform: translateY(-50%);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.24);
+}
+
+:is([data-theme='dark'], .dark) .hm-file-drop-indicator {
+  background: rgba(125, 211, 252, 0.92);
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.26);
+}
+
+:is([data-theme='dark'], .dark) .hm-file-drop-indicator-dot {
+  background: rgba(125, 211, 252, 1);
+  box-shadow: 0 0 8px rgba(125, 211, 252, 0.28);
+}
+
 .hm-prose [data-list-type='Blockquote'] {
   border-left: 3px solid var(--border, rgb(0 0 0 / 0.2));
   padding-left: 15px;

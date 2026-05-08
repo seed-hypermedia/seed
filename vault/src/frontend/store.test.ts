@@ -1945,12 +1945,16 @@ describe('vault connection handoff flow', () => {
 
   test('parses fragment, exchanges handoff token, and registers secret credential', async () => {
     const registerRequests: Array<{authKey: string; wrappedDEK: string}> = []
-    let handoffRequestURL = ''
-    let handoffRequestInit: RequestInit | undefined
+    const handoffRequests: Array<{url: string; init?: RequestInit}> = []
 
     const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      handoffRequestURL = String(input)
-      handoffRequestInit = init
+      handoffRequests.push({url: String(input), init})
+      if (handoffRequests.length === 1) {
+        return new Response(JSON.stringify({success: true}), {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        })
+      }
       return new Response(JSON.stringify({success: true}), {
         status: 200,
         headers: {'Content-Type': 'application/json'},
@@ -1984,12 +1988,21 @@ describe('vault connection handoff flow', () => {
 
     await actions.completeVaultConnection()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(handoffRequestURL).toBe('http://127.0.0.1:7777/vault-handoff')
-    expect(handoffRequestInit).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(handoffRequests[0]?.url).toBe('http://127.0.0.1:7777/vault-handoff')
+    expect(handoffRequests[0]?.init).toMatchObject({
       method: 'POST',
     })
-    const handoffRequest = JSON.parse((handoffRequestInit?.body as string) || '{}')
+    expect(JSON.parse((handoffRequests[0]?.init?.body as string) || '{}')).toEqual({
+      handoffToken: 'token-123',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+    })
+    expect(handoffRequests[1]?.url).toBe('http://127.0.0.1:7777/vault-handoff')
+    expect(handoffRequests[1]?.init).toMatchObject({
+      method: 'POST',
+    })
+    const handoffRequest = JSON.parse((handoffRequests[1]?.init?.body as string) || '{}')
     expect(handoffRequest).toMatchObject({
       handoffToken: 'token-123',
       vaultUrl: 'https://example.com/vault',
@@ -2015,8 +2028,219 @@ describe('vault connection handoff flow', () => {
     expect(navigate).toHaveBeenCalledWith('/')
   })
 
+  test('finishes when daemon connects with an existing credential', async () => {
+    const fetchBodies: unknown[] = []
+    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
+      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
+      return new Response(JSON.stringify({success: true, connected: true}), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
+    const {state, actions, navigator} = createStore(
+      createMockClient({
+        addSecretCredential,
+      }),
+      createMockBlockstore(),
+    )
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-existing&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchBodies[0]).toEqual({
+      handoffToken: 'token-existing',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+    })
+    expect(addSecretCredential).not.toHaveBeenCalled()
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('registers a fresh credential when daemon lookup is unsupported', async () => {
+    const fetchBodies: unknown[] = []
+    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
+      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
+      if (fetchBodies.length === 1) {
+        return new Response('credentialId is required', {status: 400})
+      }
+      return new Response(JSON.stringify({success: true}), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
+    const getVault = mock(async () => ({encryptedData: '', version: 0, credentials: []}))
+    const {state, actions, navigator} = createStore(
+      createMockClient({
+        addSecretCredential,
+        getVault,
+      }),
+      createMockBlockstore(),
+    )
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-legacy&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchBodies[0]).toEqual({
+      handoffToken: 'token-legacy',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+    })
+    expect(fetchBodies[1]).toMatchObject({
+      handoffToken: 'token-legacy',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+      credentialId: 'new-secret-credential',
+    })
+    expect(fetchBodies[1]).toHaveProperty('secret')
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(getVault).not.toHaveBeenCalled()
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('registers a fresh credential when daemon probe does not connect', async () => {
+    const fetchBodies: unknown[] = []
+    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
+      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
+      if (fetchBodies.length === 1) {
+        return new Response(JSON.stringify({success: true, connected: false}), {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        })
+      }
+      return new Response(JSON.stringify({success: true}), {
+        status: 200,
+        headers: {'Content-Type': 'application/json'},
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
+    const {state, actions, navigator} = createStore(
+      createMockClient({
+        addSecretCredential,
+      }),
+      createMockBlockstore(),
+    )
+    const navigate = mock()
+    navigator.setNavigate(navigate)
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+
+    actions.parseVaultConnectionFromUrl(
+      'https://example.com/vault/connect#token=token-stale&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+    )
+
+    await actions.completeVaultConnection()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchBodies[1]).toMatchObject({
+      handoffToken: 'token-stale',
+      vaultUrl: 'https://example.com/vault',
+      userId: 'user-123',
+      credentialId: 'new-secret-credential',
+    })
+    expect(fetchBodies[1]).toHaveProperty('secret')
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(state.error).toBe('')
+    expect(navigate).toHaveBeenCalledWith('/')
+  })
+
+  test('scrubs handoff token fragment after parsing connection request', () => {
+    const replaceState = spyOn(window.history, 'replaceState').mockImplementation(() => undefined)
+    try {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      // @ts-expect-error
+      window.location = {
+        href: 'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+        origin: 'https://example.com',
+        pathname: '/vault/connect',
+        hash: '#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+      }
+
+      actions.parseVaultConnectionFromUrl(window.location.href)
+
+      expect(state.vaultConnectionRequest).toEqual({
+        handoffToken: 'token-123',
+        callbackURL: 'http://127.0.0.1:7777/vault-handoff',
+      })
+      expect(replaceState).toHaveBeenCalledWith(window.history.state, '', 'https://example.com/vault/connect')
+    } finally {
+      replaceState.mockRestore()
+    }
+  })
+
+  test('keeps invalid handoff fragment in URL for error context', () => {
+    const replaceState = spyOn(window.history, 'replaceState').mockImplementation(() => undefined)
+    try {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      // @ts-expect-error
+      window.location = {
+        href: 'https://example.com/vault/connect#token=token-only',
+        origin: 'https://example.com',
+        pathname: '/vault/connect',
+        hash: '#token=token-only',
+      }
+
+      actions.parseVaultConnectionFromUrl(window.location.href)
+
+      expect(state.vaultConnectionRequest).toBeNull()
+      expect(state.error).toBe('Invalid vault connection fragment')
+      expect(replaceState).not.toHaveBeenCalled()
+    } finally {
+      replaceState.mockRestore()
+    }
+  })
+
   test('accepts localhost handoff URL with any port', async () => {
+    let fetchCalls = 0
     const fetchMock = mock(async (input: RequestInfo | URL) => {
+      fetchCalls++
+      if (fetchCalls === 1) {
+        return new Response(JSON.stringify({success: true}), {
+          status: 200,
+          headers: {'Content-Type': 'application/json'},
+        })
+      }
       return new Response(JSON.stringify({success: true}), {
         status: 200,
         headers: {'Content-Type': 'application/json'},
@@ -2045,8 +2269,9 @@ describe('vault connection handoff flow', () => {
 
     await actions.completeVaultConnection()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:43125/vault-handoff')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:43125/vault-handoff')
     expect(state.vaultConnectionSuccessMessage).toBe(
       'Your Seed desktop app has been linked with this remote vault successfully.',
     )

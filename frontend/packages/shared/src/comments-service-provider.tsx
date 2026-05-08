@@ -218,6 +218,7 @@ export function useDeleteComment() {
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
+      invalidateQueries([queryKeys.SEARCH])
       pushAfterCommentPublish?.(
         hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
       )
@@ -257,6 +258,7 @@ export function useUpdateComment() {
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
       invalidateQueries([queryKeys.COMMENT_VERSIONS])
+      invalidateQueries([queryKeys.SEARCH])
       pushAfterCommentPublish?.(
         hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
       )
