@@ -40,6 +40,7 @@ import {
   queryDirectory,
   queryResource,
 } from './queries'
+import {populateAccountIfChanged} from './query-client'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -117,13 +118,11 @@ export function useResource(
   options?: UseQueryOptions<HMResource | null> & {
     subscribed?: boolean
     recursive?: boolean
-    /** `'high'` requests faster discovery polling for the active document. */
-    priority?: 'normal' | 'high'
     onRedirectOrDeleted?: (opts: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => void
   },
 ) {
   const client = useUniversalClient()
-  const {subscribed, recursive, priority, onRedirectOrDeleted, ...queryOptions} = options ?? {}
+  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} = options ?? {}
 
   // Discovery subscription (desktop only)
   useEffect(() => {
@@ -139,14 +138,13 @@ export function useResource(
     console.log('[Rebase sub] useResource calling subscribeEntity', {
       idStr: id.id,
       recursive: !!recursive,
-      priority: priority ?? 'normal',
     })
-    const cleanup = client.subscribeEntity({id, recursive, priority})
+    const cleanup = client.subscribeEntity({id, recursive})
     return () => {
       console.log('[Rebase sub] useResource unsubscribing', {idStr: id.id})
       cleanup()
     }
-  }, [subscribed, recursive, priority, id?.id, client.subscribeEntity])
+  }, [subscribed, recursive, id?.id, client.subscribeEntity])
 
   const result = useQuery({
     ...queryResource(client, id),
@@ -627,12 +625,17 @@ export function useComments(id: UnpackedHypermediaId | null | undefined) {
 
 export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
+  const queryClient = useQueryClient()
   const isRootAccount = !id?.path?.filter((p) => !!p).length
   return useQuery({
     queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
     queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
       if (!id) throw new Error('ID required')
-      return await client.request('ListCommentsByAuthor', {authorId: id})
+      const result = await client.request('ListCommentsByAuthor', {authorId: id})
+      Object.entries(result.authors).forEach(([uid, payload]) => {
+        populateAccountIfChanged(queryClient, uid, payload)
+      })
+      return result
     },
     enabled: !!id && isRootAccount,
   })

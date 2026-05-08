@@ -6,7 +6,6 @@ import {
   HMCommentGroup,
   HMDocument,
   HMExternalCommentGroup,
-  HMMetadata,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -22,7 +21,6 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 
-import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -31,10 +29,9 @@ import {
   useCommentVersions,
   useDeleteComment,
   useDiscussionsService,
-  useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
+import {useAccount, useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
@@ -86,26 +83,6 @@ export function CommentDiscussions({
 
   const parentThread = useCommentParents(commentsService.data?.comments, commentId)
   const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
-
-  // Subscribe to all authors in this discussion
-  const allAuthorIds = useMemo(() => {
-    const authors = new Set<string>()
-    if (parentThread?.thread) {
-      parentThread.thread.forEach((c) => {
-        if (c.author) authors.add(c.author)
-      })
-    }
-    if (commentGroupReplies.data) {
-      commentGroupReplies.data.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
-    return Array.from(authors)
-  }, [parentThread?.thread, commentGroupReplies.data])
-
-  useHackyAuthorsSubscriptions(allAuthorIds)
 
   const {showDeletedContent} = useCommentsServiceContext()
 
@@ -201,7 +178,6 @@ export function CommentDiscussions({
               <Comment
                 comment={comment}
                 authorId={comment.author}
-                authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
                 targetDomain={targetDomain}
                 isFirst={index === 0}
                 isLast={false}
@@ -217,7 +193,6 @@ export function CommentDiscussions({
           <Comment
             comment={focusedComment}
             authorId={focusedComment.author}
-            authorMetadata={commentsService.data?.authors?.[focusedComment.author]?.metadata}
             targetDomain={targetDomain}
             isFirst={!(hasParents && showParents)}
             isLast={true}
@@ -243,12 +218,7 @@ export function CommentDiscussions({
         ? commentGroupReplies.data.map((cg) => {
             return (
               <div key={cg.id} className={cn('p-2')}>
-                <CommentGroup
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={commentsService.data?.authors}
-                  targetDomain={targetDomain}
-                />
+                <CommentGroup key={cg.id} commentGroup={cg} targetDomain={targetDomain} />
               </div>
             )
           })
@@ -267,28 +237,6 @@ export const Discussions = memo(function Discussions({
   targetDomain?: string
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
-
-  // Subscribe to all authors in discussions
-  const allAuthorIds = useMemo(() => {
-    const authors = new Set<string>()
-    if (discussionsService.data?.discussions) {
-      discussionsService.data.discussions.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
-    if (discussionsService.data?.citingDiscussions) {
-      discussionsService.data.citingDiscussions.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
-    return Array.from(authors)
-  }, [discussionsService.data?.discussions, discussionsService.data?.citingDiscussions])
-
-  useHackyAuthorsSubscriptions(allAuthorIds)
 
   let panelContent = null
   if (discussionsService.isLoading && !discussionsService.data) {
@@ -315,12 +263,7 @@ export const Discussions = memo(function Discussions({
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
                 <LazyCommentGroup>
-                  <CommentGroup
-                    commentGroup={cg}
-                    authors={discussionsService.data.authors}
-                    enableReplies
-                    targetDomain={targetDomain}
-                  />
+                  <CommentGroup commentGroup={cg} enableReplies targetDomain={targetDomain} />
                 </LazyCommentGroup>
               </div>
             )
@@ -329,12 +272,7 @@ export const Discussions = memo(function Discussions({
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
                 <LazyCommentGroup>
-                  <CommentGroup
-                    commentGroup={cg}
-                    authors={discussionsService.data.authors}
-                    enableReplies
-                    targetDomain={targetDomain}
-                  />
+                  <CommentGroup commentGroup={cg} enableReplies targetDomain={targetDomain} />
                 </LazyCommentGroup>
               </div>
             )
@@ -362,19 +300,6 @@ export function BlockDiscussions({
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
-
-  // Subscribe to all authors in block discussions
-  const allAuthorIds = useMemo(() => {
-    const authors = new Set<string>()
-    if (commentsService.data?.comments) {
-      commentsService.data.comments.forEach((c) => {
-        if (c.author) authors.add(c.author)
-      })
-    }
-    return Array.from(authors)
-  }, [commentsService.data?.comments])
-
-  useHackyAuthorsSubscriptions(allAuthorIds)
 
   let quotedContent = null
   let panelContent = null
@@ -419,7 +344,6 @@ export function BlockDiscussions({
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}
-                authorMetadata={commentsService.data.authors[comment.author]?.metadata}
                 targetDomain={targetDomain}
               />
             </div>
@@ -482,13 +406,11 @@ function LazyCommentGroup({children}: {children: ReactNode}) {
 
 export const CommentGroup = memo(function CommentGroup({
   commentGroup,
-  authors,
   enableReplies = true,
   highlightLastComment = false,
   targetDomain,
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
-  authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
   targetDomain?: string
@@ -521,7 +443,6 @@ export const CommentGroup = memo(function CommentGroup({
             }
             key={comment.id}
             comment={comment}
-            authorMetadata={comment.author ? authors?.[comment.author]?.metadata : null}
             authorId={comment.author}
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
@@ -537,7 +458,6 @@ export const Comment = memo(function Comment({
   comment,
   isFirst = true,
   isLast = false,
-  authorMetadata,
   authorId,
   enableReplies = true,
   defaultExpandReplies = false,
@@ -550,7 +470,6 @@ export const Comment = memo(function Comment({
   comment: HMComment
   isFirst?: boolean
   isLast?: boolean
-  authorMetadata?: HMMetadata | null
   authorId?: string | null
   enableReplies?: boolean
   defaultExpandReplies?: boolean
@@ -574,6 +493,13 @@ export const Comment = memo(function Comment({
   const updateCommentMutation = useUpdateComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const currentRoute = useNavRoute()
+
+  // Each Comment subscribes to its own author so individual updates only
+  // re-render this Comment, never the parent list. Reads cached data
+  // populated by the comment queryFn (Phase 3) so the first render is
+  // immediate; the subscribe option triggers desktop P2P discovery.
+  const authorAccount = useAccount(authorId ?? comment.author, {subscribe: true})
+  const authorMetadata = authorAccount.data?.metadata ?? null
 
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
   const docId = getCommentTargetId(comment)

@@ -17,7 +17,6 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
 import {
@@ -323,15 +322,9 @@ export function ResourcePage({
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
 
-  // Load document data via React Query (hydrated from SSR prefetch).
-  // The active resource page subscribes with priority: 'high' so the daemon
-  // polls discovery faster (3s vs 20s) while the window is focused — this
-  // shrinks the time-to-detect for incoming remote updates while the user
-  // is editing or actively reading the document.
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
-    priority: 'high',
   })
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
@@ -1091,9 +1084,10 @@ function DocumentBody({
       showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
     })
 
-  // Fetch author metadata for document header and subscribe for discovery
+  // Fetch author metadata for document header. The DocumentHeader's per-author
+  // AuthorLink subscribes via `useAccount({subscribe: true})`, so each author's
+  // P2P discovery is triggered at the leaf level.
   const accountsMetadata = useAccountsMetadata(document.authors || [])
-  useHackyAuthorsSubscriptions(document.authors || [])
   const authorPayloads: AuthorPayload[] = useMemo(() => {
     return (document.authors || []).map((uid) => {
       const data = accountsMetadata.data[uid]

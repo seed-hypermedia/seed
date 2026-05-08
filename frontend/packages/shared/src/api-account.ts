@@ -6,6 +6,7 @@ import {
   HMAccountPayload,
   HMAccountRequest,
   HMAccountResult,
+  HMMetadata,
   HMMetadataPayload,
 } from '@seed-hypermedia/client/hm-types'
 import {getErrorMessage, HMNotFoundError} from './models/entity'
@@ -16,39 +17,94 @@ export const AccountParams: HMRequestParams<HMAccountRequest> = {
   paramsToInput: (params: Record<string, string>) => params.id!,
 }
 
+/** A single hop in an alias chain: source aliases to target. */
+export type AccountChainHop = {source: string; target: string}
+
+/** The terminal step of an alias chain — either a leaf account or not-found. */
+export type AccountChainResult =
+  | {
+      type: 'account'
+      uid: string
+      metadata: HMMetadata | null
+      version: string | null
+    }
+  | {type: 'account-not-found'; uid: string}
+
 /**
- * Load a single account with alias resolution.
+ * Walks the alias chain starting from `uid` until it finds a non-alias
+ * account, runs out of hops at `maxDepth`, or hits a not-found / gRPC error.
+ *
+ * Pure: does not register aliases or touch any cache. Returns the hops
+ * traversed so callers can decide whether to register them.
+ *
+ * Behavior change vs. legacy recursive `loadAccount`: this caps depth at 10
+ * by default, so a malformed cyclic alias configuration returns `not-found`
+ * cleanly instead of overflowing the stack.
  */
-export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
-  try {
-    const grpcAccount = await client.documents.getAccount({id: uid})
+export async function resolveAccountChain(
+  client: GRPCClient,
+  uid: string,
+  maxDepth = 10,
+): Promise<{hops: AccountChainHop[]; result: AccountChainResult}> {
+  const hops: AccountChainHop[] = []
+  let currentUid = uid
+  for (let i = 0; i < maxDepth; i++) {
+    let grpcAccount
+    try {
+      grpcAccount = await client.documents.getAccount({id: currentUid})
+    } catch (e) {
+      const err = getErrorMessage(e)
+      if (!(err instanceof HMNotFoundError)) {
+        console.error(`Error loading account ${currentUid}:`, e)
+      }
+      return {hops, result: {type: 'account-not-found', uid: currentUid}}
+    }
     if (grpcAccount.aliasAccount) {
-      return await loadAccount(client, grpcAccount.aliasAccount)
+      hops.push({source: currentUid, target: grpcAccount.aliasAccount})
+      currentUid = grpcAccount.aliasAccount
+      continue
     }
     return {
-      type: 'account',
-      id: hmId(uid, {version: grpcAccount.homeDocumentInfo?.version}),
-      metadata: accountMetadataFromAccount(grpcAccount),
-    } satisfies HMAccountPayload
-  } catch (e) {
-    const err = getErrorMessage(e)
-    if (err instanceof HMNotFoundError) {
-      return {
-        type: 'account-not-found',
-        uid,
-      } satisfies HMAccountNotFound
+      hops,
+      result: {
+        type: 'account',
+        uid: currentUid,
+        metadata: accountMetadataFromAccount(grpcAccount),
+        version: grpcAccount.homeDocumentInfo?.version ?? null,
+      },
     }
-    console.error(`Error loading account ${uid}:`, e)
-    return {
-      type: 'account-not-found',
-      uid,
-    } satisfies HMAccountNotFound
   }
+  return {hops, result: {type: 'account-not-found', uid: currentUid}}
 }
 
 /**
- * Load multiple accounts individually.
+ * Load an account, transparently following aliases.
+ *
+ * For an A→B alias, the returned `result.id.uid` is the resolved target (B),
+ * not the requested input (A) — this preserves the legacy recursive
+ * behavior that callers like notify depend on for signer-to-effective-account
+ * resolution.
+ *
+ * `profileOwner` carries the resolved-leaf uid so that consumers writing this
+ * payload into `[ACCOUNT, requestedUid]` can later spot alias entries by
+ * comparing `profileOwner` against the cache key. `version` carries the home
+ * document version of the leaf, enabling version-aware cache writes.
  */
+export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
+  const {result} = await resolveAccountChain(client, uid)
+  if (result.type === 'account-not-found') {
+    return {type: 'account-not-found', uid: result.uid} satisfies HMAccountNotFound
+  }
+  return {
+    type: 'account',
+    id: hmId(result.uid, {version: result.version ?? undefined}),
+    metadata: result.metadata,
+    profileOwner: result.uid,
+    version: result.version,
+  } satisfies HMAccountPayload
+}
+
+/** Load multiple accounts individually. */
 export async function loadAccounts(client: GRPCClient, uids: string[]): Promise<Record<string, HMMetadataPayload>> {
   const results = await Promise.all(uids.map((uid) => loadAccount(client, uid)))
   const accounts: Record<string, HMMetadataPayload> = {}

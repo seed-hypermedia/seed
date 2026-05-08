@@ -2,6 +2,7 @@ import {observable} from '@trpc/server/observable'
 import {t} from './app-trpc'
 
 const invalidationHandlers = new Set<(queryKey: any) => void>()
+const accountInvalidationHandlers = new Set<(uid: string) => void>()
 
 const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
 
@@ -42,6 +43,28 @@ export const queryInvalidation = t.procedure.subscription(() => {
     invalidationHandlers.add(handler)
     return () => {
       invalidationHandlers.delete(handler)
+    }
+  })
+})
+
+/**
+ * Trigger a targeted account-and-aliases invalidation across every renderer.
+ * Each renderer's `accountInvalidation` subscriber receives the uid and runs
+ * the local cache scan, so accounts aliased to `uid` get refreshed even if
+ * different windows have different cached aliases.
+ */
+export function appInvalidateAccountAndAliases(uid: string) {
+  accountInvalidationHandlers.forEach((handler) => handler(uid))
+}
+
+export const accountInvalidation = t.procedure.subscription(() => {
+  return observable<string>((emit) => {
+    function handler(uid: string) {
+      emit.next(uid)
+    }
+    accountInvalidationHandlers.add(handler)
+    return () => {
+      accountInvalidationHandlers.delete(handler)
     }
   })
 })

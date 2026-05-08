@@ -4,7 +4,7 @@ import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermed
 import {hmId, hostnameStripProtocol, postAccountCreateAction, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {useAccount, useResource} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateAccountAndAliasesEverywhere, invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
@@ -683,7 +683,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       invalidateQueries([queryKeys.ENTITY, id.id])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-      invalidateQueries([queryKeys.ACCOUNT])
+      invalidateAccountAndAliasesEverywhere(input.accountUid)
     },
   })
   return (

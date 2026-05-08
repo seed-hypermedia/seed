@@ -2,7 +2,7 @@ import {
   deleteComment as createDeleteCommentBlob,
   updateComment as createUpdateCommentBlob,
 } from '@seed-hypermedia/client'
-import {useMutation, useQuery} from '@tanstack/react-query'
+import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, ReactNode, useContext, useMemo} from 'react'
 import {
   HMBlockNode,
@@ -15,7 +15,7 @@ import {
   HMListDiscussionsOutput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {invalidateQueries} from './models/query-client'
+import {invalidateQueries, populateAccountIfChanged} from './models/query-client'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 import {hmId} from './utils/entity-id-url'
@@ -34,11 +34,6 @@ type CommentsProviderValue = {
   onReplyCountClick?: (comment: HMComment) => void
   /** Render an inline editor for editing an existing comment. */
   renderInlineEditor?: (props: InlineEditCommentProps) => ReactNode
-  /**
-   * Desktop-only hook to subscribe to author resources for syncing.
-   * No-op on web. This is a temporary workaround while syncing is improved.
-   */
-  useHackyAuthorsSubscriptions?: (authorIds: string[]) => void
   /**
    * When true, deleted comment content is shown with a "deleted" banner
    * using the version history (pre-deletion versions).
@@ -63,7 +58,6 @@ const defaultCommentsContext: CommentsProviderValue = {
     console.log('onReplyCountClick not implemented', comment)
   },
   renderInlineEditor: undefined,
-  useHackyAuthorsSubscriptions: undefined,
   showDeletedContent: false,
 }
 
@@ -74,7 +68,6 @@ export function CommentsProvider({
   onReplyClick = defaultCommentsContext.onReplyClick,
   onReplyCountClick = defaultCommentsContext.onReplyCountClick,
   renderInlineEditor,
-  useHackyAuthorsSubscriptions,
   showDeletedContent = false,
   pushAfterCommentPublish,
 }: PropsWithChildren<CommentsProviderValue>) {
@@ -85,18 +78,10 @@ export function CommentsProvider({
           onReplyClick,
           onReplyCountClick,
           renderInlineEditor,
-          useHackyAuthorsSubscriptions,
           showDeletedContent,
           pushAfterCommentPublish,
         }),
-        [
-          onReplyClick,
-          onReplyCountClick,
-          renderInlineEditor,
-          useHackyAuthorsSubscriptions,
-          showDeletedContent,
-          pushAfterCommentPublish,
-        ],
+        [onReplyClick, onReplyCountClick, renderInlineEditor, showDeletedContent, pushAfterCommentPublish],
       )}
     >
       {children}
@@ -114,11 +99,16 @@ export function useCommentsServiceContext() {
 
 export function useCommentsService(params: HMListCommentsInput) {
   const client = useUniversalClient()
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request('ListComments', params)
+        const result = await client.request('ListComments', params)
+        Object.entries(result.authors).forEach(([uid, payload]) => {
+          populateAccountIfChanged(queryClient, uid, payload)
+        })
+        return result
       } catch (error) {
         console.error('Error fetching comments:', error)
         throw error
@@ -131,12 +121,17 @@ export function useCommentsService(params: HMListCommentsInput) {
 
 export function useDiscussionsService(params: HMListDiscussionsInput) {
   const client = useUniversalClient()
+  const queryClient = useQueryClient()
 
   return useQuery({
     queryKey: [queryKeys.DOCUMENT_DISCUSSION, params.targetId, params.commentId],
     queryFn: async (): Promise<HMListDiscussionsOutput> => {
       try {
-        return await client.request('ListDiscussions', params)
+        const result = await client.request('ListDiscussions', params)
+        Object.entries(result.authors).forEach(([uid, payload]) => {
+          populateAccountIfChanged(queryClient, uid, payload)
+        })
+        return result
       } catch (error) {
         console.error('Error fetching discussions:', error)
         throw error
@@ -149,12 +144,17 @@ export function useDiscussionsService(params: HMListDiscussionsInput) {
 
 export function useBlockDiscussionsService(params: HMListCommentsByReferenceInput) {
   const client = useUniversalClient()
+  const queryClient = useQueryClient()
 
   return useQuery({
     queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
     queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request('ListCommentsByReference', params)
+        const result = await client.request('ListCommentsByReference', params)
+        Object.entries(result.authors).forEach(([uid, payload]) => {
+          populateAccountIfChanged(queryClient, uid, payload)
+        })
+        return result
       } catch (error) {
         console.error('Error fetching block discussions:', error)
         throw error
@@ -163,11 +163,6 @@ export function useBlockDiscussionsService(params: HMListCommentsByReferenceInpu
     retry: 1,
     staleTime: 30_000,
   })
-}
-
-export function useHackyAuthorsSubscriptions(authorIds: string[]) {
-  const context = useCommentsServiceContext()
-  context.useHackyAuthorsSubscriptions?.(authorIds)
 }
 
 export function isRouteEqualToCommentTarget({

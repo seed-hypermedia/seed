@@ -2,7 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {fileUpload} from '@/utils/file-upload'
 import {queryKeys} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateAccountAndAliasesEverywhere, invalidateQueries} from '@shm/shared/models/query-client'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {Spinner} from '@shm/ui/spinner'
@@ -37,7 +37,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
       signingKeyName: accountUid,
     })
 
-    invalidateQueries([queryKeys.ACCOUNT, accountUid])
+    invalidateAccountAndAliasesEverywhere(accountUid)
     invalidateQueries([queryKeys.LIST_ACCOUNTS])
 
     toast.success('Profile updated')

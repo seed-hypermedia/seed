@@ -235,8 +235,6 @@ export function cleanupAllEntitySubscriptions() {
 export type EntitySubscription = {
   id?: UnpackedHypermediaId | null
   recursive?: boolean
-  /** `'high'` polls faster (3s while focused) for the active document. */
-  priority?: 'normal' | 'high'
   /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
   scope?: 'all' | 'profile'
 }
@@ -257,9 +255,7 @@ function emitSubscriptionKeys() {
   const keys = new Set<string>()
   for (const key of Object.keys(entitySubscriptionCounts)) {
     if (entitySubscriptionCounts[key] > 0) {
-      // Strip !high priority suffix — it's an internal detail, not relevant for display
-      const displayKey = key.replace('!high', '')
-      keys.add(displayKey)
+      keys.add(key)
     }
   }
   const sorted = Array.from(keys).sort()
@@ -269,11 +265,8 @@ function emitSubscriptionKeys() {
 function getEntitySubscriptionKey(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return null
-  // Priority is part of the key so a normal-priority sub doesn't shadow a
-  // high-priority one (or vice versa) when both are added concurrently.
-  const priorityKey = sub.priority === 'high' ? '!high' : ''
   const scopeKey = sub.scope === 'profile' ? ':profile' : ''
-  return id.id + (recursive ? '/*' : '') + priorityKey + scopeKey
+  return id.id + (recursive ? '/*' : '') + scopeKey
 }
 
 export function addSubscribedEntity(sub: EntitySubscription) {

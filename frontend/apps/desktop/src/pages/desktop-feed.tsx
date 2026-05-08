@@ -2,7 +2,6 @@ import {renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
@@ -126,7 +125,6 @@ export default function DesktopFeedPage() {
   return (
     <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
       <CommentsProvider
-        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderDesktopInlineEditor}

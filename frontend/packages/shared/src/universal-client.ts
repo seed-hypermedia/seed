@@ -54,8 +54,6 @@ export type UniversalClient = {
   subscribeEntity?: (opts: {
     id: UnpackedHypermediaId
     recursive?: boolean
-    /** `'high'` polls faster (3s while focused) for the active document. */
-    priority?: 'normal' | 'high'
     /** Discovery scope. `'profile'` only fetches profile blobs (name + icon). */
     scope?: 'all' | 'profile'
   }) => () => void

@@ -82,8 +82,8 @@ export function getContextualProfileRoute(
 export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null; siteUid?: string}) {
   const currentRoute = useNavRoute()
   // Use the account query to get fresh cache data and distinguish loading from settled.
-  // When useHackyAuthorsSubscriptions discovers the account, this query gets invalidated
-  // and re-renders with the resolved name.
+  // `subscribe: true` triggers a profile-scoped P2P discovery on desktop so the
+  // resolved name renders as soon as the account is found locally.
   const account = useAccount(author?.id?.uid, {subscribe: true})
   const resolvedName = account.data?.metadata?.name || author?.metadata?.name
   const authorName = resolvedName || abbreviateUid(author?.id?.uid)
