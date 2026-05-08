@@ -640,6 +640,25 @@ export type HMAccountNotFound = z.infer<typeof HMAccountNotFoundSchema>
 export const HMAccountResultSchema = z.discriminatedUnion('type', [HMAccountPayloadSchema, HMAccountNotFoundSchema])
 export type HMAccountResult = z.infer<typeof HMAccountResultSchema>
 
+/**
+ * Canonical shape for the [ACCOUNT, uid] React Query cache entry.
+ *
+ * `profileOwner` equals the cache-key uid for non-alias accounts. For an alias
+ * (account A → account B), the entry under [ACCOUNT, A] holds B's metadata and
+ * `profileOwner: 'B'`, so consumers can tell when the displayed profile is
+ * borrowed from another account.
+ *
+ * `version` is the home document version (CID) used for staleness checks —
+ * cache writes are skipped when it matches the existing entry.
+ */
+export const CachedAccountSchema = z.object({
+  metadata: HMDocumentMetadataSchema.or(z.null()),
+  profileOwner: z.string(),
+  version: z.string().nullable(),
+  id: unpackedHmIdSchema,
+})
+export type CachedAccount = z.infer<typeof CachedAccountSchema>
+
 export const HMSiteMemberSchema = z.object({
   account: unpackedHmIdSchema,
   role: z.enum(['owner', 'writer', 'member']),
