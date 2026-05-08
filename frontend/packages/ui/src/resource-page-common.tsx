@@ -363,15 +363,9 @@ export function ResourcePage({
   const route = useNavRoute()
   const isSiteProfile = route.key === 'site-profile'
 
-  // Load document data via React Query (hydrated from SSR prefetch).
-  // The active resource page subscribes with priority: 'high' so the daemon
-  // polls discovery faster (3s vs 20s) while the window is focused — this
-  // shrinks the time-to-detect for incoming remote updates while the user
-  // is editing or actively reading the document.
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
-    priority: 'high',
   })
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
