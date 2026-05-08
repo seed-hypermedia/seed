@@ -29,7 +29,13 @@ import './tailwind.css'
 import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
-import {onQueryCacheError, onQueryInvalidation, registerQueryClient} from '@shm/shared/models/query-client'
+import {
+  invalidateAccountAndAliases,
+  onAccountInvalidation,
+  onQueryCacheError,
+  onQueryInvalidation,
+  registerQueryClient,
+} from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {windowContainerStyles} from '@shm/ui/container'
@@ -181,6 +187,13 @@ onQueryInvalidation((queryKey: QueryKey) => {
   ipc.send?.('invalidate_queries', queryKey)
 })
 
+// Bridge renderer-originated account-and-aliases invalidations to main, which
+// re-broadcasts via the accountInvalidation tRPC subscription so every window
+// runs its own cache scan.
+onAccountInvalidation((uid: string) => {
+  ipc.send?.('invalidate_account_and_aliases', uid)
+})
+
 // RQ will refuse to run mutations if !isOnline
 onlineManager.setOnline(true)
 
@@ -279,9 +292,19 @@ function MainApp({}: {}) {
         console.log('[Rebase invalidation] subscription error', err)
       },
     })
+    const accountSub = client.accountInvalidation.subscribe(undefined, {
+      onData: (value: unknown) => {
+        if (typeof value !== 'string' || !value) return
+        invalidateAccountAndAliases(value)
+      },
+      onError: (err) => {
+        console.log('[Account invalidation] subscription error', err)
+      },
+    })
     return () => {
       console.log('[Rebase invalidation] unsubscribing from queryInvalidation IPC bridge')
       sub.unsubscribe()
+      accountSub.unsubscribe()
     }
   }, [showOnboarding])
 

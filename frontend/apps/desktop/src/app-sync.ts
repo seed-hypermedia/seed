@@ -28,7 +28,7 @@ import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
-import {appInvalidateQueries, getInvalidationHandlerCount} from './app-invalidation'
+import {appInvalidateAccountAndAliases, appInvalidateQueries, getInvalidationHandlerCount} from './app-invalidation'
 import {t} from './app-trpc'
 
 // ============ Profile instrumentation ============
@@ -320,9 +320,11 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
   const blobType = event.data.value.blobType?.toLowerCase()
   const resource = event.data.value.resource
 
-  // Profile events blanket-invalidate all ACCOUNT queries (aliases make per-uid targeting unreliable)
+  // Profile events: refresh the global account list. Per-uid account
+  // invalidation is handled out-of-band via appInvalidateAccountAndAliases
+  // because it requires a renderer-side cache scan (the main process has no
+  // React Query cache to inspect).
   if (blobType === 'profile') {
-    invalidations.push([queryKeys.ACCOUNT])
     invalidations.push([queryKeys.LIST_ACCOUNTS])
   }
 
@@ -334,6 +336,25 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
   }
 
   return invalidations
+}
+
+/**
+ * Pulls the resource-uid (the account whose profile changed) out of profile
+ * blob events. Use the `resource` IRI rather than `author` because for
+ * delegated profiles the signer differs from the profile owner. Exported
+ * for testing.
+ */
+export function getProfileTargetUids(events: Event[]): string[] {
+  const targets = new Set<string>()
+  for (const event of events) {
+    if (event.data.case !== 'newBlob') continue
+    if (event.data.value.blobType?.toLowerCase() !== 'profile') continue
+    const resource = event.data.value.resource
+    if (!resource) continue
+    const id = unpackHmId(resource.split('?')[0] || '')
+    if (id) targets.add(id.uid)
+  }
+  return Array.from(targets)
 }
 
 /** Processes activity events and fires invalidations. Exported for testing. */
@@ -387,12 +408,16 @@ function processEventsInner(events: Event[]) {
 
   // ── Second pass: batched invalidations by event type ──
 
-  // Profile changes: blanket-invalidate all ACCOUNT queries + account list.
-  // We can't target specific UIDs because accounts may be aliases (A→B):
-  // when B updates, [ACCOUNT, A] must also be invalidated since it resolves to B's data.
-  // A blanket [ACCOUNT] prefix invalidation catches all aliases.
+  // Profile changes: targeted per-uid invalidation. We extract the profile
+  // owner from `event.data.value.resource` (the IRI), not `author`, because
+  // for delegated profiles the signer ≠ owner. `appInvalidateAccountAndAliases`
+  // broadcasts each uid to every renderer, where a local cache scan finds
+  // [ACCOUNT, *] entries whose `profileOwner` matches and invalidates them
+  // alongside the canonical [ACCOUNT, uid] key.
   if (seenBlobTypes.has('profile')) {
-    appInvalidateQueries([queryKeys.ACCOUNT])
+    for (const uid of getProfileTargetUids(events)) {
+      appInvalidateAccountAndAliases(uid)
+    }
     appInvalidateQueries([queryKeys.LIST_ACCOUNTS])
   }
 

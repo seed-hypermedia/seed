@@ -21,8 +21,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
-import {queryKeys} from '@shm/shared/models/query-keys'
+import {invalidateAccountAndAliasesEverywhere} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -670,8 +669,11 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
           error: (error as Error).message,
         })
       },
-      onSuccess: (data) => {
-        invalidateQueries([queryKeys.ACCOUNT])
+      onSuccess: () => {
+        // The browser-local account just became an alias of the desktop
+        // account. Invalidate it (and anything currently aliased to it, if any)
+        // so the next fetch picks up the new alias relationship.
+        invalidateAccountAndAliasesEverywhere(localIdentity.id)
       },
     }),
   }

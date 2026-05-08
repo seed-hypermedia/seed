@@ -43,6 +43,19 @@ export function onQueryInvalidation(handler: (queryKey: QueryKey) => void) {
   queryInvalidationSubscriptions.add(handler)
 }
 
+/**
+ * Subscribers fire for every `invalidateAccountAndAliasesEverywhere(uid)`
+ * call. Platforms register a handler here to bridge the call to other windows
+ * (desktop sends IPC to main, which broadcasts a tRPC subscription back to
+ * every renderer). On single-window platforms (web), no subscriber is
+ * registered and the call only runs locally.
+ */
+const accountInvalidationSubscriptions = new Set<(uid: string) => void>()
+
+export function onAccountInvalidation(handler: (uid: string) => void) {
+  accountInvalidationSubscriptions.add(handler)
+}
+
 let registeredClient: QueryClient | null = null
 
 export function registerQueryClient(client: QueryClient) {
@@ -92,6 +105,21 @@ export function populateAccountIfChanged(client: QueryClient, uid: string, data:
   }
   client.setQueryData(queryKey, data)
   return true
+}
+
+/**
+ * Cross-window variant of `invalidateAccountAndAliases`. Runs the local
+ * cache scan immediately for instant feedback in the originating window,
+ * then fires `accountInvalidationSubscriptions` so other windows on the same
+ * platform can run their own scans against their own caches.
+ *
+ * On web (single window) only the local scan runs. On desktop, the renderer
+ * subscription bridges to main, main re-broadcasts to every renderer, and
+ * each renderer scans locally — including the originator (idempotent).
+ */
+export function invalidateAccountAndAliasesEverywhere(uid: string) {
+  invalidateAccountAndAliases(uid)
+  accountInvalidationSubscriptions.forEach((handler) => handler(uid))
 }
 
 /**

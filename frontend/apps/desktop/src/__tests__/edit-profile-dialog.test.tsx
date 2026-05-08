@@ -8,6 +8,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const updateProfileMock = vi.hoisted(() => vi.fn())
 const fileUploadMock = vi.hoisted(() => vi.fn())
 const invalidateQueriesMock = vi.hoisted(() => vi.fn())
+const invalidateAccountAndAliasesEverywhereMock = vi.hoisted(() => vi.fn())
 const useAccountMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
 const capturedFormProps = vi.hoisted(() => ({current: null as any}))
@@ -37,6 +38,7 @@ vi.mock('@shm/shared/models/entity', () => ({
 
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,
+  invalidateAccountAndAliasesEverywhere: invalidateAccountAndAliasesEverywhereMock,
 }))
 
 vi.mock('@shm/ui/components/dialog', async () => {
@@ -112,6 +114,7 @@ describe('EditProfileDialog', () => {
     updateProfileMock.mockResolvedValue(undefined)
     fileUploadMock.mockReset()
     invalidateQueriesMock.mockReset()
+    invalidateAccountAndAliasesEverywhereMock.mockReset()
     useAccountMock.mockReset()
     toastSuccessMock.mockReset()
     capturedFormProps.current = null
@@ -157,7 +160,7 @@ describe('EditProfileDialog', () => {
       },
       signingKeyName: ACCOUNT_UID,
     })
-    expect(invalidateQueriesMock).toHaveBeenCalledWith(['ACCOUNT', ACCOUNT_UID])
+    expect(invalidateAccountAndAliasesEverywhereMock).toHaveBeenCalledWith(ACCOUNT_UID)
     expect(invalidateQueriesMock).toHaveBeenCalledWith(['LIST_ACCOUNTS'])
     expect(toastSuccessMock).toHaveBeenCalledWith('Profile updated')
     expect(onClose).toHaveBeenCalledTimes(1)
