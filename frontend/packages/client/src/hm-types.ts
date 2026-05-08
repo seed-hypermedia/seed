@@ -622,6 +622,14 @@ export const HMMetadataPayloadSchema = z
     id: unpackedHmIdSchema,
     metadata: HMDocumentMetadataSchema.or(z.null()),
     hasSite: z.boolean().optional(),
+    // Account-only field (set when this payload represents an account).
+    // For non-alias accounts, equals the account uid; for aliased accounts,
+    // the resolved alias-target uid. Omitted on document/resource payloads.
+    profileOwner: z.string().optional(),
+    // Account-only field (set when this payload represents an account).
+    // The home document version (CID) used by version-aware cache writes
+    // to skip no-op updates. Omitted on document/resource payloads.
+    version: z.string().nullable().optional(),
   })
   .strict()
 export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>

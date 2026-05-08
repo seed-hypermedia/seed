@@ -1,4 +1,6 @@
 import {Query, QueryCache, QueryClient, type QueryKey} from '@tanstack/react-query'
+import type {HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
+import {queryKeys} from './query-keys'
 
 // Re-export for consumers to avoid duplicate package instances
 export {QueryClientProvider, useQueryClient} from '@tanstack/react-query'
@@ -64,4 +66,46 @@ export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
   if (registeredClient) {
     registeredClient.setQueriesData({queryKey}, data)
   }
+}
+
+/**
+ * Write `data` into `[ACCOUNT, uid]` only when its `version` differs from
+ * the cached entry's version. Skipping no-op writes avoids spurious
+ * re-renders when comment queries refetch and re-emit the same author
+ * metadata. Returns true when the cache was written, false when skipped.
+ */
+export function populateAccountIfChanged(client: QueryClient, uid: string, data: HMMetadataPayload): boolean {
+  const queryKey = [queryKeys.ACCOUNT, uid] as const
+  const existing = client.getQueryData<HMMetadataPayload>(queryKey)
+  if (existing?.version && data.version && existing.version === data.version) {
+    return false
+  }
+  client.setQueryData(queryKey, data)
+  return true
+}
+
+/**
+ * Invalidate `[ACCOUNT, uid]` plus every cached account whose `profileOwner`
+ * matches `uid` — i.e. accounts that alias to `uid` and therefore display
+ * its profile metadata. The cache itself is the source of truth: each entry
+ * carries its resolved `profileOwner`, so a single scan finds the closure.
+ *
+ * Each match routes through `invalidateQueries` so platform subscriptions
+ * (desktop IPC broadcast) fire normally for every invalidated key.
+ */
+export function invalidateAccountAndAliases(uid: string) {
+  if (!registeredClient) {
+    invalidateQueries([queryKeys.ACCOUNT, uid])
+    return
+  }
+  const queries = registeredClient.getQueryCache().findAll({queryKey: [queryKeys.ACCOUNT]})
+  const toInvalidate = new Set<string>([uid])
+  queries.forEach((q) => {
+    const data = q.state.data as {profileOwner?: string} | null | undefined
+    const cacheKeyUid = q.queryKey[1]
+    if (data?.profileOwner === uid && typeof cacheKeyUid === 'string') {
+      toInvalidate.add(cacheKeyUid)
+    }
+  })
+  toInvalidate.forEach((aliasUid) => invalidateQueries([queryKeys.ACCOUNT, aliasUid]))
 }

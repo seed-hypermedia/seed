@@ -84,6 +84,11 @@ export async function resolveAccountChain(
  * not the requested input (A) — this preserves the legacy recursive
  * behavior that callers like notify depend on for signer-to-effective-account
  * resolution.
+ *
+ * `profileOwner` carries the resolved-leaf uid so that consumers writing this
+ * payload into `[ACCOUNT, requestedUid]` can later spot alias entries by
+ * comparing `profileOwner` against the cache key. `version` carries the home
+ * document version of the leaf, enabling version-aware cache writes.
  */
 export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAccountResult> {
   const {result} = await resolveAccountChain(client, uid)
@@ -94,6 +99,8 @@ export async function loadAccount(client: GRPCClient, uid: string): Promise<HMAc
     type: 'account',
     id: hmId(result.uid, {version: result.version ?? undefined}),
     metadata: result.metadata,
+    profileOwner: result.uid,
+    version: result.version,
   } satisfies HMAccountPayload
 }
 

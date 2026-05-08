@@ -40,6 +40,7 @@ import {
   queryDirectory,
   queryResource,
 } from './queries'
+import {populateAccountIfChanged} from './query-client'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -624,12 +625,17 @@ export function useComments(id: UnpackedHypermediaId | null | undefined) {
 
 export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
+  const queryClient = useQueryClient()
   const isRootAccount = !id?.path?.filter((p) => !!p).length
   return useQuery({
     queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
     queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
       if (!id) throw new Error('ID required')
-      return await client.request('ListCommentsByAuthor', {authorId: id})
+      const result = await client.request('ListCommentsByAuthor', {authorId: id})
+      Object.entries(result.authors).forEach(([uid, payload]) => {
+        populateAccountIfChanged(queryClient, uid, payload)
+      })
+      return result
     },
     enabled: !!id && isRootAccount,
   })
