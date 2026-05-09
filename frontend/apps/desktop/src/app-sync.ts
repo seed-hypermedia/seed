@@ -81,6 +81,34 @@ const DISCOVERY_POLL_INTERVAL_MS = 14_000
 const ACTIVITY_POLL_INTERVAL_MS = 1_000
 const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
 
+// Cap concurrent in-flight discovery RPCs. The backend has its own worker pool
+// (config.MaxWorkers, default 6), but capping on this side keeps grpc-client
+// and tRPC overhead bounded when many subs reach a polling tick at once.
+const MAX_CONCURRENT_DISCOVERY = 4
+let discoveryInFlight = 0
+const discoveryQueue: Array<() => void> = []
+
+/** Runs `fn` immediately if a slot is free, otherwise queues it FIFO. */
+function withDiscoverySlot<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const run = () => {
+      discoveryInFlight++
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          discoveryInFlight--
+          const next = discoveryQueue.shift()
+          if (next) next()
+        })
+    }
+    if (discoveryInFlight < MAX_CONCURRENT_DISCOVERY) {
+      run()
+    } else {
+      discoveryQueue.push(run)
+    }
+  })
+}
+
 /** Returns 1 when app is focused, 10 when backgrounded. */
 function getPollingMultiplier(): number {
   return isAnyWindowFocused() ? 1 : 10
@@ -825,7 +853,12 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
       return
     }
 
-    runDiscovery(sub)
+    withDiscoverySlot(async () => {
+      // Re-check cancellation before consuming a slot — the loop may have been
+      // unsubscribed while waiting in the queue.
+      if (cancelled) return null
+      return runDiscovery(sub)
+    })
       .then((result) => {
         if (cancelled) return
 

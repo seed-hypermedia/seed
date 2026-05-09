@@ -1044,7 +1044,11 @@ function DocumentBody({
     return getBreadcrumbDocumentIds(docId)
   }, [docId, isHomeDoc])
 
-  const breadcrumbResults = useResources(breadcrumbIds, {subscribed: true})
+  // Breadcrumbs only need cached metadata for display; ancestors of docs the user
+  // cares about are already covered by joined-site recursive subscriptions or by
+  // the main resource page subscription. Avoid creating one renderer-side
+  // subscription per ancestor on every page load.
+  const breadcrumbResults = useResources(breadcrumbIds)
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined

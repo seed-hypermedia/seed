@@ -25,8 +25,11 @@ export type NotificationListItemProps = {
 export function NotificationListItem({item, isRead, onOpen, onToggleRead}: NotificationListItemProps) {
   const authorId = item.author.uid ? hmId(item.author.uid) : null
   const targetId = item.target.uid ? hmId(item.target.uid, {path: item.target.path ?? undefined}) : null
-  const author = useAccount(item.author.uid || undefined, {subscribe: true})
-  const target = useResource(targetId, {subscribed: true})
+  // Notification list rows only need cached metadata for display. Subscribing
+  // every row in a long list multiplies daemon discovery work; the row's target
+  // is fetched on-demand when the user opens it.
+  const author = useAccount(item.author.uid || undefined)
+  const target = useResource(targetId)
 
   const resolvedName = author.data?.metadata?.name
   const authorName = resolvedName || item.author.name || (item.author.uid ? abbreviateUid(item.author.uid) : undefined)

@@ -211,8 +211,10 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
-  // Private documents require a site URL and must be at the home doc level
-  const siteHomeResource = useResource(hmId(parentId.uid), {subscribed: true})
+  // Private documents require a site URL and must be at the home doc level.
+  // The home doc's metadata is already cached by the active resource page or
+  // joined-site recursive sub; this button only reads the site URL field.
+  const siteHomeResource = useResource(hmId(parentId.uid))
   const siteUrl =
     siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
   const isHomeDoc = !parentId.path?.length

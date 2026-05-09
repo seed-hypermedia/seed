@@ -99,10 +99,13 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return null
   })
   const mode = queryIncludes[0]?.mode || 'Children'
+  // Always subscribe recursively so that toggling the display mode does not
+  // fork the renderer dedup key (id vs id/*) for the same query target. The
+  // daemon already collapses overlapping recursive coverage.
   const entity = useResource(queryId, {
     enabled: !!queryId,
     subscribed: true,
-    recursive: mode === 'AllDescendants',
+    recursive: true,
   })
   const directoryItems = useDirectory(queryId, {
     mode,

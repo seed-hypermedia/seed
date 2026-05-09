@@ -13,7 +13,11 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   const route = useNavRoute()
   if (route.key !== 'document') throw new Error('DocNavigation only supports document route')
   const {id} = route
-  const entity = useResource(id, {subscribed: true, recursive: true}) // recursive subscriptions to make sure children get loaded
+  // The active document route already opens a high-priority recursive
+  // subscription on this id, so the navigation pane just needs cached metadata.
+  // Subscribing again here forks the dedup key (no priority vs `!high`) into
+  // a second renderer-side entry without adding any daemon coverage.
+  const entity = useResource(id)
   const navigate = useNavigate('replace')
   const document =
     // @ts-ignore
