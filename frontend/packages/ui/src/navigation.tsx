@@ -86,6 +86,13 @@ export type DocNavigationItem = {
   visibility?: HMResourceVisibility
 }
 
+/** Whether a top-header navigation item is complete enough to render publicly. */
+export function isValidSiteHeaderItem(item: DocNavigationItem): boolean {
+  const hasLabel = !!item.metadata.name?.trim()
+  const hasDestination = !!item.id || !!item.webUrl?.trim() || !!item.draftId
+  return hasLabel && hasDestination
+}
+
 export function getSiteNavDirectory({
   id,
   directory,

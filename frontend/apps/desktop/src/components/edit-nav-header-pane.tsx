@@ -1,3 +1,4 @@
+import React from 'react'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'

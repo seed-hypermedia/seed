@@ -3,7 +3,7 @@ import {unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
-import {DocNavigationItem} from '@shm/ui/navigation'
+import {DocNavigationItem, isValidSiteHeaderItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
 /** Picks explicit top-navigation items, returning [] while the home resource is still loading to prevent flash. */
@@ -55,7 +55,7 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
             webUrl: id ? undefined : linkBlock.link,
           }
         })
-        .filter((item) => !!item) || []
+        .filter((item): item is DocNavigationItem => !!item && isValidSiteHeaderItem(item)) || []
     : []
 
   const items = resolveNavigationItems({

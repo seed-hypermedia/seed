@@ -1,8 +1,9 @@
+import React from 'react'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useDirectory} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
@@ -10,14 +11,21 @@ import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {FormField} from '@shm/ui/forms'
 import {SearchResultItem} from '@shm/ui/search'
-import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
-import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {EllipsisVertical, Globe, Pencil, Plus, Search, Trash} from 'lucide-react'
+import {ChevronDown, EllipsisVertical, Globe, Pencil, Plus, Search, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useRef, useState} from 'react'
+
+function createEmptyNavigationItem(): HMNavigationItem {
+  return {
+    id: nanoid(),
+    type: 'Link',
+    text: '',
+    link: '',
+  }
+}
 
 export function EditNavPopover({
   docNav,
@@ -28,7 +36,11 @@ export function EditNavPopover({
   editDocNav: (navigation: HMNavigationItem[]) => void
   homeId?: UnpackedHypermediaId
 }) {
-  const popover = usePopoverState()
+  const popover = usePopoverState(false, (open) => {
+    if (open && docNav.length === 0) {
+      editDocNav([createEmptyNavigationItem()])
+    }
+  })
   const isEmpty = docNav.length === 0
   return (
     <Popover {...popover}>
@@ -44,8 +56,7 @@ export function EditNavPopover({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="max-h-[80vh] overflow-y-auto bg-white dark:bg-black">
-        {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}
+      <PopoverContent className="w-[420px] max-h-[80vh] overflow-y-auto rounded-xl border border-black/8 bg-white p-0 dark:border-white/10 dark:bg-black">
         <EditNavigation docNav={docNav} onDocNav={editDocNav} homeId={homeId} />
       </PopoverContent>
     </Popover>
@@ -63,6 +74,9 @@ function EditNavigation({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDraggingOverId, setIsDraggingOverId] = useState<string | null>(null)
+  const firstBlankItemId = docNav.find((item) => !item.text && !item.link)?.id ?? null
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(firstBlankItemId)
+  const [autoFocusItemId, setAutoFocusItemId] = useState<string | null>(firstBlankItemId)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -102,48 +116,66 @@ function EditNavigation({
     return cleanup
   }, [docNav, onDocNav])
 
-  return (
-    <div className="flex flex-col gap-2" ref={containerRef}>
-      {docNav.map((item) => {
-        return (
-          <DraggableNavItem
-            key={item.id}
-            item={item}
-            homeId={homeId}
-            filterPresets={(item) => {
-              return !docNav.find((i) => i.link === item.link)
-            }}
-            onUpdate={(result) => {
-              onDocNav(docNav.map((i) => (i.id === item.id ? result : i)))
-            }}
-            onRemove={() => {
-              onDocNav(docNav.filter((i) => i.id !== item.id))
-            }}
-            initialOpen={item.text === '' && item.link === ''}
-            isDraggingOver={isDraggingOverId === item.id}
-          />
-        )
-      })}
+  useEffect(() => {
+    if (expandedItemId && docNav.some((item) => item.id === expandedItemId)) return
+    setExpandedItemId(docNav.find((item) => !item.text && !item.link)?.id ?? null)
+  }, [docNav, expandedItemId])
 
-      <div className="flex">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            onDocNav([
-              ...docNav,
-              {
-                id: nanoid(),
-                type: 'Link',
-                text: '',
-                link: '',
-              },
-            ])
-          }}
-        >
-          <Plus className="size-4" />
-          Add Navigation Item
-        </Button>
+  useEffect(() => {
+    if (!firstBlankItemId || autoFocusItemId) return
+    setAutoFocusItemId(firstBlankItemId)
+  }, [firstBlankItemId, autoFocusItemId])
+
+  return (
+    <div className="flex flex-col" ref={containerRef}>
+      <div className="border-b border-black/8 px-4 py-3 dark:border-white/10">
+        <div className="text-sm font-medium">Navigation</div>
+        <div className="text-muted-foreground mt-1 text-xs">
+          Choose the links shown in the top bar.
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 p-3">
+        {docNav.map((item) => {
+          return (
+            <DraggableNavItem
+              key={item.id}
+              item={item}
+              homeId={homeId}
+              filterPresets={(item) => {
+                return !docNav.find((i) => i.link === item.link)
+              }}
+              onUpdate={(result) => {
+                onDocNav(docNav.map((i) => (i.id === item.id ? result : i)))
+              }}
+              onRemove={() => {
+                onDocNav(docNav.filter((i) => i.id !== item.id))
+              }}
+              isDraggingOver={isDraggingOverId === item.id}
+              isExpanded={expandedItemId === item.id}
+              onToggleExpanded={() => {
+                setExpandedItemId((current) => (current === item.id ? null : item.id))
+              }}
+              autoFocusLabel={autoFocusItemId === item.id}
+            />
+          )
+        })}
+
+        {docNav.length > 0 ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground mt-1 justify-start px-2"
+            onClick={() => {
+              const newItem = createEmptyNavigationItem()
+              setExpandedItemId(newItem.id)
+              setAutoFocusItemId(newItem.id)
+              onDocNav([...docNav, newItem])
+            }}
+          >
+            <Plus className="size-4" />
+            Add Navigation Item
+          </Button>
+        ) : null}
       </div>
     </div>
   )
@@ -154,35 +186,40 @@ function DraggableNavItem({
   filterPresets,
   onUpdate,
   onRemove,
-  initialOpen,
   homeId,
   isDraggingOver,
+  isExpanded,
+  onToggleExpanded,
+  autoFocusLabel,
 }: {
   item: HMNavigationItem
   filterPresets: (item: {link: string}) => boolean
   onUpdate: (item: HMNavigationItem) => void
   onRemove: () => void
-  initialOpen: boolean
   homeId?: UnpackedHypermediaId
   isDraggingOver: boolean
+  isExpanded: boolean
+  onToggleExpanded: () => void
+  autoFocusLabel: boolean
 }) {
-  const elementRef = useRef<HTMLDivElement>(null)
+  const dragHandleRef = useRef<HTMLDivElement>(null)
+  const isIncomplete = !item.text.trim() || !item.link.trim()
 
   useEffect(() => {
-    if (!elementRef.current) {
+    if (!dragHandleRef.current) {
       console.error('Element ref not ready')
       return
     }
 
     const cleanup = combine(
       draggable({
-        element: elementRef.current,
+        element: dragHandleRef.current,
         getInitialData: () => {
           return {id: item.id}
         },
       }),
       dropTargetForElements({
-        element: elementRef.current,
+        element: dragHandleRef.current,
         getData: () => {
           return {id: item.id}
         },
@@ -194,41 +231,52 @@ function DraggableNavItem({
     }
   }, [item.id])
 
-  const popoverState = usePopoverState(initialOpen)
-
   return (
     <div
       className={cn(
-        'hover:bg-muted flex items-center justify-between rounded-md p-2',
-        isDraggingOver && 'bg-muted ring-primary/60 ring-2',
+        'overflow-hidden rounded-lg border border-black/8 bg-white transition-colors dark:border-white/10 dark:bg-black',
+        isDraggingOver && 'ring-primary/60 ring-2',
+        isExpanded && 'border-primary/30 bg-muted/20',
       )}
-      ref={elementRef}
-      style={{
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        cursor: 'grab',
-      }}
     >
       <div
-        className="flex flex-1 items-center gap-2"
-        onClick={() => {
-          popoverState.onOpenChange(!popoverState.open)
+        className={cn(
+          'hover:bg-muted/60 flex items-center gap-3 px-3 py-2.5 transition-colors',
+          isExpanded && 'bg-muted/40',
+        )}
+        ref={dragHandleRef}
+        style={{
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          cursor: 'grab',
         }}
       >
-        <div className="rounded-1 hover:bg-color6 cursor-grab p-1 active:cursor-grabbing">
+        <div className="text-muted-foreground hover:text-foreground cursor-grab p-1 active:cursor-grabbing">
           <EllipsisVertical size={16} />
         </div>
-        <span className={cn('select-none', item.text === '' ? 'text-muted-foreground' : '')}>
-          {item.text || 'Untitled Document'}
-        </span>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={onToggleExpanded}
+        >
+          <span className={cn('truncate text-sm font-medium select-none', item.text === '' ? 'text-muted-foreground' : '')}>
+            {item.text || 'Untitled item'}
+          </span>
+          {isIncomplete ? (
+            <span className="rounded-full border border-amber-300/60 bg-amber-100/70 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200">
+              Incomplete
+            </span>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              'text-muted-foreground ml-auto size-4 transition-transform',
+              isExpanded && 'rotate-180',
+            )}
+          />
+        </button>
       </div>
-      <Popover {...popoverState}>
-        <PopoverTrigger>
-          <Button size="sm" variant="ghost">
-            <Pencil className="size-3" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent>
+      {isExpanded ? (
+        <div className="border-t border-black/8 px-3 pb-3 pt-2.5 dark:border-white/10">
           <NavItemForm
             item={item}
             homeId={homeId}
@@ -237,9 +285,10 @@ function DraggableNavItem({
             }}
             onRemove={onRemove}
             filterPresets={filterPresets}
+            autoFocusLabel={autoFocusLabel}
           />
-        </PopoverContent>
-      </Popover>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -250,15 +299,17 @@ function NavItemForm({
   onRemove,
   homeId,
   filterPresets,
+  autoFocusLabel = false,
 }: {
   item: HMNavigationItem
   onUpdate: (result: HMNavigationItem) => void
   onRemove?: () => void
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
+  autoFocusLabel?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2.5">
       <FormField name="link" label="Link">
         <HMDocURLInput
           link={item.link}
@@ -267,33 +318,29 @@ function NavItemForm({
           filterPresets={filterPresets}
         />
       </FormField>
-      <FormField name="label" label="Menu Item Label">
+      <FormField name="label" label="Label">
         <Input
+          autoFocus={autoFocusLabel}
           value={item?.text}
           id="label"
           onChange={(e) => onUpdate({...item, text: e.target.value})}
           placeholder="My Link..."
         />
       </FormField>
-
-      <div className="flex flex-col gap-2">
-        <Separator />
-
-        <div className="flex justify-end">
-          {onRemove && (
-            <Tooltip content="Remove Navigation Item">
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  onRemove()
-                }}
-              >
-                <Trash className="size-4" />
-              </Button>
-            </Tooltip>
-          )}
-        </div>
+      <div className="flex justify-end pt-1">
+        {onRemove && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive px-2"
+            onClick={() => {
+              onRemove()
+            }}
+          >
+            <Trash className="mr-1 size-4" />
+            Remove
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -310,31 +357,30 @@ function HMDocURLInput({
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
 }) {
-  const id = unpackHmId(link)
-  const entity = useResource(id)
-  let label = link || 'URL or Search Documents'
+  const unpackedLink = unpackHmId(link)
+  let label = link || 'Select document or paste URL'
   let fontClass = 'text-muted-foreground'
-  // @ts-expect-error
-  if (link === entity.data?.id.id && entity.data?.document?.metadata.name) {
+  const TriggerIcon = link?.match(/^https?:\/\//) ? Globe : Search
+  if (link) {
+    label = unpackedLink ? `/${unpackedLink.path?.join('/') || ''}` : link
     fontClass = 'text-primary'
-    // @ts-expect-error
-    label = entity.data.document.metadata.name
-  } else if (link) {
-    label = link
   }
   const popoverState = usePopoverState()
   return (
     <>
       <Popover {...popoverState}>
         <PopoverTrigger asChild>
-          <div
+          <button
+            type="button"
             className={cn(
-              'border-color8 text-md bg-accent text-accent-foreground align-center line-clamp-1 w-full overflow-hidden rounded-sm border-1 p-1 px-3 text-clip',
+              'flex w-full items-center gap-2 rounded-md border border-black/8 bg-transparent px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 dark:border-white/10',
               fontClass,
             )}
           >
-            <span>{label}</span>
-          </div>
+            <TriggerIcon className="text-muted-foreground size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{label}</span>
+            <span className="text-muted-foreground text-xs">Choose</span>
+          </button>
         </PopoverTrigger>
         <PopoverContent className="p-0">
           <SearchUI

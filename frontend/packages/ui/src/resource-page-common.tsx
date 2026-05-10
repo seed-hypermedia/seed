@@ -92,6 +92,7 @@ import {
   DocNavigationItem,
   DocNavigationWrapper,
   DocumentOutline,
+  isValidSiteHeaderItem,
   useNodesOutline,
 } from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
@@ -676,7 +677,7 @@ export function computeHeaderData(
             webUrl: id ? undefined : linkBlock.link,
           } as DocNavigationItem
         })
-        .filter((item): item is DocNavigationItem => item !== null) ?? []
+        .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
     : []
 
   const isCenterLayout =
@@ -738,7 +739,7 @@ export function PageWrapper({
             metadata: {name: n.text || ''},
             isPublished: true,
           } satisfies DocNavigationItem
-        })
+        }).filter(isValidSiteHeaderItem)
       : undefined
   const itemsForHeader = liveItems ?? headerData.items
 
