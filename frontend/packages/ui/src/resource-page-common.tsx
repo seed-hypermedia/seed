@@ -92,7 +92,6 @@ import {
   DocNavigationItem,
   DocNavigationWrapper,
   DocumentOutline,
-  getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
@@ -654,11 +653,13 @@ export interface HeaderData {
 }
 
 export function computeHeaderData(
-  siteHomeId: UnpackedHypermediaId,
+  _siteHomeId: UnpackedHypermediaId,
   siteHomeDocument: HMDocument | null,
-  directory: ReturnType<typeof useDirectory>['data'],
+  _directory: ReturnType<typeof useDirectory>['data'],
 ): HeaderData {
-  // Compute navigation items from home document's navigation block
+  // Top navigation is manual-only for now. If the home document has no
+  // explicit `navigation` detached block, the header stays empty rather than
+  // inferring items from the document hierarchy.
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
@@ -678,24 +679,14 @@ export function computeHeaderData(
         .filter((item): item is DocNavigationItem => item !== null) ?? []
     : []
 
-  // Site-header fallback must NEVER include private documents — even for editors
-  // who can otherwise see them. Editors who want a private doc in the nav must
-  // add it explicitly to the home document's `navigation` detached block.
-  const directoryItems = getSiteNavDirectory({
-    id: siteHomeId,
-    directory: directory ?? undefined,
-  })
-
-  const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
-
   const isCenterLayout =
     siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
     siteHomeDocument?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
   return {
-    items,
+    items: homeNavigationItems,
     homeNavigationItems,
-    directoryItems,
+    directoryItems: [],
     isCenterLayout,
     siteHomeDocument,
   }

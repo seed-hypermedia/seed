@@ -1,23 +1,21 @@
 import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
-import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {DocNavigationItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
-/** Picks navigation items, returning [] while the home resource is still loading to prevent flash. */
+/** Picks explicit top-navigation items, returning [] while the home resource is still loading to prevent flash. */
 export function resolveNavigationItems({
   isHomeResourceLoading,
   homeNavigationItems,
-  directoryItems,
 }: {
   isHomeResourceLoading: boolean
   homeNavigationItems: DocNavigationItem[]
-  directoryItems: DocNavigationItem[]
 }): DocNavigationItem[] {
   if (isHomeResourceLoading) return []
-  return homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
+  return homeNavigationItems
 }
 
 export type WebSiteHeaderProps = {
@@ -34,7 +32,6 @@ export type WebSiteHeaderProps = {
 
 export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSiteHeaderProps>) {
   const homeResourceQuery = useResource(props.siteHomeId)
-  const homeDirectoryQuery = useDirectory(props.siteHomeId)
 
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' || props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
@@ -61,21 +58,9 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         .filter((item) => !!item) || []
     : []
 
-  // Site-header fallback must NEVER include private documents — even for editors
-  // who can otherwise see them. Editors who want a private doc in the nav must
-  // add it explicitly to the home document's `navigation` detached block.
-  const directoryResults = homeDirectoryQuery.data
-  const directoryItems = props.siteHomeId
-    ? getSiteNavDirectory({
-        id: props.siteHomeId,
-        directory: directoryResults ?? undefined,
-      })
-    : []
-
   const items = resolveNavigationItems({
     isHomeResourceLoading: homeResourceQuery.isLoading,
     homeNavigationItems,
-    directoryItems,
   })
 
   return (
@@ -90,7 +75,7 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         isCenterLayout={isCenterLayout}
         items={items}
         homeNavigationItems={homeNavigationItems}
-        directoryItems={directoryItems}
+        directoryItems={[]}
         onBlockFocus={(blockId) => {
           const element = document.getElementById(blockId)
           if (element) {

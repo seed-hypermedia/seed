@@ -29,12 +29,20 @@ export function EditNavPopover({
   homeId?: UnpackedHypermediaId
 }) {
   const popover = usePopoverState()
+  const isEmpty = docNav.length === 0
   return (
     <Popover {...popover}>
       <PopoverTrigger className="no-window-drag">
-        <Button size="sm" variant="ghost">
-          <Pencil className="size-4" />
-        </Button>
+        {isEmpty ? (
+          <Button size="sm" variant="ghost">
+            <Plus className="size-4" />
+            Add Navigation Item
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost">
+            <Pencil className="size-4" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="max-h-[80vh] overflow-y-auto bg-white dark:bg-black">
         {/* <PopoverArrow borderWidth={1} borderColor="$borderColor" /> */}

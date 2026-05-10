@@ -30,7 +30,7 @@ import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries, setQueriesDataByKey} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
@@ -41,7 +41,7 @@ import {
 } from '@shm/shared/utils/document-changes'
 import {buildCopyLinkUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {DocNavigationItem} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {findParentNode} from '@tiptap/core'
@@ -1172,10 +1172,6 @@ export function getDraftEditId(
 export function useSiteNavigationItems(
   siteHomeEntity: HMResourceFetchResult | undefined | null,
 ): DocNavigationItem[] | null {
-  const homeDir = useDirectory(siteHomeEntity?.id, {
-    mode: 'Children',
-  })
-  const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
   if (!siteHomeEntity) return null
   const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
   const navItems: DocNavigationItem[] = navNode
@@ -1194,13 +1190,6 @@ export function useSiteNavigationItems(
           } satisfies DocNavigationItem
         })
         .filter((b) => !!b) || []
-    : // Site-header fallback must NEVER include private documents — even for
-      // editors. Editors who want a private doc in the nav must add it
-      // explicitly to the home document's `navigation` detached block.
-      getSiteNavDirectory({
-        id: siteHomeEntity.id,
-        directory: homeDir.data,
-        drafts: drafts.data,
-      })
+    : []
   return navItems
 }

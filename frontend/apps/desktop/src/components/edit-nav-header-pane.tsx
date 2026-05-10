@@ -27,6 +27,8 @@ export function EditNavHeaderPane({homeId}: {homeId: UnpackedHypermediaId}) {
       })
       .filter((item): item is HMNavigationItem => item !== null) ?? []
 
+  // Top navigation is manual-only for now. When there is no explicit nav block,
+  // the editor starts empty instead of inferring items from home subdocuments.
   const docNav = machineNavigation ?? publishedNav
 
   const editDocNav = (navigation: HMNavigationItem[]) => {
