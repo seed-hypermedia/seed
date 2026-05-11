@@ -46,16 +46,17 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
           const linkBlock = child.block.type === 'Link' ? child.block : null
           if (!linkBlock) return null
           const id = unpackHmId(linkBlock.link)
-          return {
+          const item: DocNavigationItem = {
             isPublished: true,
-            isDraft: false,
             key: linkBlock.id,
             metadata: {name: linkBlock.text || ''},
             id: id || undefined,
             webUrl: id ? undefined : linkBlock.link,
           }
+          return item
         })
-        .filter((item): item is DocNavigationItem => !!item && isValidSiteHeaderItem(item)) || []
+        .filter((item): item is DocNavigationItem => item !== null)
+        .filter(isValidSiteHeaderItem) || []
     : []
 
   const items = resolveNavigationItems({

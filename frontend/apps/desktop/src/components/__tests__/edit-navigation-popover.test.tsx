@@ -5,7 +5,10 @@ import {describe, expect, it, vi} from 'vitest'
 import type {HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 
 vi.mock('@atlaskit/pragmatic-drag-and-drop/combine', () => ({
-  combine: (...cleanupFns: Array<() => void>) => () => cleanupFns.forEach((fn) => fn()),
+  combine:
+    (...cleanupFns: Array<() => void>) =>
+    () =>
+      cleanupFns.forEach((fn) => fn()),
 }))
 
 vi.mock('@atlaskit/pragmatic-drag-and-drop/element/adapter', () => ({
@@ -82,7 +85,6 @@ vi.mock('lucide-react', () => ({
 }))
 
 import {EditNavPopover} from '../edit-navigation-popover'
-
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 function renderPopover(docNav: HMNavigationItem[]) {
@@ -146,8 +148,8 @@ describe('EditNavPopover trigger', () => {
     const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: 'Docs', link: 'hm://alice/docs'}])
 
     try {
-      const trigger = Array.from(container.querySelectorAll('button')).find((button) =>
-        button.textContent?.includes('Docs'),
+      const trigger = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.includes('Docs'),
       )
 
       act(() => {

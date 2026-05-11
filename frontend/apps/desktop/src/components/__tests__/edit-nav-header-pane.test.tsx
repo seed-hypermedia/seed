@@ -35,7 +35,6 @@ vi.mock('@shm/shared/models/use-document-machine', () => ({
 }))
 
 import {EditNavHeaderPane} from '../edit-nav-header-pane'
-
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 function renderPane() {
@@ -134,7 +133,9 @@ describe('EditNavHeaderPane', () => {
   })
 
   it('prefers in-flight draft navigation over published navigation', () => {
-    useDocumentNavigationOptionalMock.mockReturnValue([makeNavigationItem('draft-1', 'Draft Docs', 'hm://alice/draft-docs')])
+    useDocumentNavigationOptionalMock.mockReturnValue([
+      makeNavigationItem('draft-1', 'Draft Docs', 'hm://alice/draft-docs'),
+    ])
     useResourceMock.mockReturnValue({
       data: {
         type: 'document',

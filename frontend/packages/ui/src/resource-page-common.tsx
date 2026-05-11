@@ -729,17 +729,19 @@ export function PageWrapper({
   const isHomeDoc = !docId.path?.length
   const liveItems: DocNavigationItem[] | undefined =
     isHomeDoc && machineNav
-      ? machineNav.map((n) => {
-          const id = unpackHmId(n.link)
-          return {
-            key: n.id,
-            id: id ?? undefined,
-            webUrl: id ? undefined : n.link,
-            draftId: undefined,
-            metadata: {name: n.text || ''},
-            isPublished: true,
-          } satisfies DocNavigationItem
-        }).filter(isValidSiteHeaderItem)
+      ? machineNav
+          .map((n) => {
+            const id = unpackHmId(n.link)
+            return {
+              key: n.id,
+              id: id ?? undefined,
+              webUrl: id ? undefined : n.link,
+              draftId: undefined,
+              metadata: {name: n.text || ''},
+              isPublished: true,
+            } satisfies DocNavigationItem
+          })
+          .filter(isValidSiteHeaderItem)
       : undefined
   const itemsForHeader = liveItems ?? headerData.items
 

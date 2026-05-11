@@ -56,7 +56,7 @@ export function EditNavPopover({
           </Button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-[420px] max-h-[80vh] overflow-y-auto rounded-xl border border-black/8 bg-white p-0 dark:border-white/10 dark:bg-black">
+      <PopoverContent className="max-h-[80vh] w-[420px] overflow-y-auto rounded-xl border border-black/8 bg-white p-0 dark:border-white/10 dark:bg-black">
         <EditNavigation docNav={docNav} onDocNav={editDocNav} homeId={homeId} />
       </PopoverContent>
     </Popover>
@@ -130,9 +130,7 @@ function EditNavigation({
     <div className="flex flex-col" ref={containerRef}>
       <div className="border-b border-black/8 px-4 py-3 dark:border-white/10">
         <div className="text-sm font-medium">Navigation</div>
-        <div className="text-muted-foreground mt-1 text-xs">
-          Choose the links shown in the top bar.
-        </div>
+        <div className="text-muted-foreground mt-1 text-xs">Choose the links shown in the top bar.</div>
       </div>
       <div className="flex flex-col gap-2 p-3">
         {docNav.map((item) => {
@@ -254,12 +252,10 @@ function DraggableNavItem({
         <div className="text-muted-foreground hover:text-foreground cursor-grab p-1 active:cursor-grabbing">
           <EllipsisVertical size={16} />
         </div>
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={onToggleExpanded}
-        >
-          <span className={cn('truncate text-sm font-medium select-none', item.text === '' ? 'text-muted-foreground' : '')}>
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onToggleExpanded}>
+          <span
+            className={cn('truncate text-sm font-medium select-none', item.text === '' ? 'text-muted-foreground' : '')}
+          >
             {item.text || 'Untitled item'}
           </span>
           {isIncomplete ? (
@@ -268,15 +264,12 @@ function DraggableNavItem({
             </span>
           ) : null}
           <ChevronDown
-            className={cn(
-              'text-muted-foreground ml-auto size-4 transition-transform',
-              isExpanded && 'rotate-180',
-            )}
+            className={cn('text-muted-foreground ml-auto size-4 transition-transform', isExpanded && 'rotate-180')}
           />
         </button>
       </div>
       {isExpanded ? (
-        <div className="border-t border-black/8 px-3 pb-3 pt-2.5 dark:border-white/10">
+        <div className="border-t border-black/8 px-3 pt-2.5 pb-3 dark:border-white/10">
           <NavItemForm
             item={item}
             homeId={homeId}
@@ -373,7 +366,7 @@ function HMDocURLInput({
           <button
             type="button"
             className={cn(
-              'flex w-full items-center gap-2 rounded-md border border-black/8 bg-transparent px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 dark:border-white/10',
+              'hover:bg-muted/40 flex w-full items-center gap-2 rounded-md border border-black/8 bg-transparent px-3 py-2 text-left text-sm transition-colors dark:border-white/10',
               fontClass,
             )}
           >
