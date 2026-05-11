@@ -60,7 +60,7 @@ export const HyperlinkToolbarPositioner = <BSchema extends BlockSchema = Default
     if (!referencePos.current) return false
     const spaceBelow = window.innerHeight - referencePos.current.bottom
     return spaceBelow < estimatedFormHeight
-  }, [referencePos.current, show])
+  }, [show])
 
   const hyperlinkToolbarElement = useMemo(() => {
     if (!type || !id) {

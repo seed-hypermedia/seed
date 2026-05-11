@@ -97,8 +97,7 @@ export function Layout({children}: {children: React.ReactNode}) {
           <script
             defer
             data-domain={domain}
-            // enable the same plugins you had:
-            file-types="rpm,deb,dmg,exe"
+            {...{'file-types': 'rpm,deb,dmg,exe'}}
             src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
           />
         ) : null}
@@ -139,7 +138,7 @@ export function ErrorBoundary({}: {}) {
   })
 
   return (
-    <html>
+    <html lang="en">
       <head>
         <title>Oops! Something went wrong</title>
       </head>

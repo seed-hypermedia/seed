@@ -69,6 +69,7 @@ export function ImageForm({
   const image = url ? (
     <div className="bg-muted flex-1 overflow-hidden rounded-md">
       <img
+        alt=""
         src={url}
         key={url}
         style={{
