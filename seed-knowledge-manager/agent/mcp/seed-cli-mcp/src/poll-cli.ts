@@ -38,7 +38,7 @@ import {bump, checkCap} from './limits.js'
 import {draftReply, gatherCommentReplyContext} from './reply-engine.js'
 
 const ACTIVITY_LIMIT = 100
-const MAX_COMMENT_FETCHES = 60
+const MAX_COMMENT_FETCHES = 200
 const PLACEHOLDER_BODY = 'Working on this — back in a moment. ⌛'
 const FALLBACK_BODY =
   'I tried to draft a reply but hit a snag. Please rephrase or wait for the next cadence.'

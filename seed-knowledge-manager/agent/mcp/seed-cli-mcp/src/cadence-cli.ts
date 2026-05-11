@@ -24,6 +24,7 @@ import {buildRedactor} from './redact.js'
 import {loadConfig} from './config.js'
 import {bump, checkCap, isWriteAllowed} from './limits.js'
 import {State} from './state.js'
+import {SEED_MARKDOWN_PRIMER} from './seed-primer.js'
 
 type Task = 'boletin' | 'gap' | 'health'
 
@@ -134,6 +135,11 @@ async function main(): Promise<void> {
     })
     const tmpFile = await writeTempMarkdown(fullDoc)
     const siteAccount = config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!
+
+    // Ensure parent index docs exist along the path. Without them the desktop
+    // navigator cannot drill into /agents/knowledge-manager/state/<kind>.
+    await ensureParentIndexes(cli, siteAccount, tc.docPath, audit)
+
     const argv = [
       'document',
       'create',
@@ -183,6 +189,67 @@ function isTask(s: string): s is Task {
   return s === 'boletin' || s === 'gap' || s === 'health'
 }
 
+/**
+ * Walks the parent path segments of `docPath` and creates a minimal index
+ * document at any segment that does not yet exist. Idempotent — uses
+ * `document get` first; only calls `document create` on a not-found.
+ *
+ * Without these index docs the desktop navigator shows "not-found" when a
+ * user clicks into /agents/knowledge-manager/state/ even though leaf docs
+ * exist under that prefix.
+ */
+async function ensureParentIndexes(
+  cli: SeedCli,
+  siteAccount: string,
+  docPath: string,
+  audit: AuditRun,
+): Promise<void> {
+  const segments = docPath.split('/').filter(Boolean)
+  if (segments.length <= 1) return
+  // We only seed parents — not the leaf doc itself, which the cadence writes.
+  for (let i = 1; i < segments.length; i++) {
+    const parentPath = '/' + segments.slice(0, i).join('/')
+    const hmUrl = `hm://${siteAccount}${parentPath}`
+    const getR = await cli.runRead(['document', 'get', hmUrl])
+    if (getR.exitCode === 0 && getR.stdout && !/not-found|Cannot render/i.test(getR.stdout)) {
+      continue
+    }
+    const title = segments[i - 1]!
+      .split('-')
+      .map((w) => (w ? w[0]!.toUpperCase() + w.slice(1) : ''))
+      .join(' ')
+    const body =
+      `---\n` +
+      `title: ${title}\n` +
+      `type: index\n` +
+      `created_by: knowledge-manager\n` +
+      `created_at: ${new Date().toISOString()}\n` +
+      `---\n\n` +
+      `## ${title}\n\n` +
+      `Index of \`${parentPath}\`. Child documents are listed automatically by the navigator.\n`
+    const tmp = await writeTempMarkdown(body)
+    const createArgv = [
+      'document',
+      'create',
+      '--account',
+      siteAccount,
+      '--path',
+      parentPath,
+      '--name',
+      title,
+      '--file',
+      tmp,
+    ]
+    const cR = await cli.runWrite(createArgv)
+    audit.trace({
+      ts: nowIso(),
+      level: cR.exitCode === 0 ? 'info' : 'warn',
+      event: cR.exitCode === 0 ? 'parent_index_created' : 'parent_index_create_failed',
+      data: {path: parentPath, exitCode: cR.exitCode, stderr: cR.stderr.slice(0, 200)},
+    })
+  }
+}
+
 function buildTaskConfig(task: Task, runbook: string, charter: string): TaskConfig {
   const now = new Date()
   const lafhRunbookContext =
@@ -198,10 +265,15 @@ function buildTaskConfig(task: Task, runbook: string, charter: string): TaskConf
       title: `Boletín — ${week}`,
       type: 'boletin',
       systemPrompt:
+        `${SEED_MARKDOWN_PRIMER}\n\n` +
         `You are the Knowledge Manager generating the WEEKLY BULLETIN (boletín periódico) for a Seed Hypermedia community, applying LAFH/GC-Red methodology.\n\n` +
-        `Output a complete Markdown document body (no triple-backtick fences around the whole). Use these section headings exactly:\n` +
+        `Output a complete Markdown document body. Use these section headings exactly, in this order:\n` +
         `## New documents published\n## Active threads\n## Decisions made\n## New members\n## Gaps surfaced or filled\n## Recommended reading from this period\n## Health note\n\n` +
-        `Cite every document/comment with full hm:// URLs. Cap each list at 5–7 items, prioritized (not exhaustive). Be concise — the bulletin is meant to be scannable in two minutes.\n\n` +
+        `Format rules:\n` +
+        `- For "Recommended reading", use embed chips on their own lines: \`<hm://...>\`. One per line.\n` +
+        `- For all other sections, use inline links \`[Title](hm://...)\` to cite docs/comments.\n` +
+        `- Lists go directly under the heading — no intro sentence between the heading and the first bullet.\n` +
+        `- Cap each list at 5–7 items, prioritized (not exhaustive). Be concise — scannable in two minutes.\n\n` +
         `Where the snapshot lacks data for a section, write one honest sentence ("no formal decisions captured this period" etc) — that is itself a signal. Do NOT invent items.\n\n` +
         `${lafhRunbookContext}`,
     }
@@ -217,11 +289,17 @@ function buildTaskConfig(task: Task, runbook: string, charter: string): TaskConf
       title: `Gap report — ${stamp}`,
       type: 'gap-report',
       systemPrompt:
+        `${SEED_MARKDOWN_PRIMER}\n\n` +
         `You are the Knowledge Manager generating a GAP REPORT for a Seed Hypermedia community, applying LAFH/GC-Red methodology.\n\n` +
-        `Output a complete Markdown document body. Use these sections:\n` +
+        `Output a complete Markdown document body. Use these sections in this order:\n` +
         `## How this was produced\n## Open gaps\n### 🔴 High priority\n### 🟡 Medium priority\n### 🟢 Low priority / parking lot\n## Contradictions detected\n## Stale or potentially outdated content\n## Patterns\n\n` +
-        `For each gap include: **Evidence:** with hm:// links, **Why it matters:**, **Proposed action:**, **Suggested owner:** (or "open"). ` +
-        `Do NOT invent gaps; if the snapshot doesn't surface enough data, write "no high-priority gaps detected this period" and move on. Honest signal beats fluff.\n\n` +
+        `For each gap, write the following block (no extra wrapping paragraph):\n` +
+        `- **Title** — short summary of the gap\n` +
+        `- **Evidence:** \`[doc/thread title](hm://...)\` references\n` +
+        `- **Why it matters:** one sentence\n` +
+        `- **Proposed action:** one sentence\n` +
+        `- **Suggested owner:** mention chip \`<hm://<accountUid>>\` or "open"\n\n` +
+        `Lists go directly under headings. Do NOT invent gaps; if the snapshot doesn't surface enough data, write "no high-priority gaps detected this period" and move on. Honest signal beats fluff.\n\n` +
         `${lafhRunbookContext}`,
     }
   }
@@ -236,11 +314,15 @@ function buildTaskConfig(task: Task, runbook: string, charter: string): TaskConf
     title: `Network health — ${stamp}`,
     type: 'network-health',
     systemPrompt:
+      `${SEED_MARKDOWN_PRIMER}\n\n` +
       `You are the Knowledge Manager generating a NETWORK HEALTH REPORT for a Seed Hypermedia community, applying LAFH/GC-Red methodology.\n\n` +
       `Output a complete Markdown document body. Sections in this order:\n` +
       `## TL;DR\n## Activity metrics\n## Production of knowledge products\n## Silos\n## Stale corpus\n## Pace assessment\n## Memory check\n## Methodology adherence\n## Recommended actions\n\n` +
-      `Be diagnostic, not flattering. If activity exists but produces no synthesis/decisions/methods, label it a red flag (LAFH: activity without production is noise). ` +
-      `Quantify what you can ("N new docs", "M comments", "K active authors of N total writers"). Cite hm:// links for any document referenced.\n\n` +
+      `Format rules:\n` +
+      `- Inline links: \`[Title](hm://...)\`. No bare hm:// URLs in prose.\n` +
+      `- Lists go directly under headings — no leading intro paragraph between heading and first bullet.\n` +
+      `- Quantify when you can ("N new docs", "M comments", "K active authors of N total writers").\n\n` +
+      `Be diagnostic, not flattering. Activity without production = noise (LAFH red flag).\n\n` +
       `${lafhRunbookContext}`,
   }
 }

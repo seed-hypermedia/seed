@@ -80,7 +80,6 @@ export class MentionSupervisor {
     let skipped = 0
     for (const file of readdirSync(this.machinesDir)) {
       if (!file.endsWith('.jsonl')) continue
-      const id = file.slice(0, -'.jsonl'.length)
       const lines = readFileSync(join(this.machinesDir, file), 'utf-8')
         .split('\n')
         .filter(Boolean)
@@ -106,6 +105,10 @@ export class MentionSupervisor {
         skipped++
         continue
       }
+      // Derive the original (unsanitized) mention id from the persisted
+      // initialMention so the in-memory actor map keys match what later
+      // spawn()/send() calls compute via mentionKey().
+      const id = mentionKey(initialMention)
       const actor = this.createActor(initialMention, id, {silent: true})
       actor.start()
       for (const e of events) {
@@ -146,9 +149,16 @@ export class MentionSupervisor {
   }
 
   private persist(id: string, event: PersistedEvent): void {
-    const path = join(this.machinesDir, `${id}.jsonl`)
+    const path = join(this.machinesDir, `${sanitizeForFs(id)}.jsonl`)
     appendFileSync(path, JSON.stringify(event) + '\n', {mode: 0o600})
   }
+}
+
+/** Mention ids include "/" (commentId is "<author>/<tsid>"). Replace any
+ *  filesystem-unfriendly chars so the per-mention JSONL stays a single file
+ *  under the machines/ directory. */
+function sanitizeForFs(id: string): string {
+  return id.replace(/[/\\:]/g, '_')
 }
 
 function extractPayload(event: MentionEvent): Record<string, unknown> | undefined {
