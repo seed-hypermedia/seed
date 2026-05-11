@@ -87,19 +87,32 @@ async function main(): Promise<void> {
     const g = await governance.getGovernance(true)
     audit.trace({ts: nowIso(), level: 'info', event: 'governance_loaded', data: {fetchedAt: g.fetchedAt}})
 
-    // Resolve allowed-invokers.
+    // TEMP: gate disabled by default — agent answers any commenter that mentions it.
+    // Set KM_ENFORCE_INVOKER_GATE=1 (or "true") to re-enable WRITER/allowlist enforcement.
+    const ENFORCE_INVOKER_GATE = /^(1|true|yes)$/i.test(process.env.KM_ENFORCE_INVOKER_GATE ?? '')
+
+    // Resolve allowed-invokers (only when gate enforced).
     const writers = new Set<string>()
-    if (g.rules.mentions.invokerSource === 'allowlist-doc') {
-      for (const a of g.allowlist.invokers) writers.add(a)
-    } else {
-      const caps = await cli.runRead(['account', 'capabilities', config.seedSite])
-      const parsed = caps.parsedJson as {capabilities?: Array<{delegate?: string; role?: string}>} | undefined
-      for (const c of parsed?.capabilities ?? []) {
-        if (c.role === 'WRITER' && c.delegate) writers.add(c.delegate)
+    if (ENFORCE_INVOKER_GATE) {
+      if (g.rules.mentions.invokerSource === 'allowlist-doc') {
+        for (const a of g.allowlist.invokers) writers.add(a)
+      } else {
+        const caps = await cli.runRead(['account', 'capabilities', config.seedSite])
+        const parsed = caps.parsedJson as {capabilities?: Array<{delegate?: string; role?: string}>} | undefined
+        for (const c of parsed?.capabilities ?? []) {
+          if (c.role === 'WRITER' && c.delegate) writers.add(c.delegate)
+        }
+        writers.add(config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!)
       }
-      writers.add(config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!)
+      audit.trace({ts: nowIso(), level: 'info', event: 'poll_collect_writers', data: {count: writers.size}})
+    } else {
+      audit.trace({
+        ts: nowIso(),
+        level: 'warn',
+        event: 'invoker_gate_disabled',
+        data: {note: 'replying to all authors; cap + blocked-list still active'},
+      })
     }
-    audit.trace({ts: nowIso(), level: 'info', event: 'poll_collect_writers', data: {count: writers.size}})
 
     // ── PASS A: discover new mentions and post placeholders. ───────────────
     //
@@ -119,6 +132,50 @@ async function main(): Promise<void> {
     let exhaustedBudget = false
     const blocked = new Set(g.rules.moderation.blockedAuthors)
     const siteAccount = config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!
+
+    // Cache: commentAuthor → principal account that holds the writer cap.
+    // Seed accounts can `alias_account` to another account they act on behalf
+    // of (e.g. a device-key signs with its own id but is aliased to the
+    // user's main account). The writer-cap list keys on principals, so we
+    // resolve every comment author through this lookup before checking
+    // membership.
+    //
+    // Local daemon returns `account-not-found` when the author's account blob
+    // hasn't synced yet (common for accounts that have not posted to this
+    // site before). Fall back to the public gateway for the resolution only
+    // — we still read everything else from the local daemon. The gateway
+    // collapses alias chains in its response: querying for an aliased uid
+    // returns the principal's id directly.
+    const gatewayUrl = process.env.SEED_GATEWAY_URL ?? 'https://hyper.media'
+    const principalOf = new Map<string, string>()
+    const resolvePrincipal = async (author: string): Promise<string> => {
+      const cached = principalOf.get(author)
+      if (cached) return cached
+      // Local first.
+      const local = await cli.runRead(['account', 'get', author])
+      const localAcct =
+        (local.parsedJson as
+          | {type?: string; aliasAccount?: string; alias_account?: string; id?: {uid?: string}}
+          | undefined) ?? {}
+      let principal: string | undefined
+      if (localAcct.type !== 'account-not-found') {
+        principal = localAcct.aliasAccount ?? localAcct.alias_account ?? localAcct.id?.uid
+      }
+      // Fall back to gateway if local has no record.
+      if (!principal) {
+        const gw = await cli.runRead(['-s', gatewayUrl, 'account', 'get', author])
+        const gwAcct =
+          (gw.parsedJson as
+            | {type?: string; aliasAccount?: string; alias_account?: string; id?: {uid?: string}}
+            | undefined) ?? {}
+        if (gwAcct.type !== 'account-not-found') {
+          principal = gwAcct.aliasAccount ?? gwAcct.alias_account ?? gwAcct.id?.uid
+        }
+      }
+      const resolved = principal ?? author
+      principalOf.set(author, resolved)
+      return resolved
+    }
 
     for (const ev of events) {
       if (scanned >= MAX_COMMENT_FETCHES) {
@@ -141,20 +198,26 @@ async function main(): Promise<void> {
       if (!evidence) continue
       const mention = buildCommentMention(comment, evidence, candidate.ts)
       if (blocked.has(mention.author)) continue
-      if (!writers.has(mention.author)) {
-        state.markProcessed(mention, audit.meta.runId, 'not-allowed')
-        audit.trace({
-          ts: nowIso(),
-          level: 'info',
-          event: 'mention_skipped_not_allowed',
-          data: {author: mention.author, kind: mention.kind, docId: mention.docId},
-        })
-        skippedNotAllowed++
-        continue
-      }
       const mid = mentionKey(mention)
-      // Idempotency: don't double-post a placeholder.
+      // Idempotency FIRST: a mention that's already been processed (even with
+      // status `not-allowed`) must not be re-classified each poll cycle. Doing
+      // so wrote thousands of duplicate "not-allowed" lines into
+      // processed.jsonl when an unprivileged author kept mentioning the agent.
       if (state.isProcessed(mid) || state.hasPlaceholderFor(mid)) continue
+      if (ENFORCE_INVOKER_GATE) {
+        const principal = await resolvePrincipal(mention.author)
+        if (!writers.has(mention.author) && !writers.has(principal)) {
+          state.markProcessed(mention, audit.meta.runId, 'not-allowed')
+          audit.trace({
+            ts: nowIso(),
+            level: 'info',
+            event: 'mention_skipped_not_allowed',
+            data: {author: mention.author, principal, kind: mention.kind, docId: mention.docId},
+          })
+          skippedNotAllowed++
+          continue
+        }
+      }
 
       // Per-day cap: a placeholder counts as a comment.
       const rs = state.getRateState()

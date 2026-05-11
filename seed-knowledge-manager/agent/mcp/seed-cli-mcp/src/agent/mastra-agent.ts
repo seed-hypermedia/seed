@@ -20,7 +20,14 @@ import type {Mention} from '../mentions.js'
 import {buildAgentTools, type ToolDef} from './tools-bridge.js'
 import {COMMUNITY_AGENT_SYSTEM, OPERATOR_AGENT_SYSTEM} from './prompts.js'
 
-const MAX_TOOL_CALLS = 30
+/** Maximum tool calls before we force the model to emit final_answer. We
+ *  used to allow 30 but DeepSeek bursts 2-3 calls per step and the budget
+ *  was exhausted before the model ever decided to terminate. 10 is enough
+ *  for a single search + a few doc fetches + final_answer. */
+const MAX_TOOL_CALLS = 10
+/** When the running count crosses this threshold the next API call locks
+ *  `tool_choice` to final_answer so the model is forced to summarise. */
+const FORCE_FINAL_THRESHOLD = MAX_TOOL_CALLS - 2
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions'
 
 type Role = 'system' | 'user' | 'assistant' | 'tool'
@@ -92,13 +99,16 @@ async function runAgent(args: RunArgs): Promise<RunResult> {
   let toolCallCount = 0
   let finalAnswer: string | null = null
 
-  for (let step = 0; step < MAX_TOOL_CALLS + 1; step++) {
+  for (let step = 0; step < MAX_TOOL_CALLS + 2; step++) {
     const t0 = Date.now()
+    // Gate on cumulative toolCallCount (not step index) — the model often
+    // bursts 2-3 tool calls per step, so a step-indexed gate fires too late.
+    const forceFinal = toolCallCount >= FORCE_FINAL_THRESHOLD
     const body = JSON.stringify({
       model: 'deepseek-chat',
       messages,
       tools,
-      tool_choice: step === MAX_TOOL_CALLS ? {type: 'function', function: {name: 'final_answer'}} : 'auto',
+      tool_choice: forceFinal ? {type: 'function', function: {name: 'final_answer'}} : 'auto',
       temperature: args.temperature ?? 0.4,
       max_tokens: args.maxTokens ?? 600,
     })
@@ -218,6 +228,26 @@ async function runAgent(args: RunArgs): Promise<RunResult> {
       // Force a terminal step on the next loop iteration (tool_choice locked
       // to final_answer above).
       continue
+    }
+  }
+
+  // Fallback: model exhausted its budget without ever calling final_answer.
+  // Salvage whatever inline assistant text it produced during the loop —
+  // those interim "Let me search…" musings sometimes already contain enough
+  // synthesis to be useful. Prefer the LAST non-empty assistant text.
+  if (!finalAnswer) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m?.role === 'assistant' && typeof m.content === 'string' && m.content.trim().length > 40) {
+        finalAnswer = m.content.trim()
+        args.audit?.trace({
+          ts: new Date().toISOString(),
+          level: 'warn',
+          event: 'mastra_agent_salvaged_inline_content',
+          data: {bytes: finalAnswer.length},
+        })
+        break
+      }
     }
   }
 
