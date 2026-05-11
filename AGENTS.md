@@ -52,7 +52,8 @@
 - Keep changes minimal and consistent with nearby code.
 - Normalize, trim, canonicalize, or otherwise clean input at system boundaries only (HTTP handlers, CLI parsing, config
   loading, deserialization edges). Do not repeat defensive string normalization in deeper internal functions; internal
-  APIs should receive already-normalized values and compare them exactly unless the domain explicitly requires otherwise.
+  APIs should receive already-normalized values and compare them exactly unless the domain explicitly requires
+  otherwise.
 - Prefer existing files over creating new tiny one-off modules. Add a new file only when it materially improves
   structure, ownership, or reuse.
 - Avoid writing tiny helper functions, especially if they are not used elsewhere. Colocate related code for better
@@ -62,8 +63,10 @@
   the user for permission first.
 - Write doc comments on every exported symbol. Even trivial ones.
 - Avoid banner-style comments splitting the file into sections — they are often forgotten when code is moved around.
-- Write tests! Prefer broader tests that exercise real functionality and public interfaces over minutiae and excessive
-  mocking. Avoid useless tests that give false confidence. Don't get too crazy though.
+- Most code should have tests.
+  - Prefer tests that exercise real behavior — avoid mocks unless the real dependency is impractical or unsafe.
+  - If the test is full of mocks — think twice whether it's actually useful, or it's just there to give false
+    confidence.
 - When writing Tailwind:
   - Prefer built-in utilities over arbitrary values.
   - Use arbitrary values only when standard Tailwind classes cannot reasonably express the requirement.
