@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"seed/backend/blob"
-	"seed/backend/config"
 	"seed/backend/storage"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
@@ -17,11 +16,9 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-
-	"github.com/gorilla/mux"
 )
 
-func TestMakeBlobDebugHandler_PublicOnly(t *testing.T) {
+func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	t.Parallel()
 
 	db := storage.MakeTestMemoryDB(t)
@@ -53,45 +50,65 @@ func TestMakeBlobDebugHandler_PublicOnly(t *testing.T) {
 	// The private blob has no blob_visibility entry, so it's not in public_blobs.
 
 	t.Run("PublicOnly=true blocks private blobs", func(t *testing.T) {
-		handler := makeBlobDebugHandler(config.Base{PublicOnly: true}, idx)
+		handler := publicOnlyMiddleware(true)(makeBlobDAGJSONHandler(idx))
 
 		// Private blob should return 404.
-		rec := serveBlobDebug(t, handler, privateCID.String())
+		rec := serveBlobDAGJSON(t, handler, privateCID.String())
 		require.Equal(t, http.StatusNotFound, rec.Code, "private blob must be blocked when PublicOnly=true")
 
 		// Public blob should succeed (will fail at IPLD decode since raw codec, but not 404).
-		rec = serveBlobDebug(t, handler, publicCID.String())
+		rec = serveBlobDAGJSON(t, handler, publicCID.String())
 		// Raw codec blocks fail at the IPLD decode step with 400, not at the blockstore level.
 		// The key assertion is that it does NOT return 404 — the blob was found.
 		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when PublicOnly=true")
 	})
 
 	t.Run("PublicOnly=false serves all blobs", func(t *testing.T) {
-		handler := makeBlobDebugHandler(config.Base{PublicOnly: false}, idx)
+		handler := publicOnlyMiddleware(false)(makeBlobDAGJSONHandler(idx))
 
 		// Both blobs should be found (not 404).
-		rec := serveBlobDebug(t, handler, privateCID.String())
+		rec := serveBlobDAGJSON(t, handler, privateCID.String())
 		require.NotEqual(t, http.StatusNotFound, rec.Code, "private blob must be accessible when PublicOnly=false")
 
-		rec = serveBlobDebug(t, handler, publicCID.String())
+		rec = serveBlobDAGJSON(t, handler, publicCID.String())
 		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when PublicOnly=false")
 	})
 
 	t.Run("nonexistent CID returns 404", func(t *testing.T) {
-		handler := makeBlobDebugHandler(config.Base{PublicOnly: false}, idx)
+		handler := makeBlobDAGJSONHandler(idx)
 
 		fakeCID := makeCID(t, []byte("does not exist"))
-		rec := serveBlobDebug(t, handler, fakeCID.String())
+		rec := serveBlobDAGJSON(t, handler, fakeCID.String())
 		require.Equal(t, http.StatusNotFound, rec.Code)
 	})
 }
 
-// serveBlobDebug calls the handler with a mux-compatible request that has the CID variable set.
-func serveBlobDebug(t *testing.T, handler http.HandlerFunc, cidStr string) *httptest.ResponseRecorder {
+func TestIPFSGetHandlerRoutesDAGJSONSuffix(t *testing.T) {
+	t.Parallel()
+
+	handler := ipfsGetHandler(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "bafytest", r.PathValue("cid"))
+			w.WriteHeader(http.StatusAccepted)
+		},
+	)
+
+	req := httptest.NewRequest("GET", "/ipfs/bafytest.dagjson", nil)
+	req.SetPathValue("cid", "bafytest.dagjson")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code)
+}
+
+// serveBlobDAGJSON calls the handler with a request that has the CID path value set.
+func serveBlobDAGJSON(t *testing.T, handler http.Handler, cidStr string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/debug/cid/"+cidStr, nil)
-	// Set gorilla/mux vars so mux.Vars(r) returns the CID.
-	req = mux.SetURLVars(req, map[string]string{"cid": cidStr})
+	req := httptest.NewRequest("GET", "/ipfs/"+cidStr+".dagjson", nil)
+	req.SetPathValue("cid", cidStr)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec

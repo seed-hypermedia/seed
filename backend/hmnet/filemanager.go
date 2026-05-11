@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/ipfs/boxo/blockservice"
 	blockstore "github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
@@ -61,24 +60,15 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 
 // GetFile retrieves a file from ipfs.
 func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control, ETag, Range")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
 	w.Header().Set("Accept-Ranges", "bytes")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
 
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "Only GET method is supported.")
 		return
 	}
-	vars := mux.Vars(r)
-	cidStr, ok := vars["cid"]
-	if !ok {
+	cidStr := r.PathValue("cid")
+	if cidStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "URL format not recognized.")
 		return
@@ -224,23 +214,13 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 // PutBlob stores a raw IPFS block uploaded by the client.
 // The CID in the URL must match the actual content; mismatches are rejected.
 func (fm *FileManager) PutBlob(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, POST")
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
 	if r.Method != "POST" {
 		http.Error(w, "Only POST method is supported.", http.StatusMethodNotAllowed)
 		return
 	}
 
-	vars := mux.Vars(r)
-	cidStr, ok := vars["cid"]
-	if !ok {
+	cidStr := r.PathValue("cid")
+	if cidStr == "" {
 		http.Error(w, "URL format not recognized.", http.StatusBadRequest)
 		return
 	}
@@ -290,21 +270,6 @@ func (fm *FileManager) PutBlob(w http.ResponseWriter, r *http.Request) {
 
 // UploadFile uploads a file to ipfs.
 func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-	w.Header().Set("Access-Control-Allow-Methods", "PUT, POST, OPTIONS")
-
-	if r.Method == http.MethodOptions {
-		// Chrome's Private Network Access requires the server to ack the
-		// preflight when a non-private origin targets a private/loopback
-		// address (which the web app does when uploading to the daemon).
-		if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
-			w.Header().Set("Access-Control-Allow-Private-Network", "true")
-		}
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "Only POST method is supported.")

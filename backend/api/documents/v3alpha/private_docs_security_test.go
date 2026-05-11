@@ -160,10 +160,10 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 		"error must be PermissionDenied or NotFound, got %s: %s", st.Code(), st.Message())
 }
 
-// VULN-4: Debug blob endpoint (/debug/cid/{cid}) -- FIXED.
-// The makeBlobDebugHandler in http.go now checks cfg.PublicOnly and sets
-// blob.WithPublicOnly on the context before calling blockstore.Get().
-// See TestMakeBlobDebugHandler_PublicOnly in backend/daemon/http_test.go.
+// VULN-4: DAG JSON blob endpoint (/ipfs/{cid}.dagjson) -- FIXED.
+// The HTTP public-only middleware sets blob.WithPublicOnly on the request context
+// before the DAG JSON handler calls blockstore.Get().
+// See TestMakeBlobDAGJSONHandler_PublicOnly in backend/daemon/http_test.go.
 
 // VULN-5: CreateRef always creates refs with VisibilityPublic.
 // When CreateRef is called for a path that currently holds a private document,

@@ -6,9 +6,7 @@ export const GetCID: HMRequestImplementation<HMGetCIDRequest> = {
     if (!queryDaemon) {
       throw new Error('GetCID requires queryDaemon to be provided')
     }
-    // GetCID requires direct HTTP access to debug endpoint, not gRPC
-    // Use queryAPI to fetch from /debug/cid/{cid}
-    const result = await queryDaemon<any>(`/debug/cid/${input.cid}`)
+    const result = await queryDaemon<any>(`/ipfs/${input.cid}.dagjson`)
     return {value: result}
   },
 }

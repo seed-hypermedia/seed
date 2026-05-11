@@ -672,11 +672,6 @@ func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultReque
 
 // HandleVaultHandoff completes a browser-mediated remote vault handoff.
 func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

@@ -14,7 +14,6 @@ require (
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/google/go-cmp v0.7.0
-	github.com/gorilla/mux v1.8.1
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/improbable-eng/grpc-web v0.15.0
@@ -222,7 +221,7 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rs/cors v1.7.0 // indirect

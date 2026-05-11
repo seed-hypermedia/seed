@@ -1351,7 +1351,7 @@ func indexURL(sb *structuralBlob, log *zap.Logger, anchor, linkType, rawURL stri
 			zap.Error(err),
 			// Hex hash is useful to lookup in the database.
 			zap.String("blobHashHex", sb.CID.Hash().HexString()),
-			// CID is useful to lookup in the debug browser at /debug/cid/<cid>.
+			// CID is useful to inspect as DAG JSON at /ipfs/<cid>.dagjson.
 			zap.String("blobCID", sb.CID.String()),
 		)
 		return nil

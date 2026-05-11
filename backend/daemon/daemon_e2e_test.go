@@ -129,6 +129,199 @@ func TestDaemonImportKey(t *testing.T) {
 	require.Equal(t, reg.PublicKey, keys.Keys[0].AccountId)
 }
 
+func TestDaemonCORS(t *testing.T) {
+	t.Parallel()
+
+	const fileCID = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	t.Run("upload preflight", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+		require.Empty(t, resp.Header.Get("Access-Control-Allow-Private-Network"))
+	})
+
+	t.Run("private network preflight", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+		req.Header.Set("Access-Control-Request-Private-Network", "true")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+		require.Equal(t, "true", resp.Header.Get("Access-Control-Allow-Private-Network"))
+	})
+
+	t.Run("blob route preflight", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/"+fileCID, nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "GET")
+		req.Header.Set("Access-Control-Request-Headers", "Range")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+	})
+
+	t.Run("blob response", func(t *testing.T) {
+		resp, err := client.Get(baseURL + "/ipfs/not-a-cid")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+		require.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
+	})
+
+	t.Run("vault handoff preflight", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/vault-handoff", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+	})
+
+	t.Run("vault handoff response", func(t *testing.T) {
+		resp, err := client.Post(baseURL+"/vault-handoff", "application/json", strings.NewReader(`{}`))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+	})
+
+	t.Run("broad preflight before route matching", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/not-a-cid.dagjson", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "GET")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		requireCORSHeaders(t, resp.Header)
+	})
+}
+
+func requireCORSHeaders(t *testing.T, h http.Header) {
+	t.Helper()
+
+	require.Equal(t, "*", h.Get("Access-Control-Allow-Origin"))
+	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "OPTIONS")
+	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "GET")
+	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "POST")
+	require.Contains(t, h.Get("Access-Control-Allow-Headers"), "Content-Type")
+	require.Contains(t, h.Get("Access-Control-Allow-Headers"), "Range")
+}
+
+func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	t.Run("cross-site browser request is rejected", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		require.NoError(t, err)
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("same-site browser request is rejected", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		require.NoError(t, err)
+		req.Header.Set("Sec-Fetch-Site", "same-site")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("same-origin browser request is allowed", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		require.NoError(t, err)
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("direct navigation is allowed", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		require.NoError(t, err)
+		req.Header.Set("Sec-Fetch-Site", "none")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("non-browser request is allowed", func(t *testing.T) {
+		resp, err := client.Get(baseURL + "/debug/version")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+}
+
 func TestDaemonUpdateProfile(t *testing.T) {
 	t.Parallel()
 

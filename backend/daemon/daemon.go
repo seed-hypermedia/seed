@@ -66,9 +66,8 @@ type App struct {
 }
 
 type options struct {
-	extraHTTPHandlers []func(*Router)
-	extraP2PServices  []func(grpc.ServiceRegistrar)
-	grpc              grpcOpts
+	extraP2PServices []func(grpc.ServiceRegistrar)
+	grpc             grpcOpts
 }
 
 type grpcOpts struct {
@@ -78,15 +77,6 @@ type grpcOpts struct {
 
 // Option is a function that can be passed to Load to configure the app.
 type Option func(*options)
-
-// WithHTTPHandler add an extra HTTP handler to the app's HTTP server.
-func WithHTTPHandler(route string, h http.Handler, mode int) Option {
-	return func(o *options) {
-		o.extraHTTPHandlers = append(o.extraHTTPHandlers, func(r *Router) {
-			r.Handle(route, h, mode)
-		})
-	}
-}
 
 // WithP2PService adds an extra gRPC service to the P2P node.
 func WithP2PService(fn func(grpc.ServiceRegistrar)) Option {
@@ -227,7 +217,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
-		fm, a.Net, a.RPC.Daemon, opts.extraHTTPHandlers...)
+		fm, a.Net, a.RPC.Daemon)
 	if err != nil {
 		return nil, err
 	}

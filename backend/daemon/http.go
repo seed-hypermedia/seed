@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
 	"seed/backend/blob"
@@ -20,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/go-cid"
@@ -36,98 +36,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-const vaultConnectionHandoffPath = "/vault-handoff"
-
 var (
 	commit string
 	branch string
 	date   string
 )
-
-func makeBlobDebugHandler(cfg config.Base, bs blockstore.Blockstore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		cs := mux.Vars(r)["cid"]
-		if cs == "" {
-			http.Error(w, "missing cid", http.StatusBadRequest)
-			return
-		}
-
-		c, err := cid.Decode(cs)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		ctx := r.Context()
-		if cfg.PublicOnly {
-			ctx = blob.WithPublicOnly(ctx)
-		}
-
-		blk, err := bs.Get(ctx, c)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		dec, err := multicodec.LookupDecoder(c.Prefix().Codec)
-		if err != nil {
-			http.Error(w, "unknown decoder "+err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		node, err := ipld.Decode(blk.RawData(), dec)
-		if err != nil {
-			http.Error(w, "failed to decode IPFS block "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		data, err := ipld.Encode(node, dagjson.Encode)
-		if err != nil {
-			http.Error(w, "failed to encode IPFS block "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		var b bytes.Buffer
-		if err := json.Indent(&b, data, "", "  "); err != nil {
-			http.Error(w, "failed to format JSON "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		_, _ = io.Copy(w, &b)
-	}
-}
-
-// httpRequestTag classifies an inbound HTTP request into a small set of tags
-// surfaced on /debug/network. The gRPC-Web check matches the Content-Type used
-// by the improbable-eng grpc-web wrapper.
-func httpRequestTag(r *http.Request) string {
-	path := r.URL.Path
-	switch {
-	case strings.HasPrefix(path, "/debug/"):
-		return "debug"
-	case strings.HasPrefix(path, "/ipfs/"):
-		return "gateway"
-	}
-	ct := r.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "application/grpc-web") {
-		return "grpc-web"
-	}
-	if r.Method == http.MethodOptions && strings.HasPrefix(r.Header.Get("Access-Control-Request-Headers"), "x-grpc-web") {
-		return "grpc-web"
-	}
-	return "other"
-}
-
-// setupGRPCWebHandler sets up the gRPC-Web handler.
-func setupGRPCWebHandler(r *Router, rpc *grpc.Server) {
-	grpcWebHandler := grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(origin string) bool {
-		return true
-	}))
-
-	r.r.MatcherFunc(mux.MatcherFunc(func(r *http.Request, match *mux.RouteMatch) bool {
-		return grpcWebHandler.IsAcceptableGrpcCorsRequest(r) || grpcWebHandler.IsGrpcWebRequest(r)
-	})).Handler(grpcWebHandler)
-}
 
 func initHTTP(
 	cfg config.Base,
@@ -138,64 +51,49 @@ func initHTTP(
 	blobs blockstore.Blockstore,
 	ipfsHandler *hmnet.FileManager,
 	p2pnet *hmnet.Node,
-	daemonServer *daemonapi.Server,
-	extraHandlers ...func(*Router),
+	apiServer *daemonapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
-	router := &Router{r: mux.NewRouter()}
-
-	router.r.Use(
-		handlerNameMiddleware,
+	router := &Router{mux: http.NewServeMux()}
+	router.Use(
+		openCORSMiddleware,
+		publicOnlyMiddleware(cfg.PublicOnly),
+		handlerNameMiddleware(router.mux),
 		instrument,
 		p2pnet.HTTPServerBW().Middleware(httpRequestTag),
 	)
 
 	{
-		setupGRPCWebHandler(router, rpc)
+		router.HandleFunc("POST /ipfs/file-upload", ipfsHandler.UploadFile)
+		router.HandleFunc("POST /ipfs/{cid}", ipfsHandler.PutBlob)
+		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(blobs)))
 
-		router.Handle("/ipfs/file-upload", http.HandlerFunc(ipfsHandler.UploadFile), 0)
-		router.Handle("/ipfs/{cid}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "POST" {
-				ipfsHandler.PutBlob(w, r)
-				return
-			}
-			// We only want to serve public blobs on the web.
-			// We set this config value in the Dockerfile that we deploy.
-			if cfg.PublicOnly {
-				r = r.WithContext(blob.WithPublicOnly(r.Context()))
-			}
-			ipfsHandler.GetFile(w, r)
-		}), 0)
+		loopback := router.With(loopbackOnly)
+		loopback.HandleNav("GET /debug/metrics", promhttp.Handler())
+		loopback.HandleNav("/debug/pprof/", http.DefaultServeMux)
+		loopback.HandleNav("/debug/vars", http.DefaultServeMux)
+		loopback.HandleNav("/debug/requests", http.DefaultServeMux)
+		loopback.HandleNav("/debug/events", http.DefaultServeMux)
+		loopback.HandleNav("/debug/buildinfo", buildInfoHandler())
+		loopback.HandleNav("/debug/version", gitVersionHandler())
+		loopback.HandleNav("/debug/traces", trcstats.Handler(eztrc.Handler()))
+		loopback.HandleNav("/debug/logs", logging.DebugHandler())
+		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
+		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
+		loopback.HandleFunc("/{$}", router.Index)
 
-		router.Handle("/debug/metrics", promhttp.Handler(), RouteNav)
-		router.Handle("/debug/pprof", http.DefaultServeMux, RoutePrefix|RouteNav)
-		router.Handle("/debug/vars", http.DefaultServeMux, RoutePrefix|RouteNav)
-		router.Handle("/debug/grpc", grpcLogsHandler(), RouteNav)
-		router.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
-		router.Handle("/debug/version", gitVersionHandler(), RouteNav)
-		router.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(cfg, blobs)), 0)
-		router.Handle("/debug/traces", trcstats.Handler(eztrc.Handler()), RouteNav)
-		router.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
-		router.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
-		router.Handle("/debug/events", http.DefaultServeMux, RouteNav)
-		router.Handle("/debug/p2p", p2pnet.DebugHandler(), RouteNav)
-		router.Handle("/debug/network", p2pnet.NetworkDebugHandler(), RouteNav)
+		router.HandleNav("GET /hm/api/config", p2pnet.HMAPIConfigHandler())
+		router.HandleFunc("/vault-handoff", apiServer.HandleVaultHandoff)
 
-		router.Handle("/hm/api/config", p2pnet.HMAPIConfigHandler(), RouteNav)
-		router.Handle(vaultConnectionHandoffPath, corsMiddleware(http.HandlerFunc(daemonServer.HandleVaultHandoff)), 0)
-
-		for _, handle := range extraHandlers {
-			handle(router)
-		}
-
-		router.Handle("/", http.HandlerFunc(router.Index), 0)
+		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(_ string) bool {
+			return true
+		})))
 	}
 
 	srv = &http.Server{
 		Addr:              ":" + strconv.Itoa(port),
 		ReadHeaderTimeout: 5 * time.Second,
-		// WriteTimeout:      10 * time.Second,
-		IdleTimeout: 20 * time.Second,
-		Handler:     router.r,
+		IdleTimeout:       20 * time.Second,
+		Handler:           router,
 	}
 
 	lis, err = net.Listen("tcp", srv.Addr)
@@ -218,12 +116,70 @@ func initHTTP(
 	return
 }
 
-// corsMiddleware allows different host/origins.
-func corsMiddleware(next http.Handler) http.Handler {
+func loopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// allow cross domain AJAX requests
+		ap, err := netip.ParseAddrPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "bad remote address", http.StatusBadRequest)
+			return
+		}
+
+		ip := ap.Addr().Unmap()
+
+		if !ip.IsLoopback() {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		switch r.Header.Get("Sec-Fetch-Site") {
+		case "", "none", "same-origin":
+			// Fetch Metadata is browser-provided. Missing headers are allowed so
+			// non-browser local clients keep working, and "none" covers direct
+			// user navigations to localhost debug URLs.
+			next.ServeHTTP(w, r)
+		default:
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	})
+}
+
+func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if !publicOnly {
+			return next
+		}
+
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(blob.WithPublicOnly(r.Context())))
+		})
+	}
+}
+
+// openCORSMiddleware allows different host/origins.
+func openCORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// We don't rely on CORS for protection. Routes that expose sensitive
+		// data or actions must require authentication or their own access policy,
+		// hence by default we allow very broad CORS settings on purpose.
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Cache-Control")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "*")
+
+		isPreflight := r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
+
+		// We short-circuit the request when it's a preflight.
+		if isPreflight {
+			// Chrome's Private Network Access requires the server to ack the
+			// preflight when a non-private origin targets a private/loopback
+			// address.
+			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+				w.Header().Set("Access-Control-Allow-Private-Network", "true")
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -308,75 +264,229 @@ var (
 	ctxKeyHandlerName = "seed/http/handlerName"
 )
 
-func handlerNameMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		name := r.URL.String()
-		route := mux.CurrentRoute(r)
-		if route != nil {
-			rn := route.GetName()
-			if rn != "/" && rn != "" {
-				name = rn
+func handlerNameMiddleware(mux *http.ServeMux) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			name := r.URL.String()
+			var pattern string
+			if strings.HasPrefix(r.URL.Path, "/debug/pprof") {
+				_, pattern = http.DefaultServeMux.Handler(r)
 			}
-		}
+			if pattern == "" {
+				_, pattern = mux.Handler(r)
+			}
+			if pattern != "" {
+				routeName := routeNameFromPattern(pattern)
+				if routeName != "/{$}" {
+					name = routeName
+				}
+			}
 
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, &ctxKeyHandlerName, name)
-		r = r.WithContext(ctx)
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, &ctxKeyHandlerName, name)
+			r = r.WithContext(ctx)
 
-		h.ServeHTTP(w, r)
-	})
+			h.ServeHTTP(w, r)
+		})
+	}
 }
 
-func instrument(h http.Handler) http.Handler {
-	h = eztrc.Middleware(func(r *http.Request) string {
-		v := r.Context().Value(&ctxKeyHandlerName)
-		if v == nil {
-			panic("BUG: no handler name in context")
-		}
-		return v.(string)
-	})(h)
-
-	h = promhttp.InstrumentHandlerInFlight(mInFlightGauge, h)
-	h = promhttp.InstrumentHandlerCounter(mCounter, h)
-	h = promhttp.InstrumentHandlerDuration(mDuration, h, promhttp.WithLabelFromCtx("handler", func(ctx context.Context) string {
-		v := ctx.Value(&ctxKeyHandlerName)
-		if v == nil {
-			panic("BUG: no handler name in context")
-		}
-		return v.(string)
-	}))
-
-	return h
+func routeNameFromPattern(pattern string) string {
+	if _, path, ok := strings.Cut(pattern, " "); ok && strings.HasPrefix(path, "/") {
+		pattern = path
+	}
+	if strings.HasSuffix(pattern, "/") && pattern != "/" {
+		return strings.TrimSuffix(pattern, "/")
+	}
+	if strings.HasSuffix(pattern, "/{$}") {
+		return strings.TrimSuffix(pattern, "{$}")
+	}
+	if strings.HasSuffix(pattern, "/{rest...}") {
+		return strings.TrimSuffix(pattern, "/{rest...}")
+	}
+	return pattern
 }
 
-const (
-	// RoutePrefix exposes path prefix.
-	RoutePrefix = 1 << 1
-	// RouteNav adds the path to a route nav.
-	RouteNav = 1 << 2
-)
+func instrument(next http.Handler) http.Handler {
+	next = eztrc.Middleware(func(r *http.Request) string {
+		return handlerNameFromContext(r.Context())
+	})(next)
+
+	next = promhttp.InstrumentHandlerInFlight(mInFlightGauge, next)
+	next = promhttp.InstrumentHandlerCounter(mCounter, next)
+	next = promhttp.InstrumentHandlerDuration(mDuration, next, promhttp.WithLabelFromCtx("handler", handlerNameFromContext))
+
+	return next
+}
+
+func handlerNameFromContext(ctx context.Context) string {
+	v := ctx.Value(&ctxKeyHandlerName)
+	if v == nil {
+		panic("BUG: no handler name in context")
+	}
+	return v.(string)
+}
 
 // Router is a wrapper around mux that can build the navigation menu.
 type Router struct {
-	r   *mux.Router
-	nav []string
+	mux         *http.ServeMux
+	middlewares []func(http.Handler) http.Handler
+	nav         []string
+}
+
+type routeGroup struct {
+	router      *Router
+	middlewares []func(http.Handler) http.Handler
+}
+
+// ServeHTTP serves a request with the router's middleware chain.
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.withMiddlewares(r.mux).ServeHTTP(w, req)
+}
+
+// Use appends middleware to the router.
+// Register all middlewares before defining handlers when possible.
+func (r *Router) Use(middlewares ...func(http.Handler) http.Handler) {
+	r.middlewares = append(r.middlewares, middlewares...)
+}
+
+// With returns a route group with the given middlewares.
+func (r *Router) With(middlewares ...func(http.Handler) http.Handler) routeGroup {
+	return routeGroup{
+		router:      r,
+		middlewares: middlewares,
+	}
 }
 
 // Handle a route.
-func (r *Router) Handle(path string, h http.Handler, mode int) {
-	if mode&RouteNav != 0 {
-		r.r.Name(path).PathPrefix(path).Handler(h)
-	} else {
-		r.r.Name(path).Path(path).Handler(h)
-	}
+func (r *Router) Handle(path string, h http.Handler) {
+	r.mux.Handle(path, h)
+}
 
-	if mode&RouteNav != 0 {
-		r.nav = append(r.nav, path)
+// HandleFunc registers a function handler for a route.
+func (r *Router) HandleFunc(path string, h func(http.ResponseWriter, *http.Request)) {
+	r.Handle(path, http.HandlerFunc(h))
+}
+
+// HandleNav registers a route and adds it to the navigation menu.
+func (r *Router) HandleNav(path string, h http.Handler) {
+	r.Handle(path, h)
+	r.nav = append(r.nav, routeNameFromPattern(path))
+}
+
+func (g routeGroup) Handle(path string, h http.Handler) {
+	g.router.Handle(path, g.withMiddlewares(h))
+}
+
+func (g routeGroup) HandleFunc(path string, h func(http.ResponseWriter, *http.Request)) {
+	g.Handle(path, http.HandlerFunc(h))
+}
+
+func (g routeGroup) HandleNav(path string, h http.Handler) {
+	g.router.HandleNav(path, g.withMiddlewares(h))
+}
+
+func (r *Router) withMiddlewares(h http.Handler) http.Handler {
+	for i := len(r.middlewares) - 1; i >= 0; i-- {
+		h = r.middlewares[i](h)
 	}
+	return h
+}
+
+func (g routeGroup) withMiddlewares(h http.Handler) http.Handler {
+	for i := len(g.middlewares) - 1; i >= 0; i-- {
+		h = g.middlewares[i](h)
+	}
+	return h
 }
 
 func (r *Router) Index(w http.ResponseWriter, _ *http.Request) {
 	for _, route := range r.nav {
 		fmt.Fprintf(w, `<p><a href="%s">%s</a></p>`, route, route)
 	}
+}
+
+func ipfsGetHandler(fileHandler http.HandlerFunc, dagJSONHandler http.HandlerFunc) http.HandlerFunc {
+	const suffix = ".dagjson"
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		cs := r.PathValue("cid")
+		if strings.HasSuffix(cs, suffix) {
+			r.SetPathValue("cid", strings.TrimSuffix(cs, suffix))
+			dagJSONHandler(w, r)
+			return
+		}
+
+		fileHandler(w, r)
+	}
+}
+
+func makeBlobDAGJSONHandler(bs blockstore.Blockstore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cs := r.PathValue("cid")
+		if cs == "" {
+			http.Error(w, "missing cid", http.StatusBadRequest)
+			return
+		}
+
+		c, err := cid.Decode(cs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		blk, err := bs.Get(r.Context(), c)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		dec, err := multicodec.LookupDecoder(c.Prefix().Codec)
+		if err != nil {
+			http.Error(w, "unknown decoder "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		node, err := ipld.Decode(blk.RawData(), dec)
+		if err != nil {
+			http.Error(w, "failed to decode IPFS block "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		data, err := ipld.Encode(node, dagjson.Encode)
+		if err != nil {
+			http.Error(w, "failed to encode IPFS block "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var b bytes.Buffer
+		if err := json.Indent(&b, data, "", "  "); err != nil {
+			http.Error(w, "failed to format JSON "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.Copy(w, &b)
+	}
+}
+
+// httpRequestTag classifies an inbound HTTP request into a small set of tags
+// surfaced on /debug/network. The gRPC-Web check matches the Content-Type used
+// by the improbable-eng grpc-web wrapper.
+func httpRequestTag(r *http.Request) string {
+	path := r.URL.Path
+	switch {
+	case strings.HasPrefix(path, "/debug/"):
+		return "debug"
+	case strings.HasPrefix(path, "/ipfs/"):
+		return "gateway"
+	}
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "application/grpc-web") {
+		return "grpc-web"
+	}
+	if r.Method == http.MethodOptions && strings.HasPrefix(r.Header.Get("Access-Control-Request-Headers"), "x-grpc-web") {
+		return "grpc-web"
+	}
+	return "other"
 }
