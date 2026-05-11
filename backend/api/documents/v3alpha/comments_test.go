@@ -1175,3 +1175,112 @@ func TestListComments_AfterDocumentMove(t *testing.T) {
 	require.Len(t, newPathResult.Comments, 1, "comment must be found via the canonical new path")
 	require.Equal(t, cmt.Id, newPathResult.Comments[0].Id)
 }
+
+// TestCommentCount_DedupesEditsAndDeletions ensures that editing or deleting a
+// comment does not inflate ActivitySummary.CommentCount. Each comment TSID
+// counts at most once while at least one non-tombstone version exists.
+func TestCommentCount_DedupesEditsAndDeletions(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	ctx := context.Background()
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+
+	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Doc"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	getHomeCount := func(t *testing.T) int32 {
+		t.Helper()
+		list, err := alice.ListDocuments(ctx, &pb.ListDocumentsRequest{Account: alice.me.Account.PublicKey.String()})
+		require.NoError(t, err)
+		for _, d := range list.Documents {
+			if d.Path == "" {
+				require.NotNil(t, d.ActivitySummary)
+				return d.ActivitySummary.CommentCount
+			}
+		}
+		t.Fatal("home doc not found in ListDocuments response")
+		return 0
+	}
+
+	require.Equal(t, int32(0), getHomeCount(t), "no comments yet")
+
+	root, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "root"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), getHomeCount(t), "one comment = count 1")
+
+	reply, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		ReplyParent:    root.Id,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "reply"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), getHomeCount(t), "root + reply = count 2")
+
+	_, err = alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+		SigningKeyName: "main",
+		Comment: &pb.Comment{
+			Id:            reply.Id,
+			TargetAccount: alice.me.Account.PublicKey.String(),
+			TargetPath:    "",
+			TargetVersion: homeDoc.Version,
+			Author:        alice.me.Account.PublicKey.String(),
+			Content: []*pb.BlockNode{
+				{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "reply edited"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), getHomeCount(t), "editing reply must not change count")
+
+	_, err = alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+		SigningKeyName: "main",
+		Comment: &pb.Comment{
+			Id:            reply.Id,
+			TargetAccount: alice.me.Account.PublicKey.String(),
+			TargetPath:    "",
+			TargetVersion: homeDoc.Version,
+			Author:        alice.me.Account.PublicKey.String(),
+			Content: []*pb.BlockNode{
+				{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "reply edited again"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(2), getHomeCount(t), "second edit must not change count")
+
+	_, err = alice.DeleteComment(ctx, &pb.DeleteCommentRequest{
+		Id:             reply.Id,
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), getHomeCount(t), "deleting reply removes it from count")
+
+	_, err = alice.DeleteComment(ctx, &pb.DeleteCommentRequest{
+		Id:             root.Id,
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(0), getHomeCount(t), "deleting last comment makes count 0")
+}

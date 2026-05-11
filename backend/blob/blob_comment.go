@@ -360,6 +360,15 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			panic("BUG: missing resource for comment target")
 		}
 
+		// commentCountDelta computes how this blob changes the count of distinct,
+		// non-deleted comment TSIDs for the target. Edits with the same TSID don't
+		// change the count; tombstones decrement only when a previously-live version
+		// existed; out-of-order arrivals (non-tombstone after tombstone) re-activate.
+		delta, err := commentCountDelta(ictx.conn, id, eb.TSID(), isTombstone)
+		if err != nil {
+			return fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
+		}
+
 		generations, err := documentGeneration{}.loadAllByResource(ictx.conn, resourceID)
 		if err != nil {
 			return fmt.Errorf("failed to load generations for comment %s: %w", c, err)
@@ -370,12 +379,18 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 				continue
 			}
 
-			commentTime := v.Ts.UnixMilli()
-			if commentTime > dg.LastCommentTime {
-				dg.LastComment = id
-				dg.LastCommentTime = commentTime
+			// Only let live (non-tombstone) versions advance the latest comment pointer.
+			if !isTombstone {
+				commentTime := v.Ts.UnixMilli()
+				if commentTime > dg.LastCommentTime {
+					dg.LastComment = id
+					dg.LastCommentTime = commentTime
+				}
 			}
-			dg.CommentCount++
+			dg.CommentCount += delta
+			if dg.CommentCount < 0 {
+				dg.CommentCount = 0
+			}
 
 			if err := dg.save(ictx.conn); err != nil {
 				return err
@@ -387,12 +402,17 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			return err
 		}
 
-		if commentTime := v.Ts.UnixMilli(); commentTime > sm.LastCommentTime {
-			sm.LastCommentTime = commentTime
-			sm.LastComment = id
+		if !isTombstone {
+			if commentTime := v.Ts.UnixMilli(); commentTime > sm.LastCommentTime {
+				sm.LastCommentTime = commentTime
+				sm.LastComment = id
+			}
 		}
 
-		sm.CommentCount++
+		sm.CommentCount += delta
+		if sm.CommentCount < 0 {
+			sm.CommentCount = 0
+		}
 
 		if err := sm.save(ictx.conn); err != nil {
 			return err
@@ -407,6 +427,46 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 
 	return nil
 }
+
+// commentCountDelta returns the change to apply to comment counts when indexing
+// a Comment blob. A new TSID contributes +1, edits contribute 0, the first
+// tombstone for a previously-live TSID contributes -1, and a live blob arriving
+// after a tombstone (out-of-order P2P sync) re-activates the TSID for +1.
+func commentCountDelta(conn *sqlite.Conn, currentID int64, tsid TSID, isTombstone bool) (delta int64, err error) {
+	var priorAny, priorLive int64
+	rows, discard, check := sqlitex.Query(conn, qCommentTSIDPriorVersions(), string(tsid), currentID).All()
+	defer discard(&err)
+	for row := range rows {
+		row.Scan(&priorAny, &priorLive)
+	}
+	if cerr := check(); cerr != nil {
+		return 0, cerr
+	}
+
+	switch {
+	case isTombstone && priorLive > 0:
+		return -1, nil
+	case isTombstone:
+		return 0, nil
+	case priorAny == 0:
+		return 1, nil
+	case priorLive == 0:
+		// A tombstone existed before this live version arrived (out-of-order sync).
+		return 1, nil
+	default:
+		return 0, nil
+	}
+}
+
+var qCommentTSIDPriorVersions = dqb.Str(`
+	SELECT
+		COUNT(*) AS prior_any,
+		COALESCE(SUM(CASE WHEN extra_attrs->>'deleted' IS NULL THEN 1 ELSE 0 END), 0) AS prior_live
+	FROM structural_blobs
+	WHERE type = 'Comment'
+	  AND extra_attrs->>'tsid' = ?1
+	  AND id != ?2;
+`)
 
 type spaceCommentStats struct {
 	shouldUpdate bool
