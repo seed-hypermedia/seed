@@ -4,46 +4,27 @@ import 'sonner/dist/styles.css'
 
 export {toast} from 'sonner'
 
-// Universal theme hook that works in both Next.js and non-Next.js environments
+// Universal theme hook: observe `dark` class on <html> (works for both next-themes
+// in desktop and the manual class toggle in web).
 const useUniversalTheme = () => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
 
-  // @ts-ignore
   useEffect(() => {
-    // Check if we're in a Next.js environment with next-themes
-    if (typeof window !== 'undefined' && (window as any).__NEXT_DATA__) {
-      // Next.js environment (desktop app)
-      try {
-        const {useTheme} = require('next-themes')
-        const nextTheme = useTheme()
-        setTheme(nextTheme.theme || 'system')
-      } catch (e) {
-        // Fallback if next-themes is not available
-        setTheme('system')
+    if (typeof document === 'undefined') return
+    const readTheme = () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+    setTheme(readTheme())
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          setTheme(readTheme())
+        }
       }
-    } else {
-      // Non-Next.js environment (web app)
-      // Check for dark class on document element
-      const isDark = document.documentElement.classList.contains('dark')
-      setTheme(isDark ? 'dark' : 'light')
-
-      // Watch for theme changes
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            const isDark = document.documentElement.classList.contains('dark')
-            setTheme(isDark ? 'dark' : 'light')
-          }
-        })
-      })
-
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class'],
-      })
-
-      return () => observer.disconnect()
-    }
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
   }, [])
 
   return {theme}

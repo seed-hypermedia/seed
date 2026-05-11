@@ -172,34 +172,18 @@ export function DocumentOutline({
   activeBlockId: string | null
   onCloseNav?: () => void
 }) {
-  return outline.map((node) => {
-    const outlineProps = useRouteLink(
-      {
-        key: 'document',
-        id: {
-          ...id,
-          blockRef: node.id,
-          blockRange: {expanded: true},
-        },
-      },
-      {
-        replace: true,
-      },
-    )
-    return (
-      <OutlineNode
-        node={node}
-        key={node.id}
-        indented={indented}
-        onActivateBlock={onActivateBlock}
-        onClick={onClick}
-        activeBlockId={activeBlockId}
-        onCloseNav={onCloseNav}
-        outlineProps={outlineProps}
-        docId={id}
-      />
-    )
-  })
+  return outline.map((node) => (
+    <OutlineNode
+      node={node}
+      key={node.id}
+      indented={indented}
+      onActivateBlock={onActivateBlock}
+      onClick={onClick}
+      activeBlockId={activeBlockId}
+      onCloseNav={onCloseNav}
+      docId={id}
+    />
+  ))
 }
 
 export function DraftOutline({
@@ -235,7 +219,6 @@ function OutlineNode({
   onActivateBlock,
   onClick,
   onCloseNav,
-  outlineProps,
   docId,
 }: {
   node: NodeOutline
@@ -244,9 +227,23 @@ function OutlineNode({
   onActivateBlock: (blockId: string) => void
   onClick?: ButtonProps['onClick']
   onCloseNav?: () => void
-  outlineProps?: any
   docId?: UnpackedHypermediaId
 }) {
+  const outlineProps = useRouteLink(
+    docId
+      ? {
+          key: 'document',
+          id: {
+            ...docId,
+            blockRef: node.id,
+            blockRange: {expanded: true},
+          },
+        }
+      : null,
+    {
+      replace: true,
+    },
+  )
   return (
     <>
       <SmallListItem
@@ -267,38 +264,18 @@ function OutlineNode({
         }}
       />
       {node.children?.length
-        ? node.children.map((child) => {
-            let childOutlineProps
-            if (outlineProps && docId) {
-              childOutlineProps = useRouteLink(
-                {
-                  key: 'document',
-                  id: {
-                    ...docId,
-                    blockRef: child.id,
-                    blockRange: {expanded: true},
-                  },
-                },
-                {
-                  replace: true,
-                },
-              )
-            }
-
-            return (
-              <OutlineNode
-                node={child}
-                key={child.id}
-                indented={indented + 1}
-                activeBlockId={activeBlockId}
-                onActivateBlock={onActivateBlock}
-                onClick={onClick}
-                onCloseNav={onCloseNav}
-                outlineProps={childOutlineProps}
-                docId={docId}
-              />
-            )
-          })
+        ? node.children.map((child) => (
+            <OutlineNode
+              node={child}
+              key={child.id}
+              indented={indented + 1}
+              activeBlockId={activeBlockId}
+              onActivateBlock={onActivateBlock}
+              onClick={onClick}
+              onCloseNav={onCloseNav}
+              docId={docId}
+            />
+          ))
         : null}
     </>
   )

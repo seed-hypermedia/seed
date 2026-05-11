@@ -158,27 +158,26 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
   }, [popoverState.open])
 
   // Listen for Command+K / Ctrl+K keyboard shortcut
-  if (IS_WEB) {
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Don't trigger if user is typing in an input, textarea, or contenteditable
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-          return
-        }
-
-        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-          e.preventDefault()
-          popoverState.onOpenChange(true)
-        }
+  useEffect(() => {
+    if (!IS_WEB) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input, textarea, or contenteditable
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
       }
 
-      window.addEventListener('keydown', handleKeyDown)
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        popoverState.onOpenChange(true)
       }
-    }, [])
-  }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [popoverState])
 
   const searchItems: SearchResult[] = toSearchResults(searchResults.entities)
 
@@ -427,10 +426,9 @@ export function RecentSearchResultItem({
   siteHomeId?: UnpackedHypermediaId | null
 }) {
   let path = normalizePath(item.path.slice(0, -1))
+  const homeUnpacked = item.id ? unpackHmId(`hm://${item.id.uid}`) : null
+  const homeEntity = useResource(homeUnpacked)
   if (item.id) {
-    const homeId = `hm://${item.id.uid}`
-    const unpacked = unpackHmId(homeId)
-    const homeEntity = useResource(unpacked!)
     const doc = homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
     const homeTitle = getDocumentTitle(doc)
 

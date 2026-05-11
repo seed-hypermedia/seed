@@ -139,7 +139,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       editor={editor}
       mediaType="video"
       submit={submitVideo}
-      DisplayComponent={display}
+      DisplayComponent={Display}
       icon={<RiVideoAddLine className="text-black dark:text-white" />}
       validateFile={validateFile}
     />
@@ -258,7 +258,7 @@ function VideoOptions({
   )
 }
 
-const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const Display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getFileUrl = useFileProxyUrl()
   const {canEdit} = useEditorGate()
   const autoplay = block.props.autoplay === 'true'

@@ -18,12 +18,10 @@ function formatUTC(date: Date) {
 }
 
 export function Timestamp({time, route}: {time: AnyTimestamp; route?: NavRoute | null}) {
-  if (!time) return null
+  const linkProps = useRouteLink(route ?? null)
+  const date = time ? normalizeDate(time) : null
 
-  const linkProps = route ? useRouteLink(route ?? null) : {}
-  const date = normalizeDate(time)
-
-  if (!date) return null
+  if (!time || !date) return null
 
   return (
     <Tooltip side="top" delay={400} content={formatUTC(date)}>

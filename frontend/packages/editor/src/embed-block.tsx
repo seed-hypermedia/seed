@@ -109,13 +109,13 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       mediaType="embed"
       submit={submitEmbed}
       CustomInput={EmbedLauncherInput}
-      DisplayComponent={display}
+      DisplayComponent={Display}
       icon={<ExternalLink />}
     />
   )
 }
 
-const display = ({editor, block, assign, selected, setSelected}: DisplayComponentProps) => {
+const Display = ({editor, block, assign, selected, setSelected}: DisplayComponentProps) => {
   const {canEdit, isEditing} = useEditorGate()
   return (
     <MediaContainer

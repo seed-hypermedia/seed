@@ -150,13 +150,13 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       editor={editor}
       mediaType="image"
       submit={submitImage}
-      DisplayComponent={display}
+      DisplayComponent={Display}
       icon={<RiImage2Line className="text-black dark:text-white" />}
     />
   )
 }
 
-const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const Display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
   const {canEdit} = useEditorGate()
 

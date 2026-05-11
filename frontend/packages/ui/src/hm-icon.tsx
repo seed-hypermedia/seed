@@ -8,7 +8,7 @@ import {useImageUrl} from './get-file-url'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
-export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
+export const HMIcon = memo(HMIconImpl, (prevProps, nextProps) => {
   // Custom comparison function for memo
   // Deep comparison for id object
   if (prevProps.id?.id !== nextProps.id?.id) return false
@@ -25,7 +25,7 @@ export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
   return true
 })
 
-function _HMIcon({
+function HMIconImpl({
   id,
   name,
   icon,

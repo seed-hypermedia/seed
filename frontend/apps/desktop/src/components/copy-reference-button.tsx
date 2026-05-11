@@ -27,8 +27,7 @@ export function useDocumentUrl({
 } | null {
   const docEntity = useResource(docId)
   const route = useNavRoute()
-  if (!docId?.uid) return null
-  const accountId = hmId(docId.uid)
+  const accountId = docId?.uid ? hmId(docId.uid) : undefined
   const accountEntity = useResource(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   // @ts-expect-error
@@ -37,7 +36,7 @@ export function useDocumentUrl({
     siteHostname || gwUrl,
     siteHostname ? accountId : undefined,
   )
-  if (!docId) return null
+  if (!docId?.uid || !accountId) return null
   const url = routeToUrl(route, {
     hostname: siteHostname || gwUrl,
     originHomeId: siteHostname ? accountId : undefined,
