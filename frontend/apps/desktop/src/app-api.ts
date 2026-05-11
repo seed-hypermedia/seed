@@ -26,7 +26,7 @@ import {notificationReadApi, startNotificationReadBackgroundSync} from './app-no
 import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
 import {gatewaySettingsApi} from './app-gateway-settings'
 import {hostApi} from './app-host'
-import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
+import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {promptingApi} from './app-prompting'
 import {recentSignersApi} from './app-recent-signers'
@@ -420,8 +420,6 @@ export const router = t.router({
       webView.close()
       return {uploadedPNG, uploadedPDF, uploadedHTML, htmlValue}
     }),
-
-  queryInvalidation,
 
   getDaemonInfo: t.procedure.query(async () => {
     const buildInfoUrl = `${DAEMON_HTTP_URL}/debug/buildinfo`

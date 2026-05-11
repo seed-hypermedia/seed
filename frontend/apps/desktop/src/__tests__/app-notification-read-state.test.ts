@@ -1,4 +1,5 @@
 import {decode as cborDecode} from '@ipld/dag-cbor'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {base58btc} from 'multiformats/bases/base58'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -89,6 +90,10 @@ describe('app notification read state', () => {
       eventId: 'event-1',
       eventAtMs: 1100,
     })
+
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_INBOX, accountUid])
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_READ_STATE, accountUid])
+    expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.NOTIFICATION_SYNC_STATUS, accountUid])
 
     const afterEventRead = await read.getLocalState(accountUid)
     expect(afterEventRead.readEvents).toEqual([{eventId: 'event-1', eventAtMs: 1100}])

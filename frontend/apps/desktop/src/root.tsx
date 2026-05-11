@@ -26,7 +26,6 @@ import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
 import './tailwind.css'
-import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
 import {onQueryCacheError, onQueryInvalidation, registerQueryClient} from '@shm/shared/models/query-client'
@@ -266,24 +265,25 @@ function MainApp({}: {}) {
     setShowOnboarding(false)
   }
   useEffect(() => {
-    console.log('[Rebase invalidation] subscribing to queryInvalidation IPC bridge')
-    const sub = client.queryInvalidation.subscribe(undefined, {
-      // called when invalidation happens in any window (including this one), here we are performing the local invalidation
-      onData: (value: unknown) => {
-        const queryKey = value as QueryKey
+    console.log('[Rebase invalidation] subscribing to query invalidation IPC bridge')
+    let unsubscribe: (() => void) | undefined
+    let disposed = false
+    ipc
+      .listen<{payload: QueryKey}>('query_invalidation', ({payload: queryKey}) => {
         if (!queryKey) return
         console.log('[Rebase invalidation] received', queryKey)
         queryClient.invalidateQueries({queryKey})
-      },
-      onError: (err) => {
-        console.log('[Rebase invalidation] subscription error', err)
-      },
-    })
+      })
+      .then((cleanup) => {
+        if (disposed) cleanup()
+        else unsubscribe = cleanup
+      })
     return () => {
-      console.log('[Rebase invalidation] unsubscribing from queryInvalidation IPC bridge')
-      sub.unsubscribe()
+      console.log('[Rebase invalidation] unsubscribing from query invalidation IPC bridge')
+      disposed = true
+      unsubscribe?.()
     }
-  }, [showOnboarding])
+  }, [])
 
   let mainContent = showOnboarding ? (
     <>

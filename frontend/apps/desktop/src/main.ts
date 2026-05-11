@@ -30,7 +30,6 @@ import path from 'node:path'
 
 import {dispatchFocusedWindowAppEvent, handleSecondInstance, handleUrlOpen, openInitialWindows, trpc} from './app-api'
 import {grpcClient} from './app-grpc'
-import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
 import {
@@ -471,10 +470,6 @@ function initializeIpcHandlers() {
   })
 
   // Window management handlers
-  ipcMain.on('invalidate_queries', (_event, info) => {
-    appInvalidateQueries(info)
-  })
-
   ipcMain.on('focusedWindowAppEvent', (_event, info) => {
     dispatchFocusedWindowAppEvent(info)
   })

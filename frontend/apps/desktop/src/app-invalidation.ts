@@ -1,7 +1,6 @@
-import {observable} from '@trpc/server/observable'
-import {t} from './app-trpc'
+import {BrowserWindow} from 'electron'
 
-const invalidationHandlers = new Set<(queryKey: any) => void>()
+const QUERY_INVALIDATION_CHANNEL = 'query_invalidation'
 
 const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
 
@@ -9,8 +8,10 @@ let broadcastCount = 0
 let broadcastWindowStart = Date.now()
 const BROADCAST_LOG_WINDOW_MS = 60_000
 
-export function getInvalidationHandlerCount(): number {
-  return invalidationHandlers.size
+export function getInvalidationTargetWindowCount(): number {
+  return BrowserWindow.getAllWindows().filter((window) => {
+    return !window.isDestroyed() && !window.webContents.isDestroyed()
+  }).length
 }
 
 export function appInvalidateQueries(queryKey: any) {
@@ -21,27 +22,19 @@ export function appInvalidateQueries(queryKey: any) {
       const elapsedSec = (now - broadcastWindowStart) / 1000
       const rate = (broadcastCount / elapsedSec).toFixed(2)
       console.log(
-        `[SyncProfile] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(1)}s (${rate}/s) handlers=${
-          invalidationHandlers.size
-        }`,
+        `[SyncProfile] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(
+          1,
+        )}s (${rate}/s) windows=${getInvalidationTargetWindowCount()}`,
       )
       broadcastCount = 0
       broadcastWindowStart = now
     }
     const keyPrefix = Array.isArray(queryKey) ? String(queryKey[0]) : String(queryKey)
-    console.log(`[SyncProfile] invalidate key=${keyPrefix} handlers=${invalidationHandlers.size}`)
+    console.log(`[SyncProfile] invalidate key=${keyPrefix} windows=${getInvalidationTargetWindowCount()}`)
   }
-  invalidationHandlers.forEach((handler) => handler(queryKey))
-}
-
-export const queryInvalidation = t.procedure.subscription(() => {
-  return observable((emit) => {
-    function handler(value: unknown[]) {
-      emit.next(value)
-    }
-    invalidationHandlers.add(handler)
-    return () => {
-      invalidationHandlers.delete(handler)
-    }
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (window.isDestroyed()) return
+    if (window.webContents.isDestroyed()) return
+    window.webContents.send(QUERY_INVALIDATION_CHANNEL, queryKey)
   })
-})
+}

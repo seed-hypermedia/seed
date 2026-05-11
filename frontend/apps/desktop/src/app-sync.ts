@@ -28,7 +28,7 @@ import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
-import {appInvalidateQueries, getInvalidationHandlerCount} from './app-invalidation'
+import {appInvalidateQueries, getInvalidationTargetWindowCount} from './app-invalidation'
 import {t} from './app-trpc'
 
 // ============ Profile instrumentation ============
@@ -242,7 +242,7 @@ function flushInvalidations() {
     profileLog(
       `flushInvalidations: pending=${resources.length} subs=${
         state.subscriptions.size
-      } handlers=${getInvalidationHandlerCount()}`,
+      } windows=${getInvalidationTargetWindowCount()}`,
     )
   }
   timeSync('flushInvalidations', () => {
