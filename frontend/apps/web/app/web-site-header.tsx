@@ -76,7 +76,6 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         isCenterLayout={isCenterLayout}
         items={items}
         homeNavigationItems={homeNavigationItems}
-        directoryItems={[]}
         onBlockFocus={(blockId) => {
           const element = document.getElementById(blockId)
           if (element) {

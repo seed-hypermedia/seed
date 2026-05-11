@@ -122,7 +122,8 @@ describe('EditNavPopover trigger', () => {
     const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: 'Docs', link: 'hm://alice/docs'}])
 
     try {
-      expect(container.textContent?.match(/Add Navigation Item/g)).toHaveLength(1)
+      const trigger = container.querySelector('.no-window-drag')
+      expect(trigger?.textContent).not.toContain('Add Navigation Item')
     } finally {
       cleanup(root, container)
     }

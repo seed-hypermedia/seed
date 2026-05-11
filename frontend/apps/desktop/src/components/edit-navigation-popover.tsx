@@ -36,11 +36,7 @@ export function EditNavPopover({
   editDocNav: (navigation: HMNavigationItem[]) => void
   homeId?: UnpackedHypermediaId
 }) {
-  const popover = usePopoverState(false, (open) => {
-    if (open && docNav.length === 0) {
-      editDocNav([createEmptyNavigationItem()])
-    }
-  })
+  const popover = usePopoverState(false)
   const isEmpty = docNav.length === 0
   return (
     <Popover {...popover}>
@@ -73,10 +69,19 @@ function EditNavigation({
   homeId?: UnpackedHypermediaId
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const didAutoAdd = useRef(false)
   const [isDraggingOverId, setIsDraggingOverId] = useState<string | null>(null)
   const firstBlankItemId = docNav.find((item) => !item.text && !item.link)?.id ?? null
   const [expandedItemId, setExpandedItemId] = useState<string | null>(firstBlankItemId)
   const [autoFocusItemId, setAutoFocusItemId] = useState<string | null>(firstBlankItemId)
+
+  useEffect(() => {
+    if (!didAutoAdd.current && docNav.length === 0) {
+      didAutoAdd.current = true
+      onDocNav([createEmptyNavigationItem()])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -120,11 +125,6 @@ function EditNavigation({
     if (expandedItemId && docNav.some((item) => item.id === expandedItemId)) return
     setExpandedItemId(docNav.find((item) => !item.text && !item.link)?.id ?? null)
   }, [docNav, expandedItemId])
-
-  useEffect(() => {
-    if (!firstBlankItemId || autoFocusItemId) return
-    setAutoFocusItemId(firstBlankItemId)
-  }, [firstBlankItemId, autoFocusItemId])
 
   return (
     <div className="flex flex-col" ref={containerRef}>
@@ -200,14 +200,12 @@ function DraggableNavItem({
   onToggleExpanded: () => void
   autoFocusLabel: boolean
 }) {
+  const cardRef = useRef<HTMLDivElement>(null)
   const dragHandleRef = useRef<HTMLDivElement>(null)
   const isIncomplete = !item.text.trim() || !item.link.trim()
 
   useEffect(() => {
-    if (!dragHandleRef.current) {
-      console.error('Element ref not ready')
-      return
-    }
+    if (!dragHandleRef.current || !cardRef.current) return
 
     const cleanup = combine(
       draggable({
@@ -217,7 +215,7 @@ function DraggableNavItem({
         },
       }),
       dropTargetForElements({
-        element: dragHandleRef.current,
+        element: cardRef.current,
         getData: () => {
           return {id: item.id}
         },
@@ -231,6 +229,7 @@ function DraggableNavItem({
 
   return (
     <div
+      ref={cardRef}
       className={cn(
         'overflow-hidden rounded-lg border border-black/8 bg-white transition-colors dark:border-white/10 dark:bg-black',
         isDraggingOver && 'ring-primary/60 ring-2',

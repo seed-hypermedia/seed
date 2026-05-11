@@ -23,7 +23,6 @@ import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/do
 import {
   useAccount,
   useAccountsMetadata,
-  useDirectory,
   useIsLatest,
   useResource,
   useResources,
@@ -371,13 +370,12 @@ export function ResourcePage({
   // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const homeDirectory = useDirectory(siteHomeId)
   const isLatest = useIsLatest(docId, resource)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+  const headerData = computeHeaderData(siteHomeDocument)
 
   // Comment handling: when resource is a comment, resolve and load its target document.
   // Hooks must be called unconditionally, so we always call useResource for the target
@@ -653,11 +651,7 @@ export interface HeaderData {
   siteHomeDocument: HMDocument | null
 }
 
-export function computeHeaderData(
-  _siteHomeId: UnpackedHypermediaId,
-  siteHomeDocument: HMDocument | null,
-  _directory: ReturnType<typeof useDirectory>['data'],
-): HeaderData {
+export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderData {
   // Top navigation is manual-only for now. If the home document has no
   // explicit `navigation` detached block, the header stays empty rather than
   // inferring items from the document hierarchy.

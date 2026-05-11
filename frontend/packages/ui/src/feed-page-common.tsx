@@ -1,7 +1,7 @@
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {ScrollArea} from './components/scroll-area'
@@ -25,12 +25,11 @@ export interface FeedPageProps {
 export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
   const siteHomeId = hmId(docId.uid)
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const homeDirectory = useDirectory(siteHomeId)
 
   const siteHomeDocument: HMDocument | null =
     siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+  const headerData = computeHeaderData(siteHomeDocument)
 
   const targetDomain = siteHomeDocument?.metadata?.siteUrl || undefined
 
