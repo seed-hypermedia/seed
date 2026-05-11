@@ -638,6 +638,7 @@ export type SiteDocumentPayload = WebResourcePayload & {
   // True when the resource is not available locally and an async discovery
   // task is running. The route renders a shim page that polls for completion.
   discoveryPending?: boolean
+  metadataId: UnpackedHypermediaId
 }
 
 // We have to define our own error type here instead of using the ConnectError type,
@@ -702,6 +703,7 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
     homeMetadata,
     origin,
     originHomeId,
+    metadataId: id,
   }
   const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
   return wrapJSON(cleanDocument)
@@ -710,10 +712,24 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
 export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
-  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+  extraData?: T & {
+    instrumentationCtx?: InstrumentationContext
+    viewTerm?: string | null
+    accountUid?: string | null
+    openComment?: string | null
+  },
 ): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
+  // Profile pages render/load the account root document, but the public
+  // metadata identifies the profile view term addressed by the URL.
+  const metadataId =
+    extraData?.viewTerm === 'profile'
+      ? {
+          ...hmId(extraData.accountUid || id.uid, {version: id.version, latest: id.latest}),
+          id: `hm://${extraData.accountUid || id.uid}/:profile`,
+        }
+      : id
   const noopCtx = {
     enabled: false,
     requestPath: '',
@@ -744,7 +760,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)
     let comment = resourceContent.comment
     let commentAuthorTitle: string | undefined
-    const openCommentId = (extraData as any)?.openComment as string | undefined
+    const openCommentId = extraData?.openComment || undefined
     if (!comment && openCommentId) {
       try {
         comment = (await getComment(openCommentId)) ?? undefined
@@ -761,7 +777,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
 
     // When viewing a profile, prefetch the account data so the client
     // doesn't enter the "discovering" state (web has no discovery service).
-    const accountUid = (extraData as any)?.accountUid as string | undefined
+    const accountUid = extraData?.accountUid || undefined
     let mergedDehydratedState = resourceContent.dehydratedState
     if (accountUid) {
       const profilePrefetchCtx = createPrefetchContext()
@@ -790,11 +806,12 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       homeMetadata,
       origin,
       originHomeId,
+      metadataId,
     }
     // Remove instrumentationCtx from the response
     const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
     const metadata = createResourceMetadata({
-      id: comment ? commentIdToHmId(comment.id) : id,
+      id: comment ? commentIdToHmId(comment.id) : metadataId,
       document: resourceContent.document,
       comment,
       commentAuthorTitle,
@@ -814,6 +831,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
           homeMetadata,
           origin,
           originHomeId,
+          metadataId,
           discoveryPending: true,
           ...cleanExtraData,
         },
@@ -858,6 +876,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         origin,
         originHomeId,
         daemonError,
+        metadataId,
         ...(extraData || {}),
       },
       {status: id ? 200 : 404},

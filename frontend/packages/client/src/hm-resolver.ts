@@ -1,10 +1,17 @@
 import {entityQueryPathToHmIdPath, parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /**
- * A domain resolver function that maps a hostname to an account UID
- * using the daemon's domain store. Returns the UID if cached, or null.
+ * Domain metadata from the daemon's domain store. The string form is kept
+ * for older/simple resolvers that only return an account UID.
  */
-export type DomainResolverFn = (hostname: string) => Promise<string | null>
+export type DomainResolution =
+  | string
+  | {
+      registeredAccountUid: string
+      isGateway?: boolean
+    }
+  | null
+export type DomainResolverFn = (hostname: string) => Promise<DomainResolution>
 
 /**
  * Callback fired when a background domain check detects that a domain
@@ -69,14 +76,14 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   // Try domain resolver first (fast, cached, works offline).
   if (opts?.domainResolver && parsedUrl) {
     try {
-      const uid = await opts.domainResolver(parsedUrl.hostname)
-      if (uid) {
-        return buildResolvedUrlFromDomainUid(parsedUrl, uid, {
-          latest,
-          blockRef,
-          blockRange,
-          panel,
-        })
+      const resolved = await resolveFromDomainResolver(opts.domainResolver, url, parsedUrl, {
+        latest,
+        blockRef,
+        blockRange,
+        panel,
+      })
+      if (resolved) {
+        return resolved
       }
     } catch {
       // Domain resolver failed, fall through to OPTIONS
@@ -92,14 +99,14 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   } catch (error) {
     if (opts?.domainResolver && parsedUrl) {
       try {
-        const uid = await opts.domainResolver(parsedUrl.hostname)
-        if (uid) {
-          return buildResolvedUrlFromDomainUid(parsedUrl, uid, {
-            latest,
-            blockRef,
-            blockRange,
-            panel,
-          })
+        const resolved = await resolveFromDomainResolver(opts.domainResolver, url, parsedUrl, {
+          latest,
+          blockRef,
+          blockRange,
+          panel,
+        })
+        if (resolved) {
+          return resolved
         }
       } catch {
         // Preserve the original fetch error when fallback resolution also fails.
@@ -177,6 +184,41 @@ export async function resolveId(input: string, opts?: ResolveOptions): Promise<U
   }
 
   throw new Error(`Invalid Hypermedia ID: ${input}`)
+}
+
+async function resolveFromDomainResolver(
+  domainResolver: DomainResolverFn,
+  url: string,
+  parsedUrl: URL,
+  opts: {
+    latest: boolean
+    blockRef: string | null
+    blockRange: {start: number; end: number} | {expanded: boolean} | null
+    panel: string | null
+  },
+): Promise<ResolvedUrl | null> {
+  const domainResolution = await domainResolver(parsedUrl.hostname)
+  const uid = typeof domainResolution === 'string' ? domainResolution : domainResolution?.registeredAccountUid ?? null
+  if (!uid) return null
+
+  // Only gateway domains treat /hm/* paths as embedded canonical HM ids;
+  // on ordinary custom domains /hm/... is a normal site path.
+  const isGateway = typeof domainResolution === 'object' && !!domainResolution?.isGateway
+  const gatewayHmId = isGateway && parsedUrl.pathname.startsWith('/hm/') ? unpackHmId(url) : null
+  if (gatewayHmId) {
+    return {
+      id: gatewayHmId.id,
+      hmId: gatewayHmId,
+      version: gatewayHmId.version,
+      title: null,
+      target: null,
+      authors: null,
+      type: null,
+      panel: opts.panel,
+    }
+  }
+
+  return buildResolvedUrlFromDomainUid(parsedUrl, uid, opts)
 }
 
 function buildResolvedUrlFromDomainUid(

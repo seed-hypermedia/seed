@@ -26,11 +26,12 @@ import {
   printInstrumentationSummary,
   startSpan,
 } from './instrumentation.server'
+import {getRequestResourceIds} from './hypermedia-id'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
-import {extractCommentId, getHmIdOfRequest, parseResourceExportPath} from './resource-export-path'
+import {extractCommentId, parseResourceExportPath} from './resource-export-path'
 import {EXPOSED_HYPERMEDIA_HEADERS, handleResourceExportRequest} from './resource-export.server'
 import {getOrCreateServerSignerAccountUid} from './server-signing'
 import {applyConfigSubscriptions, getConfig} from './site-config.server'
@@ -165,12 +166,18 @@ async function handleOptionsRequest(request: Request) {
       }
     }
 
-    // Document URL
-    const resourceId = getHmIdOfRequest({...parsedRequest, pathParts}, originAccountId)
-    if (resourceId) {
-      const resource = await resolveResource(resourceId)
+    // Document URL. Rebuild the URL from the export-stripped path parts so
+    // .md/.json preflights resolve the same resource as their GET.
+    const resourceUrl = new URL(parsedRequest.url)
+    resourceUrl.pathname = '/' + pathParts.join('/')
+    const resourceIds = getRequestResourceIds(resourceUrl, originAccountId)
+    if (resourceIds) {
+      const resource = await resolveResource(resourceIds.loadResourceId)
       if (resource.type === 'document') {
-        Object.assign(headers, metadataToHeaders(createResourceMetadata({id: resourceId, document: resource.document})))
+        Object.assign(
+          headers,
+          metadataToHeaders(createResourceMetadata({id: resourceIds.publicMetadataId, document: resource.document})),
+        )
       }
       return new Response(null, {status: 200, headers})
     }

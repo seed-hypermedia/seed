@@ -1,3 +1,4 @@
+import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -74,7 +75,7 @@ export function useCommentEditor(
   // Resolver that maps a hostname (e.g. eric.vicenti.net) to its Seed account UID.
   // Required so URLs pasted into embed/link inputs inside a comment can be
   // resolved to hm:// references instead of erroring as "not a hypermedia link".
-  domainResolver?: (hostname: string) => Promise<string | null>,
+  domainResolver?: DomainResolverFn,
   disableTrailingNode?: boolean,
   submitOnEnter?: boolean,
 ) {
@@ -358,7 +359,7 @@ export function CommentEditor({
   submitOnEnter?: boolean
   /** Optional resolver that maps a hostname to a Seed account UID, used when
    * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
-  domainResolver?: (hostname: string) => Promise<string | null>
+  domainResolver?: DomainResolverFn
   universalClient?: UniversalClient
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)

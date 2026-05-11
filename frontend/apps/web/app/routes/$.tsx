@@ -74,6 +74,27 @@ type InspectIpfsPayload = {
 
 type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
 
+function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
+  return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
+}
+
+function getInspectTab(value: string | null): InspectTab | null {
+  switch (value) {
+    case 'document':
+    case 'changes':
+    case 'versions':
+    case 'comments':
+    case 'citations':
+    case 'children':
+    case 'authored-comments':
+    case 'contacts':
+    case 'capabilities':
+      return value
+    default:
+      return null
+  }
+}
+
 /**
  * Extract view term from path parts and return cleaned path + view term
  * e.g., ['docs', ':activity'] -> {path: ['docs'], viewTerm: 'activity'}
@@ -195,7 +216,7 @@ export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): 
       : []
   }
   const metadata = createResourceMetadata({
-    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.id,
+    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.metadataId,
     document: siteDocument.document,
     comment: siteDocument.comment,
   })
@@ -401,7 +422,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     openComment,
     accountUid,
     isInspect,
-    inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
+    inspectTab: isInspect ? getInspectTab(inspectTab) : null,
     instrumentationCtx: ctx,
   }
 
@@ -440,7 +461,7 @@ export default function UnifiedDocumentPage() {
   if ('kind' in data && data.kind === 'site-settings-emails') {
     return <SiteSettingsEmailsScreen payload={data} />
   }
-  if ('kind' in data && data.kind === 'inspect-ipfs') {
+  if (isInspectIpfsPayload(data)) {
     return (
       <WebSiteProvider
         originHomeId={data.originHomeId}
@@ -451,7 +472,7 @@ export default function UnifiedDocumentPage() {
       </WebSiteProvider>
     )
   }
-  const siteData = data as ExtendedSitePayload
+  const siteData: ExtendedSitePayload = data
 
   // The resource isn't available locally yet; discovery is running in the
   // background. Render a fast shim page that polls until it arrives.
