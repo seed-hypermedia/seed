@@ -1634,6 +1634,7 @@ export const HMDomainInfoSchema = z.object({
   lastSuccess: z.date().nullable(),
   registeredAccountUid: z.string().nullable(),
   peerId: z.string().nullable(),
+  isGateway: z.boolean(),
   lastError: z.string().nullable(),
 })
 export type HMDomainInfo = z.infer<typeof HMDomainInfoSchema>

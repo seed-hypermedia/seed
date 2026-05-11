@@ -29,6 +29,7 @@ import {
   printInstrumentationSummary,
   startSpan,
 } from './instrumentation.server'
+import {getRequestResourceIds} from './hypermedia-id'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
@@ -236,29 +237,8 @@ function extractCommentId(pathParts: string[]): string | null {
   return null
 }
 
-function stripInspectPrefix(pathParts: string[]): string[] {
-  if (pathParts[0] === 'hm' && pathParts[1] === 'inspect') {
-    return ['hm', ...pathParts.slice(2)]
-  }
-  if (pathParts[0] === 'inspect') {
-    return pathParts.slice(1)
-  }
-  return pathParts
-}
-
-function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
-  const effectivePathParts = stripInspectPrefix(pathParts)
-  const version = url.searchParams.get('v')
-  const latest = url.searchParams.get('l') === '' || !version
-  if (effectivePathParts.length === 0) {
-    if (!originAccountId) return null
-    return hmId(originAccountId, {path: [], version, latest})
-  }
-  if (effectivePathParts[0] === 'hm') {
-    return hmId(effectivePathParts[1], {path: effectivePathParts.slice(2), version, latest})
-  }
-  if (!originAccountId) return null
-  return hmId(originAccountId, {path: effectivePathParts, version, latest})
+function getHmIdsOfRequest({url}: ParsedRequest, originAccountId: string | undefined) {
+  return getRequestResourceIds(url, originAccountId)
 }
 
 async function handleOptionsRequest(request: Request) {
@@ -313,11 +293,14 @@ async function handleOptionsRequest(request: Request) {
     }
 
     // Document URL
-    const resourceId = getHmIdOfRequest(parsedRequest, originAccountId)
-    if (resourceId) {
-      const resource = await resolveResource(resourceId)
+    const resourceIds = getHmIdsOfRequest(parsedRequest, originAccountId)
+    if (resourceIds) {
+      const resource = await resolveResource(resourceIds.loadResourceId)
       if (resource.type === 'document') {
-        Object.assign(headers, metadataToHeaders(createResourceMetadata({id: resourceId, document: resource.document})))
+        Object.assign(
+          headers,
+          metadataToHeaders(createResourceMetadata({id: resourceIds.publicMetadataId, document: resource.document})),
+        )
       }
       return new Response(null, {status: 200, headers})
     }

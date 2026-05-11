@@ -104,6 +104,7 @@ func domainEntryToProto(e blob.DomainEntry) *daemon.DomainInfo {
 	if e.LastConfig != nil {
 		info.RegisteredAccountUid = e.LastConfig.RegisteredAccountUID
 		info.PeerId = e.LastConfig.PeerID
+		info.IsGateway = e.LastConfig.IsGateway
 	}
 
 	return info

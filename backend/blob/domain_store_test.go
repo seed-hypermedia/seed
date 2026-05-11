@@ -14,6 +14,53 @@ import (
 	"go.uber.org/zap"
 )
 
+func TestDomainStoreSavesGatewayFlagFromConfig(t *testing.T) {
+	db := storage.MakeTestMemoryDB(t)
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/hm/api/config" {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"peerId":"12D3KooWQj83ZdXN7WzdT6Th5uN7ggdYMTCh14uASZzfG4U3VwGa","addrs":[],"registeredAccountUid":"z6Mkgateway","isGateway":true}`))
+	}))
+	defer server.Close()
+
+	resolver := newSitePeerResolver(1, time.Minute)
+	client := server.Client()
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+
+	serverAddr := server.Listener.Addr().String()
+	transport = transport.Clone()
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, network, serverAddr)
+	}
+	resolver.client = &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}
+
+	ds := NewDomainStore(db, resolver, zap.NewNop())
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
+
+	entry, err := ds.CheckDomain(context.Background(), "127.0.0.1")
+	require.NoError(t, err)
+	require.Equal(t, "success", entry.LastStatus)
+	require.NotNil(t, entry.LastConfig)
+	require.True(t, entry.LastConfig.IsGateway)
+
+	cached, err := ds.GetDomain(context.Background(), "127.0.0.1")
+	require.NoError(t, err)
+	require.NotNil(t, cached.LastConfig)
+	require.True(t, cached.LastConfig.IsGateway)
+}
+
 func TestDomainStoreCloseCancelsBackgroundChecks(t *testing.T) {
 	db := storage.MakeTestMemoryDB(t)
 

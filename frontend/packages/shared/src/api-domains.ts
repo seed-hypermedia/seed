@@ -17,6 +17,7 @@ function domainInfoFromProto(info: any): HMDomainInfo {
     lastSuccess: info.lastSuccess?.toDate() ?? null,
     registeredAccountUid: info.registeredAccountUid || null,
     peerId: info.peerId || null,
+    isGateway: !!info.isGateway,
     lastError: info.lastError || null,
   }
 }

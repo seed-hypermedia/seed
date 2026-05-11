@@ -473,4 +473,7 @@ message DomainInfo {
 
   // Error details from the last failed check.
   string last_error = 7;
+
+  // Whether the domain is a public gateway that serves canonical /hm/* URLs.
+  bool is_gateway = 8;
 }

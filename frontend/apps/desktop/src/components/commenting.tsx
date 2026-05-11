@@ -1,6 +1,7 @@
 import {useCommentDraft} from '@/models/comments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {domainResolver, grpcClient} from '@/app-grpc'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
@@ -340,6 +341,14 @@ function _CommentBox(props: {
     }
   }, [])
 
+  const linkExtensionOptions = useMemo(
+    () => ({
+      grpcClient,
+      domainResolver,
+    }),
+    [],
+  )
+
   if (draft.isInitialLoading) return null
 
   if (!account) {
@@ -358,6 +367,7 @@ function _CommentBox(props: {
       initialBlocks={draft.data?.blocks}
       onContentChange={handleContentChange}
       handleFileAttachment={handleFileAttachment}
+      linkExtensionOptions={linkExtensionOptions}
       account={{
         id: account.id,
         metadata: account.metadata,
@@ -409,6 +419,14 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
     return {url: props.url, displaySrc: ''}
   }, [])
 
+  const linkExtensionOptions = useMemo(
+    () => ({
+      grpcClient,
+      domainResolver,
+    }),
+    [],
+  )
+
   const handleSubmit = useCallback(
     async (
       getContent: (
@@ -433,6 +451,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
         handleFileAttachment={handleFileAttachment}
+        linkExtensionOptions={linkExtensionOptions}
         account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}
         submitButton={({getContent, reset}) => (
