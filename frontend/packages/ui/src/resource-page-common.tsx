@@ -23,7 +23,6 @@ import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/do
 import {
   useAccount,
   useAccountsMetadata,
-  useDirectory,
   useIsLatest,
   useResource,
   useResources,
@@ -92,7 +91,7 @@ import {
   DocNavigationItem,
   DocNavigationWrapper,
   DocumentOutline,
-  getSiteNavDirectory,
+  isValidSiteHeaderItem,
   useNodesOutline,
 } from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
@@ -371,13 +370,12 @@ export function ResourcePage({
   // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const homeDirectory = useDirectory(siteHomeId)
   const isLatest = useIsLatest(docId, resource)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+  const headerData = computeHeaderData(siteHomeDocument)
 
   // Comment handling: when resource is a comment, resolve and load its target document.
   // Hooks must be called unconditionally, so we always call useResource for the target
@@ -653,12 +651,10 @@ export interface HeaderData {
   siteHomeDocument: HMDocument | null
 }
 
-export function computeHeaderData(
-  siteHomeId: UnpackedHypermediaId,
-  siteHomeDocument: HMDocument | null,
-  directory: ReturnType<typeof useDirectory>['data'],
-): HeaderData {
-  // Compute navigation items from home document's navigation block
+export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderData {
+  // Top navigation is manual-only for now. If the home document has no
+  // explicit `navigation` detached block, the header stays empty rather than
+  // inferring items from the document hierarchy.
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
@@ -675,27 +671,17 @@ export function computeHeaderData(
             webUrl: id ? undefined : linkBlock.link,
           } as DocNavigationItem
         })
-        .filter((item): item is DocNavigationItem => item !== null) ?? []
+        .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
     : []
-
-  // Site-header fallback must NEVER include private documents — even for editors
-  // who can otherwise see them. Editors who want a private doc in the nav must
-  // add it explicitly to the home document's `navigation` detached block.
-  const directoryItems = getSiteNavDirectory({
-    id: siteHomeId,
-    directory: directory ?? undefined,
-  })
-
-  const items = homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
 
   const isCenterLayout =
     siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
     siteHomeDocument?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
   return {
-    items,
+    items: homeNavigationItems,
     homeNavigationItems,
-    directoryItems,
+    directoryItems: [],
     isCenterLayout,
     siteHomeDocument,
   }
@@ -737,17 +723,19 @@ export function PageWrapper({
   const isHomeDoc = !docId.path?.length
   const liveItems: DocNavigationItem[] | undefined =
     isHomeDoc && machineNav
-      ? machineNav.map((n) => {
-          const id = unpackHmId(n.link)
-          return {
-            key: n.id,
-            id: id ?? undefined,
-            webUrl: id ? undefined : n.link,
-            draftId: undefined,
-            metadata: {name: n.text || ''},
-            isPublished: true,
-          } satisfies DocNavigationItem
-        })
+      ? machineNav
+          .map((n) => {
+            const id = unpackHmId(n.link)
+            return {
+              key: n.id,
+              id: id ?? undefined,
+              webUrl: id ? undefined : n.link,
+              draftId: undefined,
+              metadata: {name: n.text || ''},
+              isPublished: true,
+            } satisfies DocNavigationItem
+          })
+          .filter(isValidSiteHeaderItem)
       : undefined
   const itemsForHeader = liveItems ?? headerData.items
 

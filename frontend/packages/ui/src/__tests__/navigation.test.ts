@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getSiteNavDirectory} from '../navigation'
+import {getSiteNavDirectory, isValidSiteHeaderItem} from '../navigation'
 
 function makeId(uid: string, path?: string[]): UnpackedHypermediaId {
   return {
@@ -145,5 +145,36 @@ describe('getSiteNavDirectory', () => {
     const result = getSiteNavDirectory({id: homeId, directory})
 
     expect(result[0]!.visibility).toBe('PUBLIC')
+  })
+})
+
+describe('isValidSiteHeaderItem', () => {
+  it('accepts labeled items with a document destination', () => {
+    expect(
+      isValidSiteHeaderItem({
+        key: 'docs',
+        metadata: {name: 'Docs'},
+        id: makeId('alice', ['docs']),
+      }),
+    ).toBe(true)
+  })
+
+  it('rejects items without a visible label', () => {
+    expect(
+      isValidSiteHeaderItem({
+        key: 'untitled',
+        metadata: {name: ''},
+        id: makeId('alice', ['docs']),
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects items without a destination', () => {
+    expect(
+      isValidSiteHeaderItem({
+        key: 'empty-link',
+        metadata: {name: 'Docs'},
+      }),
+    ).toBe(false)
   })
 })
