@@ -8,6 +8,7 @@ import {grpcClient, markGRPCReady} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
+import {forceKillChildProcess} from './win32-process'
 
 const quietNodeLogs = process.env.QUIET_NODE_LOGS === 'true'
 
@@ -174,7 +175,13 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
   app.addListener('will-quit', () => {
     log.debug('App will quit')
     expectingDaemonClose = true
-    daemonProcess.kill()
+    const daemon = currentDaemonProcess
+    if (!daemon || daemon.killed) return
+    if (process.platform === 'win32') {
+      forceKillChildProcess(daemon)
+    } else {
+      daemon.kill()
+    }
   })
 
   await tryUntilSuccess(
@@ -271,7 +278,12 @@ export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Pro
   // Kill the current daemon process
   if (currentDaemonProcess) {
     expectingDaemonClose = true
-    currentDaemonProcess.kill()
+
+    if (process.platform === 'win32') {
+      forceKillChildProcess(currentDaemonProcess)
+    } else {
+      currentDaemonProcess.kill()
+    }
 
     // Wait for the process to actually close
     await new Promise<void>((resolve) => {
@@ -390,4 +402,47 @@ export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Pro
   )
 
   log.info('Daemon restart complete', {embeddingEnabled})
+}
+
+/**
+ * Shuts down the daemon process, ensuring it's properly terminated before an update.
+ * On Windows this uses taskkill /F /T to force-kill the entire process tree.
+ * Returns after the process has closed or a timeout is reached.
+ */
+export async function shutdownDaemonForUpdate(): Promise<void> {
+  if (!currentDaemonProcess || currentDaemonProcess.killed) {
+    log.info('[DAEMON] No running daemon to shut down for update')
+    return
+  }
+
+  log.info('[DAEMON] Shutting down daemon for update')
+  expectingDaemonClose = true
+
+  if (process.platform === 'win32') {
+    log.info('[DAEMON] Windows: force-killing daemon process tree')
+    await forceKillChildProcess(currentDaemonProcess)
+  } else {
+    currentDaemonProcess.kill()
+  }
+
+  await new Promise<void>((resolve) => {
+    if (!currentDaemonProcess) {
+      resolve()
+      return
+    }
+    const proc = currentDaemonProcess
+    const onClose = () => {
+      proc.removeListener('close', onClose)
+      log.info('[DAEMON] Daemon process closed after update shutdown')
+      resolve()
+    }
+    proc.on('close', onClose)
+    setTimeout(() => {
+      proc.removeListener('close', onClose)
+      log.warn('[DAEMON] Timeout waiting for daemon to close during update shutdown')
+      resolve()
+    }, 5000)
+  })
+
+  currentDaemonProcess = null
 }
