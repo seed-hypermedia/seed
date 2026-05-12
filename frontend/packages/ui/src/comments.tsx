@@ -120,7 +120,8 @@ export function CommentDiscussions({
     return null
   }, [commentsService.data?.comments, commentId, commentResource.data])
 
-  const isDeletedComment = !focusedComment && (commentResource.isTombstone || commentResource.data?.type === 'tombstone')
+  const isDeletedComment =
+    !focusedComment && (commentResource.isTombstone || commentResource.data?.type === 'tombstone')
 
   // On desktop, fetch version history for deleted comments so we can show their content
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
@@ -130,7 +131,7 @@ export function CommentDiscussions({
     resourceType: commentResource.data?.type ?? null,
     isResourceTombstone: commentResource.isTombstone,
     isResourceLoading: commentResource.isFetching || (commentResource.isLoading && !commentResource.data),
-    showDeletedContent,
+    showDeletedContent: !!showDeletedContent,
     hasDeletedVersion: !!deletedLastVersion,
     isDeletedVersionsLoading: deletedVersions.isLoading,
   })
@@ -182,7 +183,10 @@ export function CommentDiscussions({
     )
   }
 
-  if (focusedCommentViewState === 'deleted-loading' || focusedCommentViewState === 'loading') {
+  if (
+    focusedCommentViewState === 'deleted-loading' ||
+    focusedCommentViewState === 'loading'
+  ) {
     return (
       <SelectionContent>
         <div className="flex items-center justify-center p-4">
