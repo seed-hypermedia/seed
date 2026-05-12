@@ -46,6 +46,7 @@ import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import {SelectionContent} from './accessories'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
+import {getFocusedCommentViewState} from './comment-discussion-state'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
@@ -109,17 +110,30 @@ export function CommentDiscussions({
 
   const {showDeletedContent} = useCommentsServiceContext()
 
-  const commentFound = commentsService.data?.comments?.some((c) => c.id === commentId)
-
-  // On desktop, fetch version history for deleted comments so we can show their content
-  const shouldFetchDeletedVersions = showDeletedContent && !commentFound && !!commentsService.data && !!commentId
-  const deletedVersions = useCommentVersions(shouldFetchDeletedVersions ? commentId : null)
+  const commentResource = useResource(commentIdToHmId(commentId), {subscribed: true})
 
   // Find the actual focused comment
   const focusedComment = useMemo(() => {
-    if (!commentsService.data?.comments) return null
-    return commentsService.data.comments.find((c) => c.id === commentId)
-  }, [commentsService.data?.comments, commentId])
+    const listedComment = commentsService.data?.comments?.find((c) => c.id === commentId)
+    if (listedComment) return listedComment
+    if (commentResource.data?.type === 'comment') return commentResource.data.comment
+    return null
+  }, [commentsService.data?.comments, commentId, commentResource.data])
+
+  const isDeletedComment = !focusedComment && (commentResource.isTombstone || commentResource.data?.type === 'tombstone')
+
+  // On desktop, fetch version history for deleted comments so we can show their content
+  const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
+  const deletedLastVersion = deletedVersions.data?.versions?.[0]
+  const focusedCommentViewState = getFocusedCommentViewState({
+    hasFocusedComment: !!focusedComment,
+    resourceType: commentResource.data?.type ?? null,
+    isResourceTombstone: commentResource.isTombstone,
+    isResourceLoading: commentResource.isFetching || (commentResource.isLoading && !commentResource.data),
+    showDeletedContent,
+    hasDeletedVersion: !!deletedLastVersion,
+    isDeletedVersionsLoading: deletedVersions.isLoading,
+  })
 
   // Render parent thread after initial load and adjust scroll
   useLayoutEffect(() => {
@@ -158,23 +172,34 @@ export function CommentDiscussions({
     )
   }
 
-  if (!commentFound && commentsService.data) {
-    // On desktop, show the pre-deletion content if version history is available
-    const deletedLastVersion = deletedVersions.data?.versions?.[0]
-    if (showDeletedContent && deletedLastVersion) {
+  if (focusedCommentViewState === 'deleted-preview') {
+    return (
+      <SelectionContent>
+        <div className="p-2">
+          <DeletedCommentPreview comment={deletedLastVersion!} />
+        </div>
+      </SelectionContent>
+    )
+  }
+
+  if (focusedCommentViewState === 'deleted-loading' || focusedCommentViewState === 'loading') {
+    return (
+      <SelectionContent>
+        <div className="flex items-center justify-center p-4">
+          <Spinner />
+        </div>
+      </SelectionContent>
+    )
+  }
+
+  if (!focusedComment && commentsService.data) {
+    if (focusedCommentViewState === 'deleted') {
       return (
         <SelectionContent>
-          <div className="p-2">
-            <DeletedCommentPreview comment={deletedLastVersion} />
-          </div>
-        </SelectionContent>
-      )
-    }
-    if (showDeletedContent && deletedVersions.isLoading) {
-      return (
-        <SelectionContent>
-          <div className="flex items-center justify-center p-4">
-            <Spinner />
+          <div className="flex flex-col items-center gap-2 p-4">
+            <SizableText color="muted" size="sm">
+              This comment was deleted.
+            </SizableText>
           </div>
         </SelectionContent>
       )
@@ -183,7 +208,7 @@ export function CommentDiscussions({
       <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
-            This comment could not be found. It may have been deleted.
+            This comment could not be found.
           </SizableText>
         </div>
       </SelectionContent>
