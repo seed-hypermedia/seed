@@ -581,12 +581,7 @@ function SearchUI({
           const isSelected = normalizedFocusedIndex === itemIndex
 
           return (
-            <div
-              key={item.key}
-              data-nav-link-result="true"
-              tabIndex={-1}
-              onMouseDown={(e) => e.preventDefault()}
-            >
+            <div key={item.key} data-nav-link-result="true" tabIndex={-1} onMouseDown={(e) => e.preventDefault()}>
               <SearchResultItem
                 item={{
                   ...item,
