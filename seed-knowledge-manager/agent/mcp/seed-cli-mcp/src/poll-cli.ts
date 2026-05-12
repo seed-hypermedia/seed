@@ -132,6 +132,17 @@ async function main(): Promise<void> {
     let placeholdersPosted = 0
     let skippedNotAllowed = 0
     let exhaustedBudget = false
+    // Thread-reply mentions deferred to a direct-reply pass (no placeholder).
+    // Workaround for seed-cli bug: `--reply` uses `parentComment.threadRoot`
+    // (RecordID) instead of `parentComment.threadRootVersion` (CID), so
+    // `CID.parse()` fails with "Non-base58btc character" for any parent that
+    // is itself a threaded reply. The placeholder→edit flow makes this worse
+    // because the edited placeholder becomes an ancestor with a threadRoot,
+    // breaking all subsequent `--reply` calls in the chain. Skipping the
+    // placeholder avoids introducing an edited comment into the chain.
+    // Upstream fix tracked in .ai/seed-cli-reply-chain-fix.md — once seed-cli
+    // is patched, thread-replies can use the placeholder→edit flow.
+    const deferredThreadReplies: Array<{mention: Mention; mid: string}> = []
     const blocked = new Set(g.rules.moderation.blockedAuthors)
     const siteAccount = config.seedSite.replace(/^hm:\/\//, '').split('/')[0]!
 
@@ -208,6 +219,7 @@ async function main(): Promise<void> {
       // to it.
       const evidence = findKmMentionInComment(comment, [kmAccountId, siteAccount])
       let mention: Mention | null = null
+      let threadReplyAncestor: string | undefined
       if (evidence) {
         mention = buildCommentMention(comment, evidence, candidate.ts)
       } else if (comment.replyParent) {
@@ -222,17 +234,7 @@ async function main(): Promise<void> {
         })
         if (hit) {
           mention = buildThreadReplyMention(comment, candidate.ts)
-          audit.trace({
-            ts: nowIso(),
-            level: 'info',
-            event: 'mention_via_thread_reply',
-            data: {
-              commentId: comment.id,
-              ancestorCommentId: hit.ancestorCommentId,
-              docId: mention.docId,
-              author: mention.author,
-            },
-          })
+          threadReplyAncestor = hit.ancestorCommentId
         }
       }
       if (!mention) continue
@@ -243,6 +245,23 @@ async function main(): Promise<void> {
       // so wrote thousands of duplicate "not-allowed" lines into
       // processed.jsonl when an unprivileged author kept mentioning the agent.
       if (state.isProcessed(mid) || state.hasPlaceholderFor(mid)) continue
+
+      // Audit event for thread-reply trigger (after idempotency to avoid
+      // spamming the log every poll cycle for already-handled comments).
+      if (threadReplyAncestor) {
+        audit.trace({
+          ts: nowIso(),
+          level: 'info',
+          event: 'mention_via_thread_reply',
+          data: {
+            commentId: comment.id,
+            ancestorCommentId: threadReplyAncestor,
+            docId: mention.docId,
+            author: mention.author,
+          },
+        })
+      }
+
       if (ENFORCE_INVOKER_GATE) {
         const principal = await resolvePrincipal(mention.author)
         if (!writers.has(mention.author) && !writers.has(principal)) {
@@ -258,7 +277,7 @@ async function main(): Promise<void> {
         }
       }
 
-      // Per-day cap: a placeholder counts as a comment.
+      // Per-day cap: counts whether it's a placeholder or direct reply.
       const rs = state.getRateState()
       const capCheck = checkCap(rs, 'comments', g.rules)
       if (!capCheck.allowed) {
@@ -270,6 +289,15 @@ async function main(): Promise<void> {
         })
         break
       }
+
+      // Thread-reply mentions skip the placeholder→edit flow and are
+      // deferred to a direct-reply pass (see comment at deferredThreadReplies).
+      if (mention.triggerSource === 'thread-reply') {
+        deferredThreadReplies.push({mention, mid})
+        state.setRateState(bump(rs, 'comments'))
+        continue
+      }
+
       const placeholderId = await postPlaceholder(cli, mention, audit)
       if (!placeholderId) continue
       state.recordPlaceholder({
@@ -364,6 +392,67 @@ async function main(): Promise<void> {
       }
     }
 
+    // ── PASS C: direct replies for thread-reply mentions (no placeholder). ──
+    //
+    // Thread-reply mentions skip the placeholder→edit dance to avoid
+    // inserting an edited comment into the reply chain. seed-cli's
+    // `--reply` breaks when the parent chain contains an edited comment
+    // (uses threadRoot RecordID instead of CID). We draft the full reply
+    // first, then post it as a single `comment create`.
+    //
+    // Upstream fix: .ai/seed-cli-reply-chain-fix.md — once seed-cli is
+    // patched, this pass can be removed and thread-replies can rejoin the
+    // placeholder→edit flow in Pass A/B.
+    let directReplied = 0
+    for (const {mention} of deferredThreadReplies) {
+      const question = mention.text.replace(/￼/g, ' ').trim()
+      const context = await gatherCommentReplyContext({cli, mention, siteAccount, audit})
+      const reply = await draftReply(question, context, audit)
+      const body = reply ?? FALLBACK_BODY
+      const target = buildReplyTarget(mention)
+      const argv = ['comment', 'create', target.targetId, '--body', body]
+      if (target.replyTo) argv.push('--reply', target.replyTo)
+      let r = await cli.runWrite(argv)
+      // Same seed-cli fallback as postPlaceholder: if --reply fails on
+      // a threaded parent, drop to a top-level comment.
+      if (r.exitCode !== 0 && target.replyTo && /non-base58btc/i.test(r.stderr)) {
+        audit.trace({
+          ts: nowIso(),
+          level: 'warn',
+          event: 'direct_reply_threading_fallback',
+          data: {commentId: mention.commentId, replyTo: target.replyTo, stderr: r.stderr.slice(0, 200)},
+        })
+        r = await cli.runWrite(['comment', 'create', target.targetId, '--body', body])
+      }
+      if (r.exitCode === 0) {
+        state.markProcessed(mention, audit.meta.runId, reply ? 'replied' : 'error')
+        audit.trace({
+          ts: nowIso(),
+          level: 'info',
+          event: reply ? 'direct_reply_posted' : 'direct_reply_posted_with_fallback',
+          data: {
+            commentId: mention.commentId,
+            docId: mention.docId,
+            replyPreview: body.slice(0, 200),
+          },
+        })
+        directReplied++
+      } else {
+        state.markProcessed(mention, audit.meta.runId, 'error')
+        audit.trace({
+          ts: nowIso(),
+          level: 'error',
+          event: 'direct_reply_failed',
+          data: {
+            commentId: mention.commentId,
+            exitCode: r.exitCode,
+            stderr: r.stderr.slice(0, 200),
+          },
+        })
+        errored++
+      }
+    }
+
     audit.trace({
       ts: nowIso(),
       level: 'info',
@@ -374,6 +463,7 @@ async function main(): Promise<void> {
         placeholdersPosted,
         skippedNotAllowed,
         finalised,
+        directReplied,
         errored,
         exhaustedBudget,
       },
