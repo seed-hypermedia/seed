@@ -1,8 +1,15 @@
-import React from 'react'
+import React, {useState} from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {describe, expect, it, vi} from 'vitest'
 import type {HMNavigationItem} from '@seed-hypermedia/client/hm-types'
+import {afterEach, describe, expect, it, vi} from 'vitest'
+
+const {packHmIdMock, resolveHypermediaUrlMock, useDirectoryMock, useSearchMock} = vi.hoisted(() => ({
+  packHmIdMock: vi.fn((id: {uid: string; path?: string[]}) => `hm://${id.uid}/${id.path?.join('/') || ''}`),
+  resolveHypermediaUrlMock: vi.fn(),
+  useDirectoryMock: vi.fn(() => ({data: []})),
+  useSearchMock: vi.fn(() => ({data: {entities: []}})),
+}))
 
 vi.mock('@atlaskit/pragmatic-drag-and-drop/combine', () => ({
   combine:
@@ -18,7 +25,7 @@ vi.mock('@atlaskit/pragmatic-drag-and-drop/element/adapter', () => ({
 }))
 
 vi.mock('@shm/shared', () => ({
-  packHmId: vi.fn(),
+  packHmId: packHmIdMock,
   unpackHmId: vi.fn((value: string) => {
     if (!value.startsWith('hm://')) return null
     const [, rest] = value.split('hm://')
@@ -27,16 +34,16 @@ vi.mock('@shm/shared', () => ({
       path: segments.slice(1),
     }
   }),
-  useSearch: vi.fn(() => ({data: {entities: []}})),
+  useSearch: useSearchMock,
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
-  useDirectory: vi.fn(() => ({data: []})),
+  useDirectory: useDirectoryMock,
   useResource: vi.fn(() => ({data: null})),
 }))
 
 vi.mock('@seed-hypermedia/client', () => ({
-  resolveHypermediaUrl: vi.fn(),
+  resolveHypermediaUrl: resolveHypermediaUrlMock,
 }))
 
 vi.mock('@shm/ui/button', () => ({
@@ -63,7 +70,11 @@ vi.mock('@shm/ui/forms', () => ({
 }))
 
 vi.mock('@shm/ui/search', () => ({
-  SearchResultItem: ({item}: any) => <div>{item.title}</div>,
+  SearchResultItem: ({item}: any) => (
+    <button type="button" data-search-result={item.title} onClick={() => item.onSelect?.()}>
+      {item.title}
+    </button>
+  ),
 }))
 
 vi.mock('@shm/ui/spinner', () => ({
@@ -87,13 +98,18 @@ vi.mock('lucide-react', () => ({
 import {EditNavPopover} from '../edit-navigation-popover'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
+function TestHarness({initialDocNav}: {initialDocNav: HMNavigationItem[]}) {
+  const [docNav, setDocNav] = useState(initialDocNav)
+  return <EditNavPopover docNav={docNav} editDocNav={setDocNav} />
+}
+
 function renderPopover(docNav: HMNavigationItem[]) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
 
   act(() => {
-    root.render(<EditNavPopover docNav={docNav} editDocNav={vi.fn()} />)
+    root.render(<TestHarness initialDocNav={docNav} />)
   })
 
   return {container, root}
@@ -105,6 +121,21 @@ function cleanup(root: Root, container: HTMLDivElement) {
   })
   container.remove()
 }
+
+function setInputValue(input: HTMLInputElement, value: string) {
+  act(() => {
+    input.value = value
+    input.dispatchEvent(new Event('input', {bubbles: true}))
+  })
+}
+
+afterEach(() => {
+  useSearchMock.mockReset()
+  useSearchMock.mockReturnValue({data: {entities: []}})
+  useDirectoryMock.mockReset()
+  useDirectoryMock.mockReturnValue({data: []})
+  resolveHypermediaUrlMock.mockReset()
+})
 
 describe('EditNavPopover trigger', () => {
   it('shows the empty-state CTA when navigation has no items', () => {
@@ -129,7 +160,7 @@ describe('EditNavPopover trigger', () => {
     }
   })
 
-  it('shows inline item fields inside the same popover surface for a new item', () => {
+  it('shows editable link and label inputs for a new item', () => {
     const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
 
     try {
@@ -138,27 +169,90 @@ describe('EditNavPopover trigger', () => {
       expect(container.textContent).toContain('Incomplete')
       expect(container.textContent).toContain('Link')
       expect(container.textContent).toContain('Label')
-      expect(container.textContent).toContain('Select document or paste URL')
+      expect(container.querySelector('input[placeholder="Search documents or paste URL"]')).not.toBeNull()
       expect(container.textContent!.indexOf('Link')).toBeLessThan(container.textContent!.indexOf('Label'))
     } finally {
       cleanup(root, container)
     }
   })
 
-  it('shows only the document path in the link field for hm links', () => {
+  it('shows only the document path in the link input for hm links', () => {
     const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: 'Docs', link: 'hm://alice/docs'}])
 
     try {
-      const trigger = Array.from(container.querySelectorAll('button')).find(
-        (button) => button.textContent?.includes('Docs'),
-      )
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement | null
+      expect(linkInput?.value).toBe('/docs')
+      expect(container.textContent).not.toContain('hm://alice/docs')
+    } finally {
+      cleanup(root, container)
+    }
+  })
 
-      act(() => {
-        trigger?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+  it('updates link and label when a document search result is selected', async () => {
+    useSearchMock.mockImplementation((query: string) => ({
+      data: {
+        entities:
+          query === 'Shared'
+            ? [
+                {
+                  id: {uid: 'alice', path: ['shared-meaning']},
+                  title: 'Shared Meaning',
+                  parentNames: ['Notes'],
+                  icon: null,
+                  searchQuery: query,
+                  versionTime: '',
+                },
+              ]
+            : [],
+      },
+    }))
+
+    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
+
+    try {
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link..."]') as HTMLInputElement
+
+      await act(async () => {
+        linkInput.focus()
+      })
+      setInputValue(linkInput, 'Shared')
+
+      const resultButton = container.querySelector('[data-search-result="Shared Meaning"]') as HTMLButtonElement | null
+      expect(resultButton).not.toBeNull()
+
+      await act(async () => {
+        resultButton?.click()
       })
 
-      expect(container.textContent).toContain('/docs')
-      expect(container.textContent).not.toContain('hm://alice/docs')
+      expect(linkInput.value).toBe('/shared-meaning')
+      expect(labelInput.value).toBe('Shared Meaning')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('commits pasted web URLs from the link input and updates the label', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue(null)
+
+    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
+
+    try {
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link..."]') as HTMLInputElement
+
+      await act(async () => {
+        linkInput.focus()
+      })
+      setInputValue(linkInput, 'https://seed.example/docs')
+
+      await act(async () => {
+        linkInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
+      })
+
+      expect(resolveHypermediaUrlMock).toHaveBeenCalledWith('https://seed.example/docs')
+      expect(linkInput.value).toBe('https://seed.example/docs')
+      expect(labelInput.value).toBe('https://seed.example/docs')
     } finally {
       cleanup(root, container)
     }
