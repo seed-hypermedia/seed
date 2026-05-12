@@ -195,7 +195,7 @@ function DiscussionContent({notification}: {notification: Extract<Notification, 
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url)}
+          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 0 16px 0">
@@ -227,7 +227,7 @@ function UserCommentContent({notification}: {notification: Extract<Notification,
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url, {})}
+          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 0 16px 0">
@@ -492,7 +492,11 @@ export function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNa
 }
 
 /** Render inline text with bold/italic/link/embed annotations to HTML string. */
-export function renderInlineTextWithAnnotations(text: string, annotations: any[], resolvedNames?: Record<string, string>) {
+export function renderInlineTextWithAnnotations(
+  text: string,
+  annotations: any[],
+  resolvedNames?: Record<string, string>,
+) {
   if (!annotations.length) return text
 
   let result = []
@@ -541,7 +545,7 @@ export function renderInlineTextWithAnnotations(text: string, annotations: any[]
           })
         }
       }
-      annotatedText = `<a href="${href}" style="color: #008060;">@${resolved}</a>`
+      annotatedText = `<a href="${href}" style="color: #008060;">${resolved}</a>`
     }
 
     result.push(annotatedText)

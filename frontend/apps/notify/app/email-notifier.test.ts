@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import type {PlainMessage} from '@bufbuild/protobuf'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import type {Event} from '@shm/shared'
-import {getEventId, isNotificationEventTooOld, matchesCursorEvent} from './email-notifier'
+import {getEventId, isNotificationEventTooOld, matchesCursorEvent, resolveContentReferenceNames} from './email-notifier'
 
 const TEST_CID_1 = 'bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum'
 const TEST_CID_2 = 'bafy2bzacedexveqjcytw4trm6a4lxgxyssrg3ubxyro6rp5o4lo545qcl3imw'
@@ -168,5 +169,90 @@ describe('matchesCursorEvent', () => {
     })
 
     expect(matchesCursorEvent(firstMention, getEventId(firstMention), getEventId(secondMention)!)).toBe(false)
+  })
+})
+
+describe('resolveContentReferenceNames', () => {
+  it('resolves document and profile inline embeds for email rendering', async () => {
+    const content: HMBlockNode[] = [
+      {
+        block: {
+          id: 'block-1',
+          type: 'Paragraph',
+          text: '\uFFFC and \uFFFC linked',
+          annotations: [
+            {
+              type: 'Embed',
+              link: 'hm://doc-owner/projects/roadmap',
+              starts: [0],
+              ends: [1],
+            },
+            {
+              type: 'Embed',
+              link: 'hm://alice/:profile',
+              starts: [6],
+              ends: [7],
+            },
+            {
+              type: 'Link',
+              link: 'hm://doc-owner/linked-doc',
+              starts: [8],
+              ends: [14],
+            },
+          ],
+        } as any,
+        children: [],
+      },
+    ]
+
+    const resolvedIds: string[] = []
+    const resolvedNames = await resolveContentReferenceNames(content, async (id) => {
+      resolvedIds.push(id.id)
+      if (id.uid === 'alice' && id.path?.[0] === ':profile') return 'Alice'
+      if (id.uid === 'doc-owner' && id.path?.join('/') === 'projects/roadmap') return 'Roadmap'
+      return null
+    })
+
+    expect(resolvedIds).toEqual(['hm://doc-owner/projects/roadmap', 'hm://alice/:profile'])
+    expect(resolvedNames).toEqual({
+      'hm://doc-owner/projects/roadmap': 'Roadmap',
+      'hm://alice/:profile': 'Alice',
+    })
+  })
+
+  it('keeps resolving other inline embeds when one reference lookup fails', async () => {
+    const content: HMBlockNode[] = [
+      {
+        block: {
+          id: 'block-1',
+          type: 'Paragraph',
+          text: '\uFFFC and \uFFFC',
+          annotations: [
+            {
+              type: 'Embed',
+              link: 'hm://doc-owner/projects/missing',
+              starts: [0],
+              ends: [1],
+            },
+            {
+              type: 'Embed',
+              link: 'hm://doc-owner/projects/roadmap',
+              starts: [6],
+              ends: [7],
+            },
+          ],
+        } as any,
+        children: [],
+      },
+    ]
+
+    const resolvedNames = await resolveContentReferenceNames(content, async (id) => {
+      if (id.path?.at(-1) === 'missing') throw new Error('metadata unavailable')
+      return 'Roadmap'
+    })
+
+    expect(resolvedNames).toEqual({
+      'hm://doc-owner/projects/roadmap': 'Roadmap',
+    })
   })
 })

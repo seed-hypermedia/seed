@@ -117,6 +117,9 @@ jobs:
       - name: Build Web App
         run: pnpm web:prod
 
+      - name: Run Notify Tests
+        run: pnpm --filter @shm/notify test
+
       - name: Build Notify App
         run: pnpm notify:build
 
@@ -359,5 +362,4 @@ jobs:
           tags: seedhypermedia/vault:latest
           cache-from: type=gha,scope=docker-vault-release
           cache-to: type=gha,mode=max,scope=docker-vault-release
-
 

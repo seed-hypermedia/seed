@@ -762,6 +762,7 @@ function buildImmediateNotificationEmail(
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
       siteUrl,
+      resolvedNames: notif.resolvedNames,
     })
   }
 
@@ -1224,6 +1225,61 @@ async function getAccountMetadata(accountId: string): Promise<HMMetadata | null>
   }
 }
 
+/** Resolves inline content references to display names for notification emails. */
+export async function resolveContentReferenceNames(
+  content: HMBlockNode[] | null | undefined,
+  resolveReferenceName: (id: UnpackedHypermediaId) => Promise<string | null> = resolveContentReferenceName,
+): Promise<Record<string, string> | undefined> {
+  if (!content?.length) return undefined
+
+  const names: Record<string, string> = {}
+  const links = new Map<string, UnpackedHypermediaId>()
+  collectInlineEmbedReferenceLinks(content, links)
+
+  for (const [link, refId] of links) {
+    try {
+      const name = await resolveReferenceName(refId)
+      if (name) names[link] = name
+    } catch (error: any) {
+      reportError(`Error resolving content reference ${link}: ${error.message}`)
+    }
+  }
+
+  return Object.keys(names).length ? names : undefined
+}
+
+function collectInlineEmbedReferenceLinks(content: HMBlockNode[], links: Map<string, UnpackedHypermediaId>) {
+  for (const blockNode of content) {
+    const annotations = getAnnotations(blockNode.block)
+    if (annotations) {
+      for (const annotation of annotations) {
+        if (annotation.type !== 'Embed' || !annotation.link || links.has(annotation.link)) continue
+        const refId = unpackHmId(annotation.link)
+        if (refId) links.set(annotation.link, refId)
+      }
+    }
+    if (blockNode.children?.length) collectInlineEmbedReferenceLinks(blockNode.children, links)
+  }
+}
+
+async function resolveContentReferenceName(id: UnpackedHypermediaId): Promise<string | null> {
+  const mentionedAccountUid = getMentionedAccountUid(id)
+  if (mentionedAccountUid) {
+    const metadata = await getAccountMetadata(mentionedAccountUid)
+    return metadata?.name?.trim() || 'Untitled Profile'
+  }
+
+  try {
+    const metadata = (await requestAPI('ResourceMetadata', id)).metadata
+    const metadataName = metadata?.name?.trim()
+    if (metadataName) return metadataName
+  } catch (error: any) {
+    reportError(`Error resolving content reference ${id.id}: ${error.message}`)
+  }
+
+  return id.path?.at(-1)?.trim() || 'Untitled Document'
+}
+
 function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
   const normalized = siteUrl?.replace(/\/$/, '') || null
   return normalized || null
@@ -1366,6 +1422,7 @@ async function evaluateMentionEventForNotifications(
 
   let mentionUrl: string
   let mentionComment: HMComment | undefined
+  let mentionResolvedNames: Record<string, string> | undefined
   if (isCommentMention) {
     const sourceCommentId = unpackHmId(mentionEvent.source)
     const commentPath = sourceCommentId?.path?.[0]
@@ -1385,6 +1442,7 @@ async function evaluateMentionEventForNotifications(
         })
         const rawComment = toPlainMessage(serverComment)
         mentionComment = HMCommentSchema.parse(rawComment)
+        mentionResolvedNames = await resolveContentReferenceNames(mentionComment.content)
       }
     } catch (error: any) {
       reportError(`Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`)
@@ -1412,6 +1470,7 @@ async function evaluateMentionEventForNotifications(
       targetId: sourceDocId,
       url: mentionUrl,
       comment: mentionComment,
+      resolvedNames: mentionResolvedNames,
       eventId: eventMeta.eventId,
       eventAtMs: eventMeta.eventAtMs,
     })
@@ -1527,6 +1586,7 @@ async function evaluateNewCommentForNotifications(
   const mentionedUsers = options.includeMentionsFromBody
     ? extractMentionedAccountUidsFromComment(comment)
     : new Set<string>()
+  const resolvedNames = await resolveContentReferenceNames(comment.content)
 
   // Get the parent comment author for reply notifications
   let parentCommentAuthor: string | null = null
@@ -1597,6 +1657,8 @@ async function evaluateNewCommentForNotifications(
         url: commentUrl,
         subjectAccountId: sub.id,
         subjectAccountMeta: subjectAccountResult.metadata,
+        comment,
+        resolvedNames,
         eventId: eventMeta.eventId,
         eventAtMs: eventMeta.eventAtMs,
       })
@@ -1617,6 +1679,7 @@ async function evaluateNewCommentForNotifications(
         targetMeta: targetMeta,
         targetId: targetDocId,
         url: commentUrl,
+        resolvedNames,
         eventId: eventMeta.eventId,
         eventAtMs: eventMeta.eventAtMs,
       })
@@ -1641,6 +1704,7 @@ async function evaluateNewCommentForNotifications(
           targetMeta: targetMeta,
           targetId: targetDocId,
           url: commentUrl,
+          resolvedNames,
           eventId: eventMeta.eventId,
           eventAtMs: eventMeta.eventAtMs,
         })
@@ -1653,6 +1717,7 @@ async function evaluateNewCommentForNotifications(
           targetMeta: targetMeta,
           targetId: targetDocId,
           url: commentUrl,
+          resolvedNames,
         })
       }
       logNotifDebug('discussion notification queued', {

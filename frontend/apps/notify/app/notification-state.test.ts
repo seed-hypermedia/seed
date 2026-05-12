@@ -60,7 +60,8 @@ describe('notification state service', () => {
     ])
 
     expect(nextState.inbox.notifications).toHaveLength(1)
-    expect(nextState.readState.readEvents).toEqual([{eventId: 'event-1', eventAtMs: 2000}])
+    expect(nextState.readState.markAllReadAtMs).toBe(2000)
+    expect(nextState.readState.readEvents).toEqual([])
     expect(nextState.config.email).toBe('user@example.com')
     expect(nextState.config.verifiedTime).toBeNull()
     expect(nextState.config.verificationSendTime).toBe(new Date(1_700_000_000_000).toISOString())
@@ -68,7 +69,8 @@ describe('notification state service', () => {
 
     const persistedState = getNotificationStateSnapshot(accountId)
     expect(persistedState.inbox.notifications).toHaveLength(1)
-    expect(persistedState.readState.readEvents).toEqual([{eventId: 'event-1', eventAtMs: 2000}])
+    expect(persistedState.readState.markAllReadAtMs).toBe(2000)
+    expect(persistedState.readState.readEvents).toEqual([])
     expect(persistedState.config.email).toBe('user@example.com')
   })
 

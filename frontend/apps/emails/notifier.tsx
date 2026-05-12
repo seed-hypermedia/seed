@@ -1011,6 +1011,7 @@ export type Notification =
       actionUrl?: string
       eventId?: string
       eventAtMs?: number
+      resolvedNames?: Record<string, string>
     }
   | {
       reason: 'user-comment'
@@ -1020,6 +1021,7 @@ export type Notification =
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      resolvedNames?: Record<string, string>
     }
 
 export type FullNotification = {
