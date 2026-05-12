@@ -1,9 +1,5 @@
 import {HMRequestImplementation} from './api-types'
-import {
-  HMListSubscriptionsRequest,
-  HMSubscribeRequest,
-  HMUnsubscribeRequest,
-} from '@seed-hypermedia/client/hm-types'
+import {HMListSubscriptionsRequest, HMSubscribeRequest, HMUnsubscribeRequest} from '@seed-hypermedia/client/hm-types'
 
 /** Subscribe to a document or space (recursive=true mirrors all docs under path). */
 export const Subscribe: HMRequestImplementation<HMSubscribeRequest> = {
