@@ -244,6 +244,14 @@ export function PublishPopoverBody({
           disabled={publishDisabled}
           onClick={() => {
             const override = isFirstPublish && userEditedRef.current && previewPath ? previewPath : undefined
+            console.log('[Publish] popover Publish button clicked', {
+              docId: docId.id,
+              draftId,
+              changeCount,
+              publishDisabled,
+              isFirstPublish,
+              override,
+            })
             onPublish(override)
           }}
         >
@@ -338,6 +346,7 @@ export function PublishButtonWithPopover({
   const allItems = [...existingMenuItems, ...editingTrailingItems]
 
   const publishNow = (pathOverride?: string[]) => {
+    console.log('[Publish] publishNow called', {docId: docId.id, draftId, changeCount, pathOverride})
     popoverState.onOpenChange(false)
     setHasTriggeredPublish()
     send({type: 'edit.start'})
@@ -346,6 +355,7 @@ export function PublishButtonWithPopover({
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault()
+    console.log('[Publish] trigger click', {docId: docId.id, hasTriggeredPublish, draftId, changeCount})
     if (hasTriggeredPublish) {
       publishNow()
     } else {

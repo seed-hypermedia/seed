@@ -15,6 +15,7 @@
  * compiles and `writeDraft` round-trips through IndexedDB.
  */
 
+import {signDocumentChange} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -82,6 +83,11 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
 
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<{id: string}, WriteDraftInput>(async ({input}) => {
+    console.log('[Publish] writeDraft actor invoked', {
+      docId: deps.docId.id,
+      incomingDraftId: input.draftId,
+      signingAccountId: input.signingAccountId,
+    })
     const editor = deps.getEditor()
     const editorBlocks = editor?.getTopLevelBlocks() ?? []
     const cursorPosition = editor?.getCursorPosition?.() ?? null
@@ -103,13 +109,31 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       cursorPosition,
     }
     await putWebDocDraft(record)
+    console.log('[Publish] writeDraft persisted', {draftId, blockCount: content.length})
     return {id: draftId}
   })
 }
 
 function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<HMDocument, PublishInput>(async ({input}) => {
-    return publishWebDocument(input, deps)
+    console.log('[Publish] actor invoked', {
+      docId: deps.docId.id,
+      draftId: input.draftId,
+      hasPathOverride: !!input.pathOverride,
+      pathOverride: input.pathOverride,
+      publishAccountUid: input.publishAccountUid,
+    })
+    try {
+      const result = await publishWebDocument(input, deps)
+      console.log('[Publish] actor success', {
+        version: result.version,
+        path: result.path,
+      })
+      return result
+    } catch (err) {
+      console.error('[Publish] actor failed', err)
+      throw err
+    }
   })
 }
 
@@ -126,8 +150,15 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
  *  6. Refetch the doc and return it. Delete the IDB draft.
  */
 export async function publishWebDocument(input: PublishInput, deps: CreateWebDocumentMachineDeps): Promise<HMDocument> {
+  console.log('[Publish] step 1: fetching draft from IDB', {draftId: input.draftId})
   const draft = await getWebDocDraft(input.draftId)
   if (!draft) throw new Error(`web publish: draft ${input.draftId} not found`)
+  console.log('[Publish] step 1 done', {
+    draftId: draft.draftId,
+    contentBlocks: draft.content?.length ?? 0,
+    metadataKeys: Object.keys(draft.metadata ?? {}),
+    signingAccountId: draft.signingAccountId,
+  })
 
   const editor = deps.getEditor()
   const editorBlocks = editor?.getTopLevelBlocks() ?? null
@@ -135,9 +166,20 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     editorBlocks && editorBlocks.length
       ? editorBlocks
       : hmBlocksToEditorContent(draft.content ?? [], {childrenType: 'Group'})
+  console.log('[Publish] step 2: editor blocks resolved', {
+    fromEditor: !!(editorBlocks && editorBlocks.length),
+    count: liveEditorBlocks.length,
+  })
 
+  console.log('[Publish] step 3: fetching latest resource')
   const resource = await deps.client.request('Resource', deps.docId)
   const editDocument = resource.type === 'document' ? resource.document : null
+  console.log('[Publish] step 3 done', {
+    resourceType: resource.type,
+    hasDoc: !!editDocument,
+    publishedVersion: editDocument?.version ?? null,
+    publishedBlockCount: editDocument?.content?.length ?? 0,
+  })
 
   const baselineMap = createBlocksMap(editDocument?.content ?? [], '')
   const blockDiff = compareBlocksWithMap(baselineMap, liveEditorBlocks, '')
@@ -151,6 +193,20 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const metadataChanges = getDocAttributeChanges(draft.metadata as HMMetadata)
 
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
+  console.log('[Publish] step 4: built changes', {
+    nav: navChanges.length,
+    metadata: metadataChanges.length,
+    blocks: blockDiff.changes.length,
+    deletes: deleteChanges.length,
+    total: allChanges.length,
+  })
+  console.log('[Publish] step 4 detail: liveEditorBlock IDs', liveEditorBlocks.map((b) => b.id))
+  console.log(
+    '[Publish] step 4 detail: published baseline block IDs',
+    (editDocument?.content ?? []).map((n) => n.block?.id ?? '(no-id)'),
+  )
+  console.log('[Publish] step 4 detail: blockDiff.touchedBlocks', Array.from(blockDiff.touchedBlocks))
+  console.log('[Publish] step 4 detail: allChanges payload', allChanges)
 
   const latestVersion = editDocument?.version ?? ''
   const baseVersion = latestVersion || (draft.deps.length ? draft.deps.join('.') : '')
@@ -165,25 +221,107 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     throw new Error('No signing account available for publish')
   }
 
-  await deps.client.publishDocument({
+  const capabilityCid = deps.getCapabilityCid() ?? ''
+  // Web signs the version Ref blob client-side via `signDocumentChange`. The Ref's
+  // `generation` field decides which blob wins for `(account, path)`. If we
+  // forward the existing HEAD's generation here, the new Ref ties with the
+  // current HEAD and the daemon doesn't advance it — so we must omit
+  // `generation` and let the client default to `Date.now()`, which is strictly
+  // newer than the previous Ref. Desktop avoids this because it routes through
+  // the daemon's `createDocumentChange` gRPC, which manages generation server-side.
+  console.log('[Publish] step 5: calling client.publishDocument', {
     signerAccountUid,
     account: deps.docId.uid,
     baseVersion,
     path,
-    // allChanges is DocumentChange[] from shared helpers; structurally compatible with
-    // HMPrepareDocumentChangeInput['changes'] under proto-es runtime representation.
-    changes: allChanges as any,
-    capability: deps.getCapabilityCid() ?? '',
-    genesis: editDocument?.genesis,
-    generation: editDocument?.generationInfo?.generation,
+    capability: capabilityCid || '(empty/owner)',
+    genesis: editDocument?.genesis ?? null,
+    changeCount: allChanges.length,
   })
 
+  // Inline publish flow so each step can be logged independently. Mirrors
+  // `seedClient.publishDocument` for the non-bootstrap branch.
+  const signer = deps.getSigner(signerAccountUid)
+  console.log('[Publish] step 5a: PrepareDocumentChange request')
+  const prepareResult = (await deps.client.request('PrepareDocumentChange' as any, {
+    account: deps.docId.uid,
+    path,
+    baseVersion,
+    changes: allChanges as any,
+    capability: capabilityCid,
+  } as any)) as any
+  console.log('[Publish] step 5a done', {
+    unsignedChangeLen: prepareResult?.unsignedChange?.byteLength ?? prepareResult?.unsignedChange?.length ?? null,
+    keys: Object.keys(prepareResult ?? {}),
+    full: prepareResult,
+  })
+
+  // Pick a generation strictly greater than the existing HEAD's. The daemon
+  // resolves HEAD by max generation for `(account, path)`, so a tie or lower
+  // value silently keeps the old HEAD. Other clients (desktop, the daemon's
+  // own publish path) may have advanced the generation past `Date.now()`,
+  // so we can't rely on the clock alone.
+  const existingGenerationRaw = editDocument?.generationInfo?.generation
+  const existingGenerationNum = existingGenerationRaw != null ? Number(existingGenerationRaw) : 0
+  const nextGeneration = Math.max(Date.now(), existingGenerationNum + 1)
+  console.log('[Publish] step 5b: signDocumentChange', {
+    existingGeneration: existingGenerationNum,
+    nextGeneration,
+    nowMs: Date.now(),
+  })
+  const {changeCid, publishInput} = await signDocumentChange(
+    {
+      account: deps.docId.uid,
+      path,
+      unsignedChange: prepareResult.unsignedChange,
+      genesis: editDocument?.genesis,
+      generation: nextGeneration,
+      capability: capabilityCid,
+    },
+    signer,
+  )
+  console.log('[Publish] step 5b done', {
+    changeCid: changeCid.toString(),
+    blobCount: publishInput.blobs.length,
+    blobCids: publishInput.blobs.map((b: any) => b.cid),
+  })
+
+  console.log('[Publish] step 5c: PublishBlobs')
+  let publishResult: any = null
+  try {
+    publishResult = await (deps.client as any).publish(publishInput)
+  } catch (err) {
+    console.error('[Publish] step 5c FAILED', err)
+    throw err
+  }
+  console.log('[Publish] step 5c done', {
+    result: publishResult,
+    resultKeys: publishResult ? Object.keys(publishResult) : null,
+  })
+  console.log('[Publish] step 5 done: gRPC publish succeeded')
+
+  // Diagnostic: read the daemon's change log for this doc to confirm a new
+  // change blob actually committed (vs publish-without-effective-ops).
+  try {
+    const changes = (await (deps.client as any).request('ListChanges', {targetId: deps.docId})) as any
+    console.log('[Publish] step 5.5 ListChanges after publish', {
+      count: Array.isArray(changes?.changes) ? changes.changes.length : 'n/a',
+      latest: changes?.changes?.[0]?.cid ?? null,
+      raw: changes,
+    })
+  } catch (err) {
+    console.warn('[Publish] step 5.5 ListChanges failed', err)
+  }
+
+  console.log('[Publish] step 6: refetching post-publish resource')
   const after = await deps.client.request('Resource', deps.docId)
   if (after.type !== 'document') {
     throw new Error('post-publish resource is not a document')
   }
+  console.log('[Publish] step 6 done', {newVersion: after.document.version, blockCount: after.document.content?.length ?? 0})
 
   await deleteWebDocDraft(input.draftId)
+  console.log('[Publish] step 7 done: IDB draft deleted')
   return after.document
 }
 
