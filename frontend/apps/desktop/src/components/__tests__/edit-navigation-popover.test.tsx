@@ -189,7 +189,7 @@ describe('EditNavPopover trigger', () => {
   })
 
   it('updates link and label when a document search result is selected', async () => {
-    useSearchMock.mockImplementation((query: string) => ({
+    useSearchMock.mockImplementation(((query: string) => ({
       data: {
         entities:
           query === 'Shared'
@@ -205,7 +205,7 @@ describe('EditNavPopover trigger', () => {
               ]
             : [],
       },
-    }))
+    })) as any)
 
     const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
 
