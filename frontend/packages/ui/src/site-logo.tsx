@@ -21,6 +21,7 @@ export function SiteLogo({id, metadata}: {id: UnpackedHypermediaId; metadata?: H
       <div className={cn('flex flex-1 items-center justify-center')} style={{height: '60px'}} {...highlighter(id)}>
         <a {...homeLinkProps} data-resourceid={id.id} className="flex h-full items-center justify-center">
           <img
+            alt={metadata?.name ?? ''}
             src={imageUrl(metadata.seedExperimentalLogo, 'M')}
             height={60}
             style={{objectFit: 'contain', height: '100%'}}

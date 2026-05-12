@@ -107,7 +107,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       })
     }
     return offset
-  }, [referencePos.current])
+  }, [block, props.editor])
 
   return (
     <>

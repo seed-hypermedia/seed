@@ -272,7 +272,8 @@ export function WebSiteProvider(props: {
 
   // Track whether navigation was initiated by openRoute (vs browser back/forward)
   const isInternalNav = useMemo(() => ({current: false}), [])
-  const location = useLocation()
+  const routerLocation = useLocation()
+  const {pathname: routerPathname, search: routerSearch} = routerLocation
   const copyHmLink = useCopyHmLink()
 
   // Sync browser back/forward into NavContext
@@ -287,7 +288,7 @@ export function WebSiteProvider(props: {
     if (props.initialRoute) {
       navigation.dispatch({type: 'replace', route: props.initialRoute})
     }
-  }, [location.pathname, location.search])
+  }, [routerPathname, routerSearch])
 
   return (
     <UniversalAppProvider

@@ -97,7 +97,13 @@ function DocumentCard({
               justifyContent: 'center',
             }}
           >
-            <img src={icon} width={MAIN_ICON_SIZE} height={MAIN_ICON_SIZE} style={{borderRadius: MAIN_ICON_SIZE / 2}} />
+            <img
+              alt=""
+              src={icon}
+              width={MAIN_ICON_SIZE}
+              height={MAIN_ICON_SIZE}
+              style={{borderRadius: MAIN_ICON_SIZE / 2}}
+            />
           </div>
         )}
         {title && (
@@ -182,6 +188,7 @@ function DocumentCard({
             if (!author.document.metadata.icon || !author.icon)
               return (
                 <div
+                  key={author.id.id}
                   style={{
                     backgroundColor: '#aac2bd',
                     display: 'flex',
@@ -208,6 +215,7 @@ function DocumentCard({
               )
             return (
               <img
+                alt=""
                 key={author.id.id}
                 src={author.icon}
                 width={AVATAR_SIZE}
@@ -236,6 +244,7 @@ function DocumentCard({
           }}
         >
           <img
+            alt=""
             src={cover}
             width={COVER_WIDTH}
             height={OG_IMAGE_SIZE.height}
