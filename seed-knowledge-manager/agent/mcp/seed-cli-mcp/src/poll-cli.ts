@@ -29,7 +29,9 @@ import {loadConfig} from './config.js'
 import {State, mentionKey} from './state.js'
 import {
   buildCommentMention,
+  buildThreadReplyMention,
   commentEventCandidate,
+  detectThreadReplyToKm,
   findKmMentionInComment,
   buildReplyTarget,
 } from './mentions.js'
@@ -148,6 +150,16 @@ async function main(): Promise<void> {
     // returns the principal's id directly.
     const gatewayUrl = process.env.SEED_GATEWAY_URL ?? 'https://hyper.media'
     const principalOf = new Map<string, string>()
+    // Per-cycle cache for `comment get` lookups used by the thread-reply
+    // trigger. Sibling replies on the same thread re-walk the same
+    // ancestor chain, so caching here turns an O(depth × siblings)
+    // CLI-call cost into O(depth + siblings).
+    const replyChainCache = new Map<string, SeedComment | null>()
+    const fetchCommentForChain = async (id: string): Promise<SeedComment | null> => {
+      const r = await cli.runRead(['comment', 'get', id])
+      if (r.exitCode !== 0 || !r.parsedJson) return null
+      return r.parsedJson as SeedComment
+    }
     const resolvePrincipal = async (author: string): Promise<string> => {
       const cached = principalOf.get(author)
       if (cached) return cached
@@ -195,8 +207,35 @@ async function main(): Promise<void> {
       // of the site (e.g. "@Develop Seed Hypermedia") are also addressed
       // to it.
       const evidence = findKmMentionInComment(comment, [kmAccountId, siteAccount])
-      if (!evidence) continue
-      const mention = buildCommentMention(comment, evidence, candidate.ts)
+      let mention: Mention | null = null
+      if (evidence) {
+        mention = buildCommentMention(comment, evidence, candidate.ts)
+      } else if (comment.replyParent) {
+        // Second trigger path: comment is a reply (direct or transitive)
+        // inside a thread where KM has already commented. Lets multi-turn
+        // dialogue work without forcing the user to re-mention every time.
+        const hit = await detectThreadReplyToKm({
+          comment,
+          kmAccountId,
+          fetchComment: fetchCommentForChain,
+          cache: replyChainCache,
+        })
+        if (hit) {
+          mention = buildThreadReplyMention(comment, candidate.ts)
+          audit.trace({
+            ts: nowIso(),
+            level: 'info',
+            event: 'mention_via_thread_reply',
+            data: {
+              commentId: comment.id,
+              ancestorCommentId: hit.ancestorCommentId,
+              docId: mention.docId,
+              author: mention.author,
+            },
+          })
+        }
+      }
+      if (!mention) continue
       if (blocked.has(mention.author)) continue
       const mid = mentionKey(mention)
       // Idempotency FIRST: a mention that's already been processed (even with

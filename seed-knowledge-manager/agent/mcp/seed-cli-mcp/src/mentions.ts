@@ -15,6 +15,18 @@
 
 export type MentionKind = 'comment' | 'doc-block'
 
+/**
+ * How the mention was discovered. `'mention'` = an explicit `@KM` embed
+ * or inline `@[…](hm://kmAccountId)` was found in the comment/doc.
+ * `'thread-reply'` = the comment has no explicit mention but is a reply
+ * (direct or transitive) inside a thread where KM has already commented,
+ * so the agent treats it as a continued conversation. Optional in the
+ * type so legacy `placeholders.jsonl` records (written before this
+ * field existed) still deserialize cleanly — readers should treat
+ * `undefined` as `'mention'`.
+ */
+export type MentionTriggerSource = 'mention' | 'thread-reply'
+
 export type Mention = {
   kind: MentionKind
   /** Hypermedia ID of the document the mention lives on. */
@@ -29,6 +41,8 @@ export type Mention = {
   text: string
   /** Activity event timestamp (ISO). */
   ts: string
+  /** Discriminator: explicit mention vs implicit thread-reply trigger. */
+  triggerSource?: MentionTriggerSource
 }
 
 const MENTION_RE = /@\[[^\]]*\]\(hm:\/\/([^)#]+)(?:[^)]*)?\)/g
@@ -165,7 +179,76 @@ export function buildCommentMention(
     author: comment.author,
     text: evidence.text,
     ts,
+    triggerSource: 'mention',
   }
+}
+
+/**
+ * Builds a Mention for a comment that fired the trigger via the
+ * thread-reply path (no explicit `@KM` embed; an ancestor on the
+ * replyParent chain was authored by KM). Since there's no embed
+ * evidence to point at a specific block, we use the comment's full
+ * body — every block's text joined by `\n`, with U+FFFC
+ * object-replacement characters replaced by spaces so the LLM sees the
+ * raw question rather than embed placeholders. `blockId` is omitted —
+ * the reply is threaded via `--reply commentId`, no doc-block anchor
+ * needed.
+ */
+export function buildThreadReplyMention(comment: SeedComment, ts: string): Mention {
+  const docId = `hm://${comment.targetAccount}${comment.targetPath ?? ''}`
+  const parts: string[] = []
+  for (const item of comment.content ?? []) {
+    const t = item.block?.text
+    if (typeof t === 'string') parts.push(t.replace(/￼/g, ' '))
+  }
+  return {
+    kind: 'comment',
+    docId,
+    commentId: comment.id,
+    author: comment.author,
+    text: parts.join('\n').trim(),
+    ts,
+    triggerSource: 'thread-reply',
+  }
+}
+
+/**
+ * Walks the comment's `replyParent` chain looking for an ancestor
+ * authored by KM. Returns the first KM-authored ancestor's commentId
+ * (the one closest to the current comment) when found, or null.
+ *
+ * `fetchComment` is injected so the detection stays unit-testable
+ * without shelling out through `seed-cli`. `cache` is shared across
+ * calls inside a single poll cycle so a deep thread fetched once is
+ * not refetched when sibling replies trigger lookups. `maxHops`
+ * defaults to 30 (matches `walkThread` in reply-engine.ts) and a
+ * `visited` set guards against cycles or self-references in malformed
+ * chains.
+ */
+export async function detectThreadReplyToKm(opts: {
+  comment: SeedComment
+  kmAccountId: string
+  fetchComment: (id: string) => Promise<SeedComment | null>
+  cache: Map<string, SeedComment | null>
+  maxHops?: number
+}): Promise<{ancestorCommentId: string} | null> {
+  const {comment, kmAccountId, fetchComment, cache} = opts
+  const maxHops = opts.maxHops ?? 30
+  const visited = new Set<string>([comment.id])
+  let parentId = comment.replyParent?.trim() || undefined
+  for (let hop = 0; hop < maxHops && parentId; hop++) {
+    if (visited.has(parentId)) return null
+    visited.add(parentId)
+    let parent: SeedComment | null | undefined = cache.get(parentId)
+    if (parent === undefined) {
+      parent = await fetchComment(parentId)
+      cache.set(parentId, parent)
+    }
+    if (!parent) return null
+    if (parent.author === kmAccountId) return {ancestorCommentId: parent.id}
+    parentId = parent.replyParent?.trim() || undefined
+  }
+  return null
 }
 
 // Legacy helper kept for tests and the (disabled) inbox_enqueue_from_event tool.

@@ -17,6 +17,7 @@ const COMMUNITY_SYSTEM_PROMPT =
   `Answer the user's question grounded in the community's own documents whenever possible. ` +
   `When you reference a document, embed its full hm:// URL inline as a markdown link, e.g. [Title](hm://...). ` +
   `If the community context below is empty or doesn't cover the question, answer from your general knowledge in one sentence and explicitly say "I couldn't find this in our community's docs" so the asker knows. ` +
+  `If the comment thread context shows that you (the Knowledge Manager) already replied earlier in this thread, treat the new comment as a follow-up turn: do not re-introduce yourself, do not repeat earlier answers verbatim, and respond conversationally. ` +
   `Plain text or simple markdown only. No headers, no code fences, no greeting/signoff. Stay under 120 words.`
 
 const SYSTEM_INSPECTOR_PROMPT =
