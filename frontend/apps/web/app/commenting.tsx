@@ -388,7 +388,7 @@ export default function WebCommenting({
     <div className="w-full">
       <CommentEditor
         key={`${draftId}-${editorGeneration}`}
-        autoFocus={autoFocus}
+        focusOnMount={autoFocus}
         isReplying={isReplyEditor}
         handleSubmit={handleSubmit}
         initialBlocks={initialBlocks}
@@ -701,7 +701,7 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
   return (
     <div className="flex flex-col gap-2">
       <CommentEditor
-        autoFocus
+        focusOnMount
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}

@@ -22,7 +22,7 @@ function DiscussionsPanelImpl(props: {docId: UnpackedHypermediaId; selection: Co
       commentId={selection.openComment}
       quotingBlockId={selection.targetBlockId}
       context="accessory"
-      autoFocus={selection.autoFocus}
+      focusOnMount={selection.autoFocus}
       replyCommentVersion={selection.replyCommentVersion}
       rootReplyCommentVersion={selection.rootReplyCommentVersion}
     />

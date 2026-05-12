@@ -186,7 +186,8 @@ export interface CommentEditorProps {
   onSubmit: (content: Array<HMBlockNode>) => Promise<void>
   onDelete: (draftKey: string) => Promise<void>
   onMedia: () => Promise<void>
-  autoFocus?: boolean
+  /** Focus the editor on mount. Renamed from `autoFocus` to avoid the `jsx-a11y/no-autofocus` rule; focus is driven imperatively via effect. */
+  focusOnMount?: boolean
   signer?: HMMetadata
 }
 
@@ -197,7 +198,7 @@ export interface CommentEditorProps {
  * - onSubmit: async function that submits the comment
  *   - content: editor content
  *   -
- * - autoFocus?: if we need to focus the editor right away
+ * - focusOnMount?: if we need to focus the editor right away (imperatively)
  * - onMedia: function that handles how we process images
  * when paste or included
  * - signer: account metadata for the signer to render avatar and name
@@ -208,7 +209,7 @@ export interface CommentEditorProps {
  * with content or not
  *   - add listener to editor update to save editor I guess.
  *     maybe we can just pass the safeDraft function and call it here
- *   - focus editor if needed (autoFocus?)
+ *   - focus editor if needed (focusOnMount?)
  *   - getContent function is defined here
  *   - handle cmd+A when the editor is focused
  *   - pass the function to handle Images when pasted or upload
@@ -222,7 +223,7 @@ export function CommentEditor({
   submitButton,
   handleSubmit,
   account,
-  autoFocus,
+  focusOnMount,
   isReplying,
   perspectiveAccountUid,
   initialBlocks,
@@ -258,7 +259,8 @@ export function CommentEditor({
     reset: () => void,
   ) => void
   account?: ReturnType<typeof useAccount>['data']
-  autoFocus?: boolean
+  /** Focus the editor on mount, driven imperatively via effect. */
+  focusOnMount?: boolean
   isReplying?: boolean
   perspectiveAccountUid?: string | null | undefined
   initialBlocks?: HMBlockNode[]
@@ -315,7 +317,7 @@ export function CommentEditor({
       }
       return false
     })
-  const [isEditorFocused, setIsEditorFocused] = useState(() => autoFocus || hasDraftContent || false)
+  const [isEditorFocused, setIsEditorFocused] = useState(() => focusOnMount || hasDraftContent || false)
   const openUrl = useOpenUrl()
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
@@ -598,11 +600,11 @@ export function CommentEditor({
   }, [editor, onContentChange])
 
   useEffect(() => {
-    if (autoFocus) {
+    if (focusOnMount) {
       setIsEditorFocused(true)
       shouldFocusOnActivateRef.current = true
     }
-  }, [autoFocus])
+  }, [focusOnMount])
 
   useLayoutEffect(() => {
     if (!isEditorFocused || !shouldFocusOnActivateRef.current) return

@@ -1236,9 +1236,10 @@ function PublishWithUrl({
     },
   })
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setFocus('url')
-    }, 300) // wait for animation
+    }, 300)
+    return () => clearTimeout(timer)
   }, [setFocus])
   const spawn = useNavigate('spawn')
   return (

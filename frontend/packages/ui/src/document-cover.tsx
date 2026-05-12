@@ -100,7 +100,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
         title="Click to maximize"
       >
         <img
-          alt=""
+          alt="Document cover"
           src={imageUrl(cover, 'XL')}
           style={{
             width: '100%',

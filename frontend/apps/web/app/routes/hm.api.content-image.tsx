@@ -217,6 +217,7 @@ function DocumentCard({
               <img
                 alt=""
                 key={author.id.id}
+                alt=""
                 src={author.icon}
                 width={AVATAR_SIZE}
                 height={AVATAR_SIZE}

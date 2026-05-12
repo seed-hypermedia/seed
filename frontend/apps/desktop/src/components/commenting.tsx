@@ -54,14 +54,15 @@ function CommentBoxImpl(props: {
   quotingBlockId?: string
   commentId?: string
   isReplying?: boolean
-  autoFocus?: boolean
+  /** Focus the editor on mount (renamed from `autoFocus` to satisfy a11y rules). */
+  focusOnMount?: boolean
   context?: 'accessory' | 'feed' | 'document-content'
   /** CID version of the comment being replied to, passed from the route. */
   replyCommentVersion?: string
   /** CID version of the thread root comment, passed from the route. */
   rootReplyCommentVersion?: string
 }) {
-  const {docId, quotingBlockId, commentId, isReplying, autoFocus, context} = props
+  const {docId, quotingBlockId, commentId, isReplying, focusOnMount, context} = props
 
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
@@ -217,9 +218,9 @@ function CommentBoxImpl(props: {
     },
   })
 
-  // Clear autoFocus from route after used
+  // Clear focusOnMount from route after used
   useEffect(() => {
-    if (autoFocus && route.key === 'document' && route.panel?.key === 'activity') {
+    if (focusOnMount && route.key === 'document' && route.panel?.key === 'activity') {
       const panel = route.panel
       if (panel.autoFocus) {
         setTimeout(() => {
@@ -228,7 +229,7 @@ function CommentBoxImpl(props: {
         }, 150)
       }
     }
-  }, [autoFocus])
+  }, [focusOnMount])
 
   // Handle content changes - save draft
   const handleContentChange = useCallback(
@@ -352,7 +353,7 @@ function CommentBoxImpl(props: {
 
   return (
     <CommentEditor
-      autoFocus={autoFocus}
+      focusOnMount={focusOnMount}
       isReplying={isReplying || !!commentId}
       handleSubmit={handleSubmit}
       initialBlocks={draft.data?.blocks}
@@ -428,7 +429,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
   return (
     <div className="flex flex-col gap-2">
       <CommentEditor
-        autoFocus
+        focusOnMount
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}

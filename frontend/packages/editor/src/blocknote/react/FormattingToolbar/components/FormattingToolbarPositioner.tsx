@@ -33,7 +33,7 @@ export const FormattingToolbarPositioner = <BSchema extends BlockSchema = Defaul
       return undefined
     }
     return () => referencePos.current!
-  }, [])
+  }, [show])
 
   const formattingToolbarElement = useMemo(() => {
     const FormattingToolbar = props.formattingToolbar || DefaultFormattingToolbar
