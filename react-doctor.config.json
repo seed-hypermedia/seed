@@ -1,0 +1,19 @@
+{
+  "ignore": {
+    "rules": [
+      "react-doctor/rn-no-raw-text"
+    ],
+    "files": [
+      "**/.tmp/**",
+      "**/__pycache__/**",
+      "backend/util/llama-go/**",
+      "frontend/apps/desktop/forge.config.ts",
+      "frontend/apps/desktop/vite.*.config.*",
+      "frontend/apps/desktop/test/**",
+      "frontend/apps/desktop/e2e/**",
+      "frontend/packages/editor/e2e/**",
+      "frontend/apps/web/playwright-tests/**",
+      "tests/**"
+    ]
+  }
+}
