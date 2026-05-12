@@ -528,7 +528,7 @@ export function routeToUrl(
     hostname?: string | null | undefined
     originHomeId?: UnpackedHypermediaId | undefined
   },
-) {
+): string | null {
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'inspect') {
@@ -595,7 +595,7 @@ export function routeToUrl(
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
     return `${urlHost}/hm/contact/${route.id.uid}`
   }
-  return 'TODO'
+  return null
 }
 
 /**

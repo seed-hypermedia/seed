@@ -1,6 +1,7 @@
 .node-inline-embed,
 .inline-embed-token {
   display: inline;
+  cursor: pointer;
 }
 
 .inline-embed-token:hover {

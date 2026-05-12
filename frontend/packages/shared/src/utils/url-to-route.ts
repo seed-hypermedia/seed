@@ -1,3 +1,4 @@
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   INSPECT_TABS,
   type InspectTab,
@@ -6,7 +7,13 @@ import {
   createInspectIpfsNavRoute,
   createInspectNavRoute,
 } from '../routes'
-import {activitySlugToFilter, extractViewTermFromUrl, parseCustomURL, viewTermToRouteKey} from './entity-id-url'
+import {
+  activitySlugToFilter,
+  extractViewTermFromUrl,
+  parseCustomURL,
+  routeToUrl,
+  viewTermToRouteKey,
+} from './entity-id-url'
 import {appRouteOfId} from './navigation'
 import {unpackHmId} from './entity-id-url'
 
@@ -54,4 +61,27 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
 
   return appRouteOfId(id) || null
+}
+
+/**
+ * Converts a parseable Hypermedia app URL into the browser-safe href for the
+ * current web origin. Non-Hypermedia URLs are returned unchanged.
+ */
+export function hypermediaUrlToHref(
+  url: string | null | undefined,
+  options?: {
+    hmUrlHref?: boolean
+    originHomeId?: UnpackedHypermediaId
+    origin?: string | null
+  },
+) {
+  if (!url || options?.hmUrlHref) return url
+  const route = hypermediaUrlToRoute(url)
+  if (!route) return url
+  return (
+    routeToUrl(route, {
+      hostname: options?.origin,
+      originHomeId: options?.originHomeId,
+    }) || url
+  )
 }

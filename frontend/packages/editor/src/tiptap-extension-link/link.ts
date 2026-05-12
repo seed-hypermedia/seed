@@ -1,4 +1,3 @@
-import {isHypermediaScheme} from '@shm/shared/utils/entity-id-url'
 import {Mark, mergeAttributes} from '@tiptap/core'
 import {Plugin} from '@tiptap/pm/state'
 import {registerCustomProtocol, reset} from 'linkifyjs'
@@ -40,6 +39,14 @@ export interface LinkOptions {
    */
   validate?: (url: string) => boolean
   checkWebUrl: (url: string) => Promise<any>
+  /**
+   * Converts the stored link URL into the href rendered into the DOM.
+   */
+  renderHref?: (url: string) => string
+  /**
+   * If enabled, modified clicks are handled by the platform openUrl handler.
+   */
+  handleModifiedClicks?: boolean
 }
 
 declare module '@tiptap/core' {
@@ -95,12 +102,13 @@ export const Link = Mark.create<LinkOptions>({
       autolink: true,
       protocols: [],
       HTMLAttributes: {
-        target: '_blank',
         rel: 'noopener noreferrer nofollow',
         class: 'link text-link hover:text-link-hover',
       },
       validate: undefined,
       checkWebUrl: () => Promise.resolve(),
+      renderHref: (url: string) => url,
+      handleModifiedClicks: false,
     }
   },
 
@@ -110,7 +118,7 @@ export const Link = Mark.create<LinkOptions>({
         default: null,
       },
       target: {
-        default: this.options.HTMLAttributes.target,
+        default: null,
       },
       class: {
         default: this.options.HTMLAttributes.class,
@@ -125,13 +133,15 @@ export const Link = Mark.create<LinkOptions>({
     return [{tag: 'a[href]:not([href *= "javascript:" i])'}, {tag: 'span.link'}]
   },
 
-  renderHTML({HTMLAttributes, mark}) {
+  renderHTML({HTMLAttributes}) {
     const attrs = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)
-    const isHM = isHypermediaScheme(HTMLAttributes.href)
+    const tag = this.options.openOnClick ? 'a' : 'span'
+    const href = typeof attrs.href === 'string' ? this.options.renderHref?.(attrs.href) : attrs.href
     return [
-      'span',
+      tag,
       {
         ...attrs,
+        href,
         class: `${attrs.class} text-link hover:text-link-hover`,
       },
       0,
@@ -179,6 +189,7 @@ export const Link = Mark.create<LinkOptions>({
       plugins.push(
         clickHandler({
           openUrl: (this.options as any).openUrl,
+          handleModifiedClicks: this.options.handleModifiedClicks,
           type: this.type,
         }),
       )

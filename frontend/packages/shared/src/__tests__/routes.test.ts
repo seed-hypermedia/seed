@@ -675,7 +675,7 @@ describe('site-profile URL round-trip', () => {
       {hostname: 'https://dev.hyper.media'},
     )
     expect(displayUrl).toBe('https://dev.hyper.media/hm/siteUid/:membership/personUid')
-    expect(displayUrl.includes('/hm/siteUid/hm/personUid')).toBe(false)
+    expect(displayUrl?.includes('/hm/siteUid/hm/personUid')).toBe(false)
   })
 })
 

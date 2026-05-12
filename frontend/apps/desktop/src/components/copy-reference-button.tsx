@@ -42,6 +42,7 @@ export function useDocumentUrl({
     hostname: siteHostname || gwUrl,
     originHomeId: siteHostname ? accountId : undefined,
   })
+  if (!url) return null
   // Get document version for block links
   const docVersion = docEntity.data?.type === 'document' ? docEntity.data.document?.version : undefined
 

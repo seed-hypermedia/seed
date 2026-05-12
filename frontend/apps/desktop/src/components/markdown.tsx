@@ -19,10 +19,12 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
   const siteUrl = siteHome.data?.type === 'document' ? siteHome.data.document.metadata?.siteUrl : null
   const renderedHref = React.useMemo(() => {
     if (!href || !resolvedLink) return href
-    return routeToUrl(resolvedLink.route, {
-      hostname: siteUrl || gatewayUrl,
-      originHomeId: siteUrl ? hmId(resolvedLink.id.uid) : undefined,
-    })
+    return (
+      routeToUrl(resolvedLink.route, {
+        hostname: siteUrl || gatewayUrl,
+        originHomeId: siteUrl ? hmId(resolvedLink.id.uid) : undefined,
+      }) || href
+    )
   }, [gatewayUrl, href, resolvedLink, siteUrl])
 
   return (

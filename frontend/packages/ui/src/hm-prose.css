@@ -261,6 +261,7 @@
  * gets the underline treatment. */
 .hm-prose .link {
   color: var(--link, inherit);
+  cursor: pointer;
   text-decoration-line: underline;
   text-decoration-color: currentColor;
   text-underline-offset: 0.2em;

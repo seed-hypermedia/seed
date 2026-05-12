@@ -134,6 +134,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
       }}
       onCopyReference={async (id: UnpackedHypermediaId) => {
         const url = routeToUrl({key: 'document', id}, {hostname: gwUrl})
+        if (!url) return
         await copyTextToClipboard(url)
         pushAfterActionRef.current?.({id, trigger: 'copy', onlyPushToHost: gwUrl})
       }}

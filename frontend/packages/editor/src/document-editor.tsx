@@ -2,7 +2,7 @@ import '@/blocknote/core/style.css'
 import '@/editor.css'
 
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {useOpenUrl} from '@shm/shared'
+import {hypermediaUrlToHref, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {
@@ -75,10 +75,20 @@ export function DocumentEditor({
   linkExtensionOptions,
 }: DocumentContentProps) {
   const openUrl = useOpenUrl()
+  const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
   const getImageUrl = useImageUrl()
   const actorRef = useDocumentMachineRef()
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
+  const renderHref = useCallback(
+    (url: string) =>
+      hypermediaUrlToHref(url, {
+        hmUrlHref,
+        origin,
+        originHomeId,
+      }) || url,
+    [hmUrlHref, origin, originHomeId],
+  )
 
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
@@ -155,6 +165,8 @@ export function DocumentEditor({
       linkExtensionOptions: {
         ...(linkExtensionOptions ?? {}),
         openUrl: (linkExtensionOptions as any)?.openUrl ?? openUrl,
+        renderHref: (linkExtensionOptions as any)?.renderHref ?? renderHref,
+        handleModifiedClicks: (linkExtensionOptions as any)?.handleModifiedClicks ?? !!openRouteNewWindow,
       } as any,
       _tiptapOptions: {
         extensions: [

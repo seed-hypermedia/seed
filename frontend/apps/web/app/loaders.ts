@@ -19,6 +19,7 @@ import {
   getCommentTargetId,
   hmId,
   hmIdPathToEntityQueryPath,
+  hypermediaUrlToHref,
   packHmId,
   queryBlockSortedItems,
 } from '@shm/shared'
@@ -379,6 +380,9 @@ async function loadResourcePayload(
     commentId?: UnpackedHypermediaId
   },
   ctx?: InstrumentationContext,
+  options?: {
+    originHomeId?: UnpackedHypermediaId
+  },
 ): Promise<WebResourcePayload> {
   const {document, latestDocument, comment, commentId} = payload
   const prefetchCtx = createPrefetchContext()
@@ -421,8 +425,22 @@ async function loadResourcePayload(
   }
 
   // Server-render document content to avoid blank flash before editor loads
-  const cacheKey = document.version ? `${docId.uid}/${docId.path?.join('/') || ''}@${document.version}` : undefined
-  const ssrContentHTML = document.content ? renderDocumentToHTML(document.content, {cacheKey, embeds}) : null
+  const {origin} = getOriginRequestData(parsedRequest)
+  const originHomeId = options?.originHomeId
+  const cacheKey = document.version
+    ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${document.version}`
+    : undefined
+  const ssrContentHTML = document.content
+    ? renderDocumentToHTML(document.content, {
+        cacheKey,
+        embeds,
+        renderHref: (url) =>
+          hypermediaUrlToHref(url, {
+            origin,
+            originHomeId,
+          }) || url,
+      })
+    : null
   if (ssrContentHTML) {
     console.log(`[ssr-render] Generated ${ssrContentHTML.length} chars of SSR HTML for ${cacheKey || 'uncached'}`)
   } else if (document.content?.length) {
@@ -455,6 +473,9 @@ export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
+  options?: {
+    originHomeId?: UnpackedHypermediaId
+  },
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -482,6 +503,7 @@ export async function loadResource(
         commentId,
       },
       ctx,
+      options,
     )
   }
   if (resource.type === 'tombstone') {
@@ -500,6 +522,7 @@ export async function loadResource(
       latestDocument,
     },
     ctx,
+    options,
   )
 }
 
@@ -508,6 +531,9 @@ export async function loadResourceWithDiscovery(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
+  options?: {
+    originHomeId?: UnpackedHypermediaId
+  },
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -518,14 +544,14 @@ export async function loadResourceWithDiscovery(
   } as InstrumentationContext
 
   try {
-    return await loadResource(id, parsedRequest, ctx)
+    return await loadResource(id, parsedRequest, ctx, options)
   } catch (e) {
     if (e instanceof HMNotFoundError) {
       const discovered = await instrument(ctx || noopCtx, `discoverDocument(${packHmId(id)})`, () =>
         discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
       )
       if (discovered) {
-        return await loadResource(id, parsedRequest, ctx)
+        return await loadResource(id, parsedRequest, ctx, options)
       }
     }
     throw e
@@ -579,7 +605,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   }
   try {
     const resourceContent = await instrument(ctx || noopCtx, `loadResourceWithDiscovery(${packHmId(id)})`, () =>
-      loadResourceWithDiscovery(id, parsedRequest, ctx),
+      loadResourceWithDiscovery(id, parsedRequest, ctx, {originHomeId}),
     )
 
     // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)

@@ -356,11 +356,12 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
   const onClick = context.openRoute
     ? (e: React.MouseEvent<HTMLElement>) => {
         e?.stopPropagation()
-        if (e.metaKey) {
+        const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey
+        if (openInNewWindow) {
           if (context.openRouteNewWindow) {
             e.preventDefault()
             if (typeof route === 'string') {
-              context.openUrl(route.startsWith('http') ? route : `https://${route}`)
+              context.openUrl(route.startsWith('http') ? route : `https://${route}`, true)
             } else {
               context.openRouteNewWindow(route)
             }

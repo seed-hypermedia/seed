@@ -1,6 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {unpackHmId} from './entity-id-url'
-import {hypermediaUrlToRoute} from './url-to-route'
+import {hmId, unpackHmId} from './entity-id-url'
+import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
 
 describe('hypermediaUrlToRoute', () => {
   test('converts a base document URL into a document route', () => {
@@ -135,5 +135,35 @@ describe('hypermediaUrlToRoute', () => {
       key: 'inspect-ipfs',
       ipfsPath: 'bafy123/path/to/node',
     })
+  })
+})
+
+describe('hypermediaUrlToHref', () => {
+  const originHome = hmId('uid1')
+
+  test('renders same-site hm links as absolute web URLs', () => {
+    const href = hypermediaUrlToHref('hm://uid1/docs/page', {
+      origin: 'https://example.com',
+      originHomeId: originHome,
+    })
+    expect(href).toBe('https://example.com/docs/page')
+  })
+
+  test('renders external hm links through the current web origin gateway path', () => {
+    const href = hypermediaUrlToHref('hm://uid2/docs/page#b1', {
+      origin: 'https://example.com',
+      originHomeId: originHome,
+    })
+    expect(href).toBe('https://example.com/hm/uid2/docs/page#b1')
+  })
+
+  test('keeps hm links when hmUrlHref is requested', () => {
+    expect(
+      hypermediaUrlToHref('hm://uid1/docs/page', {
+        hmUrlHref: true,
+        origin: 'https://example.com',
+        originHomeId: originHome,
+      }),
+    ).toBe('hm://uid1/docs/page')
   })
 })

@@ -1,5 +1,5 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, useUniversalAppContext} from '@shm/shared'
+import {hmId, hypermediaUrlToHref, useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -21,10 +21,20 @@ export function createInlineEmbedNode() {
       return ReactNodeViewRenderer(InlineEmbedNodeComponent)
     },
     renderHTML({HTMLAttributes}) {
-      return ['span', {...HTMLAttributes, 'data-inline-embed': HTMLAttributes.link}]
+      return ['a', {...HTMLAttributes, href: HTMLAttributes.link, 'data-inline-embed': HTMLAttributes.link}]
     },
     parseHTML() {
       return [
+        {
+          tag: `a[data-inline-embed]`,
+          getAttrs: (dom) => {
+            if (dom instanceof HTMLElement) {
+              var value = dom.getAttribute('data-inline-embed')
+              return {link: value}
+            }
+            return false
+          },
+        },
         {
           tag: `span[data-inline-embed]`,
           getAttrs: (dom) => {
@@ -72,11 +82,22 @@ export function createInlineEmbedNode() {
 }
 
 function InlineEmbedNodeComponent(props: any) {
+  const {hmUrlHref, origin, originHomeId} = useUniversalAppContext()
+  const renderedHref =
+    hypermediaUrlToHref(props.node.attrs.link, {
+      hmUrlHref,
+      origin,
+      originHomeId,
+    }) || props.node.attrs.link
+  const isEditable = props.editor?.isEditable
+  const wrapperProps = isEditable ? {} : {href: renderedHref}
+
   return (
     <NodeViewWrapper
-      as="span"
+      as={isEditable ? 'span' : 'a'}
       className={`inline-embed-token ${props.selected ? 'selected' : ''}`}
       data-inline-embed={props.node.attrs.link}
+      {...wrapperProps}
     >
       <MentionToken value={props.node.attrs.link} selected={props.selected} />
     </NodeViewWrapper>

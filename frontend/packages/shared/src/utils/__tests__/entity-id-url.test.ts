@@ -966,7 +966,7 @@ describe('routeToUrl - site-profile', () => {
       {hostname: 'https://gw.com'},
     )
     expect(url).toBe('https://gw.com/hm/siteUid/:membership/personUid')
-    expect(url.includes('/hm/siteUid/hm/personUid')).toBe(false)
+    expect(url?.includes('/hm/siteUid/hm/personUid')).toBe(false)
   })
 })
 

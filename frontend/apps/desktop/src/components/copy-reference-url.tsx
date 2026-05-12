@@ -25,6 +25,7 @@ export function useCopyReferenceUrl(
       hostname,
       originHomeId,
     })
+    if (!url) return
     copyTextToClipboard(url)
     const pushId = route.key === 'document' ? route.id : null
     if (pushId) {

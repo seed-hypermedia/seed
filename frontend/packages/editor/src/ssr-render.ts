@@ -19,6 +19,8 @@ export type SSRRenderOpts = {
   cacheKey?: string
   /** Map from hm:// link → resolved embed data for card rendering. */
   embeds?: Record<string, SSREmbedData>
+  /** Converts raw document links into the href value emitted in SSR HTML. */
+  renderHref?: (url: string) => string | null | undefined
 }
 
 /**
@@ -37,8 +39,9 @@ export function renderDocumentToHTML(blocks: HMBlockNode[], opts?: SSRRenderOpts
 
   try {
     const embeds = opts?.embeds ?? {}
+    const renderHref = opts?.renderHref
     // Wrap in a blockChildren container at depth 1 (matching editor's root group)
-    const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds)
+    const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds, renderHref)
     if (!inner) return null
     const result = `<div class="ssr-content-placeholder hm-prose">${inner}</div>`
 
@@ -62,6 +65,7 @@ function renderBlockChildren(
   listLevel: number,
   columnCount: number | null,
   embeds: Record<string, SSREmbedData>,
+  renderHref: SSRRenderOpts['renderHref'],
 ): string {
   const tag = listTag(listType)
   const isGrid = listType === 'Grid'
@@ -71,7 +75,9 @@ function renderBlockChildren(
   const columnCountAttr = columnCount ? ` data-column-count="${columnCount}"` : ''
   const isListContainer = listType === 'Ordered' || listType === 'Unordered'
 
-  const childrenHtml = blocks.map((node) => renderBlockNode(node, isListContainer, listLevel, embeds)).join('')
+  const childrenHtml = blocks
+    .map((node) => renderBlockNode(node, isListContainer, listLevel, embeds, renderHref))
+    .join('')
 
   return `<${tag} class="blockChildren" data-node-type="blockChildren" data-list-type="${esc(
     listType,
@@ -87,12 +93,13 @@ function renderBlockNode(
   insideList: boolean,
   listLevel: number,
   embeds: Record<string, SSREmbedData>,
+  renderHref: SSRRenderOpts['renderHref'],
 ): string {
   const block = node.block
   const tag = insideList ? 'li' : 'div'
   const idAttr = block.id ? ` data-id="${esc(block.id)}" id="${esc(block.id)}"` : ''
 
-  const contentHtml = renderBlockContent(block, embeds)
+  const contentHtml = renderBlockContent(block, embeds, renderHref)
 
   // Render children if present
   let childrenHtml = ''
@@ -103,7 +110,7 @@ function renderBlockNode(
 
     const nextLevel = childrenType === 'Ordered' || childrenType === 'Unordered' ? listLevel + 1 : listLevel
 
-    childrenHtml = renderBlockChildren(node.children, childrenType, nextLevel, colCount, embeds)
+    childrenHtml = renderBlockChildren(node.children, childrenType, nextLevel, colCount, embeds, renderHref)
   }
 
   return `<${tag} class="blockNode" data-node-type="blockNode"${idAttr}>${contentHtml}${childrenHtml}</${tag}>`
@@ -113,20 +120,24 @@ function renderBlockNode(
  * Render the blockContent element for a given block.
  * Matches the editor's content-type-specific renderHTML output.
  */
-function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): string {
+function renderBlockContent(
+  block: any,
+  embeds: Record<string, SSREmbedData>,
+  renderHref: SSRRenderOpts['renderHref'],
+): string {
   const text: string = block.text || ''
   const annotations: HMAnnotation[] = block.annotations || []
 
   switch (block.type) {
     case 'Paragraph': {
-      const inlineHtml = renderAnnotatedText(text, annotations)
+      const inlineHtml = renderAnnotatedText(text, annotations, renderHref)
       return `<p class="blockContent inlineContent block-paragraph" data-content-type="paragraph">${inlineHtml}</p>`
     }
 
     case 'Heading': {
       const level = block.attributes?.level || '2'
       const h = Math.min(Math.max(Number(level) || 2, 1), 5)
-      const inlineHtml = renderAnnotatedText(text, annotations)
+      const inlineHtml = renderAnnotatedText(text, annotations, renderHref)
       return `<div class="blockContent" data-content-type="heading" data-level="${h}"><h${h} class="inlineContent">${inlineHtml}</h${h}></div>`
     }
 
@@ -146,7 +157,9 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
       const imgHtml = link
         ? `<img src="/hm/api/image/${esc(link)}" alt="${esc(text)}" loading="lazy"${widthAttr} />`
         : ''
-      const captionHtml = text ? `<span class="inlineContent">${renderAnnotatedText(text, annotations)}</span>` : ''
+      const captionHtml = text
+        ? `<span class="inlineContent">${renderAnnotatedText(text, annotations, renderHref)}</span>`
+        : ''
       return `<div class="blockContent" data-content-type="image">${imgHtml}${captionHtml}</div>`
     }
 
@@ -162,7 +175,11 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
       const link = block.link || ''
       const embedData = link ? embeds[link] : undefined
       if (embedData?.title) {
-        return `<div class="blockContent" data-content-type="embed">${renderEmbedCard(embedData, link)}</div>`
+        return `<div class="blockContent" data-content-type="embed">${renderEmbedCard(
+          embedData,
+          link,
+          renderHref,
+        )}</div>`
       }
       return `<div class="blockContent" data-content-type="embed"><div class="ssr-embed-block"></div></div>`
     }
@@ -188,7 +205,7 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
 
     default: {
       if (text) {
-        const inlineHtml = renderAnnotatedText(text, annotations)
+        const inlineHtml = renderAnnotatedText(text, annotations, renderHref)
         return `<p class="blockContent inlineContent block-paragraph" data-content-type="paragraph">${inlineHtml}</p>`
       }
       return `<div class="blockContent" data-content-type="paragraph"></div>`
@@ -201,7 +218,11 @@ function renderBlockContent(block: any, embeds: Record<string, SSREmbedData>): s
  * Uses the same codepoint-based annotation range logic as the editor to split
  * text into styled spans matching the editor's inline content output.
  */
-function renderAnnotatedText(text: string, annotations: HMAnnotation[]): string {
+function renderAnnotatedText(
+  text: string,
+  annotations: HMAnnotation[],
+  renderHref: SSRRenderOpts['renderHref'],
+): string {
   if (!text) return ''
   if (!annotations || annotations.length === 0) return esc(text)
 
@@ -292,7 +313,7 @@ function renderAnnotatedText(text: string, annotations: HMAnnotation[]): string 
       }
 
       if (linkHref != null) {
-        html = `<a class="link" href="${esc(linkHref)}">${html}</a>`
+        html = `<a class="link" href="${esc(resolveHref(linkHref, renderHref))}">${html}</a>`
       }
 
       if (isInlineEmbed) {
@@ -304,10 +325,10 @@ function renderAnnotatedText(text: string, annotations: HMAnnotation[]): string 
     .join('')
 }
 
-function renderEmbedCard(data: SSREmbedData, link: string): string {
+function renderEmbedCard(data: SSREmbedData, link: string, renderHref: SSRRenderOpts['renderHref']): string {
   const title = esc(data.title || '')
   const summary = esc(data.summary || '')
-  const href = link ? esc(linkToHref(link)) : ''
+  const href = link ? esc(resolveHref(link, renderHref)) : ''
 
   const imageHtml = data.imageUrl
     ? `<div class="ssr-card-image"><img src="${esc(data.imageUrl)}" alt="" loading="lazy" /></div>`
@@ -322,6 +343,10 @@ function renderEmbedCard(data: SSREmbedData, link: string): string {
     `</div>` +
     `</a>`
   )
+}
+
+function resolveHref(link: string, renderHref: SSRRenderOpts['renderHref']): string {
+  return renderHref?.(link) || linkToHref(link)
 }
 
 /** Convert hm://uid/path to a relative URL. */

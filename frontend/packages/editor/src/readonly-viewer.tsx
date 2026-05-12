@@ -1,6 +1,7 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useEffect, useMemo} from 'react'
+import {hypermediaUrlToHref, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import {useCallback, useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
@@ -39,6 +40,17 @@ export function ReadOnlyViewer({
   onCopyFragmentLink,
   onComment,
 }: ReadOnlyViewerProps) {
+  const openUrl = useOpenUrl()
+  const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
+  const renderHref = useCallback(
+    (url: string) =>
+      hypermediaUrlToHref(url, {
+        hmUrlHref,
+        origin,
+        originHomeId,
+      }) || url,
+    [hmUrlHref, origin, originHomeId],
+  )
   const initialContent = useMemo(() => {
     const editorBlocks = hmBlocksToEditorContent(blocks, {childrenType: 'Group'})
     return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const, id: 'empty'}]
@@ -49,10 +61,15 @@ export function ReadOnlyViewer({
       editable: false,
       renderType: 'viewer',
       blockSchema: hmBlockSchema,
+      linkExtensionOptions: {
+        openUrl,
+        renderHref,
+        handleModifiedClicks: !!openRouteNewWindow,
+      } as any,
       // @ts-expect-error - EditorBlock/PartialBlock type mismatch
       initialContent,
     },
-    [initialContent],
+    [initialContent, openUrl, renderHref],
   )
 
   const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null

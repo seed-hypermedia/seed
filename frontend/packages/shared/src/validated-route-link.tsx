@@ -77,7 +77,9 @@ function parseSeedLink(
     const expectedAccountUid = getExpectedAccountUid(route)
     const hostname = getHostname(opts?.origin)
     const externalHref =
-      opts?.origin && expectedAccountUid ? routeToUrl(route, {hostname: opts.origin, originHomeId}) : undefined
+      opts?.origin && expectedAccountUid
+        ? routeToUrl(route, {hostname: opts.origin, originHomeId}) || undefined
+        : undefined
 
     return {
       externalHref,

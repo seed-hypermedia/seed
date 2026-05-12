@@ -7,6 +7,7 @@ type OpenUrlFn = (url?: string, newWindow?: boolean) => void
 type ClickHandlerOptions = {
   type: MarkType
   openUrl?: OpenUrlFn
+  handleModifiedClicks?: boolean
 }
 
 export function clickHandler(options: ClickHandlerOptions): Plugin {
@@ -19,10 +20,16 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         }
 
         const targetEl = event.target as HTMLElement | null
-        const linkEl = targetEl?.closest?.('.link, a[href]') as HTMLElement | null
+        const anchorEl = targetEl?.closest?.('a[href]') as HTMLElement | null
+        const linkEl = targetEl?.closest?.('.link') as HTMLElement | null
         const embedEl = targetEl?.closest?.('[data-inline-embed]') as HTMLElement | null
         const attrs = getAttributes(view.state, options.type.name)
-        const href = linkEl?.getAttribute('href') ?? attrs.href ?? embedEl?.getAttribute('data-inline-embed') ?? null
+        const href =
+          anchorEl?.getAttribute('href') ??
+          linkEl?.getAttribute('href') ??
+          attrs.href ??
+          embedEl?.getAttribute('data-inline-embed') ??
+          null
 
         if (!href) {
           return false
@@ -33,10 +40,17 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         // when the user explicitly holds a modifier.
         const modifierPressed = event.shiftKey || event.metaKey || event.ctrlKey
         if (view.editable && !modifierPressed) {
+          event.preventDefault()
           return false
         }
 
         const newWindow = modifierPressed
+        if (newWindow && !options.handleModifiedClicks) {
+          return false
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
         if (options.openUrl) {
           options.openUrl(href, newWindow)
         } else if (typeof window !== 'undefined') {
