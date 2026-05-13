@@ -1,8 +1,15 @@
 import {describe, expect, it} from 'vitest'
 import type {PlainMessage} from '@bufbuild/protobuf'
+import {Code, ConnectError} from '@connectrpc/connect'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import type {Event} from '@shm/shared'
-import {getEventId, isNotificationEventTooOld, matchesCursorEvent, resolveContentReferenceNames} from './email-notifier'
+import {
+  getEventId,
+  isNotificationEventTooOld,
+  isTransientGrpcUnavailableError,
+  matchesCursorEvent,
+  resolveContentReferenceNames,
+} from './email-notifier'
 
 const TEST_CID_1 = 'bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum'
 const TEST_CID_2 = 'bafy2bzacedexveqjcytw4trm6a4lxgxyssrg3ubxyro6rp5o4lo545qcl3imw'
@@ -169,6 +176,15 @@ describe('matchesCursorEvent', () => {
     })
 
     expect(matchesCursorEvent(firstMention, getEventId(firstMention), getEventId(secondMention)!)).toBe(false)
+  })
+})
+
+describe('isTransientGrpcUnavailableError', () => {
+  it('matches Connect unavailable errors and their logged message form', () => {
+    expect(isTransientGrpcUnavailableError(new ConnectError('', Code.Unavailable))).toBe(true)
+    expect(isTransientGrpcUnavailableError({code: 'unavailable'})).toBe(true)
+    expect(isTransientGrpcUnavailableError(new Error('[unavailable]'))).toBe(true)
+    expect(isTransientGrpcUnavailableError(new Error('[internal] failed'))).toBe(false)
   })
 })
 

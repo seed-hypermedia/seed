@@ -301,8 +301,9 @@ Immediate email processing is:
 
 1. [`processImmediateNotifications(...)`](./email-notifier.ts)
 2. [`collectNotificationsForEvents(...)`](./email-notifier.ts)
-3. [`sendImmediateNotificationEmails(...)`](./email-notifier.ts)
-4. [`sendEmail(...)`](./mailer.ts)
+3. [`persistNotificationsForInboxAccounts(...)`](./notification-persistence.ts)
+4. [`sendImmediateNotificationEmails(...)`](./email-notifier.ts)
+5. [`sendEmail(...)`](./mailer.ts)
 
 Immediate email templates come from:
 
@@ -355,11 +356,12 @@ The conversion from internal notifier objects to shared client payloads happens 
 ### Important current behavior
 
 Today, inbox writes happen from [`processImmediateNotifications(...)`](./email-notifier.ts), after immediate
-notifications are collected.
+notifications are collected and before email delivery is attempted.
 
 Practical consequence:
 
 - immediate account-owned notifications are persisted to the inbox
+- email delivery failures do not block inbox persistence
 - batch-only legacy site notifications are not clearly persisted by the active code path
 
 This is one of the main places where the old architecture docs were overstating the current behavior.

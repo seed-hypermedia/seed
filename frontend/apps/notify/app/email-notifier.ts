@@ -1,4 +1,5 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {
   createCommentEmail,
@@ -204,6 +205,29 @@ function reportError(message: string) {
   }
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Returns true when the daemon dependency is temporarily unavailable. */
+export function isTransientGrpcUnavailableError(error: unknown) {
+  if (error instanceof ConnectError && error.code === Code.Unavailable) return true
+  const code = typeof error === 'object' && error && 'code' in error ? (error as {code?: unknown}).code : undefined
+  if (code === Code.Unavailable || code === 'unavailable') return true
+
+  const message = getErrorMessage(error)
+  return message === '[unavailable]' || message.startsWith('[unavailable] ')
+}
+
+function reportProcessingError(message: string, error: unknown) {
+  const errorMessage = getErrorMessage(error)
+  if (isTransientGrpcUnavailableError(error)) {
+    console.warn(`${new Date().toISOString()} ${message}: ${errorMessage}`)
+    return
+  }
+  reportError(`${message}: ${errorMessage}`)
+}
+
 const reportedOldEventIds = new Set<string>()
 
 async function flushErrorBatch() {
@@ -262,10 +286,10 @@ export async function initEmailNotifier() {
 
     // Wait for the actual promise to settle (not just the timeout race)
     processingPromise
-      .catch((err: Error) => {
+      .catch((err: unknown) => {
         // Don't report abort errors - they're expected after timeout
-        if (err.message !== 'Event loading aborted') {
-          reportError('Error handling email notifications: ' + err.message)
+        if (getErrorMessage(err) !== 'Event loading aborted') {
+          reportProcessingError('Error handling email notifications', err)
         }
       })
       .finally(() => {
@@ -293,10 +317,10 @@ export async function initEmailNotifier() {
 
     // Wait for the actual promise to settle (not just the timeout race)
     processingPromise
-      .catch((err: Error) => {
+      .catch((err: unknown) => {
         // Don't report abort errors - they're expected after timeout
-        if (err.message !== 'Event loading aborted') {
-          reportError('Error handling batch email notifications: ' + err.message)
+        if (getErrorMessage(err) !== 'Event loading aborted') {
+          reportProcessingError('Error handling batch email notifications', err)
         }
       })
       .finally(() => {
@@ -343,8 +367,8 @@ async function handleBatchNotifications(signal?: AbortSignal) {
   if (nextSendTime < nowTime) {
     try {
       await sendBatchNotifications(lastProcessedEventId, signal)
-    } catch (error: any) {
-      reportError('Error sending batch notifications: ' + error.message)
+    } catch (error: unknown) {
+      reportProcessingError('Error sending batch notifications', error)
     } finally {
       // even if there is an error, we still want to mark the events as processed.
       // so that we don't attempt to process the same events again.
@@ -449,8 +473,8 @@ async function handleImmediateNotificationsAfterEventId(lastProcessedEventId: st
   const processStartTime = Date.now()
   try {
     await processImmediateNotifications(events)
-  } catch (error: any) {
-    reportError('Error handling immediate notifications: ' + error.message)
+  } catch (error: unknown) {
+    reportProcessingError('Error handling immediate notifications', error)
   } finally {
     // even if there is an error, we still want to mark the events as processed.
     // so that we don't attempt to process the same events again.
@@ -788,22 +812,26 @@ async function sendImmediateNotificationEmails(notificationsToSend: Notification
 
   for (const [email, notifications] of emailsToSend) {
     for (const notification of notifications) {
-      const notificationWithAction = withImmediateActionUrl(notification)
-      const notificationEmail = buildImmediateNotificationEmail(notificationWithAction)
-      if (!notificationEmail) continue
-      const {subject, text, html} = notificationEmail
-      const reason = notificationWithAction.notif.reason
-      const unsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${notification.adminToken}`
-      logNotifDebug('sending immediate notification email', {
-        email,
-        subject,
-        reason,
-        ...withActionUrlLogContext(notificationWithAction),
-      })
-      await sendEmail(email, subject, {text, html}, undefined, {
-        unsubscribeUrl,
-        feedbackId: reason,
-      })
+      try {
+        const notificationWithAction = withImmediateActionUrl(notification)
+        const notificationEmail = buildImmediateNotificationEmail(notificationWithAction)
+        if (!notificationEmail) continue
+        const {subject, text, html} = notificationEmail
+        const reason = notificationWithAction.notif.reason
+        const unsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${notification.adminToken}`
+        logNotifDebug('sending immediate notification email', {
+          email,
+          subject,
+          reason,
+          ...withActionUrlLogContext(notificationWithAction),
+        })
+        await sendEmail(email, subject, {text, html}, undefined, {
+          unsubscribeUrl,
+          feedbackId: reason,
+        })
+      } catch (error: unknown) {
+        reportError(`Error sending immediate notification email to ${email}: ${getErrorMessage(error)}`)
+      }
     }
   }
 }
@@ -816,26 +844,30 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
   })
 
   for (const [email, notifications] of emailsToSend) {
-    const firstNotification = notifications[0]
-    if (!firstNotification) continue
-    const notificationEmail = await createNotificationsEmail(
-      email,
-      {adminToken: firstNotification.adminToken},
-      notifications,
-    )
-    if (!notificationEmail) continue
-    const {subject, text, html} = notificationEmail
-    const batchUnsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${firstNotification.adminToken}`
-    logNotifDebug('sending batch notification email', {
-      email,
-      subject,
-      notificationsCount: notifications.length,
-      reasons: notifications.map((notification) => notification.notif.reason),
-    })
-    await sendEmail(email, subject, {text, html}, undefined, {
-      unsubscribeUrl: batchUnsubscribeUrl,
-      feedbackId: 'batch',
-    })
+    try {
+      const firstNotification = notifications[0]
+      if (!firstNotification) continue
+      const notificationEmail = await createNotificationsEmail(
+        email,
+        {adminToken: firstNotification.adminToken},
+        notifications,
+      )
+      if (!notificationEmail) continue
+      const {subject, text, html} = notificationEmail
+      const batchUnsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${firstNotification.adminToken}`
+      logNotifDebug('sending batch notification email', {
+        email,
+        subject,
+        notificationsCount: notifications.length,
+        reasons: notifications.map((notification) => notification.notif.reason),
+      })
+      await sendEmail(email, subject, {text, html}, undefined, {
+        unsubscribeUrl: batchUnsubscribeUrl,
+        feedbackId: 'batch',
+      })
+    } catch (error: unknown) {
+      reportError(`Error sending batch notification email to ${email}: ${getErrorMessage(error)}`)
+    }
   }
 }
 
@@ -850,7 +882,6 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
     subscriptions,
     deliveryKind: 'immediate',
   })
-  await sendImmediateNotificationEmails(notificationCollection.notificationsByEmail)
   const inboxItems = notificationCollection.queuedNotifications.flatMap((notification) => {
     const notifWithEvent = notification.notif as Notification & {
       eventId?: string
@@ -879,6 +910,7 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
     inboxItems: inboxItems.length,
     persistedCount,
   })
+  await sendImmediateNotificationEmails(notificationCollection.notificationsByEmail)
 }
 
 async function processBatchNotifications(events: PlainMessage<Event>[]) {
@@ -1837,12 +1869,17 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
       )
       events = response.events.map((e) => toPlainMessage(e))
       nextPageToken = response.nextPageToken
-    } catch (error: any) {
+    } catch (error: unknown) {
       const totalTime = Date.now() - startTime
-      reportError(
-        `loadEventsAfterEventId failed on page ${pageCount} after ${totalTime}ms: ${error.message}. ` +
-          `Returning ${eventsAfterEventId.length} events collected so far.`,
-      )
+      const errorMessage = getErrorMessage(error)
+      const message =
+        `loadEventsAfterEventId failed on page ${pageCount} after ${totalTime}ms: ${errorMessage}. ` +
+        `Returning ${eventsAfterEventId.length} events collected so far.`
+      if (isTransientGrpcUnavailableError(error)) {
+        console.warn(`${new Date().toISOString()} ${message}`)
+      } else {
+        reportError(message)
+      }
       // Return what we have instead of throwing
       return {events: eventsAfterEventId, foundCursor: false, aborted: false}
     }
