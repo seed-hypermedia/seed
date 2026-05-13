@@ -7,7 +7,7 @@ import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {DraftActionsToolbar, EditingDocToolsRight} from '@/components/editing-toolbar'
+import {EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
@@ -630,15 +630,14 @@ export default function DesktopResourcePage() {
       />
     ) : null
 
-  const editingFloatingActions = canEdit
-    ? ({menuItems}: {menuItems: any[]}) => (
-        <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
-      )
-    : undefined
+  const showPublishToolbar = route.key === 'document'
 
-  const draftActions = canEdit
-    ? ({menuItems}: {menuItems: any[]}) => <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
-    : undefined
+  const editingFloatingActions =
+    canEdit && showPublishToolbar
+      ? ({menuItems}: {menuItems: any[]}) => (
+          <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
+        )
+      : undefined
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
@@ -757,7 +756,6 @@ export default function DesktopResourcePage() {
                 onEditorReady={handleEditorReady}
                 machineExtras={null}
                 editingFloatingActions={editingFloatingActions}
-                draftActions={draftActions}
                 newButton={newButton}
                 signingAccountId={selectedAccountId || undefined}
                 publishAccountUid={selectedAccount?.id?.uid || undefined}
