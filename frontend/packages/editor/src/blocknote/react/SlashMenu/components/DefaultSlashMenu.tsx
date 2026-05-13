@@ -1,5 +1,6 @@
 import {createStyles, Menu} from '@mantine/core'
-import * as _ from 'lodash'
+import groupBy from 'lodash/groupBy'
+import forEach from 'lodash/forEach'
 
 import {BlockSchema} from '../../../core'
 import {SlashMenuItem} from './SlashMenuItem'
@@ -17,10 +18,10 @@ export function DefaultSlashMenu<BSchema extends BlockSchema>(props: SlashMenuPr
   const renderedItems: any[] = []
   let index = 0
 
-  const groups = _.groupBy(props.filteredItems, (i) => i.group)
+  const groups = groupBy(props.filteredItems, (i) => i.group)
   // const showNostr = trpc.experiments.get.useQuery().data?.nostr
 
-  _.forEach(groups, (groupedItems) => {
+  forEach(groups, (groupedItems) => {
     renderedItems.push(<Menu.Label key={groupedItems[0]?.group}>{groupedItems[0]?.group}</Menu.Label>)
 
     for (const item of groupedItems) {

@@ -3,7 +3,8 @@ import {Block, BlockNoteEditor, HMBlockSchema} from '@'
 import {updateGroup} from '../../../../../block-utils'
 import {Box, Menu} from '@mantine/core'
 import {Forward, RefreshCcw} from '@shm/ui/icons'
-import * as _ from 'lodash'
+import groupBy from 'lodash/groupBy'
+import forEach from 'lodash/forEach'
 import {useCallback, useRef, useState} from 'react'
 import {
   RiChatQuoteLine,
@@ -48,11 +49,11 @@ function TurnIntoMenu(props: DragHandleMenuProps<HMBlockSchema>) {
     setOpened(true)
   }, [])
 
-  const groups = _.groupBy(turnIntoItems, (i) => i.group)
+  const groups = groupBy(turnIntoItems, (i) => i.group)
   const renderedItems: any[] = []
   let index = 0
 
-  _.forEach(groups, (groupedItems) => {
+  forEach(groups, (groupedItems) => {
     renderedItems.push(<Menu.Label key={groupedItems[0]?.group}>{groupedItems[0]?.group}</Menu.Label>)
 
     for (const item of groupedItems) {

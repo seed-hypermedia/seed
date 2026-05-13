@@ -9,7 +9,7 @@ import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {AnyTimestamp, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import _ from 'lodash'
+import merge from 'lodash/merge'
 import {CircleAlert, Link, Merge, Trash2} from 'lucide-react'
 import {memo, useEffect, useMemo, useRef} from 'react'
 import {SelectionContent} from './accessories'
@@ -857,7 +857,7 @@ function EventItem({
   size?: 'sm' | 'md'
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(route ? _.merge({}, currentRoute, route) : currentRoute)
+  const linkProps = useRouteLink(route ? merge({}, currentRoute, route) : currentRoute)
 
   const tx = useTx()
   return (

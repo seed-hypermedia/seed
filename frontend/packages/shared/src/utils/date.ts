@@ -13,6 +13,9 @@ var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oc
 
 const hasRelativeDate = typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat !== 'undefined'
 
+/** Module-scoped formatter reused across calls to avoid repeated construction. */
+const relativeTimeFormatter = hasRelativeDate ? new Intl.RelativeTimeFormat('en-US', {style: 'short'}) : null
+
 export type AnyTimestamp = string | Date | Timestamp | HMTimestamp | undefined
 
 export function formattedDate(value?: AnyTimestamp, options?: {onlyRelative?: boolean}) {
@@ -124,9 +127,7 @@ function relativeFormattedDate(value?: AnyTimestamp, options?: {onlyRelative?: b
   var now = new Date()
   let date = normalizeDate(value)
   if (!date) return ''
-  let formatter = new Intl.RelativeTimeFormat('en-US', {
-    style: 'short',
-  })
+  const formatter = relativeTimeFormatter!
 
   var result = difference(date, now)
 

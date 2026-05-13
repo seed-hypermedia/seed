@@ -8,6 +8,23 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
   size?: number;
 }
 
+// Module-scoped Intl formatters reused across renders
+const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+});
+
+const fullDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  hour12: true,
+});
+
 // Utility functions
 // Format bytes into human-readable format
 const formatBytes = (bytes: number, decimals = 2): string => {
@@ -394,13 +411,7 @@ const MetricHeatmap = ({
 
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    }).format(date);
+    return shortDateFormatter.format(new Date(dateString));
   };
 
   // Get the unit for the selected metric
@@ -620,13 +631,7 @@ const PerformanceChangeDashboard = ({
 
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    }).format(date);
+    return shortDateFormatter.format(new Date(dateString));
   };
 
   // Format scenario name for display
@@ -951,15 +956,7 @@ function App() {
 
   // Format a date in a readable way
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      hour12: true,
-    }).format(date);
+    return fullDateFormatter.format(new Date(dateString));
   };
 
   // Format metric values with appropriate units

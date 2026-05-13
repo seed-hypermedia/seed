@@ -1,5 +1,5 @@
 import {HMBlock, HMQuery} from '@seed-hypermedia/client/hm-types'
-import _ from 'lodash'
+import isEqual from 'lodash/isEqual'
 
 // Type for comparing blocks that may have different properties based on their type
 type GenericBlockFields = {
@@ -30,7 +30,7 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
     if (!a1 && !a2) return true
     if (!a1 && a2?.length === 0) return true
     if (!a2 && a1?.length === 0) return true
-    return _.isEqual(a1, a2)
+    return isEqual(a1, a2)
   }
 
   // Helper function to compare text, treating undefined and empty string as equal
@@ -141,7 +141,7 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   if (q1.limit !== q2.limit) return false
 
   // Compare sorting arrays
-  if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
+  if (!isEqual(q1.sort || [], q2.sort || [])) return false
 
   // Compare includes arrays
   if (q1.includes.length !== q2.includes.length) return false
