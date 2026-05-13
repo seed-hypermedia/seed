@@ -481,6 +481,7 @@ const VideoDisplay = ({editor, block, selected, setSelected, assign}: DisplayCom
             )}
             src={getVideoIframeSrc(block.props.url)}
             allowFullScreen
+            title="Embedded video player"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             referrerPolicy="strict-origin-when-cross-origin"
           />
