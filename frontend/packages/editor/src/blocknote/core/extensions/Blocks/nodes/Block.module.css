@@ -444,7 +444,8 @@ NESTED BLOCKS
 /* PLACEHOLDERS*/
 
 .isEmpty:before,
-.isFilter:before {
+.isFilter:before,
+.isFirstEmptyBlock:before {
   /*float: left; */
   content: '';
   pointer-events: none;
@@ -455,7 +456,8 @@ NESTED BLOCKS
 }
 
 .isEmpty:before,
-.isFilter:before {
+.isFilter:before,
+.isFirstEmptyBlock:before {
   opacity: 0.5;
 }
 
@@ -466,7 +468,7 @@ NESTED BLOCKS
 
 /* TODO: would be nicer if defined from code */
 
-.blockContent.isEmpty.hasAnchor:before {
+.blockContent.isFirstEmptyBlock:before {
   font-size: 0.9em;
   font-family:
     'Inter',
@@ -505,7 +507,7 @@ NESTED BLOCKS
   content: 'Type to filter';
 }
 
-.blockContent[data-content-type='heading'].isEmpty.hasAnchor:before {
+.blockContent[data-content-type='heading'].isFirstEmptyBlock:before {
   font-family:
     'Inter',
     'SF Pro Display',
@@ -524,7 +526,7 @@ NESTED BLOCKS
   content: 'Heading';
 }
 
-.blockContent[data-content-type='code-block'].isEmpty.hasAnchor:before {
+.blockContent[data-content-type='code-block'].isFirstEmptyBlock:before {
   font-family:
     'Inter',
     'SF Pro Display',

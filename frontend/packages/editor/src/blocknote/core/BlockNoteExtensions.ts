@@ -125,6 +125,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       Gapcursor,
       Placeholder.configure({
         emptyNodeClass: blockStyles.isEmpty,
+        firstEmptyBlockClass: blockStyles.isFirstEmptyBlock,
         hasAnchorClass: blockStyles.hasAnchor,
         isFilterClass: blockStyles.isFilter,
         includeChildren: true,
