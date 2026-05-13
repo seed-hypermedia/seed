@@ -1,0 +1,14 @@
+Rule: react-doctor/prefer-useReducer
+Severity: warning
+Category: State & Effects
+Count: 4
+
+Component "ChatView" has 5 useState calls — consider useReducer for related state
+
+Suggestion: Group related state: `const [state, dispatch] = useReducer(reducer, { field1, field2, ... })`
+
+Files:
+  src/components/assistant-panel.tsx:80
+  src/components/wxr-import-dialog.tsx:34
+  src/pages/settings.tsx:700
+  src/pages/settings.tsx:2372

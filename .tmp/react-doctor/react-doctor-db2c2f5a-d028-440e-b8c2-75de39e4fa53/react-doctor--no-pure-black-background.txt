@@ -1,0 +1,19 @@
+Rule: react-doctor/no-pure-black-background
+Severity: warning
+Category: Architecture
+Count: 9
+
+Pure black background (bg-black) looks harsh — use a near-black tinted toward your brand hue (e.g. bg-gray-950)
+
+Suggestion: Tint the background slightly toward your brand hue — e.g. `#0a0a0f` or Tailwind's `bg-gray-950`. Pure black looks harsh on modern displays
+
+Files:
+  src/components/auto-updater.tsx:34
+  src/components/publish-site.tsx:699
+  src/components/edit-navigation-popover.tsx:39
+  src/components/inline-new-document-card.tsx:130
+  src/editor/query-block.tsx:329
+  src/pages/main.tsx:176
+  src/pages/main.tsx:199
+  src/utils/navigation-container.tsx:172
+  src/pages/contact-page.tsx:163

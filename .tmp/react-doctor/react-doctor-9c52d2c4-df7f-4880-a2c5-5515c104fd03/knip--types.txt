@@ -1,0 +1,23 @@
+Rule: knip/types
+Severity: warning
+Category: Dead Code
+Count: 22
+
+Unused type: ButtonType
+
+Files:
+  src/button-view.tsx
+  src/blocknote/core/BlockNoteEditor.ts
+  src/blocknote/core/extensions/Blocks/api/blockTypes.ts
+  src/comment-editor.tsx
+  src/blocknote/index.ts
+  src/blocknote/core/extensions/Blocks/api/inlineContentTypes.ts
+  src/blocknote/core/extensions/FormattingToolbar/FormattingToolbarPlugin.ts
+  src/blocknote/core/extensions/HyperlinkToolbar/HyperlinkToolbarPlugin.ts
+  src/blocknote/core/index.ts
+  src/button.tsx
+  src/blocknote/core/extensions/Supernumbers/SupernumbersPlugin.ts
+  src/query-search-context.tsx
+  src/blocknote/react/BlockNoteTheme.ts
+  src/tiptap-extension-link/link.ts
+  src/full-schema.ts

@@ -1,0 +1,14 @@
+Rule: react-doctor/no-giant-component
+Severity: warning
+Category: Architecture
+Count: 4
+
+Component "CommentEditor" is 805 lines — consider breaking it into smaller focused components
+
+Suggestion: Extract logical sections into focused components: `<UserHeader />`, `<UserActions />`, etc.
+
+Files:
+  src/comment-editor.tsx:221
+  src/media-render.tsx:237
+  src/document-editor.tsx:62
+  src/blocknote/core/extensions/Latex/LatexToBlocks.ts:379

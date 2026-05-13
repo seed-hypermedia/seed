@@ -1,0 +1,11 @@
+Rule: react-hooks/rules-of-hooks
+Severity: error
+Category: Correctness
+Count: 3
+
+React Hook "useFullRender" cannot be called in an async function.
+
+Files:
+  app/routes/hm.download.tsx:84
+  app/entry.server.tsx:386
+  app/routes/$.tsx:252

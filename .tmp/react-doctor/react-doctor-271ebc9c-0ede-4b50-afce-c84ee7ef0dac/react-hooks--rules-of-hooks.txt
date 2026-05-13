@@ -1,0 +1,37 @@
+Rule: react-hooks/rules-of-hooks
+Severity: error
+Category: Correctness
+Count: 29
+
+React Hook "useImageUrl" is called in function "Anonymous" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use".
+
+Files:
+  src/image.tsx:160
+  src/image.tsx:161
+  src/image.tsx:163
+  src/image.tsx:255
+  src/image.tsx:256
+  src/image.tsx:258
+  src/image.tsx:260
+  src/image.tsx:266
+  src/image.tsx:349
+  src/video.tsx:262
+  src/video.tsx:263
+  src/video.tsx:267
+  src/video.tsx:269
+  src/video.tsx:314
+  src/video.tsx:315
+  src/video.tsx:316
+  src/video.tsx:322
+  src/video.tsx:376
+  src/web-embed.tsx:86
+  src/web-embed.tsx:87
+  src/web-embed.tsx:88
+  src/web-embed.tsx:90
+  src/web-embed.tsx:91
+  src/web-embed.tsx:101
+  src/web-embed.tsx:103
+  src/embed-block.tsx:119
+  e2e/tests/fixtures.ts:470
+  src/file.tsx:63
+  src/file.tsx:64

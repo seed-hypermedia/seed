@@ -1,0 +1,11 @@
+Rule: react-doctor/rendering-usetransition-loading
+Severity: warning
+Category: Performance
+Count: 1
+
+useState for "isLoading" — if this guards a state transition (not an async fetch), consider useTransition instead
+
+Suggestion: Replace with `const [isPending, startTransition] = useTransition()` — avoids a re-render for the loading state
+
+Files:
+  src/components/edit-navigation-popover.tsx:356

@@ -1,0 +1,13 @@
+Rule: react-doctor/rendering-usetransition-loading
+Severity: warning
+Category: Performance
+Count: 3
+
+useState for "isLoading" — if this guards a state transition (not an async fetch), consider useTransition instead
+
+Suggestion: Replace with `const [isPending, startTransition] = useTransition()` — avoids a re-render for the loading state
+
+Files:
+  src/mobile-link-toolbar-button.tsx:139
+  src/hm-toolbar-link-button.tsx:137
+  src/mobile-mentions-dialog.tsx:26

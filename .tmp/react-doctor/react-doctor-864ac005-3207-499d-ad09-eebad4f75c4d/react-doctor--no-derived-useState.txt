@@ -1,0 +1,11 @@
+Rule: react-doctor/no-derived-useState
+Severity: warning
+Category: State & Effects
+Count: 1
+
+useState initialized from prop "input" — if this value should stay in sync with the prop, derive it during render instead
+
+Suggestion: Remove useState and compute the value inline: `const value = transform(propName)`
+
+Files:
+  src/components/move-dialog.tsx:32

@@ -1,0 +1,9 @@
+Rule: knip/duplicates
+Severity: warning
+Category: Dead Code
+Count: 1
+
+Duplicate export: memoryMonitor|default
+
+Files:
+  src/memory-monitor.ts

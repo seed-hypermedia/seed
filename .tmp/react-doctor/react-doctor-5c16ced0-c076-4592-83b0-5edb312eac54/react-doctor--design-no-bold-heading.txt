@@ -1,0 +1,15 @@
+Rule: react-doctor/design-no-bold-heading
+Severity: warning
+Category: Architecture
+Count: 5
+
+font-bold on <h2> crushes counter shapes at display sizes — use font-semibold (600) or font-medium (500)
+
+Suggestion: Use `font-semibold` (600) or `font-medium` (500) on headings — 700+ crushes letter counter shapes at display sizes
+
+Files:
+  src/components/app-error.tsx:26
+  src/pages/contact-page.tsx:166
+  src/pages/contact-page.tsx:323
+  src/components/markdown.tsx:48
+  src/components/markdown.tsx:49

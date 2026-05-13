@@ -1,0 +1,12 @@
+Rule: react-doctor/no-inline-exhaustive-style
+Severity: warning
+Category: Architecture
+Count: 2
+
+8 inline style properties — extract to a CSS class, CSS module, or styled component for maintainability and reuse
+
+Suggestion: Move styles to a CSS class, CSS module, Tailwind utilities, or a styled component — inline objects with many properties hurt readability and create new references every render
+
+Files:
+  src/icon-form.tsx:68
+  src/image-form.tsx:100

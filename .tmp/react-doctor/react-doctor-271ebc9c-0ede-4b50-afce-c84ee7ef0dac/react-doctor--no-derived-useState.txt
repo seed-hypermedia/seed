@@ -1,0 +1,13 @@
+Rule: react-doctor/no-derived-useState
+Severity: warning
+Category: State & Effects
+Count: 3
+
+useState initialized from prop "initialUrl" — if this value should stay in sync with the prop, derive it during render instead
+
+Suggestion: Remove useState and compute the value inline: `const value = transform(propName)`
+
+Files:
+  src/hm-toolbar-link-button.tsx:135
+  src/hm-link-form.tsx:68
+  src/mobile-link-toolbar-button.tsx:137

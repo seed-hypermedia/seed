@@ -1,0 +1,12 @@
+Rule: react-doctor/no-prevent-default
+Severity: warning
+Category: Correctness
+Count: 2
+
+preventDefault() on <form> onSubmit — form won't work without JavaScript. Consider using a server action for progressive enhancement
+
+Suggestion: Use `<form action={serverAction}>` (works without JS) or `<button>` instead of `<a>` with preventDefault
+
+Files:
+  app/routes/hm.device-link.$.tsx:382
+  app/auth.tsx:438

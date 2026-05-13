@@ -1,0 +1,15 @@
+Rule: react-doctor/js-cache-property-access
+Severity: warning
+Category: Performance
+Count: 5
+
+mark.type.name is read 6 times inside this loop — hoist into a const at the top of the loop body
+
+Suggestion: Hoist the deep member access into a const at the top of the loop body: `const { x, y } = obj.deeply.nested`
+
+Files:
+  src/blocknote/core/api/nodeConversions/nodeConversions.ts:242
+  src/blocknote/core/api/formatConversions/simplifyBlocksRehypePlugin.ts:52
+  src/comment-editor.tsx:481
+  src/comment-editor.tsx:708
+  src/blocknote/core/BlockNoteEditor.ts:781

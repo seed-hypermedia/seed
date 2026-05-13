@@ -1,0 +1,11 @@
+Rule: react-doctor/no-barrel-import
+Severity: warning
+Category: Bundle Size
+Count: 1
+
+Import from barrel/index file — import directly from the source module for better tree-shaking
+
+Suggestion: Import from the direct path: `import { Button } from './components/Button'` instead of `./components`
+
+Files:
+  src/models/notification-helpers.ts:8

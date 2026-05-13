@@ -1,0 +1,12 @@
+Rule: react-doctor/js-combine-iterations
+Severity: warning
+Category: Performance
+Count: 2
+
+.map().filter() iterates the array twice — combine into a single loop with .reduce() or for...of
+
+Suggestion: Combine `.map().filter()` (or similar chains) into a single pass with `.reduce()` or a `for...of` loop to avoid iterating the array twice
+
+Files:
+  app/web-site-header.tsx:47
+  app/routes/hm.download.tsx:185

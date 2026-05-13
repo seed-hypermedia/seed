@@ -1,0 +1,15 @@
+Rule: knip/files
+Severity: warning
+Category: Dead Code
+Count: 5
+
+Unused file
+
+Suggestion: This file is not imported by any other file in the project.
+
+Files:
+  app/device-linking_test.tsx
+  app/href.ts
+  app/use-scroll-restoration.ts
+  devicelink/devicelink_test.ts
+  app/shims/react-native-svg.js

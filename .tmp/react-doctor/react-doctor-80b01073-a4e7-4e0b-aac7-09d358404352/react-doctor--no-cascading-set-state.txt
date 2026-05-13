@@ -1,0 +1,13 @@
+Rule: react-doctor/no-cascading-set-state
+Severity: warning
+Category: State & Effects
+Count: 3
+
+4 setState calls in a single useEffect — consider using useReducer or deriving state
+
+Suggestion: Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`
+
+Files:
+  src/toast.tsx:12
+  src/search.tsx:558
+  src/floating-account-footer.tsx:26

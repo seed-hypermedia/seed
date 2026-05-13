@@ -1,0 +1,17 @@
+Rule: react-doctor/no-react19-deprecated-apis
+Severity: warning
+Category: Architecture
+Count: 7
+
+useContext is superseded by `use()` on React 19+ — `use()` reads context conditionally inside hooks, branches, and loops; switch to `import { use } from 'react'`
+
+Suggestion: Pass `ref` as a regular prop on function components — `forwardRef` is no longer needed in React 19+. Replace `useContext(X)` with `use(X)` for branch-aware context reads. Only enabled on projects detected as React 19+.
+
+Files:
+  src/blocknote/react/ReactBlockSpec.tsx:18
+  src/blocknote/react/HyperlinkToolbar/EditHyperlinkMenu/components/EditHyperlinkMenu.tsx:11
+  src/fragment-actions-context.tsx:1
+  src/blocknote/react/SharedComponents/Toolbar/components/ToolbarButton.tsx:3
+  src/blocknote/react/SharedComponents/Toolbar/components/ToolbarDropdownTarget.tsx:3
+  src/blocknote/react/SharedComponents/Toolbar/components/Toolbar.tsx:2
+  src/query-search-context.tsx:1

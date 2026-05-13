@@ -1,0 +1,13 @@
+Rule: jsx-a11y/alt-text
+Severity: error
+Category: Accessibility
+Count: 3
+
+Missing `alt` attribute.
+
+Suggestion: Must have `alt` prop, either with meaningful text, or an empty string for decorative images.
+
+Files:
+  src/image-form.tsx:71
+  src/site-logo.tsx:23
+  src/document-cover.tsx:102

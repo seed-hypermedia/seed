@@ -1,0 +1,15 @@
+Rule: react-doctor/no-prop-callback-in-effect
+Severity: warning
+Category: State & Effects
+Count: 5
+
+useEffect calls prop callback "onProviderIdChange" with local state in deps — this is the "lift state via callback" anti-pattern; lift state into a shared Provider so both sides read the same source
+
+Suggestion: Lift the shared state into a Provider so both sides read the same source — no useEffect-driven sync needed
+
+Files:
+  src/pages/settings.tsx:2511
+  src/pages/settings.tsx:2515
+  src/pages/settings.tsx:2533
+  src/components/onboarding.tsx:153
+  src/components/onboarding.tsx:684

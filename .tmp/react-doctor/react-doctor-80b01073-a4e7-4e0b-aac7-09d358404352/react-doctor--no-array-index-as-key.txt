@@ -1,0 +1,15 @@
+Rule: react-doctor/no-array-index-as-key
+Severity: warning
+Category: Correctness
+Count: 5
+
+Array index "i" used as key — causes bugs when list is reordered or filtered
+
+Suggestion: Use a stable unique identifier: `key={item.id}` or `key={item.slug}` — index keys break on reorder/filter
+
+Files:
+  src/search.tsx:463
+  src/document-list-item.tsx:363
+  src/table-list.tsx:103
+  src/data-viewer.tsx:73
+  src/blocks-content-utils.tsx:142

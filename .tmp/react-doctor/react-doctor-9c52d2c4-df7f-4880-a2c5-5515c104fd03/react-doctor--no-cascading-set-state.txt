@@ -1,0 +1,19 @@
+Rule: react-doctor/no-cascading-set-state
+Severity: warning
+Category: State & Effects
+Count: 9
+
+3 setState calls in a single useEffect — consider using useReducer or deriving state
+
+Suggestion: Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`
+
+Files:
+  src/media-render.tsx:120
+  src/blocknote/react/LinkMenu/components/LinkMenuPositioner.tsx:42
+  src/blocknote/react/HyperlinkToolbar/components/HyperlinkToolbarPositioner.tsx:39
+  src/math.tsx:47
+  src/mention-menu-positioner.tsx:80
+  src/mobile-mentions-dialog.tsx:29
+  src/web-embed.tsx:103
+  src/blocknote/react/SideMenu/components/SideMenuPositioner.tsx:28
+  src/blocknote/react/SlashMenu/components/SlashMenuPositioner.tsx:36

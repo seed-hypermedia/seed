@@ -1,0 +1,12 @@
+Rule: react-doctor/no-effect-event-handler
+Severity: warning
+Category: State & Effects
+Count: 2
+
+useEffect simulating an event handler — move logic to an actual event handler instead
+
+Suggestion: Move the conditional logic into onClick, onChange, or onSubmit handlers directly
+
+Files:
+  src/comment-editor.tsx:600
+  src/nostr.tsx:228

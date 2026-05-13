@@ -1,0 +1,30 @@
+Rule: jsx-a11y/no-static-element-interactions
+Severity: warning
+Category: Accessibility
+Count: 20
+
+Static HTML elements with event handlers require a role.
+
+Suggestion: Add a role attribute to this element, or use a semantic HTML element instead.
+
+Files:
+  src/editor/query-block.tsx:312
+  src/editor/query-block.tsx:341
+  src/editor/query-block.tsx:588
+  src/editor/query-block.tsx:624
+  src/pages/contact-page.tsx:335
+  src/components/publish-site.tsx:816
+  src/components/publish-site.tsx:1252
+  src/components/sidebar-base.tsx:112
+  src/pages/main.tsx:527
+  src/pages/drafts.tsx:151
+  src/pages/drafts.tsx:227
+  src/pages/drafts.tsx:265
+  src/components/sidebar-footer.tsx:98
+  src/components/onboarding.tsx:1248
+  src/components/sidebar.tsx:601
+  src/components/titlebar-common.tsx:867
+  src/components/titlebar-common.tsx:882
+  src/components/inline-new-document-card.tsx:133
+  src/models/export-documents.tsx:50
+  src/components/edit-navigation-popover.tsx:204

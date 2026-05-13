@@ -1,0 +1,16 @@
+Rule: react/jsx-key
+Severity: error
+Category: Correctness
+Count: 6
+
+Missing "key" prop for element in iterator.
+
+Suggestion: Add a "key" prop to the element in the iterator (https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key).
+
+Files:
+  src/pages/contact-page.tsx:281
+  src/pages/contact-page.tsx:327
+  src/components/payment-settings.tsx:70
+  src/components/payment-settings.tsx:214
+  src/components/windows-linux-titlebar.tsx:221
+  src/components/edit-navigation-popover.tsx:462

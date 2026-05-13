@@ -1,0 +1,37 @@
+Rule: knip/files
+Severity: warning
+Category: Dead Code
+Count: 27
+
+Unused file
+
+Suggestion: This file is not imported by any other file in the project.
+
+Files:
+  forge.config.ts
+  vite.main.config.mts
+  vite.preload.config.mts
+  vite.renderer.config.mts
+  vite.renderer.find-in-page.config.mts
+  vite.renderer.loading.config.mts
+  src/draft-status.tsx
+  src/find-in-page.tsx
+  src/preload-find-in-page.ts
+  src/preload-loading.ts
+  src/preload-profiler.ts
+  src/renderer-find.ts
+  src/renderer-loading.ts
+  tests/e2e.template.ts
+  src/components/accounts-combobox.css
+  src/components/add-block-at-end-button.tsx
+  src/components/cover-image.tsx
+  src/components/discussions-panel.tsx
+  src/components/doc-navigation.tsx
+  src/components/editor.tsx
+  src/components/icon-form.tsx
+  src/components/options-panel.tsx
+  src/components/publish-draft-button.tsx
+  src/components/sidebar-footer.tsx
+  src/editor/inline-embed.css
+  src/editor/query-block.tsx
+  src/models/editor-utils.ts

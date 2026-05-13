@@ -1,0 +1,15 @@
+Rule: react-doctor/js-flatmap-filter
+Severity: warning
+Category: Performance
+Count: 5
+
+.map().filter(Boolean) iterates twice — use .flatMap() to transform and filter in a single pass
+
+Suggestion: Use `.flatMap(item => condition ? [value] : [])` — transforms and filters in a single pass instead of creating an intermediate array
+
+Files:
+  src/components/edit-navigation-popover.tsx:364
+  src/pages/preview.tsx:27
+  src/app-chat.ts:456
+  src/app-chat.ts:500
+  src/components/search-input.tsx:166

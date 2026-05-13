@@ -1,0 +1,12 @@
+Rule: react/no-danger
+Severity: warning
+Category: Correctness
+Count: 2
+
+Do not use `dangerouslySetInnerHTML` prop
+
+Suggestion: `dangerouslySetInnerHTML` is a way to inject HTML into your React component. This is dangerous because it can easily lead to XSS vulnerabilities.
+
+Files:
+  app/root.tsx:75
+  app/root.tsx:82

@@ -1,0 +1,11 @@
+Rule: jsx-a11y/html-has-lang
+Severity: warning
+Category: Accessibility
+Count: 1
+
+Missing lang attribute.
+
+Suggestion: Add a `lang` attribute to the `html` element whose value represents the primary language of document.
+
+Files:
+  app/root.tsx:142

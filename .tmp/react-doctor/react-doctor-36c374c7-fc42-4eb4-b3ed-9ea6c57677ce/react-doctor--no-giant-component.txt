@@ -1,0 +1,11 @@
+Rule: react-doctor/no-giant-component
+Severity: warning
+Category: Architecture
+Count: 1
+
+Component "WebCommenting" is 384 lines — consider breaking it into smaller focused components
+
+Suggestion: Extract logical sections into focused components: `<UserHeader />`, `<UserActions />`, etc.
+
+Files:
+  app/commenting.tsx:64

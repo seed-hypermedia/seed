@@ -1,0 +1,15 @@
+Rule: react-doctor/design-no-three-period-ellipsis
+Severity: warning
+Category: Architecture
+Count: 5
+
+Three-period ellipsis ("...") in JSX text — use the actual ellipsis character "…" (or `&hellip;`)
+
+Suggestion: Use the typographic ellipsis "…" (or `&hellip;`) instead of three periods — pairs with action-with-followup labels ("Rename…", "Loading…")
+
+Files:
+  src/feed.tsx:188
+  src/feed.tsx:676
+  src/query-block-content.tsx:125
+  src/embed-views.tsx:141
+  src/embed-views.tsx:243

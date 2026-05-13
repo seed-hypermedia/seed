@@ -1,0 +1,15 @@
+Rule: react-doctor/query-mutation-missing-invalidation
+Severity: warning
+Category: TanStack Query
+Count: 5
+
+useMutation without a cache update — stale data may remain after the mutation. Call queryClient.invalidateQueries / setQueryData / resetQueries / refetchQueries inside onSuccess (or trigger a router refresh)
+
+Suggestion: Add `onSuccess: () => queryClient.invalidateQueries({ queryKey: ['...'] })` so cached data stays in sync after the mutation
+
+Files:
+  app/auth.tsx:666
+  app/web-notifications.ts:145
+  app/web-notifications.ts:164
+  app/web-notifications.ts:189
+  app/routes/hm.device-link.$.tsx:642

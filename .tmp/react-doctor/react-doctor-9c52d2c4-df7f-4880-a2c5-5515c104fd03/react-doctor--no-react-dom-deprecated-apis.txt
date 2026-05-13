@@ -1,0 +1,12 @@
+Rule: react-doctor/no-react-dom-deprecated-apis
+Severity: warning
+Category: Architecture
+Count: 2
+
+react-dom/test-utils is removed in React 19. Use `import { act } from 'react'` instead.
+
+Suggestion: Switch the legacy `react-dom` root API (`render` / `hydrate` / `unmountComponentAtNode`) to `createRoot` / `hydrateRoot` / `root.unmount()` from `react-dom/client`. Replace `findDOMNode` with a ref. The whole `react-dom/test-utils` entry point is removed in React 19 — use `act` from `react` and `fireEvent` / `render` from `@testing-library/react`. Only enabled on projects detected as React 18+.
+
+Files:
+  src/media-container.test.tsx:3
+  src/button.test.tsx:3

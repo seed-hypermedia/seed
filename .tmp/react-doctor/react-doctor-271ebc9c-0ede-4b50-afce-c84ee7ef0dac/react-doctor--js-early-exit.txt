@@ -1,0 +1,12 @@
+Rule: react-doctor/js-early-exit
+Severity: warning
+Category: Performance
+Count: 2
+
+4 levels of nested if statements — use early returns to flatten
+
+Suggestion: Add an early `return` / `continue` to flatten deep nesting and short-circuit when the predicate is already known
+
+Files:
+  src/blocknote/core/api/nodeConversions/nodeConversions.ts:255
+  src/blocknote/core/api/nodeConversions/nodeConversions.ts:287

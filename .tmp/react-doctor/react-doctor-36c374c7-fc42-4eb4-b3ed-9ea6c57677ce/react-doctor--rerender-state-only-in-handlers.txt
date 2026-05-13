@@ -1,0 +1,14 @@
+Rule: react-doctor/rerender-state-only-in-handlers
+Severity: warning
+Category: Performance
+Count: 4
+
+useState "isClient" is updated but never read in the component's return — use useRef so updates don't trigger re-renders
+
+Suggestion: Replace useState with useRef when the value is only mutated and never read in render — `ref.current = ...` updates without re-rendering the component
+
+Files:
+  app/client-lazy.tsx:38
+  app/commenting.tsx:632
+  app/routes/hm.device-link.$.tsx:197
+  app/routes/hm.device-link.$.tsx:198

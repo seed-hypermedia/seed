@@ -1,0 +1,15 @@
+Rule: react-doctor/effect-needs-cleanup
+Severity: error
+Category: State & Effects
+Count: 5
+
+useEffect schedules `setTimeout(...)` but never returns a cleanup — leaks the registration on every re-run and on unmount. Return a cleanup function that calls clearTimeout(...)
+
+Suggestion: Return a cleanup function that releases the subscription / timer: `return () => target.removeEventListener(name, handler)` for listeners, `return () => clearInterval(id)` / `clearTimeout(id)` for timers, or `return unsubscribe` if the subscribe call already returned one
+
+Files:
+  src/blocknote/react/LinkMenu/components/LinkMenuPositioner.tsx:26
+  src/mention-menu-positioner.tsx:62
+  src/hyperlink-toolbar.tsx:27
+  src/web-embed.tsx:103
+  src/blocknote/react/SlashMenu/components/SlashMenuPositioner.tsx:30

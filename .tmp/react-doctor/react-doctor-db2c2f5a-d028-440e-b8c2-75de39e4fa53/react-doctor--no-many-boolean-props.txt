@@ -1,0 +1,11 @@
+Rule: react-doctor/no-many-boolean-props
+Severity: warning
+Category: Architecture
+Count: 1
+
+Component "ProviderFormFields" takes 4 boolean-like props (showActions, showLabelField, showTypeSelector…) — consider compound components or explicit variants instead of stacking flags
+
+Suggestion: Split into compound components or named variants: `<Button.Primary />`, `<DialogConfirm />` instead of stacking `isPrimary`, `isConfirm` flags
+
+Files:
+  src/pages/settings.tsx:2340

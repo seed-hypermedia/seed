@@ -1,0 +1,11 @@
+Rule: jsx-a11y/iframe-has-title
+Severity: warning
+Category: Accessibility
+Count: 1
+
+Missing `title` attribute for the `iframe` element.
+
+Suggestion: Provide `title` property for `iframe` element.
+
+Files:
+  src/video.tsx:472

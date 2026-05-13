@@ -1,0 +1,15 @@
+Rule: jsx-a11y/no-autofocus
+Severity: warning
+Category: Accessibility
+Count: 5
+
+The `autoFocus` attribute is found here, which can cause usability issues for sighted and non-sighted users.
+
+Suggestion: Remove the `autoFocus` attribute.
+
+Files:
+  src/search.tsx:505
+  src/form-fields.tsx:31
+  src/resource-page-common.tsx:1639
+  src/resource-page-common.tsx:1974
+  src/resource-page-common.tsx:2148

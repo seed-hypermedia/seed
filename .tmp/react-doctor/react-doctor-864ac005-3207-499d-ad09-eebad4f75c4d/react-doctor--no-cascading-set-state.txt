@@ -1,0 +1,18 @@
+Rule: react-doctor/no-cascading-set-state
+Severity: warning
+Category: State & Effects
+Count: 8
+
+3 setState calls in a single useEffect — consider using useReducer or deriving state
+
+Suggestion: Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`
+
+Files:
+  src/components/publish-draft-button.tsx:536
+  src/pages/settings.tsx:2503
+  src/pages/settings.tsx:2559
+  src/pages/settings.tsx:2571
+  src/root.tsx:427
+  src/models/payments.ts:51
+  src/components/edit-navigation-popover.tsx:59
+  src/models/chat.ts:117

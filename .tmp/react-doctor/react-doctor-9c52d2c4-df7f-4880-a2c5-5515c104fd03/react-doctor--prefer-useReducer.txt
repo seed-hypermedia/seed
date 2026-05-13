@@ -1,0 +1,18 @@
+Rule: react-doctor/prefer-useReducer
+Severity: warning
+Category: State & Effects
+Count: 8
+
+Component "CommentEditor" has 5 useState calls — consider useReducer for related state
+
+Suggestion: Group related state: `const [state, dispatch] = useReducer(reducer, { field1, field2, ... })`
+
+Files:
+  src/comment-editor.tsx:287
+  src/media-render.tsx:263
+  src/hm-formatting-toolbar.tsx:230
+  src/nostr.tsx:215
+  src/blocknote/react/LinkMenu/components/LinkMenuPositioner.tsx:17
+  src/tiptap-extension-code-block/code-block-view.tsx:16
+  src/blocknote/react/HyperlinkToolbar/components/HyperlinkToolbarPositioner.tsx:29
+  src/mention-menu-positioner.tsx:31

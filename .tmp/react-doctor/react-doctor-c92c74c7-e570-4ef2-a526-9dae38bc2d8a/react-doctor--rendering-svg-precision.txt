@@ -1,0 +1,17 @@
+Rule: react-doctor/rendering-svg-precision
+Severity: warning
+Category: Performance
+Count: 7
+
+SVG d attribute uses 4+ decimal precision — truncate to 1–2 decimals to shrink markup with no visible difference
+
+Suggestion: Truncate path/points/transform decimals to 1–2 digits — sub-pixel precision adds bytes with no visible difference
+
+Files:
+  src/icons.tsx:125
+  src/icons.tsx:324
+  src/icons.tsx:331
+  src/icons.tsx:338
+  src/seed-logo.tsx:13
+  src/seed-logo.tsx:17
+  src/seed-logo.tsx:21

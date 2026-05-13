@@ -1,0 +1,11 @@
+Rule: react-doctor/no-tiny-text
+Severity: warning
+Category: Accessibility
+Count: 1
+
+Font size 10px is too small — body text should be at least 12px for readability, 16px is ideal
+
+Suggestion: Use at least 12px for body content, 16px is ideal. Small text is hard to read, especially on high-DPI mobile screens
+
+Files:
+  src/face-pile.tsx:40

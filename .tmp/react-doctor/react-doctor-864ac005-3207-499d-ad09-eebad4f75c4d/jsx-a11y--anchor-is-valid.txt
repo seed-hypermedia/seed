@@ -1,0 +1,11 @@
+Rule: jsx-a11y/anchor-is-valid
+Severity: warning
+Category: Accessibility
+Count: 1
+
+Missing `href` attribute for the `a` element.
+
+Suggestion: Provide the `href` attribute for the `a` element.
+
+Files:
+  src/models/export-documents.tsx:50

@@ -1,0 +1,25 @@
+Rule: react-doctor/design-no-redundant-size-axes
+Severity: warning
+Category: Architecture
+Count: 15
+
+w-20 h-20 → use the shorthand size-20 (Tailwind v3.4+)
+
+Suggestion: Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both axes match
+
+Files:
+  app/notifications-page-content.tsx:30
+  app/notifications-page-content.tsx:42
+  app/notifications-page-content.tsx:160
+  app/notifications-page-content.tsx:168
+  app/notifications-page-content.tsx:176
+  app/routes/hm.device-link.$.tsx:146
+  app/routes/hm.device-link.$.tsx:147
+  app/routes/hm.device-link.$.tsx:320
+  app/routes/hm.device-link.$.tsx:324
+  app/routes/hm.device-link.$.tsx:349
+  app/routes/hm.device-link.$.tsx:371
+  app/routes/hm.device-link.$.tsx:425
+  app/routes/hm.device-link.$.tsx:522
+  app/routes/hm.device-link.$.tsx:544
+  app/routes/hm.device-link.$.tsx:545

@@ -1,0 +1,13 @@
+Rule: react-doctor/design-no-redundant-padding-axes
+Severity: warning
+Category: Architecture
+Count: 3
+
+px-2 py-2 → use the shorthand p-2
+
+Suggestion: Collapse `px-N py-N` to `p-N` when both axes match. Keep them split only when one axis varies at a breakpoint (`py-2 md:py-3`)
+
+Files:
+  src/components/titlebar-common.tsx:244
+  src/components/titlebar-common.tsx:314
+  src/components/sidebar-footer.tsx:71

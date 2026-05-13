@@ -1,0 +1,16 @@
+Rule: react-doctor/design-no-vague-button-label
+Severity: warning
+Category: Accessibility
+Count: 6
+
+Vague button label "Continue" — name the action ("Save changes", "Send invite", "Delete account") so screen readers and hesitant users know what happens
+
+Suggestion: Name the action: "Save changes" instead of "Continue", "Send invite" instead of "Submit", "Delete account" instead of "OK". The label IS the button's accessible name
+
+Files:
+  src/pages/main.tsx:548
+  src/components/payment-settings.tsx:487
+  src/components/payment-settings.tsx:523
+  src/components/wxr-import-dialog.tsx:267
+  src/components/wxr-import-dialog.tsx:635
+  src/components/onboarding.tsx:1285

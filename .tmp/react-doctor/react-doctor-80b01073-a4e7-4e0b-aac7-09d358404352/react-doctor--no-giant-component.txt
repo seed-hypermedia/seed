@@ -1,0 +1,11 @@
+Rule: react-doctor/no-giant-component
+Severity: warning
+Category: Architecture
+Count: 1
+
+Component "DocumentTools" is 304 lines — consider breaking it into smaller focused components
+
+Suggestion: Extract logical sections into focused components: `<UserHeader />`, `<UserActions />`, etc.
+
+Files:
+  src/document-tools.tsx:28

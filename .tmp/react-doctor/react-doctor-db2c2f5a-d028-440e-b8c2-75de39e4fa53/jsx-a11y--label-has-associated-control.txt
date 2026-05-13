@@ -1,0 +1,13 @@
+Rule: jsx-a11y/label-has-associated-control
+Severity: warning
+Category: Accessibility
+Count: 3
+
+A form label must have accessible text.
+
+Suggestion: Ensure the label either has text inside it or is accessibly labelled using an attribute such as `aria-label`, or `aria-labelledby`. You can mark more attributes as accessible labels by configuring the `labelAttributes` option.
+
+Files:
+  src/components/onboarding.tsx:746
+  src/components/onboarding.tsx:761
+  src/components/wxr-import-dialog.tsx:181

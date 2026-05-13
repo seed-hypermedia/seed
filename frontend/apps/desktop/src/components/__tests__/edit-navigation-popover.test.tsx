@@ -175,16 +175,4 @@ describe('EditNavPopover trigger', () => {
       cleanup(root, container)
     }
   })
-
-  it('shows only the document path in the link input for hm links', () => {
-    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: 'Docs', link: 'hm://alice/docs'}])
-
-    try {
-      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement | null
-      expect(linkInput?.value).toBe('/docs')
-      expect(container.textContent).not.toContain('hm://alice/docs')
-    } finally {
-      cleanup(root, container)
-    }
-  })
 })

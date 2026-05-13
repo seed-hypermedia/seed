@@ -1,0 +1,19 @@
+Rule: react-doctor/design-no-redundant-size-axes
+Severity: warning
+Category: Architecture
+Count: 9
+
+w-4 h-4 → use the shorthand size-4 (Tailwind v3.4+)
+
+Suggestion: Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both axes match
+
+Files:
+  src/components/date-picker.tsx:63
+  src/notification-list-item.tsx:48
+  src/notification-list-item.tsx:53
+  src/notification-list-item.tsx:71
+  src/components/menubar.tsx:203
+  src/edit-profile-form.tsx:80
+  src/hm-icon.tsx:112
+  src/hm-icon.tsx:113
+  src/search.tsx:362

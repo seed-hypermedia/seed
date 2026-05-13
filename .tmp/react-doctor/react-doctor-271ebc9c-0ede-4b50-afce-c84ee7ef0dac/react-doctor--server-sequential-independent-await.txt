@@ -1,0 +1,16 @@
+Rule: react-doctor/server-sequential-independent-await
+Severity: warning
+Category: Server
+Count: 6
+
+Sequential `await` without a data dependency on the previous result — wrap the independent calls in `Promise.all([...])` so they race instead of waterfalling
+
+Suggestion: Wrap independent awaits in `Promise.all([...])` so they race instead of waterfalling — second call doesn't depend on the first
+
+Files:
+  e2e/tests/fixtures.ts:169
+  e2e/tests/fixtures.ts:236
+  e2e/tests/copy-paste.e2e.ts:181
+  e2e/tests/copy-paste.e2e.ts:188
+  e2e/tests/copy-paste.e2e.ts:437
+  e2e/tests/copy-paste.e2e.ts:467

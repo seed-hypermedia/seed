@@ -1,0 +1,33 @@
+Rule: react-doctor/design-no-default-tailwind-palette
+Severity: warning
+Category: Architecture
+Count: 23
+
+text-gray-500 reads as the Tailwind template default — use zinc (true neutral), neutral (warmer), or stone (warmest)
+
+Suggestion: Replace `indigo-*` / `gray-*` / `slate-*` with project tokens, your brand color, or a less-default neutral (`zinc`, `neutral`, `stone`)
+
+Files:
+  src/components/dialog.tsx:71
+  src/components/dialog.tsx:71
+  src/components/dialog.tsx:71
+  src/components/dialog.tsx:71
+  src/components/dialog.tsx:71
+  src/inline-draft-list-item.tsx:105
+  src/face-pile.tsx:38
+  src/embed-views.tsx:69
+  src/embed-views.tsx:69
+  src/comments.tsx:1126
+  src/follow-button.tsx:16
+  src/follow-button.tsx:16
+  src/search.tsx:376
+  src/search.tsx:385
+  src/search.tsx:394
+  src/data-viewer.tsx:17
+  src/data-viewer.tsx:18
+  src/data-viewer.tsx:58
+  src/data-viewer.tsx:79
+  src/data-viewer.tsx:92
+  src/data-viewer.tsx:121
+  src/data-viewer.tsx:144
+  src/data-viewer.tsx:152

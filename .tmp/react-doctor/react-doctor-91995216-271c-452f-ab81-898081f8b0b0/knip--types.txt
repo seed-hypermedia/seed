@@ -1,0 +1,10 @@
+Rule: knip/types
+Severity: warning
+Category: Dead Code
+Count: 11
+
+Unused type: PushAction
+
+Files:
+  src/utils/navigation.tsx
+  src/query-block-drafts-context.tsx

@@ -1,0 +1,11 @@
+Rule: react-doctor/no-transition-all
+Severity: warning
+Category: Performance
+Count: 1
+
+transition: "all" animates every property including layout — list only the properties you animate
+
+Suggestion: List specific properties: `transition: "opacity 200ms, transform 200ms"` — or in Tailwind use `transition-colors`, `transition-opacity`, or `transition-transform`
+
+Files:
+  src/blocknote/react/SideMenu/components/DropIndicator.tsx:45
