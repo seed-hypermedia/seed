@@ -27,6 +27,12 @@ function createEmptyNavigationItem(): HMNavigationItem {
   }
 }
 
+function getDisplayValueForLink(link: string) {
+  if (!link) return ''
+  const unpackedLink = unpackHmId(link)
+  return unpackedLink ? `/${unpackedLink.path?.join('/') || ''}` : link
+}
+
 export function EditNavPopover({
   docNav,
   editDocNav,
@@ -349,180 +355,248 @@ function HMDocURLInput({
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
 }) {
-  const unpackedLink = unpackHmId(link)
-  let label = link || 'Select document or paste URL'
-  let fontClass = 'text-muted-foreground'
-  const TriggerIcon = link?.match(/^https?:\/\//) ? Globe : Search
-  if (link) {
-    label = unpackedLink ? `/${unpackedLink.path?.join('/') || ''}` : link
-    fontClass = 'text-primary'
-  }
-  const popoverState = usePopoverState()
-  return (
-    <>
-      <Popover {...popoverState}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              'hover:bg-muted/40 flex w-full items-center gap-2 rounded-md border border-black/8 bg-transparent px-3 py-2 text-left text-sm transition-colors dark:border-white/10',
-              fontClass,
-            )}
-          >
-            <TriggerIcon className="text-muted-foreground size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{label}</span>
-            <span className="text-muted-foreground text-xs">Choose</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="p-0">
-          <SearchUI
-            onValue={onUpdate}
-            homeId={homeId}
-            onClose={() => popoverState.onOpenChange(false)}
-            filterPresets={filterPresets}
-          />
-        </PopoverContent>
-      </Popover>
-    </>
-  )
-}
-
-function SearchUI({
-  onValue,
-  onClose,
-  homeId,
-  filterPresets,
-}: {
-  onValue: (link: string, title: string) => void
-  onClose: () => void
-  homeId?: UnpackedHypermediaId
-  filterPresets: (item: {link: string}) => boolean
-}) {
-  const [query, setQuery] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const isWebUrl = query.match(/^https?:\/\//)
-  const search = useSearch(query, {enabled: !!query})
+  const [query, setQuery] = useState(getDisplayValueForLink(link))
+  const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const dirList = useDirectory(homeId, {mode: 'Children'})
-  const isSearching = !!query.length
+  const [activeSelection, setActiveSelection] = useState<{
+    link: string
+    title: string
+  } | null>(null)
+  const [isResolvingUrl, setIsResolvingUrl] = useState(false)
+  const displayValue = getDisplayValueForLink(link)
+  const isWebUrl = /^https?:\/\//.test(query.trim())
   const Icon = isWebUrl ? Globe : Search
-  const results: SearchResult[] = isSearching
-    ? search?.data?.entities
-        ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
-        ?.map((item, index) => {
-          const title = item.title || item.id.uid
-          return {
-            key: packHmId(item.id),
-            title,
-            path: item.parentNames,
-            icon: item.icon,
-            onFocus: () => {
-              setFocusedIndex(index)
-            },
-            onMouseEnter: () => {
-              setFocusedIndex(index)
-            },
-            onSelect: () => onValue(packHmId(item.id), item.title || ''),
-            subtitle: 'Document',
-            searchQuery: item.searchQuery,
-            versionTime: item.versionTime || '',
-          }
-        })
-        .filter(Boolean) ?? []
-    : dirList.data?.map((d, index) => {
-        const id = d.id.id
-        return {
-          key: id,
-          title: d.metadata.name || '',
-          path: d.path,
-          icon: d.metadata.icon,
-          onSelect: () => onValue(id, d.metadata.name || ''),
-          subtitle: 'Document',
-          searchQuery: query,
-          onFocus: () => {
-            setFocusedIndex(index)
-          },
-          onMouseEnter: () => {
-            setFocusedIndex(index)
-          },
-        }
-      }) ?? []
+
+  useEffect(() => {
+    setQuery(displayValue)
+  }, [displayValue])
+
+  function closeAndReset() {
+    setIsOpen(false)
+    setFocusedIndex(0)
+    setActiveSelection(null)
+    setQuery(displayValue)
+    setIsResolvingUrl(false)
+  }
 
   return (
-    <div className="z-50 max-h-[50vh] overflow-y-auto">
-      <div className="border-color8 relative border-b-1 p-1">
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        <Icon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
-          autoFocus
-          className="w-full rounded-sm p-2 pl-10"
+          aria-label="Link"
+          className={cn('pl-9', link ? 'text-primary' : 'text-muted-foreground')}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
+          placeholder="Search documents or paste URL"
+          onFocus={() => {
+            setIsOpen(true)
+            setFocusedIndex(0)
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              if (
+                document.activeElement instanceof HTMLElement &&
+                document.activeElement.dataset.navLinkResult === 'true'
+              ) {
+                return
+              }
+              closeAndReset()
+            }, 0)
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setIsOpen(true)
+            setFocusedIndex(0)
+          }}
+          onKeyDown={async (e) => {
             if (e.key === 'Escape') {
               e.preventDefault()
-              onClose()
-            }
-
-            if (e.key === 'Enter') {
-              if (query.match(/^https?:\/\//)) {
-                onValue(query, '')
-                setIsLoading(true)
-                resolveHypermediaUrl(query)
-                  .then((resolved) => {
-                    if (resolved) {
-                      onValue(resolved.id, resolved.title || '')
-                    }
-                    setIsLoading(false)
-                    onClose()
-                  })
-                  .catch((e) => {
-                    console.error(e)
-                    onClose()
-                  })
-              } else {
-                const selectedEntity = results[focusedIndex]
-                if (selectedEntity) {
-                  onValue(selectedEntity.key, selectedEntity.title || '')
-                  onClose()
-                }
-              }
+              closeAndReset()
+              return
             }
 
             if (e.key === 'ArrowUp') {
               e.preventDefault()
-              setFocusedIndex((prev) => (prev - 1 + results.length) % results.length)
+              setFocusedIndex((prev) => prev - 1)
+              return
             }
 
             if (e.key === 'ArrowDown') {
               e.preventDefault()
-              setFocusedIndex((prev) => (prev + 1) % results.length)
+              setFocusedIndex((prev) => prev + 1)
+              return
+            }
+
+            if (e.key !== 'Enter') return
+
+            const trimmedQuery = query.trim()
+            if (!trimmedQuery) return
+
+            e.preventDefault()
+
+            if (/^https?:\/\//.test(trimmedQuery)) {
+              onUpdate(trimmedQuery, trimmedQuery)
+              setIsResolvingUrl(true)
+              try {
+                const resolved = await resolveHypermediaUrl(trimmedQuery)
+                if (resolved) {
+                  onUpdate(resolved.id, resolved.title || trimmedQuery)
+                }
+              } catch (error) {
+                console.error(error)
+              } finally {
+                setIsResolvingUrl(false)
+                setIsOpen(false)
+                setActiveSelection(null)
+              }
+              return
+            }
+
+            if (activeSelection) {
+              onUpdate(activeSelection.link, activeSelection.title)
+              setQuery(getDisplayValueForLink(activeSelection.link))
+              setIsOpen(false)
+              setFocusedIndex(0)
+              setActiveSelection(null)
             }
           }}
         />
-        <Icon className="absolute top-1/2 left-3 -translate-y-1/2" size={20} />
       </div>
-      {isLoading && (
-        <div className="flex justify-center p-2">
+      {isOpen ? (
+        <SearchUI
+          query={query}
+          focusedIndex={focusedIndex}
+          isResolvingUrl={isResolvingUrl}
+          onActiveResultChange={setActiveSelection}
+          onFocusedIndexChange={setFocusedIndex}
+          onValue={(nextLink, title) => {
+            onUpdate(nextLink, title)
+            setQuery(getDisplayValueForLink(nextLink))
+            setIsOpen(false)
+            setFocusedIndex(0)
+            setActiveSelection(null)
+            setIsResolvingUrl(false)
+          }}
+          homeId={homeId}
+          filterPresets={filterPresets}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function SearchUI({
+  query,
+  focusedIndex,
+  isResolvingUrl,
+  onActiveResultChange,
+  onFocusedIndexChange,
+  onValue,
+  homeId,
+  filterPresets,
+}: {
+  query: string
+  focusedIndex: number
+  isResolvingUrl: boolean
+  onActiveResultChange: (result: {link: string; title: string} | null) => void
+  onFocusedIndexChange: (index: number | ((prev: number) => number)) => void
+  onValue: (link: string, title: string) => void
+  homeId?: UnpackedHypermediaId
+  filterPresets: (item: {link: string}) => boolean
+}) {
+  const trimmedQuery = query.trim()
+  const isWebUrl = /^https?:\/\//.test(trimmedQuery)
+  const isSearching = !!trimmedQuery.length
+  const search = useSearch(query, {enabled: isSearching && !isWebUrl})
+  const dirList = useDirectory(homeId, {mode: 'Children'})
+  const results: SearchResult[] = (
+    isSearching
+      ? search?.data?.entities
+          ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
+          ?.map((item, index) => {
+            const title = item.title || item.id.uid
+            return {
+              key: packHmId(item.id),
+              title,
+              path: item.parentNames,
+              icon: item.icon,
+              onFocus: () => {
+                onFocusedIndexChange(index)
+              },
+              onMouseEnter: () => {
+                onFocusedIndexChange(index)
+              },
+              onSelect: () => onValue(packHmId(item.id), item.title || ''),
+              subtitle: 'Document',
+              searchQuery: item.searchQuery,
+              versionTime: item.versionTime || '',
+            }
+          })
+          .filter(Boolean) ?? []
+      : dirList.data?.map((d, index) => {
+          const id = d.id.id
+          return {
+            key: id,
+            title: d.metadata.name || '',
+            path: d.path,
+            icon: d.metadata.icon,
+            onSelect: () => onValue(id, d.metadata.name || ''),
+            subtitle: 'Document',
+            searchQuery: query,
+            onFocus: () => {
+              onFocusedIndexChange(index)
+            },
+            onMouseEnter: () => {
+              onFocusedIndexChange(index)
+            },
+          }
+        }) ?? []
+  ).filter((item) => filterPresets({link: item.key}))
+
+  const normalizedFocusedIndex =
+    results.length > 0 ? ((focusedIndex % results.length) + results.length) % results.length : 0
+
+  useEffect(() => {
+    const activeItem = results[normalizedFocusedIndex]
+    onActiveResultChange(activeItem ? {link: activeItem.key, title: activeItem.title || ''} : null)
+  }, [normalizedFocusedIndex, onActiveResultChange, results])
+
+  return (
+    <div className="z-50 max-h-[50vh] overflow-y-auto rounded-md border border-black/8 bg-white shadow-sm dark:border-white/10 dark:bg-black">
+      {isResolvingUrl ? (
+        <div className="flex justify-center p-3">
           <Spinner />
         </div>
-      )}
-      {results.map((item, itemIndex) => {
-        const isSelected = focusedIndex === itemIndex
+      ) : null}
+      {!isResolvingUrl && isWebUrl ? (
+        <div className="text-muted-foreground px-3 py-2 text-sm">Press Enter to use this URL.</div>
+      ) : null}
+      {!isResolvingUrl && !results.length && !isWebUrl ? (
+        <div className="text-muted-foreground px-3 py-2 text-sm">
+          {isSearching ? 'No documents found.' : 'No documents available.'}
+        </div>
+      ) : null}
+      {!isResolvingUrl &&
+        results.map((item, itemIndex) => {
+          const isSelected = normalizedFocusedIndex === itemIndex
 
-        return (
-          <SearchResultItem
-            item={{
-              ...item,
-              path: item.path || [],
-              onSelect: () => {
-                onValue(item.key, item.title || '')
-              },
-              onFocus: () => setFocusedIndex(itemIndex),
-              onMouseEnter: () => setFocusedIndex(itemIndex),
-            }}
-            selected={isSelected}
-          />
-        )
-      })}
+          return (
+            <div key={item.key} data-nav-link-result="true" tabIndex={-1} onMouseDown={(e) => e.preventDefault()}>
+              <SearchResultItem
+                item={{
+                  ...item,
+                  path: item.path || [],
+                  onSelect: () => {
+                    onValue(item.key, item.title || '')
+                  },
+                  onFocus: () => onFocusedIndexChange(itemIndex),
+                  onMouseEnter: () => onFocusedIndexChange(itemIndex),
+                }}
+                selected={isSelected}
+              />
+            </div>
+          )
+        })}
     </div>
   )
 }
