@@ -387,32 +387,28 @@ test.describe('Link Toolbar', () => {
 
       const {doc, schema} = tiptap.state
       const linkMarkType = schema.marks.link
-      let selection: {from: number; to: number} | null = null
+      let selectionPos: number | null = null
 
       doc.descendants((node: any, pos: number) => {
         if (node.isText) {
           const linkMark = node.marks?.find((mark: any) => mark.type === linkMarkType)
           if (linkMark) {
-            selection = {
-              from: pos,
-              to: pos + (node.text?.length || 1),
-            }
+            selectionPos = pos + Math.min(1, node.text?.length || 1)
             return false
           }
         }
 
         if (node.type?.name === 'inline-embed') {
-          selection = {
-            from: pos,
-            to: pos + node.nodeSize,
-          }
+          selectionPos = pos + 1
           return false
         }
+
+        return undefined
       })
 
-      if (!selection) throw new Error('No link selection found in test fixture')
+      if (selectionPos === null) throw new Error('No link selection found in test fixture')
 
-      tiptap.commands.setTextSelection(selection)
+      tiptap.commands.setTextSelection(selectionPos)
       tiptap.view.focus()
     })
     await page.waitForTimeout(50)
