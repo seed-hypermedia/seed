@@ -377,8 +377,44 @@ test.describe('Slash Menu', () => {
 test.describe('Link Toolbar', () => {
   // Select the text with a link mark and wait for the link preview to be visible
   async function selectLinkAndExpectPreview(editorHelpers: any, page: any) {
-    const contentArea = editorHelpers.getContentArea()
-    await contentArea.locator(`span:has-text("Link")`).first().click()
+    await editorHelpers.focusEditor()
+    await page.evaluate(() => {
+      const bnEditor = (window as any).TEST_EDITOR?.editor
+      if (!bnEditor) throw new Error('window.TEST_EDITOR.editor not found')
+
+      const tiptap = (bnEditor as any)._tiptapEditor
+      if (!tiptap?.state || !tiptap?.view) throw new Error('tiptap editor/view not found')
+
+      const {doc, schema} = tiptap.state
+      const linkMarkType = schema.marks.link
+      let selection: {from: number; to: number} | null = null
+
+      doc.descendants((node: any, pos: number) => {
+        if (node.isText) {
+          const linkMark = node.marks?.find((mark: any) => mark.type === linkMarkType)
+          if (linkMark) {
+            selection = {
+              from: pos,
+              to: pos + (node.text?.length || 1),
+            }
+            return false
+          }
+        }
+
+        if (node.type?.name === 'inline-embed') {
+          selection = {
+            from: pos,
+            to: pos + node.nodeSize,
+          }
+          return false
+        }
+      })
+
+      if (!selection) throw new Error('No link selection found in test fixture')
+
+      tiptap.commands.setTextSelection(selection)
+      tiptap.view.focus()
+    })
     await page.waitForTimeout(50)
     await expect(page.getByTestId('hm-link-preview')).toBeVisible()
     await expect(page.getByTestId('hm-link-preview-edit-button')).toBeVisible()
