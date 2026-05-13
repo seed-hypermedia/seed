@@ -46,7 +46,6 @@ import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import {SelectionContent} from './accessories'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
-import {getFocusedCommentViewState} from './comment-discussion-state'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
@@ -126,15 +125,10 @@ export function CommentDiscussions({
   // On desktop, fetch version history for deleted comments so we can show their content
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
   const deletedLastVersion = deletedVersions.data?.versions?.[0]
-  const focusedCommentViewState = getFocusedCommentViewState({
-    hasFocusedComment: !!focusedComment,
-    resourceType: commentResource.data?.type ?? null,
-    isResourceTombstone: commentResource.isTombstone,
-    isResourceLoading: commentResource.isFetching || (commentResource.isLoading && !commentResource.data),
-    showDeletedContent: !!showDeletedContent,
-    hasDeletedVersion: !!deletedLastVersion,
-    isDeletedVersionsLoading: deletedVersions.isLoading,
-  })
+  const isFocusedCommentLoading = commentResource.isFetching || (commentResource.isLoading && !commentResource.data)
+  const isFocusedCommentDeleted = commentResource.isTombstone || commentResource.data?.type === 'tombstone'
+  const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
+  const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
 
   // Render parent thread after initial load and adjust scroll
   useLayoutEffect(() => {
@@ -173,7 +167,7 @@ export function CommentDiscussions({
     )
   }
 
-  if (focusedCommentViewState === 'deleted-preview') {
+  if (showDeletedPreview) {
     return (
       <SelectionContent>
         <div className="p-2">
@@ -183,10 +177,7 @@ export function CommentDiscussions({
     )
   }
 
-  if (
-    focusedCommentViewState === 'deleted-loading' ||
-    focusedCommentViewState === 'loading'
-  ) {
+  if (showDeletedPreviewLoading || isFocusedCommentLoading) {
     return (
       <SelectionContent>
         <div className="flex items-center justify-center p-4">
@@ -197,7 +188,7 @@ export function CommentDiscussions({
   }
 
   if (!focusedComment && commentsService.data) {
-    if (focusedCommentViewState === 'deleted') {
+    if (isFocusedCommentDeleted) {
       return (
         <SelectionContent>
           <div className="flex flex-col items-center gap-2 p-4">
