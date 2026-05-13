@@ -214,8 +214,8 @@ describe('PublishPopoverBody', () => {
     const {container, root} = renderPopover(docId, onPublish)
     try {
       expect(container.textContent).toContain('Not yet published')
-      const matchingButton = Array.from(container.querySelectorAll('button')).find((button) =>
-        button.textContent?.includes('Not yet published'),
+      const matchingButton = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.includes('Not yet published'),
       )
       expect(matchingButton).toBeUndefined()
     } finally {

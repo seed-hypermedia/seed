@@ -632,11 +632,12 @@ export default function DesktopResourcePage() {
 
   const showPublishToolbar = route.key === 'document'
 
-  const editingFloatingActions = canEdit && showPublishToolbar
-    ? ({menuItems}: {menuItems: any[]}) => (
-        <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
-      )
-    : undefined
+  const editingFloatingActions =
+    canEdit && showPublishToolbar
+      ? ({menuItems}: {menuItems: any[]}) => (
+          <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
+        )
+      : undefined
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {

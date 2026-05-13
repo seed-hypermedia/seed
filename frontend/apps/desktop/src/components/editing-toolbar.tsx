@@ -341,36 +341,30 @@ export function PublishPopoverBody({
   )
 }
 
-function canPublishDocument({
-  draftId,
-  changeCount,
-}: {
-  draftId: string | null
-  changeCount: number
-}) {
+function canPublishDocument({draftId, changeCount}: {draftId: string | null; changeCount: number}) {
   return !!draftId && changeCount > 0
 }
 
 /** Trigger button for the Publish popover. */
-const PublishTrigger = forwardRef<
-  HTMLButtonElement,
-  {canPublish: boolean; onClick: (e: React.MouseEvent) => void}
->(({canPublish, onClick}, ref) => {
-  return (
-    <Button
-      ref={ref}
-      size="sm"
-      variant={canPublish ? 'green' : 'ghost'}
-      className={cn(
-        'gap-1.5',
-        !canPublish && 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
-      )}
-      onClick={onClick}
-    >
-      Publish
-    </Button>
-  )
-})
+const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onClick: (e: React.MouseEvent) => void}>(
+  ({canPublish, onClick}, ref) => {
+    return (
+      <Button
+        ref={ref}
+        size="sm"
+        variant={canPublish ? 'green' : 'ghost'}
+        className={cn(
+          'gap-1.5',
+          !canPublish &&
+            'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
+        )}
+        onClick={onClick}
+      >
+        Publish
+      </Button>
+    )
+  },
+)
 PublishTrigger.displayName = 'PublishTrigger'
 
 /**
