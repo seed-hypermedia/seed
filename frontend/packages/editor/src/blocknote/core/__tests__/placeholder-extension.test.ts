@@ -38,7 +38,9 @@ function getBlockContentStartPos(editor: BlockNoteEditor<any>, blockId: string) 
 
 function placeCursorInBlock(editor: BlockNoteEditor<any>, blockId: string, offset = 0) {
   const start = getBlockContentStartPos(editor, blockId)
-  const tr = editor._tiptapEditor.state.tr.setSelection(TextSelection.create(editor._tiptapEditor.state.doc, start + offset))
+  const tr = editor._tiptapEditor.state.tr.setSelection(
+    TextSelection.create(editor._tiptapEditor.state.doc, start + offset),
+  )
   editor._tiptapEditor.view.dispatch(tr)
 }
 

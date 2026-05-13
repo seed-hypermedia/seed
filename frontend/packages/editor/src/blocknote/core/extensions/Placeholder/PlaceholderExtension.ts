@@ -85,7 +85,8 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
               const hasAnchor = anchor >= pos && anchor <= pos + node.nodeSize
               const isEmpty = !node.isLeaf && !node.childCount
               const isFirstTopLevelBlockContent = pos === firstTopLevelBlockContentPos
-              const showsFilterPlaceholder = hasAnchor && isEmpty && menuState?.triggerCharacter === '' && menuState?.active
+              const showsFilterPlaceholder =
+                hasAnchor && isEmpty && menuState?.triggerCharacter === '' && menuState?.active
               const showsFirstBlockPlaceholder = isEmpty && isFirstTopLevelBlockContent
 
               if (showsFirstBlockPlaceholder || showsFilterPlaceholder) {
