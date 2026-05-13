@@ -48,3 +48,29 @@ export function applyReadOnlyClickSelectionGuard(view: EditorView, hadSelectionA
 
   return true
 }
+
+/**
+ * Returns true when a pointer target should keep document edit mode active.
+ *
+ * The document editor exits edit mode when the user clicks outside the editable
+ * document body, but editor-adjacent controls (publish button, popovers, links,
+ * form fields, etc.) still need to receive clicks without disappearing first.
+ */
+export function shouldKeepEditModeForPointerTarget(target: EventTarget | null, editorRoot: HTMLElement): boolean {
+  if (!(target instanceof Element)) return true
+  if (editorRoot.contains(target)) return true
+  return !!target.closest(
+    [
+      'a[href]',
+      'button',
+      'input',
+      'select',
+      'textarea',
+      '[contenteditable="true"]',
+      '[role="button"]',
+      '[role="dialog"]',
+      '[data-radix-popper-content-wrapper]',
+      '[data-editor-keep-editing]',
+    ].join(','),
+  )
+}
