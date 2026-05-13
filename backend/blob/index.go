@@ -751,12 +751,6 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 }
 
 func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
-	parentsJSON := unsafeutil.StringFromBytes(
-		must.Do2(
-			json.Marshal(resource.Breadcrumbs()),
-		),
-	)
-
 	owner, _, err := resource.SpacePath()
 	if err != nil {
 		return false, err
@@ -770,6 +764,12 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 	if ownerID == writerID {
 		return true, nil
 	}
+
+	parentsJSON := unsafeutil.StringFromBytes(
+		must.Do2(
+			json.Marshal(resource.Breadcrumbs()),
+		),
+	)
 
 	rows, discard, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON).All()
 	defer discard(&err)
@@ -785,16 +785,40 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 var qIsValidWriter = dqb.Str(`
 	-- owner, writer, breadcrumbs
 	SELECT 1 AS valid
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND author = ?1
-    AND extra_attrs->>'del' = ?2
-    AND extra_attrs->>'role' IN ('WRITER', 'AGENT')
-    AND resource IN (
-    	SELECT r.id
-     	FROM resources r
-      	JOIN json_each(?3) each ON each.value = r.iri
-    )
+	FROM structural_blobs direct
+	WHERE direct.type = 'Capability'
+	AND direct.author = ?1
+	AND direct.extra_attrs->>'del' = ?2
+	AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+	AND direct.resource IN (
+		SELECT r.id
+		FROM resources r
+		JOIN json_each(?3) each ON each.value = r.iri
+	)
+
+	UNION
+
+	SELECT 1 AS valid
+	FROM structural_blobs agent
+	WHERE agent.type = 'Capability'
+	AND agent.extra_attrs->>'del' = ?2
+	AND agent.extra_attrs->>'role' = 'AGENT'
+	AND (
+		agent.author = ?1
+		OR EXISTS (
+			SELECT 1
+			FROM structural_blobs parent_writer
+			WHERE parent_writer.type = 'Capability'
+			AND parent_writer.author = ?1
+			AND parent_writer.extra_attrs->>'del' = agent.author
+			AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+			AND parent_writer.resource IN (
+				SELECT r.id
+				FROM resources r
+				JOIN json_each(?3) each ON each.value = r.iri
+			)
+		)
+	)
 `)
 
 func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
