@@ -1,22 +1,20 @@
 import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
-import {HMBlockNode, HMTimestamp, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
-import {AnyTimestamp, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
 import {CircleAlert, Link, Merge, Trash2} from 'lucide-react'
-import {memo, useEffect, useMemo, useRef} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
-import {SizableText} from './components/text'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
@@ -698,67 +696,6 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   }
 
   return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
-}
-
-function RouteEventRow({children, route}: {children: React.ReactNode; route: NavRoute | null}) {
-  const linkProps = useRouteLink(route)
-  return (
-    <div className="break-words" {...linkProps}>
-      {children}
-    </div>
-  )
-}
-
-export function EventRowInline({children, route}: {children: React.ReactNode; route: NavRoute | null}) {
-  return <RouteEventRow route={route}>{children}</RouteEventRow>
-}
-
-export function EventDescriptionText({children}: {children: React.ReactNode}) {
-  return (
-    <SizableText size="sm" className="px-2">
-      {children}
-    </SizableText>
-  )
-}
-
-export const EventTimestamp = memo(function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
-  if (!time) return null
-
-  const date = normalizeDate(time)
-
-  if (!date) return null
-
-  return (
-    <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
-      <EventTimestampWithTooltip time={time} />
-    </SizableText>
-  )
-})
-
-const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({time}: {time: AnyTimestamp}) {
-  if (!time) return null
-
-  const date = normalizeDate(time)
-
-  if (!date) return null
-
-  return (
-    <Tooltip side="top" delay={400} content={formatUTC(date)}>
-      {formattedDateShort(time)}
-    </Tooltip>
-  )
-})
-
-function formatUTC(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-
-  const year = date.getUTCFullYear()
-  const month = pad(date.getUTCMonth() + 1) // Months are 0-based.
-  const day = pad(date.getUTCDate())
-  const hours = pad(date.getUTCHours())
-  const minutes = pad(date.getUTCMinutes())
-
-  return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
 function getEventRoute(event: LoadedEvent): NavRoute | null {

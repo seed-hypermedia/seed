@@ -1,7 +1,6 @@
 import {
   HMAnnotation,
   HMBlock,
-  HMBlockChildrenType,
   HMBlockImage,
   HMBlockNode,
   HMBlockQuery,
@@ -415,21 +414,6 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
     index++
   }
   return found
-}
-
-export function getChildrenType(block: HMBlock | undefined | null): HMBlockChildrenType | undefined {
-  if (!block) return undefined
-  if (block.type === 'Paragraph') return block.attributes?.childrenType
-  if (block.type === 'Heading') return block.attributes?.childrenType
-  if (block.type === 'Embed') return block.attributes?.childrenType
-  if (block.type === 'Video') return block.attributes?.childrenType
-  if (block.type === 'File') return block.attributes?.childrenType
-  if (block.type === 'Image') return block.attributes?.childrenType
-  if (block.type === 'Query') return block.attributes?.childrenType
-  if (block.type === 'Math') return block.attributes?.childrenType
-  if (block.type === 'Code') return block.attributes?.childrenType
-  if (block.type === 'Button') return block.attributes?.childrenType
-  return undefined
 }
 
 export function getAnnotations(block: HMBlock): HMAnnotation[] | undefined {

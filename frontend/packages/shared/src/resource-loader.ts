@@ -95,6 +95,3 @@ export function createResourceResolver(grpcClient: GRPCClient) {
   }
   return resolveResource
 }
-
-/** @deprecated Use createResourceFetcher instead */
-export const createResourceLoader = createResourceFetcher
