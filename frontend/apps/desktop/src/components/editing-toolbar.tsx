@@ -31,6 +31,7 @@ import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
 import {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
@@ -273,7 +274,7 @@ export function PublishPopoverBody({
       <Separator className="bg-black/10 dark:bg-white/10" />
 
       {/* Last published row that opens versions panel on click */}
-      {publishedDoc && relativeTime ? (
+      {!!publishedDoc?.version ? (
         <button
           type="button"
           onClick={goToVersions}
@@ -282,12 +283,17 @@ export function PublishPopoverBody({
         >
           <Clock className="text-muted-foreground size-3.5" />
           <span className="flex-1">
-            <span className="text-foreground">{relativeTime}</span>
+            <span className="text-foreground">{relativeTime ?? 'Published'}</span>
             {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
           </span>
           <ChevronRight className="text-muted-foreground size-3.5" />
         </button>
-      ) : null}
+      ) : (
+        <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
+          <Clock className="text-muted-foreground size-3.5" />
+          <span className="text-muted-foreground flex-1">Not yet published</span>
+        </div>
+      )}
 
       {/* Changes count row */}
       <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
@@ -302,7 +308,11 @@ export function PublishPopoverBody({
       <div className="flex flex-col gap-1">
         <Button
           size="sm"
-          variant="brand"
+          variant={publishDisabled ? 'ghost' : 'brand'}
+          className={cn(
+            publishDisabled &&
+              'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
+          )}
           disabled={publishDisabled}
           onClick={() => {
             // Only forward an explicit override when the user typed something
@@ -331,18 +341,32 @@ export function PublishPopoverBody({
   )
 }
 
-/** Trigger button for the Publish popover. Shows a pulsing white dot when there are unsaved changes. */
+function canPublishDocument({
+  draftId,
+  changeCount,
+}: {
+  draftId: string | null
+  changeCount: number
+}) {
+  return !!draftId && changeCount > 0
+}
+
+/** Trigger button for the Publish popover. */
 const PublishTrigger = forwardRef<
   HTMLButtonElement,
-  {hasUnsavedChanges: boolean; onClick: (e: React.MouseEvent) => void}
->(({hasUnsavedChanges, onClick}, ref) => {
+  {canPublish: boolean; onClick: (e: React.MouseEvent) => void}
+>(({canPublish, onClick}, ref) => {
   return (
-    <Button ref={ref} size="sm" variant="brand" className="gap-1.5" onClick={onClick}>
-      {hasUnsavedChanges ? (
-        <span className="relative flex size-2 shrink-0 rounded-full bg-white">
-          <span className="absolute inset-0 animate-ping rounded-full bg-white opacity-75" />
-        </span>
-      ) : null}
+    <Button
+      ref={ref}
+      size="sm"
+      variant={canPublish ? 'green' : 'ghost'}
+      className={cn(
+        'gap-1.5',
+        !canPublish && 'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
+      )}
+      onClick={onClick}
+    >
       Publish
     </Button>
   )
@@ -364,7 +388,10 @@ export function PublishButtonWithPopover({
 }) {
   const draftId = useDocumentSelector(selectDraftId)
   const changeCount = useUnpublishedChangeCount()
-  const hasUnpublishedChanges = changeCount > 0
+  const canPublish = canPublishDocument({
+    draftId,
+    changeCount,
+  })
   const send = useDocumentSend()
   const deleteDraftDialog = useDeleteDraftDialog()
 
@@ -395,6 +422,7 @@ export function PublishButtonWithPopover({
   const allItems = [...existingMenuItems, ...editingTrailingItems]
 
   const publishNow = (pathOverride?: string[]) => {
+    if (!canPublish) return
     popoverState.onOpenChange(false)
     setHasTriggeredPublish()
     // From non-editing state (e.g. DraftActionsToolbar), enter editing before
@@ -406,7 +434,7 @@ export function PublishButtonWithPopover({
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (hasTriggeredPublish) {
+    if (hasTriggeredPublish && canPublish) {
       publishNow()
     } else {
       popoverState.onOpenChange(!popoverState.open)
@@ -417,7 +445,7 @@ export function PublishButtonWithPopover({
     <>
       <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <PopoverAnchor asChild>
-          <PublishTrigger hasUnsavedChanges={hasUnpublishedChanges} onClick={handlePublishTriggerClick} />
+          <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
         </PopoverAnchor>
         <PopoverContent align="end" className="w-80">
           <PublishPopoverBody
@@ -425,7 +453,7 @@ export function PublishButtonWithPopover({
             changeCount={changeCount}
             onPublish={publishNow}
             onClose={() => popoverState.onOpenChange(false)}
-            publishDisabled={!draftId || changeCount === 0}
+            publishDisabled={!canPublish}
           />
         </PopoverContent>
       </Popover>

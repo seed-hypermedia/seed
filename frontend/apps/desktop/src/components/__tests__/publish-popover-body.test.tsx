@@ -202,6 +202,27 @@ describe('PublishPopoverBody', () => {
     }
   })
 
+  it('shows a non-clickable not-yet-published status for first publish docs', () => {
+    setSnapshot({
+      document: {version: '', metadata: {}},
+      draftId: 'abc',
+      metadata: {name: 'My Cool Doc'},
+    })
+    const docId = hmId('acct-1', {path: ['parent', '-abc']})
+    const onPublish = vi.fn()
+
+    const {container, root} = renderPopover(docId, onPublish)
+    try {
+      expect(container.textContent).toContain('Not yet published')
+      const matchingButton = Array.from(container.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Not yet published'),
+      )
+      expect(matchingButton).toBeUndefined()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('forwards the user-typed override to onPublish when Publish is clicked', () => {
     setSnapshot({
       document: {version: '', metadata: {}},
