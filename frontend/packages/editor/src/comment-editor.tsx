@@ -66,6 +66,7 @@ export function useCommentEditor(
       size: number
     }
   }>,
+  linkExtensionOptions?: Record<string, unknown>,
 ) {
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
@@ -83,6 +84,7 @@ export function useCommentEditor(
       // console.log("editor content changed", editor.topLevelBlocks);
     },
     linkExtensionOptions: {
+      ...(linkExtensionOptions ?? {}),
       // @ts-expect-error
       openOnClick: false,
       queryClient,
@@ -105,7 +107,7 @@ export function useCommentEditor(
         Extension.create({
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({}).plugin]
+            return [createHypermediaDocLinkPlugin({domainResolver: (linkExtensionOptions as any)?.domainResolver}).plugin]
           },
         }),
         Extension.create({
@@ -232,6 +234,7 @@ export function CommentEditor({
   handleFileAttachment,
   getDraftMediaBlob,
   hideAvatar,
+  linkExtensionOptions,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -284,6 +287,7 @@ export function CommentEditor({
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
   /** Hide the leading avatar */
   hideAvatar?: boolean
+  linkExtensionOptions?: Record<string, unknown>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -299,6 +303,7 @@ export function CommentEditor({
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
     importWebFile,
     handleFileAttachment,
+    linkExtensionOptions,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =

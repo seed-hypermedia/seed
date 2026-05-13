@@ -19,6 +19,7 @@ type SiteConfigResponse struct {
 	PeerID               string                `json:"peerId"`
 	Addrs                []multiaddr.Multiaddr `json:"addrs"`
 	RegisteredAccountUID string                `json:"registeredAccountUid,omitempty"`
+	IsGateway            bool                  `json:"isGateway,omitempty"`
 }
 
 // AddrInfo converts the [SiteConfigResponse] to a [peer.AddrInfo].

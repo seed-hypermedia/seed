@@ -231,7 +231,13 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         // If transformPasted already added a link mark, skip further processing
         // unless we have a link that might need special handling (twitter, instagram, video, etc)
-        if (firstChildIsText && firstChildContainsLinkMark && !(link && selection.empty && !unpackedHmId)) {
+        // or a hypermedia URL that should be canonicalized into an hm:// link.
+        if (
+          firstChildIsText &&
+          firstChildContainsLinkMark &&
+          !(link && selection.empty && !unpackedHmId) &&
+          !(selection.empty && unpackedHmId)
+        ) {
           return false
         }
 
@@ -329,6 +335,31 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
             return true
           }
+
+          const normalizedHmUrl = packHmId(hmId(unpackedHmId.uid, unpackedHmId))
+          view.dispatch(
+            tr.insertText(normalizedHmUrl, pos).addMark(
+              pos,
+              pos + normalizedHmUrl.length,
+              options.editor.schema.mark('link', {
+                href: normalizedHmUrl,
+              }),
+            ),
+          )
+
+          view.dispatch(
+            view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
+              activate: true,
+              ref: normalizedHmUrl,
+              items: getLinkMenuItems({
+                isLoading: false,
+                sourceUrl: normalizedHmUrl,
+                hmId: unpackHmId(normalizedHmUrl),
+                gwUrl: options.gwUrl,
+              }),
+            }),
+          )
+          return true
         }
 
         // Check if the link is hm link or web URL

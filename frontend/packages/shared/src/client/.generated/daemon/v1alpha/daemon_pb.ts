@@ -1964,6 +1964,13 @@ export class DomainInfo extends Message<DomainInfo> {
    */
   lastError = "";
 
+  /**
+   * Whether the domain is a public gateway that serves canonical /hm/* URLs.
+   *
+   * @generated from field: bool is_gateway = 8;
+   */
+  isGateway = false;
+
   constructor(data?: PartialMessage<DomainInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1979,6 +1986,7 @@ export class DomainInfo extends Message<DomainInfo> {
     { no: 5, name: "registered_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "is_gateway", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DomainInfo {

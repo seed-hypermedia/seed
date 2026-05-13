@@ -1,10 +1,17 @@
 import {parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /**
- * A domain resolver function that maps a hostname to an account UID
- * using the daemon's domain store. Returns the UID if cached, or null.
+ * Domain metadata from the daemon's domain store. The string form is kept
+ * for older/simple resolvers that only return an account UID.
  */
-export type DomainResolverFn = (hostname: string) => Promise<string | null>
+export type DomainResolution =
+  | string
+  | {
+      registeredAccountUid: string
+      isGateway?: boolean
+    }
+  | null
+export type DomainResolverFn = (hostname: string) => Promise<DomainResolution>
 
 /**
  * Callback fired when a background domain check detects that a domain
@@ -71,8 +78,25 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   if (opts?.domainResolver && parsedHostname) {
     try {
       const parsedUrl = new URL(url)
-      const uid = await opts.domainResolver(parsedHostname)
+      const domainResolution = await opts.domainResolver(parsedHostname)
+      const uid =
+        typeof domainResolution === 'string' ? domainResolution : domainResolution?.registeredAccountUid ?? null
       if (uid) {
+        const isGateway = typeof domainResolution === 'object' && !!domainResolution?.isGateway
+        const gatewayHmId = isGateway && parsedUrl.pathname.startsWith('/hm/') ? unpackHmId(url) : null
+        if (gatewayHmId) {
+          return {
+            id: gatewayHmId.id,
+            hmId: gatewayHmId,
+            version: gatewayHmId.version,
+            title: null,
+            target: null,
+            authors: null,
+            type: null,
+            panel,
+          }
+        }
+
         const pathSegments = parsedUrl.pathname.split('/').filter(Boolean)
         const path = pathSegments.length > 0 ? pathSegments : null
         const version = parsedUrl.searchParams.get('v') || null
