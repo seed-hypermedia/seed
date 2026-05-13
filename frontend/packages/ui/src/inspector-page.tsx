@@ -15,8 +15,8 @@ import {
   hmId,
   hypermediaUrlToRoute,
   packHmId,
-  useCommentVersions,
 } from '@shm/shared'
+import {useCommentVersions} from '@shm/shared/models/comments'
 import {useRouteLink} from '@shm/shared/routing'
 import {useContactListOfSubject} from '@shm/shared/models/contacts'
 import {

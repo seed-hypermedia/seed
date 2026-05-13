@@ -10,9 +10,9 @@ import {
   useChildrenList,
   useCitations,
   useComments,
-  useCommentVersions,
   useResource,
 } from '@shm/shared'
+import {useCommentVersions} from '@shm/shared/models/comments'
 import {useMemo} from 'react'
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
 import {useApiHost} from '../apiHostStore'

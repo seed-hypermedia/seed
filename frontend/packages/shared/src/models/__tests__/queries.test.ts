@@ -1,6 +1,15 @@
 import {describe, expect, test, vi} from 'vitest'
 import {hmId} from '../../utils/entity-id-url'
-import {queryDomain, queryResource} from '../queries'
+import {queryKeys} from '../query-keys'
+import {
+  queryBlockDiscussions,
+  queryCommentReplyCount,
+  queryCommentVersions,
+  queryDocumentComments,
+  queryDocumentDiscussions,
+  queryDomain,
+  queryResource,
+} from '../queries'
 
 function createMockClient(handler: (key: string, input: any) => any) {
   return {
@@ -175,5 +184,70 @@ describe('queryDomain', () => {
     const result = await query.queryFn!()
 
     expect(result).toBeNull()
+  })
+})
+
+describe('comment query options', () => {
+  test('queryDocumentComments preserves the document comments cache key', async () => {
+    const output = {comments: [], authors: {}}
+    const client = createMockClient(() => output)
+    const query = queryDocumentComments(client, docA)
+
+    expect(query.queryKey).toEqual([queryKeys.DOCUMENT_COMMENTS, docA])
+    expect(query.retry).toBe(1)
+    expect(query.staleTime).toBe(30_000)
+    await expect(query.queryFn()).resolves.toBe(output)
+    expect(client.request).toHaveBeenCalledWith('ListComments', {targetId: docA})
+  })
+
+  test('queryDocumentDiscussions preserves the document discussion cache key', async () => {
+    const output = {discussions: [], citingDiscussions: [], authors: {}}
+    const client = createMockClient(() => output)
+    const query = queryDocumentDiscussions(client, docA, 'author/comment')
+
+    expect(query.queryKey).toEqual([queryKeys.DOCUMENT_DISCUSSION, docA, 'author/comment'])
+    expect(query.retry).toBe(1)
+    expect(query.staleTime).toBe(30_000)
+    await expect(query.queryFn()).resolves.toBe(output)
+    expect(client.request).toHaveBeenCalledWith('ListDiscussions', {
+      targetId: docA,
+      commentId: 'author/comment',
+    })
+  })
+
+  test('queryBlockDiscussions preserves the block discussions cache key', async () => {
+    const output = {comments: [], authors: {}}
+    const blockTarget = {...docA, blockRef: 'block-1'}
+    const client = createMockClient(() => output)
+    const query = queryBlockDiscussions(client, blockTarget)
+
+    expect(query.queryKey).toEqual([queryKeys.BLOCK_DISCUSSIONS, blockTarget])
+    expect(query.retry).toBe(1)
+    expect(query.staleTime).toBe(30_000)
+    await expect(query.queryFn()).resolves.toBe(output)
+    expect(client.request).toHaveBeenCalledWith('ListCommentsByReference', {targetId: blockTarget})
+  })
+
+  test('queryCommentVersions preserves the comment versions cache key and disabled state', () => {
+    const client = createMockClient(() => ({versions: []}))
+    const query = queryCommentVersions(client, null)
+
+    expect(query.queryKey).toEqual([queryKeys.COMMENT_VERSIONS, null])
+    expect(query.enabled).toBe(false)
+    expect(query.useErrorBoundary).toBe(false)
+    expect(query.staleTime).toBe(60_000)
+  })
+
+  test('queryCommentReplyCount uses the reply count query key', async () => {
+    const output = {count: 2}
+    const client = createMockClient(() => output)
+    const query = queryCommentReplyCount(client, 'author/comment')
+
+    expect(query.queryKey).toEqual([queryKeys.COMMENT_REPLY_COUNT, 'author/comment'])
+    expect(query.retry).toBe(1)
+    expect(query.staleTime).toBe(60_000)
+    expect(query.refetchOnWindowFocus).toBe(false)
+    expect(query.queryFn()).toBe(output)
+    expect(client.request).toHaveBeenCalledWith('GetCommentReplyCount', {id: 'author/comment'})
   })
 })

@@ -2,19 +2,23 @@ import {
   deleteComment as createDeleteCommentBlob,
   updateComment as createUpdateCommentBlob,
 } from '@seed-hypermedia/client'
-import {useMutation, useQuery} from '@tanstack/react-query'
+import {useMutation} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, ReactNode, useContext, useMemo} from 'react'
 import {
   HMBlockNode,
   HMComment,
   HMListCommentsByReferenceInput,
   HMListCommentsInput,
-  HMListCommentsOutput,
-  HMListCommentVersionsOutput,
   HMListDiscussionsInput,
-  HMListDiscussionsOutput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {
+  useBlockDiscussions,
+  useCommentReplyCount as useModelCommentReplyCount,
+  useCommentVersions as useModelCommentVersions,
+  useDocumentComments,
+  useDocumentDiscussions,
+} from './models/comments'
 import {invalidateQueries} from './models/query-client'
 import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
@@ -113,56 +117,15 @@ export function useCommentsServiceContext() {
 }
 
 export function useCommentsService(params: HMListCommentsInput) {
-  const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId],
-    queryFn: async (): Promise<HMListCommentsOutput> => {
-      try {
-        return await client.request('ListComments', params)
-      } catch (error) {
-        console.error('Error fetching comments:', error)
-        throw error
-      }
-    },
-    retry: 1,
-    staleTime: 30_000,
-  })
+  return useDocumentComments(params.targetId)
 }
 
 export function useDiscussionsService(params: HMListDiscussionsInput) {
-  const client = useUniversalClient()
-
-  return useQuery({
-    queryKey: [queryKeys.DOCUMENT_DISCUSSION, params.targetId, params.commentId],
-    queryFn: async (): Promise<HMListDiscussionsOutput> => {
-      try {
-        return await client.request('ListDiscussions', params)
-      } catch (error) {
-        console.error('Error fetching discussions:', error)
-        throw error
-      }
-    },
-    retry: 1,
-    staleTime: 30_000,
-  })
+  return useDocumentDiscussions(params.targetId, params.commentId)
 }
 
 export function useBlockDiscussionsService(params: HMListCommentsByReferenceInput) {
-  const client = useUniversalClient()
-
-  return useQuery({
-    queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
-    queryFn: async (): Promise<HMListCommentsOutput> => {
-      try {
-        return await client.request('ListCommentsByReference', params)
-      } catch (error) {
-        console.error('Error fetching block discussions:', error)
-        throw error
-      }
-    },
-    retry: 1,
-    staleTime: 30_000,
-  })
+  return useBlockDiscussions(params.targetId)
 }
 
 export function useHackyAuthorsSubscriptions(authorIds: string[]) {
@@ -268,30 +231,9 @@ export function useUpdateComment() {
 
 /** Query hook to fetch all versions (edit history) of a comment. */
 export function useCommentVersions(commentId: string | null | undefined) {
-  const client = useUniversalClient()
-
-  return useQuery({
-    queryKey: [queryKeys.COMMENT_VERSIONS, commentId],
-    queryFn: async (): Promise<HMListCommentVersionsOutput> => {
-      return await client.request('ListCommentVersions', {id: commentId!})
-    },
-    enabled: !!commentId,
-    useErrorBoundary: false,
-    staleTime: 60_000,
-  })
+  return useModelCommentVersions(commentId)
 }
 
 export function useCommentReplyCount({id}: {id: string}) {
-  const client = useUniversalClient()
-
-  return useQuery({
-    queryKey: [id, 'replyCount'],
-    queryFn: () =>
-      client.request('GetCommentReplyCount', {
-        id,
-      }),
-    retry: 1,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  })
+  return useModelCommentReplyCount({id})
 }

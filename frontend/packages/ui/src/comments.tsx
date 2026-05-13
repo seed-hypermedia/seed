@@ -24,16 +24,18 @@ import {
 
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
 import {
-  useBlockDiscussionsService,
-  useCommentReplyCount,
-  useCommentsService,
   useCommentsServiceContext,
-  useCommentVersions,
   useDeleteComment,
-  useDiscussionsService,
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
+import {
+  useBlockDiscussions,
+  useCommentReplyCount,
+  useCommentVersions,
+  useDocumentComments,
+  useDocumentDiscussions,
+} from '@shm/shared/models/comments'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
@@ -82,7 +84,7 @@ export function CommentDiscussions({
   if (!commentId) return null
 
   // Fetch all comments for the document
-  const commentsService = useCommentsService({targetId} as any)
+  const commentsService = useDocumentComments(targetId)
 
   const parentThread = useCommentParents(commentsService.data?.comments, commentId)
   const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
@@ -266,7 +268,7 @@ export const Discussions = memo(function Discussions({
   commentId?: string
   targetDomain?: string
 }) {
-  const discussionsService = useDiscussionsService({targetId, commentId})
+  const discussionsService = useDocumentDiscussions(targetId, commentId)
 
   // Subscribe to all authors in discussions
   const allAuthorIds = useMemo(() => {
@@ -360,7 +362,7 @@ export function BlockDiscussions({
   /** Optional codepoint range within `targetId.blockRef` to visually highlight inside the quoted block. */
   blockRange?: BlockRange
 }) {
-  const commentsService = useBlockDiscussionsService({targetId})
+  const commentsService = useBlockDiscussions(targetId)
   const doc = useResource(targetId)
 
   // Subscribe to all authors in block discussions

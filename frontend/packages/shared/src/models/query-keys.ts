@@ -95,6 +95,7 @@ export const queryKeys = {
   BLOCK_DISCUSSIONS: 'BLOCK_DISCUSSIONS', //, docId.id: string, blockId: string
   COMMENTS_BATCH: 'COMMENTS_BATCH',
   COMMENT_VERSIONS: 'COMMENT_VERSIONS', //, commentId: string
+  COMMENT_REPLY_COUNT: 'COMMENT_REPLY_COUNT', //, commentId: string
   DOCUMENT_COMMENTS: 'DOCUMENT_COMMENTS', //, docId.id: string, targetCommentId?: string
 
   SETTINGS: 'SETTINGS', // key: string
@@ -213,6 +214,8 @@ export function labelOfQueryKey(key: QueryKey) {
       return 'Comment'
     case queryKeys.DOCUMENT_DISCUSSION:
       return 'Document Discussion'
+    case queryKeys.COMMENT_REPLY_COUNT:
+      return 'Comment Reply Count'
 
     // web-links
     case queryKeys.GET_URL:

@@ -23,8 +23,8 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
-import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {useDocumentComments} from '@shm/shared/models/comments'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
@@ -77,7 +77,7 @@ export default function WebCommenting({
   const {originHomeId} = useUniversalAppContext()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
-  const commentsService = useCommentsService({targetId: docId})
+  const commentsService = useDocumentComments(docId)
   const resolvedReply = useMemo(() => {
     const id = replyCommentIdProp || commentId
     if (!id) return null

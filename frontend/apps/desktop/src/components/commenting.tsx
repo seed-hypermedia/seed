@@ -17,7 +17,7 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
-import {useCommentsService} from '@shm/shared/comments-service-provider'
+import {useDocumentComments} from '@shm/shared/models/comments'
 import {useContacts} from '@shm/shared/models/contacts'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -72,7 +72,7 @@ function _CommentBox(props: {
   const navigate = useNavigate('replace')
 
   // Resolve reply parent: commentId is an ID like "author/path", but publishing uses CID versions
-  const commentsService = useCommentsService({targetId: docId})
+  const commentsService = useDocumentComments(docId)
   const resolvedReply = useMemo(() => {
     if (!commentId) return null
     const comment = commentsService.data?.comments?.find((c) => c.id === commentId)

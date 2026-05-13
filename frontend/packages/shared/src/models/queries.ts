@@ -13,7 +13,9 @@ import type {
   HMInteractionSummaryOutput,
   HMListChangesOutput,
   HMListCitationsOutput,
+  HMListCommentVersionsOutput,
   HMListCommentsOutput,
+  HMListDiscussionsOutput,
   HMMetadataPayload,
   HMRawCapability,
   HMResource,
@@ -157,6 +159,94 @@ export function queryComments(client: UniversalClient, targetId: UnpackedHyperme
       })
     },
     enabled: !!targetId,
+  }
+}
+
+/**
+ * Query options for fetching the main comments list used by document comment views.
+ */
+export function queryDocumentComments(client: UniversalClient, targetId: UnpackedHypermediaId) {
+  return {
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, targetId] as const,
+    queryFn: async (): Promise<HMListCommentsOutput> => {
+      try {
+        return await client.request('ListComments', {targetId})
+      } catch (error) {
+        console.error('Error fetching comments:', error)
+        throw error
+      }
+    },
+    retry: 1,
+    staleTime: 30_000,
+  }
+}
+
+/**
+ * Query options for fetching grouped discussions on a document or focused comment.
+ */
+export function queryDocumentDiscussions(client: UniversalClient, targetId: UnpackedHypermediaId, commentId?: string) {
+  return {
+    queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId, commentId] as const,
+    queryFn: async (): Promise<HMListDiscussionsOutput> => {
+      try {
+        return await client.request('ListDiscussions', {targetId, commentId})
+      } catch (error) {
+        console.error('Error fetching discussions:', error)
+        throw error
+      }
+    },
+    retry: 1,
+    staleTime: 30_000,
+  }
+}
+
+/**
+ * Query options for fetching comments that reference a specific document block.
+ */
+export function queryBlockDiscussions(client: UniversalClient, targetId: UnpackedHypermediaId) {
+  return {
+    queryKey: [queryKeys.BLOCK_DISCUSSIONS, targetId] as const,
+    queryFn: async (): Promise<HMListCommentsOutput> => {
+      try {
+        return await client.request('ListCommentsByReference', {targetId})
+      } catch (error) {
+        console.error('Error fetching block discussions:', error)
+        throw error
+      }
+    },
+    retry: 1,
+    staleTime: 30_000,
+  }
+}
+
+/**
+ * Query options for fetching all versions of a comment.
+ */
+export function queryCommentVersions(client: UniversalClient, commentId: string | null | undefined) {
+  return {
+    queryKey: [queryKeys.COMMENT_VERSIONS, commentId] as const,
+    queryFn: async (): Promise<HMListCommentVersionsOutput> => {
+      return await client.request('ListCommentVersions', {id: commentId!})
+    },
+    enabled: !!commentId,
+    useErrorBoundary: false,
+    staleTime: 60_000,
+  }
+}
+
+/**
+ * Query options for fetching a comment's reply count.
+ */
+export function queryCommentReplyCount(client: UniversalClient, id: string) {
+  return {
+    queryKey: [queryKeys.COMMENT_REPLY_COUNT, id] as const,
+    queryFn: () =>
+      client.request('GetCommentReplyCount', {
+        id,
+      }),
+    retry: 1,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   }
 }
 
