@@ -979,16 +979,16 @@ export function CommentEditor({
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isMobile && (
                 <div className="flex items-center gap-2">
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsMentionsDialogOpen(true)}>
-                    <AtSignIcon className="h-4 w-4" />
+                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsMentionsDialogOpen(true)}>
+                    <AtSignIcon className="size-4" />
                   </Button>
 
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleImageClick}>
-                    <ImageIcon className="h-4 w-4" />
+                  <Button size="icon" variant="ghost" className="size-8" onClick={handleImageClick}>
+                    <ImageIcon className="size-4" />
                   </Button>
 
-                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setIsSlashDialogOpen(true)}>
-                    <SlashSquareIcon className="h-4 w-4" />
+                  <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsSlashDialogOpen(true)}>
+                    <SlashSquareIcon className="size-4" />
                   </Button>
                 </div>
               )}

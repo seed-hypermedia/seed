@@ -27,7 +27,7 @@ export function WebNotificationsPage() {
   if (!keyPair || !accountUid) {
     return (
       <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-        <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+        <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
           <Bell size={50} className="text-muted-foreground" />
         </div>
         <SizableText size="xl">Notifications</SizableText>
@@ -39,7 +39,7 @@ export function WebNotificationsPage() {
   if (!keyPair.notifyServerUrl) {
     return (
       <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-        <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+        <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
           <Bell size={50} className="text-muted-foreground" />
         </div>
         <SizableText size="xl">Notifications unavailable</SizableText>
@@ -128,7 +128,7 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
             })
           }
         >
-          {markAllRead.isLoading ? 'Marking...' : 'Mark all as read'}
+          {markAllRead.isLoading ? 'Marking…' : 'Mark all as read'}
         </Button>
       </div>
 
@@ -157,7 +157,7 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
         </div>
       ) : queryError ? (
         <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
             <Bell size={50} className="text-muted-foreground" />
           </div>
           <SizableText size="xl">Could not load notifications</SizableText>
@@ -165,7 +165,7 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
         </div>
       ) : notifications.length === 0 ? (
         <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
             <Bell size={50} className="text-muted-foreground" />
           </div>
           <SizableText size="xl">No notifications yet</SizableText>
@@ -173,7 +173,7 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
         </div>
       ) : filteredNotifications.length === 0 ? (
         <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
             <Bell size={50} className="text-muted-foreground" />
           </div>
           <SizableText size="xl">All caught up</SizableText>

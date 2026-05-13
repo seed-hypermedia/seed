@@ -109,8 +109,8 @@ export function ErrorDot({error}: {error?: boolean}) {
   if (!error) return null
 
   return (
-    <div className="bg-destructive absolute -top-2 -left-2 flex h-4 w-4 items-center justify-center rounded-full">
-      <AlertCircle className="h-4 w-4 text-white" />
+    <div className="bg-destructive absolute -top-2 -left-2 flex size-4 items-center justify-center rounded-full">
+      <AlertCircle className="size-4 text-white" />
     </div>
   )
 }

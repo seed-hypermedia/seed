@@ -430,7 +430,7 @@ const MetricHeatmap = ({
   // If loading, show loading indicator
   if (isLoading) {
     return (
-      <div className="metrics-heatmap-loading">Loading metrics data...</div>
+      <div className="metrics-heatmap-loading">Loading metrics data…</div>
     );
   }
 

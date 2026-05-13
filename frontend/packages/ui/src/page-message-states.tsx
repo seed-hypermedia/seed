@@ -79,11 +79,11 @@ export function PageRedirected({
 export function PageDiscovery({entityType = 'document'}: {entityType?: 'document' | 'profile'}) {
   const labels = {
     document: {
-      title: 'Looking for this document...',
+      title: 'Looking for this document…',
       message: 'This document is not on your node yet. Now finding a peer who can provide it.',
     },
     profile: {
-      title: 'Looking for this profile...',
+      title: 'Looking for this profile…',
       message: 'This profile is not on your node yet. Now finding a peer who can provide it.',
     },
   }

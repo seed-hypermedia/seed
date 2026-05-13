@@ -135,7 +135,7 @@ function LinkKeyButton() {
       <Tooltip content="Link Key">
         <Button
           size="icon"
-          className="hover:bg-muted active:bg-muted shrink-none h- flex h-8 w-8 items-center justify-center rounded-md"
+          className="hover:bg-muted active:bg-muted shrink-none h- flex size-8 items-center justify-center rounded-md"
           onClick={() => {
             if (selectedIdentityValue) {
               linkDevice.open({
@@ -174,7 +174,7 @@ function AppSettingsButton() {
     <Tooltip content="App Settings">
       <Button
         size="icon"
-        className="hover:bg-muted active:bg-muted shrink-none flex h-8 w-8 items-center justify-center rounded-md"
+        className="hover:bg-muted active:bg-muted shrink-none flex size-8 items-center justify-center rounded-md"
         onClick={(e) => {
           e.preventDefault()
           navigate({key: 'settings'})

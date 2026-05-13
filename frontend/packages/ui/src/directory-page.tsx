@@ -73,7 +73,7 @@ export function DirectoryPageContent({
       <div className="relative w-full">
         <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
-          placeholder="Filter documents..."
+          placeholder="Filter documents…"
           value={searchQuery}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
           className="pl-9"

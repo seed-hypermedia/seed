@@ -231,7 +231,7 @@ function SearchContent({
             const text = e.target.value
             setSearchQ(text)
           }}
-          placeholder="Find Locations..."
+          placeholder="Find Locations…"
         />
       </div>
       {searchedLocations.map((d) => {

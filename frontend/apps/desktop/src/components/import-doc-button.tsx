@@ -300,7 +300,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
         },
       ),
       {
-        loading: 'Importing documents...',
+        loading: 'Importing documents…',
         success: `Imported ${documents.length} documents.`,
         error: (err) => `Failed to import documents: ${err.message}`,
       },
@@ -502,7 +502,7 @@ function WebImportInProgress({
     const scrapeStatus: ScrapeStatus | undefined = status?.mode === 'scraping' ? status : undefined
     return (
       <div className="flex flex-col gap-4">
-        <DialogTitle>Importing from {hostname}...</DialogTitle>
+        <DialogTitle>Importing from {hostname}…</DialogTitle>
         {scrapeStatus?.visitedCount ? (
           <SizableText>
             {scrapeStatus?.visitedCount} pages visited, {scrapeStatus?.crawlQueueCount || '0'} queued (
@@ -514,8 +514,8 @@ function WebImportInProgress({
             {scrapeStatus?.activeUrl}
           </SizableText>
         ) : null}
-        {status?.mode === 'importing' ? <SizableText>Preparing...</SizableText> : null}
-        {confirmImport.isLoading ? <SizableText>Importing...</SizableText> : null}
+        {status?.mode === 'importing' ? <SizableText>Preparing…</SizableText> : null}
+        {confirmImport.isLoading ? <SizableText>Importing…</SizableText> : null}
         <Spinner size="small" />
       </div>
     )

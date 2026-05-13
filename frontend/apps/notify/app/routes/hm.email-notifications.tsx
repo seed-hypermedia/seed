@@ -28,7 +28,7 @@ function NotifySiteHeader() {
   return (
     <div className="flex flex-col gap-4 px-6 pt-8">
       <div className="flex items-center gap-2">
-        <img src="/assets/seed-icon.svg" alt="Seed" className="h-6 w-6 flex-shrink-0 object-contain" />
+        <img src="/assets/seed-icon.svg" alt="Seed" className="size-6 flex-shrink-0 object-contain" />
         <h1 className="text-brand text-2xl font-bold">Seed Notify</h1>
       </div>
     </div>
@@ -61,7 +61,7 @@ export function EmailNotificationsContent() {
     return (
       <div className="flex items-center justify-center">
         <Spinner />
-        <SizableText className="ml-2">Loading notification settings...</SizableText>
+        <SizableText className="ml-2">Loading notification settings…</SizableText>
       </div>
     )
   }
@@ -185,7 +185,7 @@ function MyNotificationConfigRow({accountId, token}: {accountId: string; token: 
           unsubscribeMyNotification(accountId)
         }}
       >
-        {isLoading ? 'Removing...' : 'Unsubscribe'}
+        {isLoading ? 'Removing…' : 'Unsubscribe'}
       </Button>
     </div>
   )

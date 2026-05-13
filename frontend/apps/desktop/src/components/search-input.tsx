@@ -343,7 +343,7 @@ export const SearchInput = forwardRef<
   if (hideInput) {
     return (
       <div className="flex h-full w-full flex-col gap-2">
-        <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">{content || <p>working...</p>}</div>
+        <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">{content || <p>working…</p>}</div>
       </div>
     )
   }
@@ -375,7 +375,7 @@ export const SearchInput = forwardRef<
       }}
       focusedIndex={focusedIndex}
     >
-      {content || <p>working...</p>}
+      {content || <p>working…</p>}
     </SearchInputUI>
   )
 })

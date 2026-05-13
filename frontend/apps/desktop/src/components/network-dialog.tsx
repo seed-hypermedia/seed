@@ -88,7 +88,7 @@ const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInf
     <div className="group flex min-h-8 flex-1 items-center justify-between p-2">
       <div className="flex items-center gap-2">
         <Tooltip content={getPeerStatus(connectionStatus) + getProtocolMessage(peer, myProtocol)}>
-          <div className={cn('h-3 w-3 rounded-md', getPeerStatusIndicator(peer, myProtocol))} />
+          <div className={cn('size-3 rounded-md', getPeerStatusIndicator(peer, myProtocol))} />
         </Tooltip>
         <Tooltip content="Copy Peer ID">
           <SizableText onClick={handleCopyPeerId}>{id.substring(id.length - 10)}</SizableText>
@@ -181,7 +181,7 @@ function getPeerStatusIndicator(peer: HMPeerInfo, myProtocol: string): string {
 }
 
 function IndicationStatus({color}: {color: ColorValue}) {
-  return <div className="h-3 w-3 rounded-md" style={{backgroundColor: color as string}} />
+  return <div className="size-3 rounded-md" style={{backgroundColor: color as string}} />
 }
 
 function IndicationTag({label, status}: {label: string; status: null | 0 | 1 | 2}) {

@@ -185,7 +185,7 @@ export function Feed({
         })}
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
-      {isFetchingNextPage && <div className="text-muted-foreground py-3 text-center">Loading more...</div>}
+      {isFetchingNextPage && <div className="text-muted-foreground py-3 text-center">Loading more…</div>}
       {!hasNextPage && allEvents.length > 0 && (
         <div className="text-muted-foreground py-3 text-center">No more events</div>
       )}
@@ -673,7 +673,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   const Viewer = useReadOnlyViewer()
 
   if (resource.isLoading) {
-    return <div className="text-muted-foreground text-xs">Loading block...</div>
+    return <div className="text-muted-foreground text-xs">Loading block…</div>
   }
 
   if (resource.error || !resource.data || !Viewer) {

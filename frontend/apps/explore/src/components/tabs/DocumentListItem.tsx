@@ -19,7 +19,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
       <span className="min-w-0 flex-1 truncate font-medium text-gray-900">
         {doc.metadata?.name || doc.id.path?.at(-1) || 'Untitled'}
       </span>
-      <div className="flex flex-shrink-0 items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex flex-shrink-0 items-center gap-x-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
           className="group/button relative rounded-full p-1.5 hover:bg-gray-100"
           onClick={(e) => {
@@ -28,7 +28,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
             copyToClipboardWithToast(url)
           }}
         >
-          <Copy className="h-4 w-4" />
+          <Copy className="size-4" />
           <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover/button:opacity-100">
             Copy URL
           </span>
@@ -41,7 +41,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
             window.open(webUrl, '_blank')
           }}
         >
-          <ExternalLink className="h-4 w-4" />
+          <ExternalLink className="size-4" />
           <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover/button:opacity-100">
             Open in new tab
           </span>
@@ -54,7 +54,7 @@ export function DocumentListItem({doc, apiHost}: {doc: any; apiHost: string}) {
             window.open(url, '_blank')
           }}
         >
-          <ExternalLink className="h-4 w-4 text-green-500" />
+          <ExternalLink className="size-4 text-green-500" />
           <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white opacity-0 transition-opacity group-hover/button:opacity-100">
             Open in Seed App
           </span>

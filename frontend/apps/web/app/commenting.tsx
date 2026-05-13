@@ -381,7 +381,7 @@ export default function WebCommenting({
 
   // Don't render until draft is loaded or doc version is missing
   if (isDraftLoading || !docVersion) {
-    return !docVersion ? null : <div className="w-full">Loading...</div>
+    return !docVersion ? null : <div className="w-full">Loading…</div>
   }
 
   return (

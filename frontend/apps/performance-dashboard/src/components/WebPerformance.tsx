@@ -134,7 +134,7 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-gray-500">Loading {app} performance data...</div>
+        <div className="text-gray-500">Loading {app} performance data…</div>
       </div>
     )
   }

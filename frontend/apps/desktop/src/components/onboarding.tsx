@@ -947,7 +947,7 @@ function ImportKeyStep({
             Choose File
           </Button>
           <Button type="submit" variant="default" className="flex-1" disabled={importKey.isPending}>
-            {importKey.isPending ? 'IMPORTING...' : 'IMPORT KEY'}
+            {importKey.isPending ? 'IMPORTING…' : 'IMPORT KEY'}
           </Button>
         </div>
       </form>
@@ -1048,7 +1048,7 @@ function RestoreFromPhraseStep({
               Secret Recovery Phrase
             </Text>
             <Textarea
-              placeholder="Enter or paste your Secret Recovery Phrase here..."
+              placeholder="Enter or paste your Secret Recovery Phrase here…"
               value={secretWords}
               onChange={(e) => setSecretWords(e.target.value)}
               className="no-window-drag resize-none bg-white opacity-100!"
@@ -1366,7 +1366,7 @@ function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
 }
 
 function OnboardingProgressStep({active}: {active: boolean}) {
-  return <div className={cn('h-2 w-2 rounded-full', active ? 'bg-primary' : 'bg-gray-300')} />
+  return <div className={cn('size-2 rounded-full', active ? 'bg-primary' : 'bg-gray-300')} />
 }
 
 async function fileToImageData(file: File): Promise<ImageData> {

@@ -351,7 +351,7 @@ function AccountContacts({contact, ownerLabel}: {contact: HMContact; ownerLabel:
               ) : (
                 <HMIcon id={hmId(contact.subject)} size={32} />
               )}
-              <span className="font-bold">{isDiscovering ? 'Loading...' : subjectName}</span>
+              <span className="font-bold">{isDiscovering ? 'Loading…' : subjectName}</span>
               {subjectName !== contactName ? (
                 <span className="text-gray-500 dark:text-gray-300">| {contactName}</span>
               ) : null}

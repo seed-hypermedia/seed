@@ -127,7 +127,7 @@ function NostrComponent({
   const [content, setContent] = useState<string>()
 
   const uri = `nostr:${nostrNpud}`
-  const header = `${nostrNpud.slice(0, 6)}...${nostrNpud.slice(-6)}`
+  const header = `${nostrNpud.slice(0, 6)}…${nostrNpud.slice(-6)}`
 
   if (block.props.name && block.props.name !== '') {
     fetch(`${DAEMON_FILE_URL}/${block.props.url}`, {
@@ -271,7 +271,7 @@ function NostrForm({
   }
 
   const searchNote = async () => {
-    setState({name: 'Connecting...', color: 'green'})
+    setState({name: 'Connecting…', color: 'green'})
     const decodedBech32 = nip19.decode(nevent)
     let noteId = ''
     let relayListIndex = 0

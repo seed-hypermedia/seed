@@ -405,7 +405,7 @@ function ChatView({
           onChange={(e) => setSelectedSessionId(e.target.value || null)}
           className="bg-muted text-foreground min-w-0 flex-1 truncate rounded px-2 py-1 text-xs"
         >
-          <option value="">Select a session...</option>
+          <option value="">Select a session…</option>
           {sessions.data?.map((s) => (
             <option key={s.id} value={s.id}>
               {s.title}
@@ -469,7 +469,7 @@ function ChatView({
               <div className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-xs">
                 <div className="text-muted-foreground flex items-center gap-2">
                   <Loader2 className="size-3.5 animate-spin" />
-                  <span>Thinking...</span>
+                  <span>Thinking…</span>
                 </div>
               </div>
             ) : null}
@@ -504,7 +504,7 @@ function ChatView({
       <div className="border-border flex items-center gap-2 border-t px-3 py-2">
         <Input
           ref={inputRef}
-          placeholder={isBusy ? 'Type to queue a message...' : 'Type a message...'}
+          placeholder={isBusy ? 'Type to queue a message…' : 'Type a message…'}
           value={input}
           onChangeText={setInput}
           onKeyDown={(e) => {
@@ -895,7 +895,7 @@ function ToolCallBubble({
               <span className="text-[11px] font-medium">{label}</span>
               {isPending ? <ToolChip>Running</ToolChip> : null}
             </div>
-            {hideResultText ? null : <p className="text-foreground/80">{item.result || 'Running...'}</p>}
+            {hideResultText ? null : <p className="text-foreground/80">{item.result || 'Running…'}</p>}
             {children}
           </div>
         </div>

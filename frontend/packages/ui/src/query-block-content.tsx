@@ -122,7 +122,7 @@ function QueryBlockListView({
   if (items.length === 0 && !hasPrependItems && isDiscovering) {
     return (
       <div className="bg-muted flex items-center rounded-lg p-4">
-        <span className="text-muted-foreground italic">Searching for documents...</span>
+        <span className="text-muted-foreground italic">Searching for documents…</span>
       </div>
     )
   }

@@ -314,7 +314,7 @@ const EmbedLauncherInput = ({
             setFileName({name: 'Upload File', color: undefined})
           }
         }}
-        placeholder="Query or input Embed URL..."
+        placeholder="Query or input Embed URL…"
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         onKeyDown={(e) => {

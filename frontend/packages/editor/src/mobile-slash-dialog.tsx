@@ -41,8 +41,8 @@ export function MobileSlashDialog({isOpen, onClose, editor}: MobileSlashDialogPr
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Insert Block</DialogTitle>
-              <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
-                <X className="h-4 w-4" />
+              <Button size="icon" variant="ghost" onClick={onClose} className="size-8">
+                <X className="size-4" />
               </Button>
             </div>
           </DialogHeader>
@@ -65,9 +65,7 @@ export function MobileSlashDialog({isOpen, onClose, editor}: MobileSlashDialogPr
                       onClick={() => handleSelectBlockType(item)}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="bg-muted flex h-10 w-10 items-center justify-center rounded-md">
-                          {item.icon}
-                        </div>
+                        <div className="bg-muted flex size-10 items-center justify-center rounded-md">{item.icon}</div>
                         <div className="flex flex-col items-start">
                           <SizableText weight="medium">{item.name}</SizableText>
                           {item.hint && (

@@ -293,7 +293,7 @@ function MediaForm({
         files.forEach((file) => {
           if (!file.type.includes(`${mediaType}/`)) {
             setFileName({
-              name: `File ${file.name.length < 36 ? file.name : file.name.slice(0, 32) + '...'} is not ${
+              name: `File ${file.name.length < 36 ? file.name : file.name.slice(0, 32) + '…'} is not ${
                 mediaType === 'image' ? 'an' : 'a'
               } ${mediaType}.`,
               color: 'red',
@@ -479,7 +479,7 @@ function MediaForm({
               ) : (
                 <Input
                   className="border-muted-foreground/30 focus-visible:border-ring text-foreground max-w-full pl-3"
-                  placeholder={`Input ${mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType} URL here...`}
+                  placeholder={`Input ${mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType} URL here…`}
                   onChangeText={(text) => {
                     setUrl(text)
                     if (fileName.color)

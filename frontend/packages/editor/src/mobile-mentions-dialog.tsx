@@ -67,17 +67,17 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
               <DialogTitle>Mention Contact, Profile, or Document</DialogTitle>
-              <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8">
-                <X className="h-4 w-4" />
+              <Button size="icon" variant="ghost" onClick={onClose} className="size-8">
+                <X className="size-4" />
               </Button>
             </div>
           </DialogHeader>
 
           <div className="border-b p-4">
             <div className="relative">
-              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
-                placeholder="Search for people, profiles, or documents..."
+                placeholder="Search for people, profiles, or documents…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -89,12 +89,12 @@ export function MobileMentionsDialog({isOpen, onClose, onSelect, perspectiveAcco
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <SizableText className="text-muted-foreground">Searching...</SizableText>
+                <SizableText className="text-muted-foreground">Searching…</SizableText>
               </div>
             ) : allResults.length === 0 ? (
               <div className="flex items-center justify-center py-8">
                 <SizableText className="text-muted-foreground">
-                  {searchQuery ? 'No results found' : 'Start typing to search...'}
+                  {searchQuery ? 'No results found' : 'Start typing to search…'}
                 </SizableText>
               </div>
             ) : (

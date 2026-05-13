@@ -160,7 +160,7 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {!hasItems && !hasPrependItems && isDiscovering ? (
-        <BlankQueryBlockMessage message="Searching for documents..." />
+        <BlankQueryBlockMessage message="Searching for documents…" />
       ) : !hasItems && !hasPrependItems ? (
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}

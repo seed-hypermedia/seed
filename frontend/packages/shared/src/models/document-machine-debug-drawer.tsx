@@ -236,7 +236,7 @@ function DebugPanel({onClose, store}: {onClose: () => void; store?: InspectEvent
           </div>
           <div className="flex-1 overflow-auto">
             {events.length === 0 ? (
-              <p className="p-3 font-mono text-xs text-neutral-400">No events yet...</p>
+              <p className="p-3 font-mono text-xs text-neutral-400">No events yet…</p>
             ) : (
               events.map((evt, i) => (
                 <div

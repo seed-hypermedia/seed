@@ -49,7 +49,7 @@ export default function NotificationsPage() {
         <MainWrapper scrollable>
           <Container centered className="h-full">
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
                 <Bell size={50} className="text-muted-foreground" />
               </div>
               <SizableText size="xl">Notifications</SizableText>
@@ -155,7 +155,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
                   })
                 }
               >
-                {markAllRead.isLoading ? 'Marking...' : 'Mark all as read'}
+                {markAllRead.isLoading ? 'Marking…' : 'Mark all as read'}
               </Button>
             </div>
           </div>
@@ -185,7 +185,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
                 <Bell size={50} className="text-muted-foreground" />
               </div>
               <SizableText size="xl">No notifications yet</SizableText>
@@ -193,7 +193,7 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
             </div>
           ) : filteredNotifications.length === 0 ? (
             <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
                 <Bell size={50} className="text-muted-foreground" />
               </div>
               <SizableText size="xl">All caught up</SizableText>
@@ -335,7 +335,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                         })
                       }}
                     >
-                      {resendVerification.isLoading ? 'Sending...' : 'Resend verification email'}
+                      {resendVerification.isLoading ? 'Sending…' : 'Resend verification email'}
                     </Button>
                   </div>
                 ) : null}
@@ -371,7 +371,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                       })
                     }}
                   >
-                    {removeConfig.isLoading ? 'Removing...' : 'Remove Email'}
+                    {removeConfig.isLoading ? 'Removing…' : 'Remove Email'}
                   </Button>
                 </div>
               </>
@@ -424,7 +424,7 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                     </Button>
                   )}
                   <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
-                    {setConfig.isLoading ? 'Saving...' : currentEmail ? 'Save Email' : 'Set Email'}
+                    {setConfig.isLoading ? 'Saving…' : currentEmail ? 'Save Email' : 'Set Email'}
                   </Button>
                 </div>
               </form>

@@ -1075,7 +1075,7 @@ function DocumentBody({
         if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
           text = text.slice(blockRange.start, blockRange.end)
         }
-        const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
+        const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
         if (truncated) items.push({label: `"${truncated}"`})
       }
     }

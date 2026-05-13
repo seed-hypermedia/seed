@@ -252,7 +252,7 @@ function MainApp({}: {}) {
 
   useListenAppEvent('trigger_database_reindex', () => {
     toast.promise(grpcClient.daemon.forceReindex({}), {
-      loading: 'Reindexing the database...',
+      loading: 'Reindexing the database…',
       success: () => {
         return 'Database reindexed'
       },

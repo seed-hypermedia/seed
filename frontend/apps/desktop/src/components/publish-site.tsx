@@ -452,7 +452,7 @@ function PlanFeature({label, plus}: {label: string; plus?: string}) {
 }
 
 const FeatureSpacer = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
-  return <div className={cn('flex h-6 w-6 items-center justify-center', className)} {...props} />
+  return <div className={cn('flex size-6 items-center justify-center', className)} {...props} />
 }
 
 const PlanFeatures = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
@@ -608,7 +608,7 @@ function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; 
         </FormField>
 
         <BlueButton disabled={isSendingEmail} type="submit">
-          {isSendingEmail ? 'Sending Email...' : 'Authenticate with Email'}
+          {isSendingEmail ? 'Sending Email…' : 'Authenticate with Email'}
         </BlueButton>
 
         <AnimatedSpinner isVisible={isSendingEmail} />
@@ -1006,7 +1006,7 @@ function SeedHostRegisterCustomDomain({
         </DialogInner>
       )
     } else if (pendingDomain?.status === 'initializing') {
-      pendingStatus = <SizableText className="text-white/80">Initializing your domain...</SizableText>
+      pendingStatus = <SizableText className="text-white/80">Initializing your domain…</SizableText>
     }
     return (
       <SeedHostContainer

@@ -10,8 +10,8 @@ export type SpinnerProps = React.HTMLAttributes<HTMLDivElement> & {
 export const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
   ({size = 'small', color, hide = false, className, ...props}, ref) => {
     const sizeClasses = {
-      small: 'w-4 h-4 border-2',
-      large: 'w-8 h-8 border-4',
+      small: 'size-4 border-2',
+      large: 'size-8 border-4',
     }
 
     return (

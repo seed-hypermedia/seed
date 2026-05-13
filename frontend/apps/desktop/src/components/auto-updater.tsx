@@ -91,11 +91,11 @@ export function getUpdateStatusLabel(updateStatus: UpdateStatus | null) {
     case 'update-available':
       return `Update available (${updateStatus.updateInfo.name})`
     case 'checking':
-      return 'Checking for updates...'
+      return 'Checking for updates…'
     case 'downloading':
       return `Downloading update... (${updateStatus.progress}%)`
     case 'restarting':
-      return 'Restarting...'
+      return 'Restarting…'
     case 'error':
       return `Update error: ${updateStatus.error}`
     default: // idle

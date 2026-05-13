@@ -322,7 +322,7 @@ function NavItemForm({
           value={item?.text}
           id="label"
           onChange={(e) => onUpdate({...item, text: e.target.value})}
-          placeholder="My Link..."
+          placeholder="My Link…"
         />
       </FormField>
       <div className="flex justify-end pt-1">

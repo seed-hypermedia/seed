@@ -177,7 +177,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
                 type="button"
                 title={showMermaidPreview ? 'Hide Preview' : 'Preview Diagram'}
               >
-                {showMermaidPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {showMermaidPreview ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                 <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
               </Button>
             </>
@@ -194,7 +194,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
               type="button"
             >
               <span className="truncate">{language || 'plaintext'}</span>
-              <ChevronDown className="h-4 w-4 opacity-50" />
+              <ChevronDown className="size-4 opacity-50" />
             </Button>
           </div>
         </div>
@@ -226,7 +226,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
                   className="hover:bg-accent dark:hover:bg-accent flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm"
                 >
                   <span className="truncate">{item}</span>
-                  {language === item && <Check className="text-primary h-4 w-4" />}
+                  {language === item && <Check className="text-primary size-4" />}
                 </Button>
               ))}
             </div>,

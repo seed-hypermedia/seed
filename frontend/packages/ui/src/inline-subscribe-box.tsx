@@ -85,7 +85,7 @@ export function InlineSubscribeBox({accountId, notifyServiceHost, accountMeta, c
           disabled={!email.trim() || isPending}
           className="plausible-event-name=inline-subscribe text-white"
         >
-          {isPending ? 'Subscribing...' : 'Subscribe'}
+          {isPending ? 'Subscribing…' : 'Subscribe'}
         </Button>
       </div>
       <p className="text-muted-foreground mt-2 text-xs">Unsubscribe anytime</p>

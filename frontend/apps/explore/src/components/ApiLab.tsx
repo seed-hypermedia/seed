@@ -271,7 +271,7 @@ export default function ApiLab() {
             <Panel
             >
               <label className="relative block">
-                <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="search"
                   value={routeFilter}
@@ -341,11 +341,11 @@ export default function ApiLab() {
                     actions={
                       <div className="flex flex-wrap gap-2">
                         <ActionButton onClick={handleInputReset} disabled={!selectedDefinition}>
-                          <RefreshCw className="h-4 w-4" />
+                          <RefreshCw className="size-4" />
                           Reset
                         </ActionButton>
                         <ActionButton onClick={handleFormatJson} disabled={!selectedDefinition || !!previewError}>
-                          <Sparkles className="h-4 w-4" />
+                          <Sparkles className="size-4" />
                           Format JSON
                         </ActionButton>
                       </div>
@@ -378,14 +378,14 @@ export default function ApiLab() {
                         className="inline-flex items-center gap-2 rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                       >
                         {isRunning ? (
-                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <RefreshCw className="size-4 animate-spin" />
                         ) : (
-                          <TerminalSquare className="h-4 w-4" />
+                          <TerminalSquare className="size-4" />
                         )}
                         {isRunning ? 'Running…' : 'Run request'}
                       </button>
                       <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <ArrowRight className="h-4 w-4" />
+                        <ArrowRight className="size-4" />
                         Exact transport: {selectedDefinition.method}{' '}
                         {selectedDefinition.method === 'GET' ? 'query string' : 'CBOR body'}
                       </div>
@@ -398,7 +398,7 @@ export default function ApiLab() {
                     subtitle="The resolved request that will be sent to the desktop API."
                     actions={
                       <ActionButton onClick={handleCopyPreviewUrl} disabled={!preview}>
-                        <Copy className="h-4 w-4" />
+                        <Copy className="size-4" />
                         Copy URL
                       </ActionButton>
                     }
@@ -429,7 +429,7 @@ export default function ApiLab() {
                         ) : (
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                              <Binary className="h-4 w-4 text-amber-500" />
+                              <Binary className="size-4 text-amber-500" />
                               CBOR body
                             </div>
                             <p className="mt-3 text-sm text-slate-600">
@@ -524,7 +524,7 @@ export default function ApiLab() {
                         />
                         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                            <Braces className="h-4 w-4 text-sky-500" />
+                            <Braces className="size-4 text-sky-500" />
                             Decoded Output
                           </div>
                           <div className="mt-4 overflow-auto rounded-md border border-white bg-white p-3">
@@ -730,7 +730,7 @@ function ResponseBlock({title, content}: {title: string; content: string}) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-        <Braces className="h-4 w-4 text-amber-500" />
+        <Braces className="size-4 text-amber-500" />
         {title}
       </div>
       <pre className="mt-4 overflow-x-auto rounded-md border border-white bg-white p-3 text-xs leading-6 text-slate-700">
@@ -858,7 +858,7 @@ function KeyValueList({
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-        <ArrowRight className="h-4 w-4 text-sky-500" />
+        <ArrowRight className="size-4 text-sky-500" />
         {title}
       </div>
       {rows.length ? (
@@ -881,7 +881,7 @@ function InlineAlert({title, message}: {title: string; message: string}) {
   return (
     <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-800">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <AlertCircle className="h-4 w-4" />
+        <AlertCircle className="size-4" />
         {title}
       </div>
       <p className="mt-2 text-sm leading-6">{message}</p>
@@ -893,7 +893,7 @@ function ErrorState({message}: {message: string}) {
   return (
     <div className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-rose-900">
       <div className="flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase">
-        <Unplug className="h-4 w-4" />
+        <Unplug className="size-4" />
         Error
       </div>
       <p className="mt-3 text-sm leading-6">{message}</p>

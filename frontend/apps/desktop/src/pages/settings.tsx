@@ -237,7 +237,7 @@ export function DeleteDraftLogs() {
           })
         }}
       >
-        <Trash className="mr-2 h-4 w-4" />
+        <Trash className="mr-2 size-4" />
         Confirm Delete Draft Log Folder?
       </Button>
     )
@@ -249,7 +249,7 @@ export function DeleteDraftLogs() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 h-4 w-4" />
+      <Trash className="mr-2 size-4" />
       Delete All Draft Logs
     </Button>
   )
@@ -272,7 +272,7 @@ export function DeleteAllRecents() {
           })
         }}
       >
-        <Trash className="mr-2 h-4 w-4" />
+        <Trash className="mr-2 size-4" />
         Confirm Delete All Recents?
       </Button>
     )
@@ -284,7 +284,7 @@ export function DeleteAllRecents() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 h-4 w-4" />
+      <Trash className="mr-2 size-4" />
       Delete All Recent Items
     </Button>
   )
@@ -375,7 +375,7 @@ function GoBuildInfo({goBuildInfo}: {goBuildInfo: string}) {
       </div>
       {expanded ? (
         <SizableText size="xs" className="text-muted-foreground mt-2 break-all">
-          {goBuildInfo || 'Loading...'}
+          {goBuildInfo || 'Loading…'}
         </SizableText>
       ) : null}
     </div>
@@ -388,7 +388,7 @@ function NetworkAddresses({addrs}: {addrs?: string}) {
   return (
     <div className="flex items-start gap-3 px-4 py-3">
       <SizableText size="xs" className="text-muted-foreground min-w-0 flex-1 break-all">
-        {expanded ? addrs : firstAddr ? `${firstAddr}...` : 'Loading...'}
+        {expanded ? addrs : firstAddr ? `${firstAddr}…` : 'Loading…'}
       </SizableText>
       {addrs ? (
         <Button size="sm" variant="outline" className="shrink-0" onClick={() => setExpanded(!expanded)}>
@@ -553,7 +553,7 @@ export function VaultBackendSettings() {
                 id="vault-remote-url"
                 value={remoteVaultURL}
                 onChange={(e) => setRemoteVaultURL(e.currentTarget.value)}
-                placeholder="Vault server URL..."
+                placeholder="Vault server URL…"
                 disabled={isPending}
                 className="w-[260px]"
               />
@@ -634,7 +634,7 @@ export function DeveloperSettings() {
           description="Enable AI-powered document embeddings for semantic search and related content features. This will restart the background service."
           right={
             <Button size="sm" variant="outline" onClick={handleEmbeddingToggle} disabled={restartDaemon.isLoading}>
-              {restartDaemon.isLoading ? 'Restarting...' : embeddingEnabled ? 'Disable Embedding' : 'Enable Embedding'}
+              {restartDaemon.isLoading ? 'Restarting…' : embeddingEnabled ? 'Disable Embedding' : 'Enable Embedding'}
             </Button>
           }
         />
@@ -830,14 +830,14 @@ function AccountKeys() {
                   setIsExportDialogOpen(true)
                 }}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-2 size-4" />
                 Export Key
               </Button>
               <AlertDialog>
                 <Tooltip content="Delete account from device">
                   <AlertDialogTrigger asChild>
                     <Button size="sm" variant="destructive">
-                      <Trash className="mr-2 h-4 w-4" />
+                      <Trash className="mr-2 size-4" />
                       Delete Account
                     </Button>
                   </AlertDialogTrigger>
@@ -882,7 +882,7 @@ function AccountKeys() {
                   />
                   <div className="flex flex-col gap-2">
                     <Button size="sm" variant="outline" onClick={() => setShowWords((v) => !v)}>
-                      {showWords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showWords ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </Button>
                     <Button
                       size="sm"
@@ -893,14 +893,14 @@ function AccountKeys() {
                         toast.success('Words copied to clipboard')
                       }}
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="size-4" />
                     </Button>
 
                     <AlertDialog>
                       <Tooltip content="Delete words from device">
                         <AlertDialogTrigger asChild>
                           <Button size="sm" variant="destructive">
-                            <Trash className="h-4 w-4" />
+                            <Trash className="size-4" />
                           </Button>
                         </AlertDialogTrigger>
                       </Tooltip>
@@ -975,7 +975,7 @@ function AccountKeys() {
                 Cancel
               </Button>
               <Button type="submit" disabled={exportKey.isPending}>
-                {exportKey.isPending ? 'Exporting...' : 'Export Key'}
+                {exportKey.isPending ? 'Exporting…' : 'Export Key'}
               </Button>
             </div>
           </form>
@@ -984,7 +984,7 @@ function AccountKeys() {
     </div>
   ) : (
     <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">
-      <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+      <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
         <UserRoundPlus size={50} className="text-muted-foreground" />
       </div>
       <SizableText size="xl">No Accounts Found</SizableText>
@@ -999,7 +999,7 @@ function AccountKeys() {
           console.log('Create new profile clicked')
         }}
       >
-        <Plus className="mr-2 h-4 w-4" />
+        <Plus className="mr-2 size-4" />
         Create a new Profile
       </Button>
     </div>
@@ -1043,7 +1043,7 @@ function LinkedDevices({accountUid, accountName}: {accountUid: string; accountNa
           variant="default"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 size-4" />
           Link Web Session
         </Button>
       </div>
@@ -2098,7 +2098,7 @@ export function AIProvidersSettings() {
               </div>
             )}
             <Button size="sm" onClick={() => beginAdd()} className="w-full">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 size-4" />
               Add Provider
             </Button>
           </div>
@@ -2437,24 +2437,24 @@ function ProviderFormFields({
         : !hasOpenAIApiKey
         ? 'Enter an OpenAI API key to confirm the connection before choosing a model.'
         : openaiModelsApiKey.isFetching
-        ? 'Confirming the OpenAI connection...'
+        ? 'Confirming the OpenAI connection…'
         : 'Seed could not confirm the OpenAI connection yet. Check the API key and try again.'
       : form.type === 'anthropic'
       ? !hasAnthropicApiKey
         ? 'Enter an Anthropic API key to confirm the connection before choosing a model.'
         : anthropicModels.isFetching
-        ? 'Confirming the Anthropic connection...'
+        ? 'Confirming the Anthropic connection…'
         : 'Seed could not confirm the Anthropic connection yet. Check the API key and try again.'
       : form.type === 'gemini'
       ? !hasGeminiApiKey
         ? 'Enter a Gemini API key to confirm the connection before choosing a model.'
         : geminiModels.isFetching
-        ? 'Confirming the Gemini connection...'
+        ? 'Confirming the Gemini connection…'
         : 'Seed could not confirm the Gemini connection yet. Check the API key and try again.'
       : !hasOllamaBaseUrl
       ? 'Enter an Ollama base URL to confirm the connection before choosing a model.'
       : ollamaModels.isFetching
-      ? 'Confirming the Ollama connection...'
+      ? 'Confirming the Ollama connection…'
       : 'Seed could not confirm the Ollama connection yet. Check the server URL and try again.'
     : null
   const modelSectionDescription =
