@@ -15,8 +15,7 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
-import {addBlockAtEnd} from './add-block-at-end'
-import {AddBlockAtEndButton} from './add-block-at-end-button'
+import {InlineAddBlockButton} from './inline-add-block-button'
 import {
   BlockHoverActionsPositioner,
   BlockNoteView,
@@ -104,20 +103,10 @@ export function DocumentEditor({
   // Used to suppress edit.start when a click is intended to dismiss a selection.
   const mousedownHadSelectionRef = useRef<boolean>(false)
 
-  // Set when edit mode is being entered via the "+" button, so the
-  // justEnteredEditing effect can call addBlockAtEnd after the editor
-  // becomes editable.
-  const pendingAddBlockRef = useRef(false)
-
   const onEditStart = useCallback(() => {
     console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
     actorRef.send({type: 'edit.start'})
   }, [actorRef])
-
-  const onEditStartForAddBlock = useCallback(() => {
-    pendingAddBlockRef.current = true
-    onEditStart()
-  }, [onEditStart])
 
   // Suppress change events during programmatic content replacement
   // (e.g. when loading draft content on edit-mode entry).
@@ -347,16 +336,6 @@ export function DocumentEditor({
         const view = editor._tiptapEditor?.view
         if (!view) {
           console.log('[DocEditor] placeCursor: no view')
-          return
-        }
-
-        // If edit mode was entered via the "+" button, append an empty block at
-        // the end and open the slash menu. This supersedes click-position logic
-        // because addBlockAtEnd sets its own cursor position.
-        if (pendingAddBlockRef.current) {
-          pendingAddBlockRef.current = false
-          pendingClickPosRef.current = null
-          addBlockAtEnd(editor)
           return
         }
 
@@ -643,7 +622,7 @@ export function DocumentEditor({
         />
         <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
       </BlockNoteView>
-      {canEdit && <AddBlockAtEndButton editor={editor} onEditStart={onEditStartForAddBlock} />}
+      {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
     </FragmentActionsContext.Provider>
   )
 }
