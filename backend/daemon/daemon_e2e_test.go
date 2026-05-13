@@ -246,11 +246,15 @@ func requireCORSHeaders(t *testing.T, h http.Header) {
 	t.Helper()
 
 	require.Equal(t, "*", h.Get("Access-Control-Allow-Origin"))
-	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "OPTIONS")
-	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "GET")
-	require.Contains(t, h.Get("Access-Control-Allow-Methods"), "POST")
-	require.Contains(t, h.Get("Access-Control-Allow-Headers"), "Content-Type")
-	require.Contains(t, h.Get("Access-Control-Allow-Headers"), "Range")
+	if methods := h.Get("Access-Control-Allow-Methods"); methods != "*" {
+		require.Contains(t, methods, "OPTIONS")
+		require.Contains(t, methods, "GET")
+		require.Contains(t, methods, "POST")
+	}
+	if headers := h.Get("Access-Control-Allow-Headers"); headers != "*" {
+		require.Contains(t, headers, "Content-Type")
+		require.Contains(t, headers, "Range")
+	}
 }
 
 func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
