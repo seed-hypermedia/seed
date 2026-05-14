@@ -226,11 +226,6 @@ message PrepareChangeRequest {
   // for this particular path.
   string capability = 5;
 
-  // Optional. Visibility of the document.
-  // Can only be specified here when creating the document for the first time,
-  // i.e. when `base_version` is empty.
-  ResourceVisibility visibility = 6;
-
   // Optional. A human-readable message describing this publish, similar to a git commit message.
   // Embedded into the prepared Change blob so client-side signing preserves it.
   string message = 7;
@@ -658,11 +653,6 @@ message CreateRefRequest {
 
   // Output only. Visibility of the document.
   ResourceVisibility visibility = 8;
-
-  // Field 9 was previously used for a Ref-level message. Messages now live on
-  // the Change blob (see CreateDocumentChangeRequest.message). Reserved to
-  // prevent accidental reuse.
-  reserved 9;
 }
 
 // Request to get a Ref by ID.
@@ -1020,11 +1010,6 @@ message Ref {
 
   // Information about the generation of the Ref.
   GenerationInfo generation_info = 8;
-
-  // Field 9 was previously used for a Ref-level message. Messages now live on
-  // the Change blob (see DocumentChangeInfo.message). Reserved to prevent
-  // accidental reuse.
-  reserved 9;
 }
 
 // Description of where the Ref points to.

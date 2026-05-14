@@ -482,15 +482,6 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
   capability = "";
 
   /**
-   * Optional. Visibility of the document.
-   * Can only be specified here when creating the document for the first time,
-   * i.e. when `base_version` is empty.
-   *
-   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 6;
-   */
-  visibility = ResourceVisibility.UNSPECIFIED;
-
-  /**
    * Optional. A human-readable message describing this publish, similar to a git commit message.
    * Embedded into the prepared Change blob so client-side signing preserves it.
    *
@@ -511,7 +502,6 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
     { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
     { no: 7, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 

@@ -59,7 +59,6 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       baseVersion: input.baseVersion,
       changes: input.changes,
       capability: input.capability,
-      visibility: input.visibility,
       message: input.message,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
     const {publishInput} = await signDocumentChange(

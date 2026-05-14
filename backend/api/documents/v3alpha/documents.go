@@ -274,7 +274,6 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 		BaseVersion: in.BaseVersion,
 		Changes:     in.Changes,
 		Capability:  in.Capability,
-		Visibility:  in.Visibility,
 	})
 	if err != nil {
 		return nil, err

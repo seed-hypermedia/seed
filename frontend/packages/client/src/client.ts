@@ -287,7 +287,6 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       baseVersion: input.baseVersion,
       changes: input.changes,
       capability: input.capability,
-      visibility: input.visibility,
       message: input.message,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
     const {publishInput} = await signDocumentChange(

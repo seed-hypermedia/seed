@@ -9,7 +9,6 @@ export const PrepareDocumentChange: HMRequestImplementation<HMPrepareDocumentCha
       path: input.path ?? '',
       baseVersion: input.baseVersion ?? '',
       capability: input.capability ?? '',
-      visibility: input.visibility ?? 0,
       message: input.message ?? '',
       changes: input.changes.map((c) => new DocumentChange(c as ConstructorParameters<typeof DocumentChange>[0])),
     })
