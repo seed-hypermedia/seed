@@ -2,6 +2,7 @@ import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
 import isEqual from 'lodash/isEqual'
+import {nanoid} from 'nanoid'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 
@@ -129,7 +130,46 @@ export function createBlocksMap(blockNodes: Array<HMBlockNode> = [], parentId: s
   return result
 }
 
+function nextUniqueBlockId(createId: () => string, seen: Set<string>): string {
+  let id = createId()
+  while (!id || seen.has(id)) id = createId()
+  seen.add(id)
+  return id
+}
+
+/**
+ * Repair corrupted editor content before building publish changes.
+ *
+ * The document CRDT requires every block id to appear at most once. A stale
+ * draft/rebase can duplicate a subtree with the original ids, which later makes
+ * the publish diff emit invalid moves such as `blockId === leftSibling`. Keep
+ * the first occurrence stable and assign fresh ids to later duplicates so the
+ * copied blocks publish as new blocks instead of colliding with the originals.
+ */
+export function ensureUniqueEditorBlockIds(blocks: Array<EditorBlock>, createId: () => string): Array<EditorBlock> {
+  const seen = new Set<string>()
+
+  const visit = (block: EditorBlock): EditorBlock => {
+    const id = !block.id || seen.has(block.id) ? nextUniqueBlockId(createId, seen) : block.id
+    if (id === block.id) seen.add(id)
+
+    const children = block.children?.map(visit) ?? []
+    if (id === block.id && children === block.children) return block
+    return {...block, id, children} as EditorBlock
+  }
+
+  return blocks.map(visit)
+}
+
 export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
+  return compareUniqueBlocksWithMap(
+    blocksMap,
+    ensureUniqueEditorBlockIds(blocks, () => nanoid(10)),
+    parentId,
+  )
+}
+
+function compareUniqueBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
   let changes: Array<DocumentChange> = []
   let touchedBlocks: Array<string> = []
 
@@ -201,7 +241,7 @@ export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorB
     }
 
     if (block.children.length) {
-      let nestedResults = compareBlocksWithMap(blocksMap, block.children, block.id)
+      let nestedResults = compareUniqueBlocksWithMap(blocksMap, block.children, block.id)
       changes = [...changes, ...nestedResults.changes]
       touchedBlocks = [...touchedBlocks, ...nestedResults.touchedBlocks]
     }

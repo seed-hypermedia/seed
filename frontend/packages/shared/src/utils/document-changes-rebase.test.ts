@@ -1,6 +1,14 @@
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {applyRebasePlan, classifyRebase, computeTheirsTouches} from './document-changes'
+import {
+  applyRebasePlan,
+  classifyRebase,
+  compareBlocksWithMap,
+  computeTheirsTouches,
+  createBlocksMap,
+  ensureUniqueEditorBlockIds,
+} from './document-changes'
 
 type BlockOverrides = {
   id: string
@@ -22,6 +30,10 @@ function para({id, text = '', revision, attributes}: BlockOverrides): HMBlockNod
 
 function node(over: BlockOverrides, children: HMBlockNode[] = []): HMBlockNode {
   return {block: para(over) as HMBlockNode['block'], children}
+}
+
+function editorPara(id: string, text = '', children: EditorBlock[] = []): EditorBlock {
+  return {id, type: 'paragraph', props: {}, content: [{type: 'text', text, styles: {}}], children}
 }
 
 describe('computeTheirsTouches', () => {
@@ -236,5 +248,25 @@ describe('applyRebasePlan', () => {
       conflictedBlockIds: [],
     })
     expect((merged[0]?.children?.[0]?.block as any)?.text).toBe('mine child')
+  })
+})
+
+describe('ensureUniqueEditorBlockIds', () => {
+  it('renames duplicate editor block ids before publish diffing', () => {
+    const base: HMBlockNode[] = [node({id: 'parent'}, [node({id: 'dup', text: 'base child'})])]
+    const mine: EditorBlock[] = [
+      editorPara('parent', '', [editorPara('dup', 'first copy'), editorPara('dup', 'second copy')]),
+    ]
+
+    const repaired = ensureUniqueEditorBlockIds(mine, () => 'fresh-dup')
+    expect(repaired[0]?.children.map((child) => child.id)).toEqual(['dup', 'fresh-dup'])
+
+    const {changes} = compareBlocksWithMap(createBlocksMap(base, ''), mine, '')
+    const selfMoves = changes.filter((change: any) => {
+      if (change.op?.case !== 'moveBlock') return false
+      const move = change.op.value
+      return move.blockId === move.leftSibling
+    })
+    expect(selfMoves).toEqual([])
   })
 })
