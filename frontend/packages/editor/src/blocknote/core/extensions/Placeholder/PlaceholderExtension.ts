@@ -56,20 +56,20 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
             const active = this.editor.isEditable || !this.options.showOnlyWhenEditable
             const {anchor} = selection
             const decorations: Decoration[] = []
-            const topLevelBlockChildren = doc.firstChild
+            const firstDocChild = doc.firstChild
             let firstTopLevelBlockNodePos: number | null = null
 
             if (!active) {
               return
             }
 
-            if (topLevelBlockChildren) {
+            if (firstDocChild) {
               doc.descendants((node, pos, parent) => {
                 if (firstTopLevelBlockNodePos !== null) {
                   return false
                 }
 
-                if (node.type.name === 'blockNode' && parent === topLevelBlockChildren) {
+                if (node.type.name === 'blockNode' && parent === firstDocChild) {
                   firstTopLevelBlockNodePos = pos
                   return false
                 }
