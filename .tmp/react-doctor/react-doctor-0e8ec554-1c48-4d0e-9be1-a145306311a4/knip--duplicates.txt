@@ -1,9 +1,0 @@
-Rule: knip/duplicates
-Severity: warning
-Category: Dead Code
-Count: 1
-
-Duplicate export: createResourceFetcher|createResourceLoader
-
-Files:
-  src/resource-loader.ts

@@ -1,9 +1,0 @@
-Rule: knip/duplicates
-Severity: warning
-Category: Dead Code
-Count: 1
-
-Duplicate export: LinkToolbarButton|default
-
-Files:
-  src/blocknote/react/FormattingToolbar/components/LinkToolbarButton.tsx

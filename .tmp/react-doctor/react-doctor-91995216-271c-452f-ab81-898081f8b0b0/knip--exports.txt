@@ -1,9 +1,0 @@
-Rule: knip/exports
-Severity: warning
-Category: Dead Code
-Count: 1
-
-Unused export: useRouteDocId
-
-Files:
-  src/utils/navigation.tsx
