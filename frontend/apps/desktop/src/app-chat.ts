@@ -2,6 +2,7 @@ import {createAnthropic} from '@ai-sdk/anthropic'
 import {createGoogleGenerativeAI} from '@ai-sdk/google'
 import {createOpenAI} from '@ai-sdk/openai'
 import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
+import {documentToMarkdown} from '@shm/shared/hm-markdown'
 import {extractViewTermFromUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
@@ -206,10 +207,15 @@ function parseDocumentUrl(url: string) {
   const id = unpackHmId(cleanUrl)
   if (!id) return null
 
+  const panel = new URLSearchParams(cleanUrl.split('?')[1]?.split('#')[0] || '').get('panel')
+  const panelCommentId =
+    panel?.startsWith('comments/') || panel?.startsWith('comment/') ? panel.replace(/^comments?\//, '') : undefined
+  const panelActivityFilter = panel?.startsWith('activity/') ? panel.slice('activity/'.length) : undefined
+
   return {
     id,
-    viewTerm: extracted.viewTerm ? extracted.viewTerm.slice(1) : null,
-    viewArg: extracted.commentId || extracted.activityFilter || extracted.accountUid,
+    viewTerm: extracted.viewTerm ? extracted.viewTerm.slice(1) : panelCommentId ? 'comments' : null,
+    viewArg: extracted.commentId || panelCommentId || extracted.activityFilter || panelActivityFilter || extracted.accountUid,
   }
 }
 
@@ -425,19 +431,56 @@ function summarizeToolOutput(output: unknown): string {
 
 // Read handlers for each view type
 
-async function readDocument(id: ReturnType<typeof unpackHmId>) {
-  if (!id) return 'Error: invalid document ID'
-  const resource = await desktopRequest('Resource', id)
-  if (resource.type !== 'document' || !resource.document) {
-    return 'Error: resource is not a document'
+async function formatCommentResource(comment: HMComment) {
+  const names = await resolveAccountNames([comment.author].filter(Boolean) as string[])
+  const fakeDoc = {
+    content: comment.content,
+    metadata: {},
+    version: comment.version,
+    authors: [comment.author],
   }
-  const doc = resource.document
-  const title = doc.metadata?.name || 'Untitled'
-  const content = doc.content?.length ? blockNodesToMarkdown(doc.content) : '(empty document)'
+  const content = await documentToMarkdown(fakeDoc as any)
+  const replyInfo = comment.replyParent ? ` (reply to ${comment.replyParent})` : ''
+  const targetPath = comment.targetPath || ''
+  const targetUrl = `hm://${comment.targetAccount}${targetPath}`
+  const targetTitle = await readResourceTitle(unpackHmId(targetUrl))
+
   return {
-    title,
-    markdown: `# ${title}\n\n${content}`,
+    title: targetTitle,
+    markdown: [
+      `## Comment`,
+      '',
+      `**ID:** ${comment.id}`,
+      `**Version:** ${comment.version}`,
+      `**Author:** ${displayName(names, comment.author)}${replyInfo}`,
+      `**Target:** ${targetTitle ? `${targetTitle} (${targetUrl})` : targetUrl}`,
+      '',
+      content || '(empty comment)',
+    ].join('\n'),
+    commentAuthorName: displayName(names, comment.author),
+    targetUrl,
   }
+}
+
+async function readResource(id: ReturnType<typeof unpackHmId>) {
+  if (!id) return 'Error: invalid resource ID'
+  const resource = await desktopRequest('Resource', id)
+  if (resource.type === 'document' && resource.document) {
+    const doc = resource.document
+    const title = doc.metadata?.name || 'Untitled'
+    return {
+      type: 'document' as const,
+      title,
+      markdown: await documentToMarkdown(doc),
+    }
+  }
+  if (resource.type === 'comment' && resource.comment) {
+    return {
+      type: 'comment' as const,
+      ...(await formatCommentResource(resource.comment)),
+    }
+  }
+  return `Error: resource is ${resource.type || 'not readable'}`
 }
 
 async function readComments(id: ReturnType<typeof unpackHmId>, commentId?: string) {
@@ -626,13 +669,14 @@ const chatTools: Record<string, any> = {
   },
   read: {
     description:
-      'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators.',
+      'Read a Hypermedia URL: a document, comment URL, comments view, directory listing, version history, citations, or collaborators.',
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
         url: {
           type: 'string',
-          description: 'The hm:// URL to read',
+          description:
+            'The hm:// URL to read. Supports view suffixes like /:comments and comment URLs like /:comments/<COMMENT_ID> or ?panel=comments/<COMMENT_ID>.',
         },
       },
       required: ['url'],
@@ -645,10 +689,29 @@ const chatTools: Record<string, any> = {
           return createToolErrorOutput(`Error: Could not parse URL "${url}". Use an hm:// URL.`, {resourceUrl: url})
         }
         const {id, viewTerm, viewArg} = parsed
+        const selectedCommentId = viewArg
+        const effectiveViewTerm = selectedCommentId && (!viewTerm || viewTerm === 'comments') ? 'comments' : viewTerm
         const [resourceTitle, siteName] = await Promise.all([readResourceTitle(id), readSiteName(id.uid)])
-        switch (viewTerm) {
+        switch (effectiveViewTerm) {
           case 'comments': {
-            const commentsResult = await readComments(id, viewArg)
+            if (selectedCommentId) {
+              const commentResult = await readResource(unpackHmId(`hm://${selectedCommentId}`))
+              if (typeof commentResult === 'string') {
+                return createToolErrorOutput(commentResult, {resourceUrl: url})
+              }
+              if (commentResult.type !== 'comment') {
+                return createToolErrorOutput('Error: comment URL did not resolve to a comment.', {resourceUrl: url})
+              }
+
+              return createReadToolOutput({
+                url,
+                view: 'comments',
+                markdown: commentResult.markdown,
+                title: commentResult.title || resourceTitle,
+                displayLabel: `Comment by ${commentResult.commentAuthorName}`,
+              })
+            }
+            const commentsResult = await readComments(id, selectedCommentId)
             if (typeof commentsResult === 'string') {
               return createToolErrorOutput(commentsResult, {resourceUrl: url})
             }
@@ -707,16 +770,20 @@ const chatTools: Record<string, any> = {
               displayLabel: formatDocumentDisplayLabel(resourceTitle, siteName),
             })
           default: {
-            const documentResult = await readDocument(id)
-            if (typeof documentResult === 'string') {
-              return createToolErrorOutput(documentResult, {resourceUrl: url})
+            const resourceResult = await readResource(id)
+            if (typeof resourceResult === 'string') {
+              return createToolErrorOutput(resourceResult, {resourceUrl: url})
             }
+            const displayLabel =
+              resourceResult.type === 'comment'
+                ? `Comment by ${resourceResult.commentAuthorName}`
+                : formatDocumentDisplayLabel(resourceResult.title, siteName)
             return createReadToolOutput({
               url,
-              view: 'document',
-              markdown: documentResult.markdown,
-              title: documentResult.title,
-              displayLabel: formatDocumentDisplayLabel(documentResult.title, siteName),
+              view: resourceResult.type === 'comment' ? 'comments' : 'document',
+              markdown: resourceResult.markdown,
+              title: resourceResult.title,
+              displayLabel,
             })
           }
         }
