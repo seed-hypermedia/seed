@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	entities "seed/backend/api/entities/v1alpha"
+	telemetry "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -41,6 +42,13 @@ type Server struct {
 	clean     *cleanup.Stack
 	log       *zap.Logger
 	sync      *syncing.Service
+	telemetry *telemetry.Server
+}
+
+// SetTelemetry attaches a Telemetry server so ListEvents can emit
+// backend.feed_emitted checkpoints for each new-blob event.
+func (srv *Server) SetTelemetry(t *telemetry.Server) {
+	srv.telemetry = t
 }
 
 type head struct {
@@ -567,6 +575,18 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	events = events[:pageLen]
 	eventCursorBlobIDs = eventCursorBlobIDs[:pageLen]
 
+	if srv.telemetry != nil {
+		now := time.Now()
+		for _, e := range events {
+			if nb, ok := e.Data.(*activity.Event_NewBlob); ok {
+				key := newBlobTelemetryKey(nb.NewBlob)
+				if key != "" {
+					srv.telemetry.RecordCheckpoint(key, telemetry.StageFeedEmitted, now)
+				}
+			}
+		}
+	}
+
 	// Next page token based on the minimum local blob ID in the returned page.
 	// Emit a token whenever either DB fetch returned a full batch, because the
 	// deleted/dedup filters above can shorten the visible page below req.PageSize
@@ -589,6 +609,26 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		Events:        events,
 		NextPageToken: nextPageToken,
 	}, err
+}
+
+// newBlobTelemetryKey builds the correlation key used by the journeys
+// profiler for an activity event. The frontend constructs the same string
+// from the wire form of NewBlobEvent, so both processes' checkpoints join.
+//
+// For Ref blobs the Resource field already has "?v=<version>" appended by
+// ListEvents; we use it verbatim. For other blob types we append
+// "?v=<blob_cid>" — the blob CID *is* the head for those types.
+func newBlobTelemetryKey(nb *activity.NewBlobEvent) string {
+	if nb == nil || nb.Resource == "" {
+		return ""
+	}
+	if strings.Contains(nb.Resource, "?v=") {
+		return nb.Resource
+	}
+	if nb.Cid == "" {
+		return nb.Resource
+	}
+	return nb.Resource + "?v=" + nb.Cid
 }
 
 func (srv *Server) expandFilterAuthors(ctx context.Context, authors []string) ([]string, error) {

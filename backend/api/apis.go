@@ -7,6 +7,7 @@ import (
 	entities "seed/backend/api/entities/v1alpha"
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
+	telemetryapi "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	taskmanager "seed/backend/daemon/taskmanager"
@@ -31,6 +32,7 @@ type Server struct {
 	Syncing     *syncing.Service
 	DocumentsV3 *documentsv3.Server
 	Payments    *payments.Server
+	Telemetry   *telemetryapi.Server
 	P2PProxy    interface {
 		p2p.P2PServer
 		p2p.SyncingServer
@@ -55,14 +57,21 @@ func New(
 	db := repo.DB()
 	proxy := &p2pProxy{node: node}
 
+	tel := telemetryapi.NewServer(logging.New("seed/telemetry", LogLevel))
+	activity.SetTelemetry(tel)
+
+	docs := documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node)
+	docs.SetTelemetry(tel)
+
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr, logging.New("seed/daemon-api", LogLevel)),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(cfg, db, sync, embedder, logging.New("seed/entities", LogLevel)),
-		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
+		DocumentsV3: docs,
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
+		Telemetry:   tel,
 		P2PProxy:    proxy,
 	}
 }
@@ -75,6 +84,7 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
 	s.Payments.RegisterServer(srv)
+	s.Telemetry.RegisterServer(srv)
 	s.P2PProxy.RegisterServer(srv)
 
 	reflection.Register(srv)

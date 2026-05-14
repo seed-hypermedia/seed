@@ -12,12 +12,14 @@ import (
 	"net/netip"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
+	telemetryapi "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/ctxkey"
+	"seed/backend/util/journeys"
 	"seed/backend/util/trcstats"
 	"strconv"
 	"strings"
@@ -59,6 +61,7 @@ func initHTTP(
 	ipfsHandler *hmnet.FileManager,
 	p2pnet *hmnet.Node,
 	apiServer *daemonapi.Server,
+	telemetrySrv *telemetryapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{mux: http.NewServeMux()}
 	router.Use(
@@ -83,6 +86,9 @@ func initHTTP(
 		loopback.HandleNav("/debug/buildinfo", buildInfoHandler())
 		loopback.HandleNav("/debug/version", gitVersionHandler())
 		loopback.HandleNav("/debug/traces", trcstats.Handler(eztrc.Handler()))
+		if telemetrySrv != nil {
+			loopback.HandleNav("/debug/journeys", journeys.Handler(telemetrySrv))
+		}
 		loopback.HandleNav("/debug/logs", logging.DebugHandler())
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())

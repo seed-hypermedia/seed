@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"seed/backend/api/documents/v3alpha/docmodel"
+	telemetry "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
@@ -48,12 +49,13 @@ const (
 
 // Server implements Documents API v3.
 type Server struct {
-	cfg  config.Base
-	keys core.KeyStore
-	idx  *blob.Index
-	db   *sqlitex.Pool
-	log  *zap.Logger
-	p2p  *hmnet.Node
+	cfg       config.Base
+	keys      core.KeyStore
+	idx       *blob.Index
+	db        *sqlitex.Pool
+	log       *zap.Logger
+	p2p       *hmnet.Node
+	telemetry *telemetry.Server
 }
 
 // NewServer creates a new Documents API v3 server.
@@ -66,6 +68,48 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		log:  log,
 		p2p:  p2p,
 	}
+}
+
+// SetTelemetry wires the journeys profiler. Optional; when nil, all
+// telemetry emitters are no-ops.
+func (srv *Server) SetTelemetry(t *telemetry.Server) {
+	srv.telemetry = t
+}
+
+// emitTelemetry records a single checkpoint for the given hm:// URL.
+// No-op when telemetry is disabled or the key is empty.
+func (srv *Server) emitTelemetry(key, stage string) {
+	if srv.telemetry == nil || key == "" {
+		return
+	}
+	srv.telemetry.RecordCheckpoint(key, stage, time.Time{})
+}
+
+// documentTelemetryKey builds the canonical hm:// URL with a version pin for
+// a GetDocument call. Returns "" when we don't have enough info to key.
+func documentTelemetryKey(account, path, version string) string {
+	if account == "" {
+		return ""
+	}
+	base := "hm://" + account
+	if path != "" {
+		if !strings.HasPrefix(path, "/") {
+			base += "/"
+		}
+		base += path
+	}
+	if version != "" {
+		base += "?v=" + version
+	}
+	return base
+}
+
+// accountTelemetryKey is the canonical key for a GetAccount call.
+func accountTelemetryKey(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	return "hm://" + uid
 }
 
 // RegisterServer registers the server with the gRPC server.
@@ -83,6 +127,10 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 			return nil, errutil.MissingArgument("account")
 		}
 	}
+
+	key := documentTelemetryKey(in.Account, in.Path, in.Version)
+	srv.emitTelemetry(key, telemetry.StageGRPCRequestReceived)
+	defer srv.emitTelemetry(key, telemetry.StageGRPCResponseSent)
 
 	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
@@ -638,6 +686,10 @@ func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountReque
 			return nil, errutil.MissingArgument("account")
 		}
 	}
+
+	key := accountTelemetryKey(in.Id)
+	srv.emitTelemetry(key, telemetry.StageGRPCRequestReceived)
+	defer srv.emitTelemetry(key, telemetry.StageGRPCResponseSent)
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Account, error) {
 		lookup := blob.NewLookupCache(conn)
