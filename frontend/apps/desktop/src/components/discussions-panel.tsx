@@ -7,9 +7,9 @@ import {BlockDiscussions, CommentDiscussions, Discussions} from '@shm/ui/comment
 import {memo} from 'react'
 import {CommentBox} from './commenting'
 
-export const DiscussionsPanel = memo(_DiscussionsPanel)
+export const DiscussionsPanel = memo(DiscussionsPanelImpl)
 
-function _DiscussionsPanel(props: {docId: UnpackedHypermediaId; selection: CommentsRoute}) {
+function DiscussionsPanelImpl(props: {docId: UnpackedHypermediaId; selection: CommentsRoute}) {
   const {docId, selection} = props
   // Use selection.id if available (panel's own target), otherwise fall back to docId
   const targetDocId = selection.id ?? docId

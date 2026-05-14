@@ -651,6 +651,9 @@ function SeedHostRegisterSubdomain({
       subdomain: '',
     },
   })
+  useEffect(() => {
+    setFocus('subdomain')
+  }, [setFocus])
   if (!loggedIn) return null
   function onSubmit({subdomain}: RegisterSubdomainFields) {
     createSite
@@ -665,9 +668,6 @@ function SeedHostRegisterSubdomain({
         onPublished(host)
       })
   }
-  useEffect(() => {
-    setFocus('subdomain')
-  }, [])
   const isSubmitting = register.isLoading || createSite.isLoading
 
   // @ts-expect-error

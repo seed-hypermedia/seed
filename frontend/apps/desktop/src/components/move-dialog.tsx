@@ -26,15 +26,15 @@ export function MoveDialog({
   const moveDoc = useMoveDocument()
   const navigate = useNavigate()
   const selectedAccount = useSelectedAccount()
-  if (!selectedAccount) {
-    return <div>No account selected</div>
-  }
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(input.id)
   const isAvailable = useRef(true)
   const pathInvalid = useMemo(
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
+  if (!selectedAccount) {
+    return <div>No account selected</div>
+  }
   if (!document)
     return (
       <div className="flex items-center justify-center">

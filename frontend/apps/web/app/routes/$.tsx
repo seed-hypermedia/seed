@@ -1,4 +1,4 @@
-import {useFullRender} from '@/cache-policy'
+import {shouldFullRender} from '@/cache-policy'
 import {WebCommenting} from '@/client-lazy'
 import {
   createInstrumentationContext,
@@ -249,7 +249,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     setRequestInstrumentationContext(request.url, ctx)
   }
 
-  if (!useFullRender(parsedRequest)) {
+  if (!shouldFullRender(parsedRequest)) {
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
     }

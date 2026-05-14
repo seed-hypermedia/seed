@@ -58,8 +58,11 @@ export default function PreviewPage() {
     return <PublishedPreview docId={route.docId} />
   }
 
-  // Draft preview mode (original behavior)
-  const {data: draft, isLoading} = useDraft(route.draftId)
+  return <DraftPreview draftId={route.draftId} />
+}
+
+function DraftPreview({draftId}: {draftId: string | undefined}) {
+  const {data: draft, isLoading} = useDraft(draftId)
 
   if (isLoading) {
     return (

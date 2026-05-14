@@ -130,9 +130,9 @@ export function useMyAccountsCapabilities() {
 }
 
 export function useMyCapability(id?: UnpackedHypermediaId, minimumRole: HMRole = 'writer'): HMCapability | null {
-  if (!id) return null
   const myAccounts = useMyAccountIds()
   const capabilities = useCapabilities(id)
+  if (!id) return null
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     return {
       id: '_owner',

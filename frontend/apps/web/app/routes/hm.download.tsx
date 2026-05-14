@@ -1,5 +1,5 @@
 import downloadBg from '@/assets/download-bg.png'
-import {useFullRender} from '@/cache-policy'
+import {shouldFullRender} from '@/cache-policy'
 import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
@@ -81,7 +81,7 @@ async function loadUpstreamRelease() {
 
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request)
-  if (!useFullRender(parsedRequest)) return null
+  if (!shouldFullRender(parsedRequest)) return null
   const {hostname} = parsedRequest
   const serviceConfig = await getConfig(hostname)
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`)

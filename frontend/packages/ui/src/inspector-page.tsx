@@ -139,6 +139,19 @@ function InspectorContent({
 }) {
   const inspectTab = route.inspectTab || 'document'
 
+  const getRouteForUrl = useCallback((url: string) => {
+    if (url.startsWith('ipfs://')) {
+      return createInspectIpfsNavRoute(url.slice('ipfs://'.length))
+    }
+
+    const targetRoute = hypermediaUrlToRoute(url)
+    return targetRoute ? createInspectNavRouteFromRoute(targetRoute) : null
+  }, [])
+
+  const inspectPayload = useMemo(() => {
+    return getInspectPayload(docId, route, resource, inspectData)
+  }, [docId, inspectData, resource, route])
+
   if (!resource) {
     return <PageNotFound />
   }
@@ -169,19 +182,6 @@ function InspectorContent({
       route.targetView === 'comments' &&
       !!route.targetOpenComment &&
       inspectData.commentsQuery.isLoading)
-
-  const getRouteForUrl = useCallback((url: string) => {
-    if (url.startsWith('ipfs://')) {
-      return createInspectIpfsNavRoute(url.slice('ipfs://'.length))
-    }
-
-    const targetRoute = hypermediaUrlToRoute(url)
-    return targetRoute ? createInspectNavRouteFromRoute(targetRoute) : null
-  }, [])
-
-  const inspectPayload = useMemo(() => {
-    return getInspectPayload(docId, route, resource, inspectData)
-  }, [docId, inspectData, resource, route])
 
   const emptyMessage = getInspectEmptyMessage(resource, inspectTab, !!route.targetOpenComment)
 
@@ -380,9 +380,10 @@ function getInspectToolTabs(
 function getInspectPayload(
   docId: UnpackedHypermediaId,
   route: InspectRouteType,
-  resource: InspectorResourceData,
+  resource: InspectorResourceData | undefined,
   inspectData: ReturnType<typeof useInspectDatasets>,
 ) {
+  if (!resource) return null
   const inspectTab = route.inspectTab || 'document'
 
   if (resource.type === 'comment') {

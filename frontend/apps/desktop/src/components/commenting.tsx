@@ -47,8 +47,8 @@ export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListD
   )
 }
 
-export const CommentBox = memo(_CommentBox)
-function _CommentBox(props: {
+export const CommentBox = memo(CommentBoxImpl)
+function CommentBoxImpl(props: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string

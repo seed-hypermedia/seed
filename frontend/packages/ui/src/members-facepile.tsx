@@ -17,8 +17,6 @@ interface MembersFacepileProps {
 export function MembersFacepile({members, siteId, description, className}: MembersFacepileProps) {
   const totalCount = members.length
 
-  if (totalCount === 0) return null
-
   const displayUids = useMemo(() => members.slice(0, MAX_AVATARS).map((m) => m.account.uid), [members])
 
   const accountsMeta = useAccountsMetadata(displayUids)
@@ -27,6 +25,8 @@ export function MembersFacepile({members, siteId, description, className}: Membe
     key: 'collaborators',
     id: {...siteId, latest: true, version: null},
   })
+
+  if (totalCount === 0) return null
 
   return (
     <a

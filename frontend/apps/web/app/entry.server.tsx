@@ -20,7 +20,7 @@ import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'
 import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
-import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
+import {ENABLE_HTML_CACHE, shouldFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
 import {
   clearRequestInstrumentationContext,
@@ -383,7 +383,7 @@ export default async function handleRequest(
   const serviceConfig = await getConfig(hostname)
   const originAccountId = serviceConfig?.registeredAccountUid
 
-  if (!ENABLE_HTML_CACHE || useFullRender(parsedRequest)) {
+  if (!ENABLE_HTML_CACHE || shouldFullRender(parsedRequest)) {
     sendPerfLog('requested full')
     return handleFullRequest(request, responseStatusCode, responseHeaders, remixContext, loadContext, sendPerfLog)
   }

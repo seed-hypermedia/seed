@@ -53,13 +53,13 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       hideForm={!!block.props.url || !!block.props.fileBinary || !!block.props.mediaRef}
       editor={editor}
       mediaType="file"
-      DisplayComponent={display}
+      DisplayComponent={Display}
       icon={<File />}
     />
   )
 }
 
-const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const Display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const {saveCidAsFile} = useUniversalAppContext()
   const {isEditing} = useEditorGate()
   const url: string = block.props.url || ''

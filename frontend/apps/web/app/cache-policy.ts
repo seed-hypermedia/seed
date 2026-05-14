@@ -2,7 +2,7 @@ import {ParsedRequest} from './request'
 
 export const ENABLE_HTML_CACHE = false
 
-export function useFullRender(parsedRequest: ParsedRequest) {
+export function shouldFullRender(parsedRequest: ParsedRequest) {
   if (!ENABLE_HTML_CACHE) return true
   const {url, headers} = parsedRequest
   return (

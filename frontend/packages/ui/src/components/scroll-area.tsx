@@ -3,7 +3,7 @@ import * as React from 'react'
 import {forwardRef} from 'react'
 import {cn} from '../utils'
 
-function _ScrollArea(
+function ScrollAreaImpl(
   {
     className,
     viewportClassName,
@@ -84,7 +84,7 @@ function _ScrollArea(
   )
 }
 
-const ScrollArea = forwardRef(_ScrollArea)
+const ScrollArea = forwardRef(ScrollAreaImpl)
 
 function ScrollBar({
   className,

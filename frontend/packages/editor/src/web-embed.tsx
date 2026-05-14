@@ -76,13 +76,13 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       editor={editor}
       mediaType="web-embed"
       submit={submitWebEmbedLink}
-      DisplayComponent={display}
+      DisplayComponent={Display}
       icon={<TwitterXIcon fill="currentColor" />}
     />
   )
 }
 
-const display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const Display = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const openUrl = useOpenUrl()

@@ -81,12 +81,10 @@ export function CommentDiscussions({
   const [showParents, setShowParents] = useState(false)
   const parentsRef = useRef<HTMLDivElement>(null)
 
-  if (!commentId) return null
-
   // Fetch all comments for the document
   const commentsService = useDocumentComments(targetId)
 
-  const parentThread = useCommentParents(commentsService.data?.comments, commentId)
+  const parentThread = useCommentParents(commentsService.data?.comments, commentId ?? '')
   const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
 
   // Subscribe to all authors in this discussion
@@ -135,6 +133,8 @@ export function CommentDiscussions({
 
     return () => clearTimeout(timer)
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
+
+  if (!commentId) return null
 
   if (commentsService.error) {
     return (
