@@ -1,12 +1,27 @@
 import 'fake-indexeddb/auto'
 import {indexedDB} from 'fake-indexeddb'
+import {encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {PublishInput} from '@shm/shared/models/document-machine'
 import type {UniversalClient} from '@shm/shared/universal-client'
+import * as Block from 'multiformats/block'
+import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {publishWebDocument, type CreateWebDocumentMachineDeps, type WebEditorAccessor} from './web-document-actors'
 import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft} from './web-draft-db'
+
+const cborCodec = {
+  code: 0x71 as const,
+  encode: cborEncode,
+  name: 'DAG-CBOR' as const,
+}
+
+/** Create a real CID from test data. */
+async function makeTestCID(data: unknown) {
+  const block = await Block.encode({value: data, codec: cborCodec, hasher: sha256})
+  return block.cid
+}
 
 const DB_NAME = 'web-doc-drafts-01'
 
@@ -32,15 +47,15 @@ function makeDocId(uid: string, path: string[] = []): UnpackedHypermediaId {
   } as UnpackedHypermediaId
 }
 
-const OWNER = 'z6OWNER'
-const ALICE = 'z6ALICE'
+const OWNER = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'
+const ALICE = 'z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH'
 
 function makeBaselineDoc(content: HMBlockNode[] = []): HMDocument {
   return {
     account: OWNER,
     path: '',
     version: 'baseline-version',
-    genesis: 'genesis-cid',
+    genesis: '',
     generationInfo: {generation: 42n},
     metadata: {},
     content,
@@ -59,6 +74,17 @@ function makeEditor(blocks: any[]): WebEditorAccessor {
   return {
     getTopLevelBlocks: () => blocks,
   }
+}
+
+/** Create a minimal valid unsigned Change CBOR for testing. */
+function createTestUnsignedChangeBytes(): Uint8Array {
+  return cborEncode({
+    type: 'Change',
+    signer: null,
+    sig: null,
+    ts: BigInt(Date.now()),
+    body: {opCount: 0, ops: []},
+  })
 }
 
 type AnyMock = ReturnType<typeof vi.fn>
@@ -87,7 +113,10 @@ function makeDeps(overrides: {
   // Sequence: first call returns baseline, second returns after-publish.
   let nextResource = baseline
   if (!overrides.request) {
-    requestMock.mockImplementation(async () => {
+    requestMock.mockImplementation(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
       const doc = nextResource
       nextResource = after
       return {type: 'document', document: doc} as any
@@ -172,14 +201,11 @@ describe('publishWebDocument', () => {
 
     const doc = await publishWebDocument(baseInput, deps)
     expect(doc).toBeDefined()
-    expect(deps.publishMock).toHaveBeenCalledOnce()
 
-    const args = (deps.publishMock.mock.calls[0] as any[])[0]
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    const args = prepareCall[1]
     expect(args.account).toBe(OWNER)
-    expect(args.signerAccountUid).toBe(OWNER)
     expect(args.baseVersion).toBe('baseline-version')
-    expect(args.genesis).toBe('genesis-cid')
-    expect(args.generation).toBe(42n)
     expect(args.capability).toBe('')
 
     const opCases = (args.changes as any[]).map((c) => c.op?.case)
@@ -190,6 +216,8 @@ describe('publishWebDocument', () => {
   })
 
   it('non-owner publish includes capability CID', async () => {
+    const capCid = (await makeTestCID({v: 'cap'})).toString()
+
     await putWebDocDraft({
       draftId,
       docId: makeDocId(OWNER).id,
@@ -206,7 +234,7 @@ describe('publishWebDocument', () => {
     })
 
     const deps = makeDeps({
-      capabilityCid: 'cap-cid-123',
+      capabilityCid: capCid,
       editorBlocks: [
         {
           id: 'b1',
@@ -219,9 +247,9 @@ describe('publishWebDocument', () => {
     })
 
     await publishWebDocument({...baseInput, publishAccountUid: ALICE}, deps)
-    const args = (deps.publishMock.mock.calls[0] as any[])[0]
-    expect(args.signerAccountUid).toBe(ALICE)
-    expect(args.capability).toBe('cap-cid-123')
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    const args = prepareCall[1]
+    expect(args.capability).toBe(capCid)
   })
 
   it('metadata-only change emits setAttribute', async () => {
@@ -243,7 +271,8 @@ describe('publishWebDocument', () => {
     const deps = makeDeps({editorBlocks: []})
     await publishWebDocument(baseInput, deps)
 
-    const args = (deps.publishMock.mock.calls[0] as any[])[0]
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    const args = prepareCall[1]
     const setAttrChanges = (args.changes as any[]).filter((c) => c.op?.case === 'setAttribute')
     expect(setAttrChanges.length).toBeGreaterThanOrEqual(1)
     const nameAttr = setAttrChanges.find((c) => c.op.value.key?.[0] === 'name')

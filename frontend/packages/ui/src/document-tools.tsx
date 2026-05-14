@@ -325,7 +325,7 @@ export function DocumentTools({
       <div ref={containerRef} className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
         {tabButtons}
       </div>
-      {rightActions ? <div className="flex shrink-0 items-center px-4">{rightActions}</div> : null}
+      {rightActions ? <div className="flex shrink-0 items-center px-0 md:px-2 lg:px-4">{rightActions}</div> : null}
     </div>
   )
 }

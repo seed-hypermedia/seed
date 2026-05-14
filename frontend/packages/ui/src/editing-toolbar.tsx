@@ -225,6 +225,11 @@ export function PublishPopoverBody({
             </span>
           </div>
         )
+      ) : publishedDoc ? (
+        <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
+          <Clock className="text-muted-foreground size-3.5" />
+          <span className="text-muted-foreground flex-1">Not yet published</span>
+        </div>
       ) : null}
 
       {/* Changes count row */}
