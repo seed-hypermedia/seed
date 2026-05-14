@@ -78,7 +78,7 @@ func TestWriterCheck_DelegatedSessionKeys(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "Session key edit")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	ref, err := NewRef(bobSession, 0, change.CID, alice.Principal(), "/delegated-session", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
@@ -120,7 +120,7 @@ func TestWriterCheck_OwnersSessionKey(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "Owner session key edit")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	ref, err := NewRef(aliceSession, 0, change.CID, alice.Principal(), "/owner-session", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
