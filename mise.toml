@@ -31,7 +31,7 @@ _.file = ".env"
 
 [tasks.ensure-submodule]
 run = '''
-if [ -f .gitmodules ] && [ ! -f backend/util/llama-go/Makefile ]; then
+if [ -f .gitmodules ] && { [ ! -f backend/util/llama-go/Makefile ] || [ ! -f backend/util/llama-go/llama.cpp/CMakeLists.txt ]; }; then
   echo "Initializing git submodules (llama-go + llama.cpp)..."
   git submodule update --init --recursive
 fi

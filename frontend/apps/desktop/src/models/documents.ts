@@ -31,7 +31,8 @@ import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
-import {invalidateQueries, setQueriesDataByKey} from '@shm/shared/models/query-client'
+import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   compareBlocksWithMap,
@@ -462,16 +463,9 @@ export function usePublishResource(
       })
       opts?.onSuccess?.(result, variables, context)
       if (resultDocId) {
-        // Immediately update cached data so components see the new document
-        // before the background refetch triggered by invalidation completes.
-        setQueriesDataByKey([queryKeys.ENTITY, resultDocId.id], {
-          type: 'document' as const,
-          document: result,
-          id: {...resultDocId, version: result.version},
-        })
-        invalidateQueries([queryKeys.ENTITY, resultDocId.id])
-        invalidateQueries([queryKeys.ACCOUNT, resultDocId.uid])
-        invalidateQueries([queryKeys.RESOLVED_ENTITY, resultDocId.id])
+        // Shared core: setQueriesDataByKey + invalidate ENTITY/ACCOUNT/RESOLVED_ENTITY
+        invalidateAfterPublish(resultDocId, result)
+        // Desktop-specific: directory lists, citations, interaction summaries
         getParentPaths(resultDocId.path).forEach((path) => {
           const parentId = hmId(resultDocId.uid, {path})
           invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])

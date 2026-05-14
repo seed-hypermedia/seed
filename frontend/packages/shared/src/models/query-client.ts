@@ -65,3 +65,15 @@ export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
     registeredClient.setQueriesData({queryKey}, data)
   }
 }
+
+/**
+ * Force an immediate background refetch of all queries matching a key prefix.
+ * Use after mutations when `invalidateQueries` alone doesn't trigger the
+ * desired refetch (e.g. when callers depend on the freshest server state).
+ */
+export function refetchQueriesByKey(queryKey: QueryKey): Promise<void> {
+  if (registeredClient) {
+    return registeredClient.refetchQueries({queryKey}) as Promise<void>
+  }
+  return Promise.resolve()
+}

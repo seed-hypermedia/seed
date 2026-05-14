@@ -1,7 +1,7 @@
+import type {HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 import React, {useState} from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import type {HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 
 const {packHmIdMock, resolveHypermediaUrlMock, useDirectoryMock, useSearchMock} = vi.hoisted(() => ({
@@ -50,8 +50,17 @@ vi.mock('@shm/ui/button', () => ({
   Button: ({children, ...props}: any) => <button {...props}>{children}</button>,
 }))
 
+const linkInputHandlers: {onChange?: (e: any) => void; onFocus?: (e: any) => void; onKeyDown?: (e: any) => void} = {}
+
 vi.mock('@shm/ui/components/input', () => ({
-  Input: (props: any) => <input {...props} />,
+  Input: (props: any) => {
+    if (props['aria-label'] === 'Link') {
+      linkInputHandlers.onChange = props.onChange
+      linkInputHandlers.onFocus = props.onFocus
+      linkInputHandlers.onKeyDown = props.onKeyDown
+    }
+    return <input {...props} />
+  },
 }))
 
 vi.mock('@shm/ui/components/popover', () => ({

@@ -93,6 +93,8 @@ vi.mock('@shm/ui/tooltip', async () => {
   }
 })
 
+import {pathNameify} from '@shm/shared/utils/path'
+import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {PublishPopoverBody} from '../editing-toolbar'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -114,6 +116,8 @@ function renderPopover(docId: ReturnType<typeof hmId>, onPublish: (override?: st
         onPublish={onPublish}
         onClose={vi.fn()}
         publishDisabled={false}
+        slugify={pathNameify}
+        computeFirstPublishPath={computeInlineDraftPublishPath}
       />,
     )
   })

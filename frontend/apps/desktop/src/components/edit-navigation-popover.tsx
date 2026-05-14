@@ -556,9 +556,15 @@ function SearchUI({
   const normalizedFocusedIndex =
     results.length > 0 ? ((focusedIndex % results.length) + results.length) % results.length : 0
 
+  const prevActiveKeyRef = useRef<string | null>(null)
+
   useEffect(() => {
     const activeItem = results[normalizedFocusedIndex]
-    onActiveResultChange(activeItem ? {link: activeItem.key, title: activeItem.title || ''} : null)
+    const nextKey = activeItem?.key ?? null
+    if (nextKey !== prevActiveKeyRef.current) {
+      prevActiveKeyRef.current = nextKey
+      onActiveResultChange(activeItem ? {link: activeItem.key, title: activeItem.title || ''} : null)
+    }
   }, [normalizedFocusedIndex, onActiveResultChange, results])
 
   return (

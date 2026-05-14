@@ -465,6 +465,178 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  // -- publish.start flush from non-idle editing sub-states (Phase 2) --
+
+  it('publish.start in editing.changed flushes the autosave then publishes (no draftId yet)', async () => {
+    const publishCalls: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => {
+          await new Promise((r) => setTimeout(r, 30))
+          return {id: 'draft-changed'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          publishCalls.push(input)
+          return {...mockDocument, version: 'bafychanged'}
+        }),
+      },
+      delays: {
+        autosaveTimeout: 1000, // long, so publish.start must skip the timer
+        saveIndicatorDismiss: 10,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'changed', saveIndicator: 'hidden', rebase: 'idle'}})
+
+    // Click publish during the 500ms autosave debounce window.
+    actor.send({type: 'publish.start', pathOverride: ['my', 'slug']})
+    expect(actor.getSnapshot().context.pendingPublish).toBe(true)
+    // No draftId yet → flushed via creating.
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'creating', saveIndicator: 'saving', rebase: 'idle'}})
+
+    // Wait for create + raised _save.completed → publishing → cleaningUp → loaded.
+    await new Promise((r) => setTimeout(r, 100))
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0].draftId).toBe('draft-changed')
+    expect(publishCalls[0].pathOverride).toEqual(['my', 'slug'])
+    expect(actor.getSnapshot().context.pendingPublish).toBe(false)
+    expect(actor.getSnapshot().context.pendingPathOverride).toBeNull()
+    actor.stop()
+  })
+
+  it('publish.start while editing.creating queues + publishes once the create resolves', async () => {
+    const publishCalls: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => {
+          await new Promise((r) => setTimeout(r, 60))
+          return {id: 'draft-creating'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          publishCalls.push(input)
+          return {...mockDocument, version: 'bafycreate'}
+        }),
+      },
+      delays: {
+        autosaveTimeout: 10,
+        saveIndicatorDismiss: 10,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change'})
+    // Wait for autosave to enter `creating`.
+    await new Promise((r) => setTimeout(r, 25))
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'creating', saveIndicator: 'saving', rebase: 'idle'}})
+
+    actor.send({type: 'publish.start'})
+    // Stays in creating, just flips the flag.
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'creating', saveIndicator: 'saving', rebase: 'idle'}})
+    expect(actor.getSnapshot().context.pendingPublish).toBe(true)
+
+    await new Promise((r) => setTimeout(r, 80))
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0].draftId).toBe('draft-creating')
+    actor.stop()
+  })
+
+  it('publish.start while editing.saving queues + publishes once the save resolves', async () => {
+    const publishCalls: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => {
+          await new Promise((r) => setTimeout(r, 60))
+          return {id: 'existing-draft'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          publishCalls.push(input)
+          return {...mockDocument, version: 'bafysave'}
+        }),
+      },
+      delays: {
+        autosaveTimeout: 10,
+        saveIndicatorDismiss: 10,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'existing-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    // existingDraftId triggers auto-edit.
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 25))
+    // hasDraftId branch → enters saving.
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'saving', saveIndicator: 'saving', rebase: 'idle'}})
+
+    actor.send({type: 'publish.start', pathOverride: ['queued', 'path']})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'saving', saveIndicator: 'saving', rebase: 'idle'}})
+    expect(actor.getSnapshot().context.pendingPublish).toBe(true)
+    expect(actor.getSnapshot().context.pendingPathOverride).toEqual(['queued', 'path'])
+
+    await new Promise((r) => setTimeout(r, 80))
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0].draftId).toBe('existing-draft')
+    expect(publishCalls[0].pathOverride).toEqual(['queued', 'path'])
+    actor.stop()
+  })
+
+  it('double-clicking publish during a save fires publishDocument exactly once', async () => {
+    const publishCalls: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => {
+          await new Promise((r) => setTimeout(r, 60))
+          return {id: 'existing-draft'}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          publishCalls.push(input)
+          return {...mockDocument, version: 'bafydbl'}
+        }),
+      },
+      delays: {
+        autosaveTimeout: 10,
+        saveIndicatorDismiss: 10,
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'existing-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 25))
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'saving', saveIndicator: 'saving', rebase: 'idle'}})
+
+    // Two rapid clicks while the save is in flight.
+    actor.send({type: 'publish.start', pathOverride: ['first', 'click']})
+    actor.send({type: 'publish.start'})
+    expect(actor.getSnapshot().context.pendingPublish).toBe(true)
+    // First click's pathOverride wins (preserved when second click omits it).
+    expect(actor.getSnapshot().context.pendingPathOverride).toEqual(['first', 'click'])
+
+    await new Promise((r) => setTimeout(r, 80))
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0].pathOverride).toEqual(['first', 'click'])
+    actor.stop()
+  })
+
   it('publishing transitions to loaded without waiting for pushDocument (fire-and-forget)', async () => {
     let resolvePush: () => void = () => {}
     const pushStarted = new Promise<void>((resolve) => {

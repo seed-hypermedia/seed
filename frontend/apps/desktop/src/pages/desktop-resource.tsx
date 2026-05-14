@@ -36,13 +36,14 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
-import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
+import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
+import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
@@ -639,85 +640,19 @@ export default function DesktopResourcePage() {
         )
       : undefined
 
-  const onReplyClick = useCallback(
-    (replyComment: HMComment) => {
-      const replyVersionData = {
-        replyCommentVersion: replyComment.version,
-        rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
-      }
-      const targetRoute = isRouteEqualToCommentTarget({
-        id: docId,
-        comment: replyComment,
-      })
-      if (targetRoute) {
-        navigate({
-          key: 'document',
-          id: targetRoute,
-          panel: {
-            key: 'comments',
-            id: targetRoute,
-            openComment: replyComment.id,
-            isReplying: true,
-            ...replyVersionData,
-          },
-        })
-      } else if (route.key === 'comments') {
-        // Already viewing discussions in main — update in place
-        replace({...route, openComment: replyComment.id, isReplying: true, ...replyVersionData})
-      } else {
-        replace({
-          ...route,
-          panel: {
-            key: 'comments',
-            id: docId,
-            openComment: replyComment.id,
-            isReplying: true,
-            ...replyVersionData,
-          },
-        } as any)
-      }
-      triggerCommentDraftFocus(docId.id, replyComment.id)
+  const onAfterReply = useCallback(
+    (_docId: UnpackedHypermediaId, comment: HMComment) => {
+      triggerCommentDraftFocus(docId.id, comment.id)
     },
-    [route, docId, navigate, replace],
+    [docId.id],
   )
-
-  const onReplyCountClick = useCallback(
-    (replyComment: HMComment) => {
-      const targetRoute = isRouteEqualToCommentTarget({
-        id: docId,
-        comment: replyComment,
-      })
-      if (targetRoute) {
-        navigate({
-          key: 'document',
-          id: targetRoute,
-          panel: {
-            key: 'comments',
-            id: targetRoute,
-            openComment: replyComment.id,
-          },
-        })
-      } else if (route.key === 'comments') {
-        replace({
-          ...route,
-          openComment: replyComment.id,
-          isReplying: undefined,
-          replyCommentVersion: undefined,
-          rootReplyCommentVersion: undefined,
-        })
-      } else {
-        replace({
-          ...route,
-          panel: {
-            key: 'comments',
-            id: docId,
-            openComment: replyComment.id,
-          },
-        } as any)
-      }
-    },
-    [route, docId, navigate, replace],
-  )
+  const {onReplyClick, onReplyCountClick} = useCommentNavigation({
+    docId,
+    route,
+    navigate,
+    replaceRoute: replace,
+    onAfterReply,
+  })
 
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">

@@ -1279,7 +1279,6 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!IS_DESKTOP) return null
     if (!canEdit) return null
     return {
       key: 'options',
@@ -1504,10 +1503,20 @@ function DocumentBody({
             }
             rightActions={
               <div className="flex items-center gap-1">
-                {hasOptions && (
-                  <div className="md:hidden">
-                    <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-                  </div>
+                {/* Mobile: show editing/draft actions inline (desktop uses floating overlay).
+                    These include their own OptionsDropdown, so hide the standalone one. */}
+                {isMobile && isEditing && editingFloatingActions ? (
+                  editingFloatingActions({menuItems: allMenuItems})
+                ) : isMobile && !isEditing && ctx.draftId !== null && draftActions ? (
+                  draftActions({menuItems: allMenuItems})
+                ) : (
+                  <>
+                    {hasOptions && (
+                      <div className="md:hidden">
+                        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
+                      </div>
+                    )}
+                  </>
                 )}
                 {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
                   <OpenInPanelButton

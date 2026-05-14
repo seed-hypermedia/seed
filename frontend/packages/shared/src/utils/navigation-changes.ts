@@ -1,0 +1,117 @@
+import {HMBlockNode, HMNavigationItem} from '@seed-hypermedia/client/hm-types'
+import {DocumentChange} from '../client'
+import {isBlocksEqual} from './document-changes'
+
+/**
+ * Diff a draft's navigation items against the document's existing navigation
+ * block and return the `DocumentChange[]` that turn the latter into the former.
+ *
+ * Mirrors the desktop helper that lived at `frontend/apps/desktop/src/models/navigation.ts`,
+ * lifted here so the web actor can reuse it.
+ */
+export function getNavigationChanges(
+  navigation: HMNavigationItem[] | undefined,
+  oldNavigationBlockNode: HMBlockNode | null | undefined,
+) {
+  const ops: DocumentChange[] = []
+
+  // Special case: If navigation is undefined but there's existing navigation,
+  // it means no navigation changes were intended, so preserve existing navigation
+  if (navigation === undefined && oldNavigationBlockNode) {
+    return ops
+  }
+
+  // Case 1: No old navigation block exists
+  if (!oldNavigationBlockNode) {
+    if (navigation !== undefined) {
+      // Create navigation group
+      ops.push(
+        new DocumentChange({
+          op: {
+            case: 'replaceBlock',
+            value: {id: 'navigation', type: 'Group'},
+          },
+        }),
+      )
+
+      // Create and position navigation items
+      let leftSibling = ''
+      navigation.forEach((item) => {
+        ops.push(
+          new DocumentChange({
+            op: {
+              case: 'replaceBlock',
+              value: {
+                id: item.id,
+                type: 'Link',
+                link: item.link,
+                text: item.text,
+              },
+            },
+          }),
+        )
+        ops.push(
+          new DocumentChange({
+            op: {
+              case: 'moveBlock',
+              value: {blockId: item.id, parent: 'navigation', leftSibling},
+            },
+          }),
+        )
+        leftSibling = item.id
+      })
+    }
+
+    return ops
+  }
+
+  // Case 2: Update existing navigation
+  const oldChildren = oldNavigationBlockNode.children || []
+  const newItems = navigation || []
+
+  // Delete items that no longer exist
+  const newItemIds = new Set(newItems.map((item) => item.id))
+  oldChildren.forEach((child) => {
+    if (!newItemIds.has(child.block.id)) {
+      ops.push(
+        new DocumentChange({
+          op: {case: 'deleteBlock', value: child.block.id},
+        }),
+      )
+    }
+  })
+
+  // Create/update items in new order
+  let leftSibling = ''
+  newItems.forEach((item) => {
+    const oldBlock = oldChildren.find((child) => child.block.id === item.id)?.block
+    const newBlock = {
+      id: item.id,
+      type: 'Link' as const,
+      link: item.link,
+      text: item.text,
+    }
+
+    // Create or update block if needed
+    if (!oldBlock || !isBlocksEqual(oldBlock, newBlock)) {
+      ops.push(
+        new DocumentChange({
+          op: {case: 'replaceBlock', value: newBlock},
+        }),
+      )
+    }
+
+    // Move to correct position
+    ops.push(
+      new DocumentChange({
+        op: {
+          case: 'moveBlock',
+          value: {blockId: item.id, parent: 'navigation', leftSibling},
+        },
+      }),
+    )
+    leftSibling = item.id
+  })
+
+  return ops
+}
