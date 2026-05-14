@@ -127,9 +127,10 @@ func initHTTP(
 	return
 }
 
-// grpcUIMu serializes standalone.Handler calls. The underlying proto printer
-// has lazy-init fields on shared global descriptors that race under -race.
-var grpcUIMu sync.Mutex
+// grpcUIHandlerMu serializes calls to standalone.Handler, which internally
+// uses protoprint.DefaultPrinter — a package-level variable that is not
+// safe for concurrent use.
+var grpcUIHandlerMu sync.Mutex
 
 func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group) (http.Handler, error) {
 	methods, err := grpcui.AllMethodsForServer(rpc)
@@ -162,10 +163,9 @@ func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group
 	}
 	clean.AddErrFunc(conn.Close)
 
-	grpcUIMu.Lock()
+	grpcUIHandlerMu.Lock()
 	h := standalone.Handler(conn, "seed daemon", methods, files)
-	grpcUIMu.Unlock()
-
+	grpcUIHandlerMu.Unlock()
 	return h, nil
 }
 
