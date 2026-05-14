@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"seed/backend/blob"
 	"seed/backend/storage"
+	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 
@@ -16,6 +17,10 @@ import (
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
@@ -102,6 +107,35 @@ func TestIPFSGetHandlerRoutesDAGJSONSuffix(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusAccepted, rec.Code)
+}
+
+func TestMakeGRPCUIHandler(t *testing.T) {
+	t.Parallel()
+
+	var clean cleanup.Stack
+	var g errgroup.Group
+	rpc := grpc.NewServer()
+	grpc_health_v1.RegisterHealthServer(rpc, health.NewServer())
+	t.Cleanup(func() {
+		require.NoError(t, clean.Close())
+		rpc.Stop()
+		require.NoError(t, g.Wait())
+	})
+
+	handler, err := makeGRPCUIHandler(rpc, &clean, &g)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/", nil)
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "grpc.health.v1.Health")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/metadata?method=grpc.health.v1.Health.Check", nil)
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"requestType": "grpc.health.v1.HealthCheckRequest"`)
 }
 
 // serveBlobDAGJSON calls the handler with a request that has the CID path value set.

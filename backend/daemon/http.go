@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fullstorydev/grpcui"
+	"github.com/fullstorydev/grpcui/standalone"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/go-cid"
@@ -34,6 +37,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 var (
@@ -79,6 +84,11 @@ func initHTTP(
 		loopback.HandleNav("/debug/logs", logging.DebugHandler())
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
+		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
+		if err != nil {
+			return nil, nil, err
+		}
+		loopback.HandleNav("/debug/grpcui/", http.StripPrefix("/debug/grpcui", grpcUI))
 		loopback.HandleFunc("/{$}", router.Index)
 
 		router.HandleNav("GET /hm/api/config", p2pnet.HMAPIConfigHandler())
@@ -114,6 +124,40 @@ func initHTTP(
 	})
 
 	return
+}
+
+func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group) (http.Handler, error) {
+	methods, err := grpcui.AllMethodsForServer(rpc)
+	if err != nil {
+		return nil, err
+	}
+
+	files, err := grpcui.AllFilesViaInProcess()
+	if err != nil {
+		return nil, err
+	}
+
+	lis := bufconn.Listen(1024 * 1024)
+	g.Go(func() error {
+		err := rpc.Serve(lis)
+		if errors.Is(err, grpc.ErrServerStopped) {
+			return nil
+		}
+		return err
+	})
+
+	conn, err := grpc.NewClient("passthrough:///seed-daemon-grpcui",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	clean.AddErrFunc(conn.Close)
+
+	return standalone.Handler(conn, "seed daemon", methods, files), nil
 }
 
 func loopbackOnly(next http.Handler) http.Handler {
