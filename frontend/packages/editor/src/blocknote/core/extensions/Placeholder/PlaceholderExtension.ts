@@ -16,6 +16,7 @@ const PLUGIN_KEY = new PluginKey(`blocknote-placeholder`)
 export interface PlaceholderOptions {
   emptyEditorClass: string
   emptyNodeClass: string
+  firstEmptyBlockClass: string
   isFilterClass: string
   hasAnchorClass: string
   placeholder:
@@ -33,6 +34,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
     return {
       emptyEditorClass: 'is-editor-empty',
       emptyNodeClass: 'is-empty',
+      firstEmptyBlockClass: 'is-first-empty-block',
       isFilterClass: 'is-filter',
       hasAnchorClass: 'has-anchor',
       placeholder: 'Write something …',
@@ -54,21 +56,49 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
             const active = this.editor.isEditable || !this.options.showOnlyWhenEditable
             const {anchor} = selection
             const decorations: Decoration[] = []
+            const firstDocChild = doc.firstChild
+            let firstTopLevelBlockNodePos: number | null = null
 
             if (!active) {
               return
             }
 
+            if (firstDocChild) {
+              doc.descendants((node, pos, parent) => {
+                if (firstTopLevelBlockNodePos !== null) {
+                  return false
+                }
+
+                if (node.type.name === 'blockNode' && parent === firstDocChild) {
+                  firstTopLevelBlockNodePos = pos
+                  return false
+                }
+
+                return true
+              })
+            }
+
+            const firstTopLevelBlockContentPos =
+              firstTopLevelBlockNodePos === null ? null : firstTopLevelBlockNodePos + 1
+
             doc.descendants((node, pos) => {
               const hasAnchor = anchor >= pos && anchor <= pos + node.nodeSize
               const isEmpty = !node.isLeaf && !node.childCount
+              const isFirstTopLevelBlockContent = pos === firstTopLevelBlockContentPos
+              const showsFilterPlaceholder =
+                hasAnchor && isEmpty && menuState?.triggerCharacter === '' && menuState?.active
+              const showsFirstBlockPlaceholder = isEmpty && isFirstTopLevelBlockContent
 
-              if ((hasAnchor || !this.options.showOnlyCurrent) && isEmpty) {
-                const classes = [this.options.emptyNodeClass]
+              if (showsFirstBlockPlaceholder || showsFilterPlaceholder) {
+                const classes: string[] = []
 
-                // TODO: Doesn't work?
-                if (this.editor.isEmpty) {
-                  classes.push(this.options.emptyEditorClass)
+                if (showsFirstBlockPlaceholder) {
+                  classes.push(this.options.emptyNodeClass, this.options.firstEmptyBlockClass)
+
+                  // TODO: Doesn't work?
+                  if (this.editor.isEmpty) {
+                    classes.push(this.options.emptyEditorClass)
+                  }
                 }
 
                 if (hasAnchor) {
@@ -76,7 +106,7 @@ export const Placeholder = Extension.create<PlaceholderOptions>({
                 }
 
                 // If slash menu is of drag type and active, show the filter placeholder
-                if (menuState?.triggerCharacter === '' && menuState?.active) {
+                if (showsFilterPlaceholder) {
                   classes.push(this.options.isFilterClass)
                 }
                 // using widget, didn't work (caret position bug)
