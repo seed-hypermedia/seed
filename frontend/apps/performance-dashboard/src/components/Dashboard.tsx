@@ -146,7 +146,7 @@ const Dashboard = () => {
   if (!metrics) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-gray-500">Loading dashboard data...</div>
+        <div className="text-gray-500">Loading dashboard data…</div>
       </div>
     );
   }
@@ -171,7 +171,7 @@ const Dashboard = () => {
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
-                <Monitor className="w-6 h-6 text-indigo-600 mr-2" />
+                <Monitor className="size-6 text-indigo-600 mr-2" />
                 <h2 className="text-xl font-semibold text-gray-900">
                   Electron App
                 </h2>
@@ -181,7 +181,7 @@ const Dashboard = () => {
                 className="text-indigo-600 hover:text-indigo-700 flex items-center"
               >
                 View Details
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="size-4 ml-1" />
               </Link>
             </div>
             <div className="space-y-4">
@@ -220,7 +220,7 @@ const Dashboard = () => {
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
-                <Activity className="w-6 h-6 text-blue-600 mr-2" />
+                <Activity className="size-6 text-blue-600 mr-2" />
                 <h2 className="text-xl font-semibold text-gray-900">Web App</h2>
               </div>
               <Link
@@ -228,7 +228,7 @@ const Dashboard = () => {
                 className="text-blue-600 hover:text-blue-700 flex items-center"
               >
                 View Details
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="size-4 ml-1" />
               </Link>
             </div>
             <div className="space-y-4">
@@ -265,7 +265,7 @@ const Dashboard = () => {
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
-                <Globe className="w-6 h-6 text-green-600 mr-2" />
+                <Globe className="size-6 text-green-600 mr-2" />
                 <h2 className="text-xl font-semibold text-gray-900">
                   Landing Page
                 </h2>
@@ -275,7 +275,7 @@ const Dashboard = () => {
                 className="text-green-600 hover:text-green-700 flex items-center"
               >
                 View Details
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="size-4 ml-1" />
               </Link>
             </div>
             <div className="space-y-4">
@@ -338,7 +338,7 @@ const Dashboard = () => {
               <tr>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <Monitor className="w-5 h-5 text-indigo-600 mr-2" />
+                    <Monitor className="size-5 text-indigo-600 mr-2" />
                     <div className="text-sm font-medium text-gray-900">
                       Electron App
                     </div>
@@ -364,7 +364,7 @@ const Dashboard = () => {
               <tr>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <Activity className="w-5 h-5 text-blue-600 mr-2" />
+                    <Activity className="size-5 text-blue-600 mr-2" />
                     <div className="text-sm font-medium text-gray-900">
                       Web App
                     </div>
@@ -390,7 +390,7 @@ const Dashboard = () => {
               <tr>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <Globe className="w-5 h-5 text-green-600 mr-2" />
+                    <Globe className="size-5 text-green-600 mr-2" />
                     <div className="text-sm font-medium text-gray-900">
                       Landing Page
                     </div>

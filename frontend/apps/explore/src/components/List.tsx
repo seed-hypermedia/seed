@@ -10,7 +10,7 @@ export default function List() {
       <h1 className="mb-6 text-3xl font-bold text-gray-900">
         All Hypermedia Sites
       </h1>
-      {isLoading && <p>Loading...</p>}
+      {isLoading && <p>Loading…</p>}
       {data && (
         <div className="space-y-2">
           {data.accounts.map((doc) => {

@@ -314,7 +314,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
               type="button"
               size="icon"
               variant="ghost"
-              className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+              className="size-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
               onClick={() => setIsTextMarkerDialogOpen(true)}
             >
               <UnorderedList className="size-4" />
@@ -377,7 +377,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
               type="button"
               size="icon"
               variant="ghost"
-              className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+              className="size-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
               onClick={() => setIsTextTypeDialogOpen(true)}
             >
               <Type className="size-4" />

@@ -1,7 +1,7 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
-import _ from 'lodash'
+import isEqual from 'lodash/isEqual'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 
@@ -256,7 +256,7 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
     if (!a1 && !a2) return true
     if (!a1 && a2?.length === 0) return true
     if (!a2 && a1?.length === 0) return true
-    return _.isEqual(a1, a2)
+    return isEqual(a1, a2)
   }
 
   // Helper function to compare text, treating undefined and empty string as equal
@@ -610,7 +610,7 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   if (q1.limit !== q2.limit) return false
 
   // Compare sorting arrays
-  if (!_.isEqual(q1.sort || [], q2.sort || [])) return false
+  if (!isEqual(q1.sort || [], q2.sort || [])) return false
 
   // Compare includes arrays - handle undefined/null cases
   const includes1 = q1.includes || []

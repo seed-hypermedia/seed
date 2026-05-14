@@ -138,7 +138,7 @@ export function BlockEmbedCard({
       return (
         <div className="flex items-center justify-center gap-2 p-4">
           <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content...</SizableText>
+          <SizableText className="text-muted-foreground">Looking for this content…</SizableText>
         </div>
       )
     }
@@ -240,7 +240,7 @@ export function BlockEmbedContent({
       return (
         <div className="block-content border-border bg-muted/30 flex items-center gap-2 rounded-md border p-4">
           <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content...</SizableText>
+          <SizableText className="text-muted-foreground">Looking for this content…</SizableText>
         </div>
       )
     }

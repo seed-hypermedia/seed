@@ -381,14 +381,14 @@ export default function WebCommenting({
 
   // Don't render until draft is loaded or doc version is missing
   if (isDraftLoading || !docVersion) {
-    return !docVersion ? null : <div className="w-full">Loading...</div>
+    return !docVersion ? null : <div className="w-full">Loading…</div>
   }
 
   return (
     <div className="w-full">
       <CommentEditor
         key={`${draftId}-${editorGeneration}`}
-        autoFocus={autoFocus}
+        focusOnMount={autoFocus}
         isReplying={isReplyEditor}
         handleSubmit={handleSubmit}
         initialBlocks={initialBlocks}
@@ -701,7 +701,7 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
   return (
     <div className="flex flex-col gap-2">
       <CommentEditor
-        autoFocus
+        focusOnMount
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}

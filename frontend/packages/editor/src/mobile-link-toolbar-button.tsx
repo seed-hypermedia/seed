@@ -70,7 +70,7 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {edi
         className={cn(
           'hover:bg-black/10 dark:hover:bg-white/10',
           'focus:bg-black/10 dark:focus:bg-white/10',
-          'h-9 w-9 shrink-0',
+          'size-9 shrink-0',
           isOpen &&
             'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
         )}
@@ -90,8 +90,8 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {edi
             <DialogHeader className="border-b p-4">
               <div className="flex items-center justify-between">
                 <DialogTitle>Add Link</DialogTitle>
-                <Button size="icon" variant="ghost" onClick={() => setIsOpen(false)} className="h-8 w-8">
-                  <X className="h-4 w-4" />
+                <Button size="icon" variant="ghost" onClick={() => setIsOpen(false)} className="size-8">
+                  <X className="size-4" />
                 </Button>
               </div>
             </DialogHeader>

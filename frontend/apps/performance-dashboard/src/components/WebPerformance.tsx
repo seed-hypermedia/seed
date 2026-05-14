@@ -4,6 +4,16 @@ import {loadWebPerformanceResults, transformWebResult} from '../utils/data'
 import {formatBytes} from '../utils/format'
 import WebPerformanceTrends from './WebPerformanceTrends'
 
+/** Module-scoped Intl formatter reused across renders. */
+const fullDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  hour12: true,
+})
+
 interface MetricCardProps {
   title: string
   value: number
@@ -118,21 +128,13 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true,
-    }).format(date)
+    return fullDateFormatter.format(new Date(dateString))
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-gray-500">Loading {app} performance data...</div>
+        <div className="text-gray-500">Loading {app} performance data…</div>
       </div>
     )
   }

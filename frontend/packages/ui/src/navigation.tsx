@@ -236,7 +236,7 @@ function OutlineNode({
   onCloseNav?: () => void
   docId?: UnpackedHypermediaId
 }) {
-  const outlineProps = useRouteLink(
+  const routeLinkResult = useRouteLink(
     docId
       ? {
           key: 'document',
@@ -246,11 +246,22 @@ function OutlineNode({
             blockRange: {expanded: true},
           },
         }
-      : null,
-    {
-      replace: true,
-    },
+      : {
+          key: 'document',
+          id: {
+            id: '',
+            uid: '',
+            path: null,
+            version: null,
+            blockRef: null,
+            blockRange: null,
+            hostname: null,
+            scheme: null,
+          },
+        },
+    {replace: true},
   )
+  const outlineProps = docId ? routeLinkResult : undefined
   return (
     <>
       <SmallListItem

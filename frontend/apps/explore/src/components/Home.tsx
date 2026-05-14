@@ -45,7 +45,7 @@ export default function Home() {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Enter URL to explore..."
+            placeholder="Enter URL to explore…"
             className="focus:ring-link focus:border-link flex-1 rounded-lg border border-gray-300 p-4 text-base focus:ring-2 focus:outline-none sm:rounded-l-lg sm:rounded-r-none"
           />
           <button
@@ -53,7 +53,7 @@ export default function Home() {
             disabled={isLoading || !url}
             className="flex min-h-[56px] items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-4 text-base font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 sm:rounded-l-none sm:rounded-r-lg"
           >
-            {isLoading ? <Loader className="h-5 w-5 animate-spin" /> : 'Search'}
+            {isLoading ? <Loader className="size-5 animate-spin" /> : 'Search'}
           </button>
         </div>
       </form>

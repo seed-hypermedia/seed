@@ -49,7 +49,7 @@ const DeviceLinking = () => {
 
   return (
     <section>
-      <section>{keyPair ? <span>Generated {keyPair.id}</span> : <span>Generating P256 Key...</span>}</section>
+      <section>{keyPair ? <span>Generated {keyPair.id}</span> : <span>Generating P256 Key…</span>}</section>
 
       <form onSubmit={handleSubmit}>
         <div>

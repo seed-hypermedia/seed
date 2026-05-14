@@ -70,7 +70,7 @@ export function SystemMenu() {
           children: [
             {
               id: 'preferences',
-              title: 'Preferences...',
+              title: 'Preferences…',
               accelerator: 'Ctrl+,',
               onSelect: () => spawn({key: 'settings'}),
               icon: <Settings className="size-4" />,

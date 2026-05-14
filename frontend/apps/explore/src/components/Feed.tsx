@@ -88,7 +88,7 @@ export default function Feed() {
     return (
       <div className="container mx-auto max-w-4xl p-4">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">Event Feed</h1>
-        <div className="text-center">Loading...</div>
+        <div className="text-center">Loading…</div>
       </div>
     )
   }
@@ -112,7 +112,7 @@ export default function Feed() {
             className="bg-link hover:bg-link-hover flex items-center justify-center gap-2 rounded-full px-4 py-2 font-medium whitespace-nowrap text-white shadow-lg transition-colors duration-200"
           >
             <svg
-              className="h-4 w-4"
+              className="size-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -142,8 +142,8 @@ export default function Feed() {
         ))}
         {isFetchingNextPage && (
           <div className="py-4 text-center">
-            <div className="inline-block h-6 w-6 animate-spin rounded-full border-b-2 border-gray-900"></div>
-            <span className="ml-2">Loading more...</span>
+            <div className="inline-block size-6 animate-spin rounded-full border-b-2 border-gray-900"></div>
+            <span className="ml-2">Loading more…</span>
           </div>
         )}
       </div>

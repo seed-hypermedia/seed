@@ -205,7 +205,7 @@ export function AccountProfileButton() {
   }, [forceVaultSync, isForceVaultSyncPending, menuOpen, remoteVaultConnected])
 
   const vaultSyncLabel = isForceVaultSyncPending
-    ? 'Checking remote vault...'
+    ? 'Checking remote vault…'
     : vaultStatus.data?.syncStatus?.lastSyncError
     ? 'Remote vault sync needs attention'
     : remoteVaultConnected
@@ -222,7 +222,7 @@ export function AccountProfileButton() {
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Button className="window-no-drag relative h-8 w-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+        <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
           {accountUid ? (
             <HMIcon
               id={hmId(accountUid)}
@@ -231,7 +231,7 @@ export function AccountProfileButton() {
               size={32}
             />
           ) : (
-            <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+            <div className="bg-muted flex size-8 items-center justify-center rounded-full">
               <User className="text-muted-foreground size-4" />
             </div>
           )}
@@ -252,7 +252,7 @@ export function AccountProfileButton() {
                 size={32}
               />
             ) : (
-              <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+              <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
                 <User className="text-muted-foreground size-4" />
               </div>
             )}
@@ -314,7 +314,7 @@ export function AccountProfileButton() {
                 className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                 onClick={() => dispatchOnboardingDialog(true)}
               >
-                <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full">
+                <div className="bg-muted flex size-8 items-center justify-center rounded-full">
                   <Plus className="size-4" />
                 </div>
                 <p className="text-sm">Create account</p>
@@ -942,7 +942,7 @@ export function Omnibar() {
               'min-w-0 flex-1 truncate border-none! bg-transparent text-xs outline-none',
               'placeholder:text-muted-foreground',
             )}
-            placeholder="Search documents..."
+            placeholder="Search documents…"
             autoFocus
           />
           {isSearchLoading ? <Spinner className="text-muted-foreground size-3.5 shrink-0" /> : null}

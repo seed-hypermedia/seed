@@ -6,14 +6,14 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen w-screen flex-col bg-gray-100">
       <header className="fixed top-0 right-0 left-0 z-40 flex w-full items-center justify-between border-b border-gray-200 bg-white px-4 py-4 shadow-sm sm:px-8">
-        <Link to="/" className="flex items-center space-x-2">
-          <img src={HMLogo} alt="HM Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
+        <Link to="/" className="flex items-center gap-x-2">
+          <img src={HMLogo} alt="HM Logo" className="size-5 sm:h-6 sm:w-6" />
           <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-base font-semibold whitespace-nowrap text-transparent sm:text-lg">
             Hypermedia Explorer
           </span>
         </Link>
 
-        <nav className="flex space-x-2 text-sm font-medium text-gray-700">
+        <nav className="flex gap-x-2 text-sm font-medium text-gray-700">
           <NavLink to="/list" className={({isActive}) => getNavClassName(isActive)}>
             All Sites
           </NavLink>

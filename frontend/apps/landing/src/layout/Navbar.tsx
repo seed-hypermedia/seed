@@ -37,15 +37,15 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 right-0 left-0 z-40 flex w-full items-center justify-between border-b border-gray-200 bg-white px-8 py-4 shadow-sm">
-      <a href="/" className="flex items-center space-x-2">
-        <SeedLogo className="text-brand-5 h-6 w-6" />
+      <a href="/" className="flex items-center gap-x-2">
+        <SeedLogo className="text-brand-5 size-6" />
         <span className="from-brand-5 to-brand-6 bg-gradient-to-r bg-clip-text text-lg font-semibold whitespace-nowrap text-transparent">
           Seed Hypermedia
         </span>
       </a>
 
       {/* Desktop nav links */}
-      <nav className="hidden space-x-6 text-sm font-medium text-gray-700 md:flex">
+      <nav className="hidden gap-x-6 text-sm font-medium text-gray-700 md:flex">
         {navLinks.map((link) => (
           <a
             key={link.label}
@@ -97,7 +97,7 @@ export default function Navbar() {
               <X size={20} />
             </button>
 
-            <div className="mt-4 flex flex-col space-y-1">
+            <div className="mt-4 flex flex-col gap-y-1">
               {navLinks.map((link) => (
                 <a
                   key={link.label}

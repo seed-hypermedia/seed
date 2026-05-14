@@ -358,7 +358,7 @@ export function SearchResultItem({
     >
       {/* Icon column (only takes space if present) */}
       {item.icon && (
-        <div className="flex h-5 w-5 flex-none items-center justify-center">
+        <div className="flex size-5 flex-none items-center justify-center">
           {unpackedId ? <HMIcon id={unpackedId} icon={item.icon} /> : null}
         </div>
       )}

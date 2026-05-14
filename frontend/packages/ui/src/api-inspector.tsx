@@ -260,7 +260,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
         <aside className="min-h-0">
           <Panel className="flex h-full min-h-0 flex-col" contentClassName="flex min-h-0 flex-1 flex-col">
             <label className="relative block">
-              <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-zinc-400" />
               <input
                 type="search"
                 value={routeFilter}
@@ -272,7 +272,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               {isIndexLoading ? (
-                <MutedState message="Loading /api/schema..." />
+                <MutedState message="Loading /api/schema…" />
               ) : indexError ? (
                 <ErrorState message={indexError} />
               ) : filteredRoutes.length ? (
@@ -331,11 +331,11 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                     actions={
                       <div className="flex flex-wrap gap-2">
                         <ActionButton onClick={handleInputReset} disabled={!selectedDefinition}>
-                          <RefreshCw className="h-4 w-4" />
+                          <RefreshCw className="size-4" />
                           Reset
                         </ActionButton>
                         <ActionButton onClick={handleFormatJson} disabled={!selectedDefinition}>
-                          <Sparkles className="h-4 w-4" />
+                          <Sparkles className="size-4" />
                           Format JSON
                         </ActionButton>
                       </div>
@@ -368,14 +368,14 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                         className="inline-flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500"
                       >
                         {isRunning ? (
-                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <RefreshCw className="size-4 animate-spin" />
                         ) : (
-                          <TerminalSquare className="h-4 w-4" />
+                          <TerminalSquare className="size-4" />
                         )}
-                        {isRunning ? 'Running...' : 'Run request'}
+                        {isRunning ? 'Running…' : 'Run request'}
                       </button>
                       <div className="flex items-center gap-2 text-sm text-zinc-500">
-                        <ArrowRight className="h-4 w-4" />
+                        <ArrowRight className="size-4" />
                         Exact transport: {selectedDefinition.method}{' '}
                         {selectedDefinition.method === 'GET' ? 'query string' : 'CBOR body'}
                       </div>
@@ -388,7 +388,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                     subtitle="The exact request the desktop API will receive."
                     actions={
                       <ActionButton onClick={handleCopyPreviewUrl} disabled={!preview}>
-                        <Copy className="h-4 w-4" />
+                        <Copy className="size-4" />
                         Copy URL
                       </ActionButton>
                     }
@@ -419,7 +419,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                         ) : (
                           <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                             <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                              <Binary className="h-4 w-4 text-amber-500" />
+                              <Binary className="size-4 text-amber-500" />
                               CBOR body
                             </div>
                             <p className="mt-3 text-sm text-zinc-600">
@@ -454,7 +454,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                   }
                 >
                   {loadingDefinitionKey === selectedDefinition.key ? (
-                    <MutedState message="Loading schema detail..." />
+                    <MutedState message="Loading schema detail…" />
                   ) : definitionError ? (
                     <ErrorState message={definitionError} />
                   ) : activeSchema ? (
@@ -514,7 +514,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
                         />
                         <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                           <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-                            <Braces className="h-4 w-4 text-sky-500" />
+                            <Braces className="size-4 text-sky-500" />
                             Decoded Output
                           </div>
                           <div className="mt-4 overflow-auto rounded-xl border border-white bg-white p-3">
@@ -535,7 +535,7 @@ export function ApiInspector({apiHost}: ApiInspectorProps) {
             ) : definitionError ? (
               <ErrorState message={definitionError} />
             ) : loadingDefinitionKey ? (
-              <MutedState message={`Loading schema for ${loadingDefinitionKey}...`} />
+              <MutedState message={`Loading schema for ${loadingDefinitionKey}…`} />
             ) : (
               <MutedState message="Choose an endpoint from the schema index to start exploring." />
             )}
@@ -717,7 +717,7 @@ function ResponseBlock({title, content}: {title: string; content: string}) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-        <Braces className="h-4 w-4 text-amber-500" />
+        <Braces className="size-4 text-amber-500" />
         {title}
       </div>
       <pre className="mt-4 overflow-x-auto rounded-lg border border-white bg-white p-3 text-xs leading-6 text-zinc-700">
@@ -851,7 +851,7 @@ function KeyValueList({
   return (
     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
-        <ArrowRight className="h-4 w-4 text-sky-500" />
+        <ArrowRight className="size-4 text-sky-500" />
         {title}
       </div>
       {rows.length ? (
@@ -874,7 +874,7 @@ function InlineAlert({title, message}: {title: string; message: string}) {
   return (
     <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-800">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <AlertCircle className="h-4 w-4" />
+        <AlertCircle className="size-4" />
         {title}
       </div>
       <p className="mt-2 text-sm leading-6">{message}</p>
@@ -886,7 +886,7 @@ function ErrorState({message}: {message: string}) {
   return (
     <div className="rounded-xl border border-rose-200 bg-rose-50 p-6 text-rose-900">
       <div className="flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase">
-        <Unplug className="h-4 w-4" />
+        <Unplug className="size-4" />
         Error
       </div>
       <p className="mt-3 text-sm leading-6">{message}</p>

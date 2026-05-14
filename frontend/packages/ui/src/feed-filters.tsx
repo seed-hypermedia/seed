@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import isEqual from 'lodash/isEqual'
 import {Button, ButtonProps} from './button'
 import {cn} from './utils'
 
@@ -16,7 +16,7 @@ export function FeedFilters({filterEventType, onFilterChange}: {onFilterChange: 
       </PredefinedFilter>
       <PredefinedFilter
         className={cn(
-          _.isEqual(filterEventType, ['Comment']) &&
+          isEqual(filterEventType, ['Comment']) &&
             'border-black/15 bg-black/10 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
         onClick={() => onFilterChange({filterEventType: ['Comment']})}
@@ -25,7 +25,7 @@ export function FeedFilters({filterEventType, onFilterChange}: {onFilterChange: 
       </PredefinedFilter>
       <PredefinedFilter
         className={cn(
-          _.isEqual(filterEventType, ['Ref']) &&
+          isEqual(filterEventType, ['Ref']) &&
             'border-black/15 bg-black/10 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
         onClick={() => onFilterChange({filterEventType: ['Ref']})}
@@ -34,7 +34,7 @@ export function FeedFilters({filterEventType, onFilterChange}: {onFilterChange: 
       </PredefinedFilter>
       <PredefinedFilter
         className={cn(
-          _.isEqual(filterEventType, ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']) &&
+          isEqual(filterEventType, ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']) &&
             'border-black/15 bg-black/10 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
         onClick={() =>

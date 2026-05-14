@@ -36,7 +36,7 @@ export default function Hero() {
             target="_blank"
             className={`inline-flex items-center px-5 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-700 transition plausible-event-name=discord`}
           >
-            <DiscordIcon className="w-6 h-6 mr-2 text-white" />
+            <DiscordIcon className="size-6 mr-2 text-white" />
             Join Community Discord
           </a>
         </div>

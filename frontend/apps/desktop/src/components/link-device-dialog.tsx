@@ -68,7 +68,7 @@ export function LinkDeviceDialog({
               }}
             >
               Close
-              <Check className="ml-2 h-4 w-4" />
+              <Check className="ml-2 size-4" />
             </Button>
           </div>
         </div>
@@ -102,7 +102,7 @@ export function LinkDeviceDialog({
               setTimeout(() => setCopied(false), 2000)
             }}
           >
-            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           </Button>
         </div>
         <div className="flex justify-center">

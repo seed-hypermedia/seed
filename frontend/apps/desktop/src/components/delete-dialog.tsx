@@ -113,7 +113,7 @@ export function DeleteDocumentDialog({
 
             toast.promise(deletePromise, {
               loading:
-                deletedDocumentCount === 1 ? 'Deleting document...' : `Deleting ${deletedDocumentCount} documents...`,
+                deletedDocumentCount === 1 ? 'Deleting document…' : `Deleting ${deletedDocumentCount} documents…`,
               success:
                 deletedDocumentCount === 1
                   ? 'Successfully deleted document'

@@ -1,16 +1,18 @@
+/** Module-scoped Intl formatter reused across calls. */
+const fullDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+  hour12: true,
+});
+
 /**
  * Formats a date string into a readable format
  */
 export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  }).format(date);
+  return fullDateFormatter.format(new Date(dateString));
 }
 
 /**

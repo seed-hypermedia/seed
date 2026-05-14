@@ -174,7 +174,7 @@ export default function AuthCallbackRoute() {
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
           <Spinner />
-          <SizableText>Securing your identity session...</SizableText>
+          <SizableText>Securing your identity session…</SizableText>
         </div>
       )}
     </div>

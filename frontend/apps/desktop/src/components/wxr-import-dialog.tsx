@@ -173,7 +173,7 @@ function UploadStep({
         {isLoading ? (
           <>
             <Spinner size="small" />
-            <SizableText>Parsing WXR file...</SizableText>
+            <SizableText>Parsing WXR file…</SizableText>
           </>
         ) : (
           <>
@@ -490,7 +490,7 @@ function ImportingStep({onComplete}: {onComplete: (results: ImportResults | null
 
   return (
     <div className="flex flex-col gap-4">
-      <DialogTitle>Importing...</DialogTitle>
+      <DialogTitle>Importing…</DialogTitle>
       <DialogDescription>Please wait while your content is being imported.</DialogDescription>
 
       <div className="flex flex-col items-center gap-4 py-8">
@@ -629,7 +629,7 @@ function CompleteStep({onClose, results}: {onClose: () => void; results: ImportR
             onClick={() => exportAuthorKeysMutation.mutate()}
             disabled={exportAuthorKeysMutation.isLoading}
           >
-            {exportAuthorKeysMutation.isLoading ? 'Exporting...' : 'Export Author Keys'}
+            {exportAuthorKeysMutation.isLoading ? 'Exporting…' : 'Export Author Keys'}
           </Button>
         )}
         <Button onClick={onClose} className={canExportAuthorKeys ? 'flex-1' : 'w-full'}>

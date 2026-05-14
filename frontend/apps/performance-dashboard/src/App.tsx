@@ -22,7 +22,7 @@ const Layout = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
-              <div className="flex space-x-8">
+              <div className="flex gap-x-8">
                 <NavLink
                   to="/"
                   className={({isActive}) =>
@@ -35,7 +35,7 @@ const Layout = () => {
                   }
                   end
                 >
-                  <Activity className="w-5 h-5 mr-2" />
+                  <Activity className="size-5 mr-2" />
                   Dashboard
                 </NavLink>
                 <NavLink
@@ -49,7 +49,7 @@ const Layout = () => {
                     )
                   }
                 >
-                  <Monitor className="w-5 h-5 mr-2" />
+                  <Monitor className="size-5 mr-2" />
                   Electron
                 </NavLink>
                 <NavLink
@@ -63,7 +63,7 @@ const Layout = () => {
                     )
                   }
                 >
-                  <Activity className="w-5 h-5 mr-2" />
+                  <Activity className="size-5 mr-2" />
                   Web App
                 </NavLink>
                 <NavLink
@@ -77,7 +77,7 @@ const Layout = () => {
                     )
                   }
                 >
-                  <Globe className="w-5 h-5 mr-2" />
+                  <Globe className="size-5 mr-2" />
                   Landing
                 </NavLink>
               </div>

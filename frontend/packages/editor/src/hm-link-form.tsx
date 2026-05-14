@@ -410,7 +410,7 @@ const SearchInput = ({
             updateLink(val, text, false)
           }
         }}
-        placeholder="Open Seed Document..."
+        placeholder="Open Seed Document…"
         {...highlight(highlightId)}
         onKeyDown={(e) => {
           if (e.nativeEvent.key === 'Escape') {

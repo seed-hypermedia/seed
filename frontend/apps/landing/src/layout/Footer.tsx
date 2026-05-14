@@ -12,7 +12,7 @@ export default function Footer() {
         {/* Logo + Text + Copyright */}
         <div className="flex flex-col items-start md:items-start text-gray-400 text-center md:text-left w-full md:w-auto">
           <div className="flex items-center justify-center md:justify-start gap-2 w-full">
-            <SeedLogo className="w-5 h-5" />
+            <SeedLogo className="size-5" />
             <span className="text-lg font-normal">Seed Hypermedia</span>
           </div>
           <p className="text-xs mt-1 w-full md:w-auto">
@@ -29,7 +29,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="hover:text-black"
             >
-              <GithubIcon className="w-6 h-6" />
+              <GithubIcon className="size-6" />
             </a>
             <a
               href="https://discord.gg/mcUnKENdKX"
@@ -37,7 +37,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="hover:text-black"
             >
-              <DiscordIcon className="w-6 h-6" />
+              <DiscordIcon className="size-6" />
             </a>
             <a
               href="https://linkedin.com/company/seed-hypermedia"
@@ -45,7 +45,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="hover:text-black"
             >
-              <LinkedInIcon className="w-6 h-6" />
+              <LinkedInIcon className="size-6" />
             </a>
             <a
               href="https://x.com/seedhypermedia"
@@ -53,7 +53,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="hover:text-black"
             >
-              <XIcon className="w-6 h-6" />
+              <XIcon className="size-6" />
             </a>
             <a
               href="https://bsky.app/profile/seed.hyper.media"
@@ -61,7 +61,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="hover:text-black"
             >
-              <BlueskyIcon className="w-6 h-6" />
+              <BlueskyIcon className="size-6" />
             </a>
           </div>
           {/* <a href="/terms" className="text-xs hover:underline">

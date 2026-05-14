@@ -82,7 +82,7 @@ const Translations = {
   create_account_submit: (args: {siteName: string}) => `Crear ${args.siteName} cuenta`,
   publish_comment_as: (args: {name: string | undefined}) =>
     args.name ? `Publicar comentario de ${args.name}` : 'Publicar comentario',
-  looking_for_document: 'Buscando un documento...',
+  looking_for_document: 'Buscando un documento…',
   hang_tight_searching: 'Espera un momento, estamos buscando el documento en la red.',
   doc_will_appear: 'Si el documento está disponible, aparecerá pronto. Gracias por tu paciencia!',
   'Document Not Found': 'Documento no encontrado',

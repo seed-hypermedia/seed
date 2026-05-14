@@ -116,7 +116,7 @@ describe('DeleteDocumentDialog', () => {
     expect(toastPromiseMock).toHaveBeenCalledWith(
       deletePromise,
       expect.objectContaining({
-        loading: 'Deleting document...',
+        loading: 'Deleting document…',
         success: 'Successfully deleted document',
         error: expect.any(Function),
       }),

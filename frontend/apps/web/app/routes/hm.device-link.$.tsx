@@ -143,8 +143,8 @@ function InvalidTokenView({onBack}: {onBack: () => void}) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-          <Close className="h-8 w-8 text-red-600 dark:text-red-400" />
+        <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <Close className="size-8 text-red-600 dark:text-red-400" />
         </div>
         <h1 className="text-2xl font-semibold">Invalid Session Token</h1>
         <p className="text-muted-foreground text-sm">
@@ -169,14 +169,14 @@ function KeyPairRequiredView() {
   return (
     <>
       {/* Header */}
-      <div className="flex flex-col space-y-2 text-center">
+      <div className="flex flex-col gap-y-2 text-center">
         <h1 className="text-2xl font-semibold">Create your web identity</h1>
         <p className="text-muted-foreground text-sm">
           You don't have a key pair on this web site yet. Please create one first to continue.
         </p>
       </div>
 
-      <div className="flex flex-col items-center space-y-4">
+      <div className="flex flex-col items-center gap-y-4">
         <Button variant="default" onClick={() => createAccount.createAccount()}>
           Create Account
         </Button>
@@ -317,11 +317,11 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
         {/* Back button */}
         <button
           type="button"
-          className="hover:bg-muted focus:ring-ring absolute top-0 left-0 flex h-8 w-8 items-center justify-center rounded-full border focus:ring-2 focus:outline-none"
+          className="hover:bg-muted focus:ring-ring absolute top-0 left-0 flex size-8 items-center justify-center rounded-full border focus:ring-2 focus:outline-none"
           aria-label="Go back"
           onClick={onBack}
         >
-          <ArrowRight className="h-4 w-4 rotate-180" />
+          <ArrowRight className="size-4 rotate-180" />
         </button>
         <h1 className="text-center text-2xl font-semibold">Complete linking in desktop app</h1>
       </div>
@@ -346,7 +346,7 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
 function ScanQRCodeCard({onClick}: {onClick: () => void}) {
   return (
     <div className="border-sidebar-border flex items-start gap-3 rounded-lg border p-4">
-      <Smartphone className="text-muted-foreground mt-1 h-6 w-6" />
+      <Smartphone className="text-muted-foreground mt-1 size-6" />
       <div className="flex flex-1 flex-col gap-3">
         <div>
           <h2 className="font-medium">Scan QR Code</h2>
@@ -368,7 +368,7 @@ function CopyPasteSessionCard({hideDescription = false}: {hideDescription?: bool
 
   return (
     <div className="border-sidebar-border flex items-start gap-3 rounded-lg border p-4">
-      <LinkIcon className="text-muted-foreground mt-1 h-6 w-6" />
+      <LinkIcon className="text-muted-foreground mt-1 size-6" />
       <div className="flex flex-1 flex-col gap-3">
         <div>
           <h2 className="font-medium">Copy-Paste Session Token</h2>
@@ -422,7 +422,7 @@ function QRCodeScanner({onClose}: {onClose: () => void}) {
       <div className="relative flex min-h-full flex-col items-center justify-center">
         <button
           type="button"
-          className="bg-card hover:bg-muted focus:ring-ring absolute top-2 left-2 z-10 flex h-8 w-8 items-center justify-center rounded-full shadow-md focus:ring-2 focus:outline-none"
+          className="bg-card hover:bg-muted focus:ring-ring absolute top-2 left-2 z-10 flex size-8 items-center justify-center rounded-full shadow-md focus:ring-2 focus:outline-none"
           aria-label="Close"
           onClick={onClose}
         >
@@ -453,7 +453,7 @@ function DeviceLinkStatus({currentState}: {currentState: LinkingState}) {
     const event = currentState.event
     switch (event.type) {
       case 'dialing':
-        return <p>Dialing {event.addr}...</p>
+        return <p>Dialing {event.addr}…</p>
       case 'dial-ok':
         return <p>Dialed {event.addr} successfully</p>
     }
@@ -519,7 +519,7 @@ function ConfirmationView({keyPair, session}: {keyPair: LocalWebIdentity; sessio
           className="w-full"
         >
           Confirm
-          <Check className="absolute ml-1 h-4 w-4" style={{left: 'calc(50% + 2rem)'}} />
+          <Check className="absolute ml-1 size-4" style={{left: 'calc(50% + 2rem)'}} />
         </Button>
         <Button
           variant="outline"
@@ -541,8 +541,8 @@ function CompletionView({accountInfo}: {accountInfo: HMMetadataPayload}) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-          <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
+        <div className="flex size-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+          <Check className="size-8 text-green-600 dark:text-green-400" />
         </div>
         <h1 className="text-2xl font-semibold">Successfully Linked!</h1>
         <p className="text-muted-foreground text-sm">

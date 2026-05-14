@@ -1,4 +1,4 @@
-const GithubIcon = ({className = "w-6 h-6 text-gray-400", ...props}) => (
+const GithubIcon = ({className = "size-6 text-gray-400", ...props}) => (
   <svg
     className={className}
     xmlns="http://www.w3.org/2000/svg"

@@ -45,12 +45,12 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
           {authorId ? (
             <HMIcon size={24} id={authorId} name={authorName} icon={authorIcon} />
           ) : (
-            <div className="bg-muted h-6 w-6 rounded-full" />
+            <div className="bg-muted size-6 rounded-full" />
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-start gap-2">
-            {!isRead ? <span className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-blue-600" /> : null}
+            {!isRead ? <span className="mt-1.5 inline-block size-2 shrink-0 rounded-full bg-blue-600" /> : null}
             <p className={cn('text-sm', !isRead && 'font-bold')}>
               {notificationTitle(item, {authorName, targetName})}
               {!resolvedName && item.author.uid ? (
@@ -68,7 +68,7 @@ export function NotificationListItem({item, isRead, onOpen, onToggleRead}: Notif
           type="button"
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+          className="size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
           onClick={() => {
             onToggleRead()
           }}

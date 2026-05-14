@@ -38,7 +38,7 @@ export function DebugDialogs() {
       <div className="bg-background/95 fixed right-4 bottom-20 z-50 flex max-w-xs flex-col gap-2 rounded-lg border p-4 shadow-lg backdrop-blur">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-muted-foreground text-sm font-bold">Debug Dialogs</span>
-          <Button size="xs" variant="ghost" onClick={() => setShowDebug(false)} className="h-6 w-6 p-0">
+          <Button size="xs" variant="ghost" onClick={() => setShowDebug(false)} className="size-6 p-0">
             ×
           </Button>
         </div>

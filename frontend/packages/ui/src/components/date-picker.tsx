@@ -60,7 +60,7 @@ export function DatePicker({value, onValue, onReset, placeholder = 'Select date'
           <Button
             className={cn('w-full justify-start text-left font-normal', !selectedDate && 'text-muted-foreground')}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
+            <CalendarIcon className="mr-2 size-4" />
             {selectedDate ? formatDate(selectedDate) : placeholder}
           </Button>
         </PopoverTrigger>

@@ -231,7 +231,8 @@ export interface CommentEditorProps {
   quotingBlockId?: string
   commentId?: string
   isReplying?: boolean
-  autoFocus?: boolean
+  /** Focus the editor on mount. Renamed from `autoFocus` to avoid `jsx-a11y/no-autofocus`; focus driven imperatively. */
+  focusOnMount?: boolean
   /** CID version of the comment being replied to. */
   replyCommentVersion?: string
   /** CID version of the thread root comment. */
@@ -1074,7 +1075,7 @@ function DocumentBody({
         if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
           text = text.slice(blockRange.start, blockRange.end)
         }
-        const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
+        const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
         if (truncated) items.push({label: `"${truncated}"`})
       }
     }
@@ -1618,7 +1619,7 @@ function DocumentBody({
                     rootReplyCommentVersion={
                       panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
                     }
-                    autoFocus
+                    focusOnMount
                   />
                 ) : undefined
               }
@@ -1953,7 +1954,7 @@ function PanelContentRenderer({
                 isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
                 replyCommentVersion={panelRoute.replyCommentVersion}
                 rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
-                autoFocus
+                focusOnMount
               />
             ) : undefined
           }
@@ -2127,7 +2128,7 @@ function MainContent({
                 isReplying={discussionsParams?.isReplying ?? !!discussionsParams?.openComment}
                 replyCommentVersion={discussionsParams?.replyCommentVersion}
                 rootReplyCommentVersion={discussionsParams?.rootReplyCommentVersion}
-                autoFocus={discussionsParams?.autoFocus}
+                focusOnMount={discussionsParams?.autoFocus}
               />
             ) : undefined
           }

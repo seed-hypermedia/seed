@@ -192,7 +192,7 @@ describe('AssistantPanel', () => {
 
     const {container, root} = renderAssistantPanel()
 
-    expect(container.textContent).toContain('Thinking...')
+    expect(container.textContent).toContain('Thinking…')
     expect(container.querySelector('svg.animate-spin')).not.toBeNull()
 
     cleanupRendered(root, container)

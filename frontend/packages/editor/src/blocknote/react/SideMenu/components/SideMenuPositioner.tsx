@@ -61,7 +61,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       const firstLineHeight = lhValue + 6 // include blockContent padding (3px top + 3px bottom)
       return () => new DOMRect(ref.x, ref.y, ref.width, firstLineHeight)
     },
-    [referencePos.current, lh], // eslint-disable-line
+    [show, lh], // eslint-disable-line
   )
 
   const sideMenuElement = useMemo(() => {
@@ -107,7 +107,7 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
       })
     }
     return offset
-  }, [block, props.editor])
+  }, [show, block])
 
   return (
     <>

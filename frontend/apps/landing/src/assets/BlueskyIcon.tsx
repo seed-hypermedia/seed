@@ -1,5 +1,5 @@
 export default function BlueskyIcon({
-  className = "w-6 h-6 text-gray-400",
+  className = "size-6 text-gray-400",
   ...props
 }: React.SVGProps<SVGSVGElement>) {
   return (

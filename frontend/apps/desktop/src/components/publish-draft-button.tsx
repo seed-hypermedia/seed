@@ -414,7 +414,7 @@ export default function PublishDraftButton() {
     <>
       <SaveIndicatorStatus />
       <Popover {...popoverState}>
-        <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document...'}>
+        <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document…'}>
           <PopoverTrigger asChild>
             <Button size="sm" variant="brand">
               Publish
@@ -465,7 +465,7 @@ export default function PublishDraftButton() {
               ) : (
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                   <Spinner className="size-3" />
-                  <span>Loading...</span>
+                  <span>Loading…</span>
                 </div>
               )}
               {/* Permalink editor - first publish only */}
