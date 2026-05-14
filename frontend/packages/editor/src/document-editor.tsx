@@ -31,7 +31,7 @@ import {
   useBlockNote,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
-import {applyReadOnlyClickSelectionGuard} from './click-edit-mode-guard'
+import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
@@ -559,6 +559,29 @@ export function DocumentEditor({
       domRoot.removeEventListener('click', handleClick)
     }
   }, [editor, onEditStart])
+
+  // Exit edit mode when the user clicks outside the editable document body.
+  // Keep controls usable: publish toolbar/popovers, inputs, buttons, links, and
+  // other interactive surfaces should not disappear before their click handler
+  // can run.
+  useEffect(() => {
+    if (!isEditing) return
+
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    const domRoot = view.dom as HTMLElement
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (shouldKeepEditModeForPointerTarget(e.target, domRoot)) return
+      actorRef.send({type: 'edit.cancel'})
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [editor, isEditing, actorRef])
 
   const editable = isEditing
 
