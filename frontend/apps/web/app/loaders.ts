@@ -388,9 +388,11 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
-  // Create the final ID that will be returned to the client
-  // This ensures the prefetch query key matches what useResource will use
-  const finalId: UnpackedHypermediaId = {...docId, version: document.version}
+  // Create the final ID that will be returned to the client.
+  // Clear `latest` when pinning to a specific version — otherwise the client's
+  // REST fetch includes both `?v=...&l`, the handler drops the version, and the
+  // daemon may return a stale "latest" pointer (overwriting correct SSR data).
+  const finalId: UnpackedHypermediaId = {...docId, version: document.version, latest: false}
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)

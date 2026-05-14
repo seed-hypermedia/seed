@@ -21,7 +21,7 @@ import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {usePopoverState} from './use-popover-state'
-import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
+import {Check, ChevronRight, Clock, Copy, FileDiff, Trash, UploadCloud} from 'lucide-react'
 import React, {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
 
 /** Platform callbacks injected by the host (desktop or web). */
@@ -52,9 +52,9 @@ export function SaveIndicator() {
   const icon = status === 'saving' ? <Spinner className="size-3" /> : <Check className="size-3" />
 
   return (
-    <div className="flex items-center gap-1.5 rounded-full bg-neutral-800 px-3 py-1 text-white dark:bg-neutral-700">
+    <div className="flex items-center gap-1.5 rounded-full bg-neutral-800 px-2 py-1 text-white sm:px-3 dark:bg-neutral-700">
       {icon}
-      <span className="text-xs">{label}</span>
+      <span className="hidden text-xs sm:inline">{label}</span>
     </div>
   )
 }
@@ -290,7 +290,10 @@ const PublishTrigger = forwardRef<
           <span className="absolute inset-0 animate-ping rounded-full bg-white opacity-75" />
         </span>
       ) : null}
-      Publish
+      <span className="hidden sm:inline">Publish</span>
+      <span className="sm:hidden">
+        <UploadCloud className="size-4" />
+      </span>
     </Button>
   )
 })
@@ -407,8 +410,10 @@ export function EditingDocToolsRight({
   newButton?: ReactNode
 } & EditingToolbarCallbacks) {
   return (
-    <div className="flex items-center gap-1">
-      <SaveIndicator />
+    <div className="relative flex items-center gap-1">
+      <div className="pointer-events-none absolute right-full mr-2">
+        <SaveIndicator />
+      </div>
       <PublishButtonWithPopover docId={docId} existingMenuItems={existingMenuItems} {...callbacks} />
       {newButton}
     </div>

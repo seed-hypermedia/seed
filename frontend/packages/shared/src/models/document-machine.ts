@@ -12,6 +12,18 @@ import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xs
 
 // -- Types --
 
+/**
+ * Platform-agnostic interface for reading the active editor instance.
+ * Both web and desktop create an accessor conforming to this shape,
+ * which actors use to read blocks and cursor position.
+ */
+export interface EditorAccessor {
+  /** Read the editor's current top-level blocks. */
+  getTopLevelBlocks(): EditorBlock[] | null
+  /** Optional cursor offset for restoring on reload. */
+  getCursorPosition?: () => number | null
+}
+
 /** Input provided when creating the document machine actor. */
 export type DocumentMachineInput = {
   documentId: UnpackedHypermediaId

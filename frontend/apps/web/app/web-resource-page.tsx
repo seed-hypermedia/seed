@@ -1,21 +1,23 @@
-import {HMComment, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
-import {
-  CommentsProvider,
-  InlineEditCommentProps,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import type {DocumentContentProps} from '@shm/shared/document-content-props'
+import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
+import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
+import {pathNameify} from '@shm/shared/utils/path'
+import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useQuery} from '@tanstack/react-query'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {EditingDocToolsRight, DraftActionsToolbar, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {
   EditProfileDialog,
   LogoutButton,
@@ -29,13 +31,9 @@ import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell} from './web-utils'
-import {EditingDocToolsRight, DraftActionsToolbar, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
-import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
-import {pathNameify} from '@shm/shared/utils/path'
-import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
-import {createWebDocumentMachine, type WebEditorAccessor} from './document-edit/web-document-actors'
-import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
+import {createWebDocumentMachine, discardWebDocDraft} from './document-edit/web-document-actors'
+import {cleanupOldWebDocDrafts, deleteWebDocDraft, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -88,7 +86,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   // Editor accessor — populated by the editor's onEditorReady callback.
   const editorRef = useRef<any>(null)
-  const editorAccessor = useMemo<WebEditorAccessor>(
+  const editorAccessor = useMemo<EditorAccessor>(
     () => ({
       getTopLevelBlocks: () => editorRef.current?.topLevelBlocks ?? null,
       getCursorPosition: () => editorRef.current?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? null,
@@ -97,6 +95,24 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
   const onEditorReady = useCallback((editor: any) => {
     editorRef.current = editor
+  }, [])
+
+  // Post-publish: navigate to latest version so user sees published content
+  const replaceRouteRef = useRef(replaceRoute)
+  replaceRouteRef.current = replaceRoute
+  const routeRef = useRef(route)
+  routeRef.current = route
+  const onPublishSuccess = useCallback(() => {
+    const currentRoute = routeRef.current
+    if (currentRoute.key === 'document' || currentRoute.key === 'site-profile') {
+      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+      if (currentId?.version) {
+        replaceRouteRef.current({
+          ...currentRoute,
+          id: {...currentId, version: null},
+        } as any)
+      }
+    }
   }, [])
 
   // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
@@ -112,8 +128,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         return universalClient.getSigner(accountUid)
       },
       getCapabilityCid: () => (capability && capability.id !== '_owner' ? capability.id : undefined),
+      onPublishSuccess,
     })
-  }, [docId.id, universalClient, editorAccessor, capability?.id])
+  }, [docId.id, universalClient, editorAccessor, capability?.id, onPublishSuccess])
 
   // Load any local IDB draft for this doc. Used to seed the machine's draft.resolved event.
   const draftQuery = useQuery({
@@ -125,15 +142,29 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     enabled: typeof window !== 'undefined' && canEdit,
     staleTime: 60_000,
   })
+  // Detect and auto-delete stale IDB drafts whose base version doesn't match
+  // the current published version. Happens when published from desktop/another session.
+  const draftData = draftQuery.data
+  const isDraftStale = useMemo(() => {
+    if (!draftData || !docId.version) return false
+    return !draftData.deps.includes(docId.version)
+  }, [draftData, docId.version])
+
+  useEffect(() => {
+    if (isDraftStale && draftData) {
+      deleteWebDocDraft(draftData.draftId).catch(() => {})
+    }
+  }, [isDraftStale, draftData])
+
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
     if (!canEdit) return false
     if (draftQuery.isLoading) return undefined
-    const d = draftQuery.data
-    if (!d) return false
+    const d = draftData
+    if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
-  }, [canEdit, draftQuery.isLoading, draftQuery.data])
-  const existingDraftContent = draftQuery.data?.content ?? undefined
-  const existingDraftCursorPosition = draftQuery.data?.cursorPosition ?? undefined
+  }, [canEdit, draftQuery.isLoading, draftData, isDraftStale])
+  const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
+  const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
 
   // Garbage-collect old IDB drafts once per session.
   useEffect(() => {
@@ -199,9 +230,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           hostname: origin || null,
           originHomeId: originHomeId ?? undefined,
         }),
-      onDiscardConfirm: (_draftId: string, send) => {
+      onDiscardConfirm: (draftId: string, send) => {
         if (window.confirm('Discard draft changes?')) {
-          send({type: 'edit.discard'})
+          discardWebDocDraft(draftId).then(() => {
+            send({type: 'edit.discard'})
+          })
         }
       },
       slugify: pathNameify,
@@ -247,83 +280,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     )
   }, [showSubscribeBox, siteUid, siteMetadata])
 
-  const onReplyClick = useCallback(
-    (replyComment: HMComment) => {
-      const replyVersionData = {
-        replyCommentVersion: replyComment.version,
-        rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
-      }
-      const targetRoute = isRouteEqualToCommentTarget({
-        id: docId,
-        comment: replyComment,
-      })
-      if (targetRoute) {
-        navigate({
-          key: 'document',
-          id: targetRoute,
-          panel: {
-            key: 'comments',
-            id: targetRoute,
-            openComment: replyComment.id,
-            isReplying: true,
-            ...replyVersionData,
-          },
-        })
-      } else if (route.key === 'comments') {
-        replaceRoute({...route, openComment: replyComment.id, isReplying: true, ...replyVersionData})
-      } else {
-        replaceRoute({
-          ...route,
-          panel: {
-            key: 'comments',
-            id: docId,
-            openComment: replyComment.id,
-            isReplying: true,
-            ...replyVersionData,
-          },
-        } as any)
-      }
-    },
-    [route, docId, navigate, replaceRoute],
-  )
-
-  const onReplyCountClick = useCallback(
-    (replyComment: HMComment) => {
-      const targetRoute = isRouteEqualToCommentTarget({
-        id: docId,
-        comment: replyComment,
-      })
-      if (targetRoute) {
-        navigate({
-          key: 'document',
-          id: targetRoute,
-          panel: {
-            key: 'comments',
-            id: targetRoute,
-            openComment: replyComment.id,
-          },
-        })
-      } else if (route.key === 'comments') {
-        replaceRoute({
-          ...route,
-          openComment: replyComment.id,
-          isReplying: undefined,
-          replyCommentVersion: undefined,
-          rootReplyCommentVersion: undefined,
-        })
-      } else {
-        replaceRoute({
-          ...route,
-          panel: {
-            key: 'comments',
-            id: docId,
-            openComment: replyComment.id,
-          },
-        } as any)
-      }
-    },
-    [route, docId, navigate, replaceRoute],
-  )
+  const {onReplyClick, onReplyCountClick} = useCommentNavigation({
+    docId,
+    route,
+    navigate,
+    replaceRoute,
+  })
 
   return (
     <WebSitePageShell siteUid={docId.uid}>
