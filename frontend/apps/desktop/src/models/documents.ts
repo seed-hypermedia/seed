@@ -37,6 +37,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   compareBlocksWithMap,
   createBlocksMap,
+  deduplicateBlockIds,
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
@@ -237,6 +238,7 @@ export function usePublishResource(
     mutationFn: async ({draft, destinationId, accountId, pathOverride}: PublishDraftInput): Promise<HMDocument> => {
       const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
+      newContent = deduplicateBlockIds(newContent, new Set(Object.keys(blocksMap)))
 
       // Fill query blocks for new documents
       if (!editId) {

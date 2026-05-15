@@ -2,6 +2,7 @@ import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
 import isEqual from 'lodash/isEqual'
+import {nanoid} from 'nanoid'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 
@@ -600,6 +601,39 @@ function buildChildrenMap(nodes: HMBlockNode[]): Map<string, HMBlockNode[]> {
   }
   walk(nodes, '')
   return map
+}
+
+/**
+ * Walk editor blocks and assign fresh IDs to duplicates so the CRDT
+ * move-block operations never send block==left to the backend.
+ *
+ * Published IDs (from blocksMap) are "reserved": the first encounter
+ * of a published ID always keeps it; only subsequent occurrences are
+ * renamed. Non-published duplicate IDs follow the same first-wins rule.
+ */
+export function deduplicateBlockIds(blocks: EditorBlock[], publishedIds = new Set<string>()): EditorBlock[] {
+  const usedIds = new Set<string>(publishedIds)
+  const claimedPublished = new Set<string>()
+
+  function walk(block: EditorBlock): EditorBlock {
+    let id = block.id
+    const isFirstPublishedEncounter = publishedIds.has(id) && !claimedPublished.has(id)
+
+    if (usedIds.has(id) && !isFirstPublishedEncounter) {
+      id = nanoid(8)
+    }
+
+    if (publishedIds.has(block.id)) claimedPublished.add(block.id)
+    usedIds.add(id)
+
+    const children = block.children.map(walk)
+    if (id !== block.id || children !== block.children) {
+      return {...block, id, children}
+    }
+    return block
+  }
+
+  return blocks.map(walk)
 }
 
 function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
