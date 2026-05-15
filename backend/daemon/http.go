@@ -20,6 +20,7 @@ import (
 	"seed/backend/util/trcstats"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fullstorydev/grpcui"
@@ -126,6 +127,10 @@ func initHTTP(
 	return
 }
 
+// grpcUIMu serializes standalone.Handler calls. The underlying proto printer
+// has lazy-init fields on shared global descriptors that race under -race.
+var grpcUIMu sync.Mutex
+
 func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group) (http.Handler, error) {
 	methods, err := grpcui.AllMethodsForServer(rpc)
 	if err != nil {
@@ -157,7 +162,11 @@ func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group
 	}
 	clean.AddErrFunc(conn.Close)
 
-	return standalone.Handler(conn, "seed daemon", methods, files), nil
+	grpcUIMu.Lock()
+	h := standalone.Handler(conn, "seed daemon", methods, files)
+	grpcUIMu.Unlock()
+
+	return h, nil
 }
 
 func loopbackOnly(next http.Handler) http.Handler {

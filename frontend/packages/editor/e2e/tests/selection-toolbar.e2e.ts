@@ -360,7 +360,7 @@ test.describe('Slash Menu', () => {
   test('Should select item with Enter', async ({editorHelpers, page}) => {
     await editorHelpers.openSlashMenu()
 
-    // Press Enter to select first item (Heading)
+    // Press Enter to select first item (Embed)
     await editorHelpers.pressKey('Enter')
     await page.waitForTimeout(200)
 
@@ -368,9 +368,9 @@ test.describe('Slash Menu', () => {
     const slashMenu = page.locator('.mantine-Menu-dropdown')
     await expect(slashMenu).not.toBeVisible({timeout: 2000})
 
-    // Block type should change to heading
+    // Block type should change to embed (first slash menu item)
     const blocks = await editorHelpers.getBlocks()
-    expect(blocks[0].type).toBe('heading')
+    expect(blocks[0].type).toBe('embed')
   })
 })
 
