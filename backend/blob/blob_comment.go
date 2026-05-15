@@ -7,6 +7,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
+	"seed/backend/util/maybe"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"time"
@@ -511,7 +512,7 @@ func (sm *spaceCommentStats) save(conn *sqlite.Conn) error {
 		q = qInsertSpaceCommentStats()
 	}
 
-	return sqlitex.Exec(conn, q, nil, sm.ID, sm.LastComment, sm.LastCommentTime, sm.CommentCount)
+	return sqlitex.Exec(conn, q, nil, sm.ID, maybe.Any(sm.LastComment), sm.LastCommentTime, sm.CommentCount)
 }
 
 var qInsertSpaceCommentStats = dqb.Str(`

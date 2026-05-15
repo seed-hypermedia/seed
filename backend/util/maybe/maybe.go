@@ -43,7 +43,8 @@ func (v *Value[T]) Clear() {
 	v.value = *(new(T))
 }
 
-// Any converts concrete value to an any, using nil is the concrete value is a zero value.
+// Any converts concrete value to an any.
+// If v is zero value the return any value is nil.
 func Any[T comparable](v T) any {
 	if v == *(new(T)) {
 		return nil
