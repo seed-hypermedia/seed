@@ -444,6 +444,15 @@ func commentCountDelta(conn *sqlite.Conn, currentID int64, tsid TSID, isTombston
 		return 0, cerr
 	}
 
+	// TODO(burdiyan): this process is a bit simplistic,
+	// because it doesn't account for the possiblility of multiple tombstones for the same comment.
+	// Although it would be a bit of an anomly — it's totally possible from the data model perspective.
+	// And in that case this logic would undercount the total number of comments.
+	//
+	// One way to address this could be keeping max live and deleted timestamps,
+	// and on every event decide whether we should increment, decrement, or leave the count unchanged.
+	// We won't bother for now, because multiple tombstones shouldn't happen in a normal scenario.
+
 	switch {
 	case isTombstone && priorLive > 0:
 		return -1, nil
