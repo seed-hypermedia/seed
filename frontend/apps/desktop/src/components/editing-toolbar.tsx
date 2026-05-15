@@ -1,15 +1,17 @@
+import {useDraft} from '@/models/accounts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
-import {pathNameify} from '@shm/shared/utils/path'
-import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
+import {selectDraftId, useDocumentSelector} from '@shm/shared/models/use-document-machine'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {pathNameify} from '@shm/shared/utils/path'
+import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {
   type EditingToolbarCallbacks,
-  EditingDocToolsRight as SharedEditingDocToolsRight,
   DraftActionsToolbar as SharedDraftActionsToolbar,
+  EditingDocToolsRight as SharedEditingDocToolsRight,
 } from '@shm/ui/editing-toolbar'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ReactNode, useCallback, useMemo} from 'react'
@@ -34,6 +36,32 @@ function useDocumentUrlWithSite(ownerUid: string): (docId: UnpackedHypermediaId)
     },
     [gatewayUrl.data, siteUrl],
   )
+}
+
+/**
+ * Walks the current draft's content for embed blocks that still
+ * point to unpublished child drafts and returns the unique count.
+ * Auto-link clears draftId when the child publishes, so the count
+ * drops naturally. Must be rendered inside DocumentMachineProvider.
+ */
+function useUnpublishedChildCount(): number {
+  const draftId = useDocumentSelector(selectDraftId)
+  const parentDraft = useDraft(draftId ?? undefined)
+  return useMemo(() => {
+    const content = parentDraft.data?.content
+    if (!content) return 0
+    const ids = new Set<string>()
+    const walk = (blocks: any[]) => {
+      for (const b of blocks) {
+        if (b?.type === 'embed' && b?.props?.draftId) {
+          ids.add(b.props.draftId)
+        }
+        if (b?.children?.length) walk(b.children)
+      }
+    }
+    walk(content as any[])
+    return ids.size
+  }, [parentDraft.data?.content])
 }
 
 /** Build all desktop-specific callbacks for the shared toolbar. */
@@ -94,12 +122,14 @@ export function EditingDocToolsRight({
   newButton?: ReactNode
 }) {
   const {callbacks, deleteDraftDialog} = useDesktopToolbarCallbacks(docId)
+  const unpublishedChildCount = useUnpublishedChildCount()
   return (
     <>
       <SharedEditingDocToolsRight
         docId={docId}
         existingMenuItems={existingMenuItems}
         newButton={newButton}
+        unpublishedChildCount={unpublishedChildCount}
         {...callbacks}
       />
       {deleteDraftDialog.content}
@@ -120,9 +150,15 @@ export function DraftActionsToolbar({
   existingMenuItems: MenuItemType[]
 }) {
   const {callbacks, deleteDraftDialog} = useDesktopToolbarCallbacks(docId)
+  const unpublishedChildCount = useUnpublishedChildCount()
   return (
     <>
-      <SharedDraftActionsToolbar docId={docId} existingMenuItems={existingMenuItems} {...callbacks} />
+      <SharedDraftActionsToolbar
+        docId={docId}
+        existingMenuItems={existingMenuItems}
+        unpublishedChildCount={unpublishedChildCount}
+        {...callbacks}
+      />
       {deleteDraftDialog.content}
     </>
   )

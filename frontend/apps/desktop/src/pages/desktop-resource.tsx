@@ -3,11 +3,12 @@ import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {EditingDocToolsRight} from '@/components/editing-toolbar'
+import {DraftActionsToolbar, EditingDocToolsRight} from '@/components/editing-toolbar'
 import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
@@ -315,6 +316,7 @@ export default function DesktopResourcePage() {
             })
             const outcome = await autoLinkParentAfterPublish({
               childId,
+              childDraftId: input.draftId,
               signingAccountUid: input.publishAccountUid || undefined,
               isPrivate,
             })
@@ -640,6 +642,13 @@ export default function DesktopResourcePage() {
         )
       : undefined
 
+  const draftActions =
+    canEdit && showPublishToolbar
+      ? ({menuItems}: {menuItems: MenuItemType[]}) => (
+          <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} />
+        )
+      : undefined
+
   const onAfterReply = useCallback(
     (_docId: UnpackedHypermediaId, comment: HMComment) => {
       triggerCommentDraftFocus(docId.id, comment.id)
@@ -665,44 +674,47 @@ export default function DesktopResourcePage() {
         pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
-          <QueryBlockDraftsProvider
-            DraftSlot={DesktopQueryBlockDraftSlot}
-            lastCreatedDraftId={lastCreatedDraftId}
-            setLastCreatedDraftId={setLastCreatedDraftId}
-          >
-            <QuerySearchInputProvider value={SearchInput}>
-              <ResourcePage
-                docId={docId}
-                canEdit={canEdit}
-                CommentEditor={CommentBox}
-                extraMenuItems={menuItems}
-                existingDraft={existingDraft}
-                existingDraftContent={existingDraftContent}
-                existingDraftCursorPosition={draftQuery.data?.cursorPosition}
-                existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
-                existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
-                inlineCards={inlineCards}
-                rightActions={<JoinButton siteUid={docId.uid} />}
-                onEditProfile={onEditProfile}
-                inspect={inspect}
-                inspectStore={inspectStore}
-                DocumentContentComponent={DocumentEditor}
-                machine={machine}
-                onEditorReady={handleEditorReady}
-                machineExtras={null}
-                editingFloatingActions={editingFloatingActions}
-                newButton={newButton}
-                signingAccountId={selectedAccountId || undefined}
-                publishAccountUid={selectedAccount?.id?.uid || undefined}
-                perspectiveAccountUid={selectedAccountId}
-                linkExtensionOptions={linkExtensionOptions}
-                fileUpload={fileUpload}
-                editNavPane={
-                  canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
-                }
-              />
-            </QuerySearchInputProvider>
-          </QueryBlockDraftsProvider>
+          <DesktopDraftActionsProvider>
+            <QueryBlockDraftsProvider
+              DraftSlot={DesktopQueryBlockDraftSlot}
+              lastCreatedDraftId={lastCreatedDraftId}
+              setLastCreatedDraftId={setLastCreatedDraftId}
+            >
+              <QuerySearchInputProvider value={SearchInput}>
+                <ResourcePage
+                  docId={docId}
+                  canEdit={canEdit}
+                  CommentEditor={CommentBox}
+                  extraMenuItems={menuItems}
+                  existingDraft={existingDraft}
+                  existingDraftContent={existingDraftContent}
+                  existingDraftCursorPosition={draftQuery.data?.cursorPosition}
+                  existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
+                  existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
+                  inlineCards={inlineCards}
+                  rightActions={<JoinButton siteUid={docId.uid} />}
+                  onEditProfile={onEditProfile}
+                  inspect={inspect}
+                  inspectStore={inspectStore}
+                  DocumentContentComponent={DocumentEditor}
+                  machine={machine}
+                  onEditorReady={handleEditorReady}
+                  machineExtras={null}
+                  editingFloatingActions={editingFloatingActions}
+                  draftActions={draftActions}
+                  newButton={newButton}
+                  signingAccountId={selectedAccountId || undefined}
+                  publishAccountUid={selectedAccount?.id?.uid || undefined}
+                  perspectiveAccountUid={selectedAccountId}
+                  linkExtensionOptions={linkExtensionOptions}
+                  fileUpload={fileUpload}
+                  editNavPane={
+                    canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
+                  }
+                />
+              </QuerySearchInputProvider>
+            </QueryBlockDraftsProvider>
+          </DesktopDraftActionsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {deleteEntity.content}

@@ -1,6 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useAccount} from '@shm/shared/models/entity'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
+import {useAccount} from '@shm/shared/models/entity'
 import {
   selectDocument,
   selectDraftId,
@@ -11,6 +11,8 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
+import {Check, ChevronRight, Clock, Copy, FileDiff, Trash, UploadCloud} from 'lucide-react'
+import React, {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
@@ -21,8 +23,6 @@ import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {usePopoverState} from './use-popover-state'
-import {Check, ChevronRight, Clock, Copy, FileDiff, Trash, UploadCloud} from 'lucide-react'
-import React, {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
 
 /** Platform callbacks injected by the host (desktop or web). */
 export type EditingToolbarCallbacks = {
@@ -80,6 +80,7 @@ export function PublishPopoverBody({
   onPublish,
   onClose,
   publishDisabled,
+  unpublishedChildCount = 0,
   getDocumentUrl,
   onOpenPreview,
   slugify,
@@ -91,6 +92,8 @@ export function PublishPopoverBody({
   onPublish: (pathOverride?: string[]) => void
   onClose: () => void
   publishDisabled: boolean
+  /** When greater than 0, publish is blocked because the doc embeds child drafts that haven't been published yet. */
+  unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const publishedDoc = useDocumentSelector(selectDocument)
   const draftId = useDocumentSelector(selectDraftId)
@@ -240,6 +243,19 @@ export function PublishPopoverBody({
         </span>
       </div>
 
+      {unpublishedChildCount > 0 ? (
+        <div className="border-warning bg-warning/10 text-warning-foreground -mx-1 rounded border px-3 py-2 text-xs">
+          <p className="font-medium">
+            {unpublishedChildCount === 1
+              ? 'This document embeds an unpublished draft.'
+              : `This document embeds ${unpublishedChildCount} unpublished drafts.`}
+          </p>
+          <p className="text-muted-foreground mt-1">
+            Publish {unpublishedChildCount === 1 ? 'it' : 'them'} first before publishing this document.
+          </p>
+        </div>
+      ) : null}
+
       <Separator className="bg-black/10 dark:bg-white/10" />
 
       <div className="flex flex-col gap-1">
@@ -311,6 +327,7 @@ PublishTrigger.displayName = 'PublishTrigger'
 export function PublishButtonWithPopover({
   docId,
   existingMenuItems,
+  unpublishedChildCount = 0,
   getDocumentUrl,
   onOpenPreview,
   onDiscardConfirm,
@@ -320,6 +337,8 @@ export function PublishButtonWithPopover({
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
+  /** When greater than 0, publish is blocked because the doc embeds child drafts that haven't been published yet. */
+  unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
   const changeCount = useUnpublishedChangeCount()
@@ -386,7 +405,8 @@ export function PublishButtonWithPopover({
             // Allow clicking Publish during editing.draft.changed (no draftId yet) —
             // the machine queues the publish and flushes it once writeDraft completes.
             // See documentMachine `pendingPublish` flag (Phase 2).
-            publishDisabled={changeCount === 0}
+            publishDisabled={changeCount === 0 || unpublishedChildCount > 0}
+            unpublishedChildCount={unpublishedChildCount}
             getDocumentUrl={getDocumentUrl}
             onOpenPreview={onOpenPreview}
             slugify={slugify}
@@ -408,18 +428,25 @@ export function EditingDocToolsRight({
   docId,
   existingMenuItems,
   newButton,
+  unpublishedChildCount,
   ...callbacks
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
   newButton?: ReactNode
+  unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   return (
     <div className="relative flex items-center gap-1">
       <div className="pointer-events-none absolute right-full mr-2">
         <SaveIndicator />
       </div>
-      <PublishButtonWithPopover docId={docId} existingMenuItems={existingMenuItems} {...callbacks} />
+      <PublishButtonWithPopover
+        docId={docId}
+        existingMenuItems={existingMenuItems}
+        unpublishedChildCount={unpublishedChildCount}
+        {...callbacks}
+      />
       {newButton}
     </div>
   )
@@ -432,14 +459,21 @@ export function EditingDocToolsRight({
 export function DraftActionsToolbar({
   docId,
   existingMenuItems,
+  unpublishedChildCount,
   ...callbacks
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
+  unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   return (
     <div className="flex items-center gap-1">
-      <PublishButtonWithPopover docId={docId} existingMenuItems={existingMenuItems} {...callbacks} />
+      <PublishButtonWithPopover
+        docId={docId}
+        existingMenuItems={existingMenuItems}
+        unpublishedChildCount={unpublishedChildCount}
+        {...callbacks}
+      />
     </div>
   )
 }

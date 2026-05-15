@@ -23,6 +23,9 @@ const {
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,
   setQueriesDataByKey: vi.fn(),
+  queryClient: {
+    refetchQueries: vi.fn().mockResolvedValue(undefined),
+  },
 }))
 
 vi.mock('@/grpc-client', () => ({
@@ -234,6 +237,158 @@ describe('autoLinkParentAfterPublish', () => {
     expect(invalidatedKeys).toContain(queryKeys.ENTITY)
     expect(invalidatedKeys).toContain(queryKeys.RESOLVED_ENTITY)
     expect(invalidatedKeys).toContain(queryKeys.DOC_LIST_DIRECTORY)
+  })
+
+  it('rewrites an existing inline-draft embed in place when childDraftId matches', async () => {
+    getDocumentMock.mockResolvedValueOnce(makeParentDocument())
+    findByEditMock.mockResolvedValueOnce({id: 'parent-draft-id'})
+    // Parent draft contains an inline draft embed pointing at the child by
+    // draftId. After publish, that block should be
+    // rewritten in place.
+    getDraftMock.mockResolvedValueOnce({
+      id: 'parent-draft-id',
+      locationUid: 'acct-1',
+      locationPath: [],
+      editUid: 'acct-1',
+      editPath: ['parent'],
+      metadata: {},
+      content: [
+        {id: 'b1', type: 'paragraph', props: {}, content: [], children: []},
+        {
+          id: 'b2',
+          type: 'embed',
+          props: {url: '', draftId: 'child-draft-id', defaultOpen: 'false'},
+          content: [],
+          children: [],
+        },
+        {id: 'b3', type: 'paragraph', props: {}, content: [], children: []},
+      ],
+      deps: [],
+      navigation: [],
+      visibility: 'PUBLIC',
+    })
+
+    const childId = hmId('acct-1', {path: ['parent', 'child']})
+    const result = await autoLinkParentAfterPublish({
+      childId,
+      childDraftId: 'child-draft-id',
+      signingAccountUid: 'acct-1',
+      isPrivate: false,
+    })
+
+    expect(result.kind).toBe('added-to-draft')
+    expect(writeDraftMock).toHaveBeenCalledTimes(1)
+    const writeArgs = writeDraftMock.mock.calls[0]![0]
+    // Check the amount of blocks to be the same.
+    expect(writeArgs.content.length).toBe(3)
+    // The embed block is rewritten in place at its original index.
+    expect(writeArgs.content[1]).toMatchObject({
+      id: 'b2',
+      type: 'embed',
+      props: {
+        url: 'hm://acct-1/parent/child',
+        draftId: '',
+        view: 'Card',
+      },
+    })
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+  })
+
+  it('rewrites the inline-draft embed even when the parent has no published version (nested drafts)', async () => {
+    // Nested-draft chain: the parent has never been published, so
+    // the gRPC getDocument call fails. The rewrite path should still
+    // run via the parent draft and its matching embed.
+    getDocumentMock.mockRejectedValueOnce(new Error('not found'))
+    findByEditMock.mockResolvedValueOnce({id: 'parent-draft-id'})
+    getDraftMock.mockResolvedValueOnce({
+      id: 'parent-draft-id',
+      locationUid: 'acct-1',
+      locationPath: [],
+      editUid: 'acct-1',
+      editPath: ['parent'],
+      metadata: {},
+      content: [
+        {
+          id: 'b1',
+          type: 'embed',
+          props: {url: '', draftId: 'child-draft-id', defaultOpen: 'false'},
+          content: [],
+          children: [],
+        },
+      ],
+      deps: [],
+      navigation: [],
+      visibility: 'PUBLIC',
+    })
+
+    const childId = hmId('acct-1', {path: ['parent', 'child']})
+    const result = await autoLinkParentAfterPublish({
+      childId,
+      childDraftId: 'child-draft-id',
+      signingAccountUid: 'acct-1',
+      isPrivate: false,
+    })
+
+    expect(result.kind).toBe('added-to-draft')
+    expect(writeDraftMock).toHaveBeenCalledTimes(1)
+    const writeArgs = writeDraftMock.mock.calls[0]![0]
+    expect(writeArgs.content[0]).toMatchObject({
+      type: 'embed',
+      props: {
+        url: 'hm://acct-1/parent/child',
+        draftId: '',
+        view: 'Card',
+      },
+    })
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to appending when childDraftId does not match any embed in the parent draft', async () => {
+    getDocumentMock.mockResolvedValueOnce(makeParentDocument())
+    findByEditMock.mockResolvedValueOnce({id: 'parent-draft-id'})
+    // getDraft is consumed twice now: once by the rewrite attempt,
+    // once by addLinkToParentDraft when it appends.
+    const parentDraftData = {
+      id: 'parent-draft-id',
+      locationUid: 'acct-1',
+      locationPath: [],
+      editUid: 'acct-1',
+      editPath: ['parent'],
+      metadata: {},
+      content: [
+        {
+          id: 'b1',
+          type: 'embed',
+          props: {url: '', draftId: 'some-other-draft', defaultOpen: 'false'},
+          content: [],
+          children: [],
+        },
+      ],
+      deps: [],
+      navigation: [],
+      visibility: 'PUBLIC',
+    }
+    getDraftMock.mockResolvedValueOnce(parentDraftData)
+    getDraftMock.mockResolvedValueOnce(parentDraftData)
+
+    const childId = hmId('acct-1', {path: ['parent', 'child']})
+    const result = await autoLinkParentAfterPublish({
+      childId,
+      childDraftId: 'child-draft-id', // not present in parent draft
+      signingAccountUid: 'acct-1',
+      isPrivate: false,
+    })
+
+    expect(result.kind).toBe('added-to-draft')
+    expect(writeDraftMock).toHaveBeenCalledTimes(1)
+    const writeArgs = writeDraftMock.mock.calls[0]![0]
+    // Check the original blocks are preserved and new Card embed appended at the end.
+    expect(writeArgs.content.length).toBe(2)
+    expect(writeArgs.content[0]).toMatchObject({props: {draftId: 'some-other-draft'}})
+    expect(writeArgs.content.at(-1)).toMatchObject({
+      type: 'embed',
+      props: {url: 'hm://acct-1/parent/child', view: 'Card'},
+    })
   })
 
   it('publishes a new parent version when no draft exists', async () => {

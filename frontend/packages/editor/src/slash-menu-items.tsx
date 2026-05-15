@@ -1,20 +1,18 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {
-  RiArticleFill,
-  RiCodeBoxFill,
-  RiFile2Fill,
-  RiFunctions,
-  RiGridFill,
-  RiHeading,
-  RiImage2Fill,
-  RiLayoutGridFill,
-  RiPagesFill,
-  RiRadioButtonFill,
-  RiText,
-  RiVideoAddFill,
-  RiWindow2Fill,
-} from 'react-icons/ri'
+  BetweenHorizontalEnd,
+  Circle,
+  Code,
+  Columns3,
+  FileText,
+  FolderUp,
+  Image as ImageIcon,
+  LogIn,
+  Radical,
+  Video,
+} from 'lucide-react'
+import {RiGridFill, RiHeading, RiText, RiWindow2Fill} from 'react-icons/ri'
 import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
 import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {HMBlockSchema} from './schema'
@@ -22,17 +20,92 @@ import {HMBlockSchema} from './schema'
 export function getSlashMenuItems({
   showQuery = true,
   docId,
+  onCreateInlineDraft,
 }: {
   showQuery?: boolean
   docId?: UnpackedHypermediaId
+  /** Provided by the host app (desktop). Creates a child
+   * draft under docId and returns its id. */
+  onCreateInlineDraft?: (parentId: UnpackedHypermediaId) => Promise<{draftId: string; draftPath: string[]}>
 } = {}) {
   const slashMenuItems = []
 
+  // Embeds
+  if (onCreateInlineDraft && docId) {
+    slashMenuItems.push({
+      name: 'New document',
+      aliases: ['document', 'new', 'subdoc', 'child', 'draft'],
+      group: 'Embeds',
+      icon: <FileText size={18} />,
+      hint: 'Insert a new child document',
+      execute: async (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+        try {
+          const {draftId} = await onCreateInlineDraft(docId)
+          insertOrUpdateBlock(
+            editor,
+            {
+              type: 'embed',
+              props: {draftId, url: '', view: 'Card'},
+            } as PartialBlock<HMBlockSchema>,
+            true,
+          )
+          const {state, view} = editor._tiptapEditor
+          view.dispatch(state.tr.scrollIntoView())
+        } catch (err) {
+          console.error('Failed to create inline draft:', err)
+        }
+      },
+    })
+  }
+  slashMenuItems.push({
+    name: 'Embed',
+    aliases: ['embed'],
+    group: 'Embeds',
+    icon: <BetweenHorizontalEnd size={18} />,
+    hint: 'Insert a Hypermedia Embed',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'embed',
+          props: {
+            link: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
+    name: 'Card',
+    aliases: ['card'],
+    group: 'Embeds',
+    icon: <RiWindow2Fill size={18} />,
+    hint: 'Insert a Hypermedia Card Embed',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'embed',
+          props: {
+            link: '',
+            view: 'Card',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+
+  // Text blocks
   slashMenuItems.push({
     name: 'Heading',
     aliases: ['h', 'heading1', 'subheading'],
     group: 'Text blocks',
-
     icon: <RiHeading size={18} />,
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(editor, {
@@ -60,7 +133,7 @@ export function getSlashMenuItems({
     name: 'Code Block',
     aliases: ['code', 'pre', 'code-block'],
     group: 'Text blocks',
-    icon: <RiCodeBoxFill size={18} />,
+    icon: <Code size={18} />,
     hint: 'Insert a Code Block',
     execute: (editor: BlockNoteEditor) => {
       insertOrUpdateBlock(editor, {
@@ -79,10 +152,30 @@ export function getSlashMenuItems({
     },
   })
   slashMenuItems.push({
+    name: 'Math',
+    aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
+    group: 'Text blocks',
+    icon: <Radical size={18} />,
+    hint: 'Insert an Math Block',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'math',
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+
+  // Media blocks
+  slashMenuItems.push({
     name: 'Image',
     aliases: ['image', 'img', 'picture'],
-    group: 'Media blocks',
-    icon: <RiImage2Fill size={18} />,
+    group: 'Media',
+    icon: <ImageIcon size={18} />,
     hint: 'Insert an Image',
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
@@ -103,8 +196,8 @@ export function getSlashMenuItems({
   slashMenuItems.push({
     name: 'Video',
     aliases: ['video', 'vid', 'media'],
-    group: 'Media blocks',
-    icon: <RiVideoAddFill size={18} />,
+    group: 'Media',
+    icon: <Video size={18} />,
     hint: 'Insert a Video',
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
@@ -123,10 +216,32 @@ export function getSlashMenuItems({
     },
   })
   slashMenuItems.push({
+    name: 'Web Embed',
+    aliases: ['tweet', 'twitter', 'web embed', 'x.com', 'instagram'],
+    group: 'Media',
+    icon: <LogIn size={18} />,
+    hint: 'Insert an Instagram or X post embed',
+    // @ts-expect-error
+    execute: (editor) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'web-embed',
+          props: {
+            url: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
     name: 'File',
     aliases: ['file', 'folder'],
-    group: 'Media blocks',
-    icon: <RiFile2Fill size={18} />,
+    group: 'Media',
+    icon: <FolderUp size={18} />,
     hint: 'Insert a File',
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       insertOrUpdateBlock(
@@ -144,93 +259,13 @@ export function getSlashMenuItems({
       view.dispatch(state.tr.scrollIntoView())
     },
   })
-  slashMenuItems.push({
-    name: 'Embed',
-    aliases: ['embed'],
-    group: 'Media blocks',
-    icon: <RiArticleFill size={18} />,
-    hint: 'Insert a Hypermedia Embed',
-    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'embed',
-          props: {
-            link: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
-  slashMenuItems.push({
-    name: 'Card',
-    aliases: ['card'],
-    group: 'Media blocks',
-    icon: <RiWindow2Fill size={18} />,
-    hint: 'Insert a Hypermedia Card Embed',
-    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'embed',
-          props: {
-            link: '',
-            view: 'Card',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
-  slashMenuItems.push({
-    name: 'Math',
-    aliases: ['math', 'mathematics', 'equation', 'katex', 'tex'],
-    group: 'Media blocks',
-    icon: <RiFunctions size={18} />,
-    hint: 'Insert an Math Block',
-    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'math',
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
-  slashMenuItems.push({
-    name: 'Button',
-    aliases: ['button', 'click', 'press'],
-    group: '',
-    icon: <RiRadioButtonFill size={18} />,
-    hint: 'Insert a button block',
-    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'button',
-          props: {
-            url: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
+
+  // Layout
   slashMenuItems.push({
     name: 'Grid',
     aliases: ['grid', 'gallery', 'cards', 'columns'],
     group: 'Layout',
-    icon: <RiLayoutGridFill size={18} />,
+    icon: <Columns3 size={18} />,
     hint: 'Insert a Grid layout',
     execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
       const currentBlock = editor.getTextCursorPosition().block
@@ -308,11 +343,32 @@ export function getSlashMenuItems({
       view.dispatch(state.tr.scrollIntoView())
     },
   })
+  slashMenuItems.push({
+    name: 'Button',
+    aliases: ['button', 'click', 'press'],
+    group: 'Layout',
+    icon: <Circle size={18} />,
+    hint: 'Insert a button block',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'button',
+          props: {
+            url: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        true,
+      )
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
   if (showQuery) {
     slashMenuItems.push({
       name: 'Query',
       aliases: ['query'],
-      group: 'Web embeds',
+      group: 'Layout',
       icon: <RiGridFill size={18} />,
       hint: 'Insert a Query Block',
       execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
@@ -346,28 +402,6 @@ export function getSlashMenuItems({
       },
     })
   }
-  slashMenuItems.push({
-    name: 'Web Embed',
-    aliases: ['tweet', 'twitter', 'web embed', 'x.com', 'instagram'],
-    group: 'Web embeds',
-    icon: <RiPagesFill size={18} />,
-    hint: 'Insert an Instagram or X post embed',
-    // @ts-expect-error
-    execute: (editor) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'web-embed',
-          props: {
-            url: '',
-          },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
 
   return slashMenuItems
 }

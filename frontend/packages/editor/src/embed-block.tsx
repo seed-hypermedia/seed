@@ -1,23 +1,34 @@
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema} from '@seed-hypermedia/client/hm-types'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {isHypermediaScheme, isPublicGatewayLink, normalizeHmId, packHmId} from '@shm/shared/utils/entity-id-url'
-import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/embed-views'
-import {EmbedEditorView} from './embed-editor'
+import {Button} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Input} from '@shm/ui/components/input'
-import {ExternalLink} from '@shm/ui/icons'
+import {DraftBadge} from '@shm/ui/draft-badge'
+import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/embed-views'
+import {useImageUrl} from '@shm/ui/get-file-url'
+import {ExternalLink, FileText, MoreHorizontal} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
+import {Pencil, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
+import {useDraftActions} from './draft-actions-context'
+import {EmbedEditorView} from './embed-editor'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
@@ -36,6 +47,9 @@ export const EmbedBlock = createReactBlockSpec({
       values: ['Content', 'Card'], // TODO: convert HMEmbedView type to array items
       default: 'Content',
     },
+    draftId: {
+      default: '',
+    },
   },
   containsInlineContent: true,
 
@@ -53,7 +67,119 @@ export const EmbedBlock = createReactBlockSpec({
   ],
 })
 
+// Visual for an inline draft embed.
+function DraftEmbedPlaceholder({
+  draftId,
+  editor,
+  blockId,
+}: {
+  draftId: string
+  editor: BlockNoteEditor<HMBlockSchema>
+  blockId: string
+}) {
+  const draftActions = useDraftActions()
+  const getImageUrl = useImageUrl()
+  const draftQuery = draftActions?.useInlineDraft(draftId)
+  const draft = draftQuery?.data
+  const metadata = draft?.metadata as {name?: string; summary?: string; icon?: string; cover?: string} | undefined
+  const name = metadata?.name || 'Untitled document'
+  const summary = metadata?.summary || 'Add some details here'
+  // Prefer cover image, but fall back to icon if no cover image is set
+  const imageCid = metadata?.cover || metadata?.icon
+  const imageUrl = imageCid ? getImageUrl(imageCid, 'S') : undefined
+
+  const handleOpen = () => {
+    if (!draft || !draftActions?.onOpenDraft) return
+    const editUid = (draft as any).editUid ?? draft.locationUid
+    if (!editUid) return
+    const editPath =
+      (draft as any).editPath?.length > 0 ? (draft as any).editPath : [...(draft.locationPath ?? []), `-${draftId}`]
+    draftActions.onOpenDraft(draftId, editPath)
+  }
+
+  return (
+    <div
+      contentEditable={false}
+      className="border-input bg-background my-2 flex w-full items-center gap-4 rounded-lg border p-3"
+    >
+      {/* Cover/icon. Falls back to a file icon placeholder when neither is set */}
+      <div className="bg-muted flex aspect-square w-24 shrink-0 items-center justify-center overflow-hidden rounded-md">
+        {imageUrl ? (
+          <img src={imageUrl} alt="" className="size-full object-cover" />
+        ) : (
+          <FileText className="text-muted-foreground/60 size-8" strokeWidth={1.5} />
+        )}
+      </div>
+
+      {/* Title / subtitle / badge */}
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        <SizableText size="xl" weight="bold" className={draft?.metadata?.name ? '' : 'text-muted-foreground/80'}>
+          {name}
+        </SizableText>
+        <SizableText className="text-muted-foreground/60">{summary}</SizableText>
+        <div className="mt-1">
+          <DraftBadge />
+        </div>
+      </div>
+
+      {/* 3-dot menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Draft options"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleOpen()
+            }}
+            disabled={!draftActions?.onOpenDraft || !draft}
+          >
+            <Pencil className="size-4" />
+            Open draft
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={async (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!draftActions?.onDeleteDraft) return
+              try {
+                await draftActions.onDeleteDraft(draftId)
+                // Also remove the embed block from the parent's content
+                editor.removeBlocks([blockId])
+              } catch (err) {
+                console.error('Failed to delete draft', err)
+              }
+            }}
+            disabled={!draftActions?.onDeleteDraft}
+          >
+            <Trash2 className="size-4" />
+            Delete draft
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
 const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
+  // When the embed points at an unpublished child draft,
+  // render a placeholder card instead of the URL input form.
+  if (block.props.draftId) {
+    return <DraftEmbedPlaceholder draftId={block.props.draftId} editor={editor} blockId={block.id} />
+  }
   const gwUrl = useGatewayUrlStream()
   const submitEmbed = async (url: string, assign: any, setFileName: any, setLoading: any) => {
     if (isPublicGatewayLink(url, gwUrl) || isHypermediaScheme(url)) {

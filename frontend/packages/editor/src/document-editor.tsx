@@ -15,7 +15,6 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef} from 'react'
-import {InlineAddBlockButton} from './inline-add-block-button'
 import {
   BlockHoverActionsPositioner,
   BlockNoteView,
@@ -32,9 +31,11 @@ import {
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
+import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
+import {InlineAddBlockButton} from './inline-add-block-button'
 import {MentionMenuPositioner} from './mention-menu-positioner'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
@@ -76,6 +77,7 @@ export function DocumentEditor({
   const openUrl = useOpenUrl()
   const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
   const getImageUrl = useImageUrl()
+  const onCreateInlineDraft = useDraftActions()?.onCreateInlineDraft
   const actorRef = useDocumentMachineRef()
   const canEdit = useDocumentSelector(selectCanEdit)
   const isEditing = useDocumentSelector(selectIsEditing)
@@ -141,7 +143,7 @@ export function DocumentEditor({
       willBeEditable: canEdit,
       renderType: 'document',
       blockSchema: hmBlockSchema,
-      getSlashMenuItems: () => getSlashMenuItems({docId: resourceId}),
+      getSlashMenuItems: () => getSlashMenuItems({docId: resourceId, onCreateInlineDraft}),
       onEditorContentChange() {
         if (suppressChangeRef.current) return
         actorRef.send({type: 'change'})

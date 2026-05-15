@@ -4,7 +4,7 @@ import {client} from '@/trpc'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Block, DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {prepareHMDocument} from '@shm/shared/document-utils'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -15,31 +15,69 @@ import {shouldAutoLinkParent} from '../utils/publish-utils'
 export {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 
 /**
- * Add an embed link to a parent draft file.
- *
- * Known limitation: if the user discards this draft later, the auto-link is lost.
+ * Walk editor blocks looking for an inline draft embed,
+ * and rewrite each match in place by setting the
+ * URL and clearing draftId. Returns the block
+ * tree and whether any rewrite happened.
  */
-export async function addLinkToParentDraft(parentDraftId: string, childId: UnpackedHypermediaId): Promise<void> {
+function rewriteInlineDraftEmbeds(
+  blocks: any[],
+  childDraftId: string,
+  childUrl: string,
+): {blocks: any[]; didRewrite: boolean} {
+  let didRewrite = false
+  const walk = (nodes: any[]): any[] =>
+    nodes.map((b) => {
+      if (b?.type === 'embed' && b?.props?.draftId && b.props.draftId === childDraftId) {
+        didRewrite = true
+        return {
+          ...b,
+          props: {
+            ...b.props,
+            url: childUrl,
+            draftId: '',
+            view: 'Card',
+          },
+        }
+      }
+      if (b?.children?.length) {
+        return {...b, children: walk(b.children)}
+      }
+      return b
+    })
+  const rewritten = walk(blocks)
+  return {blocks: rewritten, didRewrite}
+}
+
+/**
+ * Add or update an embed link to a parent draft.
+ *
+ * Known limitation: if the user discards this draft later, the link is lost.
+ */
+export async function addLinkToParentDraft(
+  parentDraftId: string,
+  childId: UnpackedHypermediaId,
+  childDraftId?: string,
+): Promise<void> {
   const draft = await client.drafts.get.query(parentDraftId)
   if (!draft) {
     throw new Error(`Draft ${parentDraftId} not found`)
   }
 
-  // Create new embed block in editor format
-  const newBlock = {
-    id: nanoid(10),
-    type: 'embed',
-    props: {
-      url: packHmId(childId),
-      view: 'Card',
-      defaultOpen: 'false',
-    },
-    content: [],
-    children: [],
-  }
+  const childUrl = packHmId(childId)
+  const originalContent = draft.content || []
 
-  // Append block to end of draft content
-  const updatedContent = [...(draft.content || []), newBlock]
+  let updatedContent: any[]
+  if (childDraftId) {
+    const {blocks, didRewrite} = rewriteInlineDraftEmbeds(originalContent, childDraftId, childUrl)
+    if (didRewrite) {
+      updatedContent = blocks
+    } else {
+      updatedContent = [...originalContent, buildAppendedEmbedBlock(childUrl)]
+    }
+  } else {
+    updatedContent = [...originalContent, buildAppendedEmbedBlock(childUrl)]
+  }
 
   // Write back to draft
   await client.drafts.write.mutate({
@@ -55,8 +93,62 @@ export async function addLinkToParentDraft(parentDraftId: string, childId: Unpac
     visibility: draft.visibility,
   })
 
-  // Invalidate draft queries to refresh any open editors
-  invalidateQueries([queryKeys.DRAFT, parentDraftId])
+  // Refetch draft queries.
+  await queryClient.refetchQueries({queryKey: [queryKeys.DRAFT, parentDraftId]})
+}
+
+/**
+ * Try to update an existing inline draft embed in the parent draft.
+ * Returns whether any rewrite happened.
+ */
+async function tryRewriteInlineDraftEmbed(
+  parentDraftId: string,
+  childId: UnpackedHypermediaId,
+  childDraftId: string,
+): Promise<boolean> {
+  const draft = await client.drafts.get.query(parentDraftId)
+  if (!draft) throw new Error(`Draft ${parentDraftId} not found`)
+
+  const childUrl = packHmId(childId)
+  const originalContent = draft.content || []
+  const {blocks, didRewrite} = rewriteInlineDraftEmbeds(originalContent, childDraftId, childUrl)
+  if (!didRewrite) return false
+
+  await client.drafts.write.mutate({
+    id: draft.id,
+    locationUid: draft.locationUid,
+    locationPath: draft.locationPath,
+    editUid: draft.editUid,
+    editPath: draft.editPath,
+    metadata: draft.metadata,
+    content: blocks,
+    deps: draft.deps,
+    navigation: draft.navigation,
+    visibility: draft.visibility,
+  })
+
+  // Refetch (not just invalidate) so the cache has the rewritten
+  // content before this function returns. Awaiting matters: when the user
+  // navigates back to the parent draft in the same window, React Query would
+  // otherwise hand the editor the stale cached version while a background
+  // refetch is still in flight, and the editor's 'frozenBlocksRef' captures
+  // the first blocks it sees, freezing the stale state until a hard reload.
+  await queryClient.refetchQueries({queryKey: [queryKeys.DRAFT, parentDraftId]})
+  return true
+}
+
+function buildAppendedEmbedBlock(childUrl: string) {
+  return {
+    id: nanoid(10),
+    type: 'embed',
+    props: {
+      url: childUrl,
+      view: 'Card',
+      defaultOpen: 'false',
+    },
+    content: [],
+    children: [],
+  }
 }
 
 /**
@@ -154,10 +246,15 @@ export type AutoLinkParentResult =
  */
 export async function autoLinkParentAfterPublish({
   childId,
+  childDraftId,
   signingAccountUid,
   isPrivate,
 }: {
   childId: UnpackedHypermediaId
+  /** Local id of the draft that was just published. When provided and the
+   * parent draft contains an inline draft embed referencing this id, the
+   * embed is rewritten in place instead of an append being added. */
+  childDraftId?: string
   signingAccountUid: string | undefined
   isPrivate: boolean
 }): Promise<AutoLinkParentResult> {
@@ -173,7 +270,32 @@ export async function autoLinkParentAfterPublish({
   const parentPath = childPath.slice(0, -1)
   const parentId = hmId(childId.uid, {path: parentPath})
 
-  // Fetch parent document from gRPC directly — this helper runs outside React.
+  // Look up the parent's draft before fetching the published doc.
+  // For nested draft chains the parent has no published version yet, so the
+  // published doc fetch below will fail, but we can still rewrite the
+  // matching inline draft embed inside the parent's draft content.
+  const parentDraft = await client.drafts.findByEdit.query({
+    editUid: parentId.uid,
+    editPath: parentPath,
+  })
+
+  // When childDraftId is provided AND the parent
+  // has a draft with a matching embed, rewrite it in place. This works
+  // regardless of whether the parent itself has been published, which is
+  // what makes deeply nested draft chains transition correctly.
+  if (parentDraft?.id && childDraftId) {
+    const didRewrite = await tryRewriteInlineDraftEmbed(parentDraft.id, childId, childDraftId)
+    if (didRewrite) {
+      invalidateQueries([queryKeys.DRAFT, parentDraft.id])
+      invalidateQueries([queryKeys.ENTITY, parentId.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, parentId.id])
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+      return {kind: 'added-to-draft', parentId, parentDraftId: parentDraft.id}
+    }
+  }
+
+  // Append a Card embed at the parent's end when no
+  // matching inline embed exists.
   let parentDocument: HMDocument | null = null
   try {
     const rawParent = await grpcClient.documents.getDocument({
@@ -189,19 +311,13 @@ export async function autoLinkParentAfterPublish({
     return {kind: 'skipped', reason: 'no-parent-doc'}
   }
 
-  // Fetch parent draft (if any) so we can write to it instead of publishing.
-  const parentDraft = await client.drafts.findByEdit.query({
-    editUid: parentId.uid,
-    editPath: parentPath,
-  })
-
   const willAddLink = shouldAutoLinkParent(isPrivate, parentDocument, childId, parentId)
   if (!willAddLink) {
     return {kind: 'skipped', reason: 'should-not-link'}
   }
 
   if (parentDraft?.id) {
-    await addLinkToParentDraft(parentDraft.id, childId)
+    await addLinkToParentDraft(parentDraft.id, childId, childDraftId)
     invalidateQueries([queryKeys.DRAFT, parentDraft.id])
     invalidateQueries([queryKeys.ENTITY, parentId.id])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, parentId.id])
