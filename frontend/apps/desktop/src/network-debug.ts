@@ -59,6 +59,7 @@ export class ConnectionMonitor {
   }
 
   logStats() {
+    if (log.isQuietNodeLogsEnabled()) return
     const stats = this.getStats()
     log.info('📊 Connection Stats:', stats)
 

@@ -7,6 +7,13 @@ import {userDataPath} from './app-paths'
 
 export const loggingDir = join(userDataPath, 'logs')
 
+/**
+ * Reports whether node-side logs should avoid stdout/stderr console output.
+ */
+export function isQuietNodeLogsEnabled() {
+  return process.env.QUIET_NODE_LOGS === 'true'
+}
+
 const customJSONFormatter = winston.format((info: any) => {
   if (info.isRaw) {
     info[MESSAGE] = info.message
@@ -42,7 +49,7 @@ const winstonLogger = winston.createLogger({
   ],
 })
 
-if (!IS_PROD_DESKTOP) {
+if (!IS_PROD_DESKTOP && !isQuietNodeLogsEnabled()) {
   winstonLogger.add(
     new winston.transports.Console({
       level: 'debug',

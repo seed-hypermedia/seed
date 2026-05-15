@@ -11,9 +11,9 @@ import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
-import {childLogger, debug, info, warn} from './logger'
+import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 
-const quietNodeLogs = process.env.QUIET_NODE_LOGS === 'true'
+const quietNodeLogs = isQuietNodeLogsEnabled()
 import {logWindowOpen, logWindowClose} from './memory-profiler-window'
 import {mergeWindowNavState, type WindowNavState} from './utils/account-selection'
 

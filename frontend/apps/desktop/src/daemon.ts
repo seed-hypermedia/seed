@@ -10,7 +10,7 @@ import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
 
-const quietNodeLogs = process.env.QUIET_NODE_LOGS === 'true'
+const quietNodeLogs = log.isQuietNodeLogsEnabled()
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
 

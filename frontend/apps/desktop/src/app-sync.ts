@@ -495,21 +495,33 @@ function processEventsInner(events: Event[]) {
   }
 }
 
-// Event types to poll from the activity feed
-const ACTIVITY_EVENT_TYPES = ['Ref', 'Comment', 'Capability', 'Contact', 'Profile']
+// Poll the activity feed without a type filter. Subscribed-resource invalidation
+// depends on seeing every new resource-related blob, not just feed-visible types.
+const ACTIVITY_EVENT_FILTER = 'all'
 
 async function fetchNewEvents(): Promise<Event[]> {
   if (!state.lastEventId) {
-    // First poll: fetch recent events and process them so that profiles/refs
-    // that were indexed before polling started still trigger invalidation.
+    // First poll: set a watermark so existing feed events are not replayed.
     const response = await grpcClient.activityFeed.listEvents({
       pageSize: ACTIVITY_PAGE_SIZE,
-      filterEventType: ACTIVITY_EVENT_TYPES,
     })
     if (response.events[0]) {
       state.lastEventId = getEventId(response.events[0])
     }
-    return response.events
+    console.log('[Sync] Activity monitor watermark initialized; existing feed events will not be replayed', {
+      eventCount: response.events.length,
+      filterEventType: ACTIVITY_EVENT_FILTER,
+      pageSize: ACTIVITY_PAGE_SIZE,
+      watermarkEventId: state.lastEventId,
+    })
+    if (response.nextPageToken) {
+      console.log('[Sync] Initial activity poll returned a truncated page while setting the watermark', {
+        pageSize: ACTIVITY_PAGE_SIZE,
+        eventCount: response.events.length,
+        newestEventId: state.lastEventId,
+      })
+    }
+    return []
   }
 
   const eventsToProcess: Event[] = []
@@ -519,7 +531,6 @@ async function fetchNewEvents(): Promise<Event[]> {
     const response = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: ACTIVITY_PAGE_SIZE,
-      filterEventType: ACTIVITY_EVENT_TYPES,
     })
 
     for (const event of response.events) {
@@ -545,6 +556,12 @@ async function pollActivity() {
     await timeAsync('pollActivity', async () => {
       const newEvents = await fetchNewEvents()
       if (newEvents.length > 0) {
+        console.log('[Sync] Activity poll found new events', {
+          eventCount: newEvents.length,
+          previousWatermarkEventId: state.lastEventId,
+          nextWatermarkEventId: getEventId(newEvents[0]!),
+          filterEventType: ACTIVITY_EVENT_FILTER,
+        })
         if (PROFILE_ENABLED) {
           profileLog(`pollActivity: ${newEvents.length} new events`)
         }
@@ -571,14 +588,20 @@ function scheduleNextActivityPoll() {
 
 function ensureActivityPolling() {
   if (state.activityPollTimer) return
+  // Set a placeholder before starting the async poll so concurrent subscriptions
+  // in the same tick cannot double-start the monitor.
+  state.activityPollTimer = setTimeout(() => {}, 0)
   ensureFocusListener()
+  console.log('[Sync] Starting activity monitor', {
+    filterEventType: ACTIVITY_EVENT_FILTER,
+    pageSize: ACTIVITY_PAGE_SIZE,
+    intervalMs: getAdaptiveInterval(ACTIVITY_POLL_INTERVAL_MS),
+  })
   pollActivity().finally(() => {
     if (state.activityPollTimer !== null || state.subscriptions.size > 0) {
       scheduleNextActivityPoll()
     }
   })
-  // Set a placeholder so we don't double-start (will be replaced by scheduleNextActivityPoll)
-  state.activityPollTimer = setTimeout(() => {}, 0)
 }
 
 function stopActivityPolling() {

@@ -1,3 +1,5 @@
+import {Code, ConnectError} from '@connectrpc/connect'
+
 const ENABLE_VERBOSE_LOGGING = process.env.VERBOSE === 'true'
 const REDACTED_MESSAGE = '[REDACTED]'
 const SENSITIVE_RPC_METHODS = new Set([
@@ -16,6 +18,15 @@ export function isSensitiveRPCMethod(serviceTypeName: string, methodName: string
   return SENSITIVE_RPC_METHODS.has(`${serviceName}.${methodName}`)
 }
 
+/**
+ * Reports whether quiet logging should skip an expected RPC error.
+ */
+export function shouldSuppressRPCErrorLog(methodName: string, error: unknown): boolean {
+  if (process.env.QUIET_NODE_LOGS !== 'true') return false
+  const connectError = ConnectError.from(error)
+  return methodName === 'GetAccount' && connectError.code === Code.NotFound
+}
+
 // @ts-expect-error - interceptor types from connect-web not imported for simplicity
 export const loggingInterceptor = (next) => async (req) => {
   const isSensitive = isSensitiveRPCMethod(req.service.typeName, req.method.name)
@@ -32,11 +43,13 @@ export const loggingInterceptor = (next) => async (req) => {
     return result
   } catch (e) {
     clearTimeout(timeout)
-    console.error(
-      `🚨 to ${req.method.name}`,
-      isSensitive ? REDACTED_MESSAGE : req.message,
-      isSensitive ? (e instanceof Error ? e.message : String(e)) : e,
-    )
+    if (!shouldSuppressRPCErrorLog(req.method.name, e)) {
+      console.error(
+        `🚨 to ${req.method.name}`,
+        isSensitive ? REDACTED_MESSAGE : req.message,
+        isSensitive ? (e instanceof Error ? e.message : String(e)) : e,
+      )
+    }
     throw e
   }
 }

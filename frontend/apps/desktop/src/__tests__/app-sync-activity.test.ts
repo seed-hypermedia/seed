@@ -29,12 +29,19 @@ vi.mock('../app-trpc', () => ({
 vi.mock('@/grpc-client', () => ({
   grpcClient: {
     activityFeed: {listEvents: vi.fn()},
+    entities: {discoverEntity: vi.fn()},
+    resources: {getResource: vi.fn()},
     documents: {getContact: vi.fn()},
     comments: {getComment: vi.fn().mockRejectedValue(new Error('not mocked'))},
     daemon: {},
     networking: {},
   },
 }))
+
+async function getGrpcClientMock() {
+  const {grpcClient} = await import('@/grpc-client')
+  return grpcClient as any
+}
 
 // ---- Helpers to build test events ----
 
@@ -65,6 +72,7 @@ function makeBlobEvent(blobType: string, resource: string, author: string = 'z6M
 describe('activity event processing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
   })
 
   describe('extractResource', () => {
@@ -171,6 +179,28 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.CONTACTS_ACCOUNT, 'z6MkContactAuthor'])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
+    })
+  })
+
+  describe('activity monitor startup', () => {
+    it('starts the monitor only once when subscriptions are created before the first poll resolves', async () => {
+      const grpcClient = await getGrpcClientMock()
+      grpcClient.activityFeed.listEvents.mockReturnValue(new Promise(() => {}))
+
+      const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const {subscribe} = await loadModule()
+
+      const unsubscribeA = subscribe({id: {id: 'hm://z6MkOwner/doc-a', uid: 'z6MkOwner', path: ['doc-a']}} as any)
+      const unsubscribeB = subscribe({id: {id: 'hm://z6MkOwner/doc-b', uid: 'z6MkOwner', path: ['doc-b']}} as any)
+
+      const starts = consoleLog.mock.calls.filter((call) =>
+        String(call[0]).includes('[Sync] Starting activity monitor'),
+      )
+      expect(starts).toHaveLength(1)
+
+      unsubscribeA()
+      unsubscribeB()
+      consoleLog.mockRestore()
     })
   })
 })
