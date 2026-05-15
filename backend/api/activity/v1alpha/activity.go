@@ -76,8 +76,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 	var events []*activity.Event
-	// Track the structural timestamp (ms) used for DB paging, aligned with events slice.
-	var cursorTS []int64
+	// Track the local blob insertion order used for DB paging, aligned with events slice.
+	var eventCursorBlobIDs []int64
 	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	var authorsJSON, linkTypesJSON string
@@ -195,7 +195,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.StructuralBlobsTs.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.StructuralBlobsTs.String() + " desc limit :page_size"
+		pageTokenStr = storage.StructuralBlobsID.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.StructuralBlobsID.String() + " desc limit :page_size"
 	)
 	if req.PageSize <= 0 {
 		req.PageSize = 30
@@ -216,7 +216,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			eventType := stmt.ColumnText(1)
 			author := stmt.ColumnBytes(2)
 			resource := stmt.ColumnText(3)
-			// Structural timestamp (ms) used for DB paging
+			// Structural timestamp (ms) is the event's authored timestamp.
 			structTsMillis := stmt.ColumnInt64(4)
 			eventTime := timestamppb.New(time.UnixMilli(structTsMillis))
 			observeTime := timestamppb.New(time.Unix(stmt.ColumnInt64(5), 0))
@@ -248,7 +248,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				ObserveTime: observeTime,
 			}
 			events = append(events, &event)
-			cursorTS = append(cursorTS, structTsMillis)
+			eventCursorBlobIDs = append(eventCursorBlobIDs, id)
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(10), 10))
 			return nil
 		}, cursorBlobID, req.PageSize)
@@ -366,7 +366,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					target     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-					// Structural timestamp (ms) used for DB paging
+					// Structural timestamp (ms) is the event's authored timestamp.
 					structTsMillis = stmt.ColumnInt64(4)
 					eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
 					blobType       = stmt.ColumnText(5)
@@ -376,8 +376,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					targetVersion = stmt.ColumnText(8)
 					fragment      = stmt.ColumnText(9)
 
-					linkType = stmt.ColumnText(10)
-					//blobID      = stmt.ColumnInt64(11)
+					linkType    = stmt.ColumnText(10)
+					blobID      = stmt.ColumnInt64(11)
 					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 					tsid        = blob.TSID(stmt.ColumnText(13))
 					//extraAttrs  = stmt.ColumnText(14)
@@ -419,7 +419,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					ObserveTime: observeTime,
 				}
 				events = append(events, &event)
-				cursorTS = append(cursorTS, structTsMillis)
+				eventCursorBlobIDs = append(eventCursorBlobIDs, blobID)
 				return nil
 			}, args...); err != nil {
 				return err
@@ -479,18 +479,21 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 
 	nonDeleted := make([]*activity.Event, 0, len(events))
-	for _, e := range events {
+	nonDeletedCursors := make([]int64, 0, len(eventCursorBlobIDs))
+	for i, e := range events {
 		// switch on event type
 		// for mentions
 		if _, ok := e.Data.(*activity.Event_NewMention); ok {
 			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
 				nonDeleted = append(nonDeleted, e)
+				nonDeletedCursors = append(nonDeletedCursors, eventCursorBlobIDs[i])
 			}
 			continue
 		}
 		// for new blobs
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
 			nonDeleted = append(nonDeleted, e)
+			nonDeletedCursors = append(nonDeletedCursors, eventCursorBlobIDs[i])
 		}
 	}
 
@@ -508,6 +511,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				e.EventTime.AsTime().UnixNano())
 			if _, ok := seen[key]; ok {
 				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
 				i--
 			} else {
 				seen[key] = struct{}{}
@@ -522,6 +526,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				e.EventTime.AsTime().UnixNano())
 			if _, ok := seen[key]; ok {
 				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
 				i--
 			} else {
 				seen[key] = struct{}{}
@@ -530,39 +535,40 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 
-	// Sort by EventTime for display, but paginate using structural ts (ms).
+	// Sort and paginate by local blob insertion order so newly discovered old events
+	// still appear at the front of the feed.
 	idx := make([]int, len(nonDeleted))
 	for i := range idx {
 		idx[i] = i
 	}
 	sort.Slice(idx, func(i, j int) bool {
-		return nonDeleted[idx[i]].EventTime.AsTime().After(nonDeleted[idx[j]].EventTime.AsTime())
+		return nonDeletedCursors[idx[i]] > nonDeletedCursors[idx[j]]
 	})
 	sortedEvents := make([]*activity.Event, len(nonDeleted))
-	sortedCursorTS := make([]int64, len(cursorTS))
+	sortedCursorBlobIDs := make([]int64, len(nonDeletedCursors))
 	for k, i := range idx {
 		sortedEvents[k] = nonDeleted[i]
-		sortedCursorTS[k] = cursorTS[i]
+		sortedCursorBlobIDs[k] = nonDeletedCursors[i]
 	}
 	events = sortedEvents
-	cursorTS = sortedCursorTS
+	eventCursorBlobIDs = sortedCursorBlobIDs
 
 	// Apply page size to both arrays.
 	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
 	events = events[:pageLen]
-	cursorTS = cursorTS[:pageLen]
+	eventCursorBlobIDs = eventCursorBlobIDs[:pageLen]
 
-	// Next page token based on the minimum structural ts (ms) in the returned page.
+	// Next page token based on the minimum local blob ID in the returned page.
 	var nextPageToken string
 	if pageLen > 0 && int(req.PageSize) == pageLen {
-		minTS := cursorTS[0]
-		for _, ts := range cursorTS[1:] {
-			if ts != 0 && (minTS == 0 || ts < minTS) {
-				minTS = ts
+		minBlobID := eventCursorBlobIDs[0]
+		for _, blobID := range eventCursorBlobIDs[1:] {
+			if blobID != 0 && (minBlobID == 0 || blobID < minBlobID) {
+				minBlobID = blobID
 			}
 		}
-		if minTS != 0 {
-			nextPageToken = apiutil.EncodePageToken(minTS-1, nil)
+		if minBlobID != 0 {
+			nextPageToken = apiutil.EncodePageToken(minBlobID-1, nil)
 		}
 	}
 
@@ -740,7 +746,7 @@ LEFT JOIN resources r2
         ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
      END
 WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
-AND structural_blobs.ts <= :idx
+AND structural_blobs.id <= :idx
 `
 var authorsFilterMentions = `
 AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
@@ -750,6 +756,6 @@ AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
 `
 var limitMentions = `
 GROUP BY resources.iri, target_version, target_fragment, source_iri
-ORDER BY structural_blobs.ts DESC
+ORDER BY structural_blobs.id DESC
 LIMIT :page_size;
 `
