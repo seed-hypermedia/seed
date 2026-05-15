@@ -31,6 +31,7 @@ export function startApiServer(): Promise<void> {
     }
 
     server = http.createServer(async (req, res) => {
+      // Leaving CORS broad on purpose.
       if (req.method === 'OPTIONS') {
         res.writeHead(204, {
           'Access-Control-Allow-Origin': '*',
@@ -39,6 +40,23 @@ export function startApiServer(): Promise<void> {
         })
         res.end()
         return
+      }
+
+      const forbid = () => {
+        res.writeHead(403, {'Content-Type': 'application/json'})
+        res.end(JSON.stringify({error: 'Forbidden'}))
+      }
+
+      const site = req.headers['sec-fetch-site']
+
+      // Missing fetch metadata headers in a browser request means some weird browser — so we reject it.
+      if (req.headers.origin && !site) {
+        return forbid()
+      }
+
+      // If fetch metadata is present and we detect that it's cross-site — we reject it.
+      if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
+        return forbid()
       }
 
       const url = new URL(req.url || '/', `http://127.0.0.1:${API_HTTP_PORT}`)
@@ -65,6 +83,10 @@ export function startApiServer(): Promise<void> {
       res.writeHead(result.status, result.headers)
       res.end(result.body)
     })
+
+    // TODO(burdiyan): our app already has one HTTP server which serves our HTML entrypoints in production,
+    // so in theory we could've reused the same server for the API. But that would need a bit of a refactor,
+    // which we don't want to do at the moment.
 
     const port = Number(API_HTTP_PORT)
     server.listen(port, '127.0.0.1', () => {
