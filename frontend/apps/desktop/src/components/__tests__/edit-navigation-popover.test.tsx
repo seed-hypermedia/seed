@@ -229,7 +229,7 @@ describe('EditNavPopover trigger', () => {
 
     try {
       const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
-      const labelInput = container.querySelector('input[placeholder="My Link..."]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link…"]') as HTMLInputElement
 
       await act(async () => {
         linkInput.focus()
@@ -257,7 +257,7 @@ describe('EditNavPopover trigger', () => {
 
     try {
       const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
-      const labelInput = container.querySelector('input[placeholder="My Link..."]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link…"]') as HTMLInputElement
 
       await act(async () => {
         linkInput.focus()
