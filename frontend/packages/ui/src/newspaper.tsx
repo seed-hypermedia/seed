@@ -197,7 +197,7 @@ export function DocumentCard({
       })
     }
     return items
-  }, [actions, docId, doc, isOwner, isLoggedIn, hasPath])
+  }, [actions, docId, doc, isOwner, isLoggedIn, hasPath, onCopyReference, onPushReference, origin])
 
   const sharedProps = {
     ...highlighter(docId),

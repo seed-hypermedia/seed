@@ -247,6 +247,9 @@ export function DocumentListItem({
     isOwner,
     isLoggedIn,
     hasPath,
+    onCopyReference,
+    onPushReference,
+    origin,
   ])
 
   const hasActions = !!actions.onBookmarkToggle || commentCount > 0 || menuItems.length > 0

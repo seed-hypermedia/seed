@@ -13,6 +13,7 @@ import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useQuery} from '@tanstack/react-query'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
+import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -294,30 +295,32 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderWebInlineEditor}
       >
-        <ResourcePage
-          docId={docId}
-          CommentEditor={CommentEditor}
-          pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
-          onEditProfile={onEditProfile}
-          profileHeaderButtons={profileHeaderButtons}
-          onFollowClick={onFollowClick}
-          rightActions={<WebHeaderActions siteUid={docId.uid} />}
-          inlineInsert={inlineInsert}
-          DocumentContentComponent={DocumentContentComponent}
-          ssrContentHTML={ssrContentHTML}
-          perspectiveAccountUid={ownAccountUid}
-          canEdit={canEdit}
-          machine={machine}
-          signingAccountId={signingAccountId ?? undefined}
-          publishAccountUid={signingAccountId ?? undefined}
-          onEditorReady={onEditorReady}
-          existingDraft={existingDraft}
-          existingDraftContent={existingDraftContent}
-          existingDraftCursorPosition={existingDraftCursorPosition}
-          editingFloatingActions={editingFloatingActions}
-          draftActions={draftActions}
-          fileUpload={fileUpload}
-        />
+        <DocumentActionsProvider onCopyLink={() => {}}>
+          <ResourcePage
+            docId={docId}
+            CommentEditor={CommentEditor}
+            pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+            onEditProfile={onEditProfile}
+            profileHeaderButtons={profileHeaderButtons}
+            onFollowClick={onFollowClick}
+            rightActions={<WebHeaderActions siteUid={docId.uid} />}
+            inlineInsert={inlineInsert}
+            DocumentContentComponent={DocumentContentComponent}
+            ssrContentHTML={ssrContentHTML}
+            perspectiveAccountUid={ownAccountUid}
+            canEdit={canEdit}
+            machine={machine}
+            signingAccountId={signingAccountId ?? undefined}
+            publishAccountUid={signingAccountId ?? undefined}
+            onEditorReady={onEditorReady}
+            existingDraft={existingDraft}
+            existingDraftContent={existingDraftContent}
+            existingDraftCursorPosition={existingDraftCursorPosition}
+            editingFloatingActions={editingFloatingActions}
+            draftActions={draftActions}
+            fileUpload={fileUpload}
+          />
+        </DocumentActionsProvider>
       </CommentsProvider>
       {editProfileDialog.content}
       {followAccountContent}

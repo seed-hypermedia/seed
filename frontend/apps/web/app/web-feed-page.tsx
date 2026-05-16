@@ -1,5 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
+import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {Spinner} from '@shm/ui/spinner'
 import {FeedPage} from '@shm/ui/feed-page-common'
 import {lazy, Suspense} from 'react'
@@ -22,7 +23,9 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <WebSitePageShell siteUid={docId.uid}>
       <CommentsProvider renderInlineEditor={renderWebInlineEditor}>
-        <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions siteUid={docId.uid} />} />
+        <DocumentActionsProvider onCopyLink={() => {}}>
+          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions siteUid={docId.uid} />} />
+        </DocumentActionsProvider>
       </CommentsProvider>
     </WebSitePageShell>
   )
