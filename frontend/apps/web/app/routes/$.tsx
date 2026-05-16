@@ -48,6 +48,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
+  commentVersion?: string | null
   accountUid?: string | null
   inspectTab?: InspectTab | null
 }
@@ -294,6 +295,10 @@ export const loader = async ({params, request}: {params: Params; request: Reques
   let documentId
   let isInspect = false
   let viewTerm: ViewRouteKey | null = null
+  // On comment permalink routes, ?v refers to the comment version CID, not
+  // the target document version. Keep it off the document lookup or the
+  // target document resolves as not found.
+  let isCommentPermalink = false
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
   let openComment: string | null = null
@@ -313,12 +318,13 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(docUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   } else {
     // Site document (regular path) or inspector document (/inspect/path...)
@@ -332,12 +338,13 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   }
 
@@ -347,6 +354,7 @@ export const loader = async ({params, request}: {params: Params; request: Reques
       viewTerm,
       panelParam: effectivePanelParam,
       openComment,
+      commentVersion: isCommentPermalink ? version : null,
       accountUid,
       isInspect,
       inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
