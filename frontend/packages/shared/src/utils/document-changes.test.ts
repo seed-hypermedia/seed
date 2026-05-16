@@ -1,6 +1,7 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {deduplicateBlockIds} from './document-changes'
+import {compareBlocksWithMap, createBlocksMap, deduplicateBlockIds} from './document-changes'
 
 function para(id: string, children: EditorBlock[] = []): EditorBlock {
   return {
@@ -10,6 +11,29 @@ function para(id: string, children: EditorBlock[] = []): EditorBlock {
     content: [],
     children,
   } as EditorBlock
+}
+
+function paraWithText(id: string, text: string, children: EditorBlock[] = []): EditorBlock {
+  return {
+    type: 'paragraph',
+    id,
+    props: {},
+    content: [{type: 'text', text, styles: {}}],
+    children,
+  } as EditorBlock
+}
+
+function publishedNode(id: string, text = '', children: HMBlockNode[] = []): HMBlockNode {
+  return {
+    block: {
+      id,
+      type: 'Paragraph',
+      text,
+      attributes: {},
+      annotations: [],
+    } as HMBlockNode['block'],
+    children,
+  }
 }
 
 describe('deduplicateBlockIds', () => {
@@ -90,5 +114,58 @@ describe('deduplicateBlockIds', () => {
       expect(result[0]!.children[0]!.id).toBe('x')
       expect(result[1]!.id).not.toBe('x')
     })
+  })
+
+  it('replaces empty/missing IDs with fresh ones', () => {
+    const blocks = [para(''), para(''), para('keep')]
+    const result = deduplicateBlockIds(blocks)
+    expect(result[0]!.id).not.toBe('')
+    expect(result[1]!.id).not.toBe('')
+    expect(result[0]!.id).not.toBe(result[1]!.id)
+    expect(result[2]!.id).toBe('keep')
+  })
+
+  it('retries the generate factory on collision', () => {
+    const sequence = ['dup', 'dup', 'fresh']
+    let i = 0
+    const generate = () => sequence[i++] ?? 'fallback'
+    const blocks = [para('dup'), para('dup')]
+    const result = deduplicateBlockIds(blocks, new Set(), generate)
+    expect(result[0]!.id).toBe('dup')
+    expect(result[1]!.id).toBe('fresh')
+  })
+})
+
+describe('compareBlocksWithMap (publish-diff path)', () => {
+  it('never emits moveBlock with blockId === leftSibling for duplicate sibling subtrees', () => {
+    const base: HMBlockNode[] = [publishedNode('parent', '', [publishedNode('dup', 'base child')])]
+    const draft: EditorBlock[] = [
+      paraWithText('parent', '', [paraWithText('dup', 'first copy'), paraWithText('dup', 'second copy')]),
+    ]
+
+    const blocksMap = createBlocksMap(base, '')
+    const {changes} = compareBlocksWithMap(blocksMap, draft, '')
+
+    const selfMoves = changes.filter((change) => {
+      if (change.op?.case !== 'moveBlock') return false
+      const move = change.op.value
+      return move.blockId === move.leftSibling
+    })
+
+    expect(selfMoves).toEqual([])
+  })
+
+  it('does not emit self-moves when duplicate sibling IDs appear at top level', () => {
+    const draft: EditorBlock[] = [paraWithText('a', 'one'), paraWithText('a', 'two'), paraWithText('a', 'three')]
+
+    const {changes} = compareBlocksWithMap({}, draft, '')
+
+    const selfMoves = changes.filter((change) => {
+      if (change.op?.case !== 'moveBlock') return false
+      const move = change.op.value
+      return move.blockId === move.leftSibling
+    })
+
+    expect(selfMoves).toEqual([])
   })
 })

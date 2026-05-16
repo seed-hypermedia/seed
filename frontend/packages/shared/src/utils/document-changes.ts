@@ -131,6 +131,11 @@ export function createBlocksMap(blockNodes: Array<HMBlockNode> = [], parentId: s
 }
 
 export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
+  const repaired = deduplicateBlockIds(blocks, new Set(Object.keys(blocksMap)))
+  return compareUniqueBlocksWithMap(blocksMap, repaired, parentId)
+}
+
+function compareUniqueBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBlock>, parentId: string) {
   let changes: Array<DocumentChange> = []
   let touchedBlocks: Array<string> = []
 
@@ -202,7 +207,7 @@ export function compareBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorB
     }
 
     if (block.children.length) {
-      let nestedResults = compareBlocksWithMap(blocksMap, block.children, block.id)
+      let nestedResults = compareUniqueBlocksWithMap(blocksMap, block.children, block.id)
       changes = [...changes, ...nestedResults.changes]
       touchedBlocks = [...touchedBlocks, ...nestedResults.touchedBlocks]
     }
@@ -610,20 +615,32 @@ function buildChildrenMap(nodes: HMBlockNode[]): Map<string, HMBlockNode[]> {
  * Published IDs (from blocksMap) are "reserved": the first encounter
  * of a published ID always keeps it; only subsequent occurrences are
  * renamed. Non-published duplicate IDs follow the same first-wins rule.
+ * Empty / falsy IDs are always replaced. The `generate` factory is
+ * called in a loop until it produces an ID not already in use.
  */
-export function deduplicateBlockIds(blocks: EditorBlock[], publishedIds = new Set<string>()): EditorBlock[] {
+export function deduplicateBlockIds(
+  blocks: EditorBlock[],
+  publishedIds = new Set<string>(),
+  generate: () => string = () => nanoid(8),
+): EditorBlock[] {
   const usedIds = new Set<string>(publishedIds)
   const claimedPublished = new Set<string>()
 
+  function freshId(): string {
+    let id = generate()
+    while (!id || usedIds.has(id)) id = generate()
+    return id
+  }
+
   function walk(block: EditorBlock): EditorBlock {
     let id = block.id
-    const isFirstPublishedEncounter = publishedIds.has(id) && !claimedPublished.has(id)
+    const isFirstPublishedEncounter = !!id && publishedIds.has(id) && !claimedPublished.has(id)
 
-    if (usedIds.has(id) && !isFirstPublishedEncounter) {
-      id = nanoid(8)
+    if (!id || (usedIds.has(id) && !isFirstPublishedEncounter)) {
+      id = freshId()
     }
 
-    if (publishedIds.has(block.id)) claimedPublished.add(block.id)
+    if (block.id && publishedIds.has(block.id)) claimedPublished.add(block.id)
     usedIds.add(id)
 
     const children = block.children.map(walk)
