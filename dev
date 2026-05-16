@@ -79,7 +79,7 @@ def main():
 
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
-        # run("node scripts/cleanup-desktop.js")
+        run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
