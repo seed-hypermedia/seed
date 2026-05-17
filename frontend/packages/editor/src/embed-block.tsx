@@ -174,6 +174,42 @@ function DraftEmbedPlaceholder({
   )
 }
 
+// Result of attempting to resolve a URL for embedding. Pure to keep it testable.
+export type EmbedResolveResult =
+  | {kind: 'direct'; url: string}
+  | {kind: 'resolved'; url: string}
+  | {kind: 'no-match'}
+  | {kind: 'error'; error: unknown}
+
+/**
+ * Resolve an arbitrary URL into something usable as an embed reference.
+ * - Direct: input was already `hm://` or a public gateway link — normalize and return.
+ * - Resolved: arbitrary web URL successfully resolved to a Hypermedia document via the domain resolver / OPTIONS fallback.
+ * - No-match: resolver ran without throwing but did not find a Hypermedia hmId.
+ * - Error: resolver threw (network failure, CORS, etc).
+ */
+export async function resolveEmbedUrl(
+  url: string,
+  opts: {
+    gwUrl?: any
+    domainResolver?: (hostname: string) => Promise<string | null>
+  } = {},
+): Promise<EmbedResolveResult> {
+  if (isPublicGatewayLink(url, opts.gwUrl) || isHypermediaScheme(url)) {
+    const hmLink = normalizeHmId(url, opts.gwUrl)
+    return {kind: 'direct', url: hmLink ?? url}
+  }
+  try {
+    const res = await resolveHypermediaUrl(url, {domainResolver: opts.domainResolver})
+    if (res?.hmId) {
+      return {kind: 'resolved', url: packHmId(res.hmId)}
+    }
+    return {kind: 'no-match'}
+  } catch (error) {
+    return {kind: 'error', error}
+  }
+}
+
 const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
   // When the embed points at an unpublished child draft,
   // render a placeholder card instead of the URL input form.
@@ -182,10 +218,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }
   const gwUrl = useGatewayUrlStream()
   const submitEmbed = async (url: string, assign: any, setFileName: any, setLoading: any) => {
-    if (isPublicGatewayLink(url, gwUrl) || isHypermediaScheme(url)) {
-      const hmLink = normalizeHmId(url, gwUrl)
-      const newUrl = hmLink ? hmLink : url
-      assign({props: {url: newUrl}} as MediaType)
+    const advanceCursor = () => {
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()
       if (cursorPosition.block.id === block.id) {
@@ -195,36 +228,39 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
         }
       }
-    } else {
-      setLoading(true)
-      resolveHypermediaUrl(url, {domainResolver: editor.domainResolver})
-        .then((res) => {
-          if (res?.hmId) {
-            assign({props: {url: packHmId(res.hmId)}} as MediaType)
-            const cursorPosition = editor.getTextCursorPosition()
-            editor.focus()
-            if (cursorPosition.block.id === block.id) {
-              if (cursorPosition.nextBlock) editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
-              else {
-                editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
-                editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
-              }
-            }
-          } else {
-            setFileName({
-              name: 'The provided url is not a hypermedia link',
-              color: 'red',
-            })
-          }
-          setLoading(false)
+    }
+
+    setLoading(true)
+    const result = await resolveEmbedUrl(url, {gwUrl, domainResolver: editor.domainResolver})
+    setLoading(false)
+
+    switch (result.kind) {
+      case 'direct':
+      case 'resolved':
+        assign({props: {url: result.url}} as MediaType)
+        advanceCursor()
+        return
+      case 'no-match':
+        console.warn('[embed-block] resolveHypermediaUrl returned no hmId', {
+          url,
+          hasDomainResolver: !!editor.domainResolver,
         })
-        .catch((e) => {
-          setFileName({
-            name: 'The provided url is not a hypermedia link',
-            color: 'red',
-          })
-          setLoading(false)
+        setFileName({
+          name: 'Could not resolve URL to a Hypermedia document',
+          color: 'red',
         })
+        return
+      case 'error':
+        console.error('[embed-block] resolveHypermediaUrl failed', {
+          url,
+          hasDomainResolver: !!editor.domainResolver,
+          error: result.error,
+        })
+        setFileName({
+          name: 'Failed to reach URL — site may be offline or block requests',
+          color: 'red',
+        })
+        return
     }
   }
   return (
@@ -312,18 +348,22 @@ function EditorEmbedContent({
   )
 }
 
-const EmbedLauncherInput = ({
+export const EmbedLauncherInput = ({
   editor,
   assign,
   setUrl,
   fileName,
   setFileName,
+  submit,
+  setLoading,
 }: {
   editor: BlockNoteEditor
   assign: any
   setUrl: any
   fileName: any
   setFileName: any
+  submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
+  setLoading?: any
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
@@ -443,6 +483,13 @@ const EmbedLauncherInput = ({
         placeholder="Query or input Embed URL…"
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
+        onPaste={(e) => {
+          // Prevent ProseMirror's editor-level paste handlers (link, markdown,
+          // local-media) from intercepting paste events inside this nested
+          // <input>. Without this, those handlers call preventDefault and the
+          // native input never receives the pasted text.
+          e.stopPropagation()
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             setFocused(false)
@@ -450,14 +497,17 @@ const EmbedLauncherInput = ({
           }
 
           // If Enter is pressed and the input looks like a URL or hypermedia link,
-          // blur the input to trigger form submission instead of selecting a search result
+          // submit directly so the embed is created instead of selecting a search result.
           if (e.key === 'Enter') {
             const isUrl = search.startsWith('http://') || search.startsWith('https://') || search.startsWith('hm://')
 
             if (isUrl) {
-              // Blur to trigger form submission with the typed URL
-              e.currentTarget.blur()
               setFocused(false)
+              if (submit) {
+                submit(search, assign, setFileName, setLoading ?? (() => {}))
+              } else {
+                e.currentTarget.blur()
+              }
               return
             }
 

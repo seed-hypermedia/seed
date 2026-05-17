@@ -1,3 +1,4 @@
+import {domainResolver} from '@/grpc-client'
 import {useCommentDraft} from '@/models/comments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -359,6 +360,7 @@ function CommentBoxImpl(props: {
       initialBlocks={draft.data?.blocks}
       onContentChange={handleContentChange}
       handleFileAttachment={handleFileAttachment}
+      domainResolver={domainResolver}
       account={{
         id: account.id,
         metadata: account.metadata,
@@ -434,6 +436,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
         handleFileAttachment={handleFileAttachment}
+        domainResolver={domainResolver}
         account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}
         submitButton={({getContent, reset}) => (

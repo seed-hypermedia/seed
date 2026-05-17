@@ -66,6 +66,10 @@ export function useCommentEditor(
       size: number
     }
   }>,
+  // Resolver that maps a hostname (e.g. eric.vicenti.net) to its Seed account UID.
+  // Required so URLs pasted into embed/link inputs inside a comment can be
+  // resolved to hm:// references instead of erroring as "not a hypermedia link".
+  domainResolver?: (hostname: string) => Promise<string | null>,
 ) {
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
@@ -89,6 +93,7 @@ export function useCommentEditor(
       // grpcClient,
       // openUrl,
       gwUrl,
+      domainResolver,
       // checkWebUrl: checkWebUrl.mutateAsync,
     },
 
@@ -233,6 +238,7 @@ export function CommentEditor({
   handleFileAttachment,
   getDraftMediaBlob,
   hideAvatar,
+  domainResolver,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -286,6 +292,9 @@ export function CommentEditor({
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
   /** Hide the leading avatar */
   hideAvatar?: boolean
+  /** Optional resolver that maps a hostname to a Seed account UID, used when
+   * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
+  domainResolver?: (hostname: string) => Promise<string | null>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -301,6 +310,7 @@ export function CommentEditor({
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
     importWebFile,
     handleFileAttachment,
+    domainResolver,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =

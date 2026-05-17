@@ -70,6 +70,8 @@ interface RenderProps {
     setUrl: any
     fileName: any
     setFileName: any
+    submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
+    setLoading?: any
   }>
   hideForm?: boolean
   validateFile?: (file: File) => boolean
@@ -258,6 +260,8 @@ function MediaForm({
     setUrl: any
     fileName: any
     setFileName: any
+    submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
+    setLoading?: any
   }>
   validateFile?: (file: File) => boolean
 }) {
@@ -475,6 +479,8 @@ function MediaForm({
                   setUrl={setUrl}
                   fileName={fileName}
                   setFileName={setFileName}
+                  submit={submit}
+                  setLoading={setLoading}
                 />
               ) : (
                 <Input
@@ -487,6 +493,13 @@ function MediaForm({
                         name: 'Upload File',
                         color: undefined,
                       })
+                  }}
+                  onPaste={(e) => {
+                    // Prevent ProseMirror's editor-level paste handlers (link, markdown,
+                    // local-media) from intercepting paste events inside this nested
+                    // <input>. Without this, those handlers call preventDefault and the
+                    // native input never receives the pasted text.
+                    e.stopPropagation()
                   }}
                   autoFocus
                 />
