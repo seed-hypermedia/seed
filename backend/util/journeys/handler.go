@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -23,7 +24,15 @@ func Handler(srv *telemetry.Server) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		snap := srv.Snapshot()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_ = tpl.Execute(w, buildView(snap))
+		if err := tpl.Execute(w, buildView(snap)); err != nil {
+			// Template execution may fail partway through after some HTML
+			// has already been flushed (e.g. a struct field was removed
+			// from view but the template still references it). We can't
+			// change the status code, but we can append a visible marker
+			// and a stderr log so the failure isn't silent.
+			fmt.Fprintf(w, "\n<!-- TEMPLATE ERROR: %s -->\n", err)
+			fmt.Fprintf(os.Stderr, "journeys: template execute failed: %v\n", err)
+		}
 	})
 }
 
@@ -234,7 +243,6 @@ td.num{text-align:right;word-break:normal}
 td.warn{background:#fde2e2}
 tr.anomaly td:first-child{border-left:3px solid #d9534f}
 .status-complete{color:#2e7d32;font-weight:bold}
-.status-coalesced{color:#1565c0;font-weight:bold}
 .status-abandoned-late{color:#c62828;font-weight:bold}
 .status-abandoned-early{color:#777}
 .status-live{color:#000;font-style:italic}
@@ -256,7 +264,6 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   Generated {{.GeneratedAt}} · <strong>{{.Total}}</strong> retained traces ·
   <strong>{{.FrontendTouched}}</strong> with frontend feedback ·
   <span class="status-complete">{{.Complete}} complete</span> ·
-  <span class="status-coalesced">{{.Coalesced}} coalesced</span> ·
   <span class="status-abandoned-late">{{.Abandoned}} abandoned</span>{{summary .AbandonedByStage}}
 </div>
 
