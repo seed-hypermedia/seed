@@ -17,7 +17,7 @@ import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {EditingDocToolsRight, DraftActionsToolbar, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
+import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,
@@ -260,13 +260,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         )
       : undefined
 
-  const draftActions =
-    canEdit && showPublishToolbar
-      ? ({menuItems}: {menuItems: any[]}) => (
-          <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
-        )
-      : undefined
-
   const siteUid = docId.uid
 
   // Inline subscribe box for non-members
@@ -321,7 +314,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             existingDraftContent={existingDraftContent}
             existingDraftCursorPosition={existingDraftCursorPosition}
             editingFloatingActions={editingFloatingActions}
-            draftActions={draftActions}
             fileUpload={fileUpload}
           />
         </DocumentActionsProvider>
