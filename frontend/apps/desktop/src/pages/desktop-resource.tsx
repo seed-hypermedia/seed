@@ -390,20 +390,19 @@ export default function DesktopResourcePage() {
   const isPrivate = doc?.visibility === 'PRIVATE'
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
+  // Key off the route's docId rather than the resolved doc.{account,path,version}
+  // so this stamp matches what useNavigate/navigation-container emit for
+  // renderer.link_click. Using doc.version would produce a versioned key
+  // (hm://acc/path?v=bafy...) that diverges from link_click's usually-versionless
+  // key, splitting a single click->paint flow into two single-checkpoint traces.
   const renderedTelemetryKeys = useRef<Set<string>>(new Set())
   useEffect(() => {
-    const key = doc
-      ? telemetryKeyForId(
-          hmId(doc.account, {
-            path: entityQueryPathToHmIdPath(doc.path),
-            version: doc.version,
-          }),
-        )
-      : null
+    if (!doc) return
+    const key = telemetryKeyForId(docId)
     if (!key || renderedTelemetryKeys.current.has(key)) return
     renderedTelemetryKeys.current.add(key)
     reportTelemetry(key, TelemetryStage.ComponentRendered)
-  }, [doc])
+  }, [doc, docId])
 
   // Inline document creation (page-level: bottom fallback + CreateDocumentButton inline create)
   const childDrafts = useChildDrafts(docId)
