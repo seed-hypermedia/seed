@@ -77,7 +77,6 @@ export default function DesktopResourcePage() {
   const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
 
-  console.log(`== ~ DesktopResourcePage ~ existingDraft:`, existingDraft)
   const capability = useSelectedAccountCapability(docId)
   const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
@@ -86,19 +85,6 @@ export default function DesktopResourcePage() {
   // instead of published blocks (avoids the flash + replaceBlocks race condition)
   const draftQuery = useDraft(existingDraft ? existingDraft.id : undefined)
   const existingDraftContent = draftQuery.data?.content
-
-  // Debug: log draft loading flow
-  useEffect(() => {
-    console.log(
-      '[DesktopResource] existingDraft:',
-      existingDraft ? {id: existingDraft.id, editUid: (existingDraft as any).editUid} : false,
-    )
-    console.log('[DesktopResource] canEdit:', canEdit, 'docId:', docId.uid, '/', docId.path?.join('/'))
-    console.log(
-      '[DesktopResource] draftContent:',
-      existingDraftContent ? {blocksCount: existingDraftContent.length} : 'not loaded',
-    )
-  }, [existingDraft, canEdit, docId, existingDraftContent])
 
   // When another window writes to this draft (e.g. a child publish appended a
   // card embed via auto-link-parent), the editor's in-memory ProseMirror state

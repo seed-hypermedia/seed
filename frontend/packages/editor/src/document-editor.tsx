@@ -220,7 +220,6 @@ export function DocumentEditor({
             name: 'document-rebase-track-touches',
             priority: 0,
             addProseMirrorPlugins() {
-              console.log('[Rebase track] addProseMirrorPlugins() called — plugin registered')
               const pluginKey = new PluginKey('documentRebaseTrackTouches')
               let scheduled = false
               let pending = new Set<string>()

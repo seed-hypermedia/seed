@@ -1,11 +1,11 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockNode, HMDocument, HMMetadata, HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {HMBlockNode, HMDocument, HMMetadata, HMNavigationItem} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom} from 'xstate'
-import {classifyRebase, applyRebasePlan} from '../utils/document-changes'
+import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {
   documentMachine,
   DocumentMachineContext,
@@ -178,28 +178,17 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
 
   useEffect(() => {
     if (!document) {
-      console.log('[Rebase sync] no document yet')
       return
     }
 
     if (prevVersionRef.current === null) {
       // First time we have a document — transition from loading → loaded
-      console.log('[Rebase sync] sending document.loaded', {version: document.version})
       actorRef.send({type: 'document.loaded', document})
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
-      console.log('[Rebase sync] sending document.remoteUpdate', {
-        version: document.version,
-        prev: prevVersionRef.current,
-        machineDeps: actorRef.getSnapshot().context.deps,
-        machineDocVersion: actorRef.getSnapshot().context.document?.version,
-      })
       actorRef.send({type: 'document.remoteUpdate', document})
       prevVersionRef.current = document.version
-    } else {
-      // Same version — log so we can see if React Query is re-running with stale data
-      console.log('[Rebase sync] noop (same version)', {version: document.version})
     }
   }, [actorRef, document])
 }
@@ -286,16 +275,6 @@ export function useDraftResolutionSync(
   useEffect(() => {
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
-      console.log(
-        '[DraftResolutionSync] sending draft.resolved, draftId:',
-        resolved.draftId,
-        'metadata:',
-        resolved.metadata,
-        'restoredTouchedIds:',
-        resolved.mineTouchedIds?.length ?? 0,
-        'restoredBaseBlocks:',
-        resolved.baseBlocks?.length ?? 0,
-      )
       actorRef.send({
         type: 'draft.resolved',
         draftId: resolved.draftId,

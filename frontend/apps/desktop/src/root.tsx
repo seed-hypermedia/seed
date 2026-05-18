@@ -28,12 +28,12 @@ import './root.css'
 import './tailwind.css'
 
 import {AppWindowEvent} from '@/utils/window-events'
+import {ReadOnlyViewer} from '@shm/editor/readonly-viewer'
 import {onQueryCacheError, onQueryInvalidation, registerQueryClient} from '@shm/shared/models/query-client'
 import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {windowContainerStyles} from '@shm/ui/container'
 import {cn} from '@shm/ui/utils'
-import {ReadOnlyViewer} from '@shm/editor/readonly-viewer'
 
 const logger = {
   log: wrapLogger(console.log),
@@ -265,13 +265,11 @@ function MainApp({}: {}) {
     setShowOnboarding(false)
   }
   useEffect(() => {
-    console.log('[Rebase invalidation] subscribing to query invalidation IPC bridge')
     let unsubscribe: (() => void) | undefined
     let disposed = false
     ipc
       .listen<{payload: QueryKey}>('query_invalidation', ({payload: queryKey}) => {
         if (!queryKey) return
-        console.log('[Rebase invalidation] received', queryKey)
         queryClient.invalidateQueries({queryKey})
       })
       .then((cleanup) => {
@@ -279,7 +277,6 @@ function MainApp({}: {}) {
         else unsubscribe = cleanup
       })
     return () => {
-      console.log('[Rebase invalidation] unsubscribing from query invalidation IPC bridge')
       disposed = true
       unsubscribe?.()
     }

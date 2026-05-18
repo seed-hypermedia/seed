@@ -888,14 +888,6 @@ function DocumentBody({
     } else {
       result = undefined // draft found but content not loaded yet
     }
-    console.log('[DraftResolution]', {
-      existingDraft: existingDraft === undefined ? 'undefined' : existingDraft === false ? 'false' : existingDraft?.id,
-      hasContent: !!existingDraftContent,
-      hasMetadata: !!(existingDraft && 'metadata' in existingDraft && existingDraft.metadata),
-      restoredTouched: existingDraftMineTouchedIds?.length ?? 0,
-      restoredBaseBlocks: existingDraftBaseBlocks?.length ?? 0,
-      resolution: result === undefined ? 'undefined (waiting)' : `draftId=${result.draftId}`,
-    })
     return result
   }, [
     existingDraft,
@@ -944,15 +936,6 @@ function DocumentBody({
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
-
-  console.log('[DocumentBody]', {
-    isEditing,
-    panelKey,
-    routeKey: route.key,
-    draftId: ctx.draftId,
-    canEdit,
-    docId: docId.id,
-  })
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -1859,13 +1842,11 @@ function OldVersionEditDialog() {
   const isConfirming = useDocumentSelector(selectIsConfirmingOldVersionEdit)
   const actorRef = useDocumentMachineRef()
   const send = useDocumentSend()
-  console.log('[OldVersionEditDialog] render', {isConfirming})
   return (
     <AlertDialog
       open={isConfirming}
       onOpenChange={(open) => {
         const currentState = actorRef.getSnapshot().value
-        console.log('[OldVersionEditDialog] onOpenChange', {open, currentState})
         // Only send edit.cancel when the dialog closes while we're still
         // waiting for confirmation (overlay click / Escape). Clicking "Edit
         // Anyway" sends edit.confirm first, transitioning out of
@@ -1876,7 +1857,6 @@ function OldVersionEditDialog() {
         // React-rendered value) because onOpenChange fires synchronously
         // inside the same event handler as edit.confirm.
         if (!open && actorRef.getSnapshot().matches('confirmingOldVersionEdit')) {
-          console.log('[OldVersionEditDialog] sending edit.cancel from onOpenChange')
           send({type: 'edit.cancel'})
         }
       }}

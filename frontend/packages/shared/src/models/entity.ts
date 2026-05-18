@@ -1,12 +1,13 @@
 import {PlainMessage, Struct, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {
-  HMDomainInfo,
   HMAccountsMetadata,
   HMCapability,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
+  HMDomainInfo,
   HMGetCIDOutput,
   HMListAccountsOutput,
   HMListCommentsByAuthorOutput,
@@ -14,18 +15,17 @@ import {
   HMListEventsOutput,
   HMMetadata,
   HMMetadataPayload,
+  HMResolvedResource,
   HMResource,
   HMSiteMember,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
-  HMResolvedResource,
 } from '@seed-hypermedia/client/hm-types'
 import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {createWebHMUrl, entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
@@ -36,8 +36,8 @@ import {
   queryChanges,
   queryCitations,
   queryComments,
-  queryDomain,
   queryDirectory,
+  queryDomain,
   queryResource,
 } from './queries'
 import {queryKeys} from './query-keys'
@@ -126,21 +126,10 @@ export function useResource(
   // Discovery subscription (desktop only)
   useEffect(() => {
     if (!subscribed || !id || !client.subscribeEntity) {
-      console.log('[Rebase sub] useResource skipping subscribe', {
-        subscribed: !!subscribed,
-        hasId: !!id,
-        hasSubscribeEntityClient: !!client.subscribeEntity,
-        idStr: id?.id,
-      })
       return
     }
-    console.log('[Rebase sub] useResource calling subscribeEntity', {
-      idStr: id.id,
-      recursive: !!recursive,
-    })
     const cleanup = client.subscribeEntity({id, recursive})
     return () => {
-      console.log('[Rebase sub] useResource unsubscribing', {idStr: id.id})
       cleanup()
     }
   }, [subscribed, recursive, id?.id, client.subscribeEntity])
