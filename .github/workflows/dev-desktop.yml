@@ -72,7 +72,7 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-2025
+          - os: windows-2025-vs2026
             arch: x64
             goarch: amd64
             daemon_name: x86_64-pc-windows-gnu
@@ -90,7 +90,7 @@ jobs:
           enableCrossOsArchive: true
 
       - name: Download GGUF model (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
             mkdir -p backend/llm/backends/llamacpp/models
@@ -115,7 +115,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           mkdir -p plz-out/bin/backend
           # GPU is enabled by default (no -tags needed)
@@ -128,7 +128,7 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
-        if: matrix.config.os == 'windows-2025'
+        if: matrix.config.os == 'windows-2025-vs2026'
         shell: bash
         run: |
           mkdir -p plz-out/bin/backend
@@ -143,7 +143,7 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Stage Windows runtime DLL
-        if: matrix.config.os == 'windows-2025'
+        if: matrix.config.os == 'windows-2025-vs2026'
         shell: bash
         run: |
           set -euo pipefail
@@ -158,7 +158,7 @@ jobs:
           ls -la plz-out/bin/backend/libwinpthread-1.dll
 
       - name: Verify Windows daemon runtime deps
-        if: matrix.config.os == 'windows-2025'
+        if: matrix.config.os == 'windows-2025-vs2026'
         shell: bash
         run: |
           set -euo pipefail
@@ -209,7 +209,7 @@ jobs:
         env:
           VITE_VERSION: '${{ needs.build-info.outputs.version }}'
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           pnpm desktop:publish --arch=${{ matrix.config.arch }}
         env:
@@ -384,7 +384,7 @@ jobs:
           }
 
       - name: Upload daemon debug info to Sentry (Unix)
-        if: matrix.config.os != 'windows-2025' && env.SENTRY_AUTH_TOKEN != ''
+        if: matrix.config.os != 'windows-2025-vs2026' && env.SENTRY_AUTH_TOKEN != ''
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: mintter

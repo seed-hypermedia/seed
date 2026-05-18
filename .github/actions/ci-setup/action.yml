@@ -47,7 +47,7 @@ runs:
       shell: bash
 
     - name: 'Install Vulkan SDK (Windows)'
-      if: inputs.matrix-os == 'windows-2025'
+      if: inputs.matrix-os == 'windows-2025-vs2026'
       shell: powershell
       run: |
         $vulkanVersion = "1.4.313.2"
@@ -67,7 +67,7 @@ runs:
 
     - name: Cache llama.cpp build (Linux / macOS)
       id: llama-cache-unix
-      if: inputs.matrix-os != 'windows-2025'
+      if: inputs.matrix-os != 'windows-2025-vs2026'
       uses: actions/cache@v4
       with:
         path: |
@@ -80,7 +80,7 @@ runs:
 
     - name: Cache llama.cpp build (Windows)
       id: llama-cache-windows
-      if: inputs.matrix-os == 'windows-2025'
+      if: inputs.matrix-os == 'windows-2025-vs2026'
       uses: actions/cache@v4
       with:
         path: |
@@ -92,7 +92,7 @@ runs:
           backend/util/llama-go/libcommon.a
           backend/util/llama-go/libvulkan-1.a
           backend/util/llama-go/build
-        key: llama-windows-2025-${{ steps.llama-sha.outputs.sha }}
+        key: llama-windows-2025-vs2026-${{ steps.llama-sha.outputs.sha }}
 
     - name: "Build llama.cpp (Linux)"
       if: inputs.matrix-os == 'ubuntu-latest' && steps.llama-cache-unix.outputs.cache-hit != 'true'
@@ -111,7 +111,7 @@ runs:
         MACOSX_DEPLOYMENT_TARGET: '13.0'
 
     - name: "Build llama.cpp (Windows)"
-      if: inputs.matrix-os == 'windows-2025' && steps.llama-cache-windows.outputs.cache-hit != 'true'
+      if: inputs.matrix-os == 'windows-2025-vs2026' && steps.llama-cache-windows.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail
@@ -189,7 +189,7 @@ runs:
 
     - name: Setup cache Windows
       uses: actions/cache@v4
-      if: inputs.matrix-os == 'windows-2025'
+      if: inputs.matrix-os == 'windows-2025-vs2026'
       with:
         path: |
           ~\AppData\Local\go-build

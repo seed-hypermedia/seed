@@ -67,7 +67,7 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-2025
+          - os: windows-2025-vs2026
             arch: x64
             goarch: amd64
             daemon_name: x86_64-pc-windows-gnu
@@ -85,7 +85,7 @@ jobs:
           enableCrossOsArchive: true
 
       - name: Download GGUF model (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
             mkdir -p backend/llm/backends/llamacpp/models
@@ -216,7 +216,7 @@ jobs:
         env:
           VITE_VERSION: '${{ needs.build-info.outputs.version }}'
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           pnpm desktop:make --arch=${{ matrix.config.arch }}
         env:
@@ -285,7 +285,7 @@ jobs:
           SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
 
       - name: Upload daemon debug info to Sentry (Unix)
-        if: matrix.config.os != 'windows-2025' && env.SENTRY_AUTH_TOKEN != ''
+        if: matrix.config.os != 'windows-2025-vs2026' && env.SENTRY_AUTH_TOKEN != ''
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: mintter

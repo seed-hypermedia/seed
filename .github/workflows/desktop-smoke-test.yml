@@ -58,7 +58,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           mkdir -p plz-out/bin/backend
           # GPU is enabled by default (no -tags needed)
@@ -70,7 +70,7 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
-        if: matrix.config.os == 'windows-2025'
+        if: matrix.config.os == 'windows-2025-vs2026'
         run: |
           mkdir -p plz-out/bin/backend
           # GPU is enabled by default (no -tags needed)
@@ -89,7 +89,7 @@ jobs:
           VITE_VERSION: "100.10.1"
 
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: matrix.config.os != 'windows-2025-vs2026'
         run: |
           pnpm desktop:make --arch=${{ matrix.config.arch }}
         env:
@@ -109,7 +109,7 @@ jobs:
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
 
       - name: Build, package and make (Win32)
-        if: matrix.config.os == 'windows-2025'
+        if: matrix.config.os == 'windows-2025-vs2026'
         run: |
           pnpm desktop:make --arch=${{ matrix.config.arch }}
         env:
