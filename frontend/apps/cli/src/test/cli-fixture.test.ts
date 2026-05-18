@@ -10,7 +10,7 @@ import {writeFileSync, mkdtempSync, rmSync} from 'fs'
 import {tmpdir} from 'os'
 import {join} from 'path'
 import {startFullIntegrationWithFixture, runCli, type FullTestContext} from './setup'
-import {FIXTURE_ACCOUNT_ID, FIXTURE_HIERARCHY_HM_ID} from './fixture-seed'
+import {FIXTURE_ACCOUNT_ID, FIXTURE_ACCOUNT, FIXTURE_HIERARCHY_HM_ID} from './fixture-seed'
 import {generateTestAccount, registerAccount, type TestAccount} from './account-helpers'
 import {getCliVersion} from '../version'
 
@@ -1173,6 +1173,87 @@ describe('CLI Full Integration Tests', () => {
           expect(data.blocks).toBeDefined()
         } finally {
           rmSync(tmpDir, {recursive: true, force: true})
+        }
+      },
+      TEST_TIMEOUT,
+    )
+
+    // --- Cross-account publish with path-scoped WRITER capability (issue #618) ---
+
+    test(
+      'document create with path-scoped WRITER capability succeeds (issue #618)',
+      async () => {
+        const FIXTURE_KEY_NAME = 'fixture-cap-test'
+
+        // Import the fixture account's key so we can sign the capability.
+        const importResult = await runCli(['key', 'import', '-n', FIXTURE_KEY_NAME, FIXTURE_ACCOUNT.mnemonic])
+        expect(importResult.exitCode).toBe(0)
+
+        try {
+          // Create a path-scoped WRITER capability from fixture account to writeAccount.
+          const capResult = await runCli(
+            [
+              'capability',
+              'create',
+              '--delegate',
+              writeAccount.accountId,
+              '--role',
+              'WRITER',
+              '--path',
+              '/podcasts',
+              '--key',
+              FIXTURE_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          if (capResult.exitCode !== 0) {
+            console.log('[test] capability create stderr:', capResult.stderr)
+            console.log('[test] capability create stdout:', capResult.stdout)
+          }
+          expect(capResult.exitCode).toBe(0)
+
+          // Wait for the capability to be indexed.
+          await new Promise((r) => setTimeout(r, 2000))
+
+          // Try cross-account document create under /podcasts using writeAccount's key.
+          // This is the exact flow that fails in issue #618: the CLI's resolveCapability
+          // queries ListCapabilities with an empty path and never finds the path-scoped cap.
+          const slug = `podcasts/test-${Date.now()}`
+          const tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'))
+          const mdFile = join(tmpDir, 'content.md')
+          writeFileSync(mdFile, 'Test podcast episode')
+
+          const result = await runCli(
+            [
+              'document',
+              'create',
+              '--account',
+              FIXTURE_ACCOUNT_ID,
+              '--path',
+              slug,
+              '--name',
+              'Test Podcast',
+              '-f',
+              mdFile,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          rmSync(tmpDir, {recursive: true, force: true})
+
+          if (result.exitCode !== 0) {
+            console.log('[test] cross-account create stderr:', result.stderr)
+            console.log('[test] cross-account create stdout:', result.stdout)
+          }
+          expect(result.exitCode).toBe(0)
+          expect(result.stderr + result.stdout).toContain('Document published')
+        } finally {
+          try {
+            await runCli(['key', 'remove', FIXTURE_KEY_NAME, '--force'])
+          } catch {
+            // Best effort cleanup.
+          }
         }
       },
       TEST_TIMEOUT,
