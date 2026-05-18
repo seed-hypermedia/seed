@@ -28,14 +28,14 @@ func Handler(srv *telemetry.Server) http.Handler {
 }
 
 type row struct {
-	Key        string
-	Gen        int
-	LastStage  string
-	Status     telemetry.Status
-	StatusCSS  string
-	TotalSpan  string
-	Deltas     []delta
-	IsAnomaly  bool
+	Key       string
+	Gen       int
+	LastStage string
+	Status    telemetry.Status
+	StatusCSS string
+	TotalSpan string
+	Deltas    []delta
+	IsAnomaly bool
 }
 
 type delta struct {
@@ -50,13 +50,13 @@ type summaryBucket struct {
 }
 
 type view struct {
-	GeneratedAt        string
-	Total              int
-	Complete           int
-	Coalesced          int
-	Abandoned          int
-	AbandonedByStage   []summaryBucket
-	Rows               []row
+	GeneratedAt      string
+	Total            int
+	Complete         int
+	Coalesced        int
+	Abandoned        int
+	AbandonedByStage []summaryBucket
+	Rows             []row
 }
 
 // gapWarn is the threshold above which a per-stage delta is rendered red.
@@ -164,22 +164,25 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
-// summaryString renders a one-line abandoned-by-stage summary that the
-// template embeds verbatim. Pre-rendered to avoid a Go template loop.
-func summaryString(buckets []summaryBucket) string {
+// summarySafeHTML renders a one-line abandoned-by-stage summary that the
+// template embeds verbatim. Pre-rendered to avoid a Go template loop. The
+// dynamic Stage value is HTML-escaped before being wrapped in <code> tags,
+// so the resulting template.HTML is safe even when stages originate from
+// external gRPC emitters.
+func summarySafeHTML(buckets []summaryBucket) template.HTML {
 	if len(buckets) == 0 {
 		return ""
 	}
 	parts := make([]string, 0, len(buckets))
 	for _, b := range buckets {
-		parts = append(parts, fmt.Sprintf("%d at <code>%s</code>", b.Count, b.Stage))
+		parts = append(parts, fmt.Sprintf("%d at <code>%s</code>", b.Count, template.HTMLEscapeString(b.Stage)))
 	}
-	return " (" + strings.Join(parts, ", ") + ")"
+	return template.HTML(" (" + strings.Join(parts, ", ") + ")") // #nosec G203 -- Stage is escaped above; surrounding markup is static.
 }
 
 func init() {
 	tpl = tpl.Funcs(template.FuncMap{
-		"summary": func(s []summaryBucket) template.HTML { return template.HTML(summaryString(s)) },
+		"summary": summarySafeHTML,
 	})
 	tpl = template.Must(tpl.Parse(tplSrc))
 }

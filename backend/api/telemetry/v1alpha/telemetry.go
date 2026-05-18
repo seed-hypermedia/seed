@@ -141,7 +141,7 @@ func (s *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 
 // RecordCheckpoints implements the gRPC RecordCheckpoints method. Called by
 // Electron main and renderer processes.
-func (s *Server) RecordCheckpoints(ctx context.Context, req *telemetrypb.RecordCheckpointsRequest) (*telemetrypb.RecordCheckpointsResponse, error) {
+func (s *Server) RecordCheckpoints(_ context.Context, req *telemetrypb.RecordCheckpointsRequest) (*telemetrypb.RecordCheckpointsResponse, error) {
 	if req == nil || len(req.Checkpoints) == 0 {
 		return &telemetrypb.RecordCheckpointsResponse{}, nil
 	}
@@ -268,13 +268,13 @@ func (s *Server) Snapshot() []Trace {
 	now := s.Now()
 	out := make([]Trace, 0, len(s.traces))
 	for _, tr := range s.traces {
-		copy := *tr
-		copy.lru = nil
-		copy.Checkpoints = append([]Checkpoint(nil), tr.Checkpoints...)
-		if copy.Status == StatusLive && now.Sub(copy.LastUpdate) > AbandonTimeout {
-			copy.Status = StatusAbandoned
+		clone := *tr
+		clone.lru = nil
+		clone.Checkpoints = append([]Checkpoint(nil), tr.Checkpoints...)
+		if clone.Status == StatusLive && now.Sub(clone.LastUpdate) > AbandonTimeout {
+			clone.Status = StatusAbandoned
 		}
-		out = append(out, copy)
+		out = append(out, clone)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].LastUpdate.After(out[j].LastUpdate)

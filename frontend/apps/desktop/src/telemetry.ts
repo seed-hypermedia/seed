@@ -93,8 +93,6 @@ export function createTelemetryReporter({
     const checkpoints = pending
     pending = []
 
-    console.log('== recordCheckpoints', {source, checkpoints})
-
     const flushPromise = client.telemetry
       .recordCheckpoints({source, checkpoints})
       .catch((error: unknown) => {
