@@ -29,11 +29,17 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// feedEmittedSeenCapacity bounds the dedup set for backend.feed_emitted
+// stamps. 4096 unique blob keys covers a very busy session without
+// growing unbounded; entries roll off LRU-style.
+const feedEmittedSeenCapacity = 4096
 
 // Server implements the Activity gRPC API.
 type Server struct {
@@ -43,6 +49,13 @@ type Server struct {
 	log       *zap.Logger
 	sync      *syncing.Service
 	telemetry *telemetry.Server
+
+	// feedEmittedSeen bounds-deduplicates backend.feed_emitted stamps:
+	// the frontend polls ListEvents every few seconds, so without this
+	// cache the same blob would re-stamp the same key on every poll,
+	// drowning /debug/journeys in tens of minutes of identical
+	// feed_emitted rows for the same key.
+	feedEmittedSeen *lru.Cache[string, struct{}]
 }
 
 // SetTelemetry attaches a Telemetry server so ListEvents can emit
@@ -60,12 +73,16 @@ var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`
 
 // NewServer creates a new Server.
 func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack, sync *syncing.Service) *Server {
+	// lru.New only returns an error for capacity <= 0, which we control
+	// at compile time.
+	cache, _ := lru.New[string, struct{}](feedEmittedSeenCapacity)
 	return &Server{
-		db:        db,
-		startTime: time.Now(),
-		clean:     clean,
-		log:       log,
-		sync:      sync,
+		db:              db,
+		startTime:       time.Now(),
+		clean:           clean,
+		log:             log,
+		sync:            sync,
+		feedEmittedSeen: cache,
 	}
 }
 
@@ -578,12 +595,25 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if srv.telemetry != nil {
 		now := time.Now()
 		for _, e := range events {
-			if nb, ok := e.Data.(*activity.Event_NewBlob); ok {
-				key := newBlobTelemetryKey(nb.NewBlob)
-				if key != "" {
-					srv.telemetry.RecordCheckpoint(key, telemetry.StageFeedEmitted, now)
-				}
+			nb, ok := e.Data.(*activity.Event_NewBlob)
+			if !ok {
+				continue
 			}
+			key := newBlobTelemetryKey(nb.NewBlob)
+			if key == "" {
+				continue
+			}
+			// Dedupe: only stamp feed_emitted the first time we surface a
+			// given blob key. The frontend polls ListEvents on a timer, so
+			// without this filter the same key would re-stamp every poll
+			// and turn /debug/journeys into a wall of identical rows.
+			if srv.feedEmittedSeen != nil {
+				if _, seen := srv.feedEmittedSeen.Get(key); seen {
+					continue
+				}
+				srv.feedEmittedSeen.Add(key, struct{}{})
+			}
+			srv.telemetry.RecordCheckpoint(key, telemetry.StageFeedEmitted, now)
 		}
 	}
 
