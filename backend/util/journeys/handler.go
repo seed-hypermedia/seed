@@ -50,12 +50,19 @@ type row struct {
 	// Electron main or React renderer (stage prefix main.* or renderer.*).
 	// Used to float frontend-touched traces above pure backend feed noise.
 	HasFrontend bool
-	// lastUpdate is the timestamp of the latest checkpoint; used as a
-	// tiebreaker so the most-recent activity floats to the top.
+	// IsGroupHead marks the first row in a same-key group. The template
+	// emits the Key cell only on the head and spans it across the group.
+	IsGroupHead bool
+	// GroupSize is the number of gens in this row's key group. Meaningful
+	// only on the head row.
+	GroupSize int
+	// lastUpdate is the timestamp of the latest checkpoint; used to order
+	// groups by recency.
 	lastUpdate time.Time
 }
 
 type delta struct {
+	Idx   int // 1-based position so the template can show "1. backend.feed_emitted"
 	Stage string
 	Dur   string
 	CSS   string
@@ -110,7 +117,7 @@ func buildView(traces []telemetry.Trace) view {
 
 			r.Deltas = make([]delta, 0, n)
 			for i, cp := range tr.Checkpoints {
-				d := delta{Stage: cp.Stage, CSS: "num"}
+				d := delta{Idx: i + 1, Stage: cp.Stage, CSS: "num"}
 				if i == 0 {
 					d.Dur = "—"
 				} else {
@@ -159,29 +166,76 @@ func buildView(traces []telemetry.Trace) view {
 		return v.AbandonedByStage[i].Count > v.AbandonedByStage[j].Count
 	})
 
-	// Sort rows so signal-rich entries float to the top:
-	//   1. Traces with any main.* or renderer.* checkpoint (frontend feedback)
-	//   2. Anomalies (any >200ms inter-stage gap, or abandoned-late)
-	//   3. Most recently updated
-	//   4. Stable order by key/gen for traces that tie on the above
-	sort.SliceStable(v.Rows, func(i, j int) bool {
-		a, b := v.Rows[i], v.Rows[j]
-		if a.HasFrontend != b.HasFrontend {
-			return a.HasFrontend
+	v.Rows = groupAndSortRows(v.Rows)
+	return v
+}
+
+// groupAndSortRows clusters rows by Key so every generation of the same URL
+// renders as one visual block, then orders the groups so signal-rich keys
+// rise to the top: any key with frontend feedback first, then keys with an
+// anomaly, then keys by most-recent activity. Within a group, rows are
+// ordered by Gen ascending so the journey timeline reads top-to-bottom.
+// The first row of each group is marked with IsGroupHead and GroupSize so
+// the template can render the Key cell with rowspan over the whole group.
+func groupAndSortRows(rows []row) []row {
+	if len(rows) == 0 {
+		return rows
+	}
+
+	type group struct {
+		key           string
+		hasFrontend   bool
+		hasAnomaly    bool
+		maxLastUpdate time.Time
+		rows          []row
+	}
+	byKey := map[string]*group{}
+	order := []string{} // preserve first-seen order for stable secondary sort
+	for _, r := range rows {
+		g, ok := byKey[r.Key]
+		if !ok {
+			g = &group{key: r.Key}
+			byKey[r.Key] = g
+			order = append(order, r.Key)
 		}
-		if a.IsAnomaly != b.IsAnomaly {
-			return a.IsAnomaly
+		if r.HasFrontend {
+			g.hasFrontend = true
 		}
-		if !a.lastUpdate.Equal(b.lastUpdate) {
-			return a.lastUpdate.After(b.lastUpdate)
+		if r.IsAnomaly {
+			g.hasAnomaly = true
 		}
-		if a.Key != b.Key {
-			return a.Key < b.Key
+		if r.lastUpdate.After(g.maxLastUpdate) {
+			g.maxLastUpdate = r.lastUpdate
 		}
-		return a.Gen < b.Gen
+		g.rows = append(g.rows, r)
+	}
+
+	groups := make([]*group, 0, len(byKey))
+	for _, k := range order {
+		groups = append(groups, byKey[k])
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		a, b := groups[i], groups[j]
+		if a.hasFrontend != b.hasFrontend {
+			return a.hasFrontend
+		}
+		if a.hasAnomaly != b.hasAnomaly {
+			return a.hasAnomaly
+		}
+		if !a.maxLastUpdate.Equal(b.maxLastUpdate) {
+			return a.maxLastUpdate.After(b.maxLastUpdate)
+		}
+		return a.key < b.key
 	})
 
-	return v
+	out := make([]row, 0, len(rows))
+	for _, g := range groups {
+		sort.Slice(g.rows, func(i, j int) bool { return g.rows[i].Gen < g.rows[j].Gen })
+		g.rows[0].IsGroupHead = true
+		g.rows[0].GroupSize = len(g.rows)
+		out = append(out, g.rows...)
+	}
+	return out
 }
 
 func formatDuration(d time.Duration) string {
@@ -241,7 +295,10 @@ col.col-total{width:5em}
 col.col-stages{width:auto}
 td.num{text-align:right;word-break:normal}
 td.warn{background:#fde2e2}
-tr.anomaly td:first-child{border-left:3px solid #d9534f}
+tr.anomaly td.key-cell, tr.anomaly.group-tail td:first-child{border-left:3px solid #d9534f}
+tr.group-tail td{border-top:1px dashed #e4e4e4}
+td.key-cell{background:#fafafa}
+.stage-idx{display:inline-block;min-width:1.6em;color:#888;font-size:10px;text-align:right;margin-right:2px}
 .status-complete{color:#2e7d32;font-weight:bold}
 .status-abandoned-late{color:#c62828;font-weight:bold}
 .status-abandoned-early{color:#777}
@@ -285,12 +342,12 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
 
 <p><strong>Reading a row:</strong></p>
 <ul>
-  <li><b>Key</b> &mdash; the URL being tracked (an <code>hm://...</code> URL; optionally version-pinned if the caller specified one).</li>
-  <li><b>Gen</b> &mdash; generation number for this key. Bumps to 2+ when the user clicks the same link again before the previous journey settles.</li>
+  <li><b>Key</b> &mdash; the URL being tracked (an <code>hm://...</code> URL; optionally version-pinned if the caller specified one). All generations of one key are grouped under a single Key cell so you can read every attempt at a glance.</li>
+  <li><b>Gen</b> &mdash; generation number for this key. A new generation opens whenever a fresh initiating stamp arrives (currently only <code>renderer.link_click</code>); rows inside a group are sorted gen-ascending so the oldest journey is on top.</li>
   <li><b>Last stage</b> &mdash; the most recent checkpoint stamped. Helps you spot where the journey is currently parked.</li>
   <li><b>Status</b> &mdash; see legend above.</li>
   <li><b>Total</b> &mdash; wall-clock from first to last checkpoint. Single-checkpoint traces show 0 (nothing earlier to subtract from).</li>
-  <li><b>Stages</b> &mdash; ordered list of checkpoints with the <em>delta from the previous stage</em>. A red cell means that hop took &gt;200ms; rows with any red cell are flagged as anomalies (red left border).</li>
+  <li><b>Stages</b> &mdash; chronologically-ordered checkpoints, <em>top is first, bottom is last</em>. The number prefix (<code>1.</code>, <code>2.</code> &hellip;) makes the order explicit; the duration shown beside each stage is the delta <em>from the previous stage</em>, not from the start. Red cells mark hops &gt;200ms; any red cell flags the whole row as an anomaly (red left border).</li>
 </ul>
 
 <p><strong>Stages emitted today.</strong> The proto wire format is a free-form string, but only the stages below have an emitter on this branch. Adding a new stage means wiring the emitter in the same change; we do not declare planned-but-unwired stages.</p>
@@ -305,6 +362,13 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
 <p><strong>Row ordering:</strong> signal-rich rows float to the top &mdash; frontend-touched (any <code>renderer.*</code> stage) first, then anomalies (red 200ms+ cell or abandoned-late), then most-recent activity. Pure backend-only rows (the <code>backend.feed_emitted</code> noise from sync) are dimmed grey and sink to the bottom.</p>
 
 <p><strong>Common patterns.</strong> A sea of dimmed live rows ending at <code>backend.feed_emitted</code> is normal during sync &mdash; the daemon surfaces new blobs to the activity feed, but the frontend has enough metadata in the feed event to render the feed card and never needs to call <code>GetDocument</code> for blobs the user doesn't drill into. Those generations time out to <em>abandoned-early</em> after 30s. Real problems are <em>abandoned-late</em> rows (daemon answered, renderer never painted) or red 200ms+ cells inside an otherwise-complete trace.</p>
+
+<p><strong>Things that look weird but aren't bugs:</strong></p>
+<ul>
+  <li><em>A key has multiple <code>backend.grpc_request_received</code>/<code>backend.grpc_response_sent</code> pairs in one generation.</em> That just means the renderer made multiple <code>GetDocument</code> or <code>GetAccount</code> calls for the same key during that page load &mdash; a common case is a page-level <code>useResource(docId)</code> plus a parallel <code>useResource(hmId(docId.uid))</code> for the same account uid in a sibling component (avatar, related cards). Two pairs = two RPCs, not a single retry.</li>
+  <li><em>A key shows multiple generations of <code>renderer.link_click &rarr; renderer.component_rendered</code> but no <code>backend.feed_emitted</code> anywhere.</em> Expected when the user navigated to that URL directly without seeing it in the feed first. Even if the feed <em>did</em> show that path, the feed stamps under a version-pinned key (<code>?v=&lt;blobCid&gt;</code>) while the click stamps under whatever version was in the route &mdash; if those versions differ, the two journeys live under different keys and don't share a row.</li>
+  <li><em>A key has many consecutive <code>backend.feed_emitted</code> stamps spaced ~10 seconds apart.</em> This was a real bug: the frontend polls the activity feed on a timer and the daemon re-stamped <code>feed_emitted</code> for every blob on every poll. The emitter now deduplicates so each blob stamps once per process; if you still see it, you're looking at a stale trace from before the dedup landed.</li>
+</ul>
 </details>
 
 <table>
@@ -321,15 +385,15 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
     <th>Stages</th>
   </tr>
   {{range .Rows}}
-  <tr class="{{if .IsAnomaly}}anomaly {{end}}{{if not .HasFrontend}}backend-only{{end}}">
-    <td>{{.Key}}</td>
+  <tr class="{{if .IsAnomaly}}anomaly {{end}}{{if not .HasFrontend}}backend-only {{end}}{{if .IsGroupHead}}group-head{{else}}group-tail{{end}}">
+    {{if .IsGroupHead}}<td rowspan="{{.GroupSize}}" class="key-cell">{{.Key}}</td>{{end}}
     <td class="num">{{.Gen}}</td>
     <td>{{.LastStage}}</td>
     <td class="{{.StatusCSS}}">{{.Status}}</td>
     <td class="num">{{.TotalSpan}}</td>
     <td>
       {{range .Deltas}}
-        <span class="stage">{{.Stage}} <span class="{{.CSS}}">{{.Dur}}</span></span>
+        <span class="stage"><span class="stage-idx">{{.Idx}}.</span> {{.Stage}} <span class="{{.CSS}}">{{.Dur}}</span></span>
       {{end}}
     </td>
   </tr>
