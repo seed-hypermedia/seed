@@ -2,6 +2,7 @@ package blob
 
 import (
 	"context"
+	"seed/backend/util/ctxkey"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -59,15 +60,13 @@ var qEnsureUnreadRecursive = dqb.Str(`
 	WHERE r.iri = :iri OR r.iri GLOB :iriGlob;
 `)
 
-var (
-	unreadsKey = "seed/index/trackUnreads"
-)
+var unreadsKey = ctxkey.New("blob.UnreadsTracking", false)
 
 // ContextWithUnreadsTracking returns a new context with unreads tracking enabled.
 func ContextWithUnreadsTracking(ctx context.Context) context.Context {
-	return context.WithValue(ctx, &unreadsKey, true)
+	return unreadsKey.WithValue(ctx, true)
 }
 
 func unreadsTrackingEnabled(ctx context.Context) bool {
-	return ctx.Value(&unreadsKey) != nil
+	return unreadsKey.Value(ctx)
 }

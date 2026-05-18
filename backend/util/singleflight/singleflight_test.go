@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"runtime"
 	"runtime/debug"
+	"seed/backend/util/ctxkey"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -337,17 +338,16 @@ func TestDoChanContext(t *testing.T) {
 	})
 
 	t.Run("DoesNotPropagateValues", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
-		key := new(int)
+		var key ctxkey.Key[string]
 		const value = "hello world"
 
-		ctx = context.WithValue(ctx, key, value)
+		ctx = key.WithValue(ctx, value)
 
 		var g Group[string, int]
 		ch := g.DoChanContext(ctx, "foobar", func(ctx context.Context) (int, error) {
-			if _, ok := ctx.Value(key).(string); ok {
+			if key.Has(ctx) {
 				t.Error("expected no value, but was present in context")
 			}
 			return 1, nil

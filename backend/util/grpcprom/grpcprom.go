@@ -5,6 +5,7 @@ package grpcprom
 
 import (
 	"context"
+	"seed/backend/util/ctxkey"
 	"strings"
 
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -132,7 +133,7 @@ type statsHandler struct {
 }
 
 var (
-	serviceInfoKey = "seed/grpcprom/serviceInfo"
+	serviceInfoKey = ctxkey.New("grpcprom.ServiceInfo", serviceInfo{})
 )
 
 type serviceInfo struct {
@@ -153,11 +154,11 @@ func (h *statsHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) conte
 		sinfo.Method = "unknown"
 	}
 
-	return context.WithValue(ctx, &serviceInfoKey, sinfo)
+	return serviceInfoKey.WithValue(ctx, sinfo)
 }
 
 func (h *statsHandler) HandleRPC(ctx context.Context, s stats.RPCStats) {
-	sinfo, ok := ctx.Value(&serviceInfoKey).(serviceInfo)
+	sinfo, ok := serviceInfoKey.ValueOk(ctx)
 	if !ok {
 		panic("BUG: stats handler isn't tagged with service info")
 	}

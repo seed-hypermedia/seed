@@ -17,6 +17,7 @@ import (
 	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
+	"seed/backend/util/ctxkey"
 	"seed/backend/util/trcstats"
 	"strconv"
 	"strings"
@@ -313,9 +314,7 @@ var (
 	)
 )
 
-var (
-	ctxKeyHandlerName = "seed/http/handlerName"
-)
+var ctxKeyHandlerName = ctxkey.New("daemon.HTTPHandlerName", "")
 
 func handlerNameMiddleware(mux *http.ServeMux) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
@@ -336,7 +335,7 @@ func handlerNameMiddleware(mux *http.ServeMux) func(http.Handler) http.Handler {
 			}
 
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, &ctxKeyHandlerName, name)
+			ctx = ctxKeyHandlerName.WithValue(ctx, name)
 			r = r.WithContext(ctx)
 
 			h.ServeHTTP(w, r)
@@ -373,11 +372,11 @@ func instrument(next http.Handler) http.Handler {
 }
 
 func handlerNameFromContext(ctx context.Context) string {
-	v := ctx.Value(&ctxKeyHandlerName)
-	if v == nil {
+	v, ok := ctxKeyHandlerName.ValueOk(ctx)
+	if !ok {
 		panic("BUG: no handler name in context")
 	}
-	return v.(string)
+	return v
 }
 
 // Router is a wrapper around mux that can build the navigation menu.
