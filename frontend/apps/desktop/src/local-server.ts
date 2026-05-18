@@ -70,9 +70,9 @@ export function startLocalServer(staticPath: string): Promise<number> {
 
     // Try to find an available port starting from 17654
     const tryPort = (port: number) => {
-      server!.listen(port, '127.0.0.1', () => {
+      server!.listen(port, 'localhost', () => {
         serverPort = port
-        logger.info(`[LOCAL-SERVER]: Started on http://127.0.0.1:${port}`)
+        logger.info(`[LOCAL-SERVER]: Started on http://localhost:${port}`)
         resolve(port)
       })
 

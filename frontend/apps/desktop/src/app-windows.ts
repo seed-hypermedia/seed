@@ -727,7 +727,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     // Use local server to avoid file:// CORS restrictions with iframes
     const serverPort = (global as any).localServerPort
     if (serverPort) {
-      browserWindow.loadURL(`http://127.0.0.1:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
+      browserWindow.loadURL(`http://localhost:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
     } else {
       // Fallback to file:// if server not available (embeds won't work)
       browserWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))

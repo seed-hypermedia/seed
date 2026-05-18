@@ -6,6 +6,12 @@ import * as logger from './logger'
 
 let server: http.Server | null = null
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 async function queryDaemon<T>(pathAndQuery: string): Promise<T> {
   const response = await fetch(`${DAEMON_HTTP_URL}${pathAndQuery}`)
   if (!response.ok) {
@@ -31,13 +37,13 @@ export function startApiServer(): Promise<void> {
     }
 
     server = http.createServer(async (req, res) => {
+      for (const [key, value] of Object.entries(CORS_HEADERS)) {
+        res.setHeader(key, value)
+      }
+
       // Leaving CORS broad on purpose.
       if (req.method === 'OPTIONS') {
-        res.writeHead(204, {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        })
+        res.writeHead(204)
         res.end()
         return
       }
@@ -59,7 +65,7 @@ export function startApiServer(): Promise<void> {
         return forbid()
       }
 
-      const url = new URL(req.url || '/', `http://127.0.0.1:${API_HTTP_PORT}`)
+      const url = new URL(req.url || '/', `http://localhost:${API_HTTP_PORT}`)
 
       if (!url.pathname.startsWith('/api/')) {
         res.writeHead(404, {'Content-Type': 'application/json'})
@@ -89,8 +95,8 @@ export function startApiServer(): Promise<void> {
     // which we don't want to do at the moment.
 
     const port = Number(API_HTTP_PORT)
-    server.listen(port, '127.0.0.1', () => {
-      logger.info(`[API-SERVER]: Started on http://127.0.0.1:${port}`)
+    server.listen(port, 'localhost', () => {
+      logger.info(`[API-SERVER]: Started on http://localhost:${port}`)
       resolve()
     })
 
