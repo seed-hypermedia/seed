@@ -4,6 +4,41 @@ import {Search} from '../api-search'
 const account = 'z6Mkq9emq1yUBq4KSeiSH5yzgNBJSnidPVqFnTpzjCdLxB3R'
 
 describe('Search.getData', () => {
+  it('forwards search tuning fields to SearchEntities', async () => {
+    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+    const grpcClient = {
+      entities: {
+        searchEntities,
+      },
+    } as any
+
+    await Search.getData(
+      grpcClient,
+      {
+        query: 'honda',
+        includeBody: true,
+        contextSize: 43,
+        searchType: 0,
+        pageSize: 20,
+        iriFilter: `hm://${account}*`,
+        contentTypeFilter: [0],
+      },
+      (() => Promise.resolve(null)) as any,
+    )
+
+    expect(searchEntities).toHaveBeenCalledWith({
+      query: 'honda',
+      includeBody: true,
+      contextSize: 43,
+      accountUid: undefined,
+      loggedAccountUid: undefined,
+      searchType: 0,
+      pageSize: 20,
+      iriFilter: `hm://${account}*`,
+      contentTypeFilter: [0],
+    })
+  })
+
   it('maps comment hits to their containing document and keeps the comment id for focus', async () => {
     const grpcClient = {
       entities: {

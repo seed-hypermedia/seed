@@ -342,13 +342,26 @@ describe('input-querystring', () => {
     })
 
     it('Search: object with optional fields round-trips correctly', () => {
-      const input = {query: 'test', includeBody: true}
+      const input = {
+        query: 'test',
+        includeBody: true,
+        contextSize: 44,
+        searchType: 0,
+        pageSize: 20,
+        iriFilter: 'hm://site*',
+        contentTypeFilter: [0],
+      }
 
       const queryString = serializeQueryString(input)
       const deserialized = deserializeQueryString(queryString, HMSearchInputSchema)
 
       expect(deserialized.query).toBe('test')
       expect(deserialized.includeBody).toBe(true)
+      expect(deserialized.contextSize).toBe(44)
+      expect(deserialized.searchType).toBe(0)
+      expect(deserialized.pageSize).toBe(20)
+      expect(deserialized.iriFilter).toBe('hm://site*')
+      expect(deserialized.contentTypeFilter).toEqual([0])
     })
   })
 

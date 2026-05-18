@@ -86,6 +86,31 @@ describe('createSeedClient', () => {
     expect(calledUrl).toContain('targetId=')
   })
 
+  it('serializes Search query options without dropping zero enum values', async () => {
+    const fetchFn = mockFetchOk({entities: [], searchQuery: 'slow'})
+    const client = createSeedClient('https://example.com', {fetch: fetchFn})
+
+    await client.request('Search', {
+      query: 'slow',
+      includeBody: true,
+      contextSize: 44,
+      searchType: 0,
+      pageSize: 20,
+      iriFilter: 'hm://site*',
+      contentTypeFilter: [0],
+    })
+
+    const calledUrl = new URL(fetchFn.mock.calls[0]![0] as string)
+    expect(calledUrl.pathname).toBe('/api/Search')
+    expect(calledUrl.searchParams.get('query')).toBe('slow')
+    expect(calledUrl.searchParams.get('includeBody')).toBe('true')
+    expect(calledUrl.searchParams.get('contextSize')).toBe('44')
+    expect(calledUrl.searchParams.get('searchType')).toBe('0')
+    expect(calledUrl.searchParams.get('pageSize')).toBe('20')
+    expect(calledUrl.searchParams.get('iriFilter')).toBe('hm://site*')
+    expect(calledUrl.searchParams.get('contentTypeFilter')).toBe('[0]')
+  })
+
   it('deserializes superjson-wrapped responses', async () => {
     const original = {comments: [], authors: {}}
     const fetchFn = mockFetchOk(original)

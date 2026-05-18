@@ -919,6 +919,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
+	requestedPageSize := in.PageSize
 	if in.PageSize == 0 {
 		in.PageSize = 30
 	}
@@ -966,12 +967,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// TODO: Remove auto-include of contacts once frontend uses content_type_filter explicitly.
 		contentTypes["contact"] = true
 	}
-	// Adjust results limit based on search type
+	// Adjust candidate limit based on search type. If the caller requested a
+	// page size, keep enough headroom for dedupe/deleted-result filtering but
+	// avoid resolving hundreds of FTS rows for small interactive searches.
 	resultsLmit := 300
 	if in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC {
 		resultsLmit = 200
 	} else if len(cleanQuery) < 3 {
 		resultsLmit = 100
+	}
+	if requestedPageSize > 0 {
+		pageLimit := int(requestedPageSize) * 4
+		if pageLimit < 40 {
+			pageLimit = 40
+		}
+		resultsLmit = min(resultsLmit, pageLimit)
 	}
 	tokens := strings.Fields(cleanQuery)
 	for i, t := range tokens {

@@ -4071,6 +4071,30 @@ func TestSearchEntitiesFilters(t *testing.T) {
 		require.Greater(t, len(res.Entities), 0, "must find body content with include_body")
 	})
 
+	t.Run("SmallPageSizeScopedBodySearch", func(t *testing.T) {
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "reliability",
+			IncludeBody: true,
+			IriFilter:   "hm://" + aliceAccount + "/cars/*",
+			PageSize:    1,
+			SearchType:  entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 1, "small page size must still find scoped body result")
+		require.Contains(t, res.Entities[0].Id, "/cars/honda")
+	})
+
+	t.Run("SmallPageSizeTitleSearchPaginates", func(t *testing.T) {
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      "rocks",
+			PageSize:   2,
+			SearchType: entities.SearchType_SEARCH_KEYWORD,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 2, "page size must be applied after candidate limiting")
+		require.NotEmpty(t, res.NextPageToken, "more title results should remain on the next page")
+	})
+
 	t.Run("ContentTypeTitleOnlyDefault", func(t *testing.T) {
 		// Empty content_type_filters + include_body=false must only search titles.
 		// "reliability" is only in the body → no results.

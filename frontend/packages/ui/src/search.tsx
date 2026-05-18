@@ -19,6 +19,7 @@ import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
 
 import {IS_WEB} from '@shm/shared/constants'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
@@ -27,28 +28,31 @@ import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
+const SEARCH_DEBOUNCE_MS = 250
+
 // Runs two parallel keyword searches and merges them:
-// - Primary: scoped to the current site (keeps accountUid).
+// - Primary: scoped to the current site with iriFilter.
 // - Secondary: global TITLE-only search, client-filtered to account-home
 //   entries (no path) so foreign contributor profiles surface without
 //   polluting results with unrelated docs from other sites.
 // Keyword-only because the web server runs the embedder on CPU and HYBRID
 // costs 5-8s; keyword is ~20ms per leg and the two run in parallel.
 function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | null) {
-  const enabled = !!searchValue
-  const primary = useSearch(searchValue, {
+  const query = searchValue.trim()
+  const enabled = !!query
+  const primary = useSearch(query, {
     enabled,
-    accountUid: siteHomeId?.uid,
+    iriFilter: siteHomeId?.uid ? `hm://${siteHomeId.uid}*` : undefined,
     includeBody: true,
-    contextSize: 48 - searchValue.length,
+    contextSize: Math.max(8, 48 - query.length),
     searchType: SearchType.SEARCH_KEYWORD,
-    pageSize: 50,
+    pageSize: 20,
   })
-  const profiles = useSearch(searchValue, {
+  const profiles = useSearch(query, {
     enabled,
     contentTypeFilter: [ContentTypeFilter.CONTENT_TYPE_TITLE],
     searchType: SearchType.SEARCH_KEYWORD,
-    pageSize: 10,
+    pageSize: 8,
   })
   const entities = useMemo(() => {
     const primaryEntities = primary.data?.entities ?? []
@@ -63,7 +67,11 @@ function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | n
     }
     return out
   }, [primary.data, profiles.data])
-  return {entities, isFetching: primary.isFetching || profiles.isFetching}
+  return {
+    entities,
+    isFetching: primary.isFetching || profiles.isFetching,
+    isError: primary.isError || profiles.isError,
+  }
 }
 
 function toSearchResults(entities: ReturnType<typeof useSiteSearch>['entities']): SearchResult[] {
@@ -83,6 +91,37 @@ function toSearchResults(entities: ReturnType<typeof useSiteSearch>['entities'])
   })
 }
 
+function SearchStatusMessage({
+  query,
+  isLoading,
+  isError,
+  hasResults,
+}: {
+  query: string
+  isLoading: boolean
+  isError: boolean
+  hasResults: boolean
+}) {
+  if (!query) {
+    return <div className="text-muted-foreground p-4 text-center">Type to search documents</div>
+  }
+  if (isError) {
+    return <div className="text-destructive p-4 text-center">Search failed</div>
+  }
+  if (isLoading) {
+    return (
+      <div className="text-muted-foreground flex items-center justify-center gap-2 p-4">
+        <Spinner className="size-4" />
+        <span>Searching…</span>
+      </div>
+    )
+  }
+  if (!hasResults) {
+    return <div className="text-muted-foreground p-4 text-center">No results found</div>
+  }
+  return null
+}
+
 export function MobileSearch({
   siteHomeId,
   onSelect,
@@ -93,9 +132,14 @@ export function MobileSearch({
   onSearchActiveChange?: (isActive: boolean) => void
 }) {
   const [searchValue, setSearchValue] = useState('')
-  const isSearchActive = searchValue.trim().length > 0
-  const searchResults = useSiteSearch(searchValue, siteHomeId)
-  const searchItems: SearchResult[] = toSearchResults(searchResults.entities)
+  const trimmedSearchValue = searchValue.trim()
+  const debouncedSearchValue = useDebounce(trimmedSearchValue, SEARCH_DEBOUNCE_MS)
+  const isSearchActive = trimmedSearchValue.length > 0
+  const isDebouncing = isSearchActive && debouncedSearchValue !== trimmedSearchValue
+  const searchResults = useSiteSearch(debouncedSearchValue, siteHomeId)
+  const isLoading = isDebouncing || searchResults.isFetching
+  const resultEntities = isDebouncing ? [] : searchResults.entities
+  const searchItems: SearchResult[] = toSearchResults(resultEntities)
 
   useEffect(() => {
     onSearchActiveChange?.(isSearchActive)
@@ -104,14 +148,19 @@ export function MobileSearch({
 
   return (
     <div className="relative z-20 w-full gap-2 rounded-md p-2">
-      <Input
-        className="w-full flex-1"
-        value={searchValue}
-        onChange={(e) => {
-          setSearchValue(e.target.value)
-        }}
-        placeholder="Search Documents"
-      />
+      <div className="relative">
+        <Input
+          className="w-full flex-1 pr-8"
+          value={searchValue}
+          onChange={(e) => {
+            setSearchValue(e.target.value)
+          }}
+          placeholder="Search Documents"
+        />
+        {isLoading ? (
+          <Spinner className="text-muted-foreground absolute top-1/2 right-2 size-4 -translate-y-1/2" />
+        ) : null}
+      </div>
       {isSearchActive ? (
         <div className="bg-background absolute inset-x-2 top-[calc(100%+8px)] z-20 max-h-[65dvh] overflow-hidden rounded-md border shadow-sm">
           <ScrollArea className="max-h-[65dvh]">
@@ -132,7 +181,12 @@ export function MobileSearch({
                   )
                 })
               ) : (
-                <div className="text-muted-foreground p-4 text-center">No results found</div>
+                <SearchStatusMessage
+                  query={trimmedSearchValue}
+                  isLoading={isLoading}
+                  isError={searchResults.isError}
+                  hasResults={searchItems.length > 0}
+                />
               )}
             </div>
           </ScrollArea>
@@ -145,7 +199,12 @@ export function MobileSearch({
 export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | null}) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
-  const searchResults = useSiteSearch(searchValue, siteHomeId)
+  const trimmedSearchValue = searchValue.trim()
+  const debouncedSearchValue = useDebounce(trimmedSearchValue, SEARCH_DEBOUNCE_MS)
+  const isDebouncing = trimmedSearchValue.length > 0 && debouncedSearchValue !== trimmedSearchValue
+  const searchResults = useSiteSearch(debouncedSearchValue, siteHomeId)
+  const isLoading = isDebouncing || searchResults.isFetching
+  const resultEntities = isDebouncing ? [] : searchResults.entities
   const [focusedIndex, setFocusedIndex] = useState(0)
   const universalAppContext = useUniversalAppContext()
 
@@ -179,7 +238,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
     }
   }, [popoverState])
 
-  const searchItems: SearchResult[] = toSearchResults(searchResults.entities)
+  const searchItems: SearchResult[] = toSearchResults(resultEntities)
 
   useEffect(() => {
     if (focusedIndex >= searchItems.length) setFocusedIndex(0)
@@ -202,9 +261,12 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
           <div className="flex h-[calc(100vh-100px)] max-h-[600px] flex-col">
             <div className="relative flex items-center gap-2 self-stretch p-2">
               <Search className="absolute top-1/2 left-4 z-30 size-4 -translate-y-1/2" />
+              {isLoading ? (
+                <Spinner className="text-muted-foreground absolute top-1/2 right-4 z-30 size-4 -translate-y-1/2" />
+              ) : null}
               <Input
                 value={searchValue}
-                className="h-8 flex-1 pl-8"
+                className="h-8 flex-1 pr-8 pl-8"
                 onChange={(e) => {
                   setSearchValue(e.target.value)
                 }}
@@ -217,11 +279,11 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
                   if (e.key === 'Enter') {
                     e.preventDefault()
 
-                    if (!universalAppContext) {
+                    if (!universalAppContext || isLoading) {
                       return
                     }
 
-                    const selectedEntity = searchResults.entities[focusedIndex]
+                    const selectedEntity = resultEntities[focusedIndex]
 
                     if (!selectedEntity) {
                       return
@@ -233,16 +295,17 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
                     })
 
                     popoverState.onOpenChange(false)
-                    console.log('🔍 [DEBUG] Navigation completed, popover closed')
                   }
 
                   if (e.key === 'ArrowUp') {
                     e.preventDefault()
+                    if (!searchItems.length) return
                     setFocusedIndex((prev) => (prev - 1 + searchItems.length) % searchItems.length)
                   }
 
                   if (e.key === 'ArrowDown') {
                     e.preventDefault()
+                    if (!searchItems.length) return
                     setFocusedIndex((prev) => (prev + 1) % searchItems.length)
                   }
                 }}
@@ -290,7 +353,12 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
                       )
                     })
                   ) : (
-                    <div className="text-muted-foreground p-4 text-center">No results found</div>
+                    <SearchStatusMessage
+                      query={trimmedSearchValue}
+                      isLoading={isLoading}
+                      isError={searchResults.isError}
+                      hasResults={searchItems.length > 0}
+                    />
                   )}
                 </div>
               </ScrollArea>

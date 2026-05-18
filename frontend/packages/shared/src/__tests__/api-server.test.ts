@@ -133,6 +133,38 @@ describe('handleApiAction', () => {
 })
 
 describe('handleApiRequest schema introspection', () => {
+  it('handles Search GET query options including zero enum values', async () => {
+    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+    const grpcClient = {
+      entities: {
+        searchEntities,
+      },
+    } as any
+    const queryDaemon = vi.fn()
+
+    const result = await handleApiRequest(
+      new URL(
+        'http://localhost/api/Search?query=slow&includeBody=true&contextSize=44&searchType=0&pageSize=20&iriFilter=hm%3A%2F%2Fsite*&contentTypeFilter=%5B0%5D',
+      ),
+      grpcClient,
+      queryDaemon,
+    )
+
+    expect(result.status).toBe(200)
+    expect(deserialize(JSON.parse(result.body))).toEqual({entities: [], searchQuery: 'slow'})
+    expect(searchEntities).toHaveBeenCalledWith({
+      query: 'slow',
+      includeBody: true,
+      contextSize: 44,
+      accountUid: undefined,
+      loggedAccountUid: undefined,
+      searchType: 0,
+      pageSize: 20,
+      iriFilter: 'hm://site*',
+      contentTypeFilter: [0],
+    })
+  })
+
   it('lists available query and action schemas', async () => {
     const grpcClient = {} as any
     const queryDaemon = vi.fn()
