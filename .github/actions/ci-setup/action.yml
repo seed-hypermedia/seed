@@ -92,7 +92,7 @@ runs:
           backend/util/llama-go/libcommon.a
           backend/util/llama-go/libvulkan-1.a
           backend/util/llama-go/build
-        key: llama-windows-2025-vs2026-${{ steps.llama-sha.outputs.sha }}
+        key: llama-windows-2025-${{ steps.llama-sha.outputs.sha }}
 
     - name: "Build llama.cpp (Linux)"
       if: inputs.matrix-os == 'ubuntu-latest' && steps.llama-cache-unix.outputs.cache-hit != 'true'
