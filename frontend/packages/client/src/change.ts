@@ -33,6 +33,8 @@ export type CreateChangeOpsInput = {
   depth: number
   /** Timestamp (defaults to Date.now()) */
   ts?: bigint
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 /**
@@ -53,6 +55,9 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
     genesis: input.genesisCid,
     deps: input.deps,
     depth: input.depth,
+  }
+  if (input.message) {
+    unsigned.message = input.message
   }
   return {unsignedBytes: cborEncode(unsigned), ts}
 }
@@ -136,6 +141,8 @@ export type CreateDocumentChangeInput = {
   deps: CID[]
   /** Depth of the change (max depth of deps + 1) */
   depth: number
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 /**
@@ -147,7 +154,13 @@ export async function createDocumentChange(
   signer: HMSigner,
 ): Promise<{bytes: Uint8Array; cid: CID}> {
   const ops = protoChangesToOps(input.changes)
-  const {unsignedBytes} = createChangeOps({ops, genesisCid: input.genesisCid, deps: input.deps, depth: input.depth})
+  const {unsignedBytes} = createChangeOps({
+    ops,
+    genesisCid: input.genesisCid,
+    deps: input.deps,
+    depth: input.depth,
+    message: input.message,
+  })
   const {bytes, cid} = await createChange(unsignedBytes, signer)
   return {bytes, cid}
 }
@@ -186,7 +199,10 @@ export type SignDocumentChangeInput = {
   account: string
   /** Document path (API format, e.g., "/my-doc"). Defaults to root (""). */
   path?: string
-  /** Unsigned CBOR bytes from PrepareChange RPC */
+  /** Unsigned CBOR bytes from PrepareChange RPC.
+   *  The publish message (if any) must already be embedded in these bytes by
+   *  the daemon's PrepareChange handler — it lives on the Change blob, not
+   *  the Ref blob, so it is not threaded separately here. */
   unsignedChange: Uint8Array
   /** Genesis CID string (from GetDocument). For new documents omit — changeCid is used. */
   genesis?: string

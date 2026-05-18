@@ -393,6 +393,13 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    */
   visibility = ResourceVisibility.UNSPECIFIED;
 
+  /**
+   * Optional. A human-readable message describing this publish, similar to a git commit message.
+   *
+   * @generated from field: string message = 9;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -409,6 +416,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
     { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "timestamp", kind: "message", T: Timestamp },
     { no: 8, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+    { no: 9, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {
@@ -474,13 +482,12 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
   capability = "";
 
   /**
-   * Optional. Visibility of the document.
-   * Can only be specified here when creating the document for the first time,
-   * i.e. when `base_version` is empty.
+   * Optional. A human-readable message describing this publish, similar to a git commit message.
+   * Embedded into the prepared Change blob so client-side signing preserves it.
    *
-   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 6;
+   * @generated from field: string message = 7;
    */
-  visibility = ResourceVisibility.UNSPECIFIED;
+  message = "";
 
   constructor(data?: PartialMessage<PrepareChangeRequest>) {
     super();
@@ -495,7 +502,7 @@ export class PrepareChangeRequest extends Message<PrepareChangeRequest> {
     { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
     { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
+    { no: 7, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PrepareChangeRequest {
@@ -2481,6 +2488,14 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
    */
   createTime?: Timestamp;
 
+  /**
+   * Optional. A human-readable message attached to the change by the publisher,
+   * similar to a git commit message.
+   *
+   * @generated from field: string message = 5;
+   */
+  message = "";
+
   constructor(data?: PartialMessage<DocumentChangeInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2493,6 +2508,7 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
     { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "deps", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "create_time", kind: "message", T: Timestamp },
+    { no: 5, name: "message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChangeInfo {

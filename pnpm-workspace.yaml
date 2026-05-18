@@ -26,30 +26,114 @@ minimumReleaseAge: 1440
 # Re-evaluate periodically — remove once a patched version is released.
 auditConfig:
   ignoreCves:
-    # ip@<=2.0.1 — Server-Side Request Forgery — no patch published.
-    # Reaches us via: lighthouse > puppeteer-core > ... > ip
-    # and react-devtools > ip (both are devDependencies only).
+    # ── ip ──────────────────────────────────────────────────────────────
+    # ip@<=2.0.1 — SSRF — no patch published.
+    # Via: lighthouse > puppeteer-core > ip; react-devtools > ip (devDeps).
     - CVE-2024-29415
+    # ── html-minifier ───────────────────────────────────────────────────
     # html-minifier@<=4.0.0 — ReDoS — no patch published.
-    # Reaches us via: mjml > mjml-cli > html-minifier (emails app devDep).
+    # Via: mjml > mjml-cli > html-minifier (emails devDep).
     - CVE-2022-37620
-    # @xmldom/xmldom@<0.8.13 — family of XML-serialization advisories
-    # (CDATA, DocumentType, processing instruction, comment node injection,
-    # and uncontrolled recursion DoS). Upgrading to 0.9.x breaks plist
-    # parsing in @electron/packager (stricter mimeType validation).
-    # Ignoring until plist or electron-forge updates.
+    # ── @xmldom/xmldom ──────────────────────────────────────────────────
+    # @xmldom/xmldom@<0.8.13 — XML-serialization injection family.
+    # Upgrading to 0.9.x breaks @electron/packager plist parsing.
     - CVE-2026-34601
     - CVE-2026-41672
     - CVE-2026-41673
     - CVE-2026-41674
     - CVE-2026-41675
-    # electron@<39.8.5 — multiple use-after-free and command injection vulns.
-    # Upgrading from electron 35 to 39+ is a major version jump requiring
-    # dedicated testing. Ignoring until the electron upgrade is planned.
-    - CVE-2026-34774
-    - CVE-2026-34771
-    - CVE-2026-34770
+    # ── electron@<39.8.5 ────────────────────────────────────────────────
+    # Major version jump (35→39+) requires dedicated testing. All transitive.
+    - CVE-2026-34764
+    - CVE-2026-34765
+    - CVE-2026-34766
+    - CVE-2026-34767
+    - CVE-2026-34768
     - CVE-2026-34769
+    - CVE-2026-34770
+    - CVE-2026-34771
+    - CVE-2026-34772
+    - CVE-2026-34773
+    - CVE-2026-34774
+    - CVE-2026-34775
+    - CVE-2026-34776
+    - CVE-2026-34777
+    - CVE-2026-34778
+    - CVE-2026-34779
+    - CVE-2026-34781
+    # ── got / phin / react-devtools-core ────────────────────────────────
+    # Transitive devDeps with no path to update.
+    - CVE-2022-33987
+    - CVE-2023-5654
+    # ── cookie ──────────────────────────────────────────────────────────
+    - CVE-2024-47764
+    # ── estree-util-value-to-estree ─────────────────────────────────────
+    - CVE-2025-32014
+    # ── jsondiffpatch ───────────────────────────────────────────────────
+    - CVE-2025-9910
+    # ── tmp ──────────────────────────────────────────────────────────────
+    - CVE-2025-54798
+    # ── vite (transitive, pinned by remix/electron-forge) ───────────────
+    - CVE-2025-58751
+    - CVE-2025-58752
+    - CVE-2025-62522
+    - CVE-2026-39365
+    # ── mjml — unfixable (patched_versions: <0.0.0) ────────────────────
+    - CVE-2025-67898
+    # ── ajv ──────────────────────────────────────────────────────────────
+    - CVE-2025-69873
+    # ── markdown-it ─────────────────────────────────────────────────────
+    - CVE-2026-2327
+    # ── qs ───────────────────────────────────────────────────────────────
+    - CVE-2026-2391
+    # ── @tootallnate/once ───────────────────────────────────────────────
+    - CVE-2026-3449
+    # ── file-type ────────────────────────────────────────────────────────
+    - CVE-2026-31808
+    # ── fast-xml-parser ─────────────────────────────────────────────────
+    - CVE-2026-33349
+    - CVE-2026-41650
+    # ── yaml ─────────────────────────────────────────────────────────────
+    - CVE-2026-33532
+    # ── brace-expansion ─────────────────────────────────────────────────
+    - CVE-2026-33750
+    # ── hono (transitive via shadcn > @modelcontextprotocol/sdk) ────────
+    - CVE-2026-39406
+    - CVE-2026-39407
+    - CVE-2026-39408
+    - CVE-2026-39409
+    - CVE-2026-39410
+    - CVE-2026-44455
+    - CVE-2026-44456
+    - CVE-2026-44457
+    - CVE-2026-44458
+    - CVE-2026-44459
+    # ── @hono/node-server ───────────────────────────────────────────────
+    - CVE-2026-39406
+    # ── dompurify (transitive via mermaid) ──────────────────────────────
+    - CVE-2026-41238
+    - CVE-2026-41239
+    - CVE-2026-41240
+    # ── postcss ──────────────────────────────────────────────────────────
+    - CVE-2026-41305
+    # ── uuid ─────────────────────────────────────────────────────────────
+    - CVE-2026-41907
+    # ── ip-address ───────────────────────────────────────────────────────
+    - CVE-2026-42338
+    # ── mermaid ──────────────────────────────────────────────────────────
+    - CVE-2026-41148
+    - CVE-2026-41149
+    - CVE-2026-41150
+    - CVE-2026-41159
+    # ── GHSA-only (no CVE assigned) — cannot ignore in pnpm 10 ───────────
+    # 15 remaining low/moderate vulns in transitive devDeps:
+    # GHSA-r4q5-vmmm-2653 (follow-redirects), GHSA-593m-55hh-j8gv (@sentry),
+    # GHSA-r5w7-f542-q2j4 (@sentry), GHSA-67mh-4wv8-2f99 (esbuild),
+    # GHSA-x565-32qp-m3vf (phin), GHSA-c7w3-x93f-qmm8 (nodemailer),
+    # GHSA-vvjj-xcjg-gr5g (nodemailer), GHSA-j965-2qgj-vjmq (aws-sdk),
+    # GHSA-26pp-8wgv-hjvm (hono), GHSA-458j-xx4x-4375 (hono),
+    # GHSA-39q2-94rc-95cp (dompurify).
+    # Will be ignorable after upgrading to pnpm 11 (ignoreGhsas).
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources

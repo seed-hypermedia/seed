@@ -24,6 +24,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
           genesisCid: genesisChange.cid,
           deps: [genesisChange.cid],
           depth: 1,
+          message: input.message,
         },
         signer,
       )
@@ -49,14 +50,16 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     }
 
     // Use PrepareDocumentChange for both new and existing documents so the server
-    // can prepare all supported ops.
+    // can prepare all supported ops. The publish message is forwarded to the
+    // daemon so it can embed it into the unsigned Change blob — it lives on
+    // the Change, not the Ref.
     const {unsignedChange} = (await deps.request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,
       baseVersion: input.baseVersion,
       changes: input.changes,
       capability: input.capability,
-      visibility: input.visibility,
+      message: input.message,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
     const {publishInput} = await signDocumentChange(
       {

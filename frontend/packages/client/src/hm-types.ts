@@ -1590,7 +1590,9 @@ export const HMPrepareDocumentChangeInputSchema = z.object({
   baseVersion: z.string().optional(),
   changes: z.array(ProtoDocumentChangeSchema),
   capability: z.string().optional(),
-  visibility: z.number().int().optional(),
+  /** Optional human-readable publish message, similar to a git commit message.
+   *  The daemon embeds this into the unsigned Change blob returned to the client. */
+  message: z.string().optional(),
 })
 export type HMPrepareDocumentChangeInput = z.infer<typeof HMPrepareDocumentChangeInputSchema>
 

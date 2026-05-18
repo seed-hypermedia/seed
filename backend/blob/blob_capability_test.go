@@ -25,7 +25,7 @@ func TestOutOfOrderCapability(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("name", "Hello")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	ref, err := NewRef(bob, 0, change.CID, alice.Principal(), "", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)

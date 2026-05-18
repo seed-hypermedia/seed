@@ -222,12 +222,12 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 
 	var docChange blob.Encoded[*blob.Change]
 	if in.Timestamp != nil {
-		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime())
+		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime(), in.Message)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create document change with the provided timestamp: %w", err)
 		}
 	} else {
-		docChange, err = doc.SignChange(kp)
+		docChange, err = doc.SignChange(kp, in.Message)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create document change: %w", err)
 		}
@@ -274,15 +274,15 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 		BaseVersion: in.BaseVersion,
 		Changes:     in.Changes,
 		Capability:  in.Capability,
-		Visibility:  in.Visibility,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Use NopSigner to create the Change without actually signing it.
-	// The client will sign it themselves.
-	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now())
+	// The client will sign it themselves. The optional message is embedded in
+	// the unsigned bytes so the client doesn't need to know about it.
+	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now(), in.Message)
 	if err != nil {
 		return nil, err
 	}
@@ -1710,7 +1710,7 @@ func (srv *Server) getRef(ctx context.Context, c cid.Cid) (hb blob.WithCID[*blob
 }
 
 func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) error {
-	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+	ebc, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime(), "")
 	if err != nil {
 		return err
 	}

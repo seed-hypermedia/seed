@@ -10,6 +10,7 @@ type CreateDocumentChangeRequest = {
   changes: DocumentChange[]
   capability: string
   visibility: ResourceVisibility
+  message: string
 }
 
 type PublishDesktopDocumentDeps = {
@@ -38,6 +39,7 @@ export function createDocumentChangeRequest(input: PublishDocumentInput): Create
     ),
     capability: input.capability ?? '',
     visibility: ResourceVisibility.UNSPECIFIED,
+    message: input.message ?? '',
   }
 }
 

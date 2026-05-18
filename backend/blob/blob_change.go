@@ -29,6 +29,10 @@ type Change struct {
 	Deps    []cid.Cid  `refmt:"deps,omitempty"`
 	Depth   int        `refmt:"depth,omitempty"`
 	Body    ChangeBody `refmt:"body,omitempty"`
+	// Message is an optional human-readable description of this change,
+	// similar to a git commit message. Set by the publisher and preserved
+	// permanently as part of the signed Change blob.
+	Message string `refmt:"message,omitempty"`
 }
 
 // ChangeBody is the body of a Change.
@@ -44,8 +48,10 @@ type ChangeBody struct {
 	Ops []OpMap `refmt:"ops,omitempty"`
 }
 
-// NewChange creates a new Change.
-func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time) (eb Encoded[*Change], err error) {
+// NewChange creates a new Change. The message argument is an optional
+// human-readable description (like a git commit message) embedded into the
+// signed blob; pass an empty string to omit it.
+func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, body ChangeBody, ts time.Time, message string) (eb Encoded[*Change], err error) {
 	if !slices.IsSortedFunc(deps, func(a, b cid.Cid) int {
 		return cmp.Compare(a.KeyString(), b.KeyString())
 	}) {
@@ -62,6 +68,7 @@ func NewChange(signer core.Signer, genesis cid.Cid, deps []cid.Cid, depth int, b
 		Deps:    deps,
 		Depth:   depth,
 		Body:    body,
+		Message: message,
 	}
 
 	if err := Sign(signer, cc, &cc.BaseBlob.Sig); err != nil {
@@ -526,7 +533,11 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		}
 	}
 
-	if extra.Title != "" || len(extra.Metadata) > 0 {
+	if v.Message != "" {
+		extra.Message = v.Message
+	}
+
+	if extra.Title != "" || len(extra.Metadata) > 0 || extra.Message != "" {
 		sb.ExtraAttrs = extra
 	}
 
@@ -544,6 +555,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 type changeIndexedAttrs struct {
 	Title    string         `json:"title"` // Deprecated. TODO(burdiyan): remove this in favor of metadata.
 	Metadata map[string]any `json:"metadata,omitempty"`
+	Message  string         `json:"message,omitempty"`
 }
 
 type decodedBlob[T any] struct {

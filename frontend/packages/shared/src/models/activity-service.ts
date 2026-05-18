@@ -118,6 +118,7 @@ export type LoadedRefEvent = {
   time: HMTimestamp
   docId: UnpackedHypermediaId
   document: HMDocument
+  message?: string
 }
 
 export type LoadedCitationEvent = {
@@ -488,7 +489,7 @@ export async function loadContactEvent(
 }
 
 export async function loadRefEvent(
-  _grpcClient: GRPCClient,
+  grpcClient: GRPCClient,
   event: HMActivityEvent,
   currentAccount: string | undefined,
   cache: RequestCache,
@@ -508,15 +509,27 @@ export async function loadRefEvent(
 
     const docId = unpackHmId(event.newBlob.resource)
 
-    const grpcDocument = await cache.getDocument({
-      account: docId?.uid,
-      path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
-      version: docId?.version || undefined,
-    })
+    const [grpcDocument, grpcRef] = await Promise.all([
+      cache.getDocument({
+        account: docId?.uid,
+        path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
+        version: docId?.version || undefined,
+      }),
+      grpcClient.documents.getRef({id: event.newBlob.cid}).catch(() => null),
+    ])
 
-    // const change = await grpcClient.entities.getEntityTimeline({
-    //   id: grpcDocument.,
-    // })
+    // Publish messages live on the Change blob, not the Ref. Resolve the head
+    // change CID from the Ref's version target (dot-separated CIDs) and fetch
+    // the change itself to read its message.
+    let publishMessage: string | undefined
+    const versionTarget = grpcRef?.target?.target
+    if (versionTarget?.case === 'version') {
+      const headCid = versionTarget.value.version.split('.')[0]
+      if (headCid) {
+        const headChange = await grpcClient.documents.getDocumentChange({id: headCid}).catch(() => null)
+        if (headChange?.message) publishMessage = headChange.message
+      }
+    }
 
     return docId
       ? {
@@ -526,6 +539,7 @@ export async function loadRefEvent(
           docId,
           author,
           document: prepareHMDocument(grpcDocument),
+          message: publishMessage,
         }
       : null
   } catch (error) {

@@ -107,6 +107,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 			Author:     change.Signer.String(),
 			Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
 			CreateTime: timestamppb.New(change.Ts),
+			Message:    change.Message,
 		})
 	}
 
@@ -144,5 +145,6 @@ func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocum
 		Author:     change.Signer.String(),
 		Deps:       colx.SliceMap(change.Deps, cid.Cid.String),
 		CreateTime: timestamppb.New(change.Ts),
+		Message:    change.Message,
 	}, nil
 }

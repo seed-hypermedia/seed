@@ -319,6 +319,7 @@ export function registerDocumentCommands(program: Command) {
     .option('--grobid-url <url>', 'GROBID server URL for PDF extraction')
     .option('--dry-run', 'Preview extracted content without publishing')
     .option('--force', 'Overwrite existing document at the same path (creates new lineage)')
+    .option('-m, --message <text>', 'Publish message (like a git commit message)')
     .option('-k, --key <name>', 'Signing key name or account ID')
     .option('-a, --account <uid>', 'Target space/account UID (publish under a different account using a capability)')
     .action(async (options, cmd) => {
@@ -416,6 +417,7 @@ export function registerDocumentCommands(program: Command) {
           genesisCid: genesisBlock.cid,
           deps: [genesisBlock.cid],
           depth: 1,
+          message: options.message,
         })
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
@@ -491,6 +493,7 @@ export function registerDocumentCommands(program: Command) {
     .option('--import-tags <value>', 'Import tags (comma-separated)')
     .option('--parent <blockId>', 'Parent block ID for new content (default: root)')
     .option('--delete-blocks <ids>', 'Comma-separated block IDs to delete')
+    .option('-m, --message <text>', 'Publish message (like a git commit message)')
     .option('-k, --key <name>', 'Signing key name or account ID')
     .action(async (id: string, options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
@@ -579,7 +582,13 @@ export function registerDocumentCommands(program: Command) {
 
         const signer = createSignerFromKey(key)
         const capability = await resolveCapability(client, docAccount, key.accountId)
-        const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
+        const {unsignedBytes, ts} = createChangeOps({
+          ops,
+          genesisCid,
+          deps: depCids,
+          depth: newDepth,
+          message: options.message,
+        })
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
         const refInput = await createVersionRef(

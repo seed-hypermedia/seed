@@ -20,7 +20,7 @@ func TestDocmodelSmoke(t *testing.T) {
 	must.Do(doc.MoveBlock("b2", "", "b1"))
 	must.Do(doc.MoveBlock("b3", "", "b2"))
 	must.Do(doc.MoveBlock("b1.1", "b1", ""))
-	c1 := must.Do2(doc.SignChange(alice))
+	c1 := must.Do2(doc.SignChange(alice, ""))
 
 	want := &blob.Change{
 		Body: blob.ChangeBody{
@@ -54,7 +54,7 @@ func TestDocmodelSmoke(t *testing.T) {
 		must.Do(doc.DeleteBlock("b1.1"))
 		must.Do(doc.MoveBlock("b4", "", ""))
 		must.Do(doc.DeleteBlock("b3"))
-		c2 := must.Do2(doc.SignChange(alice))
+		c2 := must.Do2(doc.SignChange(alice, ""))
 
 		{
 			doc := must.Do2(New("mydoc", cclock.New()))
@@ -94,7 +94,7 @@ func TestBug_RedundantReplaces(t *testing.T) {
 		Text: "3",
 	}))
 
-	c1, err := doc.SignChange(alice)
+	c1, err := doc.SignChange(alice, "")
 	require.NoError(t, err)
 
 	var c2 blob.Encoded[*blob.Change]
@@ -120,7 +120,7 @@ func TestBug_RedundantReplaces(t *testing.T) {
 			Text: "3",
 		}))
 
-		c2, err = doc.SignChange(alice)
+		c2, err = doc.SignChange(alice, "")
 		require.NoError(t, err)
 	}
 
@@ -176,7 +176,7 @@ func TestBug_BlockReordering(t *testing.T) {
 		Text: "5",
 	}))
 
-	c1, err := doc.SignChange(alice)
+	c1, err := doc.SignChange(alice, "")
 	require.NoError(t, err)
 
 	var c2 blob.Encoded[*blob.Change]
@@ -219,7 +219,7 @@ func TestBug_BlockReordering(t *testing.T) {
 
 		must.Do(doc.DeleteBlock("mMa"))
 
-		c2, err = doc.SignChange(alice)
+		c2, err = doc.SignChange(alice, "")
 		require.NoError(t, err)
 	}
 

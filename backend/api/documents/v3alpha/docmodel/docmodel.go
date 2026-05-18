@@ -340,22 +340,25 @@ func (dm *Document) ensureTreeMutation() (*blockTreeMutation, error) {
 	return dm.mut, nil
 }
 
-// SignChange creates a change.
+// SignChange creates a change with an optional human-readable message
+// (similar to a git commit message). Pass an empty string to omit the message.
 // After this the Document instance must be discarded. The change must be applied to a different state.
-func (dm *Document) SignChange(kp *core.KeyPair) (hb blob.Encoded[*blob.Change], err error) {
-	return dm.SignChangeAt(kp, dm.crdt.clock.MustNow())
+func (dm *Document) SignChange(kp *core.KeyPair, message string) (hb blob.Encoded[*blob.Change], err error) {
+	return dm.SignChangeAt(kp, dm.crdt.clock.MustNow(), message)
 }
 
 // SignChangeAt creates a change at the given timestamp, ignoring the internal clock.
 // The timestamp must still satisfy the causality rules, i.e. be strictly greater than any previously observed timestamp.
-func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
-	return dm.CreateChange(kp, at)
+// The message argument is optional (pass an empty string to omit).
+func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time, message string) (hb blob.Encoded[*blob.Change], err error) {
+	return dm.CreateChange(kp, at, message)
 }
 
 // CreateChange creates a Change blob with the given signer and principal.
 // This allows using NopSigner for client-side signing scenarios where the signer doesn't actually sign.
+// The message argument is optional and embedded in the signed Change blob.
 // After this the Document instance must be discarded.
-func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
+func (dm *Document) CreateChange(signer core.Signer, at time.Time, message string) (hb blob.Encoded[*blob.Change], err error) {
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
 	}
@@ -369,7 +372,7 @@ func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Enco
 
 	at = at.Round(dm.crdt.clock.Precision)
 
-	hb, err = dm.crdt.prepareChange(at, signer, ops)
+	hb, err = dm.crdt.prepareChange(at, signer, ops, message)
 	if err != nil {
 		return hb, err
 	}

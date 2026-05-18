@@ -28,7 +28,7 @@ func TestRefCausality(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "Initial Document")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	time.Sleep(time.Millisecond)
@@ -38,7 +38,7 @@ func TestRefCausality(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("content", "Updated content")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	time.Sleep(time.Millisecond)

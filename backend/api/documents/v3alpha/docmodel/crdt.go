@@ -590,8 +590,10 @@ func addUnique(in []int, v int) []int {
 	return slices.Insert(in, targetIndex, v)
 }
 
-// prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
+// prepareChange to be applied later. The message argument is an optional
+// human-readable description (like a git commit message) embedded in the
+// signed Change blob; pass an empty string to omit it.
+func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.ChangeBody, message string) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]
@@ -611,7 +613,7 @@ func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.Chan
 	}
 	slices.SortFunc(deps, func(a, b cid.Cid) int { return strings.Compare(a.KeyString(), b.KeyString()) })
 
-	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts)
+	hb, err = blob.NewChange(signer, genesis, deps, depth, body, ts, message)
 	if err != nil {
 		return hb, err
 	}

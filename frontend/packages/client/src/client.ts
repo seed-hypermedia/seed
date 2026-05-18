@@ -98,6 +98,8 @@ export type PublishDocumentInput = {
   generation?: number | bigint
   capability?: string
   visibility?: number
+  /** Optional human-readable publish message, similar to a git commit message. */
+  message?: string
 }
 
 export type SeedClientOptions = {
@@ -250,6 +252,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
           genesisCid: genesisChange.cid,
           deps: [genesisChange.cid],
           depth: 1,
+          message: input.message,
         },
         signer,
       )
@@ -275,14 +278,16 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     }
 
     // Use PrepareDocumentChange for both new and existing documents so the server
-    // can prepare all supported ops.
+    // can prepare all supported ops. The message is passed in the prepare
+    // request so the daemon can embed it into the unsigned Change blob — it
+    // lives on the Change, not the Ref.
     const {unsignedChange} = (await request('PrepareDocumentChange', {
       account: input.account,
       path: input.path,
       baseVersion: input.baseVersion,
       changes: input.changes,
       capability: input.capability,
-      visibility: input.visibility,
+      message: input.message,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
     const {publishInput} = await signDocumentChange(
       {

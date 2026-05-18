@@ -133,7 +133,8 @@ function cleanup(root: Root, container: HTMLDivElement) {
 
 function setInputValue(input: HTMLInputElement, value: string) {
   act(() => {
-    input.value = value
+    const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    nativeSetter.call(input, value)
     input.dispatchEvent(new Event('input', {bubbles: true}))
   })
 }
@@ -180,6 +181,96 @@ describe('EditNavPopover trigger', () => {
       expect(container.textContent).toContain('Label')
       expect(container.querySelector('input[placeholder="Search documents or paste URL"]')).not.toBeNull()
       expect(container.textContent!.indexOf('Link')).toBeLessThan(container.textContent!.indexOf('Label'))
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('shows only the document path in the link input for hm links', () => {
+    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: 'Docs', link: 'hm://alice/docs'}])
+
+    try {
+      // The item is not blank so expandedItemId starts null; click the toggle button to open the form.
+      const toggleButton = Array.from(container.querySelectorAll('button')).find(
+        (btn) => btn.textContent?.includes('Docs'),
+      ) as HTMLButtonElement | undefined
+      act(() => {
+        toggleButton?.click()
+      })
+
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement | null
+      expect(linkInput?.value).toBe('/docs')
+      expect(container.textContent).not.toContain('hm://alice/docs')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('updates link and label when a document search result is selected', async () => {
+    useSearchMock.mockImplementation(((query: string) => ({
+      data: {
+        entities:
+          query === 'Shared'
+            ? [
+                {
+                  id: {uid: 'alice', path: ['shared-meaning']},
+                  title: 'Shared Meaning',
+                  parentNames: ['Notes'],
+                  icon: null,
+                  searchQuery: query,
+                  versionTime: '',
+                },
+              ]
+            : [],
+      },
+    })) as any)
+
+    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
+
+    try {
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link…"]') as HTMLInputElement
+
+      await act(async () => {
+        linkInput.focus()
+      })
+      setInputValue(linkInput, 'Shared')
+
+      const resultButton = container.querySelector('[data-search-result="Shared Meaning"]') as HTMLButtonElement | null
+      expect(resultButton).not.toBeNull()
+
+      await act(async () => {
+        resultButton?.click()
+      })
+
+      expect(linkInput.value).toBe('/shared-meaning')
+      expect(labelInput.value).toBe('Shared Meaning')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('commits pasted web URLs from the link input and updates the label', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue(null)
+
+    const {container, root} = renderPopover([{id: 'nav-1', type: 'Link', text: '', link: ''}])
+
+    try {
+      const linkInput = container.querySelector('input[aria-label="Link"]') as HTMLInputElement
+      const labelInput = container.querySelector('input[placeholder="My Link…"]') as HTMLInputElement
+
+      await act(async () => {
+        linkInput.focus()
+      })
+      setInputValue(linkInput, 'https://seed.example/docs')
+
+      await act(async () => {
+        linkInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
+      })
+
+      expect(resolveHypermediaUrlMock).toHaveBeenCalledWith('https://seed.example/docs')
+      expect(linkInput.value).toBe('https://seed.example/docs')
+      expect(labelInput.value).toBe('https://seed.example/docs')
     } finally {
       cleanup(root, container)
     }

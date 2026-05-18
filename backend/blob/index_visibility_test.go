@@ -93,35 +93,35 @@ func TestRefVisibilityPropagationSingleRef(t *testing.T) {
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "Genesis")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	c2, err := NewChange(alice.Account, c1.CID, []cid.Cid{c1.CID}, 1, ChangeBody{
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "First update")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	c3, err := NewChange(alice.Account, c1.CID, []cid.Cid{c2.CID}, 2, ChangeBody{
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("title", "Side branch")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	c4, err := NewChange(alice.Account, c1.CID, []cid.Cid{c2.CID}, 2, ChangeBody{
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("content", "Merge head")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	cStar, err := NewChange(alice.Account, c1.CID, []cid.Cid{c4.CID}, 3, ChangeBody{
 		Ops: []OpMap{
 			must.Do2(NewOpSetKey("content", "Out of closure")),
 		},
-	}, clock.MustNow())
+	}, clock.MustNow(), "")
 	require.NoError(t, err)
 
 	ref, err := NewRef(alice.Account, 0, c1.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{c4.CID, c3.CID}, clock.MustNow(), VisibilityPrivate)
