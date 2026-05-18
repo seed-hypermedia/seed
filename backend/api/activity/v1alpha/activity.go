@@ -210,8 +210,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		WHERE %s %s;
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
 	var refIDs, resources, genesisBlobIDs []string
+	// Count rows returned by the main DB fetch (pre-filter). Used to decide whether to
+	// emit a next-page token even if the deleted/dedup filters shorten the visible page.
+	var mainRawCount int
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.ExecTransient(conn, getEventsStr, func(stmt *sqlite.Stmt) error {
+			mainRawCount++
 			id := stmt.ColumnInt64(0)
 			eventType := stmt.ColumnText(1)
 			author := stmt.ColumnBytes(2)
@@ -329,6 +333,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	var deletedList []string
 
+	// Count rows returned by the mentions DB fetch (pre-filter). Used together with
+	// mainRawCount to decide whether more pages exist after post-fetch filtering.
+	var mentionsRawCount int
+
 	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eids []string
@@ -361,6 +369,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			args = append(args, req.PageSize)
 			queryStr = strings.TrimSpace(queryStr)
 			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
+				mentionsRawCount++
 				var (
 					sourceDoc  string
 					target     = stmt.ColumnText(0)
@@ -559,8 +568,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	eventCursorBlobIDs = eventCursorBlobIDs[:pageLen]
 
 	// Next page token based on the minimum local blob ID in the returned page.
+	// Emit a token whenever either DB fetch returned a full batch, because the
+	// deleted/dedup filters above can shorten the visible page below req.PageSize
+	// while older rows remain in the database.
+	rawHasMore := mainRawCount >= int(req.PageSize) || mentionsRawCount >= int(req.PageSize)
 	var nextPageToken string
-	if pageLen > 0 && int(req.PageSize) == pageLen {
+	if pageLen > 0 && rawHasMore {
 		minBlobID := eventCursorBlobIDs[0]
 		for _, blobID := range eventCursorBlobIDs[1:] {
 			if blobID != 0 && (minBlobID == 0 || blobID < minBlobID) {

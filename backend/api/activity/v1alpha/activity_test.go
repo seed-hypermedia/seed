@@ -2,6 +2,7 @@ package activity
 
 import (
 	context "context"
+	"fmt"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/logging"
@@ -85,6 +86,57 @@ func TestListEventsOrdersByLocalObservation(t *testing.T) {
 	require.Equal(t, int64(1), nextPage.Events[0].GetNewBlob().GetBlobId())
 }
 
+func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		// id=1: standalone resource — must be reachable on page 2.
+		if err := insertActivityProfileEvent(conn, 1, 1, author.String()+"/standalone", 1_000); err != nil {
+			return err
+		}
+		// id=2 and id=3 share resource+ts → the in-memory dedup loop drops one when both land on page 1.
+		if err := insertActivityProfileEvent(conn, 2, 2, author.String()+"/duplicate", 2_000); err != nil {
+			return err
+		}
+		return insertActivityProfileEventForResource(conn, 3, 2, 2_000)
+	}))
+
+	// Page 1: PageSize=2. DB returns id=3 and id=2 (sorted DESC); dedup drops id=2 since
+	// it shares the (resource, type, account, EventTime) key with id=3.
+	page1, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        2,
+		FilterEventType: []string{"Profile"},
+	})
+	require.NoError(t, err)
+	require.Len(t, page1.Events, 1)
+	require.Equal(t, int64(3), page1.Events[0].GetNewBlob().GetBlobId())
+	require.NotEmpty(t, page1.NextPageToken,
+		"next page token must be present when DB returned a full batch but post-filtering shortened the page")
+
+	page2, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        2,
+		PageToken:       page1.NextPageToken,
+		FilterEventType: []string{"Profile"},
+	})
+	require.NoError(t, err)
+	// Dedup is intra-page, so id=2 re-surfaces alongside id=1 — that's a separate
+	// (pre-existing) cross-page dedup concern. The point of this test is that id=1,
+	// which was previously unreachable, is now delivered to the client.
+	page2IDs := make([]int64, 0, len(page2.Events))
+	for _, e := range page2.Events {
+		page2IDs = append(page2IDs, e.GetNewBlob().GetBlobId())
+	}
+	require.Contains(t, page2IDs, int64(1),
+		"id=1 must be reachable via pagination after dedup shortens page 1")
+}
+
 // TODO: update profile idempotent no change
 
 func newTestServer(t *testing.T, name string) *Server {
@@ -106,6 +158,17 @@ func insertActivityProfileEvent(conn *sqlite.Conn, blobID int64, resourceID int6
 		return err
 	}
 	if err := sqlitex.Exec(conn, `INSERT INTO document_generations (resource, generation, genesis, genesis_change_time) VALUES (?, 0, ?, 0);`, nil, resourceID, resourceIRI); err != nil {
+		return err
+	}
+	return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Profile', ?, 1, ?, ?, '{}');`, nil, blobID, eventTimestampMillis, blobID, resourceID)
+}
+
+func insertActivityProfileEventForResource(conn *sqlite.Conn, blobID int64, resourceID int64, eventTimestampMillis int64) error {
+	hash, err := multihash.Sum([]byte(fmt.Sprintf("blob-%d", blobID)), multihash.SHA2_256, -1)
+	if err != nil {
+		return err
+	}
+	if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (?, ?, ?, ?, ?, ?);`, nil, blobID, []byte(hash), int64(0x55), []byte{1}, int64(1), blobID); err != nil {
 		return err
 	}
 	return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Profile', ?, 1, ?, ?, '{}');`, nil, blobID, eventTimestampMillis, blobID, resourceID)
