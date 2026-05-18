@@ -4,6 +4,7 @@ import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
+import {DesktopDraftBreadcrumbProvider} from '@/components/desktop-draft-breadcrumb-provider'
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
@@ -663,46 +664,48 @@ export default function DesktopResourcePage() {
       >
         <DesktopDocumentActionsProvider>
           <DesktopDraftActionsProvider>
-            <QueryBlockDraftsProvider
-              DraftSlot={DesktopQueryBlockDraftSlot}
-              lastCreatedDraftId={lastCreatedDraftId}
-              setLastCreatedDraftId={setLastCreatedDraftId}
-            >
-              <QuerySearchInputProvider value={SearchInput}>
-                <ResourcePage
-                  docId={docId}
-                  canEdit={canEdit}
-                  CommentEditor={CommentBox}
-                  extraMenuItems={menuItems}
-                  existingDraft={existingDraft}
-                  existingDraftVisibility={draftQuery.data?.visibility}
-                  existingDraftContent={existingDraftContent}
-                  existingDraftCursorPosition={draftQuery.data?.cursorPosition}
-                  existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
-                  existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
-                  inlineCards={inlineCards}
-                  rightActions={<JoinButton siteUid={docId.uid} />}
-                  onEditProfile={onEditProfile}
-                  inspect={inspect}
-                  inspectStore={inspectStore}
-                  DocumentContentComponent={DocumentEditor}
-                  machine={machine}
-                  onEditorReady={handleEditorReady}
-                  machineExtras={null}
-                  editingFloatingActions={editingFloatingActions}
-                  draftActions={draftActions}
-                  newButton={newButton}
-                  signingAccountId={selectedAccountId || undefined}
-                  publishAccountUid={selectedAccount?.id?.uid || undefined}
-                  perspectiveAccountUid={selectedAccountId}
-                  linkExtensionOptions={linkExtensionOptions}
-                  fileUpload={fileUpload}
-                  editNavPane={
-                    canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
-                  }
-                />
-              </QuerySearchInputProvider>
-            </QueryBlockDraftsProvider>
+            <DesktopDraftBreadcrumbProvider>
+              <QueryBlockDraftsProvider
+                DraftSlot={DesktopQueryBlockDraftSlot}
+                lastCreatedDraftId={lastCreatedDraftId}
+                setLastCreatedDraftId={setLastCreatedDraftId}
+              >
+                <QuerySearchInputProvider value={SearchInput}>
+                  <ResourcePage
+                    docId={docId}
+                    canEdit={canEdit}
+                    CommentEditor={CommentBox}
+                    extraMenuItems={menuItems}
+                    existingDraft={existingDraft}
+                    existingDraftVisibility={draftQuery.data?.visibility}
+                    existingDraftContent={existingDraftContent}
+                    existingDraftCursorPosition={draftQuery.data?.cursorPosition}
+                    existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
+                    existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
+                    inlineCards={inlineCards}
+                    rightActions={<JoinButton siteUid={docId.uid} />}
+                    onEditProfile={onEditProfile}
+                    inspect={inspect}
+                    inspectStore={inspectStore}
+                    DocumentContentComponent={DocumentEditor}
+                    machine={machine}
+                    onEditorReady={handleEditorReady}
+                    machineExtras={null}
+                    editingFloatingActions={editingFloatingActions}
+                    draftActions={draftActions}
+                    newButton={newButton}
+                    signingAccountId={selectedAccountId || undefined}
+                    publishAccountUid={selectedAccount?.id?.uid || undefined}
+                    perspectiveAccountUid={selectedAccountId}
+                    linkExtensionOptions={linkExtensionOptions}
+                    fileUpload={fileUpload}
+                    editNavPane={
+                      canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
+                    }
+                  />
+                </QuerySearchInputProvider>
+              </QueryBlockDraftsProvider>
+            </DesktopDraftBreadcrumbProvider>
           </DesktopDraftActionsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
