@@ -1,4 +1,5 @@
 import {useIPC} from '@/app-context'
+import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
 import {NavRoute} from '@shm/shared/routes'
 import {NavMode, useNavigationDispatch, useNavigationState} from '@shm/shared/utils/navigation'
 import {startTransition, useCallback} from 'react'
@@ -16,6 +17,7 @@ export function useNavigate(requestedMode: NavMode = 'push') {
       const mode = routeWindowType.key === getWindowType() ? requestedMode : 'spawn'
       startTransition(() => {
         if (mode === 'spawn') {
+          reportTelemetry(telemetryKeyForRoute(route), TelemetryStage.LinkClick)
           const path = encodeRouteToPath(route)
           invoke('plugin:window|open', {
             path,

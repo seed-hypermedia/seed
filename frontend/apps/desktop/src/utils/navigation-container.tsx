@@ -3,6 +3,7 @@ import {ipc} from '@/ipc'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
+import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
 import {useExperiments} from '@/models/experiments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -27,6 +28,9 @@ const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
 const navigation = {
   dispatch(action: NavAction) {
+    if (action.type === 'push' || action.type === 'replace' || action.type === 'backplace') {
+      reportRouteLinkClick(action.route)
+    }
     const prevState = navState.get()
     const newState = navStateReducer(prevState, action)
     if (prevState !== newState) {
@@ -64,6 +68,10 @@ window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
   }
 })
 
+function reportRouteLinkClick(route: NavRoute) {
+  reportTelemetry(telemetryKeyForRoute(route), TelemetryStage.LinkClick)
+}
+
 export function NavigationContainer({children}: {children: ReactNode}) {
   const {externalOpen} = useAppContext()
 
@@ -87,6 +95,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
       }}
       experiments={experiments}
       openRouteNewWindow={(route: NavRoute) => {
+        reportRouteLinkClick(route)
         const path = encodeRouteToPath(route)
         const currentState = navigation.state.get()
         const selectedIdentity = currentState.selectedIdentity
@@ -102,6 +111,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         const route = hypermediaUrlToRoute(url)
         if (route) {
           if (newWindow) {
+            reportRouteLinkClick(route)
             const path = encodeRouteToPath(route)
             const currentState = navigation.state.get()
             ipc.invoke('plugin:window|open', {

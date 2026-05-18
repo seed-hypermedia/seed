@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package com.seed.telemetry.v1alpha;
+
+option go_package = "seed/backend/genproto/telemetry/v1alpha;telemetry";
+
+// Telemetry collects checkpoint timestamps from in-process emitters in the
+// daemon and from external processes (Electron main + renderers) so that we
+// can reconstruct the wall-clock journey of a single hypermedia URL through
+// the system.
+//
+// This is a debugging surface only — there is no auth and the server runs
+// behind the loopback-only HTTP debug routes. The wire schema is intentionally
+// tiny so the hot path stays free of allocations: emitters send
+// (key, stage, ts) tuples only. Generation assignment, stage classification,
+// abandonment detection and percentile rollups all happen on the server at
+// read time.
+service Telemetry {
+  // RecordCheckpoints appends a batch of checkpoints to the in-memory ring
+  // buffer. Used by Electron main and renderers; in-process Go emitters call
+  // the server's RecordCheckpoint helper directly.
+  rpc RecordCheckpoints(RecordCheckpointsRequest) returns (RecordCheckpointsResponse);
+}
+
+// A single checkpoint stamp.
+message Checkpoint {
+  // Correlation key. Always an hm:// URL with a version pin:
+  //   hm://<account>/<path>?v=<version_cid>
+  // The path segment is optional but the ?v= pin is always present, so that
+  // the new-blob path keys uniquely on the arriving blob and the user-fetch
+  // path keys on the requested version.
+  string key = 1;
+
+  // Canonical stage name, e.g. "renderer.refetch_start". See the package
+  // documentation in backend/api/telemetry/v1alpha for the full list and the
+  // initiating/continuing classification rules.
+  string stage = 2;
+
+  // Unix nanoseconds. Wall-clock from whichever process is emitting; clock
+  // skew between daemon and Electron processes is acceptable for the
+  // sub-second resolutions we care about, but consumers should expect a few
+  // ms of drift.
+  int64 ts_unix_nanos = 3;
+}
+
+// Request to record a batch of checkpoints.
+message RecordCheckpointsRequest {
+  // The source process that produced these checkpoints. Free-form, mainly
+  // useful for debugging the profiler itself ("main", "renderer:<windowId>").
+  string source = 1;
+
+  // The checkpoints, in the order they were observed by the emitter.
+  repeated Checkpoint checkpoints = 2;
+}
+
+// Empty response.
+message RecordCheckpointsResponse {}

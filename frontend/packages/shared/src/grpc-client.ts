@@ -11,6 +11,7 @@ import {
   Networking,
   Resources,
   Subscriptions,
+  Telemetry,
   Wallets,
 } from './client'
 
@@ -24,6 +25,7 @@ export type GRPCClient = {
   networking: PromiseClient<typeof Networking>
   accessControl: PromiseClient<typeof AccessControl>
   subscriptions: PromiseClient<typeof Subscriptions>
+  telemetry: PromiseClient<typeof Telemetry>
   wallets: PromiseClient<typeof Wallets>
   invoices: PromiseClient<typeof Invoices>
   resources: PromiseClient<typeof Resources>
@@ -40,6 +42,7 @@ export function createGRPCClient(transport: any): GRPCClient {
     networking: createPromiseClient(Networking, transport),
     accessControl: createPromiseClient(AccessControl, transport),
     subscriptions: createPromiseClient(Subscriptions, transport),
+    telemetry: createPromiseClient(Telemetry, transport),
     wallets: createPromiseClient(Wallets, transport),
     invoices: createPromiseClient(Invoices, transport),
     resources: createPromiseClient(Resources, transport),

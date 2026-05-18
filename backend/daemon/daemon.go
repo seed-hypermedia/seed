@@ -217,7 +217,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
-		fm, a.Net, a.RPC.Daemon)
+		fm, a.Net, a.RPC.Daemon, a.RPC.Telemetry)
 	if err != nil {
 		return nil, err
 	}

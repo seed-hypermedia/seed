@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	entities "seed/backend/api/entities/v1alpha"
+	telemetry "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -28,11 +29,17 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// feedEmittedSeenCapacity bounds the dedup set for backend.feed_emitted
+// stamps. 4096 unique blob keys covers a very busy session without
+// growing unbounded; entries roll off LRU-style.
+const feedEmittedSeenCapacity = 4096
 
 // Server implements the Activity gRPC API.
 type Server struct {
@@ -41,6 +48,20 @@ type Server struct {
 	clean     *cleanup.Stack
 	log       *zap.Logger
 	sync      *syncing.Service
+	telemetry *telemetry.Server
+
+	// feedEmittedSeen bounds-deduplicates backend.feed_emitted stamps:
+	// the frontend polls ListEvents every few seconds, so without this
+	// cache the same blob would re-stamp the same key on every poll,
+	// drowning /debug/journeys in tens of minutes of identical
+	// feed_emitted rows for the same key.
+	feedEmittedSeen *lru.Cache[string, struct{}]
+}
+
+// SetTelemetry attaches a Telemetry server so ListEvents can emit
+// backend.feed_emitted checkpoints for each new-blob event.
+func (srv *Server) SetTelemetry(t *telemetry.Server) {
+	srv.telemetry = t
 }
 
 type head struct {
@@ -52,12 +73,16 @@ var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`
 
 // NewServer creates a new Server.
 func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack, sync *syncing.Service) *Server {
+	// lru.New only returns an error for capacity <= 0, which we control
+	// at compile time.
+	cache, _ := lru.New[string, struct{}](feedEmittedSeenCapacity)
 	return &Server{
-		db:        db,
-		startTime: time.Now(),
-		clean:     clean,
-		log:       log,
-		sync:      sync,
+		db:              db,
+		startTime:       time.Now(),
+		clean:           clean,
+		log:             log,
+		sync:            sync,
+		feedEmittedSeen: cache,
 	}
 }
 
@@ -567,6 +592,31 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	events = events[:pageLen]
 	eventCursorBlobIDs = eventCursorBlobIDs[:pageLen]
 
+	if srv.telemetry != nil {
+		now := time.Now()
+		for _, e := range events {
+			nb, ok := e.Data.(*activity.Event_NewBlob)
+			if !ok {
+				continue
+			}
+			key := newBlobTelemetryKey(nb.NewBlob)
+			if key == "" {
+				continue
+			}
+			// Dedupe: only stamp feed_emitted the first time we surface a
+			// given blob key. The frontend polls ListEvents on a timer, so
+			// without this filter the same key would re-stamp every poll
+			// and turn /debug/journeys into a wall of identical rows.
+			if srv.feedEmittedSeen != nil {
+				if _, seen := srv.feedEmittedSeen.Get(key); seen {
+					continue
+				}
+				srv.feedEmittedSeen.Add(key, struct{}{})
+			}
+			srv.telemetry.RecordCheckpoint(key, telemetry.StageFeedEmitted, now)
+		}
+	}
+
 	// Next page token based on the minimum local blob ID in the returned page.
 	// Emit a token whenever either DB fetch returned a full batch, because the
 	// deleted/dedup filters above can shorten the visible page below req.PageSize
@@ -589,6 +639,26 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		Events:        events,
 		NextPageToken: nextPageToken,
 	}, err
+}
+
+// newBlobTelemetryKey builds the correlation key used by the journeys
+// profiler for an activity event. The frontend constructs the same string
+// from the wire form of NewBlobEvent, so both processes' checkpoints join.
+//
+// For Ref blobs the Resource field already has "?v=<version>" appended by
+// ListEvents; we use it verbatim. For other blob types we append
+// "?v=<blob_cid>" — the blob CID *is* the head for those types.
+func newBlobTelemetryKey(nb *activity.NewBlobEvent) string {
+	if nb == nil || nb.Resource == "" {
+		return ""
+	}
+	if strings.Contains(nb.Resource, "?v=") {
+		return nb.Resource
+	}
+	if nb.Cid == "" {
+		return nb.Resource
+	}
+	return nb.Resource + "?v=" + nb.Cid
 }
 
 func (srv *Server) expandFilterAuthors(ctx context.Context, authors []string) ([]string, error) {
