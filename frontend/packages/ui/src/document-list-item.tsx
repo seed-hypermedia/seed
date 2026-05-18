@@ -21,7 +21,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
-import {useMemo} from 'react'
+import {Fragment, useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -349,25 +349,21 @@ function DocumentListItemBreadcrumbs({breadcrumbs}: {breadcrumbs: HMBreadcrumb[]
   return (
     <div className="flex gap-1">
       {displayCrumbs.map((breadcrumb, idx) => (
-        <>
+        <Fragment key={breadcrumb.path}>
           <Button
-            key={breadcrumb.path}
             variant="link"
             className="px-0 text-[10px]"
             size="xs"
             onClick={(e) => {
               e.stopPropagation()
-              // Navigation will be handled by parent if needed
             }}
           >
             {breadcrumb.name}
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
-            <SizableText key={`separator-${idx}`} className="text-muted-foreground text-sm">
-              /
-            </SizableText>
+            <SizableText className="text-muted-foreground text-sm">/</SizableText>
           )}
-        </>
+        </Fragment>
       ))}
     </div>
   )
