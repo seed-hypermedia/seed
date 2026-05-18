@@ -432,29 +432,29 @@ function JoinedSiteListItem({
           )}
         </div>
       </SidebarMenuButton>
-      <SidebarMenuAction>
-        <DropdownMenu>
+      <DropdownMenu>
+        <SidebarMenuAction asChild>
           <DropdownMenuTrigger
             className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start">
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={isPending}
-              onClick={(e) => {
-                e.stopPropagation()
-                leaveSite()
-              }}
-            >
-              <CircleOff className="size-4" />
-              Leave Site
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuAction>
+        </SidebarMenuAction>
+        <DropdownMenuContent side="right" align="start">
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isPending}
+            onClick={(e) => {
+              e.stopPropagation()
+              leaveSite()
+            }}
+          >
+            <CircleOff className="size-4" />
+            Leave Site
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   )
 }
@@ -559,29 +559,29 @@ function FollowingListItem({
           <span className="truncate text-left text-sm font-bold select-none">{metadata?.name || 'Untitled'}</span>
         </div>
       </SidebarMenuButton>
-      <SidebarMenuAction>
-        <DropdownMenu>
+      <DropdownMenu>
+        <SidebarMenuAction asChild>
           <DropdownMenuTrigger
             className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start">
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={isPending}
-              onClick={(e) => {
-                e.stopPropagation()
-                unfollowProfile()
-              }}
-            >
-              <CircleOff className="size-4" />
-              Unfollow
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuAction>
+        </SidebarMenuAction>
+        <DropdownMenuContent side="right" align="start">
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isPending}
+            onClick={(e) => {
+              e.stopPropagation()
+              unfollowProfile()
+            }}
+          >
+            <CircleOff className="size-4" />
+            Unfollow
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   )
 }
