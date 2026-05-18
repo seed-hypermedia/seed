@@ -77,7 +77,7 @@ type view struct {
 	GeneratedAt      string
 	Total            int
 	Complete         int
-	Orphan           int
+	RenderedOnly     int
 	Abandoned        int
 	FrontendTouched  int
 	AbandonedByStage []summaryBucket
@@ -90,8 +90,12 @@ const gapWarn = 200 * time.Millisecond
 // lateStages are checkpoints late enough in the pipeline that an abandonment
 // there is suspicious (the data flowed almost all the way but never painted).
 // Only emitted stages are listed; planned-but-unwired stages don't belong here.
+// Both per-method *.response_sent stages qualify: reaching either means the
+// daemon answered an RPC, so abandoning after that point means the renderer
+// got data but never painted.
 var lateStages = map[string]struct{}{
-	telemetry.StageGRPCResponseSent: {},
+	telemetry.StageGetDocumentResponseSent: {},
+	telemetry.StageGetAccountResponseSent:  {},
 }
 
 func buildView(traces []telemetry.Trace) view {
@@ -140,9 +144,9 @@ func buildView(traces []telemetry.Trace) view {
 		case telemetry.StatusComplete:
 			v.Complete++
 			r.StatusCSS = "status-complete"
-		case telemetry.StatusOrphan:
-			v.Orphan++
-			r.StatusCSS = "status-orphan"
+		case telemetry.StatusRenderedOnly:
+			v.RenderedOnly++
+			r.StatusCSS = "status-rendered-only"
 		case telemetry.StatusAbandoned:
 			v.Abandoned++
 			abandonedByStage[r.LastStage]++
@@ -304,7 +308,7 @@ tr.group-tail td{border-top:1px dashed #e4e4e4}
 td.key-cell{background:#fafafa}
 .stage-idx{display:inline-block;min-width:1.6em;color:#888;font-size:10px;text-align:right;margin-right:2px}
 .status-complete{color:#2e7d32;font-weight:bold}
-.status-orphan{color:#00838f;font-weight:bold}
+.status-rendered-only{color:#00838f;font-weight:bold}
 .status-abandoned-late{color:#c62828;font-weight:bold}
 .status-abandoned-early{color:#777}
 .status-live{color:#000;font-style:italic}
@@ -326,7 +330,7 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   Generated {{.GeneratedAt}} · <strong>{{.Total}}</strong> retained traces ·
   <strong>{{.FrontendTouched}}</strong> with frontend feedback ·
   <span class="status-complete">{{.Complete}} complete</span> ·
-  <span class="status-orphan">{{.Orphan}} orphan</span> ·
+  <span class="status-rendered-only">{{.RenderedOnly}} rendered-only</span> ·
   <span class="status-abandoned-late">{{.Abandoned}} abandoned</span>{{summary .AbandonedByStage}}
 </div>
 
@@ -339,14 +343,16 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   <dt><span class="status-live">live</span></dt>
   <dd>Still in flight. New checkpoints may still arrive. Re-classified as <em>abandoned</em> automatically after 30s of inactivity.</dd>
   <dt><span class="status-complete">complete</span></dt>
-  <dd>Reached <code>renderer.component_rendered</code> after at least one preceding stage in the same generation. Healthy end-to-end journey.</dd>
-  <dt><span class="status-orphan">orphan</span> (teal, bold)</dt>
-  <dd>The trace consists solely of <code>renderer.component_rendered</code> — the page painted, but we never observed any upstream cause. Typical sources are window restore from a previous session, React Query cache hits (the data was already there so no GetDocument call), and deep links that bypass the in-app navigation dispatcher. Not a bug; just means the journey isn't observable end-to-end for this view.</dd>
+  <dd>Reached <code>renderer.component_rendered</code> after at least one preceding stage in the same generation. Healthy end-to-end journey: we saw a start, we saw a finish.</dd>
+  <dt><span class="status-rendered-only">rendered-only</span> (teal, bold)</dt>
+  <dd>We saw the <em>finish</em> (<code>renderer.component_rendered</code>) but no start. Typical sources: window restore from a previous session, React Query cache hits (the data was already in memory so no <code>GetDocument</code> call), and deep links that bypass the in-app navigation dispatcher. The page painted fine; we just have no observable cause for it.</dd>
   <dt><span class="status-abandoned-late">abandoned</span> (red, bold)</dt>
-  <dd>30s elapsed without reaching <code>renderer.component_rendered</code>, and the last stage was <code>backend.grpc_response_sent</code>. The daemon answered but the renderer never painted &mdash; investigate.</dd>
+  <dd>The opposite of rendered-only: we saw a <em>start</em> but no finish, and the last stage we saw was deep in the pipeline (currently <code>backend.get_document.response_sent</code> or <code>backend.get_account.response_sent</code>). The daemon answered an RPC, but no <code>renderer.component_rendered</code> ever followed. Worth investigating &mdash; the renderer got data but the page never painted, or the user navigated away before it could.</dd>
   <dt><span class="status-abandoned-early">abandoned</span> (grey)</dt>
-  <dd>30s elapsed earlier in the pipeline (e.g. only <code>backend.feed_emitted</code> ever fired, or a click was never followed by a render). Usually benign: the feed surfaced a blob the user never opened, or the user navigated away before the page mounted.</dd>
+  <dd>Also a start-without-finish, but the last stage was earlier (e.g. only <code>backend.feed_emitted</code> ever fired, or a <code>renderer.link_click</code> was never followed by anything). Usually benign: the feed surfaced a blob the user never opened, or the user clicked then immediately navigated away.</dd>
 </dl>
+
+<p><strong>The two "incomplete" Statuses are mirror images:</strong> <code>abandoned</code> means "we saw the journey start but it never reached the renderer". <code>rendered-only</code> means "we saw the renderer paint but the journey's start was never observed". One is missing the tail of the timeline, the other is missing the head.</p>
 
 <p><strong>Reading a row:</strong></p>
 <ul>
@@ -358,14 +364,16 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   <li><b>Stages</b> &mdash; chronologically-ordered checkpoints, <em>top is first, bottom is last</em>. The number prefix (<code>1.</code>, <code>2.</code> &hellip;) makes the order explicit; the duration shown beside each stage is the delta <em>from the previous stage</em>, not from the start. Red cells mark hops &gt;200ms; any red cell flags the whole row as an anomaly (red left border).</li>
 </ul>
 
-<p><strong>Stages emitted today.</strong> The proto wire format is a free-form string, but only the stages below have an emitter on this branch. Adding a new stage means wiring the emitter in the same change; we do not declare planned-but-unwired stages.</p>
+<p><strong>Stages emitted today.</strong> The proto wire format is a free-form string, but only the stages below have an emitter on this branch. Adding a new stage means wiring the emitter in the same change; we do not declare planned-but-unwired stages. Stage names follow <code>&lt;process&gt;.&lt;scope&gt;.&lt;event&gt;</code> so you can tell at a glance which RPC handled a request.</p>
 <ul>
-  <li><code>backend.feed_emitted</code> &mdash; <code>activity.ListEvents</code> stamps this for every new-blob event surfaced to the activity feed.</li>
-  <li><code>backend.grpc_request_received</code> &mdash; <code>documents.v3.GetDocument</code> and <code>GetAccount</code> stamp this on entry. Other reads (discovery, list-events, comments, changes) do <em>not</em>.</li>
-  <li><code>backend.grpc_response_sent</code> &mdash; same two RPCs, stamped on return via <code>defer</code>.</li>
-  <li><code>renderer.link_click</code> &mdash; emitted by <code>frontend/apps/desktop/src/utils/navigation-container</code> and <code>useNavigate</code> on every navigation. The <em>only</em> initiating stage: a new click on the same key always opens a new generation, sealing the previous one as abandoned. Key is built from the route's id.</li>
-  <li><code>renderer.component_rendered</code> &mdash; emitted by <code>desktop-resource.tsx</code> once after the doc loads. Key is also built from the route's id (matches what link_click emits), so click&rarr;render stays in one trace.</li>
+  <li><code>backend.feed_emitted</code> &mdash; <code>activity.ListEvents</code> stamps this the <em>first time</em> a given blob is surfaced in a feed response. The frontend polls the feed on a timer; the emitter dedupes per process so each blob stamps once.</li>
+  <li><code>backend.get_document.request_received</code> / <code>backend.get_document.response_sent</code> &mdash; the daemon's <code>GetDocument</code> RPC (Documents v3) stamps these on entry and via <code>defer</code> on return. So "received" is the RPC call arriving, "sent" is the response leaving. <em>Only</em> <code>GetDocument</code> stamps these &mdash; other document reads (<code>GetDocumentInfo</code>, <code>ListDocuments</code>, change-log queries, etc.) do not.</li>
+  <li><code>backend.get_account.request_received</code> / <code>backend.get_account.response_sent</code> &mdash; same pattern, for <code>GetAccount</code>. The key is just <code>hm://&lt;uid&gt;</code> with no path, so these always show up on account-only rows.</li>
+  <li><code>renderer.link_click</code> &mdash; emitted by <code>frontend/apps/desktop/src/utils/navigation-container</code> and <code>useNavigate</code> on every navigation. The <em>only</em> initiating stage: a new click on the same key opens a new generation, sealing the previous one as abandoned &mdash; <em>unless</em> the previous generation has only backend stages (no prior <code>renderer.*</code> or <code>main.*</code>), in which case the click is interpreted as belonging to the existing journey (e.g. a sidebar prefetched, then the user clicked) and we append instead.</li>
+  <li><code>renderer.component_rendered</code> &mdash; emitted by <code>desktop-resource.tsx</code> once after the doc loads. Key is the route's id (matches what link_click emits).</li>
 </ul>
+
+<p><strong>Why does the page rarely show what the renderer "did" with a daemon response?</strong> Because the desktop renderer currently only stamps two stages: <code>renderer.link_click</code> (on navigation) and <code>renderer.component_rendered</code> (on the resource page mount). Side-effects of a response &mdash; React Query cache writes, avatar/sidebar re-renders, related-card hydration &mdash; have no telemetry today. So a row that ends at <code>backend.get_account.response_sent</code> with no following <code>renderer.component_rendered</code> doesn't necessarily mean the renderer dropped the data; more likely the data was consumed by some non-page UI (sidebar avatar, hover preview) that doesn't stamp anything. To see those interactions, the renderer would need additional stamps wired into the React Query / cache layer.</p>
 
 <p><strong>Row ordering:</strong> signal-rich rows float to the top &mdash; frontend-touched (any <code>renderer.*</code> stage) first, then anomalies (red 200ms+ cell or abandoned-late), then most-recent activity. Pure backend-only rows (the <code>backend.feed_emitted</code> noise from sync) are dimmed grey and sink to the bottom.</p>
 
@@ -373,10 +381,10 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
 
 <p><strong>Things that look weird but aren't bugs:</strong></p>
 <ul>
-  <li><em>A key has multiple <code>backend.grpc_request_received</code>/<code>backend.grpc_response_sent</code> pairs in one generation.</em> That just means the renderer made multiple <code>GetDocument</code> or <code>GetAccount</code> calls for the same key during that page load &mdash; a common case is a page-level <code>useResource(docId)</code> plus a parallel <code>useResource(hmId(docId.uid))</code> for the same account uid in a sibling component (avatar, related cards). Two pairs = two RPCs, not a single retry.</li>
+  <li><em>A key has multiple <code>backend.get_document.request_received</code>/<code>backend.get_document.response_sent</code> (or the <code>get_account</code> equivalent) pairs in one generation.</em> Means the renderer made multiple calls of that RPC for the same key during that page load &mdash; a common case is a page-level <code>useResource(docId)</code> plus a parallel <code>useResource(hmId(docId.uid))</code> for the same account uid in a sibling component (avatar, related cards). Two pairs = two RPCs, not a single retry.</li>
   <li><em>A key shows multiple generations of <code>renderer.link_click &rarr; renderer.component_rendered</code> but no <code>backend.feed_emitted</code> anywhere.</em> Expected when the user navigated to that URL directly without seeing it in the feed first. Even if the feed <em>did</em> show that path, the feed stamps under a version-pinned key (<code>?v=&lt;blobCid&gt;</code>) while the click stamps under whatever version was in the route &mdash; if those versions differ, the two journeys live under different keys and don't share a row.</li>
   <li><em>A generation starts with <code>backend.grpc_request_received</code> instead of <code>renderer.link_click</code>.</em> Means a background hook (sidebar, hover preview, related-card avatar) called <code>GetDocument</code>/<code>GetAccount</code> for this key before any user action. If the user later clicks while the trace is still live, <code>renderer.link_click</code> appends to the <em>same</em> generation rather than opening a new one — so a healthy flow can read <code>request_received &rarr; response_sent &rarr; link_click &rarr; component_rendered</code> all under gen 1. If the prefetch's response_sent arrived more than 30s before the click, gen 1 will have already aged into <em>abandoned-early</em> and the click opens a fresh gen 2 with just <code>link_click &rarr; component_rendered</code>.</li>
-  <li><em>An <span class="status-orphan">orphan</span> row appears.</em> The renderer painted but no upstream cause was observed (window restore, React Query cache hit, deep link bypassing the navigation dispatcher). The render itself worked; the journey just isn't observable end-to-end for this view.</li>
+  <li><em>A <span class="status-rendered-only">rendered-only</span> row appears.</em> The renderer painted but no upstream cause was observed (window restore, React Query cache hit, deep link bypassing the navigation dispatcher). The render itself worked; the journey just isn't observable end-to-end for this view.</li>
   <li><em>A key has many consecutive <code>backend.feed_emitted</code> stamps spaced ~10 seconds apart.</em> This was a real bug: the frontend polls the activity feed on a timer and the daemon re-stamped <code>feed_emitted</code> for every blob on every poll. The emitter now deduplicates so each blob stamps once per process; if you still see it, you're looking at a stale trace from before the dedup landed.</li>
 </ul>
 </details>

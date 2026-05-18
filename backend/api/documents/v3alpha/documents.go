@@ -129,8 +129,8 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 	}
 
 	key := documentTelemetryKey(in.Account, in.Path, in.Version)
-	srv.emitTelemetry(key, telemetry.StageGRPCRequestReceived)
-	defer srv.emitTelemetry(key, telemetry.StageGRPCResponseSent)
+	srv.emitTelemetry(key, telemetry.StageGetDocumentRequestReceived)
+	defer srv.emitTelemetry(key, telemetry.StageGetDocumentResponseSent)
 
 	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
@@ -688,8 +688,8 @@ func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountReque
 	}
 
 	key := accountTelemetryKey(in.Id)
-	srv.emitTelemetry(key, telemetry.StageGRPCRequestReceived)
-	defer srv.emitTelemetry(key, telemetry.StageGRPCResponseSent)
+	srv.emitTelemetry(key, telemetry.StageGetAccountRequestReceived)
+	defer srv.emitTelemetry(key, telemetry.StageGetAccountResponseSent)
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Account, error) {
 		lookup := blob.NewLookupCache(conn)

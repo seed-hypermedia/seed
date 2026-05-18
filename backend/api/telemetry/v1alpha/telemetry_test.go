@@ -50,9 +50,9 @@ func TestRecordAndJoinAcrossProcesses(t *testing.T) {
 	clk.Advance(5 * time.Millisecond)
 
 	// Daemon fields the GetDocument RPC.
-	s.RecordCheckpoint(key, StageGRPCRequestReceived, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentRequestReceived, clk.Now())
 	clk.Advance(20 * time.Millisecond)
-	s.RecordCheckpoint(key, StageGRPCResponseSent, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentResponseSent, clk.Now())
 	clk.Advance(4 * time.Millisecond)
 
 	// Renderer paints.
@@ -79,9 +79,9 @@ func TestRetryOpensNewGeneration(t *testing.T) {
 	// First attempt dies after backend responds — renderer never paints.
 	s.RecordCheckpoint(key, StageLinkClick, clk.Now())
 	clk.Advance(5 * time.Millisecond)
-	s.RecordCheckpoint(key, StageGRPCRequestReceived, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentRequestReceived, clk.Now())
 	clk.Advance(20 * time.Millisecond)
-	s.RecordCheckpoint(key, StageGRPCResponseSent, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentResponseSent, clk.Now())
 
 	// User clicks again before the abandon timeout. A fresh link_click is
 	// an initiating stamp and must open gen 2 without polluting gen 1.
@@ -101,7 +101,7 @@ func TestRetryOpensNewGeneration(t *testing.T) {
 	// Gen 1 is sealed as abandoned (initiating stamp arrived before timeout).
 	require.Equal(t, StatusAbandoned, byGen[1].Status)
 	require.Len(t, byGen[1].Checkpoints, 3)
-	require.Equal(t, StageGRPCResponseSent, byGen[1].Checkpoints[len(byGen[1].Checkpoints)-1].Stage)
+	require.Equal(t, StageGetDocumentResponseSent, byGen[1].Checkpoints[len(byGen[1].Checkpoints)-1].Stage)
 
 	// Gen 2 completes normally.
 	require.Equal(t, StatusComplete, byGen[2].Status)
@@ -147,9 +147,9 @@ func TestPrefetchThenClickAppendsToSameGen(t *testing.T) {
 	key := "hm://abc/doc"
 
 	// Background prefetch.
-	s.RecordCheckpoint(key, StageGRPCRequestReceived, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentRequestReceived, clk.Now())
 	clk.Advance(8 * time.Millisecond)
-	s.RecordCheckpoint(key, StageGRPCResponseSent, clk.Now())
+	s.RecordCheckpoint(key, StageGetDocumentResponseSent, clk.Now())
 
 	// User clicks shortly after; this is the SAME journey, not a new attempt.
 	clk.Advance(120 * time.Millisecond)
@@ -163,17 +163,17 @@ func TestPrefetchThenClickAppendsToSameGen(t *testing.T) {
 	require.Equal(t, 1, tr.Gen)
 	require.Equal(t, StatusComplete, tr.Status)
 	require.Len(t, tr.Checkpoints, 4)
-	require.Equal(t, StageGRPCRequestReceived, tr.Checkpoints[0].Stage)
-	require.Equal(t, StageGRPCResponseSent, tr.Checkpoints[1].Stage)
+	require.Equal(t, StageGetDocumentRequestReceived, tr.Checkpoints[0].Stage)
+	require.Equal(t, StageGetDocumentResponseSent, tr.Checkpoints[1].Stage)
 	require.Equal(t, StageLinkClick, tr.Checkpoints[2].Stage)
 	require.Equal(t, StageComponentRendered, tr.Checkpoints[3].Stage)
 }
 
-// TestOrphanRenderWithoutCause verifies that a trace built solely from
+// TestRenderedOnlyWithoutCause verifies that a trace built solely from
 // renderer.component_rendered (e.g. window restore or React Query cache
-// hit) seals as StatusOrphan rather than StatusComplete, so the page
-// doesn't dishonestly claim an end-to-end journey was observed.
-func TestOrphanRenderWithoutCause(t *testing.T) {
+// hit) seals as StatusRenderedOnly rather than StatusComplete, so the
+// page doesn't dishonestly claim an end-to-end journey was observed.
+func TestRenderedOnlyWithoutCause(t *testing.T) {
 	s, clk := newTestServer(t, 100)
 	key := "hm://abc/doc"
 
@@ -182,7 +182,7 @@ func TestOrphanRenderWithoutCause(t *testing.T) {
 	snap := s.Snapshot()
 	require.Len(t, snap, 1)
 	tr := snap[0]
-	require.Equal(t, StatusOrphan, tr.Status)
+	require.Equal(t, StatusRenderedOnly, tr.Status)
 	require.Len(t, tr.Checkpoints, 1)
 	require.Equal(t, StageComponentRendered, tr.Checkpoints[0].Stage)
 }

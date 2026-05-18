@@ -34,18 +34,27 @@ import (
 // wire a new emitter, add its constant here and to the emitter site in
 // the same commit.
 //
+// Stage names are <process>.<scope>.<event> -- the scope (e.g.
+// get_document, get_account) lets the journeys page show which specific
+// RPC handled a request without each viewer having to read the
+// implementation.
+//
 // Emitted by:
-//   - backend.feed_emitted          : activity.go ListEvents (per NewBlob)
-//   - backend.grpc_request_received : documents.go GetDocument/GetAccount entry
-//   - backend.grpc_response_sent    : documents.go GetDocument/GetAccount return (deferred)
-//   - renderer.link_click           : frontend/apps/desktop telemetry.ts (navigation)
-//   - renderer.component_rendered   : frontend/apps/desktop desktop-resource.tsx (after load)
+//   - backend.feed_emitted                       : activity.go ListEvents (per NewBlob)
+//   - backend.get_document.request_received      : documents.go GetDocument entry
+//   - backend.get_document.response_sent         : documents.go GetDocument return (deferred)
+//   - backend.get_account.request_received       : documents.go GetAccount entry
+//   - backend.get_account.response_sent          : documents.go GetAccount return (deferred)
+//   - renderer.link_click                        : frontend/apps/desktop telemetry.ts (navigation)
+//   - renderer.component_rendered                : frontend/apps/desktop desktop-resource.tsx (after load)
 const (
-	StageFeedEmitted         = "backend.feed_emitted"
-	StageGRPCRequestReceived = "backend.grpc_request_received"
-	StageGRPCResponseSent    = "backend.grpc_response_sent"
-	StageLinkClick           = "renderer.link_click"
-	StageComponentRendered   = "renderer.component_rendered"
+	StageFeedEmitted                = "backend.feed_emitted"
+	StageGetDocumentRequestReceived = "backend.get_document.request_received"
+	StageGetDocumentResponseSent    = "backend.get_document.response_sent"
+	StageGetAccountRequestReceived  = "backend.get_account.request_received"
+	StageGetAccountResponseSent     = "backend.get_account.response_sent"
+	StageLinkClick                  = "renderer.link_click"
+	StageComponentRendered          = "renderer.component_rendered"
 )
 
 // initiatingStages are checkpoints that open a fresh generation for a URL
@@ -67,13 +76,15 @@ const (
 	StatusLive      Status = "live"
 	StatusComplete  Status = "complete"
 	StatusAbandoned Status = "abandoned"
-	// StatusOrphan marks a trace whose only checkpoint is
-	// renderer.component_rendered — i.e. the page rendered but we never
+	// StatusRenderedOnly marks a trace whose only checkpoint is
+	// renderer.component_rendered — the renderer painted but we never
 	// observed the upstream click or fetch that caused it. Common cases
 	// are window restore, React Query cache hits, and deep links that
 	// bypass the navigation dispatcher. The page rendered fine; the
-	// journey itself just isn't observable end-to-end.
-	StatusOrphan Status = "orphan"
+	// journey itself just isn't observable end-to-end. Distinct from
+	// "abandoned" (which means we did observe a start but never reached
+	// the render).
+	StatusRenderedOnly Status = "rendered-only"
 )
 
 // AbandonTimeout is how long a generation may sit idle before being
@@ -246,9 +257,9 @@ func (s *Server) openGen(key, stage string, ts time.Time, gen int) {
 		// Single-stage trace: the renderer painted but we never observed
 		// any upstream cause (no click, no fetch). Common with window
 		// restore, React Query cache hits, and deep links that bypass the
-		// navigation dispatcher. Mark orphan rather than complete so the
-		// page doesn't dishonestly claim "end-to-end journey observed".
-		tr.Status = StatusOrphan
+		// navigation dispatcher. Mark rendered-only rather than complete so
+		// the page doesn't dishonestly claim "end-to-end journey observed".
+		tr.Status = StatusRenderedOnly
 	}
 
 	s.evictLocked()
