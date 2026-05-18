@@ -97,11 +97,7 @@ describe('slash menu caption guards', () => {
   it('allows slash menu in paragraphs', () => {
     const {view, pluginKey, plugin} = createView(findPos(createDoc(schema), 'paragraph', 1))
 
-    const handled = plugin.props.handleKeyDown!.call(
-      plugin,
-      view,
-      new KeyboardEvent('keydown', {key: '/'}),
-    )
+    const handled = plugin.props.handleKeyDown!.call(plugin, view, new KeyboardEvent('keydown', {key: '/'}))
 
     expect(handled).toBe(true)
     expect(pluginKey.getState(view.state).active).toBe(true)
@@ -111,11 +107,7 @@ describe('slash menu caption guards', () => {
   it('blocks slash menu inside image captions', () => {
     const {view, pluginKey, plugin} = createView(findPos(createDoc(schema), 'image', 1))
 
-    const handled = plugin.props.handleKeyDown!.call(
-      plugin,
-      view,
-      new KeyboardEvent('keydown', {key: '/'}),
-    )
+    const handled = plugin.props.handleKeyDown!.call(plugin, view, new KeyboardEvent('keydown', {key: '/'}))
 
     expect(handled).toBe(false)
     expect(pluginKey.getState(view.state).active).toBe(false)
