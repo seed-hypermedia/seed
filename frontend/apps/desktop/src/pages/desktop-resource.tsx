@@ -58,7 +58,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {Copy, FileInput, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
 
 export default function DesktopResourcePage() {
@@ -173,10 +173,10 @@ export default function DesktopResourcePage() {
       // safer than setting result.version because the user ends up on
       // "latest" and future publishes won't re-pin them.
       if (currentId.version) {
-        console.log('[DesktopResource] post-publish navigate → latest (was pinned)', {
-          was: currentId.version,
-          now: result.version,
-        })
+        // console.log('[DesktopResource] post-publish navigate → latest (was pinned)', {
+        //   was: currentId.version,
+        //   now: result.version,
+        // })
         replace({
           ...(route as any),
           id: {...currentId, version: null},
@@ -202,13 +202,13 @@ export default function DesktopResourcePage() {
         const content = editor ? editor.topLevelBlocks : []
         const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const draftId = input.draftId || nanoid(10)
-        console.log('[writeDraft] saving:', {
-          draftId,
-          blocksCount: content.length,
-          cursorPosition,
-          signingAccountId: input.signingAccountId,
-          hasEditor: !!editor,
-        })
+        // console.log('[writeDraft] saving:', {
+        //   draftId,
+        //   blocksCount: content.length,
+        //   cursorPosition,
+        //   signingAccountId: input.signingAccountId,
+        //   hasEditor: !!editor,
+        // })
         const existingDraftForVisibility = input.draftId ? await client.drafts.get.query(input.draftId) : null
         const draftVisibility = existingDraftForVisibility?.visibility ?? 'PUBLIC'
         const result = await client.drafts.write.mutate({
@@ -227,7 +227,7 @@ export default function DesktopResourcePage() {
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
         })
-        console.log('[writeDraft] saved successfully:', {draftId: result.id})
+        // console.log('[writeDraft] saved successfully:', {draftId: result.id})
         return result
       }),
     [],

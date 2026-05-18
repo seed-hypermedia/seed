@@ -1,5 +1,4 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {
   HMBlockNode,
   HMDocument,
@@ -8,6 +7,7 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
 
 // -- Types --
@@ -315,17 +315,17 @@ export const documentMachine = setup({
         // fresh from the published document when starting a brand-new draft
         // session (baseBlocks === null and not yet hydrated by draft.resolved).
         if (context.baseBlocks && context.baseBlocks.length) {
-          console.log('[Rebase machine] snapshotBaseBlocks: preserving restored', {
-            count: context.baseBlocks.length,
-          })
+          // console.log('[Rebase machine] snapshotBaseBlocks: preserving restored', {
+          //   count: context.baseBlocks.length,
+          // })
           return context.baseBlocks
         }
         const blocks = context.document?.content ?? []
-        console.log('[Rebase machine] snapshotBaseBlocks: fresh', {
-          count: blocks.length,
-          ids: blocks.map((n) => n.block?.id),
-          publishedVersion: context.publishedVersion,
-        })
+        // console.log('[Rebase machine] snapshotBaseBlocks: fresh', {
+        //   count: blocks.length,
+        //   ids: blocks.map((n) => n.block?.id),
+        //   publishedVersion: context.publishedVersion,
+        // })
         return blocks
       },
       mineTouchedIds: ({context}) => {
@@ -349,7 +349,7 @@ export const documentMachine = setup({
         }
         const next = changed ? Array.from(seen) : context.mineTouchedIds
         if (changed) {
-          console.log('[Rebase machine] appendMineTouched', {added: event.blockIds, total: next})
+          // console.log('[Rebase machine] appendMineTouched', {added: event.blockIds, total: next})
         }
         return next
       },
@@ -357,10 +357,10 @@ export const documentMachine = setup({
     setPendingRemoteDocument: assign({
       pendingRemoteDocument: ({event}) => {
         if (event.type === 'document.remoteUpdate') {
-          console.log('[Rebase machine] setPendingRemoteDocument', {
-            version: event.document.version,
-            blockIds: (event.document.content ?? []).map((n) => n.block?.id),
-          })
+          // console.log('[Rebase machine] setPendingRemoteDocument', {
+          //   version: event.document.version,
+          //   blockIds: (event.document.content ?? []).map((n) => n.block?.id),
+          // })
           return event.document
         }
         return null
@@ -369,12 +369,12 @@ export const documentMachine = setup({
     applyRebaseMerge: assign({
       document: ({context, event}) => {
         if (event.type !== 'rebase.apply') return context.document
-        console.log('[Rebase machine] applyRebaseMerge', {
-          fromDeps: context.deps,
-          toDeps: event.newDocument.version ? [event.newDocument.version] : context.deps,
-          fromMineTouched: context.mineTouchedIds,
-          mergedBlockCount: event.mergedBlocks.length,
-        })
+        // console.log('[Rebase machine] applyRebaseMerge', {
+        //   fromDeps: context.deps,
+        //   toDeps: event.newDocument.version ? [event.newDocument.version] : context.deps,
+        //   fromMineTouched: context.mineTouchedIds,
+        //   mergedBlockCount: event.mergedBlocks.length,
+        // })
         return event.newDocument
       },
       publishedVersion: ({context, event}) => {
@@ -530,22 +530,22 @@ export const documentMachine = setup({
   guards: {
     canTransitionToEditing: ({context}) => {
       const result = context.canEdit
-      console.log('[DocMachine] guard canTransitionToEditing', {
-        canEdit: context.canEdit,
-        isLatestVersion: context.isLatestVersion,
-        draftId: context.draftId,
-        result,
-      })
+      // console.log('[DocMachine] guard canTransitionToEditing', {
+      //   canEdit: context.canEdit,
+      //   isLatestVersion: context.isLatestVersion,
+      //   draftId: context.draftId,
+      //   result,
+      // })
       return result
     },
     canEditOldVersion: ({context}) => {
       const result = context.canEdit && !context.isLatestVersion && context.draftId === null
-      console.log('[DocMachine] guard canEditOldVersion', {
-        canEdit: context.canEdit,
-        isLatestVersion: context.isLatestVersion,
-        draftId: context.draftId,
-        result,
-      })
+      // console.log('[DocMachine] guard canEditOldVersion', {
+      //   canEdit: context.canEdit,
+      //   isLatestVersion: context.isLatestVersion,
+      //   draftId: context.draftId,
+      //   result,
+      // })
       return result
     },
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
@@ -730,12 +730,19 @@ export const documentMachine = setup({
     editing: {
       type: 'parallel',
       entry: [
-        () => console.log('[DocMachine] enter editing'),
+        () => {
+          //console.log('[DocMachine] enter editing')
+        },
         {type: 'setEditorEditable'},
         {type: 'applyInitialContentToEditor'},
         {type: 'placeCursorFromPendingOrDraft'},
       ],
-      exit: [() => console.log('[DocMachine] exit editing'), {type: 'setEditorReadOnly'}],
+      exit: [
+        () => {
+          //console.log('[DocMachine] exit editing'),
+        },
+        {type: 'setEditorReadOnly'},
+      ],
       on: {
         'edit.cancel': {
           target: 'loaded',
@@ -1009,7 +1016,9 @@ export const documentMachine = setup({
           initial: 'idle',
           states: {
             idle: {
-              entry: () => console.log('[Rebase machine] region.idle entered'),
+              entry: () => {
+                //console.log('[Rebase machine] region.idle entered')
+              },
               on: {
                 'rebase.detectConflict': {
                   target: 'conflict',
@@ -1024,7 +1033,9 @@ export const documentMachine = setup({
               },
             },
             conflict: {
-              entry: () => console.log('[Rebase machine] region.conflict entered'),
+              entry: () => {
+                //console.log('[Rebase machine] region.conflict entered')
+              },
               on: {
                 'rebase.apply': {
                   target: 'idle',

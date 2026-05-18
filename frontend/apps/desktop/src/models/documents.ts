@@ -1,12 +1,12 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {grpcClient} from '@/grpc-client'
-import {useDraft} from '@/models/accounts'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {createRedirectRef, createVersionRef} from '@seed-hypermedia/client'
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
   HMAnnotation,
   HMBlock,
@@ -25,11 +25,9 @@ import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {getCommentTargetId, getParentPaths, UniversalClient, useUniversalClient} from '@shm/shared'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -40,20 +38,20 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {buildCopyLinkUrl, hmId, hmIdToURL, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {findParentNode} from '@tiptap/core'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useMemo} from 'react'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
 import {computeNewDraftParams, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
-import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
+import {useGatewayUrl} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 
 /**
@@ -349,12 +347,12 @@ export function usePublishResource(
             if (existingDocVersion) {
               latestVersion = existingDocVersion
               latestHeads = existingDocVersion.split('.')
-              console.log('[publish] using existing latest heads', {
-                account: resolvedDestinationId.uid,
-                path: docPath,
-                latestVersion,
-                latestHeads,
-              })
+              // console.log('[publish] using existing latest heads', {
+              //   account: resolvedDestinationId.uid,
+              //   path: docPath,
+              //   latestVersion,
+              //   latestHeads,
+              // })
             }
             const draftDeps = draft.deps ?? []
             const baseVersion = latestVersion || draftDeps.join('.')
@@ -363,11 +361,11 @@ export function usePublishResource(
               latestHeads.length > 0 &&
               (latestHeads.length !== draftDeps.length || latestHeads.some((h) => !draftDeps.includes(h)))
             if (depsChanged) {
-              console.log('[publish] persisting rebased deps to draft', {
-                draftId: draft.id,
-                from: draftDeps,
-                to: latestHeads,
-              })
+              // console.log('[publish] persisting rebased deps to draft', {
+              //   draftId: draft.id,
+              //   from: draftDeps,
+              //   to: latestHeads,
+              // })
               await client.drafts.write.mutate({
                 id: draft.id,
                 locationUid: draft.locationUid,
@@ -382,12 +380,12 @@ export function usePublishResource(
               })
             }
 
-            console.log('[publish] computed baseVersion', {
-              draftDeps,
-              latestHeads,
-              baseVersion,
-              depsChanged,
-            })
+            // console.log('[publish] computed baseVersion', {
+            //   draftDeps,
+            //   latestHeads,
+            //   baseVersion,
+            //   depsChanged,
+            // })
 
             const publishInput = {
               signerAccountUid: accountId,
@@ -407,10 +405,10 @@ export function usePublishResource(
               account: resolvedDestinationId.uid,
               path: docPath,
             })
-            console.log('[publish] result', {
-              requestedBaseVersion: baseVersion,
-              resultVersion: updatedDoc.version,
-            })
+            // console.log('[publish] result', {
+            //   requestedBaseVersion: baseVersion,
+            //   resultVersion: updatedDoc.version,
+            // })
 
             // Inspect the Change blob the server produced to verify deps = latestHeads.
             try {
@@ -421,16 +419,16 @@ export function usePublishResource(
                 pageSize: 10,
               })
               const newChange = changesResp.changes.find((c) => c.id === updatedDoc.version)
-              console.log('[publish] new change deps', {
-                newChangeId: newChange?.id,
-                deps: newChange?.deps,
-                author: newChange?.author,
-                expectedDeps: latestHeads,
-                depsMatch:
-                  newChange?.deps?.length === latestHeads.length &&
-                  (newChange?.deps ?? []).every((d) => latestHeads.includes(d)),
-                allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
-              })
+              // console.log('[publish] new change deps', {
+              //   newChangeId: newChange?.id,
+              //   deps: newChange?.deps,
+              //   author: newChange?.author,
+              //   expectedDeps: latestHeads,
+              //   depsMatch:
+              //     newChange?.deps?.length === latestHeads.length &&
+              //     (newChange?.deps ?? []).every((d) => latestHeads.includes(d)),
+              //   allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
+              // })
             } catch (err) {
               console.log('[publish] listDocumentChanges failed', err)
             }
@@ -834,17 +832,17 @@ export async function pushResource(
           resources: [pushResourceUrl],
         })
         for await (const progress of pushProgress) {
-          console.log(`== publish ${syncDebugId} == progress`, JSON.stringify(toPlainMessage(progress)))
+          // console.log(`== publish ${syncDebugId} == progress`, JSON.stringify(toPlainMessage(progress)))
           updatePeerStatus(peerId, 'pending', `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`)
           lastProgress = progress
         }
-        console.log(`== publish ${syncDebugId} == DONE =====`)
+        // console.log(`== publish ${syncDebugId} == DONE =====`)
         updatePeerStatus(peerId, 'success', 'Done')
       } catch (error) {
         console.error(`== publish ${syncDebugId} == Error pushing to peer`, peerId, error)
         updatePeerStatus(peerId, 'error', (error as Error).message)
       }
-      console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
+      // console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
       // if (lastProgress?.peersFailed ?? 0 > 0) {
       //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
       // }

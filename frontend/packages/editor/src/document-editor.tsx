@@ -106,7 +106,7 @@ export function DocumentEditor({
   const mousedownHadSelectionRef = useRef<boolean>(false)
 
   const onEditStart = useCallback(() => {
-    console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
+    // console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
     actorRef.send({type: 'edit.start'})
   }, [actorRef])
 
@@ -228,7 +228,7 @@ export function DocumentEditor({
                 if (!pending.size) return
                 const ids = Array.from(pending)
                 pending = new Set()
-                console.log('[Rebase track] emit blockTouched', ids)
+                // console.log('[Rebase track] emit blockTouched', ids)
                 actorRef.send({type: 'rebase.blockTouched', blockIds: ids})
               }
               return [
@@ -239,10 +239,10 @@ export function DocumentEditor({
                     for (const tr of transactions) if (tr.docChanged) docChanged = true
                     if (!docChanged) return null
                     if (suppressChangeRef.current) {
-                      console.log('[Rebase track] skip: suppressChangeRef set')
+                      // console.log('[Rebase track] skip: suppressChangeRef set')
                       return null
                     }
-                    console.log('[Rebase track] appendTransaction docChanged, walking blocks')
+                    // console.log('[Rebase track] appendTransaction docChanged, walking blocks')
                     // Walk the new doc, collecting BlockNote block ids whose
                     // positions map back to any changed range.
                     newState.doc.descendants((node, pos) => {
@@ -336,7 +336,7 @@ export function DocumentEditor({
       placeCursor: () => {
         const view = editor._tiptapEditor?.view
         if (!view) {
-          console.log('[DocEditor] placeCursor: no view')
+          // console.log('[DocEditor] placeCursor: no view')
           return
         }
 
@@ -348,7 +348,7 @@ export function DocumentEditor({
           pos = draftCursorPositionRef.current
         }
 
-        console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
+        // console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
 
         const applySelection = () => {
           if (pos !== null) {
@@ -362,7 +362,7 @@ export function DocumentEditor({
               const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
               node?.scrollIntoView({block: 'center', behavior: 'instant'})
             } catch (err) {
-              console.log('[DocEditor] placeCursor selection failed', err)
+              // console.log('[DocEditor] placeCursor selection failed', err)
             }
           }
           view.focus()
@@ -495,7 +495,7 @@ export function DocumentEditor({
     const handleClick = (e: MouseEvent) => {
       // Only intercept when in read-only mode and the user has edit permission
       if (view.editable || !canEditRef.current) {
-        console.log('[DocEditor] click ignored', {editable: view.editable, canEdit: canEditRef.current})
+        // console.log('[DocEditor] click ignored', {editable: view.editable, canEdit: canEditRef.current})
         return
       }
 
@@ -533,7 +533,7 @@ export function DocumentEditor({
         const coords = view.posAtCoords({left: e.clientX, top: e.clientY})
         pendingClickPosRef.current = coords ? coords.pos : null
 
-        console.log('[DocEditor] click on text block → onEditStart')
+        // console.log('[DocEditor] click on text block → onEditStart')
         onEditStart()
         e.preventDefault()
         return
@@ -546,7 +546,7 @@ export function DocumentEditor({
       const editorRect = domRoot.getBoundingClientRect()
       if (e.clientX >= editorRect.left && e.clientX <= editorRect.right && e.clientY > editorRect.bottom) {
         pendingClickPosRef.current = view.state.doc.content.size
-        console.log('[DocEditor] click below last block → onEditStart')
+        // console.log('[DocEditor] click below last block → onEditStart')
         onEditStart()
         e.preventDefault()
       }
