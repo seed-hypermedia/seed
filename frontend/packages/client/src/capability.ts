@@ -4,7 +4,7 @@
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMPublishBlobsInput, HMSigner} from './hm-types'
-import {unpackHmId} from './hm-types'
+import {entityQueryPathToHmIdPath, packBaseId} from './hm-types'
 import {base58btc} from 'multiformats/bases/base58'
 import {signObject, toPublishInput} from './signing'
 import type {SeedClient} from './client'
@@ -67,9 +67,18 @@ export async function resolveCapability(
   path?: string,
 ): Promise<string | undefined> {
   if (targetAccount === signerAccount) return undefined
-  const hmUrl = path ? `hm://${targetAccount}${path}` : `hm://${targetAccount}`
-  const targetId = unpackHmId(hmUrl)
-  if (!targetId) return undefined
+  const pathSegments = path ? entityQueryPathToHmIdPath(path) : null
+  const targetId = {
+    id: packBaseId(targetAccount, pathSegments),
+    uid: targetAccount,
+    path: pathSegments,
+    version: null,
+    blockRef: null,
+    blockRange: null,
+    hostname: null,
+    latest: true,
+    scheme: null,
+  }
   const caps = await client.request('ListCapabilities', {targetId})
   const match = caps.capabilities.find(
     (c) => c.delegate === signerAccount && (c.role === 'WRITER' || c.role === 'AGENT'),
