@@ -3,7 +3,7 @@ import {cn} from '@shm/ui/utils'
 import {Plus} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {slashMenuPluginKey} from './blocknote/core/extensions/SlashMenu/SlashMenuPlugin'
+import {isSlashMenuEnabled, slashMenuPluginKey} from './blocknote/core/extensions/SlashMenu/SlashMenuPlugin'
 import type {HyperMediaEditor} from './types'
 
 type Position = {top: number; left: number}
@@ -52,6 +52,7 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       if (!editor.isEditable) return null
       const view = ttEditor.view
       const state = view.state
+      if (!isSlashMenuEnabled(state)) return null
       const {anchor} = state.selection
       const $anchor = state.doc.resolve(anchor)
       const textblock = $anchor.parent
