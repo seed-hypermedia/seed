@@ -84,11 +84,23 @@ func TestWriterCheck_DelegatedSessionKeys(t *testing.T) {
 	ref, err := NewRef(bobSession, 0, change.CID, alice.Principal(), "/delegated-session", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
 	require.NoError(t, err)
 
+	subdocChange, err := NewChange(bobSession, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			must.Do2(NewOpSetKey("title", "Session key subdocument edit")),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	subdocRef, err := NewRef(bobSession, 0, subdocChange.CID, alice.Principal(), "/delegated-session/subdoc", []cid.Cid{subdocChange.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+
 	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{
 		aliceToBob,
 		bobToSession,
 		change,
 		ref,
+		subdocChange,
+		subdocRef,
 	}))
 
 	require.Equal(t, 0, countStashedBlobs(t, db), "agent key should inherit Bob's writer capability for Alice's space")
@@ -101,6 +113,15 @@ func TestWriterCheck_DelegatedSessionKeys(t *testing.T) {
 	}
 	require.NoError(t, check())
 	require.Equal(t, []cid.Cid{change.CID}, got)
+
+	subdocIRI := must.Do2(NewIRI(alice.Principal(), "/delegated-session/subdoc"))
+	subdocChanges, subdocCheck := idx.iterChangesLatest(t.Context(), subdocIRI)
+	got = got[:0]
+	for c := range subdocChanges {
+		got = append(got, c.CID)
+	}
+	require.NoError(t, subdocCheck())
+	require.Equal(t, []cid.Cid{subdocChange.CID}, got)
 }
 
 func TestWriterCheck_OwnersSessionKey(t *testing.T) {

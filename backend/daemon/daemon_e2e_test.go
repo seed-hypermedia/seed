@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"crypto/ed25519"
+	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -2325,6 +2326,81 @@ func TestKeyDelegation(t *testing.T) {
 	for _, x := range list.Accounts {
 		testutil.StructsEqual(x, batch.Accounts[x.Id]).Compare(t, "account must match")
 	}
+}
+
+func TestDelegatedWriterSessionKeyCanWriteSubdocument(t *testing.T) {
+	t.Parallel()
+
+	dmn := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := t.Context()
+
+	alice := coretest.NewTester("alice").Account.Principal()
+	bobTester := coretest.NewTester("bob")
+	bob := bobTester.Account.Principal()
+	bobSessionKey, err := core.GenerateKeyPair(core.Ed25519, crand.Reader)
+	require.NoError(t, err)
+	bobSession := bobSessionKey.Principal()
+
+	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", bobTester.Account))
+	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob-session", bobSessionKey))
+
+	podcasts, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.String(),
+		Path:           "/podcasts",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Podcasts"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.String(),
+		Account:        alice.String(),
+		Path:           podcasts.Path,
+		Role:           documents.Role_WRITER,
+		Label:          "Bob can write podcasts",
+	})
+	require.NoError(t, err)
+
+	_, err = dmn.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "bob",
+		Delegate:       bobSession.String(),
+		Account:        bob.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob's session key",
+	})
+	require.NoError(t, err)
+
+	episode, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "bob-session",
+		Account:        alice.String(),
+		Path:           "/podcasts/episode-1",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Episode 1"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, alice.String(), episode.Account)
+	require.Equal(t, "/podcasts/episode-1", episode.Path)
+	require.Equal(t, "Episode 1", episode.Metadata.Fields["title"].GetStringValue())
+
+	_, err = dmn.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "bob-session",
+		Account:        alice.String(),
+		Path:           episode.Path,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		},
+	})
+	require.NoError(t, err)
 }
 
 func TestDelegatedProfileUpdate(t *testing.T) {
