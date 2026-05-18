@@ -251,17 +251,21 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     [origin, originHomeId, navigate],
   )
 
-  const editingFloatingActions = canEdit
-    ? ({menuItems}: {menuItems: any[]}) => (
-        <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
-      )
-    : undefined
+  const showPublishToolbar = route.key === 'document'
 
-  const draftActions = canEdit
-    ? ({menuItems}: {menuItems: any[]}) => (
-        <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
-      )
-    : undefined
+  const editingFloatingActions =
+    canEdit && showPublishToolbar
+      ? ({menuItems}: {menuItems: any[]}) => (
+          <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
+        )
+      : undefined
+
+  const draftActions =
+    canEdit && showPublishToolbar
+      ? ({menuItems}: {menuItems: any[]}) => (
+          <DraftActionsToolbar docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
+        )
+      : undefined
 
   const siteUid = docId.uid
 
