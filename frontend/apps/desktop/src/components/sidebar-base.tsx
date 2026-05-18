@@ -33,56 +33,59 @@ export function GenericSidebarContainer({
 
   const {platform} = useAppContext()
 
-  // Enforce 250px minimum when locking sidebar open
-  useLayoutEffect(() => {
+  // Enforce 250px minimum when locking sidebar open.
+  // useEffect (not useLayoutEffect) so it runs after Panel's own layout-effect
+  // registration completes — avoids "Panel size not found" assertion when the
+  // imperative ref is invoked before the PanelGroup has the panel in its map.
+  useEffect(() => {
     const isOpening = prevIsLocked.current === false && isLocked === true
     const isInitialMount = prevIsLocked.current === undefined && isLocked === true
-
-    // console.log('[250px constraint] Effect running:', {
-    //   prevIsLocked: prevIsLocked.current,
-    //   currentIsLocked: isLocked,
-    //   isOpening,
-    //   isInitialMount,
-    // })
 
     const panel = ref.current
     if (!panel) return
 
-    try {
-      if (isLocked && (isOpening || isInitialMount)) {
-        // Use requestAnimationFrame to ensure layout is complete before measuring
-        requestAnimationFrame(() => {
-          // Use window width as the container since we can't reliably measure the PanelGroup
-          const containerWidth = window.innerWidth
-          const storedPercent = sidebarWidth || 15
-          const pixelValue = (storedPercent / 100) * containerWidth
-
-          // console.log('[250px constraint] Width calculation:', {
-          //   windowWidth: containerWidth,
-          //   storedPercent,
-          //   pixelValue,
-          //   needsAdjustment: pixelValue < 250,
-          // })
-
-          // If the stored percentage would result in less than 250px, adjust it
-          if (pixelValue < 250) {
-            const newPercent = Math.min(30, (250 / containerWidth) * 100)
-            console.log('[250px constraint] Adjusting to:', newPercent)
-            panel.resize(newPercent)
-            ctx.onSidebarResize(newPercent)
-          }
-          // Otherwise don't resize - let it use the stored value naturally
-          panel.expand()
-        })
-      } else if (isLocked && !isOpening && !isInitialMount) {
-        // Just sync the size without enforcing minimum
-        panel.resize(sidebarWidth || 15)
-        panel.expand()
-      } else if (!isLocked) {
-        panel.collapse()
+    const safeResize = (pct: number) => {
+      try {
+        panel.resize(pct)
+      } catch (error) {
+        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
       }
-    } catch (error) {
-      console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
+    }
+    const safeExpand = () => {
+      try {
+        panel.expand()
+      } catch (error) {
+        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
+      }
+    }
+    const safeCollapse = () => {
+      try {
+        panel.collapse()
+      } catch (error) {
+        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
+      }
+    }
+
+    if (isLocked && (isOpening || isInitialMount)) {
+      // Use requestAnimationFrame to ensure layout is complete before measuring
+      requestAnimationFrame(() => {
+        const containerWidth = window.innerWidth
+        const storedPercent = sidebarWidth || 15
+        const pixelValue = (storedPercent / 100) * containerWidth
+
+        if (pixelValue < 250) {
+          const newPercent = Math.min(30, (250 / containerWidth) * 100)
+          // console.log('[250px constraint] Adjusting to:', newPercent)
+          safeResize(newPercent)
+          ctx.onSidebarResize(newPercent)
+        }
+        safeExpand()
+      })
+    } else if (isLocked && !isOpening && !isInitialMount) {
+      safeResize(sidebarWidth || 15)
+      safeExpand()
+    } else if (!isLocked) {
+      safeCollapse()
     }
 
     prevIsLocked.current = isLocked
