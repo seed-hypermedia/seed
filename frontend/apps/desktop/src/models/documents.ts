@@ -59,11 +59,12 @@ import {getNavigationChanges} from './navigation'
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
  * These endpoints compute locationId/editId from the raw uid+path fields.
+ *
+ * Re-exported from `@shm/shared/draft-breadcrumb-context` so platform
+ * providers and shared UI agree on the shape.
  */
-export type HMListedDraftWithLocation = HMListedDraft & {
-  locationId?: UnpackedHypermediaId
-  editId?: UnpackedHypermediaId
-}
+import type {HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
+export type {HMListedDraftWithLocation}
 
 export function useDraftList() {
   return useQuery({

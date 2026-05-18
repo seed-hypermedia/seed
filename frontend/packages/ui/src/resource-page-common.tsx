@@ -20,6 +20,7 @@ import {
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
+import {findDraftForPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {
   useAccount,
   useAccountsMetadata,
@@ -51,7 +52,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
-import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
+import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
   createWebHMUrl,
@@ -1020,20 +1021,78 @@ function DocumentBody({
     return getBreadcrumbDocumentIds(docId)
   }, [docId, isHomeDoc])
 
-  const breadcrumbResults = useResources(breadcrumbIds, {subscribed: true})
+  // Local drafts override published metadata for breadcrumb segments. The
+  // provider returns an empty list on platforms without local drafts (e.g.
+  // current web), so the daemon-fetch path stays unchanged there.
+  const accountDrafts = useDraftsForAccountSafe(docId.uid)
+
+  // Resolve each breadcrumb segment to a local draft when possible. A draft
+  // match short-circuits the daemon fetch and the discovery subscription —
+  // we pass `null` at draft positions to `useResources` (see below) which
+  // honours `enabled: !!id` and skips both.
+  const draftsForBreadcrumbs = useMemo(
+    () => breadcrumbIds.map((id) => findDraftForPath(accountDrafts.data, id.uid, id.path ?? [])),
+    [breadcrumbIds, accountDrafts.data],
+  )
+
+  // Positions where the draft list is still loading but the path *looks*
+  // like a draft (placeholder `-` segment). We treat them as loading rather
+  // than firing a daemon fetch we'll discard once the local list resolves.
+  const pendingDraftLookup = useMemo(
+    () => breadcrumbIds.map((id) => accountDrafts.isLoading && isDraftPathSegment(id.path?.at(-1))),
+    [breadcrumbIds, accountDrafts.isLoading],
+  )
+
+  // Mask draft positions so `useResources` skips the daemon `Resource`
+  // request and the discovery subscription for them. Array length is
+  // preserved so downstream index-based access stays aligned.
+  const resourceFetchIds = useMemo(
+    () => breadcrumbIds.map((id, i) => (draftsForBreadcrumbs[i] || pendingDraftLookup[i] ? null : id)),
+    [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup],
+  )
+
+  const breadcrumbResults = useResources(resourceFetchIds, {subscribed: true})
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const lastIdx = breadcrumbIds.length - 1
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
+      const draft = draftsForBreadcrumbs[i]
+      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+
+      if (draft) {
+        return {
+          id,
+          metadata: draft.metadata ?? {},
+          fallbackName: draft.metadata?.name || fallbackName,
+          isLoading: false,
+          isTombstone: false,
+          isNotFound: false,
+          isError: false,
+          isUnpublishedDraft: true,
+        }
+      }
+
+      if (pendingDraftLookup[i]) {
+        return {
+          id,
+          metadata: {},
+          fallbackName,
+          isLoading: true,
+          isTombstone: false,
+          isNotFound: false,
+          isError: false,
+          isUnpublishedDraft: true,
+        }
+      }
+
       const result = breadcrumbResults[i]
       const data = result?.data
       const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
-      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
       const isCurrent = i === lastIdx
-      // The current doc may be a local-only draft (no published version on
-      // disk yet). Surface a friendlier "draft" tooltip on this crumb instead
-      // of the generic "Document not found on the network".
+      // Fallback: the document machine knows the current doc is an
+      // unpublished draft even before the account draft list resolves.
+      // Avoids flashing "not found" on the active draft on first paint.
       const showAsUnpublishedDraft = isCurrent && isUnpublishedDraft
       return {
         id,
@@ -1074,7 +1133,18 @@ function DocumentBody({
     }
 
     return items
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults, activeView, routeBlockRef, document.content, route])
+  }, [
+    isHomeDoc,
+    breadcrumbIds,
+    breadcrumbResults,
+    draftsForBreadcrumbs,
+    pendingDraftLookup,
+    isUnpublishedDraft,
+    activeView,
+    routeBlockRef,
+    document.content,
+    route,
+  ])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
