@@ -46,7 +46,7 @@ export function EditNavPopover({
   const isEmpty = docNav.length === 0
   return (
     <Popover {...popover}>
-      <PopoverTrigger className="no-window-drag">
+      <PopoverTrigger asChild className="no-window-drag">
         {isEmpty ? (
           <Button size="sm" variant="ghost">
             <Plus className="size-4" />
