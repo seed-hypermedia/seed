@@ -55,14 +55,20 @@ export async function createCapability(input: CreateCapabilityInput, signer: HMS
 /**
  * Find a WRITER or AGENT capability for `signerAccount` on `targetAccount`.
  * Returns the capability CID if found, undefined if not needed (same account) or not found.
+ *
+ * @param path - The document path being written to (e.g. "/podcasts"). When provided,
+ *   ListCapabilities is queried with this path so the backend returns capabilities
+ *   scoped to that path (or any ancestor path that covers it).
  */
 export async function resolveCapability(
   client: SeedClient,
   targetAccount: string,
   signerAccount: string,
+  path?: string,
 ): Promise<string | undefined> {
   if (targetAccount === signerAccount) return undefined
-  const targetId = unpackHmId(`hm://${targetAccount}`)
+  const hmUrl = path ? `hm://${targetAccount}${path}` : `hm://${targetAccount}`
+  const targetId = unpackHmId(hmUrl)
   if (!targetId) return undefined
   const caps = await client.request('ListCapabilities', {targetId})
   const match = caps.capabilities.find(
