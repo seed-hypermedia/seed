@@ -255,7 +255,7 @@ describe('resolvePublishPath', () => {
     ).toEqual(['parent', 'foo-bar'])
   })
 
-  it('honours pathOverride even for private drafts', () => {
+  it('ignores pathOverride for private drafts', () => {
     expect(
       resolvePublishPath({
         ...baseArgs,
@@ -263,7 +263,7 @@ describe('resolvePublishPath', () => {
         isPrivate: true,
         pathOverride: ['public', 'slug'],
       }),
-    ).toEqual(['public', 'slug'])
+    ).toEqual(['-randomid'])
   })
 
   it('skips the rename for private drafts', () => {

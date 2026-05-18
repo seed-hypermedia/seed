@@ -311,7 +311,11 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, fmt.Errorf("failed to reload document after creating change: %w", err)
 	}
 
-	return doc.Hydrate(ctx)
+	out, err := doc.Hydrate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // PrepareChange prepares unsigned Change and Ref blobs for client-side signing.

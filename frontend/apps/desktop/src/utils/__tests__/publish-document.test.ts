@@ -80,6 +80,20 @@ describe('createDocumentChangeRequest', () => {
     expect(request.changes[0]).toBeInstanceOf(DocumentChange)
     expect(request.changes[0]?.op.case).toBe('setMetadata')
   })
+
+  it('preserves explicit visibility for first-publish daemon createDocumentChange', () => {
+    const request = createDocumentChangeRequest({
+      signerAccountUid: 'alice',
+      account: 'alice',
+      path: '/foo',
+      capability: 'bafy-cap',
+      visibility: ResourceVisibility.PRIVATE,
+      changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
+    })
+
+    expect(request.baseVersion).toBe('')
+    expect(request.visibility).toBe(ResourceVisibility.PRIVATE)
+  })
 })
 
 describe('publishDesktopDocument', () => {

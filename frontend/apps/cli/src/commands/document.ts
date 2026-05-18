@@ -361,10 +361,17 @@ export function registerDocumentCommands(program: Command) {
         const key = resolveKey(options.key, dev)
         const account = options.account || key.accountId
 
-        // When publishing under a different account, resolve the capability
+        // Resolve file:// links in metadata (cover, icon, logo)
+        const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
+
+        const rawPath = options.path || slugify(resolvedMeta.name || 'Untitled')
+        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+
+        // When publishing under a different account, resolve the capability.
+        // Pass the document path so ListCapabilities can find path-scoped capabilities.
         let capability: string | undefined
         if (options.account && options.account !== key.accountId) {
-          capability = await resolveCapability(client, options.account, key.accountId)
+          capability = await resolveCapability(client, options.account, key.accountId, path)
           if (!capability) {
             throw new Error(
               `No WRITER or AGENT capability found for key ${key.accountId} on account ${options.account}. ` +
@@ -372,12 +379,6 @@ export function registerDocumentCommands(program: Command) {
             )
           }
         }
-
-        // Resolve file:// links in metadata (cover, icon, logo)
-        const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
-
-        const rawPath = options.path || slugify(resolvedMeta.name || 'Untitled')
-        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
 
         // Check if a document already exists at this path. Publishing twice to the same path
         // creates a new genesis, silently orphaning the old document's history, comments, and
@@ -578,7 +579,7 @@ export function registerDocumentCommands(program: Command) {
         const newDepth = state.headDepth + 1
 
         const signer = createSignerFromKey(key)
-        const capability = await resolveCapability(client, docAccount, key.accountId)
+        const capability = await resolveCapability(client, docAccount, key.accountId, docPath)
         const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
@@ -636,7 +637,8 @@ export function registerDocumentCommands(program: Command) {
         }
         const doc = resource.document
         const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
-        const capability = await resolveCapability(client, unpacked.uid, key.accountId)
+        const docPath = hmIdPathToEntityQueryPath(unpacked.path)
+        const capability = await resolveCapability(client, unpacked.uid, key.accountId, docPath)
 
         const refInput = await createTombstoneRef(
           {

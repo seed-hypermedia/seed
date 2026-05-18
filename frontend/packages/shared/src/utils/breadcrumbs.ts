@@ -1,6 +1,15 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from './entity-id-url'
 
+/**
+ * A breadcrumb path segment that starts with `-` is the placeholder slug we
+ * assign to a new child draft before it is published. Use this as a fast
+ * pre-check before the full draft-list lookup.
+ */
+export function isDraftPathSegment(segment: string | undefined | null): boolean {
+  return !!segment && segment.startsWith('-')
+}
+
 export function getParentPaths(path?: string[] | null): string[][] {
   if (!path) return [[]]
   let walkParentPaths: string[] = []

@@ -4,6 +4,7 @@ import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
+import {DesktopDraftBreadcrumbProvider} from '@/components/desktop-draft-breadcrumb-provider'
 import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft-slot'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
@@ -208,6 +209,8 @@ export default function DesktopResourcePage() {
           signingAccountId: input.signingAccountId,
           hasEditor: !!editor,
         })
+        const existingDraftForVisibility = input.draftId ? await client.drafts.get.query(input.draftId) : null
+        const draftVisibility = existingDraftForVisibility?.visibility ?? 'PUBLIC'
         const result = await client.drafts.write.mutate({
           id: draftId,
           metadata: input.metadata,
@@ -220,7 +223,7 @@ export default function DesktopResourcePage() {
           locationPath: input.locationPath.length > 0 ? input.locationPath : undefined,
           editUid: input.editUid || undefined,
           editPath: input.editPath.length > 0 ? input.editPath : undefined,
-          visibility: 'PUBLIC',
+          visibility: draftVisibility,
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
         })
@@ -676,45 +679,48 @@ export default function DesktopResourcePage() {
       >
         <DesktopDocumentActionsProvider>
           <DesktopDraftActionsProvider>
-            <QueryBlockDraftsProvider
-              DraftSlot={DesktopQueryBlockDraftSlot}
-              lastCreatedDraftId={lastCreatedDraftId}
-              setLastCreatedDraftId={setLastCreatedDraftId}
-            >
-              <QuerySearchInputProvider value={SearchInput}>
-                <ResourcePage
-                  docId={docId}
-                  canEdit={canEdit}
-                  CommentEditor={CommentBox}
-                  extraMenuItems={menuItems}
-                  existingDraft={existingDraft}
-                  existingDraftContent={existingDraftContent}
-                  existingDraftCursorPosition={draftQuery.data?.cursorPosition}
-                  existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
-                  existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
-                  inlineCards={inlineCards}
-                  rightActions={<JoinButton siteUid={docId.uid} />}
-                  onEditProfile={onEditProfile}
-                  inspect={inspect}
-                  inspectStore={inspectStore}
-                  DocumentContentComponent={DocumentEditor}
-                  machine={machine}
-                  onEditorReady={handleEditorReady}
-                  machineExtras={null}
-                  editingFloatingActions={editingFloatingActions}
-                  draftActions={draftActions}
-                  newButton={newButton}
-                  signingAccountId={selectedAccountId || undefined}
-                  publishAccountUid={selectedAccount?.id?.uid || undefined}
-                  perspectiveAccountUid={selectedAccountId}
-                  linkExtensionOptions={linkExtensionOptions}
-                  fileUpload={fileUpload}
-                  editNavPane={
-                    canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
-                  }
-                />
-              </QuerySearchInputProvider>
-            </QueryBlockDraftsProvider>
+            <DesktopDraftBreadcrumbProvider>
+              <QueryBlockDraftsProvider
+                DraftSlot={DesktopQueryBlockDraftSlot}
+                lastCreatedDraftId={lastCreatedDraftId}
+                setLastCreatedDraftId={setLastCreatedDraftId}
+              >
+                <QuerySearchInputProvider value={SearchInput}>
+                  <ResourcePage
+                    docId={docId}
+                    canEdit={canEdit}
+                    CommentEditor={CommentBox}
+                    extraMenuItems={menuItems}
+                    existingDraft={existingDraft}
+                    existingDraftVisibility={draftQuery.data?.visibility}
+                    existingDraftContent={existingDraftContent}
+                    existingDraftCursorPosition={draftQuery.data?.cursorPosition}
+                    existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
+                    existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
+                    inlineCards={inlineCards}
+                    rightActions={<JoinButton siteUid={docId.uid} />}
+                    onEditProfile={onEditProfile}
+                    inspect={inspect}
+                    inspectStore={inspectStore}
+                    DocumentContentComponent={DocumentEditor}
+                    machine={machine}
+                    onEditorReady={handleEditorReady}
+                    machineExtras={null}
+                    editingFloatingActions={editingFloatingActions}
+                    draftActions={draftActions}
+                    newButton={newButton}
+                    signingAccountId={selectedAccountId || undefined}
+                    publishAccountUid={selectedAccount?.id?.uid || undefined}
+                    perspectiveAccountUid={selectedAccountId}
+                    linkExtensionOptions={linkExtensionOptions}
+                    fileUpload={fileUpload}
+                    editNavPane={
+                      canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
+                    }
+                  />
+                </QuerySearchInputProvider>
+              </QueryBlockDraftsProvider>
+            </DesktopDraftBreadcrumbProvider>
           </DesktopDraftActionsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>

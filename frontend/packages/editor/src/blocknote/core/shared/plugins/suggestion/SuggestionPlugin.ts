@@ -142,6 +142,9 @@ export const setupSuggestionsMenu = <T extends SuggestionItem, BSchema extends B
   onSelectItem: (props: {item: T; editor: BlockNoteEditor<BSchema>}) => void = () => {
     // noop
   },
+  options: {
+    isEnabled?: (state: EditorState) => boolean
+  } = {},
 ) => {
   // Assertions
   if (defaultTriggerCharacter.length !== 1) {
@@ -183,6 +186,9 @@ export const setupSuggestionsMenu = <T extends SuggestionItem, BSchema extends B
 
           // Checks if the menu should be shown.
           if (transaction.getMeta(pluginKey)?.activate) {
+            if (options.isEnabled && !options.isEnabled(newState)) {
+              return getDefaultPluginState<T>()
+            }
             return {
               active: true,
               triggerCharacter: transaction.getMeta(pluginKey)?.triggerCharacter || '',
@@ -218,6 +224,7 @@ export const setupSuggestionsMenu = <T extends SuggestionItem, BSchema extends B
           // Hides the menu. This is done after items and notFoundCount are already updated as notFoundCount is needed to
           // check if the menu should be hidden.
           if (
+            (options.isEnabled && !options.isEnabled(newState)) ||
             // Highlighting text should hide the menu.
             newState.selection.from !== newState.selection.to ||
             // Transactions with plugin metadata {deactivate: true} should hide the menu.
@@ -265,6 +272,10 @@ export const setupSuggestionsMenu = <T extends SuggestionItem, BSchema extends B
           if (event.key === defaultTriggerCharacter && !menuIsActive) {
             const {state} = view
             const {selection} = state
+
+            if (options.isEnabled && !options.isEnabled(state)) {
+              return false
+            }
 
             const posBefore = selection.$from.pos - 1
             const charBefore = state.doc.textBetween(posBefore, posBefore + 1, undefined, '\ufffc')

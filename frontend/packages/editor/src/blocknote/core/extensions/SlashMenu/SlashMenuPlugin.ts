@@ -1,4 +1,4 @@
-import {Plugin, PluginKey} from 'prosemirror-state'
+import {EditorState, Plugin, PluginKey} from 'prosemirror-state'
 
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
@@ -7,6 +7,13 @@ import {BlockSchema} from '../Blocks/api/blockTypes'
 import {BaseSlashMenuItem} from './BaseSlashMenuItem'
 
 export const slashMenuPluginKey = new PluginKey('SlashMenuPlugin')
+
+/**
+ * Returns whether slash-menu commands are allowed in the current selection context.
+ */
+export function isSlashMenuEnabled(state: EditorState) {
+  return state.selection.$from.parent.type.name !== 'image'
+}
 
 export class SlashMenuProsemirrorPlugin<
   BSchema extends BlockSchema,
@@ -31,6 +38,7 @@ export class SlashMenuProsemirrorPlugin<
             (aliases && aliases.filter((alias) => alias.toLowerCase().startsWith(query.toLowerCase())).length !== 0),
         ),
       ({item, editor}) => item.execute(editor),
+      {isEnabled: isSlashMenuEnabled},
     )
 
     this.plugin = suggestions.plugin
