@@ -7,6 +7,7 @@ import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from '../Blocks/helpers/getBlockInfoFromPos'
 import {MultipleNodeSelection} from '../SideMenu/MultipleNodeSelection'
+import {selectableNodeTypes} from '../BlockManipulation/BlockManipulationExtension'
 
 import './full-block-selection.css'
 
@@ -129,12 +130,21 @@ function buildDecorations(doc: Node, blockIds: string[]): DecorationSet {
 
   doc.descendants((node, pos) => {
     if (node.type.name === 'blockNode' && idSet.has(node.attrs['id'] as string)) {
+      try {
+        const blockInfo = getBlockInfoWithManualOffset(node, pos)
+        if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
+          return true
+        }
+      } catch {
+        // Not a valid block structure — apply decoration anyway.
+      }
       decorations.push(
         Decoration.node(pos, pos + node.nodeSize, {
           class: DECORATION_CLASS,
         }),
       )
     }
+    return true
   })
 
   return DecorationSet.create(doc, decorations)
