@@ -55,6 +55,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
+
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
  * These endpoints compute locationId/editId from the raw uid+path fields.
@@ -117,7 +118,7 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
       // unified editor mounts at the new doc's route URL).
       const parentPath = parentId.path || []
       const draftPath = [...parentPath, `-${draftId}`]
-      await client.drafts.write.mutate({
+      const writeParams = {
         id: draftId,
         locationUid: parentId.uid,
         locationPath: parentPath,
@@ -127,7 +128,8 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
         content: [],
         deps: [],
         visibility: visibility ?? 'PUBLIC',
-      })
+      }
+      await client.drafts.write.mutate(writeParams)
       return {draftId, draftPath}
     },
     onSuccess: () => {
@@ -386,7 +388,7 @@ export function usePublishResource(
               depsChanged,
             })
 
-            await desktopUniversalClient.publishDocument!({
+            const publishInput = {
               signerAccountUid: accountId,
               account: resolvedDestinationId.uid,
               baseVersion,
@@ -397,17 +399,12 @@ export function usePublishResource(
               visibility,
               genesis: editDocument?.genesis,
               generation: editDocument?.generationInfo?.generation,
-            })
+            }
+            await desktopUniversalClient.publishDocument!(publishInput)
 
             const updatedDoc = await grpcClient.documents.getDocument({
               account: resolvedDestinationId.uid,
               path: docPath,
-            })
-            // TODO(temp): remove after verifying private document visibility fix
-            console.log('[publish] getDocument visibility:', {
-              path: docPath,
-              requestedVisibility: visibility,
-              returnedVisibility: updatedDoc.visibility,
             })
             console.log('[publish] result', {
               requestedBaseVersion: baseVersion,
@@ -1026,12 +1023,13 @@ export function useCreateDraft(
       () => nanoid(21),
     )
     if (!plan) return
-    await client.drafts.write.mutate({
+    const writeParams = {
       ...plan.writeParams,
       metadata: {},
       content: [],
       deps: plan.writeParams.deps ?? [],
-    })
+    }
+    await client.drafts.write.mutate(writeParams)
     navigate({key: 'document', id: plan.routeId})
   }
 }

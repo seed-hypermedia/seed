@@ -58,14 +58,15 @@ export function shouldAutoLinkParent(
 /**
  * Resolve the path used for a publish, given the current destination path and
  * the draft. Precedence:
- *   1. `pathOverride` from the publish popover (user picked it).
- *   2. Inline first-publish: `currentPath` still ends with `-${draftId}` AND
+ *   1. Private docs keep `currentPath` unchanged, ignoring any user-supplied
+ *      override because their random paths are intentional.
+ *   2. `pathOverride` from the publish popover (user picked it).
+ *   3. Inline first-publish: `currentPath` still ends with `-${draftId}` AND
  *      no doc exists at that path → swap the placeholder for the title slug
  *      via `computeInlineDraftPublishPath`.
- *   3. Otherwise return `currentPath` unchanged.
+ *   4. Otherwise return `currentPath` unchanged.
  *
  * Skipped (returns `currentPath` unchanged):
- *   - private docs (random-id paths are intentional),
  *   - home-doc edits (empty path),
  *   - re-publishes (the doc exists at this path).
  */
@@ -78,9 +79,9 @@ export function resolvePublishPath(args: {
   pathOverride?: string[]
 }): string[] {
   const {currentPath, draftId, draftName, isPrivate, existsAtDestination, pathOverride} = args
+  if (isPrivate) return currentPath
   if (pathOverride) return pathOverride
   if (existsAtDestination) return currentPath
-  if (isPrivate) return currentPath
   if (currentPath.length === 0) return currentPath
   const lastSeg = currentPath.at(-1) || ''
   if (lastSeg !== `-${draftId}`) return currentPath

@@ -4,6 +4,7 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {HMDocument, HMDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -232,6 +233,7 @@ describe('usePublishResource path resolution', () => {
     const arg = publishCalls[0][0]
     expect(arg.path).toBe('/parent/my-cool-doc')
     expect(arg.account).toBe('acct-1')
+    expect(arg.visibility).toBe(ResourceVisibility.UNSPECIFIED)
   })
 
   it('honours an explicit pathOverride from the publish popover', async () => {
@@ -311,6 +313,7 @@ describe('usePublishResource path resolution', () => {
           draft,
           destinationId: editId,
           accountId: 'acct-1',
+          pathOverride: ['public', 'slug'],
         })
       })
     } finally {
@@ -318,6 +321,7 @@ describe('usePublishResource path resolution', () => {
     }
 
     expect(publishDocumentMock.mock.calls[0][0].path).toBe('/-randomid')
+    expect(publishDocumentMock.mock.calls[0][0].visibility).toBe(ResourceVisibility.PRIVATE)
   })
 
   it('skips the rename for home-doc edits (empty path)', async () => {

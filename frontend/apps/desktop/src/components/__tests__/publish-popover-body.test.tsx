@@ -255,6 +255,37 @@ describe('PublishPopoverBody', () => {
     }
   })
 
+  it('disables permalink editing for private first-publish docs', () => {
+    setSnapshot({
+      document: {version: '', metadata: {}, visibility: 'PRIVATE'},
+      draftId: 'abc',
+      metadata: {name: 'My Private Doc'},
+    })
+    const docId = hmId('acct-1', {path: ['-abc']})
+    const onPublish = vi.fn()
+
+    const {container, root} = renderPopover(docId, onPublish)
+    try {
+      const input = findInput(container)!
+      expect(input).toBeTruthy()
+      expect(input.disabled).toBe(true)
+      expect(container.textContent).toContain('Private document paths are generated automatically.')
+
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+        setter.call(input, '/my-typed-slug')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+      const publishButton = findButtonByText(container, 'Publish: Make it live now')
+      act(() => {
+        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+      expect(onPublish).toHaveBeenCalledWith(undefined)
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('omits the override when the user has not edited the input', () => {
     setSnapshot({
       document: {version: '', metadata: {}},

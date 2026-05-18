@@ -28,7 +28,7 @@ export function shouldUseDaemonCreateDocumentChange(input: PublishDocumentInput)
 
 /** Normalizes document publish input into a daemon create-document-change request. */
 export function createDocumentChangeRequest(input: PublishDocumentInput): CreateDocumentChangeRequest {
-  return {
+  const request = {
     signingKeyName: input.signerAccountUid,
     account: input.account,
     path: input.path ?? '',
@@ -37,8 +37,9 @@ export function createDocumentChangeRequest(input: PublishDocumentInput): Create
       (change) => new DocumentChange(change as ConstructorParameters<typeof DocumentChange>[0]),
     ),
     capability: input.capability ?? '',
-    visibility: ResourceVisibility.UNSPECIFIED,
+    visibility: input.baseVersion ? ResourceVisibility.UNSPECIFIED : input.visibility ?? ResourceVisibility.UNSPECIFIED,
   }
+  return request
 }
 
 /** Publishes a desktop document through the daemon or the generic client publish path. */
@@ -46,8 +47,10 @@ export async function publishDesktopDocument(
   deps: PublishDesktopDocumentDeps,
   input: PublishDocumentInput,
 ): Promise<void> {
-  if (shouldUseDaemonCreateDocumentChange(input)) {
-    await deps.createDocumentChange(createDocumentChangeRequest(input))
+  const useDaemon = shouldUseDaemonCreateDocumentChange(input)
+  if (useDaemon) {
+    const request = createDocumentChangeRequest(input)
+    await deps.createDocumentChange(request)
     return
   }
 

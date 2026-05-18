@@ -98,7 +98,11 @@ export function CreateDocumentButton({
                     Public Document
                   </DropdownMenuItem>
                   {hasSiteUrl ? (
-                    <DropdownMenuItem onClick={() => createDraft({visibility: 'PRIVATE'})}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        createDraft({visibility: 'PRIVATE'})
+                      }}
+                    >
                       <Lock className="size-4" />
                       Private Document
                     </DropdownMenuItem>

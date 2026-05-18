@@ -247,6 +247,8 @@ export interface ResourcePageProps {
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Visibility of the existing draft, when the platform can provide full draft data. */
+  existingDraftVisibility?: HMDocument['visibility']
   /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
   existingDraftContent?: HMBlockNode[]
   /** Cursor position saved in the draft file; used to restore cursor on reload. */
@@ -330,6 +332,7 @@ export function ResourcePage({
   CommentEditor,
   extraMenuItems,
   existingDraft,
+  existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
@@ -560,6 +563,7 @@ export function ResourcePage({
       path: `/${(docId.path ?? []).join('/')}`,
       content: [],
       metadata: existingDraft && existingDraft.metadata ? existingDraft.metadata : {},
+      visibility: existingDraftVisibility,
       version: '',
       authors: [],
       createTime: undefined as any,
@@ -611,6 +615,7 @@ export function ResourcePage({
           CommentEditor={CommentEditor}
           extraMenuItems={extraMenuItems}
           existingDraft={existingDraft}
+          existingDraftVisibility={existingDraftVisibility}
           existingDraftContent={existingDraftContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
           existingDraftMineTouchedIds={existingDraftMineTouchedIds}
@@ -783,6 +788,7 @@ function DocumentBody({
   CommentEditor,
   extraMenuItems,
   existingDraft,
+  existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
@@ -814,6 +820,7 @@ function DocumentBody({
   CommentEditor?: React.ComponentType<CommentEditorProps>
   extraMenuItems?: MenuItemType[]
   existingDraft?: HMExistingDraft | false
+  existingDraftVisibility?: HMDocument['visibility']
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
   existingDraftMineTouchedIds?: string[]
@@ -999,6 +1006,9 @@ function DocumentBody({
   }, []) // only on mount
 
   const isHomeDoc = !docId.path?.length
+  const draftVisibility = existingDraft ? existingDraftVisibility : undefined
+  const headerVisibility =
+    document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   const siteMembers = useSiteMembers(siteId)
   // const directory = useDirectory(docId)
@@ -1373,7 +1383,7 @@ function DocumentBody({
                   authors={authorPayloads}
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
-                  visibility={document.visibility}
+                  visibility={headerVisibility}
                   version={document.version}
                 />
               ) : (
@@ -1383,7 +1393,7 @@ function DocumentBody({
                   authors={authorPayloads}
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
-                  visibility={document.visibility}
+                  visibility={headerVisibility}
                   version={document.version}
                 />
               ))}
@@ -1430,7 +1440,7 @@ function DocumentBody({
                 authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
-                visibility={document.visibility}
+                visibility={headerVisibility}
                 version={document.version}
               />
             ) : (
@@ -1440,7 +1450,7 @@ function DocumentBody({
                 authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
-                visibility={document.visibility}
+                visibility={headerVisibility}
                 version={document.version}
               />
             ))}
@@ -1846,7 +1856,6 @@ function OldVersionEditDialog() {
     <AlertDialog
       open={isConfirming}
       onOpenChange={(open) => {
-        const currentState = actorRef.getSnapshot().value
         // Only send edit.cancel when the dialog closes while we're still
         // waiting for confirmation (overlay click / Escape). Clicking "Edit
         // Anyway" sends edit.confirm first, transitioning out of

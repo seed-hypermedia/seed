@@ -19,7 +19,6 @@ import {createVersionRef} from './ref'
  * Reserved query param key for non-object inputs (string, number, boolean).
  */
 const PRIMITIVE_VALUE_KEY = '__value'
-
 /**
  * Serializes data to a URL query string with proper type handling.
  * Non-object inputs (string, number, boolean) are stored under a __value key.
@@ -276,14 +275,18 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
 
     // Use PrepareDocumentChange for both new and existing documents so the server
     // can prepare all supported ops.
-    const {unsignedChange} = (await request('PrepareDocumentChange', {
+    const prepareInput = {
       account: input.account,
       path: input.path,
       baseVersion: input.baseVersion,
       changes: input.changes,
       capability: input.capability,
       visibility: input.visibility,
-    })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
+    }
+    const {unsignedChange} = (await request('PrepareDocumentChange', prepareInput)) as Extract<
+      HMRequest,
+      {key: 'PrepareDocumentChange'}
+    >['output']
     const {publishInput} = await signDocumentChange(
       {
         account: input.account,

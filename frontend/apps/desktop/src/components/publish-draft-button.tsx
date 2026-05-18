@@ -474,7 +474,9 @@ export default function PublishDraftButton() {
                   <p className="text-muted-foreground text-xs">Edit your permalink</p>
                   <Input
                     value={`/${editablePath}`}
+                    disabled={!!isPrivate}
                     onChange={(e) => {
+                      if (isPrivate) return
                       if (!editableLocation) return
                       const raw = e.target.value.replace(/^\//, '')
                       const newPath = [...(editableLocation.path?.slice(0, -1) || []), pathNameify(raw)]
@@ -492,6 +494,9 @@ export default function PublishDraftButton() {
                       publishError ? 'border-red-500 dark:border-red-500' : ''
                     }`}
                   />
+                  {isPrivate ? (
+                    <p className="text-muted-foreground text-xs">Private document paths are generated automatically.</p>
+                  ) : null}
                   {publishError && <p className="text-destructive text-xs">{publishError}</p>}
                 </div>
               )}

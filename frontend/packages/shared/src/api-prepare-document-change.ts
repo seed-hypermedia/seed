@@ -4,14 +4,15 @@ import {HMPrepareDocumentChangeRequest} from '@seed-hypermedia/client/hm-types'
 
 export const PrepareDocumentChange: HMRequestImplementation<HMPrepareDocumentChangeRequest> = {
   async getData(grpcClient, input) {
-    const result = await grpcClient.documents.prepareChange({
+    const request = {
       account: input.account,
       path: input.path ?? '',
       baseVersion: input.baseVersion ?? '',
       capability: input.capability ?? '',
       visibility: input.visibility ?? 0,
       changes: input.changes.map((c) => new DocumentChange(c as ConstructorParameters<typeof DocumentChange>[0])),
-    })
+    }
+    const result = await grpcClient.documents.prepareChange(request)
     return {unsignedChange: result.unsignedChange}
   },
 }
