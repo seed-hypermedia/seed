@@ -1856,7 +1856,6 @@ function OldVersionEditDialog() {
     <AlertDialog
       open={isConfirming}
       onOpenChange={(open) => {
-        const currentState = actorRef.getSnapshot().value
         // Only send edit.cancel when the dialog closes while we're still
         // waiting for confirmation (overlay click / Escape). Clicking "Edit
         // Anyway" sends edit.confirm first, transitioning out of
