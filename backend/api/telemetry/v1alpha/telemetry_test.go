@@ -112,6 +112,33 @@ func TestRetryOpensNewGeneration(t *testing.T) {
 	require.Equal(t, StageComponentRendered, byGen[2].Checkpoints[len(byGen[2].Checkpoints)-1].Stage)
 }
 
+func TestLinkClickOpensNewGeneration(t *testing.T) {
+	s, clk := newTestServer(t, 100)
+	key := "hm://abc/doc?v=cid-click"
+
+	s.RecordCheckpoint(key, StageLinkClick, clk.Now())
+	clk.Advance(5 * time.Millisecond)
+	s.RecordCheckpoint(key, StageComponentRendered, clk.Now())
+
+	clk.Advance(250 * time.Millisecond)
+	s.RecordCheckpoint(key, StageLinkClick, clk.Now())
+	clk.Advance(10 * time.Millisecond)
+	s.RecordCheckpoint(key, StageComponentRendered, clk.Now())
+
+	snap := s.Snapshot()
+	require.Len(t, snap, 2)
+
+	byGen := map[int]Trace{}
+	for _, tr := range snap {
+		byGen[tr.Gen] = tr
+	}
+
+	require.Equal(t, StatusComplete, byGen[1].Status)
+	require.Equal(t, StageLinkClick, byGen[1].Checkpoints[0].Stage)
+	require.Equal(t, StatusComplete, byGen[2].Status)
+	require.Equal(t, StageLinkClick, byGen[2].Checkpoints[0].Stage)
+}
+
 func TestAbandonTimeoutClassification(t *testing.T) {
 	s, clk := newTestServer(t, 100)
 	key := "hm://abc/doc?v=cidT"

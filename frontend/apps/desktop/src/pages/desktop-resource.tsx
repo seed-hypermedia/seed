@@ -26,6 +26,7 @@ import {useHostSession} from '@/models/host'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {reportTelemetry, telemetryKeyForId, TelemetryStage} from '@/telemetry'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -388,6 +389,21 @@ export default function DesktopResourcePage() {
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
+
+  const renderedTelemetryKeys = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const key = doc
+      ? telemetryKeyForId(
+          hmId(doc.account, {
+            path: entityQueryPathToHmIdPath(doc.path),
+            version: doc.version,
+          }),
+        )
+      : null
+    if (!key || renderedTelemetryKeys.current.has(key)) return
+    renderedTelemetryKeys.current.add(key)
+    reportTelemetry(key, TelemetryStage.ComponentRendered)
+  }, [doc])
 
   // Inline document creation (page-level: bottom fallback + CreateDocumentButton inline create)
   const childDrafts = useChildDrafts(docId)

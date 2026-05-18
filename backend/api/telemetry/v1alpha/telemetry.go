@@ -37,6 +37,7 @@ const (
 	StageInvalidationBroadcast = "main.invalidation_broadcast"
 	StageSupersededBy          = "main.superseded_by"
 	StageInvalidationReceived  = "renderer.invalidation_received"
+	StageLinkClick             = "renderer.link_click"
 	StageRefetchStart          = "renderer.refetch_start"
 	StageGRPCCallStart         = "renderer.grpc_call_start"
 	StageGRPCCallEnd           = "renderer.grpc_call_end"
@@ -47,11 +48,12 @@ const (
 // initiatingStages are checkpoints that open a fresh generation for a URL
 // even if a live generation already exists. They're stamped when an attempt
 // for the URL begins from "the outside" (a peer pushed a new blob, an RPC
-// arrived, a renderer started a fetch).
+// arrived, a renderer started a fetch, or the user clicked a link).
 var initiatingStages = map[string]struct{}{
 	StageBlobIndexed:         {},
 	StageGRPCRequestReceived: {},
 	StageGRPCCallStart:       {},
+	StageLinkClick:           {},
 }
 
 // Status describes the lifecycle of a single generation.
@@ -59,10 +61,10 @@ type Status string
 
 // Status values.
 const (
-	StatusLive       Status = "live"
-	StatusComplete   Status = "complete"
-	StatusAbandoned  Status = "abandoned"
-	StatusCoalesced  Status = "coalesced"
+	StatusLive      Status = "live"
+	StatusComplete  Status = "complete"
+	StatusAbandoned Status = "abandoned"
+	StatusCoalesced Status = "coalesced"
 )
 
 // AbandonTimeout is how long a generation may sit idle before being
