@@ -18,6 +18,7 @@ import (
 	"container/list"
 	"context"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,6 +67,13 @@ const (
 	StatusLive      Status = "live"
 	StatusComplete  Status = "complete"
 	StatusAbandoned Status = "abandoned"
+	// StatusOrphan marks a trace whose only checkpoint is
+	// renderer.component_rendered — i.e. the page rendered but we never
+	// observed the upstream click or fetch that caused it. Common cases
+	// are window restore, React Query cache hits, and deep links that
+	// bypass the navigation dispatcher. The page rendered fine; the
+	// journey itself just isn't observable end-to-end.
+	StatusOrphan Status = "orphan"
 )
 
 // AbandonTimeout is how long a generation may sit idle before being
@@ -179,18 +187,47 @@ func (s *Server) RecordCheckpoint(key, stage string, ts time.Time) {
 	isInitiating := isInitiating(stage)
 	isLive := tr.Status == StatusLive
 
-	if !isInitiating && isLive {
+	if !isLive {
+		// Existing trace is sealed (complete, abandoned, orphan). Any new
+		// stage opens a fresh generation — a new fetch or a new click on
+		// the same key is a separate attempt.
+		s.openGen(key, stage, ts, state.gen+1)
+		return
+	}
+
+	if !isInitiating {
 		s.appendLocked(tr, stage, ts)
 		return
 	}
 
-	if isLive {
-		// initiating stamp arriving while a live gen exists: seal the old
-		// (abandoned because it never reached component_rendered) and open
-		// a fresh gen.
+	// Initiating stamp on a live trace. Two cases:
+	//   1. The existing trace already has a frontend stage (renderer.* or
+	//      main.*). That means the user already started a journey for this
+	//      key in this generation, so this is a retry: seal old as
+	//      abandoned and open a fresh gen.
+	//   2. The existing trace has only backend.* stages (e.g. a sidebar
+	//      hook triggered grpc_request_received before the user clicked).
+	//      The user's click belongs to *that* journey, not a new one --
+	//      append to the existing trace.
+	if traceHasFrontendStage(tr) {
 		s.sealLocked(tr, StatusAbandoned, ts)
+		s.openGen(key, stage, ts, state.gen+1)
+		return
 	}
-	s.openGen(key, stage, ts, state.gen+1)
+	s.appendLocked(tr, stage, ts)
+}
+
+// traceHasFrontendStage reports whether the trace already contains a
+// checkpoint emitted by the Electron main or React renderer (stage prefix
+// main.* or renderer.*). Used to distinguish "user is retrying" from
+// "user is starting a journey on a key the daemon already prefetched".
+func traceHasFrontendStage(tr *Trace) bool {
+	for _, cp := range tr.Checkpoints {
+		if strings.HasPrefix(cp.Stage, "renderer.") || strings.HasPrefix(cp.Stage, "main.") {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) openGen(key, stage string, ts time.Time, gen int) {
@@ -206,9 +243,12 @@ func (s *Server) openGen(key, stage string, ts time.Time, gen int) {
 	s.perURL[key] = &urlState{gen: gen, trace: tr}
 
 	if stage == StageComponentRendered {
-		// Single-stage trace, e.g. cached render with no preceding fetch. Seal
-		// immediately so we don't keep it as "live" forever.
-		tr.Status = StatusComplete
+		// Single-stage trace: the renderer painted but we never observed
+		// any upstream cause (no click, no fetch). Common with window
+		// restore, React Query cache hits, and deep links that bypass the
+		// navigation dispatcher. Mark orphan rather than complete so the
+		// page doesn't dishonestly claim "end-to-end journey observed".
+		tr.Status = StatusOrphan
 	}
 
 	s.evictLocked()

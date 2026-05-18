@@ -77,6 +77,7 @@ type view struct {
 	GeneratedAt      string
 	Total            int
 	Complete         int
+	Orphan           int
 	Abandoned        int
 	FrontendTouched  int
 	AbandonedByStage []summaryBucket
@@ -139,6 +140,9 @@ func buildView(traces []telemetry.Trace) view {
 		case telemetry.StatusComplete:
 			v.Complete++
 			r.StatusCSS = "status-complete"
+		case telemetry.StatusOrphan:
+			v.Orphan++
+			r.StatusCSS = "status-orphan"
 		case telemetry.StatusAbandoned:
 			v.Abandoned++
 			abandonedByStage[r.LastStage]++
@@ -300,6 +304,7 @@ tr.group-tail td{border-top:1px dashed #e4e4e4}
 td.key-cell{background:#fafafa}
 .stage-idx{display:inline-block;min-width:1.6em;color:#888;font-size:10px;text-align:right;margin-right:2px}
 .status-complete{color:#2e7d32;font-weight:bold}
+.status-orphan{color:#00838f;font-weight:bold}
 .status-abandoned-late{color:#c62828;font-weight:bold}
 .status-abandoned-early{color:#777}
 .status-live{color:#000;font-style:italic}
@@ -321,6 +326,7 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   Generated {{.GeneratedAt}} · <strong>{{.Total}}</strong> retained traces ·
   <strong>{{.FrontendTouched}}</strong> with frontend feedback ·
   <span class="status-complete">{{.Complete}} complete</span> ·
+  <span class="status-orphan">{{.Orphan}} orphan</span> ·
   <span class="status-abandoned-late">{{.Abandoned}} abandoned</span>{{summary .AbandonedByStage}}
 </div>
 
@@ -333,7 +339,9 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
   <dt><span class="status-live">live</span></dt>
   <dd>Still in flight. New checkpoints may still arrive. Re-classified as <em>abandoned</em> automatically after 30s of inactivity.</dd>
   <dt><span class="status-complete">complete</span></dt>
-  <dd>Reached <code>renderer.component_rendered</code> &mdash; the data was painted. Healthy path.</dd>
+  <dd>Reached <code>renderer.component_rendered</code> after at least one preceding stage in the same generation. Healthy end-to-end journey.</dd>
+  <dt><span class="status-orphan">orphan</span> (teal, bold)</dt>
+  <dd>The trace consists solely of <code>renderer.component_rendered</code> — the page painted, but we never observed any upstream cause. Typical sources are window restore from a previous session, React Query cache hits (the data was already there so no GetDocument call), and deep links that bypass the in-app navigation dispatcher. Not a bug; just means the journey isn't observable end-to-end for this view.</dd>
   <dt><span class="status-abandoned-late">abandoned</span> (red, bold)</dt>
   <dd>30s elapsed without reaching <code>renderer.component_rendered</code>, and the last stage was <code>backend.grpc_response_sent</code>. The daemon answered but the renderer never painted &mdash; investigate.</dd>
   <dt><span class="status-abandoned-early">abandoned</span> (grey)</dt>
@@ -367,6 +375,8 @@ details.legend ul{margin:6px 0 0 1.4em;padding:0}
 <ul>
   <li><em>A key has multiple <code>backend.grpc_request_received</code>/<code>backend.grpc_response_sent</code> pairs in one generation.</em> That just means the renderer made multiple <code>GetDocument</code> or <code>GetAccount</code> calls for the same key during that page load &mdash; a common case is a page-level <code>useResource(docId)</code> plus a parallel <code>useResource(hmId(docId.uid))</code> for the same account uid in a sibling component (avatar, related cards). Two pairs = two RPCs, not a single retry.</li>
   <li><em>A key shows multiple generations of <code>renderer.link_click &rarr; renderer.component_rendered</code> but no <code>backend.feed_emitted</code> anywhere.</em> Expected when the user navigated to that URL directly without seeing it in the feed first. Even if the feed <em>did</em> show that path, the feed stamps under a version-pinned key (<code>?v=&lt;blobCid&gt;</code>) while the click stamps under whatever version was in the route &mdash; if those versions differ, the two journeys live under different keys and don't share a row.</li>
+  <li><em>A generation starts with <code>backend.grpc_request_received</code> instead of <code>renderer.link_click</code>.</em> Means a background hook (sidebar, hover preview, related-card avatar) called <code>GetDocument</code>/<code>GetAccount</code> for this key before any user action. If the user later clicks while the trace is still live, <code>renderer.link_click</code> appends to the <em>same</em> generation rather than opening a new one — so a healthy flow can read <code>request_received &rarr; response_sent &rarr; link_click &rarr; component_rendered</code> all under gen 1. If the prefetch's response_sent arrived more than 30s before the click, gen 1 will have already aged into <em>abandoned-early</em> and the click opens a fresh gen 2 with just <code>link_click &rarr; component_rendered</code>.</li>
+  <li><em>An <span class="status-orphan">orphan</span> row appears.</em> The renderer painted but no upstream cause was observed (window restore, React Query cache hit, deep link bypassing the navigation dispatcher). The render itself worked; the journey just isn't observable end-to-end for this view.</li>
   <li><em>A key has many consecutive <code>backend.feed_emitted</code> stamps spaced ~10 seconds apart.</em> This was a real bug: the frontend polls the activity feed on a timer and the daemon re-stamped <code>feed_emitted</code> for every blob on every poll. The emitter now deduplicates so each blob stamps once per process; if you still see it, you're looking at a stale trace from before the dedup landed.</li>
 </ul>
 </details>

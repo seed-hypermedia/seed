@@ -137,6 +137,56 @@ func TestLinkClickOpensNewGeneration(t *testing.T) {
 	require.Equal(t, StageLinkClick, byGen[2].Checkpoints[0].Stage)
 }
 
+// TestPrefetchThenClickAppendsToSameGen verifies that an initiating
+// stamp (link_click) arriving on a live trace that has only backend
+// stages merges into that trace instead of opening gen 2. This models
+// the common case where a sidebar or hover preview pre-fetches a
+// document before the user clicks the link.
+func TestPrefetchThenClickAppendsToSameGen(t *testing.T) {
+	s, clk := newTestServer(t, 100)
+	key := "hm://abc/doc"
+
+	// Background prefetch.
+	s.RecordCheckpoint(key, StageGRPCRequestReceived, clk.Now())
+	clk.Advance(8 * time.Millisecond)
+	s.RecordCheckpoint(key, StageGRPCResponseSent, clk.Now())
+
+	// User clicks shortly after; this is the SAME journey, not a new attempt.
+	clk.Advance(120 * time.Millisecond)
+	s.RecordCheckpoint(key, StageLinkClick, clk.Now())
+	clk.Advance(40 * time.Millisecond)
+	s.RecordCheckpoint(key, StageComponentRendered, clk.Now())
+
+	snap := s.Snapshot()
+	require.Len(t, snap, 1, "prefetch and click should merge into one generation")
+	tr := snap[0]
+	require.Equal(t, 1, tr.Gen)
+	require.Equal(t, StatusComplete, tr.Status)
+	require.Len(t, tr.Checkpoints, 4)
+	require.Equal(t, StageGRPCRequestReceived, tr.Checkpoints[0].Stage)
+	require.Equal(t, StageGRPCResponseSent, tr.Checkpoints[1].Stage)
+	require.Equal(t, StageLinkClick, tr.Checkpoints[2].Stage)
+	require.Equal(t, StageComponentRendered, tr.Checkpoints[3].Stage)
+}
+
+// TestOrphanRenderWithoutCause verifies that a trace built solely from
+// renderer.component_rendered (e.g. window restore or React Query cache
+// hit) seals as StatusOrphan rather than StatusComplete, so the page
+// doesn't dishonestly claim an end-to-end journey was observed.
+func TestOrphanRenderWithoutCause(t *testing.T) {
+	s, clk := newTestServer(t, 100)
+	key := "hm://abc/doc"
+
+	s.RecordCheckpoint(key, StageComponentRendered, clk.Now())
+
+	snap := s.Snapshot()
+	require.Len(t, snap, 1)
+	tr := snap[0]
+	require.Equal(t, StatusOrphan, tr.Status)
+	require.Len(t, tr.Checkpoints, 1)
+	require.Equal(t, StageComponentRendered, tr.Checkpoints[0].Stage)
+}
+
 // TestAbandonTimeoutClassification verifies that a trace which never
 // progresses past its first stage gets reclassified as abandoned at
 // Snapshot read time after AbandonTimeout.
