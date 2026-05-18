@@ -287,7 +287,7 @@ function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick
 }
 
 function MobileWebLinkItem({item, onClick}: {item: DocNavigationItem; onClick?: () => void}) {
-  const linkProps = useValidatedWebRouteLink(item.webUrl || null, {onClick})
+  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick})
 
   return <SmallListItem bold title={getMetadataName(item.metadata)} {...linkProps} />
 }
@@ -342,7 +342,7 @@ function OverflowMenuItem({
     visibility?: HMResourceVisibility
   }
 }) {
-  const linkProps = useValidatedWebRouteLink(
+  const {linkProps} = useValidatedWebRouteLink(
     item.draftId
       ? {key: 'draft', id: item.draftId}
       : item.id
@@ -375,7 +375,7 @@ function HeaderLinkItem({
   visibility?: HMResourceVisibility
 }) {
   const highlighter = useHighlighter()
-  const linkProps = useValidatedWebRouteLink(
+  const {linkProps} = useValidatedWebRouteLink(
     draftId
       ? {
           key: 'draft',

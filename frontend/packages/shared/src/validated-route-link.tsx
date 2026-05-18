@@ -232,18 +232,20 @@ export function useValidatedWebRouteLink(route: NavRoute | string | null, opts?:
 
   if (linkState.kind === 'verified' && candidateExternalHref) {
     return {
-      href: linkState.href || candidateExternalHref,
-      tag: 'a' as const,
-      onClick: verifiedOnClick,
+      linkProps: {
+        href: linkState.href || candidateExternalHref,
+        tag: 'a' as const,
+        onClick: verifiedOnClick,
+      },
       isSeedLink: true,
-      validationKind: linkState.kind,
     }
   }
 
   return {
-    ...internalLinkProps,
-    href: linkState.href || internalLinkProps.href,
+    linkProps: {
+      ...internalLinkProps,
+      href: linkState.href || internalLinkProps.href,
+    },
     isSeedLink: parsedSeedLink.isSeedLink,
-    validationKind: linkState.kind,
   }
 }

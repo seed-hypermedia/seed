@@ -43,8 +43,8 @@ vi.mock('./web-perf-marks', () => ({
 import {useOpenUrlWeb} from './commenting'
 
 function ValidatedLinkHarness({route}: {route: string}) {
-  const linkProps = useValidatedWebRouteLink(route)
-  return <a href={linkProps.href} data-seed-link={String(linkProps.isSeedLink)} />
+  const {linkProps, isSeedLink} = useValidatedWebRouteLink(route)
+  return <a href={linkProps.href} data-seed-link={String(isSeedLink)} />
 }
 
 function OpenUrlHarness() {
