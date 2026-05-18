@@ -19,9 +19,6 @@ import {createVersionRef} from './ref'
  * Reserved query param key for non-object inputs (string, number, boolean).
  */
 const PRIMITIVE_VALUE_KEY = '__value'
-const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
-const RESOURCE_VISIBILITY_PRIVATE = 2
-
 /**
  * Serializes data to a URL query string with proper type handling.
  * Non-object inputs (string, number, boolean) are stored under a __value key.
@@ -242,29 +239,9 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
   }
 
   async function publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void> {
-    const debugPrivatePublish = input.visibility === RESOURCE_VISIBILITY_PRIVATE
-    if (debugPrivatePublish) {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client publishDocument start', {
-        account: input.account,
-        path: input.path,
-        baseVersion: input.baseVersion,
-        genesis: input.genesis,
-        generation: input.generation,
-        visibility: input.visibility,
-        capability: input.capability,
-        changeCount: input.changes.length,
-      })
-    }
     // Bootstrap brand-new home documents client-side. Other new documents go
     // through PrepareDocumentChange so the server can prepare richer ops.
     if (!input.genesis && !input.baseVersion && !input.path) {
-      if (debugPrivatePublish) {
-        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client using home-document bootstrap path', {
-          account: input.account,
-          path: input.path,
-          visibility: input.visibility,
-        })
-      }
       const genesisChange = await createGenesisChange(signer)
       const contentChange = await createDocumentChange(
         {
@@ -306,24 +283,10 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       capability: input.capability,
       visibility: input.visibility,
     }
-    if (debugPrivatePublish) {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client sending PrepareDocumentChange request', {
-        ...prepareInput,
-        changes: {
-          count: prepareInput.changes.length,
-          opCases: prepareInput.changes.map((change: any) => change?.op?.case),
-        },
-      })
-    }
     const {unsignedChange} = (await request('PrepareDocumentChange', prepareInput)) as Extract<
       HMRequest,
       {key: 'PrepareDocumentChange'}
     >['output']
-    if (debugPrivatePublish) {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client PrepareDocumentChange response', {
-        unsignedChangeBytes: unsignedChange?.length,
-      })
-    }
     const {publishInput} = await signDocumentChange(
       {
         account: input.account,
@@ -336,18 +299,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
       },
       signer,
     )
-    if (debugPrivatePublish) {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client signed private document change', {
-        blobCount: publishInput.blobs.length,
-        blobCids: publishInput.blobs.map((blob) => blob.cid),
-      })
-    }
     await publish(publishInput)
-    if (debugPrivatePublish) {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'seed client PublishBlobs success', {
-        blobCount: publishInput.blobs.length,
-      })
-    }
   }
 
   return {

@@ -56,8 +56,6 @@ import {useMyAccountIds} from './daemon'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 
-const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
-
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
  * These endpoints compute locationId/editId from the raw uid+path fields.
@@ -131,23 +129,7 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
         deps: [],
         visibility: visibility ?? 'PUBLIC',
       }
-      if (writeParams.visibility === 'PRIVATE') {
-        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create inline private draft write start', {
-          parentId: parentId.id,
-          parentUid: parentId.uid,
-          parentPath,
-          draftId,
-          draftPath,
-          writeParams,
-        })
-      }
       await client.drafts.write.mutate(writeParams)
-      if (writeParams.visibility === 'PRIVATE') {
-        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create inline private draft write success', {
-          draftId,
-          draftPath,
-        })
-      }
       return {draftId, draftPath}
     },
     onSuccess: () => {
@@ -255,24 +237,6 @@ export function usePublishResource(
   })
   return useMutation<HMDocument, any, PublishDraftInput>({
     mutationFn: async ({draft, destinationId, accountId, pathOverride}: PublishDraftInput): Promise<HMDocument> => {
-      const debugPrivatePublish = draft.visibility === 'PRIVATE'
-      if (debugPrivatePublish) {
-        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'publish private draft mutation start', {
-          editId: editId?.id,
-          draftId: draft.id,
-          draftVisibility: draft.visibility,
-          draftLocationUid: draft.locationUid,
-          draftLocationPath: draft.locationPath,
-          draftEditUid: draft.editUid,
-          draftEditPath: draft.editPath,
-          draftDeps: draft.deps,
-          destinationId: destinationId.id,
-          destinationUid: destinationId.uid,
-          destinationPath: destinationId.path,
-          accountId,
-          pathOverride,
-        })
-      }
       const blocksMap = editId ? createBlocksMap(editDocument?.content || [], '') : {}
       let newContent = removeTrailingBlocks(draft.content || [])
 
@@ -308,28 +272,9 @@ export function usePublishResource(
                 if (latestDoc?.version) {
                   existingDocVersion = latestDoc.version
                 }
-                if (debugPrivatePublish) {
-                  console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private draft destination probe result', {
-                    requestedAccount: destinationId.uid,
-                    requestedPath: hmIdPathToEntityQueryPath(destinationId.path || []),
-                    existingDocVersion,
-                    returnedVisibility: latestDoc?.visibility,
-                  })
-                }
               } catch (err) {
                 // Doc doesn't exist yet (first publish) — leave existingDoc null.
                 console.log('[publish] getDocument(latest) failed — treating as first publish', err)
-                if (debugPrivatePublish) {
-                  console.log(
-                    PRIVATE_DOC_DEBUG_PREFIX,
-                    'private draft destination probe failed; treating as first publish',
-                    {
-                      requestedAccount: destinationId.uid,
-                      requestedPath: hmIdPathToEntityQueryPath(destinationId.path || []),
-                      error: err,
-                    },
-                  )
-                }
               }
             }
 
@@ -346,16 +291,6 @@ export function usePublishResource(
             })
             const resolvedDestinationId =
               resolvedPath === destinationId.path ? destinationId : hmId(destinationId.uid, {path: resolvedPath})
-            if (debugPrivatePublish) {
-              console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private draft resolved publish destination', {
-                originalDestinationId: destinationId.id,
-                originalPath: destinationId.path,
-                resolvedDestinationId: resolvedDestinationId.id,
-                resolvedPath: resolvedDestinationId.path,
-                existsAtDestination: !!existingDocVersion,
-                pathOverride,
-              })
-            }
             if (resolvedDestinationId !== destinationId) {
               console.log('[publish] resolved destination path', {
                 from: destinationId.path,
@@ -401,16 +336,6 @@ export function usePublishResource(
             }
 
             const docPath = hmIdPathToEntityQueryPath(resolvedDestinationId.path || [])
-            if (debugPrivatePublish) {
-              console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private draft computed backend visibility', {
-                draftId: draft.id,
-                draftVisibility: draft.visibility,
-                draftDeps: draft.deps,
-                visibilityEnum: visibility,
-                visibilityLabel: visibility === ResourceVisibility.PRIVATE ? 'PRIVATE' : 'UNSPECIFIED',
-                docPath,
-              })
-            }
 
             // Bump the draft to the current latest heads before publishing. Until the
             // rebase flow lands, this is a shallow "rebase": baseVersion = latest, and
@@ -475,31 +400,12 @@ export function usePublishResource(
               genesis: editDocument?.genesis,
               generation: editDocument?.generationInfo?.generation,
             }
-            if (debugPrivatePublish) {
-              console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private draft calling desktopUniversalClient.publishDocument', {
-                ...publishInput,
-                changes: {
-                  count: allChanges.length,
-                  opCases: allChanges.map((change: any) => change?.op?.case),
-                },
-              })
-            }
             await desktopUniversalClient.publishDocument!(publishInput)
 
             const updatedDoc = await grpcClient.documents.getDocument({
               account: resolvedDestinationId.uid,
               path: docPath,
             })
-            if (debugPrivatePublish) {
-              console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private draft backend getDocument after publish', {
-                account: resolvedDestinationId.uid,
-                path: docPath,
-                requestedVisibilityEnum: visibility,
-                returnedVisibilityEnum: updatedDoc.visibility,
-                version: updatedDoc.version,
-                genesis: updatedDoc.genesis,
-              })
-            }
             console.log('[publish] result', {
               requestedBaseVersion: baseVersion,
               resultVersion: updatedDoc.version,
@@ -1109,12 +1015,6 @@ export function useCreateDraft(
   const selectedAccountId = useSelectedAccountId()
 
   return async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
-    if (visibility === 'PRIVATE') {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create private draft requested', {
-        draftParams,
-        selectedAccountId,
-      })
-    }
     const plan = computeNewDraftParams(
       visibility,
       draftParams,
@@ -1122,11 +1022,6 @@ export function useCreateDraft(
       () => nanoid(10),
       () => nanoid(21),
     )
-    if (visibility === 'PRIVATE') {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create private draft computed plan', {
-        plan,
-      })
-    }
     if (!plan) return
     const writeParams = {
       ...plan.writeParams,
@@ -1134,22 +1029,7 @@ export function useCreateDraft(
       content: [],
       deps: plan.writeParams.deps ?? [],
     }
-    if (writeParams.visibility === 'PRIVATE') {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create private draft write start', {
-        draftId: plan.draftId,
-        routeId: plan.routeId.id,
-        writeParams,
-      })
-    }
     await client.drafts.write.mutate(writeParams)
-    if (writeParams.visibility === 'PRIVATE') {
-      console.log(PRIVATE_DOC_DEBUG_PREFIX, 'create private draft write success; navigating', {
-        draftId: plan.draftId,
-        routeId: plan.routeId.id,
-        routeUid: plan.routeId.uid,
-        routePath: plan.routeId.path,
-      })
-    }
     navigate({key: 'document', id: plan.routeId})
   }
 }

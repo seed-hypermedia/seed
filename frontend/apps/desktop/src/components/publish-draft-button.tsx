@@ -43,8 +43,6 @@ import {
   usePushResource,
 } from '../models/documents'
 
-const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
-
 export default function PublishDraftButton() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
@@ -263,30 +261,6 @@ export default function PublishDraftButton() {
       if (!draft.data) {
         toast.error('Draft not loaded')
         throw new Error('Draft not loaded')
-      }
-      if (isPrivate) {
-        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'publish private draft button flow start', {
-          draftId,
-          draftRoute,
-          draftData: {
-            id: draft.data.id,
-            visibility: draft.data.visibility,
-            locationUid: draft.data.locationUid,
-            locationPath: draft.data.locationPath,
-            editUid: draft.data.editUid,
-            editPath: draft.data.editPath,
-            deps: draft.data.deps,
-            metadata: draft.data.metadata,
-            contentBlockCount: draft.data.content?.length,
-          },
-          isFirstPublish,
-          isInlineFirstPublish,
-          destinationId: destinationId.id,
-          destinationUid: destinationId.uid,
-          destinationPath: destinationId.path,
-          accountId,
-          editableLocation: editableLocation?.id,
-        })
       }
 
       // Step 1: Publish the child document

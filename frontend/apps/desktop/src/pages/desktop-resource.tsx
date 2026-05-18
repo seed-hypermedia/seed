@@ -209,18 +209,6 @@ export default function DesktopResourcePage() {
         })
         const existingDraftForVisibility = input.draftId ? await client.drafts.get.query(input.draftId) : null
         const draftVisibility = existingDraftForVisibility?.visibility ?? 'PUBLIC'
-        if (draftVisibility === 'PRIVATE') {
-          console.log('[private-doc-debug]', 'writeDraft preserving private draft visibility', {
-            draftId,
-            existingVisibility: existingDraftForVisibility?.visibility,
-            locationUid: input.locationUid,
-            locationPath: input.locationPath,
-            editUid: input.editUid,
-            editPath: input.editPath,
-            deps: input.deps,
-            blocksCount: content.length,
-          })
-        }
         const result = await client.drafts.write.mutate({
           id: draftId,
           metadata: input.metadata,
