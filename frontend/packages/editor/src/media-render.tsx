@@ -10,14 +10,11 @@ import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle} from 'lucide-react'
-import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {ChangeEvent, FunctionComponent, useEffect, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelectionChange'
 import {HMBlockSchema} from './schema'
-import {getNodesInSelection} from './utils'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 
 export type MediaType = {
   id: string
@@ -38,8 +35,6 @@ export type MediaType = {
 export interface DisplayComponentProps {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
-  selected: boolean
-  setSelected: any
   assign?: any
 }
 
@@ -77,30 +72,6 @@ interface RenderProps {
   validateFile?: (file: File) => boolean
 }
 
-export function updateSelection(
-  editor: BlockNoteEditor<HMBlockSchema>,
-  block: Block<HMBlockSchema>,
-  setSelected: (selected: boolean) => void,
-) {
-  const {view} = editor._tiptapEditor
-  const {selection} = view.state
-  let isSelected = false
-
-  if (selection instanceof NodeSelection) {
-    // If the selection is a NodeSelection, check if this block is the selected node
-    const selectedNode = view.state.doc.resolve(selection.from).parent
-    if (selectedNode && selectedNode.attrs && selectedNode.attrs.id === block.id) {
-      isSelected = true
-    }
-  } else if (selection instanceof TextSelection || selection instanceof MultipleNodeSelection) {
-    // If it's a TextSelection or MultipleNodeSelection (TODO Fix for drag), check if this block's node is within the selection range
-    const selectedNodes = getNodesInSelection(view)
-    isSelected = selectedNodes.some((node) => node.attrs && node.attrs.id === block.id)
-  }
-
-  setSelected(isSelected)
-}
-
 export const MediaRender: React.FC<RenderProps> = ({
   block,
   editor,
@@ -112,12 +83,9 @@ export const MediaRender: React.FC<RenderProps> = ({
   hideForm,
   validateFile,
 }) => {
-  const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
   const {canEdit, beginEditIfNeeded} = useEditorGate()
-
-  useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
 
   useEffect(() => {
     if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
@@ -171,10 +139,6 @@ export const MediaRender: React.FC<RenderProps> = ({
     editor.updateBlock(block.id, props)
   }
 
-  const setSelection = (isSelected: boolean) => {
-    setSelected(isSelected)
-  }
-
   if (hasSrc || uploading) {
     // this means we have a URL in the props.url that is not starting with `ipfs://`, which means we are uploading the image to IPFS
     return (
@@ -185,34 +149,28 @@ export const MediaRender: React.FC<RenderProps> = ({
   }
 
   return (
-    <div className="flex w-full flex-col">
-      {hideForm ? (
-        <MediaComponent
-          block={block}
-          editor={editor}
-          assign={assignMedia}
-          selected={selected}
-          setSelected={setSelection}
-          DisplayComponent={DisplayComponent}
-        />
-      ) : editor.renderType !== 'viewer' && (canEdit || editor.isEditable) ? (
-        // The editor accepts authoring when the user has edit permission
-        // or when the editor instance itself is editable
-        <MediaForm
-          block={block}
-          assign={assignMedia}
-          editor={editor}
-          selected={selected}
-          mediaType={mediaType}
-          CustomInput={CustomInput}
-          submit={submit}
-          icon={icon}
-          validateFile={validateFile}
-        />
-      ) : (
-        <></>
-      )}
-    </div>
+    <BlockSelectionWrapper editor={editor} block={block}>
+      <div className="flex w-full flex-col">
+        {hideForm ? (
+          <MediaComponent block={block} editor={editor} assign={assignMedia} DisplayComponent={DisplayComponent} />
+        ) : editor.renderType !== 'viewer' && (canEdit || editor.isEditable) ? (
+          // The editor accepts authoring when the user has edit permission
+          // or when the editor instance itself is editable
+          <MediaForm
+            block={block}
+            assign={assignMedia}
+            editor={editor}
+            mediaType={mediaType}
+            CustomInput={CustomInput}
+            submit={submit}
+            icon={icon}
+            validateFile={validateFile}
+          />
+        ) : (
+          <></>
+        )}
+      </div>
+    </BlockSelectionWrapper>
   )
 }
 
@@ -220,27 +178,20 @@ function MediaComponent({
   block,
   editor,
   assign,
-  selected,
-  setSelected,
   DisplayComponent,
 }: {
   block: Block<HMBlockSchema>
   editor: BlockNoteEditor<HMBlockSchema>
   assign: any
-  selected: boolean
-  setSelected: any
   DisplayComponent: React.ComponentType<DisplayComponentProps>
 }) {
-  return (
-    <DisplayComponent editor={editor} block={block} selected={selected} setSelected={setSelected} assign={assign} />
-  )
+  return <DisplayComponent editor={editor} block={block} assign={assign} />
 }
 
 function MediaForm({
   block,
   assign,
   editor,
-  selected = false,
   mediaType,
   submit,
   icon,
@@ -250,7 +201,6 @@ function MediaForm({
   block: Block<HMBlockSchema>
   assign: any
   editor: BlockNoteEditor<HMBlockSchema>
-  selected: boolean
   mediaType: string
   submit?: (url: string, assign: any, setFileName: any, setLoading: any) => Promise<void> | void | undefined
   icon: JSX.Element | FunctionComponent<{color?: string; size?: number}> | null
@@ -427,9 +377,9 @@ function MediaForm({
     <div
       className={cn(
         'bg-muted relative flex flex-col rounded-md border-2 transition-colors outline-none',
-        drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
+        drag ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
         drag && 'border-dashed',
-        editor.commentEditor && !drag && !selected && 'border-border bg-black/5 dark:bg-white/10',
+        editor.commentEditor && !drag && 'border-border bg-black/5 dark:bg-white/10',
         isActiveUpload && mediaType !== 'file' && 'aspect-video',
         isActiveUpload && mediaType === 'file' && 'min-h-[240px]',
       )}
@@ -484,7 +434,7 @@ function MediaForm({
                 />
               ) : (
                 <Input
-                  className="border-muted-foreground/30 focus-visible:border-ring text-foreground max-w-full pl-3"
+                  className="border-muted-foreground/30 focus-visible:border-ring text-foreground placeholder:text-foreground/50 max-w-full pl-3"
                   placeholder={`Input ${mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType} URL here…`}
                   onChangeText={(text) => {
                     setUrl(text)

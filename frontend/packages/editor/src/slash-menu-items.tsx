@@ -13,9 +13,32 @@ import {
   Video,
 } from 'lucide-react'
 import {RiGridFill, RiHeading, RiText, RiWindow2Fill} from 'react-icons/ri'
+import {NodeSelection} from 'prosemirror-state'
+import {Node} from 'prosemirror-model'
 import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
 import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {HMBlockSchema} from './schema'
+
+function selectInsertedBlock(editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) {
+  setTimeout(() => {
+    const {view} = editor._tiptapEditor
+    const prevBlock = editor.getTextCursorPosition().prevBlock
+    if (!prevBlock) return
+    let found = false
+    view.state.doc.descendants((node: Node, pos: number) => {
+      if (!found && node.type.name === 'blockNode' && node.attrs.id === prevBlock.id) {
+        const blockContentPos = pos + 1
+        view.dispatch(
+          view.state.tr.setSelection(NodeSelection.create(view.state.doc, blockContentPos)).scrollIntoView(),
+        )
+        view.focus()
+        found = true
+        return false
+      }
+      return true
+    })
+  }, 50)
+}
 
 export function getSlashMenuItems({
   showQuery = true,
@@ -49,8 +72,7 @@ export function getSlashMenuItems({
             } as PartialBlock<HMBlockSchema>,
             true,
           )
-          const {state, view} = editor._tiptapEditor
-          view.dispatch(state.tr.scrollIntoView())
+          selectInsertedBlock(editor)
         } catch (err) {
           console.error('Failed to create inline draft:', err)
         }
@@ -74,8 +96,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
   slashMenuItems.push({
@@ -96,8 +117,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
 
@@ -189,8 +209,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
   slashMenuItems.push({
@@ -211,8 +230,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
   slashMenuItems.push({
@@ -233,8 +251,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
   slashMenuItems.push({
@@ -255,8 +272,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
 
@@ -360,8 +376,7 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      selectInsertedBlock(editor)
     },
   })
   if (showQuery) {
@@ -397,8 +412,7 @@ export function getSlashMenuItems({
           } as PartialBlock<HMBlockSchema>,
           true,
         )
-        const {state, view} = editor._tiptapEditor
-        view.dispatch(state.tr.scrollIntoView())
+        selectInsertedBlock(editor)
       },
     })
   }

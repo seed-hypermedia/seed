@@ -258,7 +258,7 @@ function VideoOptions({
   )
 }
 
-const VideoDisplay = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const getFileUrl = useFileProxyUrl()
   const {canEdit} = useEditorGate()
   const autoplay = block.props.autoplay === 'true'
@@ -429,8 +429,6 @@ const VideoDisplay = ({editor, block, selected, setSelected, assign}: DisplayCom
       editor={editor}
       block={block}
       mediaType="video"
-      selected={selected}
-      setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
         // Suppress resize handles in viewer render type (discussion panel)
@@ -473,11 +471,8 @@ const VideoDisplay = ({editor, block, selected, setSelected, assign}: DisplayCom
             contentEditable={false}
             className={cn(
               'video-iframe absolute top-0 right-0 bottom-0 left-0',
-              // In a non-editable context the iframe should be clickable.
-              !editor.isEditable && 'pointer-events-auto',
-              editor.isEditable && !canEdit && 'pointer-events-auto',
-              editor.isEditable && canEdit && !selected && 'pointer-events-none',
-              editor.isEditable && canEdit && selected && 'pointer-events-auto',
+              (!editor.isEditable || !canEdit) && 'pointer-events-auto',
+              editor.isEditable && canEdit && 'pointer-events-none',
             )}
             src={getVideoIframeSrc(block.props.url)}
             allowFullScreen

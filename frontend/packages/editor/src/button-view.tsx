@@ -6,8 +6,7 @@ import {cn} from '@shm/ui/utils'
 import {useEffect, useState} from 'react'
 import type {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import type {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
-import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelectionChange'
-import {updateSelection} from './media-render'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import type {HMBlockSchema} from './schema'
 
 type ButtonAlignment = 'flex-start' | 'center' | 'flex-end'
@@ -47,15 +46,12 @@ export function ButtonBlockView({
   const [alignment, setAlignment] = useState<ButtonAlignment>(
     (block.props.alignment as ButtonAlignment) || 'flex-start',
   )
-  const [, setSelected] = useState(false)
   const openUrl = useOpenUrl()
   const {canEdit, isEditing} = useEditorGate()
 
   // Navigate when the document is being viewed (read-only). In edit mode the
   // click should select/focus the block instead, mirroring `embed-block.tsx`.
   const navigateOnClick = !canEdit || !isEditing
-
-  useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
 
   useEffect(() => {
     setAlignment(block.props.alignment as ButtonAlignment)
@@ -65,26 +61,27 @@ export function ButtonBlockView({
   const handleClick = navigateOnClick && url ? () => openUrl(url) : undefined
 
   return (
-    <div
-      className="flex w-full max-w-full flex-col select-none"
-      style={{
-        justifyContent: alignment || 'flex-start',
-      }}
-      contentEditable={false}
-    >
-      <Button
-        variant="brand"
-        size="lg"
-        className={cn(
-          'w-auto max-w-full justify-center border-none border-transparent text-center select-none',
-          alignment == 'center' ? 'self-center' : alignment == 'flex-end' ? 'self-end' : 'self-start',
-        )}
-        onClick={handleClick}
+    <BlockSelectionWrapper editor={editor} block={block}>
+      <div
+        className="flex w-full max-w-full flex-col select-none"
+        style={{
+          justifyContent: alignment || 'flex-start',
+        }}
       >
-        <SizableText size="lg" className="truncate text-center font-sans font-bold text-white">
-          {block.props.name || 'Button Text'}
-        </SizableText>
-      </Button>
-    </div>
+        <Button
+          variant="brand"
+          size="lg"
+          className={cn(
+            'w-auto max-w-full justify-center border-none border-transparent text-center select-none',
+            alignment == 'center' ? 'self-center' : alignment == 'flex-end' ? 'self-end' : 'self-start',
+          )}
+          onClick={handleClick}
+        >
+          <SizableText size="lg" className="truncate text-center font-sans font-bold text-white">
+            {block.props.name || 'Button Text'}
+          </SizableText>
+        </Button>
+      </div>
+    </BlockSelectionWrapper>
   )
 }

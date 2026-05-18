@@ -82,7 +82,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   )
 }
 
-const WebEmbedDisplay = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const WebEmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const openUrl = useOpenUrl()
@@ -155,8 +155,6 @@ const WebEmbedDisplay = ({editor, block, selected, setSelected, assign}: Display
       editor={editor}
       block={block}
       mediaType="web-embed"
-      selected={selected}
-      setSelected={setSelected}
       assign={assign}
       onPress={() => {
         if (block.props.link) {

@@ -1,0 +1,14 @@
+.bn-media-selected {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.bn-media-selected .replace-btn,
+.bn-media-selected .sel-btn {
+  opacity: 1;
+}
+
+.bn-media-selected .video-iframe {
+  pointer-events: auto;
+}
