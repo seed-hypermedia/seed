@@ -27,33 +27,35 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Stage names emitted by Go and TypeScript. Keep both sides in sync.
+// Stage names emitted by Go and TypeScript. Only stages that have an
+// actual emitter on this branch are declared; planned-but-unwired stages
+// are intentionally absent so the contract reflects reality. When you
+// wire a new emitter, add its constant here and to the emitter site in
+// the same commit.
+//
+// Emitted by:
+//   - backend.feed_emitted          : activity.go ListEvents (per NewBlob)
+//   - backend.grpc_request_received : documents.go GetDocument/GetAccount entry
+//   - backend.grpc_response_sent    : documents.go GetDocument/GetAccount return (deferred)
+//   - renderer.link_click           : frontend/apps/desktop telemetry.ts (navigation)
+//   - renderer.component_rendered   : frontend/apps/desktop desktop-resource.tsx (after load)
 const (
-	StageBlobIndexed           = "backend.blob_indexed"
-	StageFeedEmitted           = "backend.feed_emitted"
-	StageGRPCRequestReceived   = "backend.grpc_request_received"
-	StageGRPCResponseSent      = "backend.grpc_response_sent"
-	StageFeedEventReceived     = "main.feed_event_received"
-	StageInvalidationBroadcast = "main.invalidation_broadcast"
-	StageSupersededBy          = "main.superseded_by"
-	StageInvalidationReceived  = "renderer.invalidation_received"
-	StageLinkClick             = "renderer.link_click"
-	StageRefetchStart          = "renderer.refetch_start"
-	StageGRPCCallStart         = "renderer.grpc_call_start"
-	StageGRPCCallEnd           = "renderer.grpc_call_end"
-	StageCacheUpdated          = "renderer.cache_updated"
-	StageComponentRendered     = "renderer.component_rendered"
+	StageFeedEmitted         = "backend.feed_emitted"
+	StageGRPCRequestReceived = "backend.grpc_request_received"
+	StageGRPCResponseSent    = "backend.grpc_response_sent"
+	StageLinkClick           = "renderer.link_click"
+	StageComponentRendered   = "renderer.component_rendered"
 )
 
 // initiatingStages are checkpoints that open a fresh generation for a URL
-// even if a live generation already exists. They're stamped when an attempt
-// for the URL begins from "the outside" (a peer pushed a new blob, an RPC
-// arrived, a renderer started a fetch, or the user clicked a link).
+// even if a live generation already exists. Only user-initiated stamps
+// belong here: a fresh click is a new journey, but a grpc request fielded
+// by the daemon is a downstream step of whatever already started.
+//
+// Stages not listed here append to the live generation if one exists, or
+// open gen 1 if no prior state exists for the key.
 var initiatingStages = map[string]struct{}{
-	StageBlobIndexed:         {},
-	StageGRPCRequestReceived: {},
-	StageGRPCCallStart:       {},
-	StageLinkClick:           {},
+	StageLinkClick: {},
 }
 
 // Status describes the lifecycle of a single generation.
@@ -64,7 +66,6 @@ const (
 	StatusLive      Status = "live"
 	StatusComplete  Status = "complete"
 	StatusAbandoned Status = "abandoned"
-	StatusCoalesced Status = "coalesced"
 )
 
 // AbandonTimeout is how long a generation may sit idle before being
@@ -177,16 +178,6 @@ func (s *Server) RecordCheckpoint(key, stage string, ts time.Time) {
 	tr := state.trace
 	isInitiating := isInitiating(stage)
 	isLive := tr.Status == StatusLive
-
-	if stage == StageSupersededBy {
-		// Special-case: a superseded_by stamp seals the existing gen as
-		// coalesced (if still live) and is *not* itself appended to a trace.
-		// If the current gen is already terminal there's nothing to do.
-		if isLive {
-			s.sealLocked(tr, StatusCoalesced, ts)
-		}
-		return
-	}
 
 	if !isInitiating && isLive {
 		s.appendLocked(tr, stage, ts)
