@@ -207,6 +207,20 @@ export default function DesktopResourcePage() {
           signingAccountId: input.signingAccountId,
           hasEditor: !!editor,
         })
+        const existingDraftForVisibility = input.draftId ? await client.drafts.get.query(input.draftId) : null
+        const draftVisibility = existingDraftForVisibility?.visibility ?? 'PUBLIC'
+        if (draftVisibility === 'PRIVATE') {
+          console.log('[private-doc-debug]', 'writeDraft preserving private draft visibility', {
+            draftId,
+            existingVisibility: existingDraftForVisibility?.visibility,
+            locationUid: input.locationUid,
+            locationPath: input.locationPath,
+            editUid: input.editUid,
+            editPath: input.editPath,
+            deps: input.deps,
+            blocksCount: content.length,
+          })
+        }
         const result = await client.drafts.write.mutate({
           id: draftId,
           metadata: input.metadata,
@@ -219,7 +233,7 @@ export default function DesktopResourcePage() {
           locationPath: input.locationPath.length > 0 ? input.locationPath : undefined,
           editUid: input.editUid || undefined,
           editPath: input.editPath.length > 0 ? input.editPath : undefined,
-          visibility: 'PUBLIC',
+          visibility: draftVisibility,
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
         })
@@ -673,6 +687,7 @@ export default function DesktopResourcePage() {
                   CommentEditor={CommentBox}
                   extraMenuItems={menuItems}
                   existingDraft={existingDraft}
+                  existingDraftVisibility={draftQuery.data?.visibility}
                   existingDraftContent={existingDraftContent}
                   existingDraftCursorPosition={draftQuery.data?.cursorPosition}
                   existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}

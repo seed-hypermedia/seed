@@ -44,6 +44,7 @@ const (
 	defaultPageSize                = 100
 	maxPageAllocBuffer             = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
 	publicOnlyListVisibilityFilter = `COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'`
+	privateDocDebugPrefix          = "[private-doc-debug]"
 )
 
 // Server implements Documents API v3.
@@ -182,6 +183,17 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 
 // CreateDocumentChange implements Documents API v3.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend CreateDocumentChange received private visibility",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.String("signing_key_name", in.SigningKeyName),
+			zap.Int("change_count", len(in.Changes)),
+			zap.String("capability", in.Capability),
+			zap.String("visibility", in.Visibility.String()),
+		)
+	}
 	if in.SigningKeyName == "" {
 		return nil, errutil.MissingArgument("signing_key_name")
 	}
@@ -246,6 +258,15 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
 	}
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend CreateDocumentChange computed ref visibility",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.String("doc_visibility_before_ref", string(doc.Visibility())),
+			zap.String("ref_visibility", string(visibility)),
+		)
+	}
 
 	ref, err := doc.Ref(kp, visibility)
 	if err != nil {
@@ -263,11 +284,34 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, fmt.Errorf("failed to reload document after creating change: %w", err)
 	}
 
-	return doc.Hydrate(ctx)
+	out, err := doc.Hydrate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend CreateDocumentChange returning hydrated document",
+			zap.String("account", out.Account),
+			zap.String("path", out.Path),
+			zap.String("version", out.Version),
+			zap.String("genesis", out.Genesis),
+			zap.String("visibility", out.Visibility.String()),
+		)
+	}
+	return out, nil
 }
 
 // PrepareChange prepares unsigned Change and Ref blobs for client-side signing.
 func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChangeRequest) (*documents.PrepareChangeResponse, error) {
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend PrepareChange received private visibility",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.Int("change_count", len(in.Changes)),
+			zap.String("capability", in.Capability),
+			zap.String("visibility", in.Visibility.String()),
+		)
+	}
 	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
 		Account:     in.Account,
 		Path:        in.Path,
@@ -279,12 +323,28 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 	if err != nil {
 		return nil, err
 	}
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend PrepareChange prepared document model",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.String("doc_visibility", string(doc.Visibility())),
+		)
+	}
 
 	// Use NopSigner to create the Change without actually signing it.
 	// The client will sign it themselves.
 	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now())
 	if err != nil {
 		return nil, err
+	}
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend PrepareChange returning unsigned change",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.Int("unsigned_change_bytes", len(change.Data)),
+		)
 	}
 
 	return &documents.PrepareChangeResponse{
@@ -305,6 +365,16 @@ type documentChangeParams struct {
 // handleDocumentChangeRequest handles the common logic for CreateDocumentChange and PrepareChange.
 // It validates input, loads/creates the document, and applies the requested changes.
 func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentChangeParams) (*docmodel.Document, error) {
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend handleDocumentChangeRequest start",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.Int("change_count", len(in.Changes)),
+			zap.String("capability", in.Capability),
+			zap.String("visibility", in.Visibility.String()),
+		)
+	}
 	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
@@ -365,6 +435,15 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 
 	if err := applyChanges(doc, in.Changes); err != nil {
 		return nil, err
+	}
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		srv.log.Info(privateDocDebugPrefix+" backend handleDocumentChangeRequest applied changes",
+			zap.String("account", in.Account),
+			zap.String("path", in.Path),
+			zap.String("base_version", in.BaseVersion),
+			zap.Int("num_changes_after_apply", doc.NumChanges()),
+			zap.String("doc_visibility_after_apply", string(doc.Visibility())),
+		)
 	}
 
 	return doc, nil

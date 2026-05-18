@@ -18,6 +18,8 @@ import {ReactNode} from 'react'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {usePublishSite} from './publish-site'
 
+const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
+
 /** Component that handles import functionality with proper hook usage */
 function ImportMenuItem({
   locationId,
@@ -98,7 +100,18 @@ export function CreateDocumentButton({
                     Public Document
                   </DropdownMenuItem>
                   {hasSiteUrl ? (
-                    <DropdownMenuItem onClick={() => createDraft({visibility: 'PRIVATE'})}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'private document menu item clicked', {
+                          locationId: locationId?.id,
+                          locationUid: locationId?.uid,
+                          locationPath: locationId?.path,
+                          isHomeDoc,
+                          hasSiteUrl,
+                        })
+                        createDraft({visibility: 'PRIVATE'})
+                      }}
+                    >
                       <Lock className="size-4" />
                       Private Document
                     </DropdownMenuItem>

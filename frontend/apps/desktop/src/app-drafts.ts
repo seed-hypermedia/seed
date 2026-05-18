@@ -25,6 +25,8 @@ import {t} from './app-trpc'
 import {grpcClient} from './grpc-client'
 import {error} from './logger'
 
+const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
+
 /**
  * new draft creation:
  * - draft route params:
@@ -527,6 +529,19 @@ export const draftsApi = t.router({
       }
 
       const draftId = input.id || nanoid(10)
+      if (input.visibility === 'PRIVATE') {
+        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'app drafts write private draft received', {
+          draftId,
+          locationUid: input.locationUid,
+          locationPath: input.locationPath,
+          editUid: input.editUid,
+          editPath: input.editPath,
+          deps: input.deps,
+          metadata: input.metadata,
+          contentBlockCount: Array.isArray(input.content) ? input.content.length : undefined,
+          navigationCount: input.navigation?.length,
+        })
+      }
 
       // Build the index entry with deps and navigation included
       const newDraft = {
@@ -564,6 +579,17 @@ export const draftsApi = t.router({
       try {
         await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
         draftFileMap.set(draftId, `${draftId}.json`)
+        if (input.visibility === 'PRIVATE') {
+          console.log(PRIVATE_DOC_DEBUG_PREFIX, 'app drafts write private draft saved', {
+            draftId,
+            draftPath,
+            indexVisibility: newDraft.visibility,
+            indexLocationUid: newDraft.locationUid,
+            indexLocationPath: newDraft.locationPath,
+            indexEditUid: newDraft.editUid,
+            indexEditPath: newDraft.editPath,
+          })
+        }
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         appInvalidateQueries([queryKeys.DRAFT, draftId])

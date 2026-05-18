@@ -43,6 +43,8 @@ import {
   usePushResource,
 } from '../models/documents'
 
+const PRIVATE_DOC_DEBUG_PREFIX = '[private-doc-debug]'
+
 export default function PublishDraftButton() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
@@ -262,6 +264,30 @@ export default function PublishDraftButton() {
         toast.error('Draft not loaded')
         throw new Error('Draft not loaded')
       }
+      if (isPrivate) {
+        console.log(PRIVATE_DOC_DEBUG_PREFIX, 'publish private draft button flow start', {
+          draftId,
+          draftRoute,
+          draftData: {
+            id: draft.data.id,
+            visibility: draft.data.visibility,
+            locationUid: draft.data.locationUid,
+            locationPath: draft.data.locationPath,
+            editUid: draft.data.editUid,
+            editPath: draft.data.editPath,
+            deps: draft.data.deps,
+            metadata: draft.data.metadata,
+            contentBlockCount: draft.data.content?.length,
+          },
+          isFirstPublish,
+          isInlineFirstPublish,
+          destinationId: destinationId.id,
+          destinationUid: destinationId.uid,
+          destinationPath: destinationId.path,
+          accountId,
+          editableLocation: editableLocation?.id,
+        })
+      }
 
       // Step 1: Publish the child document
       const res = await publish.mutateAsync({
@@ -474,7 +500,9 @@ export default function PublishDraftButton() {
                   <p className="text-muted-foreground text-xs">Edit your permalink</p>
                   <Input
                     value={`/${editablePath}`}
+                    disabled={!!isPrivate}
                     onChange={(e) => {
+                      if (isPrivate) return
                       if (!editableLocation) return
                       const raw = e.target.value.replace(/^\//, '')
                       const newPath = [...(editableLocation.path?.slice(0, -1) || []), pathNameify(raw)]
@@ -492,6 +520,9 @@ export default function PublishDraftButton() {
                       publishError ? 'border-red-500 dark:border-red-500' : ''
                     }`}
                   />
+                  {isPrivate ? (
+                    <p className="text-muted-foreground text-xs">Private document paths are generated automatically.</p>
+                  ) : null}
                   {publishError && <p className="text-destructive text-xs">{publishError}</p>}
                 </div>
               )}

@@ -101,6 +101,7 @@ export function PublishPopoverBody({
 
   const isHomeDoc = (docId.path?.length ?? 0) === 0
   const isFirstPublish = !publishedDoc?.version && !isHomeDoc
+  const isPrivate = publishedDoc?.visibility === 'PRIVATE'
   const lastSeg = docId.path?.at(-1) || ''
   const isPlaceholderPath = !!draftId && lastSeg === `-${draftId}`
 
@@ -180,7 +181,9 @@ export function PublishPopoverBody({
             <p className="text-muted-foreground text-xs">Edit your permalink</p>
             <Input
               value={`/${effectivePathSegment}`}
+              disabled={isPrivate}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                if (isPrivate) return
                 userEditedRef.current = true
                 const raw = e.target.value.replace(/^\//, '')
                 setEditedPathSegment(slugify(raw))
@@ -194,6 +197,9 @@ export function PublishPopoverBody({
               placeholder="/document-path"
               className="h-8 border-black/10 text-xs dark:border-white/20"
             />
+            {isPrivate ? (
+              <p className="text-muted-foreground text-xs">Private document paths are generated automatically.</p>
+            ) : null}
           </div>
         )}
       </div>
@@ -264,13 +270,15 @@ export function PublishPopoverBody({
           variant="brand"
           disabled={publishDisabled}
           onClick={() => {
-            const override = isFirstPublish && userEditedRef.current && previewPath ? previewPath : undefined
+            const override =
+              isFirstPublish && !isPrivate && userEditedRef.current && previewPath ? previewPath : undefined
             console.log('[Publish] popover Publish button clicked', {
               docId: docId.id,
               draftId,
               changeCount,
               publishDisabled,
               isFirstPublish,
+              isPrivate,
               override,
             })
             onPublish(override)
