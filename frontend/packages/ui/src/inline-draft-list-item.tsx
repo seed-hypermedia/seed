@@ -72,6 +72,7 @@ export function InlineDraftListItem({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation()
     if (e.key === 'Enter') {
       e.preventDefault()
       openDraft()

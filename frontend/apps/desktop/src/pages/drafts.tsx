@@ -1,5 +1,6 @@
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {MainWrapper} from '@/components/main-wrapper'
+import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useCreateDraft, useDraftList} from '@/models/documents'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
@@ -151,12 +152,11 @@ function DocumentDraftItem({item, breadcrumbs}: {item: HMListedDraft; breadcrumb
     <div
       className="group hover:bg-muted h-auto w-full cursor-pointer rounded px-4 py-2"
       onClick={() => {
-        const targetUid = item.editUid || item.locationUid
-        if (!targetUid) return
-        const targetPath = item.editUid ? item.editPath : item.locationPath
+        const targetId = draftDocumentRouteId(item)
+        if (!targetId) return
         navigate({
           key: 'document',
-          id: hmId(targetUid, {path: targetPath ?? []}),
+          id: targetId,
         })
       }}
     >

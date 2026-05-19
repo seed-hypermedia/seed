@@ -1,6 +1,6 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {findDraftForPath, type HMListedDraftWithLocation} from '../draft-breadcrumb-context'
+import {findDraftForPath, isDraftPlaceholderPath, type HMListedDraftWithLocation} from '../draft-breadcrumb-context'
 import {hmId} from '../utils/entity-id-url'
 
 function makeDraft(overrides: Partial<HMListedDraftWithLocation>): HMListedDraftWithLocation {
@@ -57,10 +57,7 @@ describe('findDraftForPath', () => {
       id: 'draft-xyz',
       locationUid: 'acc',
       locationPath: ['parent'],
-      editUid: 'acc',
-      editPath: ['parent', '-draft-xyz'],
       locationId: hmId('acc', {path: ['parent']}),
-      editId: hmId('acc', {path: ['parent', '-draft-xyz']}),
     })
 
     const match = findDraftForPath([draft], 'acc', ['parent', '-draft-xyz'])
@@ -76,6 +73,23 @@ describe('findDraftForPath', () => {
     })
 
     expect(findDraftForPath([draft], 'acc', ['parent', 'real-doc'])).toBeNull()
+  })
+
+  it('does not match a sibling draft placeholder by parent location alone', () => {
+    const draft = makeDraft({
+      id: 'draft-xyz',
+      locationUid: 'acc',
+      locationPath: ['parent'],
+      locationId: hmId('acc', {path: ['parent']}),
+    })
+
+    expect(findDraftForPath([draft], 'acc', ['parent', '-other-draft'])).toBeNull()
+  })
+
+  it('recognizes only the exact draft placeholder segment', () => {
+    expect(isDraftPlaceholderPath(['parent', '-draft-xyz'], 'draft-xyz')).toBe(true)
+    expect(isDraftPlaceholderPath(['parent', '-other-draft'], 'draft-xyz')).toBe(false)
+    expect(isDraftPlaceholderPath(['parent', 'real-doc'], 'draft-xyz')).toBe(false)
   })
 
   it('prefers editId over locationId when both could match', () => {

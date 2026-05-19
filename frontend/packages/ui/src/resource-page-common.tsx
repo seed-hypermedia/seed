@@ -20,7 +20,7 @@ import {
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
-import {findDraftForPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
+import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {
   useAccount,
   useAccountsMetadata,
@@ -1070,18 +1070,26 @@ function DocumentBody({
     const lastIdx = breadcrumbIds.length - 1
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const draft = draftsForBreadcrumbs[i]
-      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      const isCurrent = i === lastIdx
+      const currentDraftName =
+        isCurrent && isUnpublishedDraft
+          ? ctx.metadata?.name || (existingDraft ? existingDraft.metadata?.name : undefined)
+          : undefined
+      const fallbackName = currentDraftName || id.path?.at(-1) || id.uid.slice(0, 8)
 
       if (draft) {
+        const draftIsUnpublished = isDraftPlaceholderPath(id.path, draft.id) || (isCurrent && isUnpublishedDraft)
+        const draftMetadata = draft.metadata ?? {}
+        const draftName = currentDraftName || draftMetadata.name
         return {
           id,
-          metadata: draft.metadata ?? {},
-          fallbackName: draft.metadata?.name || fallbackName,
+          metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
+          fallbackName: draftName || fallbackName,
           isLoading: false,
           isTombstone: false,
           isNotFound: false,
           isError: false,
-          isUnpublishedDraft: true,
+          isUnpublishedDraft: draftIsUnpublished,
         }
       }
 
@@ -1101,7 +1109,6 @@ function DocumentBody({
       const result = breadcrumbResults[i]
       const data = result?.data
       const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
-      const isCurrent = i === lastIdx
       // Fallback: the document machine knows the current doc is an
       // unpublished draft even before the account draft list resolves.
       // Avoids flashing "not found" on the active draft on first paint.
@@ -1152,6 +1159,8 @@ function DocumentBody({
     draftsForBreadcrumbs,
     pendingDraftLookup,
     isUnpublishedDraft,
+    existingDraft,
+    ctx.metadata?.name,
     activeView,
     routeBlockRef,
     document.content,

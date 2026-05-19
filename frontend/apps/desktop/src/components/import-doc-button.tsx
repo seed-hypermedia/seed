@@ -2,6 +2,7 @@ import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
 import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
+import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
@@ -287,12 +288,11 @@ export function useImporting(parentId: UnpackedHypermediaId) {
           if (draftIds.draftIds.length === 1) {
             const importedDraftId = draftIds.draftIds[0]
             const draft = await client.drafts.get.query(importedDraftId)
-            const targetUid = draft?.editUid || draft?.locationUid
-            if (targetUid) {
-              const targetPath = draft.editUid ? draft.editPath : draft.locationPath
+            const targetId = draft ? draftDocumentRouteId(draft) : undefined
+            if (targetId) {
               navigate({
                 key: 'document',
-                id: hmId(targetUid, {path: targetPath ?? []}),
+                id: targetId,
               })
             }
           }

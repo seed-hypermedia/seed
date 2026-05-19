@@ -1,5 +1,6 @@
 import {HMDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, NavRoute, pathMatches} from '@shm/shared'
+import {isLocationOnlyDraftRoute} from '@/utils/draft-route'
 import {useAccountDraftList} from './documents'
 
 export function draftLocationId(draft: HMDraft | null | undefined) {
@@ -30,8 +31,8 @@ export function useExistingDraft(route: NavRoute) {
   // Once loaded, return the matching draft or false (no draft).
   if (!drafts.data) return undefined
   const existingDraft = drafts.data.find((d) => {
-    if (!d.editUid) return false
-    return id.uid === d.editUid && pathMatches(d.editPath || [], id.path)
+    if (d.editUid) return id.uid === d.editUid && pathMatches(d.editPath || [], id.path)
+    return isLocationOnlyDraftRoute(id, d)
   })
   return existingDraft || false
 }

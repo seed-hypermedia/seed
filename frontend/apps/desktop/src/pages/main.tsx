@@ -8,6 +8,7 @@ import {useDraft} from '@/models/accounts'
 import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
+import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useCreateDraft} from '@/models/documents'
 import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
@@ -82,13 +83,12 @@ function DraftRouteRedirect() {
       replace({key: 'drafts'})
       return
     }
-    const targetUid = draft.editUid || draft.locationUid
-    if (!targetUid) {
+    const targetId = draftDocumentRouteId(draft)
+    if (!targetId) {
       replace({key: 'drafts'})
       return
     }
-    const targetPath = draft.editUid ? draft.editPath : draft.locationPath
-    replace({key: 'document', id: hmId(targetUid, {path: targetPath ?? []})})
+    replace({key: 'document', id: targetId})
   }, [route, draftQuery.isLoading, draftQuery.data, replace])
   return <DocumentPlaceholder />
 }

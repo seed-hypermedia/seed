@@ -44,16 +44,21 @@ export function useDraftsForAccountSafe(uid: string | undefined): {
   return ctx.useDraftsForAccount(uid)
 }
 
+/** Return true when a path ends with the exact placeholder segment for a draft ID. */
+export function isDraftPlaceholderPath(path: string[] | undefined | null, draftId: string | undefined | null): boolean {
+  if (!draftId) return false
+  return path?.at(-1) === `-${draftId}`
+}
+
 /**
  * Find the draft that targets the given path under the given account.
  *
  * Two match strategies, in order:
  * 1. Exact `editId` match — draft is editing the published doc at that path
  *    (covers renamed-but-unpublished titles overriding the published doc).
- * 2. `locationId` parent match when the requested path ends with a
- *    `-${draftId}` placeholder segment — covers new-child drafts that don't
- *    yet have a published path. We match `locationId` against
- *    `path.slice(0, -1)` since `editPath = [...locationPath, '-draftId']`.
+ * 2. `locationId` parent match when the requested path ends with that draft's
+ *    exact `-${draftId}` placeholder segment — covers new-child drafts that
+ *    don't yet have a published path.
  *
  * Returns `null` when nothing matches.
  */
@@ -71,13 +76,15 @@ export function findDraftForPath(
     }
   }
 
-  const lastSegment = normalizedPath[normalizedPath.length - 1]
-  if (lastSegment && lastSegment.startsWith('-')) {
-    const parentPath = normalizedPath.slice(0, -1)
-    for (const draft of drafts) {
-      if (draft.locationId && draft.locationId.uid === uid && pathMatches(draft.locationId.path, parentPath)) {
-        return draft
-      }
+  const parentPath = normalizedPath.slice(0, -1)
+  for (const draft of drafts) {
+    if (
+      isDraftPlaceholderPath(normalizedPath, draft.id) &&
+      draft.locationId &&
+      draft.locationId.uid === uid &&
+      pathMatches(draft.locationId.path, parentPath)
+    ) {
+      return draft
     }
   }
 

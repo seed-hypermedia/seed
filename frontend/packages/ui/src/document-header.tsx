@@ -209,11 +209,12 @@ function HomeBreadcrumb({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
 
 function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   const linkProps = useRouteLink({key: 'document', id: crumb.id})
+  const displayName = crumb.metadata?.name || crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)
 
   if (crumb.isLoading) {
     return (
       <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
-        {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+        {displayName}
         <Spinner size="small" />
       </span>
     )
@@ -226,7 +227,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
           {...linkProps}
           className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
         >
-          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+          {displayName}
         </a>
       </Tooltip>
     )
@@ -236,7 +237,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
     return (
       <Tooltip content="This document is a draft and has not been published yet — its URL is private to you.">
         <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap italic select-none">
-          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+          {displayName}
         </span>
       </Tooltip>
     )
@@ -249,7 +250,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
           {...linkProps}
           className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
         >
-          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+          {displayName}
         </a>
       </Tooltip>
     )
@@ -262,18 +263,14 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
           {...linkProps}
           className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
         >
-          {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
+          {displayName}
         </a>
       </Tooltip>
     )
   }
 
   if (!crumb.metadata?.name) {
-    return (
-      <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap">
-        {crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)}
-      </span>
-    )
+    return <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap">{displayName}</span>
   }
 
   return (

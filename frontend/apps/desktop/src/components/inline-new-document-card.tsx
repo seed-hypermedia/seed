@@ -116,6 +116,7 @@ export function InlineNewDocumentCard({draft, autoFocus}: {draft: HMListedDraft;
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation()
     if (e.key === 'Enter') {
       e.preventDefault()
       openDraft()

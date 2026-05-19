@@ -84,6 +84,11 @@ export default function DesktopResourcePage() {
 
   const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
+  const isDraftRouteLookupPending = existingDraft === undefined && isDraftPathSegment(docId.path?.at(-1))
+  const existingDraftRecord = existingDraft && typeof existingDraft === 'object' ? existingDraft : null
+  const hasLocationOnlyDraft =
+    !!existingDraftRecord && !!existingDraftRecord.locationUid && !existingDraftRecord.editUid
+  const documentResourceId = hasLocationOnlyDraft || isDraftRouteLookupPending ? null : docId
 
   const capability = useSelectedAccountCapability(docId)
   const canEdit = roleCanWrite(capability?.role)
@@ -412,7 +417,7 @@ export default function DesktopResourcePage() {
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === docId.uid)
 
   // Hooks for options dropdown
-  const resource = useResource(docId)
+  const resource = useResource(documentResourceId)
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
