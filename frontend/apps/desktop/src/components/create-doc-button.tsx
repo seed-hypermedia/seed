@@ -1,7 +1,7 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -10,26 +10,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Add} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
-import {ChevronDown, FilePlus2, Import, Info, Lock} from 'lucide-react'
-import {ReactNode} from 'react'
+import {MenuItemType} from '@shm/ui/options-dropdown'
+import {FilePlus2, Import, Lock} from 'lucide-react'
+import {ReactNode, useCallback, useMemo} from 'react'
 import {useImportDialog, useImporting} from './import-doc-button'
-import {usePublishSite} from './publish-site'
 
-/** Component that handles import functionality with proper hook usage */
-function ImportMenuItem({
-  locationId,
-  children,
-}: {
-  locationId: UnpackedHypermediaId
-  children: (props: {openImportDialog: () => void; content: ReactNode}) => ReactNode
-}) {
+/** Builds the document creation submenu item and its dialog content for the document options menu. */
+export function useCreateDocumentMenuItem({locationId}: {locationId: UnpackedHypermediaId}): {
+  menuItem: MenuItemType | null
+  content: ReactNode
+} {
+  const capability = useSelectedAccountCapability(locationId)
+  const canEdit = roleCanWrite(capability?.role)
+  const createDraft = useCreateDraft({
+    locationPath: locationId.path || undefined,
+    locationUid: locationId.uid,
+  })
+  const myAccountIds = useMyAccountIds()
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
 
-  const openImportDialog = () => {
+  const openImportDialog = useCallback(() => {
     importDialog.open({
       onImportFile: importing.importFile,
       onImportDirectory: importing.importDirectory,
@@ -38,126 +40,88 @@ function ImportMenuItem({
       onImportWebSite: importing.importWebSite,
       onImportWordPress: importing.importWordPress,
     })
+  }, [importDialog, importing])
+
+  const menuItem = useMemo<MenuItemType | null>(() => {
+    if (!myAccountIds.data?.length) return null
+    if (!canEdit) return null
+
+    return {
+      key: 'new',
+      label: 'New',
+      icon: <Add className="size-4" />,
+      children: [
+        {
+          key: 'new-document',
+          label: 'New Document',
+          icon: <FilePlus2 className="size-4" />,
+          onClick: () => {
+            void createDraft()
+          },
+        },
+        {
+          key: 'new-private-document',
+          label: 'New Private Document',
+          icon: <Lock className="size-4" />,
+          onClick: () => {
+            void createDraft({visibility: 'PRIVATE'})
+          },
+        },
+        {
+          key: 'import',
+          label: 'Import',
+          icon: <Import className="size-4" />,
+          onClick: openImportDialog,
+        },
+      ],
+    }
+  }, [canEdit, createDraft, myAccountIds.data?.length, openImportDialog])
+
+  return {
+    menuItem,
+    content: (
+      <>
+        {importDialog.content}
+        {importing.content}
+      </>
+    ),
   }
+}
+
+function CreateDocumentButtonContent({locationId}: {locationId: UnpackedHypermediaId}) {
+  const {menuItem, content} = useCreateDocumentMenuItem({locationId})
+
+  if (!menuItem) return null
 
   return (
     <>
-      {children({openImportDialog, content: importing.content})}
-      {importDialog.content}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="default" size="sm" className="justify-center">
+            <Add className="size-4" />
+            <span className="truncate">New</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {menuItem.children?.map((item, index) => (
+            <div key={item.key}>
+              {index === 2 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem onClick={(event) => item.onClick?.(event as any)}>
+                {item.icon}
+                {item.label}
+              </DropdownMenuItem>
+            </div>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {content}
     </>
   )
 }
 
-/**
- * When `onInlineCreate` is provided, menu items call it to create a draft
- * inline (card at bottom of current page). When omitted, falls back to
- * `createDraft()` which navigates to a new draft page.
- */
-export function CreateDocumentButton({
-  locationId,
-  siteUrl,
-  onInlineCreate,
-}: {
-  locationId?: UnpackedHypermediaId
-  siteUrl?: string
-  onInlineCreate?: (opts?: {visibility?: HMResourceVisibility}) => void
-}) {
-  const capability = useSelectedAccountCapability(locationId)
-  const canEdit = roleCanWrite(capability?.role)
-  const isHomeDoc = !locationId?.path?.length
-  const createDraft = useCreateDraft({
-    locationPath: locationId?.path || undefined,
-    locationUid: locationId?.uid,
-  })
-  const myAccountIds = useMyAccountIds()
-  const publishSite = usePublishSite()
-
-  const hasSiteUrl = Boolean(siteUrl)
-
-  if (!myAccountIds.data?.length) return null
-  if (!canEdit) return null
+/** Renders the standalone document creation dropdown used outside the document top bar. */
+export function CreateDocumentButton({locationId}: {locationId?: UnpackedHypermediaId}) {
   if (!locationId) return null
 
-  return (
-    <ImportMenuItem locationId={locationId}>
-      {({openImportDialog, content: importContent}) => (
-        <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="default" size="sm" className="justify-center">
-                <Add className="size-4" />
-                <span className="truncate">New</span>
-                {/* <ChevronDown size={14} className="ml-1 opacity-60" /> */}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {isHomeDoc ? (
-                <>
-                  <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
-                    <FilePlus2 className="size-4" />
-                    Public Document
-                  </DropdownMenuItem>
-                  {hasSiteUrl ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        createDraft({visibility: 'PRIVATE'})
-                      }}
-                    >
-                      <Lock className="size-4" />
-                      Private Document
-                    </DropdownMenuItem>
-                  ) : (
-                    <HoverCard openDelay={100}>
-                      <HoverCardTrigger asChild>
-                        <div>
-                          <DropdownMenuItem
-                            className="pointer-events-none opacity-50"
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <Lock className="size-4" />
-                            Private Document
-                            <Info className="text-muted-foreground ml-auto size-3" />
-                          </DropdownMenuItem>
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent side="right" sideOffset={12} className="w-64">
-                        <div className="flex flex-col gap-3">
-                          <SizableText size="sm" className="text-muted-foreground">
-                            To create private documents, you need to configure your web domain first.
-                          </SizableText>
-                          <Button
-                            size="sm"
-                            variant="brand"
-                            onClick={() => {
-                              if (locationId) {
-                                publishSite.open({id: locationId})
-                              }
-                            }}
-                          >
-                            Set Up Web Domain
-                          </Button>
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  )}
-                </>
-              ) : (
-                <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
-                  <FilePlus2 className="size-4" />
-                  New Document
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openImportDialog}>
-                <Import className="size-4" />
-                Import...
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {publishSite.content}
-          {importContent}
-        </>
-      )}
-    </ImportMenuItem>
-  )
+  return <CreateDocumentButtonContent locationId={locationId} />
 }

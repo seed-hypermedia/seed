@@ -14,7 +14,7 @@ import {
   EditingDocToolsRight as SharedEditingDocToolsRight,
 } from '@shm/ui/editing-toolbar'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {ReactNode, useCallback, useMemo} from 'react'
+import {useCallback, useMemo} from 'react'
 import {useDeleteDraftDialog} from './delete-draft-dialog'
 
 export {PublishPopoverBody} from '@shm/ui/editing-toolbar'
@@ -115,12 +115,10 @@ function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
 export function EditingDocToolsRight({
   docId,
   existingMenuItems,
-  newButton,
   getUnpublishedChildCount,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
-  newButton?: ReactNode
   getUnpublishedChildCount?: () => number
 }) {
   const {callbacks, deleteDraftDialog} = useDesktopToolbarCallbacks(docId)
@@ -130,7 +128,6 @@ export function EditingDocToolsRight({
       <SharedEditingDocToolsRight
         docId={docId}
         existingMenuItems={existingMenuItems}
-        newButton={newButton}
         unpublishedChildCount={unpublishedChildCount}
         getUnpublishedChildCount={getUnpublishedChildCount}
         {...callbacks}

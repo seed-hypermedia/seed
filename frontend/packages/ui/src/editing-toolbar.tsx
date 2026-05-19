@@ -12,7 +12,7 @@ import {
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Trash, UploadCloud} from 'lucide-react'
-import React, {forwardRef, ReactNode, useMemo, useRef, useState} from 'react'
+import React, {forwardRef, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
@@ -456,13 +456,11 @@ export function PublishButtonWithPopover({
 export function EditingDocToolsRight({
   docId,
   existingMenuItems,
-  newButton,
   unpublishedChildCount,
   ...callbacks
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
-  newButton?: ReactNode
   unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   return (
@@ -476,7 +474,6 @@ export function EditingDocToolsRight({
         unpublishedChildCount={unpublishedChildCount}
         {...callbacks}
       />
-      {newButton}
     </div>
   )
 }

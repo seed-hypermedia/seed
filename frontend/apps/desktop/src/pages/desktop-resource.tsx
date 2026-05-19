@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
-import {CreateDocumentButton} from '@/components/create-doc-button'
+import {useCreateDocumentMenuItem} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
 import {DesktopDraftBreadcrumbProvider} from '@/components/desktop-draft-breadcrumb-provider'
@@ -24,7 +24,6 @@ import {
   autoLinkParentAfterPublish,
   resolveDraftWriteAnchors,
   // useChildDrafts,
-  useCreateInlineDraft,
   usePublishResource,
 } from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
@@ -401,7 +400,7 @@ export default function DesktopResourcePage() {
     [writeDraftActor, publishDocumentActor, pushDocumentActor],
   )
 
-  // Get site URL for CreateDocumentButton
+  // Get site URL for publication actions
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
     siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
@@ -415,7 +414,6 @@ export default function DesktopResourcePage() {
   // Hooks for options dropdown
   const resource = useResource(docId)
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
-  const isPrivate = doc?.visibility === 'PRIVATE'
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
   // Key off the route's docId rather than the resolved doc.{account,path,version}
@@ -432,9 +430,11 @@ export default function DesktopResourcePage() {
     reportTelemetry(key, TelemetryStage.ComponentRendered)
   }, [doc, docId])
 
-  // Inline document creation (page-level: bottom fallback + CreateDocumentButton inline create)
-  const createInlineDraft = useCreateInlineDraft(docId)
+  // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const {menuItem: newMenuItem, content: newMenuContent} = useCreateDocumentMenuItem({
+    locationId: docId,
+  })
 
   // Bottom-of-doc "draft cards" — disabled while inline-draft UX is still
   // being settled. Restore by uncommenting these blocks, the related imports
@@ -484,6 +484,10 @@ export default function DesktopResourcePage() {
   const moveDialog = useAppDialog(MoveDialog)
 
   const menuItems: MenuItemType[] = []
+
+  if (newMenuItem) {
+    menuItems.push(newMenuItem)
+  }
 
   if (canEdit && myAccountIds.data?.length && docId.path?.length) {
     menuItems.push({
@@ -645,27 +649,6 @@ export default function DesktopResourcePage() {
     })
   }
 
-  const newButton =
-    canEdit && !isPrivate ? (
-      <CreateDocumentButton
-        locationId={docId}
-        siteUrl={siteUrl}
-        onInlineCreate={(opts) => {
-          createInlineDraft.mutate(
-            {visibility: opts?.visibility},
-            {
-              onSuccess: ({draftId}) => {
-                setLastCreatedDraftId(draftId)
-                if (route.key !== 'document') {
-                  navigate({key: 'document', id: docId})
-                }
-              },
-            },
-          )
-        }}
-      />
-    ) : null
-
   const showPublishToolbar = route.key === 'document'
 
   // Walk the editor's blocks for embed blocks with a draftId.
@@ -691,7 +674,6 @@ export default function DesktopResourcePage() {
           <EditingDocToolsRight
             docId={docId}
             existingMenuItems={menuItems}
-            newButton={newButton}
             getUnpublishedChildCount={getUnpublishedChildCount}
           />
         )
@@ -750,7 +732,6 @@ export default function DesktopResourcePage() {
                     onEditorReady={handleEditorReady}
                     machineExtras={null}
                     editingFloatingActions={editingFloatingActions}
-                    newButton={newButton}
                     signingAccountId={selectedAccountId || undefined}
                     publishAccountUid={selectedAccount?.id?.uid || undefined}
                     perspectiveAccountUid={selectedAccountId}
@@ -772,6 +753,7 @@ export default function DesktopResourcePage() {
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}
+      {newMenuContent}
     </div>
   )
 }
