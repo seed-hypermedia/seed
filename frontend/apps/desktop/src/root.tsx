@@ -200,6 +200,7 @@ function isAbortError(error: unknown): boolean {
 onQueryCacheError((error, query) => {
   if (isAbortError(error)) return
   const queryKey = query.queryKey as string[]
+  if (queryKey[0] === 'agents') return
   const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
   toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}. Click to copy details`, {
     action: {

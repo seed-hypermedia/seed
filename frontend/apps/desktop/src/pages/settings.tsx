@@ -18,6 +18,14 @@ import {
   useStartOpenaiLogin,
   useUpdateProvider,
 } from '@/models/ai-config'
+import {
+  DEFAULT_AGENT_SERVER_URL,
+  useAgentServerHealth,
+  useAgentServerUrl,
+  useAgentServerUrls,
+  useSetAgentServerUrl,
+  useSetAgentServerUrls,
+} from '@/models/agents'
 import {useAutoUpdatePreference, useRemoteVaultReminderPreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -44,6 +52,7 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
+import {useNavigate} from '@/utils/useNavigate'
 import {
   DEFAULT_OPENAI_LOGIN_MODEL,
   getDefaultOpenAIModel,
@@ -57,11 +66,13 @@ import {useUniversalAppContext} from '@shm/shared'
 import {COMMIT_HASH, DAEMON_HTTP_URL, LIGHTNING_API_URL, SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {getMetadataName} from '@shm/shared/content'
+import type {SettingsTab} from '@shm/shared/routes'
 import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {formattedDateLong} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
   AlertDialog,
@@ -117,6 +128,7 @@ import {
   Pencil,
   Plus,
   RadioTower,
+  Server,
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
@@ -126,8 +138,34 @@ import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
 const GEMINI_MODELS_FALLBACK = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite']
 
+const SETTINGS_TABS = [
+  'general',
+  'sync',
+  'app-info',
+  'agent-servers',
+  'advanced',
+] as const satisfies readonly SettingsTab[]
+
+type SettingsTabConfig = {
+  key: SettingsTab
+  icon: any
+  label: string
+}
+
+const SETTINGS_TAB_CONFIG: SettingsTabConfig[] = [
+  {key: 'general', icon: Cog, label: 'General settings'},
+  {key: 'sync', icon: RadioTower, label: 'Sync options'},
+  {key: 'app-info', icon: Info, label: 'App info'},
+  {key: 'agent-servers', icon: Server, label: 'Agent Servers'},
+  {key: 'advanced', icon: Code2, label: 'Advanced'},
+]
+
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('general')
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
+  const activeTab: SettingsTab =
+    route.key === 'settings' && route.tab && SETTINGS_TABS.includes(route.tab) ? route.tab : 'general'
+  const setActiveTab = (tab: SettingsTab) => navigate({key: 'settings', tab})
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
@@ -135,30 +173,15 @@ export default function Settings() {
           <div className="border-border flex flex-1 overflow-hidden rounded-lg border">
             {/* Sidebar */}
             <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
-              <SidebarTab
-                active={activeTab === 'general'}
-                icon={Cog}
-                label="General settings"
-                onClick={() => setActiveTab('general')}
-              />
-              <SidebarTab
-                active={activeTab === 'sync'}
-                icon={RadioTower}
-                label="Sync options"
-                onClick={() => setActiveTab('sync')}
-              />
-              <SidebarTab
-                active={activeTab === 'app-info'}
-                icon={Info}
-                label="App info"
-                onClick={() => setActiveTab('app-info')}
-              />
-              <SidebarTab
-                active={activeTab === 'advanced'}
-                icon={Code2}
-                label="Advanced"
-                onClick={() => setActiveTab('advanced')}
-              />
+              {SETTINGS_TAB_CONFIG.map((tab) => (
+                <SidebarTab
+                  key={tab.key}
+                  active={activeTab === tab.key}
+                  icon={tab.icon}
+                  label={tab.label}
+                  onClick={() => setActiveTab(tab.key)}
+                />
+              ))}
             </div>
             {/* Content */}
             <ScrollArea className="flex-1">
@@ -166,6 +189,7 @@ export default function Settings() {
                 {activeTab === 'general' && <GeneralSettings />}
                 {activeTab === 'sync' && <GatewaySettings />}
                 {activeTab === 'app-info' && <AppSettings />}
+                {activeTab === 'agent-servers' && <AgentServersSettingsPage />}
                 {activeTab === 'advanced' && <AdvancedSettings />}
               </div>
             </ScrollArea>
@@ -189,6 +213,132 @@ function AdvancedSettings() {
       </SettingsCard>
       <DeveloperSettings />
     </>
+  )
+}
+
+function AgentServersSettingsPage() {
+  return (
+    <>
+      <SizableText size="2xl" weight="bold">
+        Agent Servers
+      </SizableText>
+      <SettingsCard label="AGENT SERVERS">
+        <AgentServersSettings />
+      </SettingsCard>
+    </>
+  )
+}
+
+function AgentServersSettings() {
+  const servers = useAgentServerUrls()
+  const defaultServer = useAgentServerUrl()
+  const setServers = useSetAgentServerUrls()
+  const setDefaultServer = useSetAgentServerUrl()
+  const [draftUrl, setDraftUrl] = useState(DEFAULT_AGENT_SERVER_URL)
+
+  async function addServer() {
+    try {
+      const next = [...(servers.data || []), draftUrl]
+      await setServers.mutateAsync(next)
+      setDraftUrl(DEFAULT_AGENT_SERVER_URL)
+      toast.success('Agent server added')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not add agent server')
+    }
+  }
+
+  async function removeServer(serverUrl: string) {
+    try {
+      const next = (servers.data || []).filter((url) => url !== serverUrl)
+      await setServers.mutateAsync(next.length ? next : [DEFAULT_AGENT_SERVER_URL])
+      toast.success('Agent server removed')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not remove agent server')
+    }
+  }
+
+  async function makeDefault(serverUrl: string) {
+    try {
+      await setDefaultServer.mutateAsync(serverUrl)
+      toast.success('Default agent server updated')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update default agent server')
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <SizableText size="sm" className="text-muted-foreground">
+        Desktop uses the default server for the Agents page. You can open each server's built-in status GUI from here.
+      </SizableText>
+      <div className="flex gap-2">
+        <Input
+          value={draftUrl}
+          onChange={(event) => setDraftUrl(event.target.value)}
+          placeholder="http://localhost:3050"
+        />
+        <Button onClick={() => void addServer()} disabled={setServers.isLoading}>
+          Add server
+        </Button>
+      </div>
+      <div className="flex flex-col gap-2">
+        {(servers.data || [DEFAULT_AGENT_SERVER_URL]).map((serverUrl) => (
+          <AgentServerSettingsRow
+            key={serverUrl}
+            serverUrl={serverUrl}
+            isDefault={defaultServer.data === serverUrl}
+            onMakeDefault={() => void makeDefault(serverUrl)}
+            onRemove={() => void removeServer(serverUrl)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AgentServerSettingsRow({
+  serverUrl,
+  isDefault,
+  onMakeDefault,
+  onRemove,
+}: {
+  serverUrl: string
+  isDefault: boolean
+  onMakeDefault: () => void
+  onRemove: () => void
+}) {
+  const health = useAgentServerHealth(serverUrl)
+  return (
+    <div className="border-border bg-background flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <SizableText size="sm" weight="bold" className="truncate">
+            {serverUrl}
+          </SizableText>
+          {isDefault ? <Badge variant="secondary">Default</Badge> : null}
+        </div>
+        <SizableText size="xs" className={health.isError ? 'text-destructive' : 'text-muted-foreground'}>
+          {health.isLoading
+            ? 'Checking…'
+            : health.isError
+            ? 'Offline or unreachable'
+            : `Online · uptime ${Math.floor((health.data?.uptime || 0) / 60)}m`}
+        </SizableText>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <Button variant="outline" size="sm" onClick={onMakeDefault} disabled={isDefault}>
+          Make default
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href={`${serverUrl}/agents`} target="_blank" rel="noreferrer">
+            Open status
+          </a>
+        </Button>
+        <Button variant="destructive" size="sm" onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
+    </div>
   )
 }
 

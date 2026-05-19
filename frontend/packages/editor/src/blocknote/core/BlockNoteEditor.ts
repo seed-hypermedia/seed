@@ -71,6 +71,10 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
    */
   renderType: EditorRenderType
   /**
+   * Disables the automatic empty trailing paragraph. Used by compact chat composers.
+   */
+  disableTrailingNode?: boolean
+  /**
    *
    * (couldn't fix any type, see https://github.com/TypeCellOS/BlockNote/pull/191#discussion_r1210708771)
    *
@@ -227,6 +231,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
   public readonly renderType: EditorRenderType
 
+  public readonly disableTrailingNode?: boolean
+
   public readonly commentEditor?: boolean
 
   public readonly importWebFile?: ImportWebFileFunction
@@ -250,6 +256,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       ...options,
     }
     this.renderType = options.renderType || 'document'
+    this.disableTrailingNode = options.disableTrailingNode
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
     this.domainResolver = newOptions.linkExtensionOptions?.domainResolver

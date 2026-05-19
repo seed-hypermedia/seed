@@ -1,7 +1,7 @@
 import appError from '@/errors'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
-import {defaultRoute} from '@shm/shared/routes'
+import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
 import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
 import path from 'node:path'
@@ -42,7 +42,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts', 'api-inspector'])
+const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts', 'agents', 'api-inspector'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {
@@ -65,13 +65,19 @@ function findWindowWithActiveRoute(routeKey: string): BrowserWindow | null {
   return null
 }
 
-// Focus an existing window and restore it if minimized
+// Focus an existing window and restore it if minimized.
 function focusExistingWindow(browserWindow: BrowserWindow): void {
   if (browserWindow.isMinimized()) {
     browserWindow.restore()
   }
   browserWindow.focus()
   browserWindow.show()
+}
+
+// Focus an existing single-instance window and route it to the requested location.
+function openRouteInExistingWindow(browserWindow: BrowserWindow, route: NavRoute): void {
+  focusExistingWindow(browserWindow)
+  browserWindow.webContents.send('open_route', route)
 }
 
 // @ts-ignore
@@ -320,7 +326,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   if (targetRoute && shouldPreventDuplicateWindow(targetRoute.key)) {
     const existingWindow = findWindowWithActiveRoute(targetRoute.key)
     if (existingWindow) {
-      focusExistingWindow(existingWindow)
+      openRouteInExistingWindow(existingWindow, targetRoute)
       return existingWindow
     }
   }

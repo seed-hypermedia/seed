@@ -21,6 +21,15 @@ function assertDocumentRoute(route: NavRoute | undefined): Extract<NavRoute, {ke
   return route
 }
 
+describe('settingsRouteSchema', () => {
+  test('accepts a deep-linked settings tab', () => {
+    expect(navRouteSchema.parse({key: 'settings', tab: 'agent-servers'})).toEqual({
+      key: 'settings',
+      tab: 'agent-servers',
+    })
+  })
+})
+
 describe('createDocumentNavRoute', () => {
   describe('no panel param', () => {
     test('returns document route without panel', () => {

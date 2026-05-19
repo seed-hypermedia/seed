@@ -128,6 +128,10 @@ ops/dist/*
 !ops/dist/deploy.js
 seed-pprof-*
 
+# Local daemon binaries from ad-hoc Go builds.
+/seed-daemon
+/seed-daemon-*
+
 AGENTS.local.md
 
 # Python

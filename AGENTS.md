@@ -14,6 +14,7 @@
 - `frontend/AGENTS.md` for `frontend/**`.
 - `proto/AGENTS.md` for `proto/**`.
 - `vault/AGENTS.md` for `vault/**`.
+- `agents/docs/readme.md` for `agents/**`
 
 ## Repo Rules
 

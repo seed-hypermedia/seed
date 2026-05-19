@@ -12,7 +12,7 @@ import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from '@tiptap/pm/state'
-import {useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {type MutableRefObject, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
@@ -21,6 +21,8 @@ import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {MobileMentionsDialog} from './mobile-mentions-dialog'
 import {MobileSlashDialog} from './mobile-slash-dialog'
+import {mentionSuggestionPluginKey} from './mention-suggestion-plugin'
+import {slashMenuPluginKey} from './blocknote/core/extensions/SlashMenu/SlashMenuPlugin'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {isMobileDevice, useMobile} from './use-mobile'
@@ -72,6 +74,8 @@ export function useCommentEditor(
   // Required so URLs pasted into embed/link inputs inside a comment can be
   // resolved to hm:// references instead of erroring as "not a hypermedia link".
   domainResolver?: (hostname: string) => Promise<string | null>,
+  disableTrailingNode?: boolean,
+  submitOnEnter?: boolean,
 ) {
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
@@ -84,11 +88,14 @@ export function useCommentEditor(
   const onMobileSlashTriggerRef = useRef(onMobileSlashTrigger)
   onMobileSlashTriggerRef.current = onMobileSlashTrigger
   const editorRef = useRef<BlockNoteEditor<typeof hmBlockSchema> | null>(null)
+  const submitOnEnterRef = useRef(submitOnEnter)
+  submitOnEnterRef.current = submitOnEnter
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       // console.log("editor content changed", editor.topLevelBlocks);
     },
+    disableTrailingNode,
     linkExtensionOptions: {
       openOnClick: false,
       universalClient,
@@ -134,6 +141,17 @@ export function useCommentEditor(
                 return selectAllEditorContent(editor)
               },
               'Mod-Enter': () => {
+                if (onSubmitRef.current) {
+                  onSubmitRef.current()
+                  return true
+                }
+                return false
+              },
+              Enter: ({editor}) => {
+                if (!submitOnEnterRef.current) return false
+                const slashState = slashMenuPluginKey.getState(editor.state) as {active?: boolean} | undefined
+                const mentionState = mentionSuggestionPluginKey.getState(editor.state) as {active?: boolean} | undefined
+                if (slashState?.active || mentionState?.active) return false
                 if (onSubmitRef.current) {
                   onSubmitRef.current()
                   return true
@@ -237,6 +255,21 @@ export interface CommentEditorProps {
  *
  */
 
+export type CommentEditorSubmitHandle = {
+  submit: () => void
+  reset: () => void
+  focus: (options?: {moveCursorToEnd?: boolean}) => void
+  getContent: (
+    prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+      blobs: {cid: string; data: Uint8Array}[]
+      resultCIDs: string[]
+    }>,
+  ) => Promise<{
+    blockNodes: HMBlockNode[]
+    blobs: {cid: string; data: Uint8Array}[]
+  }>
+}
+
 export function CommentEditor({
   submitButton,
   handleSubmit,
@@ -252,6 +285,10 @@ export function CommentEditor({
   universalClient,
   getDraftMediaBlob,
   hideAvatar,
+  hideSubmitToolbar,
+  submitHandleRef,
+  disableTrailingNode,
+  submitOnEnter,
   domainResolver,
 }: {
   submitButton: (opts: {
@@ -306,6 +343,14 @@ export function CommentEditor({
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
   /** Hide the leading avatar */
   hideAvatar?: boolean
+  /** Hide the built-in footer toolbar when submit controls are rendered outside the editor. */
+  hideSubmitToolbar?: boolean
+  /** Exposes the current submit/getContent/reset handles for external submit controls. */
+  submitHandleRef?: MutableRefObject<CommentEditorSubmitHandle | null>
+  /** Disables the editor's automatic empty trailing paragraph for compact chat composers. */
+  disableTrailingNode?: boolean
+  /** Submits on plain Enter while allowing mention/slash menus to handle Enter first. */
+  submitOnEnter?: boolean
   /** Optional resolver that maps a hostname to a Seed account UID, used when
    * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
   domainResolver?: (hostname: string) => Promise<string | null>
@@ -328,6 +373,8 @@ export function CommentEditor({
     handleFileAttachment,
     universalClient ?? contextUniversalClient,
     domainResolver,
+    disableTrailingNode,
+    submitOnEnter,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =
@@ -843,6 +890,14 @@ export function CommentEditor({
     editor._tiptapEditor.commands.blur()
     handleSubmit(getContent, reset)
   }
+  if (submitHandleRef) {
+    submitHandleRef.current = {
+      submit: () => submitCallbackRef.current?.(),
+      reset,
+      focus: focusEditor,
+      getContent,
+    }
+  }
 
   // Handle submit triggered by keyboard shortcut
   useEffect(() => {
@@ -850,6 +905,12 @@ export function CommentEditor({
       submitCallbackRef.current?.()
     }
   }, [submitTrigger])
+
+  useEffect(() => {
+    return () => {
+      if (submitHandleRef) submitHandleRef.current = null
+    }
+  }, [submitHandleRef])
 
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     if (!isFileDrag(event.dataTransfer)) return false
@@ -1010,7 +1071,7 @@ export function CommentEditor({
               </Button>
             )}
           </div>
-          {isExpanded ? (
+          {isExpanded && !hideSubmitToolbar ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isMobile && (
                 <div className="flex items-center gap-2">

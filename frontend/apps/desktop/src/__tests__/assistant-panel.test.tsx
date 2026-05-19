@@ -203,7 +203,7 @@ describe('AssistantPanel', () => {
 
     await flushAsyncWork()
 
-    const input = container.querySelector('input')
+    const input = container.querySelector('textarea')
 
     expect(mockState.createSessionMutateAsync).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(input)
@@ -292,7 +292,7 @@ describe('AssistantPanel', () => {
               type: 'tool',
               id: 'tool-1',
               name: 'read',
-              args: {url: 'hm://z6Mkabc/projects/seed'},
+              args: {id: 'hm://z6Mkabc/projects/seed'},
               result: 'Read "Seed Notes".',
               rawOutput: {
                 summary: 'Read "Seed Notes".',
@@ -324,6 +324,37 @@ describe('AssistantPanel', () => {
     })
 
     expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkabc/projects/seed', false)
+
+    cleanupRendered(root, container)
+  })
+
+  it('falls back to a generic bubble for unrecognized tool calls', () => {
+    mockState.chatSession = {
+      providerId: 'provider-1',
+      messages: [
+        {
+          role: 'assistant',
+          content: '',
+          parts: [
+            {
+              type: 'tool',
+              id: 'tool-unknown',
+              name: 'unknown_tool',
+              args: {value: 'example'},
+              result: 'Completed.',
+            },
+          ],
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      ],
+    }
+
+    const {container, root} = renderAssistantPanel()
+
+    expect(container.textContent).toContain('unknown_tool')
+    expect(container.textContent).toContain('value:')
+    expect(container.textContent).toContain('example')
+    expect(container.textContent).toContain('Completed.')
 
     cleanupRendered(root, container)
   })

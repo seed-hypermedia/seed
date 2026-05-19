@@ -178,6 +178,16 @@ export function createAppMenu() {
           },
         },
         {
+          id: 'route_agents',
+          label: 'Agents',
+          accelerator: 'CmdOrCtrl+Shift+A',
+          click: () => {
+            openRoute({
+              key: 'agents',
+            })
+          },
+        },
+        {
           id: 'route_api_inspector',
           label: 'API Inspector',
           click: () => {

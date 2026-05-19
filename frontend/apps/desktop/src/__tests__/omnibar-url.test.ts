@@ -10,7 +10,14 @@ vi.mock('@seed-hypermedia/client', async (importOriginal) => ({
   resolveHypermediaUrl: resolveHypermediaUrlMock,
 }))
 
-import {resolveOmnibarUrlToHypermediaUrl, resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '../omnibar-url'
+import {
+  agentSessionUrl,
+  agentTriggerUrl,
+  agentUrl,
+  resolveOmnibarUrlToHypermediaUrl,
+  resolveOmnibarUrlToRoute,
+  selectValidatedOmnibarSiteUrl,
+} from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
   beforeEach(() => {
@@ -88,6 +95,42 @@ describe('omnibar url resolution', () => {
     resolveHypermediaUrlMock.mockResolvedValue(null)
 
     await expect(resolveOmnibarUrlToHypermediaUrl('https://example.com/missing')).resolves.toBeNull()
+  })
+
+  it('builds and resolves agent urls', async () => {
+    const url = agentUrl('http://localhost:3050/', 'agent 1')
+
+    expect(url).toBe('http://localhost:3050/agents/agent%201')
+    await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'http://localhost:3050',
+      agentId: 'agent 1',
+    })
+  })
+
+  it('builds and resolves agent session urls', async () => {
+    const url = agentSessionUrl('https://agents.example/agents', 'agent-1', 'session 2')
+
+    expect(url).toBe('https://agents.example/agents/agent-1/sessions/session%202')
+    await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
+      key: 'agent-session',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      sessionId: 'session 2',
+    })
+  })
+
+  it('builds and resolves agent trigger urls', async () => {
+    const url = agentTriggerUrl('https://agents.example/agents', 'agent-1', 'trigger 2')
+
+    expect(url).toBe('https://agents.example/agents/agent-1/triggers/trigger%202')
+    await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      tab: 'triggers',
+      triggerId: 'trigger 2',
+    })
   })
 })
 

@@ -1,3 +1,4 @@
+import {normalizeAgentServerUrl} from '@/agents-client'
 import {resolveHypermediaUrl, type ResolveOptions} from '@seed-hypermedia/client'
 import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
 import {
@@ -59,6 +60,9 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute
 
+  const agentRoute = agentUrlToRoute(url)
+  if (agentRoute) return agentRoute
+
   const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
@@ -86,6 +90,48 @@ export async function resolveOmnibarUrlToHypermediaUrl(url: string, opts?: Resol
   const route = await resolveOmnibarUrlToRoute(url, opts)
   if (!route) return null
   return routeToHmUrl(route)
+}
+
+export function agentUrl(serverUrl: string, agentId: string): string {
+  return `${normalizeAgentServerUrl(serverUrl)}/agents/${encodeURIComponent(agentId)}`
+}
+
+export function agentSessionUrl(serverUrl: string, agentId: string, sessionId: string): string {
+  return `${agentUrl(serverUrl, agentId)}/sessions/${encodeURIComponent(sessionId)}`
+}
+
+export function agentTriggerUrl(serverUrl: string, agentId: string, triggerId: string): string {
+  return `${agentUrl(serverUrl, agentId)}/triggers/${encodeURIComponent(triggerId)}`
+}
+
+function agentUrlToRoute(input: string): NavRoute | null {
+  try {
+    const url = new URL(input.trim())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    if (segments[0] !== 'agents') return null
+    if (segments.length === 1) {
+      url.pathname = '/'
+      url.search = ''
+      url.hash = ''
+      return {key: 'agent-server', serverUrl: normalizeAgentServerUrl(url.toString())}
+    }
+    const agentId = segments[1]
+    url.pathname = '/'
+    url.search = ''
+    url.hash = ''
+    const serverUrl = normalizeAgentServerUrl(url.toString())
+    if (segments.length === 2) return {key: 'agent', serverUrl, agentId}
+    if (segments.length === 4 && segments[2] === 'sessions') {
+      return {key: 'agent-session', serverUrl, agentId, sessionId: segments[3]}
+    }
+    if (segments.length === 4 && segments[2] === 'triggers') {
+      return {key: 'agent', serverUrl, agentId, tab: 'triggers', triggerId: segments[3]}
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 function applyResolvedViewTerm(

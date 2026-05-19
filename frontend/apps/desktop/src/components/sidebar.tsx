@@ -53,6 +53,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
   AlertCircle,
+  Bot,
   ChevronDown,
   ChevronRight,
   File,
@@ -113,6 +114,17 @@ export function MainAppSidebar() {
                 }}
                 icon={<File className="size-4" />}
                 title="Drafts"
+                bold
+              />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'agents'}
+                onClick={() => {
+                  navigate({key: 'agents'})
+                }}
+                icon={<Bot className="size-4" />}
+                title="Agents"
                 bold
               />
             </SidebarMenuItem>
