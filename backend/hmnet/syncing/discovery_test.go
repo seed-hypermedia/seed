@@ -272,6 +272,108 @@ func TestFillTables_PathScope(t *testing.T) {
 	})
 }
 
+// TestCollectBlobs_InboundContacts verifies that recursive discovery of an
+// account at its root also includes "inbound" Contact blobs — contacts created
+// by other accounts that have the discovered account as their subject. This is
+// required so that members/followers of an account are synced when the account
+// is discovered.
+func TestCollectBlobs_InboundContacts(t *testing.T) {
+	t.Parallel()
+
+	db := storage.MakeTestDB(t)
+
+	alice := coretest.NewTester("alice").Account.Principal()
+	bob := coretest.NewTester("bob").Account.Principal()
+	aliceIRI := blob.IRI("hm://" + alice.String())
+	bobIRI := blob.IRI("hm://" + bob.String())
+
+	// Seed: two accounts, each with a home resource. Bob has a Contact blob
+	// whose subject is Alice (simulating "bob follows alice").
+	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys (id, principal) VALUES (2, ?)`, nil, []byte(bob)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO resources (id, iri) VALUES (100, ?)`, nil, string(aliceIRI)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO resources (id, iri) VALUES (200, ?)`, nil, string(bobIRI)); err != nil {
+			return err
+		}
+
+		for _, q := range []string{
+			// Alice's own Ref blob (anchored to alice's resource).
+			`INSERT INTO blobs (id, multihash, codec, size) VALUES (10, X'10', 113, 1)`,
+			`INSERT INTO structural_blobs (id, type, author, resource) VALUES (10, 'Ref', 1, 100)`,
+
+			// Bob's Contact blob pointing to Alice (anchored to bob's resource).
+			`INSERT INTO blobs (id, multihash, codec, size) VALUES (20, X'20', 113, 1)`,
+			`INSERT INTO structural_blobs (id, type, author, resource, extra_attrs) VALUES (20, 'Contact', 2, 200, '{"subject":1}')`,
+		} {
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+
+	collectBlobTypes := func(t *testing.T, dkeys map[DiscoveryKey]struct{}) map[string][]int {
+		t.Helper()
+		got := map[string][]int{}
+		require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+			if err := collectBlobs(conn, dkeys, false); err != nil {
+				return err
+			}
+			return sqlitex.Exec(conn,
+				`SELECT sb.type, rb.id FROM rbsr_blobs rb JOIN structural_blobs sb ON sb.id = rb.id ORDER BY sb.type, rb.id`,
+				func(stmt *sqlite.Stmt) error {
+					got[stmt.ColumnText(0)] = append(got[stmt.ColumnText(0)], stmt.ColumnInt(1))
+					return nil
+				})
+		}))
+		return got
+	}
+
+	t.Run("recursive root discovery includes inbound contacts", func(t *testing.T) {
+		got := collectBlobTypes(t, map[DiscoveryKey]struct{}{
+			{IRI: aliceIRI, Recursive: true}: {},
+		})
+		require.Contains(t, got, "Ref", "Alice's own Ref must be present")
+		require.Contains(t, got, "Contact", "Bob's inbound Contact pointing to Alice must be present")
+		require.Equal(t, []int{20}, got["Contact"], "only the inbound contact (blob 20) should be present")
+	})
+
+	t.Run("non-recursive discovery does not include inbound contacts", func(t *testing.T) {
+		got := collectBlobTypes(t, map[DiscoveryKey]struct{}{
+			{IRI: aliceIRI, Recursive: false}: {},
+		})
+		require.Contains(t, got, "Ref", "Alice's own Ref must be present")
+		require.NotContains(t, got, "Contact", "inbound contacts should NOT appear without recursive flag")
+	})
+
+	t.Run("recursive sub-path discovery does not include inbound contacts", func(t *testing.T) {
+		got := collectBlobTypes(t, map[DiscoveryKey]struct{}{
+			{IRI: aliceIRI + "/notes", Recursive: true}: {},
+		})
+		require.NotContains(t, got, "Contact",
+			"inbound contacts should NOT appear when path is non-empty")
+	})
+
+	t.Run("type filter excluding Contact skips inbound contacts", func(t *testing.T) {
+		got := collectBlobTypes(t, map[DiscoveryKey]struct{}{
+			{IRI: aliceIRI, Recursive: true, BlobTypes: BlobTypesString([]string{"Ref"})}: {},
+		})
+		require.NotContains(t, got, "Contact",
+			"inbound contacts should NOT appear when Contact is filtered out")
+	})
+}
+
 // TestDiscoveryKey_StableMapKey verifies that DiscoveryKey works as a map key
 // even when BlobTypes is set (i.e. that BlobTypesString produces a canonical
 // representation, so two equivalent slices map to the same key).
