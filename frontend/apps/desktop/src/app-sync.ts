@@ -321,9 +321,17 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
   const resource = event.data.value.resource
 
   // Profile events blanket-invalidate all ACCOUNT queries (aliases make per-uid targeting unreliable)
+  // and ripple through every surface that displays account-derived names/avatars.
   if (blobType === 'profile') {
     invalidations.push([queryKeys.ACCOUNT])
     invalidations.push([queryKeys.LIST_ACCOUNTS])
+    invalidations.push([queryKeys.SEARCH])
+    invalidations.push([queryKeys.ACTIVITY_FEED])
+    invalidations.push([queryKeys.FEED])
+    invalidations.push([queryKeys.LIBRARY])
+    invalidations.push([queryKeys.SITE_LIBRARY])
+    invalidations.push([queryKeys.LIST_ROOT_DOCUMENTS])
+    invalidations.push([queryKeys.ROOT_DOCUMENTS])
   }
 
   if (blobType === 'capability' && resource) {
@@ -387,13 +395,21 @@ function processEventsInner(events: Event[]) {
 
   // ── Second pass: batched invalidations by event type ──
 
-  // Profile changes: blanket-invalidate all ACCOUNT queries + account list.
-  // We can't target specific UIDs because accounts may be aliases (A→B):
+  // Profile changes: blanket-invalidate all ACCOUNT queries + account list, plus every
+  // surface that shows account-derived names/avatars (search/mention picker, feed,
+  // library). We can't target specific UIDs because accounts may be aliases (A→B):
   // when B updates, [ACCOUNT, A] must also be invalidated since it resolves to B's data.
   // A blanket [ACCOUNT] prefix invalidation catches all aliases.
   if (seenBlobTypes.has('profile')) {
     appInvalidateQueries([queryKeys.ACCOUNT])
     appInvalidateQueries([queryKeys.LIST_ACCOUNTS])
+    appInvalidateQueries([queryKeys.SEARCH])
+    appInvalidateQueries([queryKeys.ACTIVITY_FEED])
+    appInvalidateQueries([queryKeys.FEED])
+    appInvalidateQueries([queryKeys.LIBRARY])
+    appInvalidateQueries([queryKeys.SITE_LIBRARY])
+    appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+    appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
   }
 
   // Comment changes: invalidate all comment-related caches once (not per-event)
@@ -447,8 +463,19 @@ function processEventsInner(events: Event[]) {
     }
   }
 
-  // Contact changes: invalidate contact caches + async subject lookup
+  // Contact changes: invalidate contact caches + search/library (contacts carry
+  // display-name aliases shown in mention pickers and library author columns) +
+  // async subject lookup. Feed is already invalidated via `feedTypes` below.
+  //
+  // Blanket [CONTACTS_SUBJECT] covers site members (useSiteMembers reads
+  // useContactListOfSubject(siteUid)) and follower lists (useContactListOfSubject(accountUid))
+  // without depending on the async getContact below — extraAttrs carries the subject as
+  // an internal pubkey row ID, not a usable uid, so we can't target sync.
   if (seenBlobTypes.has('contact')) {
+    appInvalidateQueries([queryKeys.SEARCH])
+    appInvalidateQueries([queryKeys.LIBRARY])
+    appInvalidateQueries([queryKeys.SITE_LIBRARY])
+    appInvalidateQueries([queryKeys.CONTACTS_SUBJECT])
     for (const {author, extraAttrs} of contactData) {
       appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
 

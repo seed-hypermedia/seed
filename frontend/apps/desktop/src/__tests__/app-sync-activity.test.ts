@@ -90,10 +90,22 @@ describe('activity event processing', () => {
   })
 
   describe('getUnconditionalInvalidations', () => {
-    it('returns blanket ACCOUNT and LIST_ACCOUNTS invalidation for Profile events', async () => {
+    const expectedProfileInvalidations = [
+      [queryKeys.ACCOUNT],
+      [queryKeys.LIST_ACCOUNTS],
+      [queryKeys.SEARCH],
+      [queryKeys.ACTIVITY_FEED],
+      [queryKeys.FEED],
+      [queryKeys.LIBRARY],
+      [queryKeys.SITE_LIBRARY],
+      [queryKeys.LIST_ROOT_DOCUMENTS],
+      [queryKeys.ROOT_DOCUMENTS],
+    ]
+
+    it('returns name/avatar-ripple invalidations for Profile events', async () => {
       const {getUnconditionalInvalidations} = await loadModule()
       const event = makeBlobEvent('Profile', 'hm://z6MkUser123')
-      expect(getUnconditionalInvalidations(event)).toEqual([[queryKeys.ACCOUNT], [queryKeys.LIST_ACCOUNTS]])
+      expect(getUnconditionalInvalidations(event)).toEqual(expectedProfileInvalidations)
     })
 
     it('returns empty for non-Profile non-Capability events', async () => {
@@ -103,28 +115,40 @@ describe('activity event processing', () => {
       expect(getUnconditionalInvalidations(makeBlobEvent('Contact', 'hm://z6MkOwner'))).toEqual([])
     })
 
-    it('returns blanket ACCOUNT invalidation regardless of resource', async () => {
+    it('returns the same blanket invalidations regardless of resource', async () => {
       const {getUnconditionalInvalidations} = await loadModule()
       // Aliases make per-uid targeting unreliable, so Profile events blanket-invalidate
       const event = makeBlobEvent('Profile', 'hm://z6MkUser?v=abc')
-      expect(getUnconditionalInvalidations(event)).toEqual([[queryKeys.ACCOUNT], [queryKeys.LIST_ACCOUNTS]])
+      expect(getUnconditionalInvalidations(event)).toEqual(expectedProfileInvalidations)
     })
   })
 
   describe('processEvents integration', () => {
-    it('blanket-invalidates all ACCOUNT queries for Profile events (covers aliases)', async () => {
+    it('ripples profile invalidations across account, search, feed, and library', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Profile', 'hm://z6MkProfileUser')])
       // Blanket [ACCOUNT] prefix catches aliases (A→B means [ACCOUNT, A] stores B's data)
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACCOUNT])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ACCOUNTS])
+      // Mention picker and global search show account names — invalidate so they refetch
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
+      // Feed/library rows display author names/avatars derived from the profile
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
     })
 
     it('blanket-invalidates ACCOUNT once even for multiple Profile events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Profile', 'hm://z6MkUserA'), makeBlobEvent('Profile', 'hm://z6MkUserB')])
       // Single blanket invalidation covers both profiles + any aliases
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACCOUNT])
+      const accountCalls = appInvalidateQueriesMock.mock.calls.filter(
+        (call) => Array.isArray(call[0]) && call[0].length === 1 && call[0][0] === queryKeys.ACCOUNT,
+      )
+      expect(accountCalls).toHaveLength(1)
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ACCOUNTS])
     })
 
@@ -173,10 +197,18 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
     })
 
-    it('invalidates CONTACTS_ACCOUNT and feed for Contact events', async () => {
+    it('invalidates CONTACTS, search, library, and feed for Contact events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Contact', 'hm://z6MkOwner', 'z6MkContactAuthor')])
+      // Targeted: this author's following list
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.CONTACTS_ACCOUNT, 'z6MkContactAuthor'])
+      // Blanket: covers site members (useSiteMembers) + follower lists for all subjects,
+      // since the contact's subject pubkey row id in extraAttrs isn't a usable uid.
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.CONTACTS_SUBJECT])
+      // Contacts carry display-name aliases shown in mention picker and library
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
     })
