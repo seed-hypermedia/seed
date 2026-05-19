@@ -150,7 +150,12 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	return idx
 }
 
-func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
+// indexBlob runs the per-blob indexers and (optionally) forward visibility
+// propagation. When deferPropagation is true the propagateVisibility call is
+// skipped; the caller is responsible for running propagateVisibilityBatch
+// after the whole batch has been indexed. This is what PutMany uses to
+// coalesce many tiny CTE walks into one walk per space.
+func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -215,8 +220,10 @@ func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data [
 		}
 	}
 
-	if err := propagateVisibility(ictx, id); err != nil {
-		return fmt.Errorf("failed to propagate visibility for blob: %s (%d): %w", c.String(), id, err)
+	if !deferPropagation {
+		if err := propagateVisibility(ictx, id); err != nil {
+			return fmt.Errorf("failed to propagate visibility for blob: %s (%d): %w", c.String(), id, err)
+		}
 	}
 
 	return err
@@ -1676,7 +1683,7 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 		c := cid.NewCidV1(uint64(codec), hash)
 
 		funcs = append(funcs, func() error {
-			return indexBlob(trackUnreads, conn, id, c, data, bs, log)
+			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log)
 		})
 	}
 

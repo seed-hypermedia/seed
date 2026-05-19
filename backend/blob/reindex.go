@@ -140,7 +140,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
-			err = indexBlob(false, conn, id, c, data, idx.bs, idx.log)
+			err = indexBlob(false, false, conn, id, c, data, idx.bs, idx.log)
 			blobsIndexed++
 
 			// We batch updates for progress reporting.

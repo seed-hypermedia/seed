@@ -35,7 +35,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		return indexBlob(unreadsTrackingEnabled(ctx), conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log)
+		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log)
 	})
 }
 
@@ -60,6 +60,10 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 		}
 
 		err = sqlitex.WithTx(conn, func() error {
+			// Track every blob we actually indexed in this batch so we can run
+			// one coalesced visibility propagation pass at the end instead of
+			// N separate recursive CTE walks (one per blob).
+			indexed := make([]int64, 0, len(batch))
 			for _, blk := range batch {
 				codec, hash := ipfs.DecodeCID(blk.Cid())
 				id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
@@ -71,12 +75,13 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 					continue
 				}
 
-				if err := indexBlob(trackUnreads, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
+				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
 					return err
 				}
+				indexed = append(indexed, id)
 			}
 
-			return nil
+			return propagateVisibilityBatch(conn, indexed)
 		})
 		release()
 		if err != nil {

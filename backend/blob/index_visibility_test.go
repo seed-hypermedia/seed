@@ -6,6 +6,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"testing"
@@ -188,4 +189,82 @@ func TestRefVisibilityPropagationSingleRef(t *testing.T) {
 			require.Equal(t, 0, visibilityCount(t, cStar.CID), "change cStar must not inherit private visibility")
 		})
 	}
+}
+
+// TestPutManyCoalescesPropagation builds a small private-doc graph and asserts
+// that the coalesced visibility propagation in PutMany produces the exact same
+// blob_visibility state as putting the same blobs one-by-one via Put. Single
+// Put preserves the original per-blob propagateVisibility call (no coalesce),
+// so this is the apples-to-apples comparison for the optimisation.
+func TestPutManyCoalescesPropagation(t *testing.T) {
+	build := func() (blocksList []blocks.Block, refCID cid.Cid, signer coretest.Tester) {
+		signer = coretest.NewTester("alice")
+		clock := cclock.New()
+
+		c1, err := NewChange(signer.Account, cid.Undef, nil, 0, ChangeBody{
+			Ops: []OpMap{must.Do2(NewOpSetKey("title", "Genesis"))},
+		}, clock.MustNow())
+		require.NoError(t, err)
+
+		c2, err := NewChange(signer.Account, c1.CID, []cid.Cid{c1.CID}, 1, ChangeBody{
+			Ops: []OpMap{must.Do2(NewOpSetKey("title", "Second"))},
+		}, clock.MustNow())
+		require.NoError(t, err)
+
+		c3, err := NewChange(signer.Account, c1.CID, []cid.Cid{c2.CID}, 2, ChangeBody{
+			Ops: []OpMap{must.Do2(NewOpSetKey("content", "Third"))},
+		}, clock.MustNow())
+		require.NoError(t, err)
+
+		ref, err := NewRef(signer.Account, 0, c1.CID, signer.Account.Principal(), "/coalesce-test", []cid.Cid{c3.CID}, clock.MustNow(), VisibilityPrivate)
+		require.NoError(t, err)
+
+		return []blocks.Block{c1, c2, c3, ref}, ref.CID, signer
+	}
+
+	collectVisibility := func(t *testing.T, db *sqlitex.Pool, spaceID int64) map[string]struct{} {
+		t.Helper()
+		got := make(map[string]struct{})
+		require.NoError(t, db.Query(t.Context(), func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn,
+				"SELECT lower(hex(b.multihash)) FROM blob_visibility bv JOIN blobs b ON b.id = bv.id WHERE bv.space = :space",
+				func(stmt *sqlite.Stmt) error {
+					got[stmt.ColumnText(0)] = struct{}{}
+					return nil
+				}, spaceID)
+		}))
+		return got
+	}
+
+	// Build the blob set ONCE so the two DBs see identical inputs (the clock
+	// is stateful so a second build() call would produce different timestamps
+	// and therefore different blob CIDs).
+	allBlobs, _, alice := build()
+
+	// PutMany path: all blobs go through one batch, the new
+	// propagateVisibilityBatch coalesces the recursive CTE walks.
+	dbMany := storage.MakeTestDB(t)
+	idxMany, err := OpenIndex(t.Context(), dbMany, zap.NewNop())
+	require.NoError(t, err)
+	require.NoError(t, idxMany.PutMany(t.Context(), allBlobs))
+	spaceMany, err := sqlitex.QueryOnePool[int64](t.Context(), dbMany,
+		"SELECT id FROM public_keys WHERE principal = :principal", alice.Account.Principal())
+	require.NoError(t, err)
+	manyVis := collectVisibility(t, dbMany, spaceMany)
+
+	// Put path: one blob at a time. Each Put runs the original per-blob
+	// propagateVisibility, no coalesce.
+	dbOne := storage.MakeTestDB(t)
+	idxOne, err := OpenIndex(t.Context(), dbOne, zap.NewNop())
+	require.NoError(t, err)
+	for _, blk := range allBlobs {
+		require.NoError(t, idxOne.Put(t.Context(), blk))
+	}
+	spaceOne, err := sqlitex.QueryOnePool[int64](t.Context(), dbOne,
+		"SELECT id FROM public_keys WHERE principal = :principal", alice.Account.Principal())
+	require.NoError(t, err)
+	oneVis := collectVisibility(t, dbOne, spaceOne)
+
+	require.Equal(t, oneVis, manyVis, "coalesced PutMany must produce the same blob_visibility set as sequential Put")
+	require.NotEmpty(t, manyVis, "test must actually exercise the propagation path")
 }

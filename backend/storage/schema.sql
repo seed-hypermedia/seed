@@ -262,8 +262,14 @@ CREATE TABLE peers (
     id INTEGER PRIMARY KEY,
     -- Network unique peer identifier.
     pid TEXT UNIQUE NOT NULL,
-    -- List of addresses in multiaddress format (comma separated)
-    addresses TEXT UNIQUE NOT NULL,
+    -- List of addresses in multiaddress format (comma separated).
+    -- NOT UNIQUE: two peers can legitimately advertise overlapping address
+    -- sets (relay-shared, NAT-shared, fresh peer reusing a recently-vacated
+    -- address). The previous UNIQUE constraint aborted entire bulk
+    -- peer-exchange INSERTs on the first colliding row and dominated the
+    -- writer-lock hold time with auto-index maintenance over long
+    -- multiaddr strings.
+    addresses TEXT NOT NULL,
     -- If we got the peer via direct connection or some other peer shared it with us.
     explicitly_connected BOOLEAN DEFAULT false NOT NULL,
     -- The time when the peer was first stored.

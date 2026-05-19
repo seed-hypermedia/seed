@@ -63,6 +63,29 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Drop the UNIQUE constraint from peers.addresses. Two peers can legitimately
+	// share an address set (relay-shared, NAT-shared, address reuse after a peer
+	// leaves) and the old constraint aborted entire bulk peer-exchange INSERTs
+	// on the first colliding row. We park the data in a tmp table, drop the
+	// original, recreate with the canonical DDL (matching schema.sql so the
+	// migration snapshot test passes), copy back, and drop the tmp.
+	{Version: "2026-05-19.151347", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE peers_tmp AS SELECT id, pid, addresses, explicitly_connected, created_at, updated_at FROM peers;
+			DROP TABLE peers;
+			CREATE TABLE peers (
+			    id INTEGER PRIMARY KEY,
+			    pid TEXT UNIQUE NOT NULL,
+			    addresses TEXT NOT NULL,
+			    explicitly_connected BOOLEAN DEFAULT false NOT NULL,
+			    created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
+			    updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+			);
+			INSERT INTO peers (id, pid, addresses, explicitly_connected, created_at, updated_at)
+			    SELECT id, pid, addresses, explicitly_connected, created_at, updated_at FROM peers_tmp;
+			DROP TABLE peers_tmp;
+		`))
+	}},
 	// Reindex to recompute comment counts after deduping edited/deleted comment blobs.
 	{Version: "2026-05-11.010000", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return scheduleReindex(conn)
