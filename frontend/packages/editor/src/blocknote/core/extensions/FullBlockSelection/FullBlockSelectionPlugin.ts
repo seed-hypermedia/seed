@@ -82,6 +82,10 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
   if (selection instanceof TextSelection) {
     const {from, to} = selection
 
+    if (selectionTouchesHeadingContent(state, from, to)) {
+      return fullySelected
+    }
+
     state.doc.nodesBetween(from, to, (node, pos) => {
       if (node.type.name !== 'blockNode') return true // keep descending
 
@@ -116,6 +120,36 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
   })
 
   return fullySelected
+}
+
+/**
+ * Returns true when a text selection overlaps heading text.
+ *
+ * Heading blocks can also be section parents for nested content. When a drag
+ * selection starts in a heading and extends into that section's children, the
+ * generic full-block detection would otherwise convert the fully-covered child
+ * blocks into block selections while the heading remains native text. That
+ * mixed visual state makes the two selection backgrounds compete, so heading
+ * text selections stay native text selections end-to-end.
+ */
+function selectionTouchesHeadingContent(state: EditorState, from: number, to: number): boolean {
+  let touchesHeading = false
+
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.type.name !== 'heading') return true
+
+    const contentStart = pos + 1
+    const contentEnd = pos + node.nodeSize - 1
+
+    if (from < contentEnd && to > contentStart) {
+      touchesHeading = true
+      return false
+    }
+
+    return true
+  })
+
+  return touchesHeading
 }
 
 /**

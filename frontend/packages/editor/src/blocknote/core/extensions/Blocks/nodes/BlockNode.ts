@@ -119,6 +119,10 @@ const headingBoxPlugin = new Plugin({
 })
 
 function getHeadingDecorations(state: EditorState): DecorationSet {
+  if (!state.selection.empty) {
+    return DecorationSet.empty
+  }
+
   const decorations: Decoration[] = []
   const res = getNearestHeadingFromPos(state, state.selection.from)
 
