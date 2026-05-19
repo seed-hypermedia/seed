@@ -1,16 +1,33 @@
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useMemo} from 'react'
 import {compareBlocksWithMap, createBlocksMap, extractDeletes} from '../utils/document-changes'
 import {getNavigationChanges} from '../utils/navigation-changes'
 import {useEditorHandlersRef} from './editor-handlers-context'
 import {
+  selectBlocks,
   selectDocument,
+  selectDraftId,
   selectEditorBaseline,
   selectMetadata,
   selectNavigation,
   selectSaveStatus,
   useDocumentSelector,
 } from './use-document-machine'
+
+function removeTrailingEmptyParagraphs(blocks: EditorBlock[]): EditorBlock[] {
+  const trimmed = [...blocks]
+  while (true) {
+    const lastBlock = trimmed[trimmed.length - 1]
+    if (!lastBlock) break
+    if (lastBlock.type !== 'paragraph') break
+    if (lastBlock.children.length !== 0) break
+    if ((lastBlock.content?.length ?? 0) !== 0) break
+    trimmed.pop()
+  }
+  return trimmed
+}
 
 /**
  * Count of unpublished changes: block diffs against the editor baseline plus
@@ -27,6 +44,8 @@ export function useUnpublishedChangeCount(): number {
   const metadata = useDocumentSelector(selectMetadata)
   const navigation = useDocumentSelector(selectNavigation)
   const publishedDoc = useDocumentSelector(selectDocument)
+  const draftId = useDocumentSelector(selectDraftId)
+  const blocks = useDocumentSelector(selectBlocks)
   const saveStatus = useDocumentSelector(selectSaveStatus)
 
   return useMemo(() => {
@@ -35,13 +54,24 @@ export function useUnpublishedChangeCount(): number {
     // them via the same diff used at publish time. `navigation === undefined`
     // means no nav edits this session — return 0 ops.
     const navigationChangeCount = getNavigationChanges(navigation, publishedDoc?.detachedBlocks?.navigation).length
-    if (!baseline) return metadataChangeCount + navigationChangeCount
-    const editorBlocks = handlersRef.current?.getCurrentBlocks() ?? []
+    const publishedBaseline = removeTrailingEmptyParagraphs(
+      hmBlocksToEditorContent(publishedDoc?.content ?? [], {childrenType: 'Group'}),
+    )
+    const diffBaseline = removeTrailingEmptyParagraphs(draftId ? publishedBaseline : baseline ?? publishedBaseline)
+    if (!diffBaseline.length) {
+      const editorBlocks = removeTrailingEmptyParagraphs(
+        handlersRef.current?.getCurrentBlocks() ?? hmBlocksToEditorContent(blocks),
+      )
+      return editorBlocks.length + metadataChangeCount + navigationChangeCount
+    }
+    const editorBlocks = removeTrailingEmptyParagraphs(
+      handlersRef.current?.getCurrentBlocks() ?? hmBlocksToEditorContent(blocks),
+    )
     if (editorBlocks.length === 0) return metadataChangeCount + navigationChangeCount
-    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(baseline), '')
+    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
     const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, editorBlocks, '')
     const deletes = extractDeletes(baselineMap, touchedBlocks)
     return changes.length + deletes.length + metadataChangeCount + navigationChangeCount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseline, metadata, navigation, publishedDoc, saveStatus, handlersRef])
+  }, [baseline, metadata, navigation, publishedDoc, draftId, blocks, saveStatus, handlersRef])
 }

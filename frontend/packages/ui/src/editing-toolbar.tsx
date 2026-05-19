@@ -22,6 +22,7 @@ import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 import {usePopoverState} from './use-popover-state'
 
 /** Platform callbacks injected by the host (desktop or web). */
@@ -207,7 +208,7 @@ export function PublishPopoverBody({
       <Separator className="bg-black/10 dark:bg-white/10" />
 
       {/* Last published row — clickable only when onGoToVersions provided */}
-      {publishedDoc && relativeTime ? (
+      {!!publishedDoc?.version ? (
         onGoToVersions ? (
           <button
             type="button"
@@ -220,7 +221,7 @@ export function PublishPopoverBody({
           >
             <Clock className="text-muted-foreground size-3.5" />
             <span className="flex-1">
-              <span className="text-foreground">{relativeTime}</span>
+              <span className="text-foreground">{relativeTime ?? 'Published'}</span>
               {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
             </span>
             <ChevronRight className="text-muted-foreground size-3.5" />
@@ -229,17 +230,17 @@ export function PublishPopoverBody({
           <div title={absoluteTime} className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
             <Clock className="text-muted-foreground size-3.5" />
             <span className="flex-1">
-              <span className="text-foreground">{relativeTime}</span>
+              <span className="text-foreground">{relativeTime ?? 'Published'}</span>
               {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
             </span>
           </div>
         )
-      ) : publishedDoc ? (
+      ) : (
         <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
           <Clock className="text-muted-foreground size-3.5" />
           <span className="text-muted-foreground flex-1">Not yet published</span>
         </div>
-      ) : null}
+      )}
 
       {/* Changes count row */}
       <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
@@ -267,20 +268,15 @@ export function PublishPopoverBody({
       <div className="flex flex-col gap-1">
         <Button
           size="sm"
-          variant="brand"
+          variant={publishDisabled ? 'ghost' : 'brand'}
+          className={cn(
+            publishDisabled &&
+              'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
+          )}
           disabled={publishDisabled}
           onClick={() => {
             const override =
               isFirstPublish && !isPrivate && userEditedRef.current && previewPath ? previewPath : undefined
-            // console.log('[Publish] popover Publish button clicked', {
-            //   docId: docId.id,
-            //   draftId,
-            //   changeCount,
-            //   publishDisabled,
-            //   isFirstPublish,
-            //   isPrivate,
-            //   override,
-            // })
             onPublish(override)
           }}
         >
@@ -307,25 +303,39 @@ export function PublishPopoverBody({
   )
 }
 
-/** Trigger button for the Publish popover. Shows a pulsing white dot when there are unsaved changes. */
-const PublishTrigger = forwardRef<
-  HTMLButtonElement,
-  {hasUnsavedChanges: boolean; onClick: (e: React.MouseEvent) => void}
->(({hasUnsavedChanges, onClick}, ref) => {
-  return (
-    <Button ref={ref} size="sm" variant="brand" className="gap-1.5" onClick={onClick}>
-      {hasUnsavedChanges ? (
-        <span className="relative flex size-2 shrink-0 rounded-full bg-white">
-          <span className="absolute inset-0 animate-ping rounded-full bg-white opacity-75" />
+function canPublishDocument({
+  changeCount,
+  unpublishedChildCount,
+}: {
+  changeCount: number
+  unpublishedChildCount: number
+}) {
+  return changeCount > 0 && unpublishedChildCount === 0
+}
+
+/** Trigger button for the Publish popover. */
+const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onClick: (e: React.MouseEvent) => void}>(
+  ({canPublish, onClick}, ref) => {
+    return (
+      <Button
+        ref={ref}
+        size="sm"
+        variant={canPublish ? 'green' : 'ghost'}
+        className={cn(
+          'gap-1.5',
+          !canPublish &&
+            'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
+        )}
+        onClick={onClick}
+      >
+        <span className="hidden sm:inline">Publish</span>
+        <span className="sm:hidden">
+          <UploadCloud className="size-4" />
         </span>
-      ) : null}
-      <span className="hidden sm:inline">Publish</span>
-      <span className="sm:hidden">
-        <UploadCloud className="size-4" />
-      </span>
-    </Button>
-  )
-})
+      </Button>
+    )
+  },
+)
 PublishTrigger.displayName = 'PublishTrigger'
 
 /**
@@ -350,7 +360,10 @@ export function PublishButtonWithPopover({
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
   const changeCount = useUnpublishedChangeCount()
-  const hasUnpublishedChanges = changeCount > 0
+  const canPublish = canPublishDocument({
+    changeCount,
+    unpublishedChildCount,
+  })
   const send = useDocumentSend()
 
   const [hasTriggeredPublish, setHasTriggeredPublishState] = useState(() => publishTriggeredForDoc.has(docId.id))
@@ -381,7 +394,7 @@ export function PublishButtonWithPopover({
   const allItems = [...existingMenuItems, ...editingTrailingItems]
 
   const publishNow = (pathOverride?: string[]) => {
-    // console.log('[Publish] publishNow called', {docId: docId.id, draftId, changeCount, pathOverride})
+    if (!canPublish) return
     popoverState.onOpenChange(false)
     setHasTriggeredPublish()
     send({type: 'edit.start'})
@@ -390,8 +403,7 @@ export function PublishButtonWithPopover({
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    // console.log('[Publish] trigger click', {docId: docId.id, hasTriggeredPublish, draftId, changeCount})
-    if (hasTriggeredPublish) {
+    if (hasTriggeredPublish && canPublish) {
       publishNow()
     } else {
       popoverState.onOpenChange(!popoverState.open)
@@ -402,7 +414,7 @@ export function PublishButtonWithPopover({
     <>
       <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <PopoverAnchor asChild>
-          <PublishTrigger hasUnsavedChanges={hasUnpublishedChanges} onClick={handlePublishTriggerClick} />
+          <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
         </PopoverAnchor>
         <PopoverContent align="end" className="w-80">
           <PublishPopoverBody
@@ -410,10 +422,7 @@ export function PublishButtonWithPopover({
             changeCount={changeCount}
             onPublish={publishNow}
             onClose={() => popoverState.onOpenChange(false)}
-            // Allow clicking Publish during editing.draft.changed (no draftId yet) —
-            // the machine queues the publish and flushes it once writeDraft completes.
-            // See documentMachine `pendingPublish` flag (Phase 2).
-            publishDisabled={changeCount === 0 || unpublishedChildCount > 0}
+            publishDisabled={!canPublish}
             unpublishedChildCount={unpublishedChildCount}
             getDocumentUrl={getDocumentUrl}
             onOpenPreview={onOpenPreview}
