@@ -20,7 +20,13 @@ import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {autoLinkParentAfterPublish, useChildDrafts, useCreateInlineDraft, usePublishResource} from '@/models/documents'
+import {
+  autoLinkParentAfterPublish,
+  resolveDraftWriteAnchors,
+  useChildDrafts,
+  useCreateInlineDraft,
+  usePublishResource,
+} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl, useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
@@ -209,8 +215,14 @@ export default function DesktopResourcePage() {
         //   signingAccountId: input.signingAccountId,
         //   hasEditor: !!editor,
         // })
-        const existingDraftForVisibility = input.draftId ? await client.drafts.get.query(input.draftId) : null
-        const draftVisibility = existingDraftForVisibility?.visibility ?? 'PUBLIC'
+        const existingDraft = input.draftId ? await client.drafts.get.query(input.draftId) : null
+        const draftVisibility = existingDraft?.visibility ?? 'PUBLIC'
+        const anchors = resolveDraftWriteAnchors(existingDraft, {
+          locationUid: input.locationUid || undefined,
+          locationPath: input.locationPath,
+          editUid: input.editUid || undefined,
+          editPath: input.editPath,
+        })
         const result = await client.drafts.write.mutate({
           id: draftId,
           metadata: input.metadata,
@@ -219,10 +231,10 @@ export default function DesktopResourcePage() {
           cursorPosition,
           deps: input.deps,
           navigation: input.navigation,
-          locationUid: input.locationUid || undefined,
-          locationPath: input.locationPath.length > 0 ? input.locationPath : undefined,
-          editUid: input.editUid || undefined,
-          editPath: input.editPath.length > 0 ? input.editPath : undefined,
+          locationUid: anchors.locationUid,
+          locationPath: anchors.locationPath,
+          editUid: anchors.editUid,
+          editPath: anchors.editPath,
           visibility: draftVisibility,
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
