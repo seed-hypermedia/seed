@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"seed/backend/util/sqlite"
 )
@@ -15,31 +16,55 @@ var ErrBeginImmediateTx = errors.New("Failed to begin immediate transaction")
 // WithTx executes fn within an immediate transaction, and commits
 // or rolls back accordingly.
 func WithTx(conn *sqlite.Conn, fn func() error) error {
+	caller := tracker.normalizeCaller(resolveCaller())
+
 	// Not allowing nested transactions can often be error-prone.
 	// It might indicate a design flaw in the code, but because this is a wrapper that invokes a callback function,
 	// it's relatively safe to just fallback to a savepoint when we receive a nested transaction error.
 	//
 	// This behavior should not be abused. Check [Read] and [Write] functions for better alternatives.
+	t0 := time.Now()
 	if err := Exec(conn, "BEGIN IMMEDIATE TRANSACTION;", nil); err != nil {
+		beginWait := time.Since(t0)
 		// We want to return any errors that are not about the nested transaction.
 		if !strings.Contains(err.Error(), "transaction within a transaction") {
+			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil)
 			return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 		}
 
+		// Nested-tx fallback: this opens a savepoint, not a real writer-lock tx.
+		// Record it separately so it doesn't pollute the writer-lock stats.
+		sp0 := time.Now()
 		releaseSave := Save(conn)
 		fnerr := fn()
 		releaseSave(&fnerr)
+		tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil)
 		return fnerr
 	}
+	beginWait := time.Since(t0)
+	t1 := time.Now()
+	activeID := tracker.startActive(caller)
+	defer tracker.endActive(activeID, caller)
+	beginCapture(conn)
 
 	if err := fn(); err != nil {
+		stmts := endCapture(conn)
 		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
+			tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts)
 			return fmt.Errorf("ROLLBACK error: %v; original error: %w", rberr, err)
 		}
+		tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts)
 		return err
 	}
 
-	return Exec(conn, "COMMIT", nil)
+	commitErr := Exec(conn, "COMMIT", nil)
+	stmts := endCapture(conn)
+	outcome := outcomeCommit
+	if commitErr != nil {
+		outcome = outcomeRollback
+	}
+	tracker.recordTx(caller, beginWait, time.Since(t1), outcome, stmts)
+	return commitErr
 }
 
 // WithTx executes fn within an immediate transaction using a new connection from the pool.

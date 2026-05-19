@@ -32,10 +32,12 @@ type DomainStore struct {
 	resolver *sitePeerResolver
 	log      *zap.Logger
 
-	// checkSem limits concurrent background domain checks to avoid pool starvation.
-	// Each check does BEGIN IMMEDIATE which blocks other writers via SQLite's busy timeout (10s),
-	// holding a pool connection the entire time. Without limiting concurrency, many concurrent
-	// checks can exhaust the pool and block all other database operations.
+	// checkSem caps how many background domain checks can run their HTTP
+	// fetch concurrently. The fetch itself is performed outside any SQLite
+	// transaction; the only writes are the short updateDomainSuccess /
+	// updateDomainFailure INSERTs after the fetch completes. The semaphore
+	// is here to avoid hammering the remote resolver and to bound the number
+	// of pool connections held during the brief post-fetch write tx.
 	checkSem chan struct{}
 	inFlight sync.Map
 

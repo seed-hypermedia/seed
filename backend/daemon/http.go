@@ -20,6 +20,7 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/ctxkey"
 	"seed/backend/util/journeys"
+	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/trcstats"
 	"strconv"
 	"strings"
@@ -92,6 +93,7 @@ func initHTTP(
 		loopback.HandleNav("/debug/logs", logging.DebugHandler())
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
+		loopback.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
 		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
 		if err != nil {
 			return nil, nil, err
@@ -340,7 +342,11 @@ func handlerNameMiddleware(mux *http.ServeMux) func(http.Handler) http.Handler {
 			}
 			if pattern != "" {
 				routeName := routeNameFromPattern(pattern)
-				if routeName != "/{$}" {
+				// Skip the catch-all "/" too: gRPC-Web is mounted there and
+				// covers many distinct methods (e.g. /seed.documents.v3alpha.Documents/CreateDocumentChange).
+				// Overriding with "/" buckets every gRPC call under a single trace
+				// row and hides per-method latency on /debug/traces.
+				if routeName != "/{$}" && routeName != "/" {
 					name = routeName
 				}
 			}
