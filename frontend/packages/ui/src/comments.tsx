@@ -109,7 +109,7 @@ export function CommentDiscussions({
 
   const {showDeletedContent} = useCommentsServiceContext()
 
-  const commentResource = useResource(commentIdToHmId(commentId), {subscribed: true})
+  const commentResource = useResource(commentId ? commentIdToHmId(commentId) : null, {subscribed: true})
 
   // Find the actual focused comment
   const focusedComment = useMemo(() => {
