@@ -1,19 +1,11 @@
 import {useInfiniteFeed, useLatestEvent} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import DataViewer from './DataViewer'
 
 export default function Feed() {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-    error,
-    refetch,
-  } = useInfiniteFeed(10)
+  const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error} = useInfiniteFeed(10)
   const {data: latestEvent} = useLatestEvent()
   const navigate = useNavigate()
   const observerRef = useRef<IntersectionObserver>()
@@ -36,7 +28,7 @@ export default function Feed() {
   )
 
   // Flatten all pages into a single array of events
-  const allEvents = data?.pages.flatMap((page) => page.events) || []
+  const allEvents = useMemo(() => data?.pages.flatMap((page) => page.events) || [], [data?.pages])
 
   // Check for new content
   useEffect(() => {
@@ -111,12 +103,7 @@ export default function Feed() {
             onClick={handleNewContentClick}
             className="bg-link hover:bg-link-hover flex items-center justify-center gap-2 rounded-full px-4 py-2 font-medium whitespace-nowrap text-white shadow-lg transition-colors duration-200"
           >
-            <svg
-              className="size-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

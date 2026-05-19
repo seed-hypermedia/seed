@@ -239,9 +239,8 @@ export default function HM() {
 
 function flattenBlockNode(node: HMBlockNode) {
   const {block, children} = node
-  const out = {...block}
+  const out: Record<string, unknown> = {...block}
   if (children && Array.isArray(children)) {
-    // @ts-ignore - Adding children property to the block
     out.children = children.map(flattenBlockNode)
   }
   return out

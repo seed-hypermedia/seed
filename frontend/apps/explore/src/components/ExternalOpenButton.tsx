@@ -1,40 +1,38 @@
-import React from "react";
-import {FiExternalLink} from "react-icons/fi";
+import React from 'react'
+import {ExternalLink} from 'lucide-react'
 
 interface ExternalOpenButtonProps {
-  url: string;
+  url: string
 }
 
-export const ExternalOpenButton: React.FC<ExternalOpenButtonProps> = ({
-  url,
-}) => {
+export const ExternalOpenButton: React.FC<ExternalOpenButtonProps> = ({url}) => {
   const handleClick = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <button
       onClick={handleClick}
-      className="p-2 ml-2 text-gray-500 transition-colors hover:text-gray-700"
+      className="ml-2 p-2 text-gray-500 transition-colors hover:text-gray-700"
       title="Open in new tab"
     >
-      <FiExternalLink />
+      <ExternalLink className="size-4" />
     </button>
-  );
-};
+  )
+}
 
 export const OpenInAppButton: React.FC<ExternalOpenButtonProps> = ({url}) => {
   const handleClick = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <button
       onClick={handleClick}
-      className="p-2 ml-2 text-green-500 transition-colors hover:text-green-700"
+      className="ml-2 p-2 text-green-500 transition-colors hover:text-green-700"
       title="Open in Seed App"
     >
-      <FiExternalLink />
+      <ExternalLink className="size-4" />
     </button>
-  );
-};
+  )
+}
