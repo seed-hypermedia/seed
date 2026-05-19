@@ -46,7 +46,7 @@ export const EmbedBlock = createReactBlockSpec({
       default: 'false',
     },
     view: {
-      values: ['Content', 'Card'], // TODO: convert HMEmbedView type to array items
+      values: ['Content', 'Card', 'Comments'], // TODO: convert HMEmbedView type to array items
       default: 'Content',
     },
     draftId: {

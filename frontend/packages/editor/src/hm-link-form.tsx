@@ -456,7 +456,7 @@ export function LinkTypeDropdown({
 }) {
   const [focused, setFocused] = useState(false)
   const [inputPosition, setInputPosition] = useState<DOMRect | null>(null)
-  const ref = useRef<HTMLInputElement>(null)
+  const ref = useRef<HTMLButtonElement>(null)
   const portalRoot = document.body
   const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
   const filteredTypes = LINK_TYPES.filter((t) => {
@@ -473,6 +473,8 @@ export function LinkTypeDropdown({
   const dropdown = (
     <div
       className="bg-background absolute z-[99999] flex flex-col rounded-md py-2 shadow-md"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       style={{
         top: inputPosition ? inputPosition.bottom + 5 : 0,
         left: inputPosition?.left ?? 0,
@@ -480,34 +482,49 @@ export function LinkTypeDropdown({
       }}
     >
       {filteredTypes.map((item) => (
-        <div
+        <button
+          type="button"
           key={item.value}
-          className="hover:bg-muted flex cursor-pointer gap-2 px-3 py-2"
-          onMouseDown={() => {
+          className="hover:bg-muted text-foreground flex w-full cursor-pointer gap-2 border-0 bg-transparent px-3 py-2 text-left"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
             onSelect(item.value)
             setFocused(false)
           }}
+          onClick={(event) => event.stopPropagation()}
         >
           <item.icon size={16} color={item.value === selected ? '$brand4' : '$color12'} />
           <SizableText size="md" color={item.value === selected ? 'brand' : 'default'}>
             {item.label}
           </SizableText>
-        </div>
+        </button>
       ))}
     </div>
   )
 
   return (
     <>
-      <div
-        ref={ref as any}
-        onClick={() => setFocused(!focused)}
-        className="border-border bg-background hover:border-muted flex h-8 items-center gap-2 rounded-md px-2"
+      <button
+        type="button"
+        ref={ref}
+        aria-haspopup="listbox"
+        aria-expanded={focused}
+        onMouseDown={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          setFocused(!focused)
+        }}
+        className="border-border bg-background hover:border-muted flex h-8 items-center gap-2 rounded-md border-0 px-2"
       >
         {selectedTypeObj?.icon && <selectedTypeObj.icon size={16} />}
         <SizableText className="ml-1.5">{selectedTypeObj?.label}</SizableText>
         <ChevronDown size={16} />
-      </div>
+      </button>
       {focused && inputPosition && createPortal(dropdown, portalRoot)}
     </>
   )
