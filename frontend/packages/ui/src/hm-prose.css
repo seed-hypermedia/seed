@@ -375,3 +375,87 @@
 .hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='6']) {
   margin-top: 0.75rem;
 }
+
+.hm-prose [data-text-color='gray'] {
+  color: #9b9a97;
+}
+.hm-prose [data-text-color='brown'] {
+  color: #64473a;
+}
+.hm-prose [data-text-color='red'] {
+  color: #e03e3e;
+}
+.hm-prose [data-text-color='orange'] {
+  color: #d9730d;
+}
+.hm-prose [data-text-color='yellow'] {
+  color: #dfab01;
+}
+.hm-prose [data-text-color='green'] {
+  color: #4d6461;
+}
+.hm-prose [data-text-color='blue'] {
+  color: #0b6e99;
+}
+.hm-prose [data-text-color='purple'] {
+  color: #6940a5;
+}
+.hm-prose [data-text-color='pink'] {
+  color: #ad1a72;
+}
+
+.hm-prose [data-background-color='gray'] {
+  background-color: #ebeced;
+}
+.hm-prose [data-background-color='brown'] {
+  background-color: #e9e5e3;
+}
+.hm-prose [data-background-color='red'] {
+  background-color: #fbe4e4;
+}
+.hm-prose [data-background-color='orange'] {
+  background-color: #faebdd;
+}
+.hm-prose [data-background-color='yellow'] {
+  background-color: #fbf3db;
+}
+.hm-prose [data-background-color='green'] {
+  background-color: #ddedea;
+}
+.hm-prose [data-background-color='blue'] {
+  background-color: #ddebf1;
+}
+.hm-prose [data-background-color='purple'] {
+  background-color: #eae4f2;
+}
+.hm-prose [data-background-color='pink'] {
+  background-color: #f4dfeb;
+}
+
+.dark .hm-prose [data-background-color='gray'] {
+  background-color: rgba(155, 154, 151, 0.3);
+}
+.dark .hm-prose [data-background-color='brown'] {
+  background-color: rgba(100, 71, 58, 0.4);
+}
+.dark .hm-prose [data-background-color='red'] {
+  background-color: rgba(224, 62, 62, 0.35);
+}
+.dark .hm-prose [data-background-color='orange'] {
+  background-color: rgba(217, 115, 13, 0.35);
+}
+.dark .hm-prose [data-background-color='yellow'] {
+  background-color: rgba(223, 171, 1, 0.35);
+}
+.dark .hm-prose [data-background-color='green'] {
+  background-color: rgba(77, 100, 97, 0.5);
+}
+.dark .hm-prose [data-background-color='blue'] {
+  background-color: rgba(11, 110, 153, 0.4);
+}
+.dark .hm-prose [data-background-color='purple'] {
+  background-color: rgba(105, 64, 165, 0.4);
+}
+.dark .hm-prose [data-background-color='pink'] {
+  background-color: rgba(173, 26, 114, 0.35);
+}

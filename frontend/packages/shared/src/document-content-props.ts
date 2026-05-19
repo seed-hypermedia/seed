@@ -29,4 +29,14 @@ export type DocumentContentProps = {
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
   linkExtensionOptions?: Record<string, unknown>
+  /** Whether the document has no published version yet. */
+  isUnpublishedDraft?: boolean
+  /** Check if the given block id exist in the currently published
+   * version of this document. */
+  isBlockInPublishedVersion?: (blockId: string) => boolean
+  /** Imports a web URL, fetches the resource and uploads to IPFS, returning
+   * either an IPFS cid (desktop) or displaySrc + fileBinary (web/draft). */
+  importWebFile?: (
+    url: string,
+  ) => Promise<{cid: string; type: string} | {displaySrc: string; fileBinary: Uint8Array | ArrayBuffer; type: string}>
 }

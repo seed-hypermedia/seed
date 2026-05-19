@@ -12,9 +12,9 @@ import {
   Radical,
   Video,
 } from 'lucide-react'
-import {RiGridFill, RiHeading, RiText, RiWindow2Fill} from 'react-icons/ri'
-import {NodeSelection} from 'prosemirror-state'
 import {Node} from 'prosemirror-model'
+import {NodeSelection} from 'prosemirror-state'
+import {RiGridFill, RiHeading, RiText, RiWindow2Fill} from 'react-icons/ri'
 import {BlockNoteEditor, BlockSpec, insertOrUpdateBlock, PartialBlock, PropSchema} from './blocknote/core'
 import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {HMBlockSchema} from './schema'
@@ -49,7 +49,10 @@ export function getSlashMenuItems({
   docId?: UnpackedHypermediaId
   /** Provided by the host app (desktop). Creates a child
    * draft under docId and returns its id. */
-  onCreateInlineDraft?: (parentId: UnpackedHypermediaId) => Promise<{draftId: string; draftPath: string[]}>
+  onCreateInlineDraft?: (
+    parentId: UnpackedHypermediaId,
+    options?: import('./draft-actions-context').CreateInlineDraftOptions,
+  ) => Promise<{draftId: string; draftPath: string[]}>
 } = {}) {
   const slashMenuItems = []
 

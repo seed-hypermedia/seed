@@ -1,7 +1,8 @@
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
-import {useEffect, useRef, useState} from 'react'
+import {toast} from '@shm/ui/toast'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -125,7 +126,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         })
         .catch((e) => {
           setFileName({
-            name: e.reason || "Couldn't fetch the image from this URL.",
+            name: e.reason || e?.message || "Couldn't fetch the image from this URL.",
             color: 'red',
           })
           setLoading(false)
@@ -159,6 +160,42 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
   const {canEdit} = useEditorGate()
+
+  /** Re-embed handler for the selection menu's "Insert from URL" item. */
+  const handleMenuUrl = useCallback(
+    (url: string) => {
+      if (!editor.importWebFile) {
+        toast.error('Image import is not configured.')
+        return
+      }
+      if (!isValidUrl(url)) {
+        toast.error('The provided URL is invalid.')
+        return
+      }
+      timeoutPromise(editor.importWebFile(url), 5000, {reason: 'Error fetching the image.'})
+        .then((imageData: any) => {
+          if ('cid' in imageData) {
+            if (!imageData.type.includes('image')) {
+              toast.error('The provided URL is not an image.')
+              return
+            }
+            assign({props: {url: `ipfs://${imageData.cid}`, displaySrc: '', mediaRef: ''}} as unknown as MediaType)
+          } else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
+            if (!imageData.type.includes('image')) {
+              toast.error('The provided URL is not an image.')
+              return
+            }
+            assign({
+              props: {fileBinary: imageData.fileBinary, displaySrc: imageData.displaySrc, url: '', mediaRef: ''},
+            } as unknown as MediaType)
+          }
+        })
+        .catch((e: any) => {
+          toast.error(e?.reason || "Couldn't fetch the image from this URL.")
+        })
+    },
+    [editor, assign],
+  )
 
   useEffect(() => {
     // @ts-ignore
@@ -410,6 +447,10 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       }}
       onHoverOut={imageMouseLeaveHandler}
       width={currentWidth}
+      onSubmitUrl={handleMenuUrl}
+      urlMenuLabel="Insert from URL"
+      urlInputPlaceholder="Paste an image URL"
+      deleteLabel="Delete image"
     >
       {showHandle && (
         <>

@@ -19,7 +19,7 @@ export function DesktopDraftActionsProvider({children}: PropsWithChildren) {
     () => ({
       // Mirrors useCreateInlineDraft. Inlined here because the slash menu's
       // execute runs imperatively outside React, so it consumes a plain async function.
-      onCreateInlineDraft: async (parentId) => {
+      onCreateInlineDraft: async (parentId, options) => {
         const draftId = nanoid(10)
         const parentPath = parentId.path || []
         const draftPath = [...parentPath, `-${draftId}`]
@@ -29,8 +29,8 @@ export function DesktopDraftActionsProvider({children}: PropsWithChildren) {
           locationPath: parentPath,
           editUid: parentId.uid,
           editPath: draftPath,
-          metadata: {name: ''},
-          content: [],
+          metadata: {name: options?.name ?? ''},
+          content: options?.initialContent ?? [],
           deps: [],
           visibility: 'PUBLIC',
         })

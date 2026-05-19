@@ -8,7 +8,7 @@ import {Input} from '@shm/ui/components/input'
 import {SearchResultItem} from '@shm/ui/search'
 import {Spinner} from '@shm/ui/spinner'
 import {cn} from '@shm/ui/utils'
-import {Check, Link, Unlink, X} from 'lucide-react'
+import {Check, Link2, Unlink, X} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
 import {BlockNoteEditor, BlockSchema, useEditorSelectionChange} from './blocknote'
 
@@ -76,7 +76,7 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {edi
         )}
         onClick={() => setIsOpen(true)}
       >
-        <Link className="size-4" />
+        <Link2 className="size-4" />
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

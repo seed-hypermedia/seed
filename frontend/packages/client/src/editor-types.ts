@@ -185,6 +185,8 @@ export interface EditorInlineStyles {
   code?: boolean
   math?: boolean
   range?: boolean
+  textColor?: string
+  backgroundColor?: string
 }
 
 export type EditorAnnotationType =

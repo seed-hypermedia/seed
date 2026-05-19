@@ -18,6 +18,7 @@ import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
+import {BackgroundColorMark} from './extensions/BackgroundColor/BackgroundColorMark'
 import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
 import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
@@ -26,10 +27,11 @@ import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serializat
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
 import {DragExtension} from './extensions/DragMedia/DragExtension'
 import {ImageGalleryPlugin} from './extensions/ImageGallery/ImageGalleryPlugin'
-import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
 import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
+import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
+import {TextColorMark} from './extensions/TextColor/TextColorMark'
 import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 
@@ -76,6 +78,8 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Italic,
     Strike,
     Underline,
+    TextColorMark,
+    BackgroundColorMark,
     Link.configure(opts.linkExtensionOptions),
 
     // nodes

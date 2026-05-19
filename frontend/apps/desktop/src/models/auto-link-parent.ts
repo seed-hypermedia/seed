@@ -279,9 +279,9 @@ export async function autoLinkParentAfterPublish({
     editPath: parentPath,
   })
 
-  // When childDraftId is provided AND the parent
-  // has a draft with a matching embed, rewrite it in place. This works
-  // regardless of whether the parent itself has been published, which is
+  // When childDraftId is provided AND the parent has a draft
+  // with a matching embed, rewrite it in place. This works regardless
+  // of whether the parent itself has been published, which is
   // what makes deeply nested draft chains transition correctly.
   if (parentDraft?.id && childDraftId) {
     const didRewrite = await tryRewriteInlineDraftEmbed(parentDraft.id, childId, childDraftId)

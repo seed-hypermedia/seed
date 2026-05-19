@@ -637,6 +637,35 @@ NESTED BLOCKS
   background-color: #f4dfeb;
 }
 
+/* Dark-mode highlight fills. */
+:global(.dark) [data-background-color='gray'] {
+  background-color: rgba(155, 154, 151, 0.3);
+}
+:global(.dark) [data-background-color='brown'] {
+  background-color: rgba(100, 71, 58, 0.4);
+}
+:global(.dark) [data-background-color='red'] {
+  background-color: rgba(224, 62, 62, 0.35);
+}
+:global(.dark) [data-background-color='orange'] {
+  background-color: rgba(217, 115, 13, 0.35);
+}
+:global(.dark) [data-background-color='yellow'] {
+  background-color: rgba(223, 171, 1, 0.35);
+}
+:global(.dark) [data-background-color='green'] {
+  background-color: rgba(77, 100, 97, 0.5);
+}
+:global(.dark) [data-background-color='blue'] {
+  background-color: rgba(11, 110, 153, 0.4);
+}
+:global(.dark) [data-background-color='purple'] {
+  background-color: rgba(105, 64, 165, 0.4);
+}
+:global(.dark) [data-background-color='pink'] {
+  background-color: rgba(173, 26, 114, 0.35);
+}
+
 /* TEXT ALIGNMENT */
 [data-text-alignment='left'] {
   text-align: left;

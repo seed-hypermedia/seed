@@ -8,7 +8,9 @@ import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
+import {useFragmentActions} from './fragment-actions-context'
 import {markBlockUploaded, MediaType} from './media-render'
+import {MediaSelectionMenu} from './media-selection-menu'
 import {HMBlockSchema} from './schema'
 
 interface ContainerProps {
@@ -24,6 +26,10 @@ interface ContainerProps {
   className?: string
   onPress?: (e: Event) => void
   validateFile?: (file: File) => boolean
+  onSubmitUrl?: (url: string) => void
+  urlMenuLabel?: string
+  urlInputPlaceholder?: string
+  deleteLabel?: string
 }
 
 export const MediaContainer = ({
@@ -39,11 +45,16 @@ export const MediaContainer = ({
   className,
   onPress,
   validateFile,
+  onSubmitUrl,
+  urlMenuLabel,
+  urlInputPlaceholder,
+  deleteLabel,
 }: ContainerProps) => {
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
+  const fragmentActions = useFragmentActions()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MAX_FILE_SIZE_B) {
@@ -237,16 +248,35 @@ export const MediaContainer = ({
                 e.target.value = ''
               }}
             />
-            <Button
-              variant="accent"
-              size="xs"
-              className={cn(
-                'replace-btn absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-              )}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              replace
-            </Button>
+            {onSubmitUrl ? (
+              <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                <MediaSelectionMenu
+                  onCopyLink={
+                    fragmentActions?.onCopyBlockLink ? () => fragmentActions.onCopyBlockLink!(block.id) : undefined
+                  }
+                  onComment={
+                    fragmentActions?.onCommentOnBlock ? () => fragmentActions.onCommentOnBlock!(block.id) : undefined
+                  }
+                  onReplaceFile={() => fileInputRef.current?.click()}
+                  onSubmitUrl={onSubmitUrl}
+                  onDelete={() => editor.removeBlocks([block.id])}
+                  currentUrl={((block.props as Record<string, unknown>).url as string | undefined) ?? ''}
+                  urlMenuLabel={urlMenuLabel ?? 'Insert from URL'}
+                  urlInputPlaceholder={urlInputPlaceholder}
+                  deleteLabel={deleteLabel}
+                  testIdPrefix={mediaType}
+                />
+              </div>
+            ) : (
+              <Button
+                variant="accent"
+                size="xs"
+                className="replace-btn absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                replace
+              </Button>
+            )}
           </>
         )}
         {children}

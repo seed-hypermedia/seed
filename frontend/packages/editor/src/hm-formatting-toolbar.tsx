@@ -1,5 +1,7 @@
-import {EditorToggledStyle, HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {EditorToggledStyle, HMBlockChildrenType, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {
   Code,
   Emphasis,
@@ -11,11 +13,10 @@ import {
   Underline,
   UnorderedList,
 } from '@shm/ui/icons'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
-import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Link, MessageSquare} from 'lucide-react'
+import {ChevronDown, FileText, Link, ListChecks, MessageSquare} from 'lucide-react'
 import {useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
 import {getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
@@ -26,11 +27,15 @@ import {
   useEditorContentChange,
   useEditorSelectionChange,
 } from './blocknote/react'
+import {useDraftActions} from './draft-actions-context'
 import {useFragmentActions} from './fragment-actions-context'
 import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {MobileLinkToolbarButton} from './mobile-link-toolbar-button'
 import {MobileTextMarkerDialog} from './mobile-text-marker-dialog'
 import {MobileTextTypeDialog} from './mobile-text-type-dialog'
+import {StyleOptionsPanel} from './style-options-panel'
+import {TOOLBAR_COLOR_NAMES, type ToolbarColorName} from './toolbar-color-palette'
+import {deriveDraftNameFromBlocks, getSelectedFullBlocks, replaceBlocksWithDraftEmbed} from './turn-into-doc'
 import {useMobile} from './use-mobile'
 
 /**
@@ -202,38 +207,30 @@ export const blockDropdownItems: BlockTypeDropdownItem[] = [
   },
 ]
 
-const groupTypeOptions = [
-  {label: 'No Marker', value: 'Group'},
-  {label: 'Bullets', value: 'Unordered'},
-  {label: 'Numbers', value: 'Ordered'},
-  {label: 'Block Quote', value: 'Blockquote'},
-  {label: 'Grid', value: 'Grid'},
-]
-
-const columnCountOptions = [
-  {label: '1 Column', value: '1'},
-  {label: '2 Columns', value: '2'},
-  {label: '3 Columns', value: '3'},
-  {label: '4 Columns', value: '4'},
-]
-
-const textTypeOptions = [
-  {label: 'Heading', value: 'heading'},
-  {label: 'Paragraph', value: 'paragraph'},
-  {label: 'Code Block', value: 'code-block'},
-]
+function normalizeColorName(value: unknown): ToolbarColorName {
+  if (typeof value !== 'string') return 'default'
+  return (TOOLBAR_COLOR_NAMES as readonly string[]).includes(value) ? (value as ToolbarColorName) : 'default'
+}
 
 export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<string, PropSchema>>>(
   props: FormattingToolbarProps<Schema> & {
     blockTypeDropdownItems?: BlockTypeDropdownItem[]
+    // Current document id for the "Turn into doc" button
+    docId?: UnpackedHypermediaId
   },
 ) {
   const fragmentActions = useFragmentActions()
+  const draftActions = useDraftActions()
+  const onCreateInlineDraft = draftActions?.onCreateInlineDraft
+  const canTurnIntoDoc = !!(props.docId && onCreateInlineDraft)
   const [currentGroupType, setCurrentGroupType] = useState<string>('Group')
   const [currentColumnCount, setCurrentColumnCount] = useState<string>('3')
   const [currentBlockType, setCurrentBlockType] = useState<string>('paragraph')
+  const [currentTextColor, setCurrentTextColor] = useState<ToolbarColorName>('default')
+  const [currentBackgroundColor, setCurrentBackgroundColor] = useState<ToolbarColorName>('default')
   const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
   const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
+  const stylePopover = usePopoverState()
   const isMobile = useMobile()
 
   useEditorSelectionChange(props.editor, () => {
@@ -255,31 +252,99 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     } catch {
       setCurrentBlockType('paragraph')
     }
+
+    const activeStyles = props.editor.getActiveStyles()
+    setCurrentTextColor(normalizeColorName(activeStyles.textColor))
+    setCurrentBackgroundColor(normalizeColorName(activeStyles.backgroundColor))
   })
 
-  const handleTextMarkerChange = (listType: string) => {
-    if (listType !== currentGroupType) {
-      const tiptap = props.editor._tiptapEditor
-      const {state} = tiptap
-      const {$pos} = getGroupInfoFromPos(state.selection.from, state)
-      tiptap.commands.command(updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true))
-      setCurrentGroupType(listType)
+  useEditorContentChange(props.editor, () => {
+    const activeStyles = props.editor.getActiveStyles()
+    setCurrentTextColor(normalizeColorName(activeStyles.textColor))
+    setCurrentBackgroundColor(normalizeColorName(activeStyles.backgroundColor))
+  })
+
+  const handleGroupTypeChange = (listType: string) => {
+    if (listType === currentGroupType) return
+    const tiptap = props.editor._tiptapEditor
+    const {state} = tiptap
+    const {$pos, group} = getGroupInfoFromPos(state.selection.from, state)
+    tiptap.commands.command(updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true))
+    if (listType === 'Grid') {
+      const colCount = group.attrs.columnCount || 3
+      if (!group.attrs.columnCount) {
+        const info = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
+        const tr = tiptap.state.tr
+        tr.setNodeAttribute(info.$pos.before(info.depth), 'columnCount', colCount)
+        tiptap.view.dispatch(tr)
+      }
+      setCurrentColumnCount(String(colCount))
+      fillGridChildren(tiptap, colCount)
     }
+    setCurrentGroupType(listType)
+  }
+
+  const handleColumnCountChange = (colCount: string) => {
+    if (colCount === currentColumnCount) return
+    const tiptap = props.editor._tiptapEditor
+    const {$pos, depth} = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
+    const newCount = parseInt(colCount, 10)
+    const tr = tiptap.state.tr
+    tr.setNodeAttribute($pos.before(depth), 'columnCount', newCount)
+    tiptap.view.dispatch(tr)
+    setCurrentColumnCount(colCount)
+    fillGridChildren(tiptap, newCount)
+  }
+
+  const handleBlockTypeChange = (blockType: string) => {
+    if (blockType === currentBlockType) return
+    const tiptap = props.editor._tiptapEditor
+    const {state} = tiptap
+    const blockInfo = getBlockInfoFromSelection(state)
+    props.editor.updateBlock(blockInfo.block.node.attrs.id, {
+      type: blockType,
+      props: {},
+    })
+    setCurrentBlockType(blockType)
+  }
+
+  const handleTextMarkerChange = (listType: string) => {
+    handleGroupTypeChange(listType)
     setIsTextMarkerDialogOpen(false)
   }
 
   const handleTextTypeChange = (blockType: string) => {
-    if (blockType !== currentBlockType) {
-      const tiptap = props.editor._tiptapEditor
-      const {state} = tiptap
-      const blockInfo = getBlockInfoFromSelection(state)
-      props.editor.updateBlock(blockInfo.block.node.attrs.id, {
-        type: blockType,
-        props: {},
-      })
-      setCurrentBlockType(blockType)
-    }
+    handleBlockTypeChange(blockType)
     setIsTextTypeDialogOpen(false)
+  }
+
+  /**
+   * Snapshot the selected blocks, create a new child draft
+   * seeded with that content, then replace the source blocks
+   * with a single draft-embed in place. Bails out on failure
+   * without touching the parent so the user never loses content.
+   */
+  const handleTurnIntoDoc = async () => {
+    if (!props.docId || !onCreateInlineDraft) return
+    const blocks = getSelectedFullBlocks(props.editor)
+    if (!blocks || blocks.length === 0) return
+
+    let initialContent
+    try {
+      initialContent = editorBlocksToHMBlockNodes(blocks as any)
+    } catch (err) {
+      console.error('[turn-into-doc] failed to serialize selected blocks:', err)
+      return
+    }
+
+    const name = deriveDraftNameFromBlocks(blocks)
+
+    try {
+      const {draftId} = await onCreateInlineDraft(props.docId, {initialContent, name})
+      replaceBlocksWithDraftEmbed(props.editor, blocks, draftId)
+    } catch (err) {
+      console.error('[turn-into-doc] failed to create inline draft:', err)
+    }
   }
 
   return (
@@ -292,150 +357,135 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
           e.stopPropagation()
         }}
       >
-        <div className="text-foreground flex w-full items-center justify-stretch gap-1">
-          {toggleStyles.map((item) => (
-            <ToggleStyleButton key={item.style} editor={props.editor} toggleStyle={item.style} {...item} />
-          ))}
+        <div className="text-foreground flex flex-col gap-1">
+          {/* Row 1 - inline marks and fragment actions */}
+          <div className="flex items-center gap-1">
+            {toggleStyles.map((item) => (
+              <ToggleStyleButton key={item.style} editor={props.editor} toggleStyle={item.style} {...item} />
+            ))}
 
-          {/* Link button - different for mobile/desktop */}
-          {isMobile ? (
-            <MobileLinkToolbarButton editor={props.editor} />
-          ) : (
-            <div className="relative">
-              <HMLinkToolbarButton editor={props.editor} testId="link-button" />
-            </div>
-          )}
+            {/* Link button - different for mobile/desktop */}
+            {isMobile ? (
+              <MobileLinkToolbarButton editor={props.editor} />
+            ) : (
+              <div className="relative">
+                <HMLinkToolbarButton editor={props.editor} testId="link-button" />
+              </div>
+            )}
 
-          <Separator vertical className="bg-foreground mx-1 h-6 opacity-50" />
+            {/* Fragment actions (only when a published version exists).
+                Per design: no separator from the marks, and these buttons
+                are borderless to read as "secondary" icons. */}
+            {fragmentActions && (
+              <>
+                <Tooltip content="Comment">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-md hover:bg-black/10 dark:hover:bg-white/10"
+                    onClick={() => {
+                      const frag = getSelectionFragment(props.editor)
+                      if (frag) fragmentActions.onComment(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                    }}
+                  >
+                    <MessageSquare className="size-4" />
+                  </Button>
+                </Tooltip>
+                <Tooltip content="Copy Link">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-md hover:bg-black/10 dark:hover:bg-white/10"
+                    onClick={() => {
+                      const frag = getSelectionFragment(props.editor)
+                      if (frag) fragmentActions.onCopyFragmentLink(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                    }}
+                  >
+                    <Link className="size-4" />
+                  </Button>
+                </Tooltip>
+              </>
+            )}
+          </div>
 
-          {/* Text marker - dropdown on desktop, dialog on mobile */}
-          {isMobile ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
-              onClick={() => setIsTextMarkerDialogOpen(true)}
-            >
-              <UnorderedList className="size-4" />
-            </Button>
-          ) : (
-            <FormatDropdown
-              testId="group-type-dropdown"
-              value={currentGroupType}
-              onChange={(listType) => {
-                if (listType !== currentGroupType) {
-                  const tiptap = props.editor._tiptapEditor
-                  const {state} = tiptap
-                  const {$pos, group, depth} = getGroupInfoFromPos(state.selection.from, state)
-                  tiptap.commands.command(
-                    updateGroupCommand($pos.pos, listType as HMBlockChildrenType, false, false, true),
-                  )
-                  // When switching to Grid, set default columnCount and fill with empty blocks
-                  if (listType === 'Grid') {
-                    const colCount = group.attrs.columnCount || 3
-                    if (!group.attrs.columnCount) {
-                      const info = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
-                      const tr = tiptap.state.tr
-                      tr.setNodeAttribute(info.$pos.before(info.depth), 'columnCount', colCount)
-                      tiptap.view.dispatch(tr)
-                    }
-                    setCurrentColumnCount(String(colCount))
-                    fillGridChildren(tiptap, colCount)
-                  }
-                  setCurrentGroupType(listType)
-                }
-              }}
-              options={groupTypeOptions}
-            />
-          )}
-
-          {/* Column count dropdown - only shown when inside a Grid */}
-          {currentGroupType === 'Grid' && !isMobile && (
-            <FormatDropdown
-              testId="column-count-dropdown"
-              value={currentColumnCount}
-              onChange={(colCount) => {
-                if (colCount !== currentColumnCount) {
-                  const tiptap = props.editor._tiptapEditor
-                  const {$pos, depth} = getGroupInfoFromPos(tiptap.state.selection.from, tiptap.state)
-                  const newCount = parseInt(colCount, 10)
-                  const tr = tiptap.state.tr
-                  tr.setNodeAttribute($pos.before(depth), 'columnCount', newCount)
-                  tiptap.view.dispatch(tr)
-                  setCurrentColumnCount(colCount)
-                  fillGridChildren(tiptap, newCount)
-                }
-              }}
-              options={columnCountOptions}
-            />
-          )}
-
-          {/* Text type - dropdown on desktop, dialog on mobile */}
-          {isMobile ? (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
-              onClick={() => setIsTextTypeDialogOpen(true)}
-            >
-              <Type className="size-4" />
-            </Button>
-          ) : (
-            <FormatDropdown
-              testId="block-type-dropdown"
-              value={currentBlockType}
-              onChange={(blockType) => {
-                if (blockType !== currentBlockType) {
-                  const tiptap = props.editor._tiptapEditor
-                  const {state} = tiptap
-                  const blockInfo = getBlockInfoFromSelection(state)
-                  props.editor.updateBlock(blockInfo.block.node.attrs.id, {
-                    type: blockType,
-                    props: {},
-                  })
-                  setCurrentBlockType(blockType)
-                }
-              }}
-              options={textTypeOptions}
-            />
-          )}
-
-          {/* Fragment actions — only when a published version exists */}
-          {fragmentActions && (
-            <>
-              <Separator vertical className="bg-foreground mx-1 h-6 opacity-50" />
-              <Tooltip content="Copy Link">
+          {/* Row 2 - Style options and Turn into doc */}
+          <div className="flex items-center gap-2">
+            {isMobile ? (
+              <>
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="hover:bg-black/10 dark:hover:bg-white/10"
-                  onClick={() => {
-                    const frag = getSelectionFragment(props.editor)
-                    if (frag) fragmentActions.onCopyFragmentLink(frag.blockId, frag.rangeStart, frag.rangeEnd)
-                  }}
+                  className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+                  onClick={() => setIsTextMarkerDialogOpen(true)}
                 >
-                  <Link className="size-4" />
+                  <UnorderedList className="size-4" />
                 </Button>
-              </Tooltip>
-              <Tooltip content="Comment">
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="hover:bg-black/10 dark:hover:bg-white/10"
-                  onClick={() => {
-                    const frag = getSelectionFragment(props.editor)
-                    if (frag) fragmentActions.onComment(frag.blockId, frag.rangeStart, frag.rangeEnd)
-                  }}
+                  className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+                  onClick={() => setIsTextTypeDialogOpen(true)}
                 >
-                  <MessageSquare className="size-4" />
+                  <Type className="size-4" />
+                </Button>
+              </>
+            ) : (
+              <Popover {...stylePopover}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    data-testid="style-options-trigger"
+                    className="h-9 gap-1.5 rounded-md border border-black/10 px-3 text-sm font-normal hover:bg-black/10 dark:border-white/10 dark:hover:bg-white/10"
+                  >
+                    <ListChecks className="size-4" />
+                    <span>Style options</span>
+                    <ChevronDown className="size-3.5 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="bottom"
+                  align="start"
+                  sideOffset={8}
+                  collisionPadding={8}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                  className="bg-background w-[22rem] max-w-[92vw] p-3"
+                >
+                  <StyleOptionsPanel
+                    editor={props.editor}
+                    currentBlockType={currentBlockType}
+                    currentGroupType={currentGroupType}
+                    currentColumnCount={currentColumnCount}
+                    currentTextColor={currentTextColor}
+                    currentBackgroundColor={currentBackgroundColor}
+                    onBlockTypeChange={handleBlockTypeChange}
+                    onGroupTypeChange={handleGroupTypeChange}
+                    onColumnCountChange={handleColumnCountChange}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {!isMobile && canTurnIntoDoc && (
+              <Tooltip content="Move selected blocks into a new child document">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  data-testid="turn-into-doc-button"
+                  className="h-9 gap-1.5 rounded-md border border-black/10 px-3 text-sm font-normal hover:bg-black/10 dark:border-white/10 dark:hover:bg-white/10"
+                  onClick={handleTurnIntoDoc}
+                >
+                  <FileText className="size-4" />
+                  <span>Turn into doc</span>
                 </Button>
               </Tooltip>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -494,6 +544,7 @@ function ToggleStyleButton<Schema extends Record<string, BlockSpec<string, PropS
         size="icon"
         variant="ghost"
         className={cn(
+          'rounded-md border border-black/10 dark:border-white/10',
           'hover:bg-black/10 dark:hover:bg-white/10',
           'focus:bg-black/10 dark:focus:bg-white/10',
           'format-toolbar-item',
@@ -508,34 +559,5 @@ function ToggleStyleButton<Schema extends Record<string, BlockSpec<string, PropS
         {icon}
       </Button>
     </Tooltip>
-  )
-}
-
-function FormatDropdown({
-  value,
-  onChange,
-  options,
-  testId,
-}: {
-  value: string
-  onChange: (val: string) => void
-  options: {label: string; value: string}[]
-  testId: string
-}) {
-  return (
-    <div className="flex items-center">
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger data-testid={testId}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value} className="format-toolbar-item">
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
   )
 }

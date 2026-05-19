@@ -309,6 +309,20 @@ function renderAnnotatedText(
             break
           case 'Range':
             break
+          case 'TextColor': {
+            const color = (ann as any).attributes?.color
+            if (typeof color === 'string' && color) {
+              html = `<span data-text-color="${esc(color)}">${html}</span>`
+            }
+            break
+          }
+          case 'BackgroundColor': {
+            const color = (ann as any).attributes?.color
+            if (typeof color === 'string' && color) {
+              html = `<span data-background-color="${esc(color)}">${html}</span>`
+            }
+            break
+          }
         }
       }
 

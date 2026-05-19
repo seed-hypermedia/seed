@@ -1,7 +1,7 @@
-import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId, packHmId, packReferenceUrl, unpackHmId} from '@shm/shared'
+import {useSearch} from '@shm/shared/models/search'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -11,7 +11,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Check, Link, Unlink} from 'lucide-react'
+import {Check, Link2, Unlink} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
 import {BlockNoteEditor, BlockSchema, useEditorSelectionChange} from './blocknote'
 
@@ -81,6 +81,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
             size="icon"
             variant="ghost"
             className={cn(
+              'rounded-md border border-black/10 dark:border-white/10',
               'hover:bg-black/10 dark:hover:bg-white/10',
               'focus:bg-black/10 dark:focus:bg-white/10',
               'format-toolbar-item',
@@ -88,7 +89,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
                 'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
             )}
           >
-            <Link className="size-4" />
+            <Link2 className="size-4" />
           </Button>
         </span>
       </PopoverTrigger>
@@ -96,7 +97,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       <PopoverContent
         className="format-toolbar-item border-border bg-background text-foreground w-fit max-w-[500px] min-w-[400px] border p-0 shadow-md dark:bg-neutral-900 dark:text-neutral-50"
         side="bottom"
-        sideOffset={12}
+        sideOffset={52}
       >
         <LinkSearchInput
           initialUrl={url}

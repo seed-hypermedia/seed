@@ -318,6 +318,20 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         const styleKey = annotationData.type.toLowerCase()
         ;(newLeaf.styles as Record<string, boolean>)[styleKey] = true
       }
+
+      if (annotationData.type === 'TextColor') {
+        const color = (annotationData as any).attributes?.color
+        if (typeof color === 'string' && color) {
+          ;(newLeaf.styles as Record<string, string | boolean>).textColor = color
+        }
+      }
+
+      if (annotationData.type === 'BackgroundColor') {
+        const color = (annotationData as any).attributes?.color
+        if (typeof color === 'string' && color) {
+          ;(newLeaf.styles as Record<string, string | boolean>).backgroundColor = color
+        }
+      }
     }
 
     if (linkAnnotation) {

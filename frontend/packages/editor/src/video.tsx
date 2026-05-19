@@ -6,7 +6,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {CheckCircle2} from 'lucide-react'
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {RiVideoAddLine} from 'react-icons/ri'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -264,6 +264,33 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const autoplay = block.props.autoplay === 'true'
   const loop = block.props.loop === 'true'
   const muted = block.props.muted === 'true'
+
+  /** Re-embed handler for the selection menu's "Insert from URL" item. */
+  const handleMenuUrl = useCallback(
+    (url: string) => {
+      if (!isValidUrl(url)) {
+        toast.error('The provided URL is invalid.')
+        return
+      }
+      let embedUrl = ''
+      if (url.includes('youtu.be') || url.includes('youtube')) {
+        const ytId = youtubeParser(url)
+        if (!ytId) {
+          toast.error(`Unsupported YouTube URL: ${url}`)
+          return
+        }
+        embedUrl = `https://www.youtube.com/embed/${ytId}`
+      } else if (url.includes('vimeo')) {
+        const urlArray = url.split('/')
+        embedUrl = `https://player.vimeo.com/video/${urlArray[urlArray.length - 1]}`
+      } else {
+        toast.error('Unsupported video source. Use a YouTube or Vimeo URL.')
+        return
+      }
+      assign({props: {url: embedUrl, displaySrc: '', mediaRef: ''}} as unknown as MediaType)
+    },
+    [assign],
+  )
   const [showSuccess, setShowSuccess] = useState(() => consumeUploaded(block.id))
 
   useEffect(() => {
@@ -439,6 +466,10 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       onHoverOut={videoMouseLeaveHandler}
       width={currentWidth}
       validateFile={validateFile}
+      onSubmitUrl={handleMenuUrl}
+      urlMenuLabel="Embed (YouTube or Vimeo)"
+      urlInputPlaceholder="Paste a YouTube or Vimeo URL"
+      deleteLabel="Delete video"
     >
       <div className="relative aspect-[16/9] w-full">
         {showHandle && (

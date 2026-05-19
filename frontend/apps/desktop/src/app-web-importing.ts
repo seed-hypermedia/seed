@@ -1,24 +1,24 @@
+import {HMBlockNode, HMPrepareDocumentChangeInput} from '@seed-hypermedia/client/hm-types'
 import {hmId, hmIdPathToEntityQueryPath, packHmId, unpackHmId} from '@shm/shared'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {HMBlockNode, HMPrepareDocumentChangeInput} from '@seed-hypermedia/client/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
+import {app, dialog} from 'electron'
 import {readFile, writeFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
 import z from 'zod'
-import {app, dialog} from 'electron'
-import {seedClient, getSigner} from './app-client'
+import {getSigner, seedClient} from './app-client'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
-import {extractUniqueAuthors, parseWXR} from './wxr-parser'
-import {cancelWXRImport, getImportStatus, hasActiveImport, resumeWXRImport, startWXRImport} from './wxr-import'
 import {serializeImportFile} from './wxr-crypto'
+import {cancelWXRImport, getImportStatus, hasActiveImport, resumeWXRImport, startWXRImport} from './wxr-import'
 import {getImportFile, getImportState} from './wxr-import-store'
 import {isEmailUsableForAuthored, normalizeAuthorLogin} from './wxr-import-utils'
+import {extractUniqueAuthors, parseWXR} from './wxr-parser'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -57,6 +57,23 @@ function downloadFile(fileUrl: string): Promise<Blob> {
             })
             resolve(blob)
           })
+        } else if (
+          // Many image hosts 30x to a different URL before serving the data.
+          // Without following these the import surfaces as a generic
+          // "Couldn't fetch the image" error in the editor.
+          response.statusCode === 301 ||
+          response.statusCode === 302 ||
+          response.statusCode === 303 ||
+          response.statusCode === 307 ||
+          response.statusCode === 308
+        ) {
+          const location = response.headers.location
+          if (location) {
+            const next = new URL(location, fileUrl).toString()
+            downloadFile(next).then(resolve).catch(reject)
+          } else {
+            reject(new Error(`Redirect without location header`))
+          }
         } else {
           reject(new Error(`Failed to download file: ${response.statusCode}`))
         }
@@ -229,9 +246,14 @@ export const webImportingApi = t.router({
       return {}
     }),
   importWebFile: t.procedure.input(z.string()).mutation(async ({input}) => {
-    const file = await downloadFile(input)
-    const uploadedCID = await uploadFile(file)
-    return {cid: uploadedCID, type: file.type, size: file.size}
+    try {
+      const file = await downloadFile(input)
+      const uploadedCID = await uploadFile(file)
+      return {cid: uploadedCID, type: file.type, size: file.size}
+    } catch (err) {
+      console.error('[importWebFile] failed', {input, err})
+      throw err
+    }
   }),
   checkWebUrl: t.procedure.input(z.string()).mutation(async ({input}) => {
     const res = await fetch(input, {

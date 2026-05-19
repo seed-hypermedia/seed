@@ -910,6 +910,24 @@ function DocumentBody({
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
 
+  // Set of block ids present in the currently published version of the document.
+  const publishedBlockIds = useMemo(() => {
+    const ids = new Set<string>()
+    const walk = (nodes: HMBlockNode[] | undefined) => {
+      if (!nodes) return
+      for (const node of nodes) {
+        if (node.block?.id) ids.add(node.block.id)
+        if (node.children) walk(node.children)
+      }
+    }
+    walk(document?.content ?? [])
+    return ids
+  }, [document?.content])
+  const isBlockInPublishedVersion = useCallback(
+    (blockId: string) => publishedBlockIds.has(blockId),
+    [publishedBlockIds],
+  )
+
   // Capture the editor instance locally and forward to upstream onEditorReady.
   // The local state drives useAutoRebase (auto-rebase on remote updates during editing).
   const [autoRebaseEditor, setAutoRebaseEditor] = useState<any>(null)
@@ -1616,7 +1634,9 @@ function DocumentBody({
           blockCitations={blockCitations}
           onBlockCitationClick={handleBlockCitationClick}
           onBlockCommentClick={handleBlockCommentClick}
-          onBlockSelect={isUnpublishedDraft ? undefined : handleBlockSelect}
+          onBlockSelect={handleBlockSelect}
+          isUnpublishedDraft={isUnpublishedDraft}
+          isBlockInPublishedVersion={isBlockInPublishedVersion}
           CommentEditor={CommentEditor}
           // directory={directory.data}
           siteUrl={siteUrl}
@@ -2092,6 +2112,8 @@ function MainContent({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
+  isUnpublishedDraft,
+  isBlockInPublishedVersion,
   CommentEditor,
   // directory,
   siteUrl,
@@ -2135,6 +2157,8 @@ function MainContent({
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  isUnpublishedDraft?: boolean
+  isBlockInPublishedVersion?: (blockId: string) => boolean
   CommentEditor?: React.ComponentType<CommentEditorProps>
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   siteUrl?: string
@@ -2219,6 +2243,8 @@ function MainContent({
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
+          isUnpublishedDraft={isUnpublishedDraft}
+          isBlockInPublishedVersion={isBlockInPublishedVersion}
           // directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
@@ -2247,6 +2273,8 @@ function ContentViewWithOutline({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
+  isUnpublishedDraft,
+  isBlockInPublishedVersion,
   // directory,
   inlineCards,
   inlineInsert,
@@ -2274,6 +2302,8 @@ function ContentViewWithOutline({
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  isUnpublishedDraft?: boolean
+  isBlockInPublishedVersion?: (blockId: string) => boolean
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
   inlineCards?: ReactNode
   inlineInsert?: ReactNode
@@ -2331,6 +2361,8 @@ function ContentViewWithOutline({
             draftCursorPosition={existingDraftCursorPosition}
             perspectiveAccountUid={perspectiveAccountUid}
             linkExtensionOptions={linkExtensionOptions}
+            isUnpublishedDraft={isUnpublishedDraft}
+            isBlockInPublishedVersion={isBlockInPublishedVersion}
           />
         ) : ssrContentHTML ? (
           <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />

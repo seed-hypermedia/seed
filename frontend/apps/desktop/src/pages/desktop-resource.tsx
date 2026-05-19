@@ -166,6 +166,18 @@ export default function DesktopResourcePage() {
     [linkGwUrl, linkOpenUrl, checkWebUrlMutation.mutateAsync],
   )
 
+  // Image block's URL submit. Fetch the external image and upload it to IPFS.
+  // The tRPC procedure lives in app-web-importing.ts. Bind it once and pass via
+  // a wrapped DocumentEditor so resource-page-common doesn't know about desktop-specific tRPC.
+  const importWebFile = useCallback((url: string) => client.webImporting.importWebFile.mutate(url), [])
+  const DocumentEditorWithImport = useMemo(
+    () =>
+      function DocumentEditorWithImport(props: React.ComponentProps<typeof DocumentEditor>) {
+        return <DocumentEditor {...props} importWebFile={importWebFile as any} />
+      },
+    [importWebFile],
+  )
+
   // Publish mutation (ref-based so the fromPromise actor can access it).
   // After publish completes, if the user was viewing a pinned (old) version,
   // navigate them to the new merged version so they see the published result
@@ -707,7 +719,7 @@ export default function DesktopResourcePage() {
                     onEditProfile={onEditProfile}
                     inspect={inspect}
                     inspectStore={inspectStore}
-                    DocumentContentComponent={DocumentEditor}
+                    DocumentContentComponent={DocumentEditorWithImport}
                     machine={machine}
                     onEditorReady={handleEditorReady}
                     machineExtras={null}

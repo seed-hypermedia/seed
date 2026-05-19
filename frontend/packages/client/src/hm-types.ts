@@ -109,6 +109,29 @@ export const HighlightAnnotationSchema = z
   })
   .strict()
 
+const colorAnnotationProperties = {
+  ...baseAnnotationProperties,
+  attributes: z
+    .object({
+      color: z.string(),
+    })
+    .optional(),
+} as const
+
+export const TextColorAnnotationSchema = z
+  .object({
+    type: z.literal('TextColor'),
+    ...colorAnnotationProperties,
+  })
+  .strict()
+
+export const BackgroundColorAnnotationSchema = z
+  .object({
+    type: z.literal('BackgroundColor'),
+    ...colorAnnotationProperties,
+  })
+  .strict()
+
 export const HMAnnotationSchema = z.discriminatedUnion('type', [
   BoldAnnotationSchema,
   ItalicAnnotationSchema,
@@ -118,6 +141,8 @@ export const HMAnnotationSchema = z.discriminatedUnion('type', [
   LinkAnnotationSchema,
   InlineEmbedAnnotationSchema,
   HighlightAnnotationSchema,
+  TextColorAnnotationSchema,
+  BackgroundColorAnnotationSchema,
 ])
 export type HMAnnotation = z.infer<typeof HMAnnotationSchema>
 
@@ -128,6 +153,8 @@ export type StrikeAnnotation = z.infer<typeof StrikeAnnotationSchema>
 export type CodeAnnotation = z.infer<typeof CodeAnnotationSchema>
 export type LinkAnnotation = z.infer<typeof LinkAnnotationSchema>
 export type InlineEmbedAnnotation = z.infer<typeof InlineEmbedAnnotationSchema>
+export type TextColorAnnotation = z.infer<typeof TextColorAnnotationSchema>
+export type BackgroundColorAnnotation = z.infer<typeof BackgroundColorAnnotationSchema>
 
 export const HMAnnotationsSchema = z.array(HMAnnotationSchema).optional()
 export type HMAnnotations = z.infer<typeof HMAnnotationsSchema>

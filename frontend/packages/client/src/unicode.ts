@@ -64,7 +64,9 @@ export class AnnotationSet {
         return `${type}-${attributes.href}`
       }
 
-      // add more attributes: color, embed, ...
+      if (attributes.color) {
+        return `${type}-${attributes.color}`
+      }
     }
 
     return type

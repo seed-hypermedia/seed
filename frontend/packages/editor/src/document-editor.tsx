@@ -14,7 +14,7 @@ import {
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
-import {useCallback, useEffect, useMemo, useRef} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BlockHoverActionsPositioner,
   BlockNoteView,
@@ -37,6 +37,7 @@ import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
 import {InlineAddBlockButton} from './inline-add-block-button'
 import {MentionMenuPositioner} from './mention-menu-positioner'
+import {PublishRequiredDialog} from './publish-required-dialog'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 
@@ -73,7 +74,13 @@ export function DocumentEditor({
   draftCursorPosition,
   perspectiveAccountUid,
   linkExtensionOptions,
+  importWebFile,
+  isUnpublishedDraft,
+  isBlockInPublishedVersion,
 }: DocumentContentProps) {
+  const [publishRequiredDialog, setPublishRequiredDialog] = useState<
+    {open: false} | {open: true; intent: 'copy-link' | 'comment'}
+  >({open: false})
   const openUrl = useOpenUrl()
   const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
   const getImageUrl = useImageUrl()
@@ -143,6 +150,7 @@ export function DocumentEditor({
       willBeEditable: canEdit,
       renderType: 'document',
       blockSchema: hmBlockSchema,
+      importWebFile: importWebFile as any,
       getSlashMenuItems: () => getSlashMenuItems({docId: resourceId, onCreateInlineDraft}),
       onEditorContentChange() {
         if (suppressChangeRef.current) return
@@ -588,13 +596,46 @@ export function DocumentEditor({
 
   const fragmentActionsValue = useMemo<FragmentActions | null>(() => {
     if (!onBlockSelect && !onBlockCommentClick) return null
-    return {
-      onCopyFragmentLink: (blockId, rangeStart, rangeEnd) =>
-        onBlockSelect?.(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true}),
-      onComment: (blockId, rangeStart, rangeEnd) =>
-        onBlockCommentClick?.(blockId, {start: rangeStart, end: rangeEnd}, true),
+    const shouldIntercept = (blockId: string): boolean => {
+      if (isUnpublishedDraft) return true
+      if (isBlockInPublishedVersion && !isBlockInPublishedVersion(blockId)) return true
+      return false
     }
-  }, [onBlockSelect, onBlockCommentClick])
+    return {
+      onCopyFragmentLink: (blockId, rangeStart, rangeEnd) => {
+        if (shouldIntercept(blockId)) {
+          setPublishRequiredDialog({open: true, intent: 'copy-link'})
+          return
+        }
+        onBlockSelect?.(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true})
+      },
+      onComment: (blockId, rangeStart, rangeEnd) => {
+        if (shouldIntercept(blockId)) {
+          setPublishRequiredDialog({open: true, intent: 'comment'})
+          return
+        }
+        onBlockCommentClick?.(blockId, {start: rangeStart, end: rangeEnd}, true)
+      },
+      onCopyBlockLink: onBlockSelect
+        ? (blockId) => {
+            if (shouldIntercept(blockId)) {
+              setPublishRequiredDialog({open: true, intent: 'copy-link'})
+              return
+            }
+            onBlockSelect(blockId, {copyToClipboard: true})
+          }
+        : undefined,
+      onCommentOnBlock: onBlockCommentClick
+        ? (blockId) => {
+            if (shouldIntercept(blockId)) {
+              setPublishRequiredDialog({open: true, intent: 'comment'})
+              return
+            }
+            onBlockCommentClick(blockId, undefined, true)
+          }
+        : undefined,
+    }
+  }, [onBlockSelect, onBlockCommentClick, isUnpublishedDraft, isBlockInPublishedVersion])
 
   return (
     <FragmentActionsContext.Provider value={fragmentActionsValue}>
@@ -602,7 +643,10 @@ export function DocumentEditor({
         {/* Editing-only positioners — gated behind isEditing */}
         {editable && (
           <>
-            <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+            <FormattingToolbarPositioner
+              editor={editor}
+              formattingToolbar={(p) => <HMFormattingToolbar {...p} docId={resourceId} />}
+            />
             <SideMenuPositioner editor={editor} />
             <SlashMenuPositioner editor={editor} />
             <LinkMenuPositioner editor={editor} />
@@ -647,6 +691,13 @@ export function DocumentEditor({
         <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
       </BlockNoteView>
       {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
+      <PublishRequiredDialog
+        open={publishRequiredDialog.open}
+        intent={publishRequiredDialog.open ? publishRequiredDialog.intent : 'copy-link'}
+        onOpenChange={(open) => {
+          if (!open) setPublishRequiredDialog({open: false})
+        }}
+      />
     </FragmentActionsContext.Provider>
   )
 }

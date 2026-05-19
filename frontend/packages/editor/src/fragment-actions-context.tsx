@@ -11,6 +11,11 @@ import {createContext, useContext} from 'react'
 export type FragmentActions = {
   onCopyFragmentLink: (blockId: string, rangeStart: number, rangeEnd: number) => void
   onComment: (blockId: string, rangeStart: number, rangeEnd: number) => void
+  /** Whole block copy link variant used by media block
+   * selections, which have no text range. */
+  onCopyBlockLink?: (blockId: string) => void
+  /** Whole block comment variant for media block selections. */
+  onCommentOnBlock?: (blockId: string) => void
 }
 
 export const FragmentActionsContext = createContext<FragmentActions | null>(null)

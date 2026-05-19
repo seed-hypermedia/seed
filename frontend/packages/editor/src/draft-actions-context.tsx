@@ -1,5 +1,13 @@
-import type {HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createContext, useContext} from 'react'
+
+/** Options accepted by DraftActions.onCreateInlineDraft. Used by
+ * "Turn into doc" to seed the new draft with the selected blocks and a
+ * derived name. */
+export type CreateInlineDraftOptions = {
+  initialContent?: HMBlockNode[]
+  name?: string
+}
 
 /**
  * Callbacks the editor needs for inline draft embeds: create a new child
@@ -7,7 +15,10 @@ import {createContext, useContext} from 'react'
  * editor route. On web the context value null and the "New document" slash item is hidden.
  */
 export type DraftActions = {
-  onCreateInlineDraft: (parentId: UnpackedHypermediaId) => Promise<{draftId: string; draftPath: string[]}>
+  onCreateInlineDraft: (
+    parentId: UnpackedHypermediaId,
+    options?: CreateInlineDraftOptions,
+  ) => Promise<{draftId: string; draftPath: string[]}>
   /** React hook, which returns the draft's reactive query result. */
   useInlineDraft: (id: string | undefined) => {data?: HMListedDraft | null}
   onDeleteDraft: (id: string) => Promise<void>

@@ -82,6 +82,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       strike?: boolean
       code?: boolean
       math?: boolean
+      textColor?: string
+      backgroundColor?: string
     }
     href?: string
     link?: string
@@ -124,6 +126,14 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
     if (leaf.type == 'link') {
       annotations.addSpan('Link', {link: leaf.href!}, start, end)
+    }
+
+    if (leaf.styles?.textColor) {
+      annotations.addSpan('TextColor', {color: leaf.styles.textColor}, start, end)
+    }
+
+    if (leaf.styles?.backgroundColor) {
+      annotations.addSpan('BackgroundColor', {color: leaf.styles.backgroundColor}, start, end)
     }
 
     block.text += leaf.text
