@@ -1,0 +1,25 @@
+.bn-media-selected {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.bn-media-selected .replace-btn,
+.bn-media-selected .sel-btn {
+  opacity: 1;
+}
+
+.bn-media-selected .video-iframe {
+  pointer-events: auto;
+}
+
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='image']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='video']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='file']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='embed']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='web-embed']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='button']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='query']),
+[data-node-type='blockNode'].bn-full-block-selected:has(> [data-content-type='math']) {
+  background-color: transparent;
+}

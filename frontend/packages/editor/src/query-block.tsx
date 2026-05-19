@@ -22,6 +22,7 @@ import {Fragment} from '@tiptap/pm/model'
 import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
@@ -200,36 +201,34 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }
 
   return (
-    <div
-      // @ts-ignore
-      contentEditable={false}
-      className="group relative -mx-4 flex flex-col px-4 select-none"
-    >
-      {canEdit && (
-        <QuerySettings
-          // @ts-expect-error
-          queryDocName={entity.data?.document?.metadata.name || ''}
-          queryIncludes={queryIncludes}
-          querySort={querySort}
-          style={style}
-          banner={banner}
-          // @ts-expect-error
-          block={block}
-          editor={editor}
-          beginEditIfNeeded={beginEditIfNeeded}
-          onValuesChange={({id, props}) => {
-            if (id) {
-              setQueryId(id)
-            }
-            assign(props)
-          }}
-        />
-      )}
-      {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
-      <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-        {DraftSlot ? <DraftSlot targetId={queryId}>{(data) => renderContent(data)}</DraftSlot> : renderContent(null)}
+    <BlockSelectionWrapper editor={editor} block={block}>
+      <div className="group relative -mx-4 flex flex-col px-4 select-none">
+        {canEdit && (
+          <QuerySettings
+            // @ts-expect-error
+            queryDocName={entity.data?.document?.metadata.name || ''}
+            queryIncludes={queryIncludes}
+            querySort={querySort}
+            style={style}
+            banner={banner}
+            // @ts-expect-error
+            block={block}
+            editor={editor}
+            beginEditIfNeeded={beginEditIfNeeded}
+            onValuesChange={({id, props}) => {
+              if (id) {
+                setQueryId(id)
+              }
+              assign(props)
+            }}
+          />
+        )}
+        {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
+        <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          {DraftSlot ? <DraftSlot targetId={queryId}>{(data) => renderContent(data)}</DraftSlot> : renderContent(null)}
+        </div>
       </div>
-    </div>
+    </BlockSelectionWrapper>
   )
 }
 

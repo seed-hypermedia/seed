@@ -16,8 +16,6 @@ interface ContainerProps {
   block: Block<HMBlockSchema>
   mediaType: string
   styleProps?: Object
-  selected: boolean
-  setSelected: any
   assign: any
   children: any
   onHoverIn?: () => void
@@ -33,8 +31,6 @@ export const MediaContainer = ({
   block,
   mediaType,
   styleProps,
-  selected,
-  setSelected,
   assign,
   children,
   onHoverIn,
@@ -121,7 +117,6 @@ export const MediaContainer = ({
       e.preventDefault()
       e.stopPropagation()
       setDrag(false)
-      if (selected) setSelected(false)
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const file = Array.from(e.dataTransfer.files)[0]
         // @ts-ignore
@@ -147,23 +142,15 @@ export const MediaContainer = ({
     },
     onDragEnter: (e: React.DragEvent<HTMLDivElement>) => {
       if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
-        const relatedTarget = e.relatedTarget as HTMLElement
         e.preventDefault()
         e.stopPropagation()
         setDrag(true)
-        if ((!relatedTarget || !e.currentTarget.contains(relatedTarget)) && e.dataTransfer.effectAllowed !== 'move') {
-          setSelected(true)
-        }
       }
     },
     onDragLeave: (e: React.DragEvent<HTMLDivElement>) => {
-      const relatedTarget = e.relatedTarget as HTMLElement
       e.preventDefault()
       e.stopPropagation()
       setDrag(false)
-      if ((!relatedTarget || !e.currentTarget.contains(relatedTarget)) && e.dataTransfer.effectAllowed !== 'move') {
-        setSelected(false)
-      }
     },
   }
 
@@ -226,9 +213,9 @@ export const MediaContainer = ({
         className={cn(
           'group relative flex max-w-full flex-col rounded-md border-2 transition-colors',
           mediaType === 'file' ? 'w-full' : 'w-full',
-          drag || selected ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
+          drag ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
           drag && 'border-dashed',
-          editor.commentEditor && !drag && !selected ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
+          editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
           className ?? block.type,
         )}
         style={{width}}
@@ -254,8 +241,7 @@ export const MediaContainer = ({
               variant="accent"
               size="xs"
               className={cn(
-                'absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-                selected && 'opacity-100',
+                'replace-btn absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
               )}
               onClick={() => fileInputRef.current?.click()}
             >

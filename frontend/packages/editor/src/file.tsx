@@ -59,7 +59,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   )
 }
 
-const FileDisplay = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const FileDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const {saveCidAsFile} = useUniversalAppContext()
   const {isEditing} = useEditorGate()
   const url: string = block.props.url || ''
@@ -68,14 +68,7 @@ const FileDisplay = ({editor, block, selected, setSelected, assign}: DisplayComp
   const showDownload = !!fileCid && !isEditing
 
   return (
-    <MediaContainer
-      editor={editor}
-      block={block}
-      mediaType="file"
-      selected={selected}
-      setSelected={setSelected}
-      assign={assign}
-    >
+    <MediaContainer editor={editor} block={block} mediaType="file" assign={assign}>
       <div className="group relative w-full">
         <Button className="w-full justify-start px-4 py-3 select-none" disabled>
           <File className="size-4 shrink-0" />
@@ -92,8 +85,7 @@ const FileDisplay = ({editor, block, selected, setSelected, assign}: DisplayComp
             variant="accent"
             size="xs"
             className={cn(
-              'absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
-              selected && 'opacity-100',
+              'sel-btn absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
             )}
             asChild
           >

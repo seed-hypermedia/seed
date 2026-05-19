@@ -31,6 +31,7 @@ import {useDraftActions} from './draft-actions-context'
 import {EmbedEditorView} from './embed-editor'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {HMBlockSchema} from './schema'
 
 export const EmbedBlock = createReactBlockSpec({
@@ -214,7 +215,11 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   // When the embed points at an unpublished child draft,
   // render a placeholder card instead of the URL input form.
   if (block.props.draftId) {
-    return <DraftEmbedPlaceholder draftId={block.props.draftId} editor={editor} blockId={block.id} />
+    return (
+      <BlockSelectionWrapper editor={editor} block={block}>
+        <DraftEmbedPlaceholder draftId={block.props.draftId} editor={editor} blockId={block.id} />
+      </BlockSelectionWrapper>
+    )
   }
   const gwUrl = useGatewayUrlStream()
   const submitEmbed = async (url: string, assign: any, setFileName: any, setLoading: any) => {
@@ -277,15 +282,13 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   )
 }
 
-const EmbedDisplay = ({editor, block, assign, selected, setSelected}: DisplayComponentProps) => {
+const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const {canEdit, isEditing} = useEditorGate()
   return (
     <MediaContainer
       editor={editor}
       block={block}
       mediaType="embed"
-      selected={selected}
-      setSelected={setSelected}
       assign={assign}
       // styleProps={{
       //   pointerEvents: activeId && activeId !== block.id ? 'none' : '',
@@ -528,7 +531,7 @@ export const EmbedLauncherInput = ({
             setFocusedIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length)
           }
         }}
-        className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"
+        className="border-muted-foreground/30 focus-visible:border-ring text-foreground placeholder:text-foreground/50 w-full"
       />
 
       {content}

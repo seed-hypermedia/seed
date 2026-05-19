@@ -156,7 +156,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   )
 }
 
-const ImageDisplay = ({editor, block, selected, setSelected, assign}: DisplayComponentProps) => {
+const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
   const {canEdit} = useEditorGate()
 
@@ -401,8 +401,6 @@ const ImageDisplay = ({editor, block, selected, setSelected, assign}: DisplayCom
       editor={editor}
       block={block}
       mediaType="image"
-      selected={selected}
-      setSelected={setSelected}
       assign={assign}
       onHoverIn={() => {
         // Suppress resize handles in viewer render type (discussion panel)

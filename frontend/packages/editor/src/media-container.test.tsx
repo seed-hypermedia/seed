@@ -50,14 +50,7 @@ afterEach(() => {
 function renderImageContainer(editor: ReturnType<typeof makeEditor>) {
   act(() => {
     root.render(
-      <MediaContainer
-        editor={editor}
-        block={makeBlock()}
-        mediaType="image"
-        selected={false}
-        setSelected={() => {}}
-        assign={() => {}}
-      >
+      <MediaContainer editor={editor} block={makeBlock()} mediaType="image" assign={() => {}}>
         <div data-testid="media-child" />
       </MediaContainer>,
     )
