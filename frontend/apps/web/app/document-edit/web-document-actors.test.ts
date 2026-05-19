@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto'
 import {indexedDB} from 'fake-indexeddb'
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {PublishInput} from '@shm/shared/models/document-machine'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import * as Block from 'multiformats/block'
@@ -50,7 +51,7 @@ function makeDocId(uid: string, path: string[] = []): UnpackedHypermediaId {
 const OWNER = 'z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou'
 const ALICE = 'z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH'
 
-function makeBaselineDoc(content: HMBlockNode[] = []): HMDocument {
+function makeBaselineDoc(content: HMBlockNode[] = [], overrides: Partial<HMDocument> = {}): HMDocument {
   return {
     account: OWNER,
     path: '',
@@ -60,6 +61,8 @@ function makeBaselineDoc(content: HMBlockNode[] = []): HMDocument {
     metadata: {},
     content,
     detachedBlocks: {navigation: null} as any,
+    visibility: 'PUBLIC',
+    ...overrides,
   } as unknown as HMDocument
 }
 
@@ -213,6 +216,50 @@ describe('publishWebDocument', () => {
     expect(opCases).toContain('replaceBlock')
 
     expect(await getWebDocDraft(draftId)).toBeNull()
+  })
+
+  it('private document publish keeps PrepareDocumentChange and Ref visibility private', async () => {
+    const docId = makeDocId(OWNER, ['secret'])
+    const genesis = (await makeTestCID({v: 'private-genesis'})).toString()
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'private hello')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const deps = makeDeps({
+      docId,
+      baseline: makeBaselineDoc([], {path: '/secret', genesis, visibility: 'PRIVATE'}),
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'private hello'}],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument({...baseInput, documentId: docId}, deps)
+
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    expect(prepareCall[1].visibility).toBe(ResourceVisibility.PRIVATE)
+
+    const publishCall = (deps.client.publish as AnyMock).mock.calls[0]!
+    const refData = cborDecode(publishCall[0].blobs[1]!.data) as Record<string, unknown>
+    expect(refData.type).toBe('Ref')
+    expect(refData.visibility).toBe('Private')
   })
 
   it('non-owner publish includes capability CID', async () => {

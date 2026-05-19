@@ -11,6 +11,7 @@
  */
 
 import {signDocumentChange} from '@seed-hypermedia/client'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -163,6 +164,8 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   }
 
   const capabilityCid = deps.getCapabilityCid() ?? ''
+  const visibility =
+    editDocument?.visibility === 'PRIVATE' ? ResourceVisibility.PRIVATE : ResourceVisibility.UNSPECIFIED
   // Web signs client-side via `signDocumentChange`. Generation must be strictly
   // greater than existing HEAD's — a tie keeps the old HEAD. Desktop avoids this
   // because the daemon's `createDocumentChange` gRPC manages generation server-side.
@@ -175,6 +178,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
       baseVersion,
       changes: allChanges as any,
       capability: capabilityCid,
+      visibility,
     } as any,
   )) as any
 
@@ -189,6 +193,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
       genesis: editDocument?.genesis,
       generation: nextGeneration,
       capability: capabilityCid,
+      visibility,
     },
     signer,
   )
