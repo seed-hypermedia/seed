@@ -6,7 +6,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {nanoid} from 'nanoid'
-import {PropsWithChildren, useMemo} from 'react'
+import {PropsWithChildren, useMemo, useState} from 'react'
 
 /**
  * Provides DraftActions to the editor: creates / fetches / deletes / navigates
@@ -18,6 +18,7 @@ export function DesktopDraftActionsProvider({
   children,
 }: PropsWithChildren<{canCreateInlineDraft?: boolean}>) {
   const navigate = useNavigate()
+  const [lastCreatedInlineDraftId, setLastCreatedInlineDraftId] = useState<string | null>(null)
 
   const value = useMemo<DraftActions>(
     () => ({
@@ -41,6 +42,7 @@ export function DesktopDraftActionsProvider({
             })
             invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId.uid])
             invalidateQueries([queryKeys.DRAFTS_LIST])
+            setLastCreatedInlineDraftId(draftId)
             return {draftId, draftPath}
           }
         : undefined,
@@ -61,8 +63,31 @@ export function DesktopDraftActionsProvider({
           navigate({key: 'document', id: hmId(editUid, {path: editPath})})
         })
       },
+      onUpdateDraftName: async (draftId, name) => {
+        const draft = await client.drafts.get.query(draftId)
+        if (!draft) throw new Error(`Draft ${draftId} not found`)
+        await client.drafts.write.mutate({
+          id: draft.id,
+          locationUid: draft.locationUid,
+          locationPath: draft.locationPath,
+          editUid: draft.editUid,
+          editPath: draft.editPath,
+          metadata: {...draft.metadata, name},
+          content: draft.content,
+          deps: draft.deps,
+          navigation: draft.navigation,
+          visibility: draft.visibility,
+        })
+        invalidateQueries([queryKeys.DRAFT, draftId])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+      },
+      lastCreatedInlineDraftId,
+      clearLastCreatedInlineDraftId: (draftId) => {
+        setLastCreatedInlineDraftId((current) => (current === draftId ? null : current))
+      },
     }),
-    [navigate, canCreateInlineDraft],
+    [navigate, canCreateInlineDraft, lastCreatedInlineDraftId],
   )
 
   return <DraftActionsContext.Provider value={value}>{children}</DraftActionsContext.Provider>

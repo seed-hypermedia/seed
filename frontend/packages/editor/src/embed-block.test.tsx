@@ -1,8 +1,18 @@
 // @vitest-environment jsdom
 import {createRoot, type Root} from 'react-dom/client'
+import {type HTMLAttributes} from 'react'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+
+const {draftActionsMock, editorGateMock} = vi.hoisted(() => ({
+  draftActionsMock: {
+    current: null as any,
+  },
+  editorGateMock: {
+    current: {canEdit: false, isEditing: false},
+  },
+}))
 
 vi.mock('@shm/shared/models/recents', () => ({
   useRecents: () => ({data: []}),
@@ -17,7 +27,7 @@ vi.mock('@shm/shared/gateway-url', () => ({
 }))
 
 vi.mock('@shm/shared/models/use-editor-gate', () => ({
-  useEditorGate: () => ({canEdit: false, isEditing: false}),
+  useEditorGate: () => editorGateMock.current,
 }))
 
 vi.mock('./blocknote/react', () => ({
@@ -25,7 +35,11 @@ vi.mock('./blocknote/react', () => ({
 }))
 
 vi.mock('./draft-actions-context', () => ({
-  useDraftActions: () => null,
+  useDraftActions: () => draftActionsMock.current,
+}))
+
+vi.mock('./block-selection-wrapper', () => ({
+  BlockSelectionWrapper: ({children}: any) => <div contentEditable={false}>{children}</div>,
 }))
 
 vi.mock('./embed-editor', () => ({
@@ -33,11 +47,28 @@ vi.mock('./embed-editor', () => ({
 }))
 
 vi.mock('./media-container', () => ({
-  MediaContainer: ({children}: any) => <div>{children}</div>,
+  MediaContainer: ({children, onPress}: any) => (
+    <div data-testid="media-container" data-has-on-press={String(!!onPress)}>
+      {children}
+    </div>
+  ),
 }))
 
 vi.mock('./media-render', () => ({
-  MediaRender: () => null,
+  MediaRender: ({DisplayComponent, editor, block}: any) =>
+    DisplayComponent ? <DisplayComponent editor={editor} block={block} assign={vi.fn()} /> : null,
+}))
+
+vi.mock('@shm/ui/embed-views', () => ({
+  BlockEmbedCard: (props: any) => (
+    <div
+      data-testid="block-embed-card"
+      data-open-on-click={String(props.openOnClick)}
+      data-title-link-only={String(props.titleLinkOnly)}
+    />
+  ),
+  BlockEmbedComments: () => <div data-testid="block-embed-comments" />,
+  BlockEmbedContent: () => <div data-testid="block-embed-content" />,
 }))
 
 const resolveHypermediaUrlMock = vi.fn()
@@ -59,7 +90,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async (importOriginal) => {
   }
 })
 
-import {EmbedLauncherInput, resolveEmbedUrl} from './embed-block'
+import {EmbedBlock, EmbedLauncherInput, resolveEmbedUrl} from './embed-block'
 
 let container: HTMLDivElement
 let root: Root
@@ -75,6 +106,9 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  draftActionsMock.current = null
+  editorGateMock.current = {canEdit: false, isEditing: false}
+  vi.useRealTimers()
 })
 
 function renderLauncher(overrides: Partial<Parameters<typeof EmbedLauncherInput>[0]> = {}) {
@@ -95,6 +129,107 @@ function renderLauncher(overrides: Partial<Parameters<typeof EmbedLauncherInput>
   if (!input) throw new Error('Input not rendered')
   return {input, props}
 }
+
+function renderEmbedBlock({
+  canEdit = false,
+  isEditing = false,
+  view = 'Card',
+}: {
+  canEdit?: boolean
+  isEditing?: boolean
+  view?: 'Card' | 'Content' | 'Comments'
+} = {}) {
+  editorGateMock.current = {canEdit, isEditing}
+  act(() => {
+    root.render(
+      EmbedBlock.render({
+        block: {
+          id: 'block-1',
+          props: {draftId: '', url: 'hm://uid/doc', view, parentBlockId: ''},
+        } as any,
+        editor: {} as any,
+      }),
+    )
+  })
+}
+
+function renderDraftEmbed({
+  draft = {
+    id: 'draft-1',
+    metadata: {name: 'Draft title'},
+    locationUid: 'uid-1',
+    locationPath: ['parent'],
+    editUid: 'uid-1',
+    editPath: ['parent', '-draft-1'],
+  },
+  onUpdateDraftName = vi.fn(),
+  onOpenDraft = vi.fn(),
+  onDeleteDraft = vi.fn(),
+  lastCreatedInlineDraftId = null as string | null,
+  clearLastCreatedInlineDraftId = vi.fn(),
+  parentHandlers = {},
+}: {
+  draft?: any
+  onUpdateDraftName?: any
+  onOpenDraft?: any
+  onDeleteDraft?: any
+  lastCreatedInlineDraftId?: string | null
+  clearLastCreatedInlineDraftId?: any
+  parentHandlers?: HTMLAttributes<HTMLDivElement>
+} = {}) {
+  const editor = {
+    updateBlock: vi.fn(),
+    insertBlocks: vi.fn(),
+    removeBlocks: vi.fn(),
+  }
+  draftActionsMock.current = {
+    useInlineDraft: () => ({data: draft}),
+    onUpdateDraftName,
+    onOpenDraft,
+    onDeleteDraft,
+    lastCreatedInlineDraftId,
+    clearLastCreatedInlineDraftId,
+  }
+  act(() => {
+    root.render(
+      <div data-testid="parent" {...parentHandlers}>
+        {EmbedBlock.render({
+          block: {id: 'block-1', props: {draftId: draft.id}} as any,
+          editor: editor as any,
+        })}
+      </div>,
+    )
+  })
+  const input = container.querySelector('input') as HTMLInputElement | null
+  if (!input) throw new Error('Draft title input not rendered')
+  return {input, editor, onUpdateDraftName, onOpenDraft, onDeleteDraft, clearLastCreatedInlineDraftId}
+}
+
+describe('EmbedBlock card navigation mode', () => {
+  it('uses title-only navigation for card embeds when the user can edit', () => {
+    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card'})
+
+    const card = container.querySelector('[data-testid="block-embed-card"]') as HTMLElement | null
+    expect(card).toBeTruthy()
+    expect(card?.dataset.titleLinkOnly).toBe('true')
+    expect(card?.dataset.openOnClick).toBe('true')
+    expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
+      'true',
+    )
+  })
+
+  it('keeps whole-card navigation for card embeds when the user cannot edit', () => {
+    renderEmbedBlock({canEdit: false, isEditing: false, view: 'Card'})
+
+    const card = container.querySelector('[data-testid="block-embed-card"]') as HTMLElement | null
+    expect(card).toBeTruthy()
+    expect(card?.dataset.titleLinkOnly).toBe('false')
+    expect(card?.dataset.openOnClick).toBe('true')
+    expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
+      'false',
+    )
+  })
+})
 
 describe('EmbedLauncherInput paste handling', () => {
   it('stops paste event propagation so ProseMirror handlers do not intercept', () => {
@@ -175,6 +310,97 @@ describe('EmbedLauncherInput paste handling', () => {
     })
 
     expect(submit).not.toHaveBeenCalled()
+  })
+})
+
+describe('DraftEmbedPlaceholder title input', () => {
+  it('renders the child draft title in an editable input', () => {
+    const {input} = renderDraftEmbed()
+
+    expect(input.value).toBe('Draft title')
+    expect(input.placeholder).toBe('Untitled document')
+  })
+
+  it('focuses newly created draft title and clears the focus marker', () => {
+    const clearLastCreatedInlineDraftId = vi.fn()
+    const {input} = renderDraftEmbed({
+      lastCreatedInlineDraftId: 'draft-1',
+      clearLastCreatedInlineDraftId,
+    })
+
+    expect(document.activeElement).toBe(input)
+    expect(clearLastCreatedInlineDraftId).toHaveBeenCalledWith('draft-1')
+  })
+
+  it('debounces title saves to child draft metadata without mutating parent editor blocks', () => {
+    vi.useFakeTimers()
+    const {input, editor, onUpdateDraftName} = renderDraftEmbed()
+
+    act(() => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      nativeInputValueSetter.call(input, 'Renamed child')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+
+    expect(onUpdateDraftName).not.toHaveBeenCalled()
+    expect(editor.updateBlock).not.toHaveBeenCalled()
+    expect(editor.insertBlocks).not.toHaveBeenCalled()
+    expect(editor.removeBlocks).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(onUpdateDraftName).toHaveBeenCalledWith('draft-1', 'Renamed child')
+    expect(editor.updateBlock).not.toHaveBeenCalled()
+    expect(editor.insertBlocks).not.toHaveBeenCalled()
+    expect(editor.removeBlocks).not.toHaveBeenCalled()
+  })
+
+  it('stops title input keyboard/input events from bubbling to the parent editor wrapper', () => {
+    const onKeyDown = vi.fn()
+    const onInput = vi.fn()
+    const {input} = renderDraftEmbed({
+      parentHandlers: {onKeyDown, onInput},
+    })
+
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', {key: 'a', bubbles: true}))
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+
+    expect(onKeyDown).not.toHaveBeenCalled()
+    expect(onInput).not.toHaveBeenCalled()
+  })
+
+  it('flushes title save before opening the child draft on Enter', async () => {
+    const onUpdateDraftName = vi.fn().mockResolvedValue(undefined)
+    const onOpenDraft = vi.fn()
+    const {input} = renderDraftEmbed({onUpdateDraftName, onOpenDraft})
+
+    act(() => {
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      nativeInputValueSetter.call(input, 'Open me')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}))
+    })
+
+    expect(onUpdateDraftName).toHaveBeenCalledWith('draft-1', 'Open me')
+    expect(onOpenDraft).toHaveBeenCalledWith('draft-1', ['parent', '-draft-1'])
+  })
+
+  it('blurs title input on Escape', () => {
+    const {input} = renderDraftEmbed()
+    input.focus()
+
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))
+    })
+
+    expect(document.activeElement).not.toBe(input)
   })
 })
 

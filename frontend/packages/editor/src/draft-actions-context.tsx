@@ -23,6 +23,9 @@ export type DraftActions = {
   useInlineDraft: (id: string | undefined) => {data?: HMListedDraft | null}
   onDeleteDraft: (id: string) => Promise<void>
   onOpenDraft: (draftId: string, draftPath: string[]) => void
+  onUpdateDraftName?: (draftId: string, name: string) => Promise<void> | void
+  lastCreatedInlineDraftId?: string | null
+  clearLastCreatedInlineDraftId?: (draftId: string) => void
 }
 
 export const DraftActionsContext = createContext<DraftActions | null>(null)

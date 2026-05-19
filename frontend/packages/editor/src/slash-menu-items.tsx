@@ -67,15 +67,10 @@ export function getSlashMenuItems({
       execute: async (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
         try {
           const {draftId} = await onCreateInlineDraft(docId)
-          insertOrUpdateBlock(
-            editor,
-            {
-              type: 'embed',
-              props: {draftId, url: '', view: 'Card'},
-            } as PartialBlock<HMBlockSchema>,
-            true,
-          )
-          selectInsertedBlock(editor)
+          insertOrUpdateBlock(editor, {
+            type: 'embed',
+            props: {draftId, url: '', view: 'Card'},
+          } as PartialBlock<HMBlockSchema>)
         } catch (err) {
           console.error('Failed to create inline draft:', err)
         }
