@@ -72,6 +72,77 @@ func TestWithTxRecordsBeginBusy(t *testing.T) {
 	require.Contains(t, body, "begin_busy")
 }
 
+// TestPerCallerP99ReflectsRealHolds verifies the per-caller hold percentile
+// table on /debug/sqlite reflects the actual commit hold times, and is not
+// dragged down by savepoints (nested-tx fallback), busy failures, or
+// interrupted BEGINs — all of which never actually held the writer lock.
+// Regression: previously, savepoints were folded into the hold reservoir
+// with their fn() runtime, and busy/interrupted "holds" were synthetic
+// copies of begin_wait, both polluting the percentiles enough that p99
+// could read sub-ms while recent rows clearly showed 200 ms+ commits.
+func TestPerCallerP99ReflectsRealHolds(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS p99test (x int);", nil))
+
+	// One slow commit — must be visible in p99.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		time.Sleep(150 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO p99test (x) VALUES (1);", nil)
+	}))
+	// Many fast savepoints (nested WithTx) that would have polluted the
+	// hold reservoir with their fn() runtimes under the old code.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		for i := 0; i < 20; i++ {
+			if err := sqlitex.WithTx(conn, func() error { return nil }); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+
+	body := renderDebugPage(t)
+	// The 150 ms commit must dominate this caller's p99 column. The page
+	// renders fmtMs as "150.3 ms" (or similar) — look for the magnitude
+	// without coupling to a specific decimal.
+	require.Contains(t, body, "TestPerCallerP99ReflectsRealHolds")
+	require.Regexp(t, `1[0-9]{2}\.[0-9] ms`, body,
+		"p99 (or max-visible hold) must reflect the 150 ms commit, not be dragged below it by savepoint noise")
+}
+
+// TestWithTxRecordsBeginInterrupted verifies a non-busy BEGIN IMMEDIATE
+// failure (here SQLITE_INTERRUPT from a pre-cancelled ctx) is reported as
+// begin_interrupted, not begin_busy. Previously every non-nested BEGIN
+// failure was lumped into begin_busy, which dominated the page with noise
+// from context-cancelled connect-path txs whose begin_wait was sub-ms.
+func TestWithTxRecordsBeginInterrupted(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+
+	// Wire an already-cancelled ctx so the next syscall trips SQLITE_INTERRUPT
+	// during BEGIN IMMEDIATE — no busy timeout, no lock holder to blame.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	conn.SetInterrupt(ctx.Done())
+	defer conn.SetInterrupt(nil)
+
+	err := sqlitex.WithTx(conn, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx),
+		"interrupted BEGIN IMMEDIATE must still wrap ErrBeginImmediateTx for backward-compat with connect.go retry logic")
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "begin_interrupted",
+		"interrupted BEGIN must be labelled begin_interrupted on /debug/sqlite")
+	require.Contains(t, body, "TestWithTxRecordsBeginInterrupted",
+		"interrupted row must surface its caller for diagnosis")
+}
+
 // TestWithTxBeginBusySnapshotsHolder verifies the begin_busy row records
 // who was holding the writer slot at the moment BEGIN IMMEDIATE failed. The
 // debug page uses this to attribute publish-fails-with-BUSY to a specific
@@ -165,6 +236,10 @@ func TestWithTxCapturesStatements(t *testing.T) {
 	// string arg, so match the HTML-escaped form rather than the raw one.
 	require.Contains(t, body, "&#34;answer&#34;", "bind arg must be rendered")
 	require.Contains(t, body, "42", "bind arg must be rendered")
+	// Per-statement duration column must be present so we can spot
+	// which statement (e.g. a slow COMMIT under WAL pressure) ate the time.
+	require.Contains(t, body, "<th class=\"num\">dur</th>",
+		"inner statements table must render the dur column")
 }
 
 // TestWithTxCaptureBytesSummarised verifies that []byte args are reported by

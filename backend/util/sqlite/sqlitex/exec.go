@@ -71,7 +71,8 @@ import (
 //		// handle err
 //	}
 func Exec(conn *sqlite.Conn, query string, resultFn func(stmt *sqlite.Stmt) error, args ...interface{}) error {
-	captureExec(conn, query, args)
+	done := captureExecStart(conn, query, args)
+	defer done()
 	stmt, err := conn.Prepare(query)
 	if err != nil {
 		return annotateErr(err)
@@ -90,7 +91,8 @@ func Exec(conn *sqlite.Conn, query string, resultFn func(stmt *sqlite.Stmt) erro
 //
 // It is the spiritual equivalent of sqlite3_exec.
 func ExecTransient(conn *sqlite.Conn, query string, resultFn func(stmt *sqlite.Stmt) error, args ...interface{}) (err error) {
-	captureExec(conn, query, args)
+	done := captureExecStart(conn, query, args)
+	defer done()
 	var stmt *sqlite.Stmt
 	var trailingBytes int
 	stmt, trailingBytes, err = conn.PrepareTransient(query)

@@ -26,23 +26,29 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	t0 := time.Now()
 	if err := Exec(conn, "BEGIN IMMEDIATE TRANSACTION;", nil); err != nil {
 		beginWait := time.Since(t0)
-		// We want to return any errors that are not about the nested transaction.
-		if !strings.Contains(err.Error(), "transaction within a transaction") {
-			// Snapshot whoever currently holds the writer slot so the row in
-			// /debug/sqlite says "while you were failing, X was holding".
-			heldBy := tracker.snapshotActive()
-			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil, heldBy)
-			return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
+		// Nested-tx fallback is a separate path. SQLite returns this as a text
+		// message (not a numeric code), so keep the string match here.
+		if strings.Contains(err.Error(), "transaction within a transaction") {
+			sp0 := time.Now()
+			releaseSave := Save(conn)
+			fnerr := fn()
+			releaseSave(&fnerr)
+			tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil, nil)
+			return fnerr
 		}
 
-		// Nested-tx fallback: this opens a savepoint, not a real writer-lock tx.
-		// Record it separately so it doesn't pollute the writer-lock stats.
-		sp0 := time.Now()
-		releaseSave := Save(conn)
-		fnerr := fn()
-		releaseSave(&fnerr)
-		tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil, nil)
-		return fnerr
+		// Distinguish real busy-timeout expiry from other BEGIN IMMEDIATE
+		// failures (SQLITE_INTERRUPT from ctx cancel, etc). Only real busy
+		// codes count as "writer-lock contention" — interrupts are usually a
+		// caller giving up on its own ctx and have no lock holder to blame.
+		switch sqlite.ErrCode(err) {
+		case sqlite.SQLITE_BUSY, sqlite.SQLITE_BUSY_RECOVERY, sqlite.SQLITE_BUSY_SNAPSHOT:
+			heldBy := tracker.snapshotActive()
+			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil, heldBy)
+		default:
+			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginInterrupted, nil, nil)
+		}
+		return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 	}
 	beginWait := time.Since(t0)
 	t1 := time.Now()

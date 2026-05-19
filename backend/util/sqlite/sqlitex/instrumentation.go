@@ -40,10 +40,11 @@ const (
 type txOutcome string
 
 const (
-	outcomeCommit    txOutcome = "commit"
-	outcomeRollback  txOutcome = "rollback"
-	outcomeBeginBusy txOutcome = "begin_busy"
-	outcomeSavepoint txOutcome = "savepoint"
+	outcomeCommit           txOutcome = "commit"
+	outcomeRollback         txOutcome = "rollback"
+	outcomeBeginBusy        txOutcome = "begin_busy"
+	outcomeBeginInterrupted txOutcome = "begin_interrupted"
+	outcomeSavepoint        txOutcome = "savepoint"
 )
 
 var (
@@ -106,14 +107,24 @@ func (s *callerStats) record(hold, wait time.Duration, outcome txOutcome) {
 		s.busyCount++
 	}
 
-	// Only add to the hold reservoir when BEGIN IMMEDIATE actually succeeded —
-	// a busy outcome means we never held the lock, so adding its "hold" (==
-	// wait, by convention) to this reservoir would skew the percentiles.
-	if outcome != outcomeBeginBusy {
+	// holdReserv tracks real writer-lock hold time, not anything else.
+	// Only commits and rollbacks actually held the lock; begin_busy and
+	// begin_interrupted never started the tx (their "hold" is a synthetic
+	// copy of begin_wait), and outcomeSavepoint is a nested op on an
+	// already-open conn (its duration is fn() runtime, not lock-hold).
+	// Mixing any of those into the reservoir buries the real percentiles
+	// under sub-ms noise and is why /debug/sqlite was reporting p99 ≪ the
+	// values clearly visible in the recent-slow table.
+	switch outcome {
+	case outcomeCommit, outcomeRollback:
 		appendReservoir(&s.holdReserv, hold, s.count)
 	}
-	// Wait is meaningful for every outcome including begin_busy.
-	appendReservoir(&s.waitReserv, wait, s.count)
+	// waitReserv tracks how long the caller queued for the writer slot.
+	// That only exists when BEGIN IMMEDIATE was attempted; savepoints don't
+	// issue one, so their `wait` is a meaningless 0 and skews wait p10/p50.
+	if outcome != outcomeSavepoint {
+		appendReservoir(&s.waitReserv, wait, s.count)
+	}
 }
 
 func appendReservoir(r *[]float64, d time.Duration, count uint64) {
@@ -186,9 +197,17 @@ type txSample struct {
 // capturedStmt is one statement executed inside an instrumented tx.
 // Args are stored as a single rendered string with each arg truncated to
 // keep the buffer bounded and avoid keeping large blobs alive.
+//
+// Duration is the wall time spent inside the statement's Step loop (and
+// finalize, for ExecTransient). It includes the time the statement spent
+// waiting on SQLite's busy handler if it had to back off, and the cost of
+// COMMIT including any WAL checkpoint that fired. Renders next to the SQL
+// on /debug/sqlite so a 49-stmt PutMany row shows which one statement
+// (e.g. COMMIT, a recursive CTE, an FTS write) ate the time.
 type capturedStmt struct {
-	SQL  string
-	Args string
+	SQL      string
+	Args     string
+	Duration time.Duration
 }
 
 // txCapture is the buffer attached to a *sqlite.Conn for the lifetime of a
@@ -201,7 +220,12 @@ type txCapture struct {
 }
 
 const (
-	captureStmtCap = 50  // max statements retained per tx
+	// captureStmtCap caps statements retained per tx. A typical PutMany batch
+	// (10 blobs × ~10 indexer stmts/blob + propagateVisibilityBatch + COMMIT)
+	// fits in ~120 stmts. 50 was too small: it filled up on the inner indexer
+	// loop and silently dropped propagateVisibilityBatch + COMMIT — exactly
+	// the statements most likely to be the time sink. 250 leaves headroom.
+	captureStmtCap = 250
 	captureArgsCap = 200 // max characters of formatted args retained per stmt
 	captureSQLCap  = 400 // max characters of SQL retained per stmt (bulk INSERTs can be huge)
 )
@@ -228,25 +252,46 @@ func endCapture(conn *sqlite.Conn) []capturedStmt {
 	return out
 }
 
-// captureExec appends one statement to the active tx buffer for conn, if any.
-// Called from Exec / ExecTransient. The fast path is a single sync.Map load
-// that returns immediately when no capture is active.
-func captureExec(conn *sqlite.Conn, sql string, args []interface{}) {
+// captureExecStart begins a timed capture for one statement executed inside
+// an active tx. It reserves the slot, records the SQL/args, and returns a
+// closure that stamps the elapsed time when the statement completes. The
+// fast path (no active capture on this conn) is a single sync.Map load that
+// short-circuits to a no-op closure.
+//
+// The slot reservation up front is important: it preserves chronological
+// order of statements in the recent-tx panel even when long statements
+// finish out-of-order on different goroutines (in practice they don't, but
+// the invariant is cheap to maintain).
+func captureExecStart(conn *sqlite.Conn, sql string, args []interface{}) func() {
 	v, ok := captureBufs.Load(conn)
 	if !ok {
-		return
+		return noopCaptureDone
 	}
 	c := v.(*txCapture)
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if len(c.stmts) >= captureStmtCap {
-		return
+		c.mu.Unlock()
+		return noopCaptureDone
 	}
+	idx := len(c.stmts)
 	c.stmts = append(c.stmts, capturedStmt{
 		SQL:  truncate(collapseSQL(sql), captureSQLCap),
 		Args: formatArgs(args),
 	})
+	c.mu.Unlock()
+
+	t0 := time.Now()
+	return func() {
+		d := time.Since(t0)
+		c.mu.Lock()
+		if idx < len(c.stmts) {
+			c.stmts[idx].Duration = d
+		}
+		c.mu.Unlock()
+	}
 }
+
+func noopCaptureDone() {}
 
 // collapseSQL strips surrounding whitespace and collapses runs of internal
 // whitespace so the captured statements render compactly in the debug page.

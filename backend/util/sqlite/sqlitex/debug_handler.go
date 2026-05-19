@@ -63,17 +63,26 @@ type recentRow struct {
 	WaitClass string
 	Outcome   string
 	OutClass  string
-	Stmts     []capturedStmt
+	Stmts     []recentStmt
 	// HeldBy is populated for begin_busy rows: each entry is the caller +
 	// how long it had been holding the writer slot at the moment this row's
 	// BEGIN IMMEDIATE timed out.
 	HeldBy []heldByEntry
 }
 
+// recentStmt is the page-render form of capturedStmt: pre-computed duration
+// in ms and the colour class, so the template doesn't need to do unit math.
+type recentStmt struct {
+	SQL      string
+	Args     string
+	DurMs    float64
+	DurClass string
+}
+
 type heldByEntry struct {
-	Caller   string
+	Caller    string
 	HeldForMs float64
-	Class    string
+	Class     string
 }
 
 func buildSQLitePage() sqlitePage {
@@ -140,6 +149,16 @@ func buildSQLitePage() sqlitePage {
 				Class:     classForHoldMs(ageMs),
 			})
 		}
+		stmts := make([]recentStmt, len(s.Stmts))
+		for i, cs := range s.Stmts {
+			d := float64(cs.Duration) / float64(time.Millisecond)
+			stmts[i] = recentStmt{
+				SQL:      cs.SQL,
+				Args:     cs.Args,
+				DurMs:    d,
+				DurClass: classForHoldMs(d),
+			}
+		}
 		page.Recent = append(page.Recent, recentRow{
 			When:      s.When.Format("15:04:05.000"),
 			Caller:    s.Caller,
@@ -149,7 +168,7 @@ func buildSQLitePage() sqlitePage {
 			WaitClass: classForHoldMs(waitMs),
 			Outcome:   string(s.Outcome),
 			OutClass:  classForOutcome(s.Outcome),
-			Stmts:     s.Stmts,
+			Stmts:     stmts,
 			HeldBy:    held,
 		})
 	}
@@ -181,6 +200,10 @@ func classForOutcome(o txOutcome) string {
 	switch o {
 	case outcomeBeginBusy, outcomeRollback:
 		return "warn"
+	case outcomeBeginInterrupted:
+		// Yellow: interesting (BEGIN failed) but not a contention event —
+		// usually ctx cancellation, no lock holder to blame.
+		return "note"
 	default:
 		return ""
 	}
@@ -224,8 +247,9 @@ table.recent tr.stmts > td{padding:0;border:none;background:#fafafa}
 table.recent table.inner{margin:4px 0 6px 24px;width:calc(100% - 24px);table-layout:fixed}
 table.recent table.inner th,table.recent table.inner td{font-size:12px;vertical-align:top}
 table.recent table.inner col.idx{width:3em}
-table.recent table.inner col.sql{width:55%}
-table.recent table.inner col.args{width:45%}
+table.recent table.inner col.dur{width:6em}
+table.recent table.inner col.sql{width:52%}
+table.recent table.inner col.args{width:48%}
 table.recent code{white-space:pre-wrap;word-break:break-all}
 th.grp{background:#ececec;text-align:center}
 </style>
@@ -238,7 +262,8 @@ th.grp{background:#ececec;text-align:center}
 <dl>
 <dt>begin_wait</dt><dd>Time spent inside <code>BEGIN IMMEDIATE</code> before it returned (includes SQLite's internal busy-handler backoff). Large values mean the writer slot was held by <em>someone else</em> while this caller waited.</dd>
 <dt>hold</dt><dd>Wall time from successful <code>BEGIN IMMEDIATE</code> to <code>COMMIT</code>/<code>ROLLBACK</code>. Large values mean <em>this caller</em> is doing too much work inside the transaction.</dd>
-<dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>.</dd>
+<dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Real contention. Surfaces a <em>held by</em> snapshot of whoever had the writer slot at the moment of failure.</dd>
+<dt>begin_interrupted</dt><dd><code>BEGIN IMMEDIATE</code> returned a non-busy error — almost always <code>SQLITE_INTERRUPT</code> from a context cancellation upstream. Not a lock-contention event; no <em>held by</em> snapshot. Common when a caller scopes a tx to a deadline that has expired, e.g. <code>connect.go</code>'s per-attempt timeout.</dd>
 </dl>
 <p><strong>Reading <code>hold</code> vs <code>begin_wait</code>:</strong> these phases are independent — <code>begin_wait</code> is contention <em>from others</em>, <code>hold</code> is <em>this caller's own work</em>. They have no reason to track each other; in a healthy daemon <code>hold</code> is much larger than <code>begin_wait</code> because most of the time the lock is free when you ask for it.</p>
 <table style="margin-top:6px">
@@ -351,11 +376,11 @@ th.grp{background:#ececec;text-align:center}
 <tr class="stmts"><td colspan="6">
 <details><summary>statements ({{len $r.Stmts}})</summary>
 <table class="inner">
-<colgroup><col class="idx"><col class="sql"><col class="args"></colgroup>
-<thead><tr><th class="num">#</th><th>sql</th><th>args</th></tr></thead>
+<colgroup><col class="idx"><col class="dur"><col class="sql"><col class="args"></colgroup>
+<thead><tr><th class="num">#</th><th class="num">dur</th><th>sql</th><th>args</th></tr></thead>
 <tbody>
 {{range $j, $s := $r.Stmts}}
-<tr><td class="num">{{$j}}</td><td><code>{{$s.SQL}}</code></td><td><code>{{$s.Args}}</code></td></tr>
+<tr><td class="num">{{$j}}</td><td class="num {{$s.DurClass}}">{{fmtMs $s.DurMs}}</td><td><code>{{$s.SQL}}</code></td><td><code>{{$s.Args}}</code></td></tr>
 {{end}}
 </tbody>
 </table>
