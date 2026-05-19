@@ -36,17 +36,22 @@ type activeRow struct {
 }
 
 type callerRow struct {
-	Caller    string
-	Count     uint64
-	Commits   uint64
-	Rollbacks uint64
-	BusyCount uint64
-	BusyClass string
-	P10Ms     float64
-	P50Ms     float64
-	P90Ms     float64
-	P99Ms     float64
-	P99Class  string
+	Caller       string
+	Count        uint64
+	Commits      uint64
+	Rollbacks    uint64
+	BusyCount    uint64
+	BusyClass    string
+	HoldP10Ms    float64
+	HoldP50Ms    float64
+	HoldP90Ms    float64
+	HoldP99Ms    float64
+	HoldP99Class string
+	WaitP10Ms    float64
+	WaitP50Ms    float64
+	WaitP90Ms    float64
+	WaitP99Ms    float64
+	WaitP99Class string
 }
 
 type recentRow struct {
@@ -55,9 +60,20 @@ type recentRow struct {
 	HoldMs    float64
 	HoldClass string
 	WaitMs    float64
+	WaitClass string
 	Outcome   string
 	OutClass  string
 	Stmts     []capturedStmt
+	// HeldBy is populated for begin_busy rows: each entry is the caller +
+	// how long it had been holding the writer slot at the moment this row's
+	// BEGIN IMMEDIATE timed out.
+	HeldBy []heldByEntry
+}
+
+type heldByEntry struct {
+	Caller   string
+	HeldForMs float64
+	Class    string
 }
 
 func buildSQLitePage() sqlitePage {
@@ -84,23 +100,29 @@ func buildSQLitePage() sqlitePage {
 
 	for name, s := range snap.Callers {
 		row := callerRow{
-			Caller:    name,
-			Count:     s.Count,
-			Commits:   s.Commits,
-			Rollbacks: s.Rollbacks,
-			BusyCount: s.BusyCount,
-			BusyClass: classForBusy(s.BusyCount),
-			P10Ms:     s.P10Ms,
-			P50Ms:     s.P50Ms,
-			P90Ms:     s.P90Ms,
-			P99Ms:     s.P99Ms,
-			P99Class:  classForHoldMs(s.P99Ms),
+			Caller:       name,
+			Count:        s.Count,
+			Commits:      s.Commits,
+			Rollbacks:    s.Rollbacks,
+			BusyCount:    s.BusyCount,
+			BusyClass:    classForBusy(s.BusyCount),
+			HoldP10Ms:    s.HoldP10Ms,
+			HoldP50Ms:    s.HoldP50Ms,
+			HoldP90Ms:    s.HoldP90Ms,
+			HoldP99Ms:    s.HoldP99Ms,
+			HoldP99Class: classForHoldMs(s.HoldP99Ms),
+			WaitP10Ms:    s.WaitP10Ms,
+			WaitP50Ms:    s.WaitP50Ms,
+			WaitP90Ms:    s.WaitP90Ms,
+			WaitP99Ms:    s.WaitP99Ms,
+			WaitP99Class: classForHoldMs(s.WaitP99Ms),
 		}
 		page.Callers = append(page.Callers, row)
 	}
-	// Sort by p99 desc so the most-likely-to-block-publishers caller is on top.
+	// Sort by hold p99 desc so the most-likely-to-block-publishers caller is
+	// on top. Victims (high wait p99) can be spotted by skimming the same row.
 	sort.Slice(page.Callers, func(i, j int) bool {
-		return page.Callers[i].P99Ms > page.Callers[j].P99Ms
+		return page.Callers[i].HoldP99Ms > page.Callers[j].HoldP99Ms
 	})
 
 	recent := make([]txSample, len(snap.Recent))
@@ -108,15 +130,27 @@ func buildSQLitePage() sqlitePage {
 	sort.Slice(recent, func(i, j int) bool { return recent[i].When.After(recent[j].When) })
 	for _, s := range recent {
 		ms := float64(s.Hold) / float64(time.Millisecond)
+		waitMs := float64(s.BeginWait) / float64(time.Millisecond)
+		var held []heldByEntry
+		for _, a := range s.HeldBy {
+			ageMs := float64(s.When.Sub(a.StartedAt)) / float64(time.Millisecond)
+			held = append(held, heldByEntry{
+				Caller:    a.Caller,
+				HeldForMs: ageMs,
+				Class:     classForHoldMs(ageMs),
+			})
+		}
 		page.Recent = append(page.Recent, recentRow{
 			When:      s.When.Format("15:04:05.000"),
 			Caller:    s.Caller,
 			HoldMs:    ms,
 			HoldClass: classForHoldMs(ms),
-			WaitMs:    float64(s.BeginWait) / float64(time.Millisecond),
+			WaitMs:    waitMs,
+			WaitClass: classForHoldMs(waitMs),
 			Outcome:   string(s.Outcome),
 			OutClass:  classForOutcome(s.Outcome),
 			Stmts:     s.Stmts,
+			HeldBy:    held,
 		})
 	}
 
@@ -193,6 +227,7 @@ table.recent table.inner col.idx{width:3em}
 table.recent table.inner col.sql{width:55%}
 table.recent table.inner col.args{width:45%}
 table.recent code{white-space:pre-wrap;word-break:break-all}
+th.grp{background:#ececec;text-align:center}
 </style>
 </head><body>
 <h1>SQLite writer health</h1>
@@ -232,19 +267,30 @@ table.recent code{white-space:pre-wrap;word-break:break-all}
 {{end}}
 
 <h2>Per-caller stats</h2>
+<div class="subtitle">Sorted by <code>hold p99</code> (highest first). The <em>hold</em> group is this caller's own work inside the writer slot; the <em>wait</em> group is how long this caller was queued behind others. Offender = high hold; victim = high wait.</div>
 {{if .Callers}}
 <table>
-<thead><tr>
-<th>caller</th>
-<th class="num">total</th>
-<th class="num">commits</th>
-<th class="num">rollbacks</th>
-<th class="num">busy</th>
+<thead>
+<tr>
+<th rowspan="2">caller</th>
+<th class="num" rowspan="2">total</th>
+<th class="num" rowspan="2">commits</th>
+<th class="num" rowspan="2">rollbacks</th>
+<th class="num" rowspan="2">busy</th>
+<th class="grp" colspan="4">hold (caller's own work)</th>
+<th class="grp" colspan="4">wait (queued behind others)</th>
+</tr>
+<tr>
 <th class="num">p10</th>
 <th class="num">p50</th>
 <th class="num">p90</th>
 <th class="num">p99</th>
-</tr></thead>
+<th class="num">p10</th>
+<th class="num">p50</th>
+<th class="num">p90</th>
+<th class="num">p99</th>
+</tr>
+</thead>
 <tbody>
 {{range .Callers}}
 <tr>
@@ -253,10 +299,14 @@ table.recent code{white-space:pre-wrap;word-break:break-all}
 <td class="num">{{.Commits}}</td>
 <td class="num">{{.Rollbacks}}</td>
 <td class="num {{.BusyClass}}">{{.BusyCount}}</td>
-<td class="num">{{fmtMs .P10Ms}}</td>
-<td class="num">{{fmtMs .P50Ms}}</td>
-<td class="num">{{fmtMs .P90Ms}}</td>
-<td class="num {{.P99Class}}">{{fmtMs .P99Ms}}</td>
+<td class="num">{{fmtMs .HoldP10Ms}}</td>
+<td class="num">{{fmtMs .HoldP50Ms}}</td>
+<td class="num">{{fmtMs .HoldP90Ms}}</td>
+<td class="num {{.HoldP99Class}}">{{fmtMs .HoldP99Ms}}</td>
+<td class="num">{{fmtMs .WaitP10Ms}}</td>
+<td class="num">{{fmtMs .WaitP50Ms}}</td>
+<td class="num">{{fmtMs .WaitP90Ms}}</td>
+<td class="num {{.WaitP99Class}}">{{fmtMs .WaitP99Ms}}</td>
 </tr>
 {{end}}
 </tbody>
@@ -278,10 +328,25 @@ table.recent code{white-space:pre-wrap;word-break:break-all}
 <td>{{$r.When}}</td>
 <td>{{$r.Caller}}</td>
 <td class="num {{$r.HoldClass}}">{{fmtMs $r.HoldMs}}</td>
-<td class="num">{{fmtMs $r.WaitMs}}</td>
+<td class="num {{$r.WaitClass}}">{{fmtMs $r.WaitMs}}</td>
 <td class="{{$r.OutClass}}">{{$r.Outcome}}</td>
 <td class="num">{{len $r.Stmts}}</td>
 </tr>
+{{if $r.HeldBy}}
+<tr class="stmts"><td colspan="6">
+<details open><summary>held by ({{len $r.HeldBy}}) — who had the writer slot when this row's BEGIN IMMEDIATE failed</summary>
+<table class="inner">
+<colgroup><col class="idx"><col class="sql"><col class="args"></colgroup>
+<thead><tr><th class="num">#</th><th>caller</th><th class="num">held for</th></tr></thead>
+<tbody>
+{{range $k, $h := $r.HeldBy}}
+<tr><td class="num">{{$k}}</td><td>{{$h.Caller}}</td><td class="num {{$h.Class}}">{{fmtMs $h.HeldForMs}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</details>
+</td></tr>
+{{end}}
 {{if $r.Stmts}}
 <tr class="stmts"><td colspan="6">
 <details><summary>statements ({{len $r.Stmts}})</summary>

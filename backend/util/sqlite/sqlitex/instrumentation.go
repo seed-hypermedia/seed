@@ -75,30 +75,28 @@ func init() {
 }
 
 // callerStats accumulates per-caller stats for the debug page.
-// Percentiles are computed from a fixed-size reservoir of samples; the
-// reservoir is cheap memory (a few KB per caller) and we only have ~20-30
-// distinct callers in practice.
+// Percentiles are computed from fixed-size reservoirs (one for hold, one for
+// begin_wait); each reservoir is cheap memory (a few KB per caller) and we
+// only have ~20-30 distinct callers in practice. Hold tells us whether THIS
+// caller is the offender; wait tells us whether THIS caller is the victim.
 type callerStats struct {
-	mu        sync.Mutex
-	count     uint64
-	busyCount uint64
-	maxHold   time.Duration
-	holdSum   time.Duration
-	reservoir []float64 // hold durations in ms; bounded
-	commits   uint64
-	rollbacks uint64
+	mu         sync.Mutex
+	count      uint64
+	busyCount  uint64
+	holdSum    time.Duration
+	holdReserv []float64 // hold durations in ms; bounded
+	waitReserv []float64 // begin_wait durations in ms; bounded
+	commits    uint64
+	rollbacks  uint64
 }
 
 const reservoirCap = 1024
 
-func (s *callerStats) record(hold time.Duration, outcome txOutcome) {
+func (s *callerStats) record(hold, wait time.Duration, outcome txOutcome) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.count++
 	s.holdSum += hold
-	if hold > s.maxHold {
-		s.maxHold = hold
-	}
 	switch outcome {
 	case outcomeCommit:
 		s.commits++
@@ -107,30 +105,49 @@ func (s *callerStats) record(hold time.Duration, outcome txOutcome) {
 	case outcomeBeginBusy:
 		s.busyCount++
 	}
-	ms := float64(hold) / float64(time.Millisecond)
-	if len(s.reservoir) < reservoirCap {
-		s.reservoir = append(s.reservoir, ms)
-	} else {
-		// Simple FIFO replacement instead of true reservoir sampling.
-		// We care more about recent behaviour than perfect uniformity.
-		s.reservoir[s.count%reservoirCap] = ms
+
+	// Only add to the hold reservoir when BEGIN IMMEDIATE actually succeeded —
+	// a busy outcome means we never held the lock, so adding its "hold" (==
+	// wait, by convention) to this reservoir would skew the percentiles.
+	if outcome != outcomeBeginBusy {
+		appendReservoir(&s.holdReserv, hold, s.count)
 	}
+	// Wait is meaningful for every outcome including begin_busy.
+	appendReservoir(&s.waitReserv, wait, s.count)
 }
 
-// percentilesMs returns p10, p50, p90, p99 of recorded hold durations in ms
-// using the nearest-rank method. With nearest-rank, p99 of any sample of size
-// n is the observation at index ceil(p*n)-1, so for n<100 the p99 equals the
-// max — which is what the user expects when only a handful of samples exist.
-// The max and mean are intentionally not exposed because they're trivial to
-// derive from these percentiles plus the call count.
-func (s *callerStats) percentilesMs() (p10, p50, p90, p99 float64) {
+func appendReservoir(r *[]float64, d time.Duration, count uint64) {
+	ms := float64(d) / float64(time.Millisecond)
+	if len(*r) < reservoirCap {
+		*r = append(*r, ms)
+		return
+	}
+	(*r)[count%reservoirCap] = ms
+}
+
+// holdPercentilesMs returns p10, p50, p90, p99 of recorded hold durations.
+func (s *callerStats) holdPercentilesMs() (p10, p50, p90, p99 float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.reservoir) == 0 {
+	return percentilesNearestRank(s.holdReserv)
+}
+
+// waitPercentilesMs returns p10, p50, p90, p99 of begin_wait durations.
+func (s *callerStats) waitPercentilesMs() (p10, p50, p90, p99 float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return percentilesNearestRank(s.waitReserv)
+}
+
+// percentilesNearestRank uses the nearest-rank method: with n<100 samples,
+// p99 equals the max. Matches user intuition: a caller with 4 observations
+// of max=571ms must read p99=571ms, not the linear-interpolation answer.
+func percentilesNearestRank(reservoir []float64) (p10, p50, p90, p99 float64) {
+	if len(reservoir) == 0 {
 		return 0, 0, 0, 0
 	}
-	buf := make([]float64, len(s.reservoir))
-	copy(buf, s.reservoir)
+	buf := make([]float64, len(reservoir))
+	copy(buf, reservoir)
 	sort.Float64s(buf)
 	pick := func(p float64) float64 {
 		n := len(buf)
@@ -159,6 +176,11 @@ type txSample struct {
 	// ran inside this transaction. Only populated for slow / busy samples
 	// since capture is only active while a WithTx is recording.
 	Stmts []capturedStmt
+	// HeldBy is the set of write transactions that were in-flight at the
+	// moment this caller's BEGIN IMMEDIATE returned BUSY. Populated only for
+	// outcomeBeginBusy samples; for those rows it answers the "who had the
+	// lock while I was failing?" question directly.
+	HeldBy []activeTx
 }
 
 // capturedStmt is one statement executed inside an instrumented tx.
@@ -387,7 +409,7 @@ func (t *txTracker) endActive(id uint64, caller string) {
 	mInFlight.WithLabelValues(caller).Dec()
 }
 
-func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outcome txOutcome, stmts []capturedStmt) {
+func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx) {
 	mTxDuration.WithLabelValues(caller, string(outcome)).Observe(hold.Seconds())
 	mBeginWait.WithLabelValues(caller).Observe(beginWait.Seconds())
 	if outcome == outcomeBeginBusy {
@@ -401,7 +423,7 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 		t.callers[caller] = st
 	}
 	t.mu.Unlock()
-	st.record(hold, outcome)
+	st.record(hold, beginWait, outcome)
 
 	if hold >= slowThreshold || outcome == outcomeBeginBusy {
 		t.mu.Lock()
@@ -412,6 +434,7 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 			BeginWait: beginWait,
 			Outcome:   outcome,
 			Stmts:     stmts,
+			HeldBy:    heldBy,
 		}
 		if len(t.recent) < recentSlowCap {
 			t.recent = append(t.recent, sample)
@@ -421,6 +444,22 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 		}
 		t.mu.Unlock()
 	}
+}
+
+// snapshotActive returns a copy of the currently-held write transactions.
+// Used at the moment of a begin_busy failure so the page can show exactly
+// who was on the writer slot while this caller waited it out.
+func (t *txTracker) snapshotActive() []activeTx {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.active) == 0 {
+		return nil
+	}
+	out := make([]activeTx, 0, len(t.active))
+	for _, a := range t.active {
+		out = append(out, a)
+	}
+	return out
 }
 
 // snapshot returns a stable copy of the tracker state for rendering.
@@ -435,10 +474,14 @@ type callerSnapshot struct {
 	Commits   uint64
 	Rollbacks uint64
 	BusyCount uint64
-	P10Ms     float64
-	P50Ms     float64
-	P90Ms     float64
-	P99Ms     float64
+	HoldP10Ms float64
+	HoldP50Ms float64
+	HoldP90Ms float64
+	HoldP99Ms float64
+	WaitP10Ms float64
+	WaitP50Ms float64
+	WaitP90Ms float64
+	WaitP99Ms float64
 }
 
 func (t *txTracker) snapshot() trackerSnapshot {
@@ -474,16 +517,21 @@ func (t *txTracker) snapshot() trackerSnapshot {
 		rollbacks := st.rollbacks
 		busy := st.busyCount
 		st.mu.Unlock()
-		p10, p50, p90, p99 := st.percentilesMs()
+		holdP10, holdP50, holdP90, holdP99 := st.holdPercentilesMs()
+		waitP10, waitP50, waitP90, waitP99 := st.waitPercentilesMs()
 		out.Callers[name] = callerSnapshot{
 			Count:     count,
 			Commits:   commits,
 			Rollbacks: rollbacks,
 			BusyCount: busy,
-			P10Ms:     p10,
-			P50Ms:     p50,
-			P90Ms:     p90,
-			P99Ms:     p99,
+			HoldP10Ms: holdP10,
+			HoldP50Ms: holdP50,
+			HoldP90Ms: holdP90,
+			HoldP99Ms: holdP99,
+			WaitP10Ms: waitP10,
+			WaitP50Ms: waitP50,
+			WaitP90Ms: waitP90,
+			WaitP99Ms: waitP99,
 		}
 	}
 	return out

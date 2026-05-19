@@ -28,7 +28,10 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		beginWait := time.Since(t0)
 		// We want to return any errors that are not about the nested transaction.
 		if !strings.Contains(err.Error(), "transaction within a transaction") {
-			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil)
+			// Snapshot whoever currently holds the writer slot so the row in
+			// /debug/sqlite says "while you were failing, X was holding".
+			heldBy := tracker.snapshotActive()
+			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil, heldBy)
 			return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 		}
 
@@ -38,7 +41,7 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		releaseSave := Save(conn)
 		fnerr := fn()
 		releaseSave(&fnerr)
-		tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil)
+		tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil, nil)
 		return fnerr
 	}
 	beginWait := time.Since(t0)
@@ -50,10 +53,10 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if err := fn(); err != nil {
 		stmts := endCapture(conn)
 		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
-			tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts)
+			tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts, nil)
 			return fmt.Errorf("ROLLBACK error: %v; original error: %w", rberr, err)
 		}
-		tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts)
+		tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts, nil)
 		return err
 	}
 
@@ -63,7 +66,7 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if commitErr != nil {
 		outcome = outcomeRollback
 	}
-	tracker.recordTx(caller, beginWait, time.Since(t1), outcome, stmts)
+	tracker.recordTx(caller, beginWait, time.Since(t1), outcome, stmts, nil)
 	return commitErr
 }
 

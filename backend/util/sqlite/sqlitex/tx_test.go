@@ -72,6 +72,58 @@ func TestWithTxRecordsBeginBusy(t *testing.T) {
 	require.Contains(t, body, "begin_busy")
 }
 
+// TestWithTxBeginBusySnapshotsHolder verifies the begin_busy row records
+// who was holding the writer slot at the moment BEGIN IMMEDIATE failed. The
+// debug page uses this to attribute publish-fails-with-BUSY to a specific
+// caller without manual time-correlation.
+func TestWithTxBeginBusySnapshotsHolder(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	holderConn := pool.Get(nil)
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(100 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		pool.Put(holderConn)
+		_ = pool.Close()
+	})
+
+	// Holder runs its own WithTx in a goroutine so tracker.active records it.
+	holderEntered := make(chan struct{})
+	holderRelease := make(chan struct{})
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_ = holderHogTx(holderConn, holderEntered, holderRelease)
+	}()
+	<-holderEntered
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	close(holderRelease)
+	<-holderDone
+
+	body := renderDebugPage(t)
+	// The victim's busy row must surface the holder by caller name.
+	require.Contains(t, body, "held by")
+	require.Contains(t, body, "holderHogTx")
+}
+
+// holderHogTx parks a WithTx on conn so the test's victim races against a
+// known caller name in tracker.active.
+func holderHogTx(conn *sqlite.Conn, entered, release chan struct{}) error {
+	return sqlitex.WithTx(conn, func() error {
+		close(entered)
+		<-release
+		return nil
+	})
+}
+
 // TestWithTxNestedSavepointFallback verifies that the nested-tx savepoint
 // fallback still works and is recorded as "savepoint", not as a writer-lock tx.
 func TestWithTxNestedSavepointFallback(t *testing.T) {
