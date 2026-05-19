@@ -508,7 +508,14 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 			if err != nil || path != "" {
 				continue
 			}
-			if err := sqlitex.Exec(conn, qInboundContacts(), nil, []byte(space)); err != nil {
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT sb.id
+				FROM structural_blobs sb INDEXED BY contacts_by_subject
+				WHERE sb.type = 'Contact'
+				AND sb.extra_attrs->>'subject' = (
+					SELECT id FROM public_keys WHERE principal = :principal
+				);`
+			if err := sqlitex.Exec(conn, q, nil, []byte(space)); err != nil {
 				return err
 			}
 		}
@@ -875,16 +882,6 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
 }
 
-// qInboundContacts selects Contact blobs whose subject matches the given principal.
-var qInboundContacts = dqb.Str(`
-	INSERT OR IGNORE INTO rbsr_blobs
-	SELECT sb.id
-	FROM structural_blobs sb INDEXED BY contacts_by_subject
-	WHERE sb.type = 'Contact'
-	AND sb.extra_attrs->>'subject' = (
-		SELECT id FROM public_keys WHERE principal = :principal
-	);
-`)
 
 var qListPeersWithPid = dqb.Str(`
 	SELECT
