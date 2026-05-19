@@ -128,3 +128,7 @@ ops/dist/*
 seed-pprof-*
 
 AGENTS.local.md
+
+# Python
+__pycache__/
+*.pyc
