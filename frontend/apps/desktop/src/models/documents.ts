@@ -97,12 +97,44 @@ export function useChildDrafts(parentId?: UnpackedHypermediaId) {
   const drafts = useAccountDraftList(parentId?.uid)
   return useMemo(() => {
     if (!drafts.data || !parentId) return []
-    return drafts.data.filter((draft) => {
-      const locationId = (draft as HMListedDraftWithLocation).locationId
-      if (!locationId) return false
-      return locationId.id === parentId.id
-    })
+    return filterChildDrafts(drafts.data, parentId)
   }, [drafts.data, parentId])
+}
+
+/** Return drafts that are located under parentId, excluding drafts editing parentId itself. */
+export function filterChildDrafts(drafts: HMListedDraft[], parentId: UnpackedHypermediaId): HMListedDraft[] {
+  return drafts.filter((draft) => {
+    const locationId = (draft as HMListedDraftWithLocation).locationId
+    if (!locationId || locationId.id !== parentId.id) return false
+    const editId = (draft as HMListedDraftWithLocation).editId
+    return editId?.id !== parentId.id
+  })
+}
+
+/** Preserve existing draft anchors when autosave rewrites a draft index entry. */
+export function resolveDraftWriteAnchors(
+  existingDraft: Pick<HMDraft, 'locationUid' | 'locationPath' | 'editUid' | 'editPath'> | null | undefined,
+  input: {
+    locationUid?: string
+    locationPath?: string[]
+    editUid?: string
+    editPath?: string[]
+  },
+): {
+  locationUid?: string
+  locationPath?: string[]
+  editUid?: string
+  editPath?: string[]
+} {
+  const locationUid = existingDraft?.locationUid || input.locationUid || undefined
+  const locationPath = locationUid
+    ? existingDraft?.locationUid
+      ? existingDraft.locationPath ?? []
+      : input.locationPath ?? []
+    : undefined
+  const editUid = input.editUid || existingDraft?.editUid || undefined
+  const editPath = editUid ? (input.editUid ? input.editPath ?? [] : existingDraft?.editPath ?? []) : undefined
+  return {locationUid, locationPath, editUid, editPath}
 }
 
 export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined) {
