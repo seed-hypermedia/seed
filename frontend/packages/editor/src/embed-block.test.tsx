@@ -10,7 +10,7 @@ const {draftActionsMock, editorGateMock} = vi.hoisted(() => ({
     current: null as any,
   },
   editorGateMock: {
-    current: {canEdit: false, isEditing: false},
+    current: {canEdit: false, isEditing: false, beginEditIfNeeded: vi.fn()},
   },
 }))
 
@@ -48,7 +48,11 @@ vi.mock('./embed-editor', () => ({
 
 vi.mock('./media-container', () => ({
   MediaContainer: ({children, onPress}: any) => (
-    <div data-testid="media-container" data-has-on-press={String(!!onPress)}>
+    <div
+      data-testid="media-container"
+      data-has-on-press={String(!!onPress)}
+      onClick={onPress ? (e) => onPress(e.nativeEvent) : undefined}
+    >
       {children}
     </div>
   ),
@@ -107,7 +111,7 @@ afterEach(() => {
   })
   container.remove()
   draftActionsMock.current = null
-  editorGateMock.current = {canEdit: false, isEditing: false}
+  editorGateMock.current = {canEdit: false, isEditing: false, beginEditIfNeeded: vi.fn()}
   vi.useRealTimers()
 })
 
@@ -134,12 +138,14 @@ function renderEmbedBlock({
   canEdit = false,
   isEditing = false,
   view = 'Card',
+  beginEditIfNeeded = vi.fn(),
 }: {
   canEdit?: boolean
   isEditing?: boolean
   view?: 'Card' | 'Content' | 'Comments'
+  beginEditIfNeeded?: ReturnType<typeof vi.fn>
 } = {}) {
-  editorGateMock.current = {canEdit, isEditing}
+  editorGateMock.current = {canEdit, isEditing, beginEditIfNeeded}
   act(() => {
     root.render(
       EmbedBlock.render({
@@ -228,6 +234,18 @@ describe('EmbedBlock card navigation mode', () => {
     expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
       'false',
     )
+  })
+
+  it('enters edit mode when an editable card embed body is clicked', () => {
+    const beginEditIfNeeded = vi.fn()
+    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card', beginEditIfNeeded})
+    const mediaContainer = container.querySelector('[data-testid="media-container"]') as HTMLElement
+
+    act(() => {
+      mediaContainer.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+
+    expect(beginEditIfNeeded).toHaveBeenCalledOnce()
   })
 })
 

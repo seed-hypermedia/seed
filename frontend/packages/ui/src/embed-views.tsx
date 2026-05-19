@@ -109,7 +109,8 @@ export function BlockEmbedCard({
   block,
   parentBlockId,
   openOnClick = true,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
+  titleLinkOnly = false,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean; titleLinkOnly?: boolean}) {
   const id = unpackHmId(block.link) ?? undefined
   const doc = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
@@ -171,7 +172,7 @@ export function BlockEmbedCard({
       parentBlockId={parentBlockId}
       hideBorder
       route={{key: 'document', id}}
-      openOnClick={openOnClick}
+      openOnClick={titleLinkOnly ? false : openOnClick}
     >
       <DocumentCard
         entity={{
@@ -181,6 +182,7 @@ export function BlockEmbedCard({
         docId={id}
         accountsMetadata={accountsMetadata}
         navigate={false}
+        titleLinkOnly={titleLinkOnly}
       />
     </EmbedWrapper>
   )

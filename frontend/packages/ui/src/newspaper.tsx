@@ -27,6 +27,7 @@ export function DocumentCard({
   accountsMetadata,
   contributorUids,
   navigate: navigateProp = true,
+  titleLinkOnly = false,
   onMouseEnter,
   onMouseLeave,
   banner = false,
@@ -39,6 +40,7 @@ export function DocumentCard({
   /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
   contributorUids?: string[]
   navigate?: boolean
+  titleLinkOnly?: boolean
   onMouseEnter?: (id: UnpackedHypermediaId) => void
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
@@ -46,6 +48,7 @@ export function DocumentCard({
 }) {
   const highlighter = useHighlighter()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+  const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const actions = useDocumentActions()
@@ -207,9 +210,11 @@ export function DocumentCard({
     ),
   }
 
+  const titleClassName = cn('text-foreground block font-sans leading-tight! font-bold', banner ? 'text-2xl' : 'text-lg')
+  const title = entity?.document?.metadata?.name
   const content = (
     <>
-      <div className="flex max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
+      <div className={cn('flex max-w-full flex-1 flex-col @md:flex-row', navigateProp && 'cursor-pointer')}>
         {coverImage && (
           <div className={cn('relative h-40 w-full shrink-0 @md:h-auto @md:w-1/2', banner && '@md:h-auto')}>
             <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
@@ -217,14 +222,23 @@ export function DocumentCard({
         )}
         <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
           <div className="p-4">
-            <p
-              className={cn(
-                'text-foreground block font-sans leading-tight! font-bold',
-                banner ? 'text-2xl' : 'text-lg',
-              )}
-            >
-              {entity?.document?.metadata?.name}
-            </p>
+            {titleLinkOnly && linkAttributes.href ? (
+              <a
+                {...linkAttributes}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  routeOnClick?.(e)
+                }}
+                className={cn(titleClassName, 'inline-block cursor-pointer no-underline hover:underline')}
+              >
+                {title}
+              </a>
+            ) : (
+              <p className={titleClassName}>{title}</p>
+            )}
             {textContent && (
               <p className={cn('text-muted-foreground mt-2 line-clamp-3 font-sans', !banner && 'text-sm')}>
                 {textContent}
@@ -284,7 +298,7 @@ export function DocumentCard({
 
   if (navigateProp && linkProps) {
     return (
-      <a {...sharedProps} {...linkProps} {...(props as any)}>
+      <a {...sharedProps} {...linkAttributes} onClick={routeOnClick} {...(props as any)}>
         {content}
       </a>
     )
