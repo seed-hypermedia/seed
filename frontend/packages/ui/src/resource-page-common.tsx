@@ -24,6 +24,7 @@ import {findDraftForPath, useDraftsForAccountSafe} from '@shm/shared/draft-bread
 import {
   useAccount,
   useAccountsMetadata,
+  useDirectory,
   useIsLatest,
   useResource,
   useResources,
@@ -104,7 +105,7 @@ import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
-// import {UnreferencedDocuments} from './unreferenced-documents'
+import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
@@ -294,8 +295,6 @@ export interface ResourcePageProps {
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing. Shown when a draft exists and isEditing is false. */
   draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
-  /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
-  newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only). Flows into machine context. */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only). Flows into machine context. */
@@ -355,7 +354,6 @@ export function ResourcePage({
   machineExtras,
   editingFloatingActions,
   draftActions,
-  newButton,
   signingAccountId,
   publishAccountUid,
   fileUpload,
@@ -630,7 +628,6 @@ export function ResourcePage({
           canEdit={canEdit}
           editingFloatingActions={editingFloatingActions}
           draftActions={draftActions}
-          newButton={newButton}
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
           fileUpload={fileUpload}
@@ -804,7 +801,6 @@ function DocumentBody({
   canEdit = false,
   editingFloatingActions,
   draftActions,
-  newButton,
   signingAccountId,
   publishAccountUid,
   fileUpload,
@@ -843,8 +839,6 @@ function DocumentBody({
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing */
   draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
-  /** Button for creating a new document. Rendered in the top-right floating overlay in both editing and non-editing states. */
-  newButton?: ReactNode
   /** Signing account ID for draft saving (desktop only) */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only) */
@@ -1030,7 +1024,7 @@ function DocumentBody({
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   const siteMembers = useSiteMembers(siteId)
-  // const directory = useDirectory(docId)
+  const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
@@ -1383,7 +1377,7 @@ function DocumentBody({
       unorderedItems = unorderedItems.filter((item) => !drop(item.key))
     }
     // Contextual menu items ordering
-    const itemOrder = ['versions', 'options', 'copy-link', 'move', 'duplicate', 'branch', 'export', 'directory']
+    const itemOrder = ['new', 'versions', 'options', 'copy-link', 'move', 'duplicate', 'branch', 'export', 'directory']
     const byKey = new Map(unorderedItems.map((i) => [i.key, i]))
     const orderedItems: MenuItemType[] = []
     const consumed = new Set<string>()
@@ -1638,7 +1632,7 @@ function DocumentBody({
           isUnpublishedDraft={isUnpublishedDraft}
           isBlockInPublishedVersion={isBlockInPublishedVersion}
           CommentEditor={CommentEditor}
-          // directory={directory.data}
+          directory={directory.data}
           siteUrl={siteUrl}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
@@ -1749,7 +1743,7 @@ function DocumentBody({
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
         {/* Floating action buttons — when editing, show editing toolbar;
             when a draft exists but not editing, show draft toolbar (publish + menu);
-            otherwise show new button + options menu */}
+            otherwise show the options menu */}
         {isEditing && editingFloatingActions ? (
           <div
             className={cn(
@@ -1766,13 +1760,12 @@ function DocumentBody({
           >
             {draftActions({menuItems: allMenuItems})}
           </div>
-        ) : newButton || actionButtons ? (
+        ) : actionButtons ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
             )}
           >
-            {newButton ? <div className="hidden md:block">{newButton}</div> : null}
             {actionButtons}
           </div>
         ) : null}
@@ -2115,7 +2108,7 @@ function MainContent({
   isUnpublishedDraft,
   isBlockInPublishedVersion,
   CommentEditor,
-  // directory,
+  directory,
   siteUrl,
   inlineCards,
   inlineInsert,
@@ -2245,7 +2238,7 @@ function MainContent({
           onBlockSelect={onBlockSelect}
           isUnpublishedDraft={isUnpublishedDraft}
           isBlockInPublishedVersion={isBlockInPublishedVersion}
-          // directory={directory}
+          directory={directory}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
@@ -2275,7 +2268,7 @@ function ContentViewWithOutline({
   onBlockSelect,
   isUnpublishedDraft,
   isBlockInPublishedVersion,
-  // directory,
+  directory,
   inlineCards,
   inlineInsert,
   DocumentContentComponent,
@@ -2369,12 +2362,12 @@ function ContentViewWithOutline({
         ) : null}
         {inlineInsert}
         {inlineCards}
-        {/* <UnreferencedDocuments
+        <UnreferencedDocuments
           docId={docId}
           content={document.content}
           draftContent={existingDraftContent}
           directory={directory}
-        /> */}
+        />
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
