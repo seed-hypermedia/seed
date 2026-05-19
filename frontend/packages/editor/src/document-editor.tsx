@@ -35,6 +35,8 @@ import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
+import type {DomainResolverFn} from '@seed-hypermedia/client'
+import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {InlineAddBlockButton} from './inline-add-block-button'
 import {MentionMenuPositioner} from './mention-menu-positioner'
 import {PublishRequiredDialog} from './publish-required-dialog'
@@ -169,6 +171,14 @@ export function DocumentEditor({
       } as any,
       _tiptapOptions: {
         extensions: [
+          Extension.create({
+            name: 'hypermedia-link',
+            addProseMirrorPlugins() {
+              const domainResolver = (linkExtensionOptions as {domainResolver?: DomainResolverFn} | undefined)
+                ?.domainResolver
+              return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
+            },
+          }),
           Extension.create({
             name: 'document-select-all',
             priority: 1000,

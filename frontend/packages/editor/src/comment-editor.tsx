@@ -110,7 +110,7 @@ export function useCommentEditor(
         Extension.create({
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
-            return [createHypermediaDocLinkPlugin({}).plugin]
+            return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
           },
         }),
         Extension.create({
