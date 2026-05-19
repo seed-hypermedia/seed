@@ -130,8 +130,10 @@ func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetC
 				return err
 			}
 
-			if srv.cfg.PublicOnly && icmt.Comment.Visibility == blob.VisibilityPrivate {
-				return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+			if icmt.Comment.Visibility == blob.VisibilityPrivate {
+				if err := srv.denyPrivateComment(ctx, icmt.Comment.Space(), icmt.Comment.Path); err != nil {
+					return err
+				}
 			}
 
 			pb, err := commentToProto(lookup, icmt.CID, icmt.Comment, icmt.TSID)
@@ -166,7 +168,9 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		lookup := blob.NewLookupCache(conn)
 
 		q := qIterComments()
-		if srv.cfg.PublicOnly {
+		if publicOnly, err := srv.isPublicOnlyFor(ctx, acc, in.TargetPath); err != nil {
+			return nil, err
+		} else if publicOnly {
 			q = qIterCommentsPublicOnly()
 		}
 		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, iri).All()
@@ -216,10 +220,15 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 		lookup := blob.NewLookupCache(conn)
 
 		q := qIterCommentsByAuthor()
+		args := []any{author, cursor.CommentID, in.PageSize + 1}
 		if srv.cfg.PublicOnly {
 			q = qIterCommentsByAuthorPublicOnly()
+			if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
+				q = qIterCommentsByAuthorAuthenticated()
+				args = []any{author, []byte(caller), cursor.CommentID, in.PageSize + 1}
+			}
 		}
-		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, author, cursor.CommentID, in.PageSize+1).All()
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), q, args...).All()
 		defer discard(&err)
 
 		for result := range comments {
@@ -366,12 +375,12 @@ var qIterCommentsByAuthor = dqb.Str(`
 		b.data,
 		sb.extra_attrs->>'tsid' AS tsid
 	FROM (
-        SELECT
-        	sb.*,
-         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
-        FROM structural_blobs sb
-  		WHERE sb.type = 'Comment'
-    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+		SELECT
+			sb.*,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+		FROM structural_blobs sb
+		WHERE sb.type = 'Comment'
+		AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
 	) sb
 	JOIN blobs b ON b.id = sb.id
 	WHERE sb.rn = 1
@@ -400,6 +409,34 @@ var qIterCommentsByAuthorPublicOnly = dqb.Str(`
 	WHERE sb.rn = 1
 	AND sb.extra_attrs->>'deleted' IS NULL
 	AND sb.extra_attrs->>'visibility' IS NOT 'Private'
+	AND sb.id < :afterID
+	ORDER BY sb.id DESC
+	LIMIT :limit
+`)
+
+var qIterCommentsByAuthorAuthenticated = dqb.Str(`
+	SELECT
+		sb.id,
+		b.codec,
+		b.multihash,
+		b.data,
+		sb.extra_attrs->>'tsid' AS tsid
+	FROM (
+        SELECT
+        	sb.*,
+         	ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC) rn
+        FROM structural_blobs sb
+  		WHERE sb.type = 'Comment'
+    	AND sb.author = (SELECT id FROM public_keys WHERE principal = :author)
+	) sb
+	JOIN blobs b ON b.id = sb.id
+	JOIN resources r ON r.id = sb.resource
+	WHERE sb.rn = 1
+	AND sb.extra_attrs->>'deleted' IS NULL
+	AND (
+		sb.extra_attrs->>'visibility' IS NOT 'Private'
+		OR ` + blob.SQLCanWriteRootByOwnerID("r.owner") + `
+	)
 	AND sb.id < :afterID
 	ORDER BY sb.id DESC
 	LIMIT :limit
@@ -783,7 +820,7 @@ func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCo
 				return err
 			}
 			if icmt.Comment.Visibility == blob.VisibilityPrivate {
-				return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+				return srv.denyPrivateComment(ctx, icmt.Comment.Space(), icmt.Comment.Path)
 			}
 		}
 		if err := sqlitex.Exec(conn, qGetReplyCountByID(), func(stmt *sqlite.Stmt) error {

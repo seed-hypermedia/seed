@@ -789,6 +789,126 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 	return valid, err
 }
 
+// CanWriteRootInDB checks whether writer is allowed to write to the root of space using an existing database connection.
+func CanWriteRootInDB(conn *sqlite.Conn, space core.Principal, writer core.Principal) (bool, error) {
+	iri, err := NewIRI(space, "")
+	if err != nil {
+		return false, err
+	}
+	return IsValidWriterInDB(conn, iri, writer)
+}
+
+// canWriteRootByIDInDB checks whether writer can write to the root of ownerID's space.
+func canWriteRootByIDInDB(conn *sqlite.Conn, ownerID int64, writer core.Principal) (bool, error) {
+	writerID, err := DbPublicKeysLookupID(conn, writer)
+	if err != nil {
+		return false, err
+	}
+
+	var valid bool
+	rows, discard, check := sqlitex.Query(conn, qCanWriteRootByID(), ownerID, writerID).All()
+	defer discard(&err)
+	for range rows {
+		valid = true
+		break
+	}
+
+	err = errors.Join(err, check())
+	return valid, err
+}
+
+// IsValidWriterInDB checks whether writer is allowed to write into resource using an existing database connection.
+func IsValidWriterInDB(conn *sqlite.Conn, resource IRI, writer core.Principal) (bool, error) {
+	writerID, err := DbPublicKeysLookupID(conn, writer)
+	if err != nil {
+		return false, err
+	}
+	return isValidWriter(conn, writerID, resource)
+}
+
+// SQLCanWriteRootByOwnerID returns a SQL EXISTS expression that checks root write access.
+func SQLCanWriteRootByOwnerID(ownerIDExpr string) string {
+	return fmt.Sprintf(sqlCanWriteRootByOwnerID, ownerIDExpr)
+}
+
+const sqlCanWriteRootByOwnerID = `EXISTS (
+	SELECT 1
+	FROM public_keys caller
+	WHERE caller.principal = ?
+	AND (
+		%[1]s = caller.id
+		OR EXISTS (
+			SELECT 1
+			FROM resources root_resource
+			JOIN structural_blobs direct ON direct.resource = root_resource.id
+			WHERE root_resource.iri GLOB 'hm://*'
+			AND root_resource.iri NOT GLOB 'hm://*/*'
+			AND direct.type = 'Capability'
+			AND direct.author = %[1]s
+			AND direct.extra_attrs->>'del' = caller.id
+			AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+		)
+		OR EXISTS (
+			SELECT 1
+			FROM structural_blobs agent
+			WHERE agent.type = 'Capability'
+			AND agent.extra_attrs->>'del' = caller.id
+			AND agent.extra_attrs->>'role' = 'AGENT'
+			AND (
+				agent.author = %[1]s
+				OR EXISTS (
+					SELECT 1
+					FROM resources root_resource
+					JOIN structural_blobs parent_writer ON parent_writer.resource = root_resource.id
+					WHERE root_resource.iri GLOB 'hm://*'
+					AND root_resource.iri NOT GLOB 'hm://*/*'
+					AND parent_writer.type = 'Capability'
+					AND parent_writer.author = %[1]s
+					AND parent_writer.extra_attrs->>'del' = agent.author
+					AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+				)
+			)
+		)
+	)
+)`
+
+var qCanWriteRootByID = dqb.Str(`
+	SELECT 1
+	WHERE ?1 = ?2
+	OR EXISTS (
+		SELECT 1
+		FROM resources root_resource
+		JOIN structural_blobs direct ON direct.resource = root_resource.id
+		WHERE root_resource.iri GLOB 'hm://*'
+		AND root_resource.iri NOT GLOB 'hm://*/*'
+		AND direct.type = 'Capability'
+		AND direct.author = ?1
+		AND direct.extra_attrs->>'del' = ?2
+		AND direct.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+	)
+	OR EXISTS (
+		SELECT 1
+		FROM structural_blobs agent
+		WHERE agent.type = 'Capability'
+		AND agent.extra_attrs->>'del' = ?2
+		AND agent.extra_attrs->>'role' = 'AGENT'
+		AND (
+			agent.author = ?1
+			OR EXISTS (
+				SELECT 1
+				FROM resources root_resource
+				JOIN structural_blobs parent_writer ON parent_writer.resource = root_resource.id
+				WHERE root_resource.iri GLOB 'hm://*'
+				AND root_resource.iri NOT GLOB 'hm://*/*'
+				AND parent_writer.type = 'Capability'
+				AND parent_writer.author = ?1
+				AND parent_writer.extra_attrs->>'del' = agent.author
+				AND parent_writer.extra_attrs->>'role' IN ('WRITER', 'AGENT')
+			)
+		)
+	)
+`)
+
 var qIsValidWriter = dqb.Str(`
 	-- owner, writer, breadcrumbs
 	SELECT 1 AS valid

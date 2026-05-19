@@ -1,5 +1,6 @@
 import {LoaderFunction} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 
 /**
  * Simple proxy for IPFS file content (videos, documents, etc.)
@@ -9,6 +10,11 @@ import {DAEMON_HTTP_URL} from '@shm/shared/constants'
  * which break on hosted sites.
  */
 export const loader: LoaderFunction = async ({params, request}) => {
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, () => loadFile(params, request, authToken))
+}
+
+async function loadFile(params: Record<string, string | undefined>, request: Request, authToken: string | null) {
   const CID = params['*']?.split('/')[0]
 
   if (!CID) return new Response('No CID provided', {status: 400})
@@ -22,6 +28,9 @@ export const loader: LoaderFunction = async ({params, request}) => {
     if (range) {
       headers['Range'] = range
     }
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`
+    }
 
     const response = await fetch(fileUrl, {headers})
     if (!response.ok && response.status !== 206) {
@@ -29,11 +38,11 @@ export const loader: LoaderFunction = async ({params, request}) => {
     }
 
     // Stream the response body directly
-    const responseHeaders: Record<string, string> = {
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    }
+    const responseHeaders: Record<string, string> = {}
 
     // Forward relevant headers from the daemon response
+    const cacheControl = response.headers.get('cache-control')
+    if (cacheControl) responseHeaders['Cache-Control'] = cacheControl
     const contentType = response.headers.get('content-type')
     if (contentType) responseHeaders['Content-Type'] = contentType
     const contentLength = response.headers.get('content-length')

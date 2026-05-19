@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"seed/backend/ipfs"
+	"seed/backend/util/sqlite"
 	"slices"
 
 	"seed/backend/util/sqlite/sqlitex"
@@ -105,6 +106,17 @@ func (idx *Index) Has(ctx context.Context, c cid.Cid) (bool, error) {
 // Get retrieves a block from the blockstore.
 func (idx *Index) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	return idx.bs.Get(ctx, c)
+}
+
+// IsPublicCID reports whether a stored blob is marked as public.
+func (idx *Index) IsPublicCID(ctx context.Context, c cid.Cid) (bool, error) {
+	return sqlitex.Read(ctx, idx.db, func(conn *sqlite.Conn) (bool, error) {
+		res, err := dbBlobsGet(conn, c.Hash(), false)
+		if err != nil {
+			return false, err
+		}
+		return res.ID != 0 && res.IsPublic, nil
+	})
 }
 
 // GetMany retrieves multiple blocks from the blockstore.

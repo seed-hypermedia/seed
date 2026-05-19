@@ -32,17 +32,28 @@ const (
 	MaxFileBytes = 150 * 1024 * 1024 // 150 MiB.
 	// SearchTimeout is the maximum time we are searching for a file.
 	SearchTimeout = 30 * time.Second
+	// PublicIPFSCacheControl is used for content the daemon can prove is public.
+	PublicIPFSCacheControl = "public, max-age=29030400, immutable"
+	// PrivateIPFSCacheControl permits browser caching but prevents shared CDN caches from storing private content.
+	PrivateIPFSCacheControl = "private, max-age=29030400, immutable"
 )
+
+// PublicCIDChecker checks whether a CID is publicly cacheable.
+type PublicCIDChecker interface {
+	// IsPublicCID reports whether a stored blob is marked as public.
+	IsPublicCID(ctx context.Context, c cid.Cid) (bool, error)
+}
 
 // FileManager is the main object to handle ipfs files.
 type FileManager struct {
-	log        *zap.Logger
-	bs         blockstore.Blockstore
-	dagService ipld.DAGService
+	log              *zap.Logger
+	bs               blockstore.Blockstore
+	dagService       ipld.DAGService
+	publicCIDChecker PublicCIDChecker
 }
 
 // NewFileManager creates a new fileManager instance.
-func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.Interface) *FileManager {
+func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.Interface, publicCIDChecker PublicCIDChecker) *FileManager {
 	bsvc := blockservice.New(bs, bitswap)
 	// Don't close the blockservice, because it doesn't do anything useful.
 	// It's actually closing the exchange, which is not even its responsibility.
@@ -52,9 +63,10 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 	dag := merkledag.NewDAGService(bsvc)
 
 	return &FileManager{
-		log:        log,
-		bs:         bs,
-		dagService: dag,
+		log:              log,
+		bs:               bs,
+		dagService:       dag,
+		publicCIDChecker: publicCIDChecker,
 	}
 }
 
@@ -136,7 +148,7 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("ETag", cidStr)
-	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
+	w.Header().Set("Cache-Control", fm.cacheControlForCID(ctx, cid))
 
 	if filename := r.URL.Query().Get("filename"); filename != "" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
@@ -209,6 +221,21 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, response); err != nil {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
 	}
+}
+
+func (fm *FileManager) cacheControlForCID(ctx context.Context, c cid.Cid) string {
+	if fm.publicCIDChecker == nil {
+		return PrivateIPFSCacheControl
+	}
+	isPublic, err := fm.publicCIDChecker.IsPublicCID(ctx, c)
+	if err != nil {
+		fm.log.Warn("GetFile: failed to determine cache policy", zap.Error(err), zap.String("cid", c.String()))
+		return PrivateIPFSCacheControl
+	}
+	if !isPublic {
+		return PrivateIPFSCacheControl
+	}
+	return PublicIPFSCacheControl
 }
 
 // PutBlob stores a raw IPFS block uploaded by the client.

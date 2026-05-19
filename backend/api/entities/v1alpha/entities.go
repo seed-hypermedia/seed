@@ -86,6 +86,62 @@ func isValidIriFilter(s string) bool {
 	return validIriFilterRe.MatchString(s)
 }
 
+func (srv *Server) publicOnlyForIRIGlob(ctx context.Context, iriGlob string) (bool, error) {
+	if !srv.cfg.PublicOnly {
+		return false, nil
+	}
+
+	iriRaw := strings.TrimSuffix(iriGlob, "*")
+	return srv.publicOnlyForEntity(ctx, strings.TrimSuffix(iriRaw, "/"))
+}
+
+func (srv *Server) publicOnlyForEntity(ctx context.Context, entityID string) (bool, error) {
+	if !srv.cfg.PublicOnly {
+		return false, nil
+	}
+
+	caller, ok := blob.GetAuthenticatedCaller(ctx)
+	if !ok {
+		return true, nil
+	}
+
+	account, _, ok := entityAccountPath(entityID)
+	if !ok {
+		return true, nil
+	}
+
+	allowed := false
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		ok, err := blob.CanWriteRootInDB(conn, account, caller)
+		if err != nil {
+			return err
+		}
+		allowed = ok
+		return nil
+	}); err != nil {
+		return true, err
+	}
+
+	return !allowed, nil
+}
+
+func entityAccountPath(entityID string) (core.Principal, string, bool) {
+	const prefix = "hm://"
+	if !strings.HasPrefix(entityID, prefix) {
+		return nil, "", false
+	}
+	rest := strings.TrimPrefix(entityID, prefix)
+	accountRaw, path, _ := strings.Cut(rest, "/")
+	account, err := core.DecodePrincipal(accountRaw)
+	if err != nil {
+		return nil, "", false
+	}
+	if path != "" {
+		path = "/" + strings.Trim(path, "/")
+	}
+	return account, path, true
+}
+
 const (
 	lastResultTTL = time.Second * 20 // we cache the previous discovery result for this long
 	taskTTL       = time.Second * 40 // if the frontend didn't request discovery for this long we discard the task
@@ -1003,6 +1059,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	} else {
 		iriGlob = "hm://*"
 	}
+	publicOnly, err := srv.publicOnlyForIRIGlob(ctx, iriGlob)
+	if err != nil {
+		return nil, err
+	}
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
@@ -1034,13 +1094,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, publicOnly)
 		}()
 		go func() {
 			defer wg.Done()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
-				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, srv.cfg.PublicOnly)
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, publicOnly)
 				return err
 			})
 		}()
@@ -1064,7 +1124,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Semantic-only search. Any failure is surfaced to the caller since there
 		// is no keyword leg to fall back to.
 		var err error
-		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, srv.cfg.PublicOnly)
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, publicOnly)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -1073,7 +1133,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Keyword only search:
 		err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var err error
-			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, srv.cfg.PublicOnly)
+			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, publicOnly)
 			return err
 		})
 		if err != nil {
@@ -1784,6 +1844,10 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 	resp := &entpb.ListEntityMentionsResponse{}
 	var genesisBlobIDs []string
 	var deletedList []string
+	publicOnly, err := srv.publicOnlyForEntity(ctx, in.Id)
+	if err != nil {
+		return nil, err
+	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
 		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
@@ -1866,7 +1930,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			})
 
 			return nil
-		}, eid, srv.cfg.PublicOnly, cursor.BlobID, in.PageSize); err != nil {
+		}, eid, publicOnly, cursor.BlobID, in.PageSize); err != nil {
 			return err
 		}
 
@@ -1876,7 +1940,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 	}
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	var movedResources []MovedResource
-	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			movedResources = append(movedResources, MovedResource{
 				NewIri:    stmt.ColumnText(0),

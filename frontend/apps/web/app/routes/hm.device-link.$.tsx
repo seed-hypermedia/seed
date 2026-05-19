@@ -8,6 +8,7 @@ import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import * as cbor from '@ipld/dag-cbor'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
@@ -59,9 +60,11 @@ export const meta: MetaFunction = ({data}) => {
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
-  const headerData = await loadSiteHeaderData(parsedRequest)
-
-  return wrapJSON(headerData satisfies DeviceLinkPagePayload)
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, async () => {
+    const headerData = await loadSiteHeaderData(parsedRequest)
+    return wrapJSON(headerData satisfies DeviceLinkPagePayload)
+  })
 }
 
 export default function DeviceLinkPage() {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"seed/backend/core"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlitegen"
@@ -157,7 +158,7 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		}
 		defer release()
 
-		ok, err := b.has(conn, c, publicOnly)
+		ok, err := b.has(ctx, conn, c, publicOnly)
 		if err == nil && !ok {
 			// Cross-check: is the row actually present without filters?
 			// If yes, Has lied — the next step is bitswap will fetch it
@@ -195,8 +196,8 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	return ok, nil
 }
 
-func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (bool, error) {
-	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
+func (b *blockStore) has(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (bool, error) {
+	res, err := b.getSize(ctx, conn, c, publicOnly)
 	if err != nil {
 		return false, err
 	}
@@ -245,7 +246,7 @@ func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	defer release()
 
 	publicOnly := IsPublicOnly(ctx)
-	return b.get(conn, c, publicOnly)
+	return b.get(ctx, conn, c, publicOnly)
 }
 
 // GetMany is a batch request to get many blocks from the blockstore.
@@ -262,7 +263,7 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 	out := make([]blocks.Block, len(cc))
 
 	for i, c := range cc {
-		blk, err := b.get(conn, c, publicOnly)
+		blk, err := b.get(ctx, conn, c, publicOnly)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +284,7 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blo
 	return erriter.Make(func(yield func(blocks.Block) bool) error {
 		return b.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			for _, c := range cc {
-				blk, err := b.get(conn, c, publicOnly)
+				blk, err := b.get(ctx, conn, c, publicOnly)
 				if err != nil {
 					return err
 				}
@@ -297,7 +298,7 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blo
 	})
 }
 
-func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.Block, error) {
+func (b *blockStore) get(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.Block, error) {
 	res, err := dbBlobsGet(conn, c.Hash(), publicOnly)
 	if err != nil {
 		return nil, err
@@ -310,12 +311,23 @@ func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.
 				return nil, err
 			}
 			if privateRes.ID != 0 && !privateRes.IsPublic {
+				if caller, ok := GetAuthenticatedCaller(ctx); ok {
+					allowed, err := dbBlobCanCallerAccess(conn, privateRes.ID, caller)
+					if err != nil {
+						return nil, err
+					}
+					if allowed {
+						res = privateRes
+						goto found
+					}
+				}
 				return nil, PublicOnlyDeniedError{CID: c}
 			}
 		}
 		return nil, format.ErrNotFound{Cid: c}
 	}
 
+found:
 	// Size 0 means that data is stored inline in the CID.
 	if res.Size == 0 {
 		return blocks.NewBlockWithCid(nil, c)
@@ -350,7 +362,7 @@ func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	defer release()
 
 	publicOnly := IsPublicOnly(ctx)
-	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
+	res, err := b.getSize(ctx, conn, c, publicOnly)
 	if err != nil {
 		return 0, err
 	}
@@ -360,6 +372,39 @@ func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	}
 
 	return int(res.BlobsSize), nil
+}
+
+func (b *blockStore) getSize(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blobsGetSizeResult, error) {
+	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
+	if err != nil {
+		return blobsGetSizeResult{}, err
+	}
+	if res.BlobsID != 0 || !publicOnly {
+		return res, nil
+	}
+
+	caller, ok := GetAuthenticatedCaller(ctx)
+	if !ok {
+		return res, nil
+	}
+
+	privateRes, err := dbBlobsGetSize(conn, c.Hash(), false)
+	if err != nil {
+		return blobsGetSizeResult{}, err
+	}
+	if privateRes.BlobsID == 0 || privateRes.BlobsSize < 0 {
+		return res, nil
+	}
+
+	allowed, err := dbBlobCanCallerAccess(conn, privateRes.BlobsID, caller)
+	if err != nil {
+		return blobsGetSizeResult{}, err
+	}
+	if !allowed {
+		return res, nil
+	}
+
+	return privateRes, nil
 }
 
 // Put implements blockstore.Blockstore interface.
@@ -645,6 +690,29 @@ func dbBlobsGet(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (dbBl
 
 	return out, err
 }
+
+func dbBlobCanCallerAccess(conn *sqlite.Conn, blobID int64, caller core.Principal) (bool, error) {
+	var allowed bool
+	err := sqlitex.Exec(conn, qBlobCanCallerAccess(), func(*sqlite.Stmt) error {
+		allowed = true
+		return nil
+	}, blobID, blobID, []byte(caller))
+	return allowed, err
+}
+
+var qBlobCanCallerAccess = dqb.Str(`
+	SELECT 1
+	FROM blob_visibility bv
+	WHERE bv.id = ?1
+	AND bv.space = 0
+	UNION ALL
+	SELECT 1
+	FROM blob_visibility bv
+	WHERE bv.id = ?2
+	AND bv.space != 0
+	AND ` + SQLCanWriteRootByOwnerID("bv.space") + `
+	LIMIT 1
+`)
 
 var qBlobsGet = dqb.Str(`
 	SELECT

@@ -5324,6 +5324,47 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	}
 }
 
+func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	cfg := makeTestConfig(t)
+	cfg.Base.PublicOnly = true
+	alice := makeTestApp(t, "alice", cfg, true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceKey.String(),
+		Path:           "/private-blob",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	privateCID, err := cid.Decode(privateDoc.Version)
+	require.NoError(t, err)
+
+	publicOnlyAuthCtx := blob.WithPublicOnly(blob.WithAuthenticatedCaller(ctx, aliceKey.Principal()))
+
+	blk, err := alice.Index.Get(publicOnlyAuthCtx, privateCID)
+	require.NoError(t, err)
+	require.Equal(t, privateCID, blk.Cid())
+
+	ok, err := alice.Index.Has(publicOnlyAuthCtx, privateCID)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	size, err := alice.Index.GetSize(publicOnlyAuthCtx, privateCID)
+	require.NoError(t, err)
+	require.Equal(t, len(blk.RawData()), size)
+}
+
 func TestPublicOnlyGetRemotePublicBlob(t *testing.T) {
 	t.Parallel()
 

@@ -47,6 +47,11 @@ const (
 	publicOnlyListVisibilityFilter = `COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'`
 )
 
+var authenticatedListVisibilityFilter = `(
+	COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'
+	OR ` + blob.SQLCanWriteRootByOwnerID("r.owner") + `
+)`
+
 // Server implements Documents API v3.
 type Server struct {
 	cfg       config.Base
@@ -147,8 +152,10 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
-	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
-		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	if doc.Visibility() == blob.VisibilityPrivate {
+		if err := srv.denyPrivateDocument(ctx, ns, in.Path); err != nil {
+			return nil, err
+		}
 	}
 
 	return doc.Hydrate(ctx)
@@ -156,11 +163,12 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 
 // GetDocumentInfo implements Documents API v3.
 func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumentInfoRequest) (*documents.DocumentInfo, error) {
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, err
+	}
+
 	info, err := sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
-		ns, err := core.DecodePrincipal(in.Account)
-		if err != nil {
-			return nil, err
-		}
 		lookup := blob.NewLookupCache(conn)
 		iri, err := blob.NewIRI(ns, in.Path)
 		if err != nil {
@@ -172,8 +180,10 @@ func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumen
 		return nil, err
 	}
 
-	if srv.cfg.PublicOnly && info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	if info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		if err := srv.denyPrivateDocument(ctx, ns, in.Path); err != nil {
+			return nil, err
+		}
 	}
 
 	return info, nil
@@ -216,8 +226,14 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 			if err != nil {
 				return fmt.Errorf("failed to get document info for %s: %w", iri, err)
 			}
-			if srv.cfg.PublicOnly && info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-				return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+			if info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+				acc, path, err := iri.SpacePath()
+				if err != nil {
+					return err
+				}
+				if err := srv.denyPrivateDocument(ctx, acc, path); err != nil {
+					return err
+				}
 			}
 			out.Documents[i] = info
 		}
@@ -473,7 +489,9 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		qb := baseListDocumentsQuery()
 
-		if srv.cfg.PublicOnly {
+		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
+			return nil, err
+		} else if publicOnly {
 			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
@@ -1053,9 +1071,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	{
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
-		if srv.cfg.PublicOnly {
-			qb.Where(publicOnlyListVisibilityFilter)
-		}
+		srv.applyListVisibilityFilter(ctx, qb, &args)
 
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
@@ -1137,16 +1153,18 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	{
 		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
 
-		if srv.cfg.PublicOnly {
-			qb.Where(publicOnlyListVisibilityFilter)
-		}
-
 		if in.Account == "" {
+			srv.applyListVisibilityFilter(ctx, qb, &args)
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
 			ns, err := core.DecodePrincipal(in.Account)
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode account: %w", err)
+			}
+			if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, ""); err != nil {
+				return nil, err
+			} else if publicOnly {
+				qb.Where(publicOnlyListVisibilityFilter)
 			}
 
 			iri, err := blob.NewIRI(ns, "")
@@ -1593,8 +1611,10 @@ func (srv *Server) GetRef(ctx context.Context, in *documents.GetRefRequest) (*do
 		return nil, err
 	}
 
-	if srv.cfg.PublicOnly && ref.Value.Visibility == blob.VisibilityPrivate {
-		return nil, status.Errorf(codes.PermissionDenied, "access to private refs is not allowed")
+	if ref.Value.Visibility == blob.VisibilityPrivate {
+		if err := srv.denyPrivateDocument(ctx, ref.Value.Space(), ref.Value.Path); err != nil {
+			return nil, err
+		}
 	}
 
 	return refToProto(ref.CID, ref.Value)
@@ -1643,8 +1663,10 @@ func (srv *Server) ListRefs(ctx context.Context, in *documents.ListRefsRequest) 
 			return nil, err
 		}
 
-		if srv.cfg.PublicOnly && ref.Value.Visibility == blob.VisibilityPrivate {
-			continue
+		if ref.Value.Visibility == blob.VisibilityPrivate {
+			if err := srv.denyPrivateDocument(ctx, ref.Value.Space(), ref.Value.Path); err != nil {
+				continue
+			}
 		}
 
 		pb, err := refToProto(ref.CID, ref.Value)
@@ -1910,6 +1932,62 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 		return status.Errorf(codes.PermissionDenied, "key '%s' is not allowed to write to space '%s' in path '%s'", kp.Principal(), account, path)
 	}
 
+	return nil
+}
+
+func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.SelectQuery, args *colx.Slice[any]) {
+	if !srv.cfg.PublicOnly {
+		return
+	}
+	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
+		qb.Where(authenticatedListVisibilityFilter)
+		args.Append([]byte(caller))
+		return
+	}
+	qb.Where(publicOnlyListVisibilityFilter)
+}
+
+func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
+	if !srv.cfg.PublicOnly {
+		return true, nil
+	}
+
+	caller, ok := blob.GetAuthenticatedCaller(ctx)
+	if !ok {
+		return false, nil
+	}
+
+	return srv.idx.IsValidWriter(ctx, account, "", caller)
+}
+
+func (srv *Server) isPublicOnlyFor(ctx context.Context, account core.Principal, path string) (bool, error) {
+	if !srv.cfg.PublicOnly {
+		return false, nil
+	}
+
+	ok, err := srv.canReadPrivate(ctx, account, path)
+	return !ok, err
+}
+
+func (srv *Server) denyPrivateDocument(ctx context.Context, account core.Principal, path string) error {
+	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	if err != nil {
+		return err
+	}
+	if publicOnly {
+		return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+	return nil
+}
+
+func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principal, path string) error {
+	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	if err != nil {
+		return err
+	}
+	if publicOnly {
+		return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+	}
 	return nil
 }
 

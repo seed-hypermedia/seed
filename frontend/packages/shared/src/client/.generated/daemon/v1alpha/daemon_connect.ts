@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -70,6 +70,17 @@ export const Daemon = {
       name: "GetInfo",
       I: GetInfoRequest,
       O: Info,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Authenticates a caller key and returns a daemon bearer token.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.Authenticate
+     */
+    authenticate: {
+      name: "Authenticate",
+      I: AuthenticateRequest,
+      O: AuthenticateResponse,
       kind: MethodKind.Unary,
     },
     /**

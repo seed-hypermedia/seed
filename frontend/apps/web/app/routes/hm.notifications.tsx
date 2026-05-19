@@ -6,6 +6,7 @@ import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -32,8 +33,11 @@ export const meta: MetaFunction = ({data}) => {
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
-  const headerData = await loadSiteHeaderData(parsedRequest)
-  return wrapJSON(headerData satisfies NotificationsPagePayload)
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, async () => {
+    const headerData = await loadSiteHeaderData(parsedRequest)
+    return wrapJSON(headerData satisfies NotificationsPagePayload)
+  })
 }
 
 export default function NotificationsRoute() {

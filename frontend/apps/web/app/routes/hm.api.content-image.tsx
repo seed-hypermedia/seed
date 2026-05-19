@@ -1,4 +1,5 @@
 import {grpcClient} from '@/client.server'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
@@ -259,6 +260,11 @@ function DocumentCard({
 }
 
 export const loader = async ({request}: {request: Request}) => {
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, () => loadContentImage(request))
+}
+
+async function loadContentImage(request: Request) {
   const url = new URL(request.url)
   const space = url.searchParams.get('space')
   const path = url.searchParams.get('path')

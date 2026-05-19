@@ -25,6 +25,7 @@ const (
 	Daemon_ImportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
 	Daemon_ExportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
+	Daemon_Authenticate_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/Authenticate"
 	Daemon_GetVaultStatus_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
 	Daemon_StartVaultConnection_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
 	Daemon_DisconnectVault_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
@@ -64,6 +65,8 @@ type DaemonClient interface {
 	ExportKey(ctx context.Context, in *ExportKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
+	// Authenticates a caller key and returns a daemon bearer token.
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
 	// Gets the current local-vault backend and sync status.
 	GetVaultStatus(ctx context.Context, in *GetVaultStatusRequest, opts ...grpc.CallOption) (*GetVaultStatusResponse, error)
 	// Starts a browser-mediated remote vault connection flow.
@@ -161,6 +164,16 @@ func (c *daemonClient) GetInfo(ctx context.Context, in *GetInfoRequest, opts ...
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Info)
 	err := c.cc.Invoke(ctx, Daemon_GetInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, Daemon_Authenticate_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -366,6 +379,8 @@ type DaemonServer interface {
 	ExportKey(context.Context, *ExportKeyRequest) (*emptypb.Empty, error)
 	// Get generic information about the running node.
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
+	// Authenticates a caller key and returns a daemon bearer token.
+	Authenticate(context.Context, *AuthenticateRequest) (*AuthenticateResponse, error)
 	// Gets the current local-vault backend and sync status.
 	GetVaultStatus(context.Context, *GetVaultStatusRequest) (*GetVaultStatusResponse, error)
 	// Starts a browser-mediated remote vault connection flow.
@@ -432,6 +447,9 @@ func (UnimplementedDaemonServer) ExportKey(context.Context, *ExportKeyRequest) (
 }
 func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Info, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInfo not implemented")
+}
+func (UnimplementedDaemonServer) Authenticate(context.Context, *AuthenticateRequest) (*AuthenticateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
 }
 func (UnimplementedDaemonServer) GetVaultStatus(context.Context, *GetVaultStatusRequest) (*GetVaultStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVaultStatus not implemented")
@@ -593,6 +611,24 @@ func _Daemon_GetInfo_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DaemonServer).GetInfo(ctx, req.(*GetInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_Authenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).Authenticate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_Authenticate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).Authenticate(ctx, req.(*AuthenticateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -947,6 +983,10 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetInfo",
 			Handler:    _Daemon_GetInfo_Handler,
+		},
+		{
+			MethodName: "Authenticate",
+			Handler:    _Daemon_Authenticate_Handler,
 		},
 		{
 			MethodName: "GetVaultStatus",

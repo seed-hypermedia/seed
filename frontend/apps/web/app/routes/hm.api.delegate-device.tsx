@@ -26,7 +26,8 @@ export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return json({message: 'Method not allowed'}, {status: 405})
   }
-  if (request.headers.get('Content-Type') !== 'application/cbor') {
+  const contentType = request.headers.get('Content-Type') || ''
+  if (!contentType.includes('application/cbor')) {
     return json({message: 'Content-Type must be application/cbor'}, {status: 400})
   }
   const cborData = await request.arrayBuffer()

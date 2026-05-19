@@ -27,6 +27,9 @@ service Daemon {
   // Get generic information about the running node.
   rpc GetInfo(GetInfoRequest) returns (Info);
 
+  // Authenticates a caller key and returns a daemon bearer token.
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+
   // Gets the current local-vault backend and sync status.
   rpc GetVaultStatus(GetVaultStatusRequest) returns (GetVaultStatusResponse);
 
@@ -102,6 +105,29 @@ message GenMnemonicResponse {
   // The list of human-friendly words that can be used to backup the seed. These
   // words must be stored in a secret place by the user.
   repeated string mnemonic = 1;
+}
+
+// Request to authenticate a caller key.
+message AuthenticateRequest {
+  // Required. Bytes of the caller key that's being authenticated.
+  bytes account = 1;
+
+  // Required. Timestamp of the request in Unix milliseconds. The daemon will check that it's not too old.
+  int64 timestamp = 2;
+
+  // Required. Signature by the caller key over the authentication payload.
+  // It signs over the account ID being proven, the account ID as the request delegate,
+  // the daemon peer ID as the audience, and the timestamp.
+  bytes signature = 3;
+}
+
+// Response to authenticate a caller key.
+message AuthenticateResponse {
+  // Opaque daemon bearer token.
+  string bearer_token = 1;
+
+  // Time when the bearer token expires.
+  google.protobuf.Timestamp expire_time = 2;
 }
 
 // Request to register a new account key derived from the mnemonic.

@@ -63,8 +63,10 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		return nil, err
 	}
 
-	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
-		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	if doc.Visibility() == blob.VisibilityPrivate {
+		if err := srv.denyPrivateDocument(ctx, acc, in.Path); err != nil {
+			return nil, err
+		}
 	}
 
 	var cursor struct {

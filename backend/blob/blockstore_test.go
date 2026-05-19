@@ -3,8 +3,10 @@ package blob
 import (
 	"context"
 	"fmt"
+	"seed/backend/core/coretest"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
+	"seed/backend/util/cclock"
 	"seed/backend/util/must"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
 
@@ -84,6 +87,45 @@ func TestGet_Missing(t *testing.T) {
 		require.True(t, format.IsNotFound(err))
 		require.Equal(t, 0, size)
 	}
+}
+
+func TestBlobCanCallerAccessChecksAllVisibilitySpaces(t *testing.T) {
+	ctx := context.Background()
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+	carol := coretest.NewTester("carol").Account
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
+	require.NoError(t, err)
+
+	conn, release, err := db.Conn(ctx)
+	require.NoError(t, err)
+	carolID, err := DbPublicKeysInsert(conn, carol.Principal())
+	require.NoError(t, err)
+	release()
+
+	capability, err := NewCapability(alice, bob.Principal(), alice.Principal(), "", RoleWriter, "", cclock.New().MustNow())
+	require.NoError(t, err)
+	require.NoError(t, idx.Put(ctx, capability))
+
+	privateBlock := ipfs.NewBlock(cid.Raw, []byte("private data shared with multiple spaces"))
+	require.NoError(t, idx.Put(ctx, privateBlock))
+
+	conn, release, err = db.Conn(ctx)
+	require.NoError(t, err)
+	defer release()
+
+	privateBlob, err := dbBlobsGet(conn, privateBlock.Cid().Hash(), false)
+	require.NoError(t, err)
+	aliceID, err := DbPublicKeysLookupID(conn, alice.Principal())
+	require.NoError(t, err)
+	require.NoError(t, recordBlobVisibility(conn, privateBlob.ID, carolID))
+	require.NoError(t, recordBlobVisibility(conn, privateBlob.ID, aliceID))
+
+	allowed, err := dbBlobCanCallerAccess(conn, privateBlob.ID, bob.Principal())
+	require.NoError(t, err)
+	require.True(t, allowed)
 }
 
 func TestHashOnRead(t *testing.T) {

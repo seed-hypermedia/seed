@@ -15,13 +15,10 @@ import {
   WEB_IDENTITY_ORIGIN,
   WEB_SIGNING_ENABLED,
 } from '@shm/shared/constants'
-import fs from 'fs'
-import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'
-import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
-import {ENABLE_HTML_CACHE, shouldFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
+import {getDaemonAuthToken, withDaemonAuthToken} from './daemon-auth.server'
 import {
   clearRequestInstrumentationContext,
   endSpan,
@@ -34,38 +31,13 @@ import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {getOrCreateServerSignerAccountUid} from './server-signing'
-import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config.server'
+import {applyConfigSubscriptions, getConfig} from './site-config.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 
 const ABORT_DELAY = 5_000
 
-const CACHE_PATH = resolve(join(process.env.DATA_DIR || process.cwd(), 'cache'))
-
-function recursiveRm(targetPath: string) {
-  if (!fs.existsSync(targetPath)) return
-  if (fs.lstatSync(targetPath).isDirectory()) {
-    fs.readdirSync(targetPath).forEach((file) => {
-      recursiveRm(join(targetPath, file))
-    })
-    fs.rmdirSync(targetPath)
-  } else {
-    fs.unlinkSync(targetPath)
-  }
-}
-
-let nextWarm: Promise<void> | undefined = undefined
-
-async function warmAllCaches() {
-  const hostnames = getHostnames()
-  console.log('WARMING CACHES FOR', hostnames)
-  await Promise.all(hostnames.map((hostname) => warmFullCache(hostname)))
-}
-
-const CACHE_WARM_INTERVAL = process.env.CACHE_WARM_INTERVAL ? parseInt(process.env.CACHE_WARM_INTERVAL) * 1000 : 45_000
-
 async function initializeServer() {
-  recursiveRm(CACHE_PATH)
   if (WEB_SIGNING_ENABLED) {
     await getOrCreateServerSignerAccountUid()
       .then((signerAccountUid) => {
@@ -75,28 +47,13 @@ async function initializeServer() {
         console.error('Failed to initialize web signing key', e)
       })
   }
-  if (ENABLE_HTML_CACHE) {
-    await mkdir(CACHE_PATH, {recursive: true})
-    await applyConfigSubscriptions()
-      .then(() => {
-        console.log('Config subscriptions applied')
-      })
-      .catch((e) => {
-        console.error('Error applying config subscriptions', e)
-      })
-    if (CACHE_WARM_INTERVAL !== 0) {
-      await warmAllCaches()
-
-      // warm full cache 45 seconds, but only if the next warm is not already in progress
-      setInterval(() => {
-        if (nextWarm === undefined) {
-          nextWarm = warmAllCaches().finally(() => {
-            nextWarm = undefined
-          })
-        }
-      }, CACHE_WARM_INTERVAL)
-    }
-  }
+  await applyConfigSubscriptions()
+    .then(() => {
+      console.log('Config subscriptions applied')
+    })
+    .catch((e) => {
+      console.error('Error applying config subscriptions', e)
+    })
   console.log('Connecting to the WEB_IDENTITY_ORIGIN server')
   await connectToWebIdentityOrigin()
   setInterval(connectToWebIdentityOrigin, 1000 * 60 * 5) // every 5 minutes, make sure we are connected to the WEB_IDENTITY_ORIGIN server
@@ -148,75 +105,11 @@ function logDebugRequest(path: string) {
 
 initializeServer()
   .then(() => {
-    console.log('Server initialized and cache warmed')
+    console.log('Server initialized')
   })
   .catch((e) => {
     console.error('Error initializing server', e)
   })
-
-async function warmCachePath(hostname: string, path: string, version?: string | null) {
-  const resp = await fetch(`http://localhost:${process.env.PORT || '3000'}${path}${version ? `?v=${version}` : ''}`, {
-    headers: {
-      'x-full-render': 'true',
-      'x-forwarded-host': hostname,
-    },
-  })
-  const respHtml = await resp.text()
-  const links = new Set<string>()
-  const matches = respHtml.match(/href="\/[^"]*"/g) || []
-  for (const match of matches) {
-    const url = match.slice(6, -1) // Remove href=" and ending "
-    if (url.startsWith('/')) {
-      links.add(url)
-    }
-  }
-  // save html to CACHE_PATH with every path is index.html and the path is a directory
-  const cachePath = join(CACHE_PATH, hostname, path, version ? `.versions/${version}/` : '', 'index.html')
-  if (!respHtml) {
-    console.error('respHtml is empty for path', path)
-    throw new Error('respHtml is empty for path ' + path)
-  }
-  if (resp.status === 200) {
-    // create the directory if it doesn't exist
-    await mkdir(dirname(cachePath), {recursive: true})
-    await writeFile(cachePath, respHtml)
-  }
-  const contentLinks = new Set(Array.from(links).filter((link) => !link.startsWith('/assets')))
-  return {
-    html: respHtml,
-    status: resp.status,
-    contentLinks,
-  }
-}
-
-async function fileExists(path: string) {
-  try {
-    await stat(path)
-    return true
-  } catch (e) {
-    return false
-  }
-}
-
-async function warmFullCache(hostname: string) {
-  const pathsToWarm = new Set<string>(['/'])
-  const warmedPaths = new Set<string>()
-  // warm paths until we've warmed all paths
-  while (pathsToWarm.size > 0) {
-    const path = pathsToWarm.values().next().value
-    // @ts-expect-error
-    const {html, status, contentLinks} = await warmCachePath(hostname, path)
-    // @ts-expect-error
-    pathsToWarm.delete(path)
-    // @ts-expect-error
-    warmedPaths.add(path)
-    for (const link of contentLinks) {
-      if (!warmedPaths.has(link)) {
-        pathsToWarm.add(link)
-      }
-    }
-  }
-}
 
 const COMMENT_VIEW_TERMS = [':comments', ':comment', ':discussions']
 
@@ -334,11 +227,25 @@ export default async function handleRequest(
   remixContext: EntryContext,
   loadContext: AppLoadContext,
 ) {
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, () =>
+    handleRequestWithAuth(request, responseStatusCode, responseHeaders, remixContext, loadContext, authToken),
+  )
+}
+
+async function handleRequestWithAuth(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  remixContext: EntryContext,
+  loadContext: AppLoadContext,
+  authToken: string | null,
+) {
   if (request.method === 'OPTIONS') {
     return await handleOptionsRequest(request)
   }
   const parsedRequest = parseRequest(request)
-  const {url, hostname, pathParts} = parsedRequest
+  const {url, pathParts} = parsedRequest
   if (pathParts.length === 1 && pathParts[0] === 'favicon.ico') {
     return new Response('Not Found', {
       status: 404,
@@ -351,16 +258,19 @@ export default async function handleRequest(
     responseHeaders.set('X-Frame-Options', 'DENY')
   }
   responseHeaders.set('Permissions-Policy', 'storage-access=*')
+  responseHeaders.set('Cache-Control', 'private, no-cache')
   const sendPerfLog = logDebugRequest(url.pathname)
 
   if (url.pathname.startsWith('/ipfs/')) {
     try {
-      const daemonResponse = await fetch(`${DAEMON_HTTP_URL}${url.pathname}`)
+      const daemonResponse = await fetch(`${DAEMON_HTTP_URL}${url.pathname}`, {
+        headers: authToken ? {Authorization: `Bearer ${authToken}`} : undefined,
+      })
       return new Response(daemonResponse.body, {
         status: daemonResponse.status,
         headers: {
           'Content-Type': daemonResponse.headers.get('Content-Type') || 'application/octet-stream',
-          'Cache-Control': daemonResponse.headers.get('Cache-Control') || 'public, max-age=29030400, immutable',
+          'Cache-Control': daemonResponse.headers.get('Cache-Control') || 'private, max-age=29030400, immutable',
         },
       })
     } catch {
@@ -380,36 +290,8 @@ export default async function handleRequest(
     return redirect(newUrl.toString())
   }
 
-  const serviceConfig = await getConfig(hostname)
-  const originAccountId = serviceConfig?.registeredAccountUid
-
-  if (!ENABLE_HTML_CACHE || shouldFullRender(parsedRequest)) {
-    sendPerfLog('requested full')
-    return handleFullRequest(request, responseStatusCode, responseHeaders, remixContext, loadContext, sendPerfLog)
-  }
-
-  const queryVersion = url.searchParams.get('v')
-  const cachePath = join(
-    CACHE_PATH,
-    `${hostname}/${url.pathname}/${queryVersion ? `.versions/${queryVersion}/` : ''}index.html`,
-  )
-  if (await fileExists(cachePath)) {
-    const html = await readFile(cachePath, 'utf8')
-    responseHeaders.set('Content-Type', 'text/html')
-    sendPerfLog('cache hit')
-    return new Response(html, {
-      headers: responseHeaders,
-      status: responseStatusCode,
-    })
-  }
-  // return warm cache path html
-  const {html} = await warmCachePath(hostname, url.pathname, queryVersion)
-  responseHeaders.set('Content-Type', 'text/html')
-  sendPerfLog('cache miss and loaded')
-  return new Response(html, {
-    headers: responseHeaders,
-    status: responseStatusCode,
-  })
+  sendPerfLog('requested full')
+  return handleFullRequest(request, responseStatusCode, responseHeaders, remixContext, loadContext, sendPerfLog)
 }
 
 export function handleFullRequest(

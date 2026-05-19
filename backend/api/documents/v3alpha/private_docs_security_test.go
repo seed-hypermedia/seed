@@ -2,7 +2,9 @@ package documents
 
 import (
 	"context"
+	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"testing"
 
@@ -14,6 +16,75 @@ import (
 // TestPrivateDocSecurityAudit contains security tests that attempt to bypass
 // the private document access controls. Each subtest targets a specific
 // potential vulnerability in the PublicOnly gate.
+
+func TestPrivateDocSecurity_PublicOnlyRequiresRootCapabilityForPrivateRead(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	bob := coretest.NewTester("bob")
+	carol := coretest.NewTester("carol")
+	account := alice.me.Account.PublicKey.String()
+
+	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/secret",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: account,
+		Path:    "/secret",
+	})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code())
+
+	_, err = alice.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.Account.PublicKey.String(),
+		Account:        account,
+		Path:           "/secret",
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+
+	pathScopedCtx := blob.WithAuthenticatedCaller(ctx, bob.Account.Principal())
+
+	_, err = alice.GetDocument(pathScopedCtx, &documents.GetDocumentRequest{
+		Account: account,
+		Path:    "/secret",
+	})
+	require.Error(t, err)
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code())
+
+	_, err = alice.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       carol.Account.PublicKey.String(),
+		Account:        account,
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+
+	rootScopedCtx := blob.WithAuthenticatedCaller(ctx, carol.Account.Principal())
+
+	got, err := alice.GetDocument(rootScopedCtx, &documents.GetDocumentRequest{
+		Account: account,
+		Path:    "/secret",
+	})
+	require.NoError(t, err)
+	require.Equal(t, privateDoc.Version, got.Version)
+}
 
 // VULN-1: GetResource with snapshot (TSID) path bypasses PublicOnly check.
 // When GetResource receives a path that looks like a TSID, it enters the

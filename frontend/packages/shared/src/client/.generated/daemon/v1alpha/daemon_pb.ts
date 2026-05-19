@@ -237,6 +237,114 @@ export class GenMnemonicResponse extends Message<GenMnemonicResponse> {
 }
 
 /**
+ * Request to authenticate a caller key.
+ *
+ * @generated from message com.seed.daemon.v1alpha.AuthenticateRequest
+ */
+export class AuthenticateRequest extends Message<AuthenticateRequest> {
+  /**
+   * Required. Bytes of the caller key that's being authenticated.
+   *
+   * @generated from field: bytes account = 1;
+   */
+  account = new Uint8Array(0);
+
+  /**
+   * Required. Timestamp of the request in Unix milliseconds. The daemon will check that it's not too old.
+   *
+   * @generated from field: int64 timestamp = 2;
+   */
+  timestamp = protoInt64.zero;
+
+  /**
+   * Required. Signature by the caller key over the authentication payload.
+   * It signs over the account ID being proven, the account ID as the request delegate,
+   * the daemon peer ID as the audience, and the timestamp.
+   *
+   * @generated from field: bytes signature = 3;
+   */
+  signature = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<AuthenticateRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.AuthenticateRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+    { no: 2, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "signature", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AuthenticateRequest | PlainMessage<AuthenticateRequest> | undefined, b: AuthenticateRequest | PlainMessage<AuthenticateRequest> | undefined): boolean {
+    return proto3.util.equals(AuthenticateRequest, a, b);
+  }
+}
+
+/**
+ * Response to authenticate a caller key.
+ *
+ * @generated from message com.seed.daemon.v1alpha.AuthenticateResponse
+ */
+export class AuthenticateResponse extends Message<AuthenticateResponse> {
+  /**
+   * Opaque daemon bearer token.
+   *
+   * @generated from field: string bearer_token = 1;
+   */
+  bearerToken = "";
+
+  /**
+   * Time when the bearer token expires.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 2;
+   */
+  expireTime?: Timestamp;
+
+  constructor(data?: PartialMessage<AuthenticateResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.AuthenticateResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "bearer_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expire_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AuthenticateResponse | PlainMessage<AuthenticateResponse> | undefined, b: AuthenticateResponse | PlainMessage<AuthenticateResponse> | undefined): boolean {
+    return proto3.util.equals(AuthenticateResponse, a, b);
+  }
+}
+
+/**
  * Request to register a new account key derived from the mnemonic.
  *
  * @generated from message com.seed.daemon.v1alpha.RegisterKeyRequest

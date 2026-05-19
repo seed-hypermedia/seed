@@ -213,7 +213,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			e = offline.Exchange(a.Index)
 		}
 
-		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e)
+		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e, a.Index)
 	}
 
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,

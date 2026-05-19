@@ -67,6 +67,7 @@ func initHTTP(
 	router := &Router{mux: http.NewServeMux()}
 	router.Use(
 		openCORSMiddleware,
+		authContextMiddleware(apiServer),
 		publicOnlyMiddleware(cfg.PublicOnly),
 		handlerNameMiddleware(router.mux),
 		instrument,
@@ -211,6 +212,27 @@ func loopbackOnly(next http.Handler) http.Handler {
 	})
 }
 
+func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			raw := r.Header.Get("Authorization")
+			scheme, token, ok := strings.Cut(raw, " ")
+			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			caller, err := auth.AuthenticateBearerToken(r.Context(), strings.TrimSpace(token))
+			if err != nil {
+				http.Error(w, "bad bearer authorization", http.StatusUnauthorized)
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(blob.WithAuthenticatedCaller(r.Context(), caller)))
+		})
+	}
+}
+
 func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if !publicOnly {
@@ -218,7 +240,8 @@ func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(blob.WithPublicOnly(r.Context())))
+			ctx := blob.WithPublicOnly(r.Context())
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

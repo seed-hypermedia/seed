@@ -234,8 +234,10 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 
 			switch v := blb.Blob.(type) {
 			case *blob.Comment:
-				if srv.cfg.PublicOnly && v.Visibility == blob.VisibilityPrivate {
-					return nil, status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+				if v.Visibility == blob.VisibilityPrivate {
+					if err := srv.denyPrivateComment(ctx, v.Space(), v.Path); err != nil {
+						return nil, err
+					}
 				}
 
 				var cmt *documents.Comment
@@ -272,8 +274,10 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, err
 	}
 
-	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
-		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	if doc.Visibility() == blob.VisibilityPrivate {
+		if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
+			return nil, err
+		}
 	}
 
 	docpb, err := doc.Hydrate(ctx)

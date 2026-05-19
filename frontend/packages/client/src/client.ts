@@ -101,7 +101,7 @@ export type PublishDocumentInput = {
 
 export type SeedClientOptions = {
   fetch?: typeof globalThis.fetch
-  headers?: Record<string, string>
+  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>)
 }
 
 type PublishBlobsRequest = Extract<HMRequest, {key: 'PublishBlobs'}>
@@ -143,7 +143,8 @@ export type SeedClient = {
 export function createSeedClient(baseUrl: string, options?: SeedClientOptions): SeedClient {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
   const fetchFn = options?.fetch ?? globalThis.fetch
-  const defaultHeaders = options?.headers ?? {}
+  const getDefaultHeaders = async () =>
+    typeof options?.headers === 'function' ? await options.headers() : options?.headers ?? {}
 
   async function request<Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']> {
     // Find matching schema from discriminated union
@@ -160,6 +161,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     }
 
     let response: Response
+    const defaultHeaders = await getDefaultHeaders()
 
     const isAction = HMActionSchema.options.some((s) => s.shape.key.value === key)
     if (isAction) {

@@ -59,6 +59,7 @@ export async function getCurrentSigner(): Promise<HMSigner | null> {
 export type LocalWebIdentity = CryptoKeyPair & {
   id: string
   delegatedAccountUid?: string
+  capabilityCid?: string
   vaultUrl?: string
   notifyServerUrl?: string
 }
@@ -94,6 +95,7 @@ async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
     ...stored.keyPair,
     id: base58btc.encode(id),
     delegatedAccountUid: stored.delegatedAccountUid,
+    capabilityCid: stored.capabilityCid,
     vaultUrl: stored.vaultUrl,
     notifyServerUrl: stored.notifyServerUrl,
   }
@@ -104,6 +106,7 @@ function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
     (!newKeyPair && keyPair) ||
     newKeyPair?.id !== keyPair?.id ||
     newKeyPair?.delegatedAccountUid !== keyPair?.delegatedAccountUid ||
+    newKeyPair?.capabilityCid !== keyPair?.capabilityCid ||
     newKeyPair?.vaultUrl !== keyPair?.vaultUrl ||
     newKeyPair?.notifyServerUrl !== keyPair?.notifyServerUrl
   ) {
@@ -117,14 +120,18 @@ function updateKeyPair() {
 
 export function logout() {
   const vaultUrl = keyPairStore.get()?.vaultUrl
+  keyPairStore.set(null)
   Promise.all([
     deleteLocalKeys(),
     setHasPromptedEmailNotifications(false),
     vaultUrl ? authSession.clearSession(vaultUrl) : Promise.resolve(),
     clearAllAuthState(),
+    fetch('/hm/api/auth', {method: 'DELETE', credentials: 'include'}).catch((e) => {
+      console.error('Failed to clear daemon auth cookie', e)
+    }),
   ])
     .then(() => {
-      keyPairStore.set(null)
+      updateKeyPair()
     })
     .catch((e) => {
       console.error('Failed to log out', e)

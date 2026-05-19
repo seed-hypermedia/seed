@@ -8,5 +8,12 @@ export {wrap, unwrap, type Wrapped} from './wrapping'
 export type WrappedResponse<T> = TypedResponse<SuperJSONResult>
 
 export function wrapJSON<T>(value: T, resp?: ResponseInit): WrappedResponse<T> {
-  return json(serialize(value), resp)
+  const headers = new Headers(resp?.headers)
+  if (!headers.has('Cache-Control')) {
+    headers.set('Cache-Control', 'private, no-cache')
+  }
+  return json(serialize(value), {
+    ...resp,
+    headers,
+  })
 }

@@ -104,6 +104,7 @@ export default function AuthCallbackRoute() {
         // Store the session key pair as the active local keys with delegation info.
         await writeLocalKeys(sessionSigner.keyPair, {
           delegatedAccountUid: result.accountPrincipal,
+          capabilityCid: result.capability.cid.toString(),
           vaultUrl,
           notifyServerUrl: result.notifyServerUrl,
         })
@@ -111,6 +112,7 @@ export default function AuthCallbackRoute() {
           ...sessionSigner.keyPair,
           id: result.session.principal,
           delegatedAccountUid: result.accountPrincipal,
+          capabilityCid: result.capability.cid.toString(),
           vaultUrl,
           notifyServerUrl: result.notifyServerUrl,
         })

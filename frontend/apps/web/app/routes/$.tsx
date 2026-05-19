@@ -1,4 +1,3 @@
-import {shouldFullRender} from '@/cache-policy'
 import {WebCommenting} from '@/client-lazy'
 import {
   createInstrumentationContext,
@@ -14,6 +13,7 @@ import {WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
@@ -236,6 +236,11 @@ export function shouldRevalidate({
 }
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, () => loadRoute({params, request}))
+}
+
+async function loadRoute({params, request}: {params: Params; request: Request}) {
   const parsedRequest = parseRequest(request)
   const ctx = createInstrumentationContext(parsedRequest.url.pathname, request.method)
 
@@ -249,12 +254,6 @@ export const loader = async ({params, request}: {params: Params; request: Reques
     setRequestInstrumentationContext(request.url, ctx)
   }
 
-  if (!shouldFullRender(parsedRequest)) {
-    if (isDataRequest && ctx.enabled) {
-      printInstrumentationSummary(ctx)
-    }
-    return null
-  }
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version

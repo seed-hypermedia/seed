@@ -1,5 +1,4 @@
 import downloadBg from '@/assets/download-bg.png'
-import {shouldFullRender} from '@/cache-policy'
 import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
@@ -8,6 +7,7 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
+import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
@@ -81,16 +81,18 @@ async function loadUpstreamRelease() {
 
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request)
-  if (!shouldFullRender(parsedRequest)) return null
   const {hostname} = parsedRequest
   const serviceConfig = await getConfig(hostname)
   if (!serviceConfig) throw new Error(`No config defined for ${hostname}`)
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid) throw new Error(`No registered account uid defined for ${hostname}`)
   const stableRelease = await loadUpstreamRelease()
-  return await loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
-    stableRelease,
-  })
+  const authToken = await getDaemonAuthToken(request)
+  return withDaemonAuthToken(authToken, () =>
+    loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
+      stableRelease,
+    }),
+  )
 }
 
 export const meta = defaultPageMeta('Download Seed Hypermedia')
