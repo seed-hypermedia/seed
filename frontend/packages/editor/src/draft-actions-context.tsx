@@ -15,7 +15,7 @@ export type CreateInlineDraftOptions = {
  * editor route. On web the context value null and the "New document" slash item is hidden.
  */
 export type DraftActions = {
-  onCreateInlineDraft: (
+  onCreateInlineDraft?: (
     parentId: UnpackedHypermediaId,
     options?: CreateInlineDraftOptions,
   ) => Promise<{draftId: string; draftPath: string[]}>

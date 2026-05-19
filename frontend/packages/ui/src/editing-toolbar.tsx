@@ -22,8 +22,8 @@ import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
-import {cn} from './utils'
 import {usePopoverState} from './use-popover-state'
+import {cn} from './utils'
 
 /** Platform callbacks injected by the host (desktop or web). */
 export type EditingToolbarCallbacks = {
@@ -39,6 +39,11 @@ export type EditingToolbarCallbacks = {
   computeFirstPublishPath?: (parentPath: string[], title: string, draftId: string) => string[]
   /** Navigate to document versions panel. Row hidden when undefined. */
   onGoToVersions?: (docId: UnpackedHypermediaId) => void
+  /**
+   * Walks the editor's content for embed blocks pointing at
+   * unpublished child drafts.
+   */
+  getUnpublishedChildCount?: () => number
 }
 
 const publishTriggeredForDoc = new Set<string>()
@@ -352,6 +357,7 @@ export function PublishButtonWithPopover({
   slugify,
   computeFirstPublishPath,
   onGoToVersions,
+  getUnpublishedChildCount,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
@@ -360,9 +366,10 @@ export function PublishButtonWithPopover({
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
   const changeCount = useUnpublishedChangeCount()
+  const effectiveUnpublishedChildCount = Math.max(unpublishedChildCount, getUnpublishedChildCount?.() ?? 0)
   const canPublish = canPublishDocument({
     changeCount,
-    unpublishedChildCount,
+    unpublishedChildCount: effectiveUnpublishedChildCount,
   })
   const send = useDocumentSend()
 
@@ -403,7 +410,12 @@ export function PublishButtonWithPopover({
 
   const handlePublishTriggerClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (hasTriggeredPublish && canPublish) {
+    const livePeekAtClick = getUnpublishedChildCount?.() ?? 0
+    if (livePeekAtClick > 0 || !canPublish) {
+      popoverState.onOpenChange(true)
+      return
+    }
+    if (hasTriggeredPublish) {
       publishNow()
     } else {
       popoverState.onOpenChange(!popoverState.open)
@@ -423,7 +435,7 @@ export function PublishButtonWithPopover({
             onPublish={publishNow}
             onClose={() => popoverState.onOpenChange(false)}
             publishDisabled={!canPublish}
-            unpublishedChildCount={unpublishedChildCount}
+            unpublishedChildCount={effectiveUnpublishedChildCount}
             getDocumentUrl={getDocumentUrl}
             onOpenPreview={onOpenPreview}
             slugify={slugify}

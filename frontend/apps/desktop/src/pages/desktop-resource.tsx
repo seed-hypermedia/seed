@@ -10,7 +10,7 @@ import {DesktopDocumentActionsProvider} from '@/components/document-actions-prov
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {EditingDocToolsRight} from '@/components/editing-toolbar'
-import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
+// import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
 import {ParentUpdateToast} from '@/components/parent-update-toast'
@@ -23,7 +23,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {
   autoLinkParentAfterPublish,
   resolveDraftWriteAnchors,
-  useChildDrafts,
+  // useChildDrafts,
   useCreateInlineDraft,
   usePublishResource,
 } from '@/models/documents'
@@ -47,11 +47,12 @@ import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
+// import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
+import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
@@ -432,36 +433,40 @@ export default function DesktopResourcePage() {
   }, [doc, docId])
 
   // Inline document creation (page-level: bottom fallback + CreateDocumentButton inline create)
-  const childDrafts = useChildDrafts(docId)
   const createInlineDraft = useCreateInlineDraft(docId)
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
 
-  // Detect self-referential query block — if present, drafts render inside query blocks
-  // and the bottom fallback is suppressed. We check both the published doc content
-  // and the parent's draft content so a query block added in an unpublished draft
-  // also suppresses the duplicate.
-  const hasSelfQuery = useMemo(() => {
-    const parentPath = docId.path || null
-    if (existingDraftContent && hasSelfQueryBlockInEditorContent(existingDraftContent, docId.uid, parentPath)) {
-      return true
-    }
-    if (doc?.content && hasQueryBlockTargetingSelf(doc.content, docId.uid, parentPath)) {
-      return true
-    }
-    return false
-  }, [doc?.content, existingDraftContent, docId.uid, docId.path])
-
-  // Bottom fallback: drafts of the current doc when no query block on the page targets it
-  const inlineCards = useMemo(() => {
-    if (!childDrafts.length || hasSelfQuery) return null
-    return (
-      <div className="mt-6 grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
-        {childDrafts.map((draft) => (
-          <InlineNewDocumentCard key={draft.id} draft={draft} autoFocus={draft.id === lastCreatedDraftId} />
-        ))}
-      </div>
-    )
-  }, [childDrafts, lastCreatedDraftId, hasSelfQuery])
+  // Bottom-of-doc "draft cards" — disabled while inline-draft UX is still
+  // being settled. Restore by uncommenting these blocks, the related imports
+  // above, and the `inlineCards={inlineCards}` prop on ResourcePage below.
+  // const childDrafts = useChildDrafts(docId)
+  //
+  // // Detect self-referential query block — if present, drafts render inside query blocks
+  // // and the bottom fallback is suppressed. We check both the published doc content
+  // // and the parent's draft content so a query block added in an unpublished draft
+  // // also suppresses the duplicate.
+  // const hasSelfQuery = useMemo(() => {
+  //   const parentPath = docId.path || null
+  //   if (existingDraftContent && hasSelfQueryBlockInEditorContent(existingDraftContent, docId.uid, parentPath)) {
+  //     return true
+  //   }
+  //   if (doc?.content && hasQueryBlockTargetingSelf(doc.content, docId.uid, parentPath)) {
+  //     return true
+  //   }
+  //   return false
+  // }, [doc?.content, existingDraftContent, docId.uid, docId.path])
+  //
+  // // Bottom fallback: drafts of the current doc when no query block on the page targets it
+  // const inlineCards = useMemo(() => {
+  //   if (!childDrafts.length || hasSelfQuery) return null
+  //   return (
+  //     <div className="mt-6 grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
+  //       {childDrafts.map((draft) => (
+  //         <InlineNewDocumentCard key={draft.id} draft={draft} autoFocus={draft.id === lastCreatedDraftId} />
+  //       ))}
+  //     </div>
+  //   )
+  // }, [childDrafts, lastCreatedDraftId, hasSelfQuery])
 
   // Profile editing for site-profile pages
   const editProfileDialog = useEditProfileDialog()
@@ -663,10 +668,32 @@ export default function DesktopResourcePage() {
 
   const showPublishToolbar = route.key === 'document'
 
+  // Walk the editor's blocks for embed blocks with a draftId.
+  // Called at Publish click time so the popover always opens
+  // when there are unresolved draft embeds
+  const getUnpublishedChildCount = useCallback(() => {
+    const editor = editorRef.current
+    const blocks = editor?.topLevelBlocks ?? []
+    const ids = new Set<string>()
+    const walk = (nodes: any[]) => {
+      for (const b of nodes) {
+        if (b?.type === 'embed' && b?.props?.draftId) ids.add(b.props.draftId)
+        if (b?.children?.length) walk(b.children)
+      }
+    }
+    walk(blocks)
+    return ids.size
+  }, [])
+
   const editingFloatingActions =
     canEdit && showPublishToolbar
       ? ({menuItems}: {menuItems: any[]}) => (
-          <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} newButton={newButton} />
+          <EditingDocToolsRight
+            docId={docId}
+            existingMenuItems={menuItems}
+            newButton={newButton}
+            getUnpublishedChildCount={getUnpublishedChildCount}
+          />
         )
       : undefined
 
@@ -695,7 +722,7 @@ export default function DesktopResourcePage() {
         pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
-          <DesktopDraftActionsProvider>
+          <DesktopDraftActionsProvider canCreateInlineDraft={!docId.path?.some(isDraftPathSegment)}>
             <DesktopDraftBreadcrumbProvider>
               <QueryBlockDraftsProvider
                 DraftSlot={DesktopQueryBlockDraftSlot}
@@ -714,7 +741,6 @@ export default function DesktopResourcePage() {
                     existingDraftCursorPosition={draftQuery.data?.cursorPosition}
                     existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
                     existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
-                    inlineCards={inlineCards}
                     rightActions={<JoinButton siteUid={docId.uid} />}
                     onEditProfile={onEditProfile}
                     inspect={inspect}

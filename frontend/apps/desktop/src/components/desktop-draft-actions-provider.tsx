@@ -10,34 +10,40 @@ import {PropsWithChildren, useMemo} from 'react'
 
 /**
  * Provides DraftActions to the editor: creates / fetches / deletes / navigates
- * to inline child drafts.
+ * to inline child drafts. Pass `canCreateInlineDraft={false}` when the parent
+ * is an upublished draft to avoid orphaning the child draft under a placeholder path segment.
  */
-export function DesktopDraftActionsProvider({children}: PropsWithChildren) {
+export function DesktopDraftActionsProvider({
+  canCreateInlineDraft = true,
+  children,
+}: PropsWithChildren<{canCreateInlineDraft?: boolean}>) {
   const navigate = useNavigate()
 
   const value = useMemo<DraftActions>(
     () => ({
       // Mirrors useCreateInlineDraft. Inlined here because the slash menu's
       // execute runs imperatively outside React, so it consumes a plain async function.
-      onCreateInlineDraft: async (parentId, options) => {
-        const draftId = nanoid(10)
-        const parentPath = parentId.path || []
-        const draftPath = [...parentPath, `-${draftId}`]
-        await client.drafts.write.mutate({
-          id: draftId,
-          locationUid: parentId.uid,
-          locationPath: parentPath,
-          editUid: parentId.uid,
-          editPath: draftPath,
-          metadata: {name: options?.name ?? ''},
-          content: options?.initialContent ?? [],
-          deps: [],
-          visibility: 'PUBLIC',
-        })
-        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId.uid])
-        invalidateQueries([queryKeys.DRAFTS_LIST])
-        return {draftId, draftPath}
-      },
+      onCreateInlineDraft: canCreateInlineDraft
+        ? async (parentId, options) => {
+            const draftId = nanoid(10)
+            const parentPath = parentId.path || []
+            const draftPath = [...parentPath, `-${draftId}`]
+            await client.drafts.write.mutate({
+              id: draftId,
+              locationUid: parentId.uid,
+              locationPath: parentPath,
+              editUid: parentId.uid,
+              editPath: draftPath,
+              metadata: {name: options?.name ?? ''},
+              content: options?.initialContent ?? [],
+              deps: [],
+              visibility: 'PUBLIC',
+            })
+            invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId.uid])
+            invalidateQueries([queryKeys.DRAFTS_LIST])
+            return {draftId, draftPath}
+          }
+        : undefined,
       useInlineDraft: useDraft,
       onDeleteDraft: async (id) => {
         await client.drafts.delete.mutate(id)
@@ -56,7 +62,7 @@ export function DesktopDraftActionsProvider({children}: PropsWithChildren) {
         })
       },
     }),
-    [navigate],
+    [navigate, canCreateInlineDraft],
   )
 
   return <DraftActionsContext.Provider value={value}>{children}</DraftActionsContext.Provider>

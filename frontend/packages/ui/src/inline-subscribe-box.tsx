@@ -63,7 +63,7 @@ export function InlineSubscribeBox({accountId, notifyServiceHost, accountMeta, c
       )}
     >
       <p className="text-foreground mb-3 text-base font-semibold">
-        Do you like what you are reading?. Subscribe to receive updates.
+        Do you like what you are reading? Subscribe to receive updates.
       </p>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex gap-2">

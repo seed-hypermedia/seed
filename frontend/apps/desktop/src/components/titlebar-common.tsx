@@ -2,29 +2,27 @@ import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
-import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useHostSession} from '@/models/host'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
 import {resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
-import {client} from '@/trpc'
 import {SidebarContext} from '@/sidebar-context'
+import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useUniversalAppContext} from '@shm/shared'
 import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
+import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {formattedDate} from '@shm/shared/utils/date'
-import {createWebHMUrl, displayHostname, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -36,13 +34,11 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Back, CloudOff, Download, Forward, Link, Trash, UploadCloud} from '@shm/ui/icons'
+import {Back, Forward, UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
@@ -51,10 +47,6 @@ import {
   Bell,
   ChevronDown,
   ChevronUp,
-  FilePlus,
-  ForwardIcon,
-  GitFork,
-  Import,
   Lock,
   LogOut,
   Monitor,
@@ -67,12 +59,9 @@ import {
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
-import {BranchDialog} from './branch-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
-import {useImportDialog, useImporting} from './import-doc-button'
-import {MoveDialog} from './move-dialog'
 import {dispatchOnboardingDialog} from './onboarding'
-import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
+import {usePublishSite} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
 
@@ -757,7 +746,16 @@ export function Omnibar() {
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
 
-  const {mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange} = useOmnibarState(copyableUrl)
+  const routeId = getRouteId(route)
+  // Any path segment starting with '-' is a draft placeholder slug.
+  const hasDraftPathSegment = routeId?.path?.some(isDraftPathSegment) ?? false
+  const isUnsharable = !copyableUrl || hasDraftPathSegment
+
+  // Pass null to the omnibar state when the URL isn't shareable so the focused
+  // input doesn't prefill with it.
+  const {mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange} = useOmnibarState(
+    isUnsharable ? null : copyableUrl,
+  )
 
   // Listen for keyboard shortcuts
   useListenAppEvent('focus_omnibar', (event) => {
@@ -849,7 +847,6 @@ export function Omnibar() {
   const isPrivate = isDraft && route.visibility === 'PRIVATE'
   const routeLabel = getRouteLabel(route)
   const displayText = displayUrl || routeLabel || ''
-  const routeId = getRouteId(route)
 
   // Render indicators on the right
   const indicators = isPrivate ? (
@@ -875,13 +872,34 @@ export function Omnibar() {
         onClick={handleContainerClick}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">{displayText}</span>
+          <span
+            className={cn(
+              'text-muted-foreground min-w-0 flex-1 truncate text-xs',
+              // Drafts that haven't been published yet have no shareable URL
+              isUnsharable && 'select-none',
+            )}
+            style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
+            onCopy={
+              isUnsharable
+                ? (e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }
+                : undefined
+            }
+          >
+            {displayText}
+          </span>
           {indicators}
         </div>
         {routeId ? (
           <div className="mr-1 flex shrink-0 items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             <BookmarkButton id={routeId} className="size-6 min-w-6" />
-            <CopyReferenceButton docId={routeId} isBlockFocused={false} latest className="size-6 min-w-6" />
+            {/* Hide copy-reference when
+                the doc's URL isn't shareable */}
+            {!isUnsharable && (
+              <CopyReferenceButton docId={routeId} isBlockFocused={false} latest className="size-6 min-w-6" />
+            )}
           </div>
         ) : null}
         {publishSite.content}
