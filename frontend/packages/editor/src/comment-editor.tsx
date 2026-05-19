@@ -3,7 +3,6 @@ import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {packReferenceUrl, useOpenUrl, writeableStateStream} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
-import {queryClient} from '@shm/shared/models/query-client'
 import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
@@ -42,7 +41,7 @@ function collectSerializedMediaRefs(blocks: EditorBlock[]) {
   return mediaRefs
 }
 
-const [setGwUrl, gwUrl] = writeableStateStream<string | null>('https://hyper.media')
+const [setGwUrl, gwUrl] = writeableStateStream<string>('https://hyper.media')
 
 export function useCommentEditor(
   perspectiveAccountUid?: string | null | undefined,
@@ -87,14 +86,9 @@ export function useCommentEditor(
       // console.log("editor content changed", editor.topLevelBlocks);
     },
     linkExtensionOptions: {
-      // @ts-expect-error
       openOnClick: false,
-      queryClient,
-      // grpcClient,
-      // openUrl,
       gwUrl,
       domainResolver,
-      // checkWebUrl: checkWebUrl.mutateAsync,
     },
 
     // onEditorReady: (e) => {

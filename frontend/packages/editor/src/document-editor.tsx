@@ -35,7 +35,6 @@ import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
 import {HypermediaLinkPreview} from './hm-link-preview'
-import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {InlineAddBlockButton} from './inline-add-block-button'
 import {MentionMenuPositioner} from './mention-menu-positioner'
@@ -164,19 +163,17 @@ export function DocumentEditor({
       // (a) convert pasted web URLs to hm:// and (b) apply a link mark to
       // the current selection on paste.
       linkExtensionOptions: {
-        ...(linkExtensionOptions ?? {}),
-        openUrl: (linkExtensionOptions as any)?.openUrl ?? openUrl,
-        renderHref: (linkExtensionOptions as any)?.renderHref ?? renderHref,
-        handleModifiedClicks: (linkExtensionOptions as any)?.handleModifiedClicks ?? !!openRouteNewWindow,
-      } as any,
+        ...linkExtensionOptions,
+        openUrl: linkExtensionOptions?.openUrl ?? openUrl,
+        renderHref: linkExtensionOptions?.renderHref ?? renderHref,
+        handleModifiedClicks: linkExtensionOptions?.handleModifiedClicks ?? !!openRouteNewWindow,
+      },
       _tiptapOptions: {
         extensions: [
           Extension.create({
             name: 'hypermedia-link',
             addProseMirrorPlugins() {
-              const domainResolver = (linkExtensionOptions as {domainResolver?: DomainResolverFn} | undefined)
-                ?.domainResolver
-              return [createHypermediaDocLinkPlugin({domainResolver}).plugin]
+              return [createHypermediaDocLinkPlugin({domainResolver: linkExtensionOptions?.domainResolver}).plugin]
             },
           }),
           Extension.create({

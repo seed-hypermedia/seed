@@ -46,6 +46,7 @@ import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
@@ -160,7 +161,7 @@ export default function DesktopResourcePage() {
   const checkWebUrlMutation = useMutation({
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
-  const linkExtensionOptions = useMemo<Record<string, unknown>>(
+  const linkExtensionOptions = useMemo<LinkExtensionOptions>(
     () => ({
       grpcClient,
       domainResolver,

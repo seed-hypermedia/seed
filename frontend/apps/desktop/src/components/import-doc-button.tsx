@@ -255,13 +255,11 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
-        // @ts-expect-error
-        queryClient,
         grpcClient,
         domainResolver,
         gwUrl,
         openUrl,
-        checkWebUrl: checkWebUrl.mutate,
+        checkWebUrl: checkWebUrl.mutateAsync,
       },
       blockSchema: hmBlockSchema,
       _tiptapOptions: {

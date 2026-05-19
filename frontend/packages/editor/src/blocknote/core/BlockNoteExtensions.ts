@@ -1,3 +1,4 @@
+import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {Extension, Extensions, extensions} from '@tiptap/core'
 import {HMBlockSchema} from '../../schema'
 
@@ -43,8 +44,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   editor: BlockNoteEditor<BSchema>
   domAttributes: Partial<BlockNoteDOMAttributes>
   blockSchema: BSchema
-  // These types are complex due to tiptap extension options - using any for compatibility
-  linkExtensionOptions?: any
+  linkExtensionOptions?: LinkExtensionOptions
   collaboration?: {
     fragment: Y.XmlFragment
     user: {
@@ -80,7 +80,11 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Underline,
     TextColorMark,
     BackgroundColorMark,
-    Link.configure(opts.linkExtensionOptions),
+    // LinkExtensionOptions extends LinkOptions with runtime extras (grpcClient,
+    // domainResolver, gwUrl, openUrl) that are read via index access in link.ts.
+    // TipTap's `configure` only knows about the declared `LinkOptions` shape, so
+    // we widen here at the call boundary.
+    Link.configure(opts.linkExtensionOptions as Parameters<typeof Link.configure>[0]),
 
     // nodes
     Doc,

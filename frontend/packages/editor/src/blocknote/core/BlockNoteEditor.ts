@@ -26,8 +26,8 @@ import {ColorStyle, Styles, ToggledStyle} from './extensions/Blocks/api/inlineCo
 import {Selection} from './extensions/Blocks/api/selectionTypes'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
+import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {Transaction} from 'prosemirror-state'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
@@ -164,10 +164,6 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   getResourceUrl?: (blockId?: string | null) => string | undefined
 }
 
-export type LinkExtensionOptions = {
-  resolveHypermediaLink?: (url: string) => Promise<Partial<UnpackedHypermediaId> | null>
-}
-
 export type ImportWebFileResult =
   | {
       // Desktop result
@@ -256,7 +252,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.renderType = options.renderType || 'document'
     this.commentEditor = options.commentEditor
     this.getResourceUrl = options.getResourceUrl
-    this.domainResolver = (newOptions.linkExtensionOptions as any)?.domainResolver
+    this.domainResolver = newOptions.linkExtensionOptions?.domainResolver
     const isEmbed = this.renderType === 'embed'
     const isViewer = this.renderType === 'viewer'
     const isReadOnly = isEmbed || isViewer

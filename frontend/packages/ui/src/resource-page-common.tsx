@@ -19,7 +19,11 @@ import {
 } from '@shm/shared'
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import type {BlockRangeSelectOptions, DocumentContentProps} from '@shm/shared/document-content-props'
+import type {
+  BlockRangeSelectOptions,
+  DocumentContentProps,
+  LinkExtensionOptions,
+} from '@shm/shared/document-content-props'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {
   useAccount,
@@ -304,7 +308,7 @@ export interface ResourcePageProps {
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
-  linkExtensionOptions?: Record<string, unknown>
+  linkExtensionOptions?: LinkExtensionOptions
   /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
 }
@@ -849,7 +853,7 @@ function DocumentBody({
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
-  linkExtensionOptions?: Record<string, unknown>
+  linkExtensionOptions?: LinkExtensionOptions
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -2172,7 +2176,7 @@ function MainContent({
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
-  linkExtensionOptions?: Record<string, unknown>
+  linkExtensionOptions?: LinkExtensionOptions
 }) {
   switch (activeView) {
     case 'directory':
@@ -2315,7 +2319,7 @@ function ContentViewWithOutline({
   existingDraftCursorPosition?: number
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
-  linkExtensionOptions?: Record<string, unknown>
+  linkExtensionOptions?: LinkExtensionOptions
 }) {
   const publishedOutline = useNodesOutline(document, docId)
   const draftOutline = useMemo(
