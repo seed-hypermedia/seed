@@ -246,11 +246,10 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
       await expect(page.getByTestId('formatting-toolbar')).toBeVisible()
 
-      // Switch block type with dropdown
-      await page.getByTestId('block-type-dropdown').click()
-      await page.waitForTimeout(100)
-      // Click option by visible label
-      await page.getByRole('option', {name: 'Heading'}).click()
+      // Switch block type from the style options popover.
+      await page.getByTestId('style-options-trigger').click()
+      await expect(page.getByTestId('style-options-panel')).toBeVisible()
+      await page.getByTestId('block-type-heading').click()
       await page.waitForTimeout(100)
 
       const blocks = await editorHelpers.getBlocks()
@@ -283,12 +282,10 @@ test.describe('Formatting Toolbar', () => {
 
       await expect(page.getByTestId('formatting-toolbar')).toBeVisible()
 
-      // Set group type with dropdown
-      await page.getByTestId('group-type-dropdown').click()
-      await page.waitForTimeout(200)
-
-      // Click option by visible label
-      await page.getByRole('option', {name: 'Bullets'}).click()
+      // Set group type from the style options popover.
+      await page.getByTestId('style-options-trigger').click()
+      await expect(page.getByTestId('style-options-panel')).toBeVisible()
+      await page.getByTestId('group-type-unordered').click()
       await page.waitForTimeout(500)
 
       // Check that the list type is set correctly
