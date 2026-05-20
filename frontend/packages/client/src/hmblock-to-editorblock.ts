@@ -137,7 +137,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         if (value !== undefined) {
           if (key == 'width' || key == 'size') {
             if (typeof value == 'number') {
-              ;(out.props as any)[key] = String(value)
+              ;(out.props as any)[key] =
+                blockType === 'image' && key === 'width' && value > 0 && value <= 100 ? `${value}%` : String(value)
             }
           } else if (typeof value == 'boolean') {
             ;(out.props as any)[key] = String(value)

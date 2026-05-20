@@ -153,9 +153,10 @@ function renderBlockContent(
     case 'Image': {
       const link = block.link || ''
       const width = block.attributes?.width
-      const widthAttr = width ? ` width="${width}"` : ''
+      const widthAttr = width && width > 100 ? ` width="${width}"` : ''
+      const widthStyle = width && width > 0 && width <= 100 ? ` style="width:${width}%"` : ''
       const imgHtml = link
-        ? `<img src="/hm/api/image/${esc(link)}" alt="${esc(text)}" loading="lazy"${widthAttr} />`
+        ? `<img src="/hm/api/image/${esc(link)}" alt="${esc(text)}" loading="lazy"${widthAttr}${widthStyle} />`
         : ''
       const captionHtml = text
         ? `<span class="inlineContent">${renderAnnotatedText(text, annotations, renderHref)}</span>`

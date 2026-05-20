@@ -157,7 +157,8 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   )
 }
 
-const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
+/** Renders an image block with responsive sizing and editor resize handles. */
+export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const getImageUrl = useImageUrl()
   const {canEdit} = useEditorGate()
 
@@ -286,13 +287,14 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   // Max image height in px.
   const maxHeight = 600
 
+  const getEditorWidth = () => editor.domElement.firstElementChild!.clientWidth
+  const widthProp = block.props.width?.trim()
   let width: number =
-    // @ts-ignore
-    parseFloat(block.props.width) || editor.domElement.firstElementChild!.clientWidth
+    widthProp && widthProp.endsWith('%')
+      ? (parseFloat(widthProp) / 100) * getEditorWidth()
+      : parseFloat(widthProp || '') || getEditorWidth()
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
-  // Track image natural dimensions for aspect ratio calculation
-  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
 
   const resizeParamsRef = useRef<{
     handleUsed: 'left' | 'right'
@@ -301,34 +303,18 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   } | null>(null)
 
   useEffect(() => {
-    if (block.props.width) {
-      width = parseFloat(block.props.width)
-      setCurrentWidth(parseFloat(block.props.width))
+    const editorWidth = getEditorWidth()
+    const nextWidthProp = block.props.width?.trim()
+    if (nextWidthProp) {
+      const parsedWidth = parseFloat(nextWidthProp)
+      const nextWidth = nextWidthProp.endsWith('%') ? (parsedWidth / 100) * editorWidth : parsedWidth
+      width = Math.min(nextWidth || editorWidth, editorWidth)
+      setCurrentWidth(width)
     } else {
-      width = editor.domElement.firstElementChild!.clientWidth
+      width = editorWidth
       setCurrentWidth(width)
     }
   }, [block.props.width])
-
-  // Handle image load to get aspect ratio
-  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = event.currentTarget
-    if (img.naturalWidth && img.naturalHeight) {
-      const aspectRatio = img.naturalWidth / img.naturalHeight
-      setImageAspectRatio(aspectRatio)
-
-      // If current width would make height exceed maxHeight, adjust width
-      if (aspectRatio && currentWidth / aspectRatio > maxHeight) {
-        const newWidth = maxHeight * aspectRatio
-        setCurrentWidth(newWidth)
-        assign({
-          props: {
-            width: newWidth.toString(),
-          },
-        })
-      }
-    }
-  }
 
   const windowMouseMoveHandler = (event: MouseEvent) => {
     if (!resizeParamsRef.current) {
@@ -349,19 +335,10 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
     if (newWidth < minWidth) {
       width = minWidth
       setCurrentWidth(minWidth)
-    } else if (newWidth > editor.domElement.firstElementChild!.clientWidth) {
-      width = editor.domElement.firstElementChild!.clientWidth
-      setCurrentWidth(editor.domElement.firstElementChild!.clientWidth)
+    } else if (newWidth > getEditorWidth()) {
+      width = getEditorWidth()
+      setCurrentWidth(getEditorWidth())
     } else {
-      // Check if new width would make height exceed maxHeight (if we know aspect ratio)
-      if (imageAspectRatio) {
-        const projectedHeight = newWidth / imageAspectRatio
-        if (projectedHeight > maxHeight) {
-          // Limit width based on maxHeight and aspect ratio
-          newWidth = maxHeight * imageAspectRatio
-        }
-      }
-
       width = newWidth
       setCurrentWidth(newWidth)
     }
@@ -379,7 +356,7 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
 
     assign({
       props: {
-        width: width.toString(),
+        width: `${Math.round((width / getEditorWidth()) * 10000) / 100}%`,
       },
     })
   }
@@ -414,7 +391,7 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
     resizeParamsRef.current = {
       handleUsed: 'left',
       // @ts-ignore
-      initialWidth: width || parseFloat(block.props.width),
+      initialWidth: currentWidth || width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
     editor.setTextCursorPosition(block.id, 'start')
@@ -427,7 +404,7 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
     resizeParamsRef.current = {
       handleUsed: 'right',
       // @ts-ignore
-      initialWidth: width || parseFloat(block.props.width),
+      initialWidth: currentWidth || width || parseFloat(block.props.width),
       initialClientX: event.clientX,
     }
     editor.setTextCursorPosition(block.id, 'start')
@@ -446,7 +423,7 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
         }
       }}
       onHoverOut={imageMouseLeaveHandler}
-      width={currentWidth}
+      width={`${Math.round((currentWidth / getEditorWidth()) * 10000) / 100}%`}
       onSubmitUrl={handleMenuUrl}
       urlMenuLabel="Insert from URL"
       urlInputPlaceholder="Paste an image URL"
@@ -462,13 +439,13 @@ const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => {
         <img
           style={{
             width: `100%`,
+            height: 'auto',
             maxHeight: `${maxHeight}px`,
             objectFit: 'contain',
           }}
           src={imageSrc}
           alt={block.props.name || block.props.alt}
           contentEditable={false}
-          onLoad={handleImageLoad}
         />
       )}
     </MediaContainer>
