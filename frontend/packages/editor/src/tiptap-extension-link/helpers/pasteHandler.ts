@@ -683,7 +683,8 @@ async function fetchResourceTitle(
   universalClient: UniversalClient,
   blockRef?: string | null,
 ) {
-  const resource = await universalClient.request('Resource', hmId)
+  const isProfile = hmId.path?.[0] === ':profile'
+  const resource = await universalClient.request('Resource', isProfile ? {...hmId, path: null} : hmId)
 
   if (resource.type === 'document') {
     const doc = resource.document

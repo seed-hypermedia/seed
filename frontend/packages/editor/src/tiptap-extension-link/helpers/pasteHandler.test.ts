@@ -188,4 +188,41 @@ describe('pasteHandler', () => {
     expect(view.state.doc.textContent).toBe('Comment')
     expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
   })
+
+  it('resolves a custom-domain profile URL locally and inserts the profile name', async () => {
+    const url = 'https://dream-machines-2.hyper.media/:profile/z6MkfopTfn1vwUZiPsFK82w8BTuV4ewV6zZKaU4sTtnuU5bt'
+    const view = createPasteView()
+    const universalClient = {
+      request: async (_key: string, input: any) => {
+        expect(input.uid).toBe('z6MkfopTfn1vwUZiPsFK82w8BTuV4ewV6zZKaU4sTtnuU5bt')
+        expect(input.path).toBeNull()
+        return {
+          type: 'document',
+          document: {
+            content: [],
+            metadata: {name: 'Profile Name'},
+            path: '',
+            version: 'profile-version',
+          },
+        }
+      },
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      domainResolver: async () => 'z6MksiteUid',
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Profile Name')
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(
+      'hm://z6MkfopTfn1vwUZiPsFK82w8BTuV4ewV6zZKaU4sTtnuU5bt/:profile',
+    )
+  })
 })

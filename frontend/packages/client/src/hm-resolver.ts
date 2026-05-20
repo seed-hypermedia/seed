@@ -74,16 +74,18 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
       const uid = await opts.domainResolver(parsedHostname)
       if (uid) {
         const pathSegments = parsedUrl.pathname.split('/').filter(Boolean)
-        const path = pathSegments.length > 0 ? pathSegments : null
+        const profilePath = resolveProfilePath(uid, pathSegments)
+        const resolvedUid = profilePath?.uid || uid
+        const path = profilePath?.path || (pathSegments.length > 0 ? pathSegments : null)
         const version = parsedUrl.searchParams.get('v') || null
         const pathStr = path ? '/' + path.join('/') : ''
         const siteHostname = parsedUrl.origin
 
         return {
-          id: `hm://${uid}${pathStr}`,
+          id: `hm://${resolvedUid}${pathStr}`,
           hmId: {
-            id: `hm://${uid}${pathStr}`,
-            uid,
+            id: `hm://${resolvedUid}${pathStr}`,
+            uid: resolvedUid,
             path,
             version,
             blockRef,
@@ -179,4 +181,12 @@ export async function resolveId(input: string, opts?: ResolveOptions): Promise<U
   }
 
   throw new Error(`Invalid Hypermedia ID: ${input}`)
+}
+
+function resolveProfilePath(siteUid: string, pathSegments: string[]): {uid: string; path: string[]} | null {
+  if (pathSegments[0] !== ':profile') return null
+  return {
+    uid: pathSegments[1] || siteUid,
+    path: [':profile'],
+  }
 }
