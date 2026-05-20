@@ -12,6 +12,7 @@ const {writeCommentDraftMock, invalidateQueriesMock} = vi.hoisted(() => ({
 }))
 
 vi.mock('@/grpc-client', () => ({
+  grpcClient: {},
   domainResolver: vi.fn(),
 }))
 
