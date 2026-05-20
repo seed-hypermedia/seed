@@ -1,6 +1,7 @@
 import {
   BlockRange,
   HMBlockNode,
+  HMComment,
   HMDocument,
   HMExistingDraft,
   UnpackedHypermediaId,
@@ -17,7 +18,12 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+  useCommentsServiceContext,
+  useHackyAuthorsSubscriptions,
+} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {
   BlockRangeSelectOptions,
@@ -214,6 +220,78 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
 }
 
 export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
+
+type CommentDraftTarget = {
+  docId: string
+  commentId?: string
+  quotingBlockId?: string
+}
+
+function getCommentDraftTarget(
+  docId: UnpackedHypermediaId,
+  params?: {openComment?: string; targetBlockId?: string},
+): CommentDraftTarget {
+  return {
+    docId: docId.id,
+    commentId: params?.openComment,
+    quotingBlockId: params?.targetBlockId,
+  }
+}
+
+function areSameCommentDraftTarget(a: CommentDraftTarget, b: CommentDraftTarget) {
+  return a.docId === b.docId && a.commentId === b.commentId && a.quotingBlockId === b.quotingBlockId
+}
+
+export function shouldSuppressMainCommentEditor({
+  docId,
+  activeView,
+  discussionsParams,
+  panelRoute,
+}: {
+  docId: UnpackedHypermediaId
+  activeView: ActiveView
+  discussionsParams?: {openComment?: string; targetBlockId?: string}
+  panelRoute: DocumentPanelRoute | null
+}) {
+  if (activeView !== 'comments' || panelRoute?.key !== 'comments') return false
+
+  return areSameCommentDraftTarget(
+    getCommentDraftTarget(docId, discussionsParams),
+    getCommentDraftTarget(panelRoute.id, {
+      openComment: panelRoute.openComment,
+      targetBlockId: panelRoute.targetBlockId,
+    }),
+  )
+}
+
+export function getCommentReplyPanelRoute({
+  docId,
+  comment,
+  isReplying = false,
+}: {
+  docId: UnpackedHypermediaId
+  comment: HMComment
+  isReplying?: boolean
+}): Extract<DocumentPanelRoute, {key: 'comments'}> {
+  const targetRoute = isRouteEqualToCommentTarget({
+    id: docId,
+    comment,
+  })
+  const replyVersionData = isReplying
+    ? {
+        isReplying: true,
+        replyCommentVersion: comment.version,
+        rootReplyCommentVersion: comment.threadRootVersion || comment.version,
+      }
+    : {}
+
+  return {
+    key: 'comments',
+    id: targetRoute || docId,
+    openComment: comment.id,
+    ...replyVersionData,
+  }
+}
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
@@ -977,6 +1055,12 @@ function DocumentBody({
       : openComment
       ? {openComment}
       : undefined
+  const suppressMainCommentEditor = shouldSuppressMainCommentEditor({
+    docId,
+    activeView,
+    discussionsParams,
+    panelRoute,
+  })
 
   // Respect the showActivity metadata toggle to hide the document tools bar.
   const showActivity = document.metadata?.showActivity !== false
@@ -1636,6 +1720,7 @@ function DocumentBody({
           showSidebars={showSidebars}
           showCollapsed={showCollapsed}
           discussionsParams={discussionsParams}
+          suppressCommentEditor={suppressMainCommentEditor}
           activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
           onActivityFilterChange={handleMainActivityFilterChange}
           blockCitations={blockCitations}
@@ -2028,30 +2113,12 @@ function PanelContentRenderer({
       )
     case 'comments':
       return (
-        <DiscussionsPageContent
+        <CommentsPanelContent
           docId={docId}
-          showTitle={false}
-          showOpenInPanel={false}
+          panelRoute={panelRoute}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
-          openComment={panelRoute.openComment}
-          targetBlockId={panelRoute.targetBlockId}
-          blockId={panelRoute.blockId}
-          blockRange={panelRoute.blockRange}
-          commentEditor={
-            CommentEditor ? (
-              <CommentEditor
-                key={panelRoute.openComment}
-                docId={docId}
-                quotingBlockId={panelRoute.targetBlockId}
-                commentId={panelRoute.openComment}
-                isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
-                replyCommentVersion={panelRoute.replyCommentVersion}
-                rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
-                focusOnMount
-              />
-            ) : undefined
-          }
+          CommentEditor={CommentEditor}
         />
       )
     case 'directory':
@@ -2066,6 +2133,83 @@ function PanelContentRenderer({
     default:
       return null
   }
+}
+
+function CommentsPanelContent({
+  docId,
+  panelRoute,
+  contentMaxWidth,
+  targetDomain,
+  CommentEditor,
+}: {
+  docId: UnpackedHypermediaId
+  panelRoute: Extract<DocumentPanelRoute, {key: 'comments'}>
+  contentMaxWidth: number
+  targetDomain?: string
+  CommentEditor?: React.ComponentType<CommentEditorProps>
+}) {
+  const commentsContext = useCommentsServiceContext()
+  const route = useNavRoute()
+  const replaceRoute = useNavigate('replace')
+
+  const onReplyClick = useCallback(
+    (comment: HMComment) => {
+      if (!('panel' in route)) return
+      replaceRoute({
+        ...route,
+        panel: getCommentReplyPanelRoute({
+          docId,
+          comment,
+          isReplying: true,
+        }),
+      } as NavRoute)
+    },
+    [docId, replaceRoute, route],
+  )
+
+  const onReplyCountClick = useCallback(
+    (comment: HMComment) => {
+      if (!('panel' in route)) return
+      replaceRoute({
+        ...route,
+        panel: getCommentReplyPanelRoute({
+          docId,
+          comment,
+        }),
+      } as NavRoute)
+    },
+    [docId, replaceRoute, route],
+  )
+
+  return (
+    <CommentsProvider {...commentsContext} onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
+      <DiscussionsPageContent
+        docId={docId}
+        showTitle={false}
+        showOpenInPanel={false}
+        contentMaxWidth={contentMaxWidth}
+        targetDomain={targetDomain}
+        openComment={panelRoute.openComment}
+        targetBlockId={panelRoute.targetBlockId}
+        blockId={panelRoute.blockId}
+        blockRange={panelRoute.blockRange}
+        commentEditor={
+          CommentEditor ? (
+            <CommentEditor
+              key={panelRoute.openComment}
+              docId={docId}
+              quotingBlockId={panelRoute.targetBlockId}
+              commentId={panelRoute.openComment}
+              isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
+              replyCommentVersion={panelRoute.replyCommentVersion}
+              rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
+              focusOnMount
+            />
+          ) : undefined
+        }
+      />
+    </CommentsProvider>
+  )
 }
 
 function DocumentOptionsPanel({
@@ -2112,6 +2256,7 @@ function MainContent({
   showSidebars,
   showCollapsed,
   discussionsParams,
+  suppressCommentEditor,
   activityFilterEventType,
   onActivityFilterChange,
   blockCitations,
@@ -2153,6 +2298,7 @@ function MainContent({
     replyCommentVersion?: string
     rootReplyCommentVersion?: string
   }
+  suppressCommentEditor?: boolean
   activityFilterEventType?: string[]
   onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
   blockCitations?: Record<string, {citations: number; comments: number}> | null
@@ -2217,7 +2363,7 @@ function MainContent({
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}
           commentEditor={
-            CommentEditor ? (
+            CommentEditor && !suppressCommentEditor ? (
               <CommentEditor
                 key={discussionsParams?.openComment}
                 docId={docId}

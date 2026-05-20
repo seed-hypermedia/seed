@@ -326,7 +326,7 @@ export function CommentEditor({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
-  const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
+  const hasPendingContentChangeRef = useRef(false)
   const shouldFocusOnActivateRef = useRef(false)
   const shouldMoveCursorToEndOnFocusRef = useRef(false)
   const dragDepthRef = useRef(0)
@@ -570,26 +570,9 @@ export function CommentEditor({
     if (!onContentChange) return
 
     const handleChange = () => {
-      // Clear previous timeout
-      if (contentChangeTimeoutRef.current) {
-        clearTimeout(contentChangeTimeoutRef.current)
-      }
-
-      // Debounce content change notifications
-      contentChangeTimeoutRef.current = setTimeout(() => {
-        try {
-          // @ts-expect-error
-          const editorBlocks: EditorBlock[] = editor.topLevelBlocks
-          const mediaRefs = collectSerializedMediaRefs(editorBlocks)
-          const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
-          onContentChange(
-            blocks.map((b) => b.toJson()) as HMBlockNode[],
-            Object.keys(mediaRefs).length > 0 ? mediaRefs : undefined,
-          )
-        } catch (error) {
-          console.error('Failed to notify content change:', error)
-        }
-      }, 500)
+      hasPendingContentChangeRef.current = true
+      emitContentChangeNow()
+      hasPendingContentChangeRef.current = false
     }
 
     // Listen to editor changes
@@ -597,8 +580,9 @@ export function CommentEditor({
 
     return () => {
       editor._tiptapEditor.off('update', handleChange)
-      if (contentChangeTimeoutRef.current) {
-        clearTimeout(contentChangeTimeoutRef.current)
+      if (hasPendingContentChangeRef.current) {
+        emitContentChangeNow()
+        hasPendingContentChangeRef.current = false
       }
     }
   }, [editor, onContentChange])
