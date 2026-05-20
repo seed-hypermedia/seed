@@ -710,7 +710,10 @@ export default function DesktopResourcePage() {
         pushAfterCommentPublish={(targetDocId) => pushAfterAction({id: targetDocId, trigger: 'publish'})}
       >
         <DesktopDocumentActionsProvider>
-          <DesktopDraftActionsProvider canCreateInlineDraft={!docId.path?.some(isDraftPathSegment)}>
+          {/*
+            Allow creating inline child drafts only when the current doc has a published version
+          */}
+          <DesktopDraftActionsProvider canCreateInlineDraft={!existingDraft || !existingDraft.locationUid}>
             <DesktopDraftBreadcrumbProvider>
               <QueryBlockDraftsProvider
                 DraftSlot={DesktopQueryBlockDraftSlot}

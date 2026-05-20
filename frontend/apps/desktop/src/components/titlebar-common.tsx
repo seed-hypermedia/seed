@@ -2,6 +2,7 @@ import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
+import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
@@ -20,7 +21,6 @@ import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
-import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {formattedDate} from '@shm/shared/utils/date'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
@@ -747,9 +747,9 @@ export function Omnibar() {
   const [isSearchLoading, setIsSearchLoading] = useState(false)
 
   const routeId = getRouteId(route)
-  // Any path segment starting with '-' is a draft placeholder slug.
-  const hasDraftPathSegment = routeId?.path?.some(isDraftPathSegment) ?? false
-  const isUnsharable = !copyableUrl || hasDraftPathSegment
+  const existingDraft = useExistingDraft(route)
+  const isNewDraft = !!(existingDraft && existingDraft.locationUid)
+  const isUnsharable = !copyableUrl || isNewDraft
 
   // Pass null to the omnibar state when the URL isn't shareable so the focused
   // input doesn't prefill with it.
