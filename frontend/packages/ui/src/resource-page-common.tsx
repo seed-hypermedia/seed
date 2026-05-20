@@ -1656,6 +1656,7 @@ function DocumentBody({
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
+          fileUpload={fileUpload}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -2132,6 +2133,7 @@ function MainContent({
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
+  fileUpload,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2177,6 +2179,7 @@ function MainContent({
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: LinkExtensionOptions
+  fileUpload?: (file: File) => Promise<string>
 }) {
   switch (activeView) {
     case 'directory':
@@ -2261,6 +2264,7 @@ function MainContent({
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
+          fileUpload={fileUpload}
         />
       )
   }
@@ -2291,6 +2295,7 @@ function ContentViewWithOutline({
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
+  fileUpload,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2320,6 +2325,7 @@ function ContentViewWithOutline({
   ssrContentHTML?: string | null
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: LinkExtensionOptions
+  fileUpload?: (file: File) => Promise<string>
 }) {
   const publishedOutline = useNodesOutline(document, docId)
   const draftOutline = useMemo(
@@ -2327,6 +2333,16 @@ function ContentViewWithOutline({
     [existingDraftContent, docId],
   )
   const outline = draftOutline ?? publishedOutline
+  const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
+    if (!fileUpload) return undefined
+    return async (file: File) => {
+      const cid = await fileUpload(file)
+      return {
+        url: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`,
+        displaySrc: '',
+      }
+    }
+  }, [fileUpload])
 
   return (
     <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
@@ -2369,6 +2385,7 @@ function ContentViewWithOutline({
             linkExtensionOptions={linkExtensionOptions}
             isUnpublishedDraft={isUnpublishedDraft}
             isBlockInPublishedVersion={isBlockInPublishedVersion}
+            handleFileAttachment={handleFileAttachment}
           />
         ) : ssrContentHTML ? (
           <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />

@@ -682,6 +682,7 @@ export function renderWebInlineEditor({comment, onSave, onCancel, isSaving}: Inl
 
 /** Inline comment editor for the web platform. */
 export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentProps) {
+  const client = useUniversalClient()
   const handleSubmit = useCallback(
     async (
       getContent: (
@@ -692,10 +693,13 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
       ) => Promise<{blockNodes: HMBlockNode[]; blobs: {cid: string; data: Uint8Array}[]}>,
       reset: () => void,
     ) => {
-      const {blockNodes} = await getContent(async (binaries) => ({blobs: [], resultCIDs: []}))
+      const {blockNodes, blobs} = await getContent(prepareAttachments)
+      if (blobs.length) {
+        await client.publish({blobs: blobs.map((blob) => ({cid: blob.cid, data: blob.data}))})
+      }
       onSave(blockNodes)
     },
-    [onSave],
+    [client, onSave],
   )
 
   return (
@@ -705,6 +709,8 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
+        importWebFile={(url) => importWebFile(url)}
+        handleFileAttachment={(file) => handleFileAttachment(file)}
         hideAvatar
         submitButton={({getContent, reset}) => (
           <>

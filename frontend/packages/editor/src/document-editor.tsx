@@ -76,6 +76,7 @@ export function DocumentEditor({
   perspectiveAccountUid,
   linkExtensionOptions,
   importWebFile,
+  handleFileAttachment,
   isUnpublishedDraft,
   isBlockInPublishedVersion,
 }: DocumentContentProps) {
@@ -152,6 +153,7 @@ export function DocumentEditor({
       renderType: 'document',
       blockSchema: hmBlockSchema,
       importWebFile: importWebFile as any,
+      handleFileAttachment: handleFileAttachment as any,
       getSlashMenuItems: () => getSlashMenuItems({docId: resourceId, onCreateInlineDraft}),
       onEditorContentChange() {
         if (suppressChangeRef.current) return

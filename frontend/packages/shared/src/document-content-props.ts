@@ -68,4 +68,20 @@ export type DocumentContentProps = {
   importWebFile?: (
     url: string,
   ) => Promise<{cid: string; type: string} | {displaySrc: string; fileBinary: Uint8Array | ArrayBuffer; type: string}>
+  /** Handles pasted/dropped local files. Desktop returns IPFS URLs, while web can
+   * return locally-stored draft media or web-published IPFS URLs. */
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc?: string
+    url?: string
+    fileBinary?: Uint8Array | ArrayBuffer
+    mediaRef?:
+      | string
+      | {
+          draftId: string
+          mediaId: string
+          name: string
+          mime: string
+          size: number
+        }
+  }>
 }
