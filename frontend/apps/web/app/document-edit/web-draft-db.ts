@@ -6,7 +6,7 @@
  * index on `docId` lets us look up the latest draft for a document on mount.
  */
 
-import type {HMBlockNode, HMMetadata, HMNavigationItem} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMMetadata, HMNavigationItem, HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
 
 export interface WebDocDraft {
   /** Primary key — stable id assigned on first save. */
@@ -31,6 +31,8 @@ export interface WebDocDraft {
   editUid: string | null
   /** Edit path under that account. */
   editPath: string[] | null
+  /** Draft document visibility. Defaults to public for older records. */
+  visibility?: HMResourceVisibility
   /** Cursor offset to restore on re-entering editing. */
   cursorPosition: number | null
   /** Wall-clock timestamp of last save. Used for cleanup. */

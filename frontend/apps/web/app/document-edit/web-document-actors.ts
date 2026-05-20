@@ -12,6 +12,7 @@
 
 import {signDocumentChange} from '@seed-hypermedia/client'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -35,6 +36,7 @@ import {
 } from '@shm/shared/utils/document-changes'
 import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
@@ -83,6 +85,7 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
     const content = editorBlocksToHMBlockNodes(editorBlocks)
 
     const draftId = input.draftId ?? nanoid(10)
+    const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
     const record: Omit<WebDocDraft, 'updatedAt'> = {
       draftId,
       docId: deps.docId.id,
@@ -95,6 +98,9 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       locationPath: input.locationPath?.length ? input.locationPath : null,
       editUid: input.editUid || null,
       editPath: input.editPath?.length ? input.editPath : null,
+      visibility:
+        existingDraft?.visibility ??
+        (deps.docId.path?.some((segment) => segment.startsWith('-')) ? 'PUBLIC' : undefined),
       cursorPosition,
     }
     await putWebDocDraft(record)
@@ -160,7 +166,17 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   const latestVersion = editDocument?.version ?? ''
   const baseVersion = latestVersion || (draft.deps.length ? draft.deps.join('.') : '')
-  const path = hmIdPathToEntityQueryPath(deps.docId.path ?? [])
+  const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
+  const currentPath = deps.docId.path ?? []
+  const isPlaceholderPath = currentPath.at(-1) === `-${draft.draftId}`
+  const publishPath = isPrivate
+    ? currentPath
+    : input.pathOverride
+    ? input.pathOverride
+    : !editDocument && isPlaceholderPath
+    ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
+    : currentPath
+  const path = hmIdPathToEntityQueryPath(publishPath)
 
   if (!deps.client.publishDocument) {
     throw new Error('Universal client does not provide publishDocument; cannot publish on web')
@@ -172,8 +188,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   }
 
   const capabilityCid = deps.getCapabilityCid() ?? ''
-  const visibility =
-    editDocument?.visibility === 'PRIVATE' ? ResourceVisibility.PRIVATE : ResourceVisibility.UNSPECIFIED
+  const visibility = isPrivate ? ResourceVisibility.PRIVATE : ResourceVisibility.UNSPECIFIED
   // Web signs client-side via `signDocumentChange`. Generation must be strictly
   // greater than existing HEAD's — a tie keeps the old HEAD. Desktop avoids this
   // because the daemon's `createDocumentChange` gRPC manages generation server-side.
@@ -213,6 +228,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const newVersionStr = changeCid.toString()
   const after = await deps.client.request('Resource', {
     ...deps.docId,
+    path: publishPath,
     version: newVersionStr,
   })
   if (after.type !== 'document') {
@@ -223,7 +239,12 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
-  invalidateAfterPublish(deps.docId, after.document)
+  const publishedDocId =
+    publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
+  invalidateAfterPublish(publishedDocId, after.document)
+  if (publishedDocId.id !== deps.docId.id) {
+    invalidateAfterPublish(deps.docId, after.document)
+  }
   invalidateQueries(['web-doc-draft', deps.docId.id])
 
   // Refetch draft query only — clears existingDraftContent in the UI.

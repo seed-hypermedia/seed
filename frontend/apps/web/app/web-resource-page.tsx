@@ -1,5 +1,5 @@
 import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
+import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
@@ -8,6 +8,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {useQuery} from '@tanstack/react-query'
@@ -31,7 +32,7 @@ import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
-import {WebHeaderActions, WebSitePageShell} from './web-utils'
+import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {cleanupOldWebDocDrafts, deleteWebDocDraft, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
@@ -103,9 +104,27 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   replaceRouteRef.current = replaceRoute
   const routeRef = useRef(route)
   routeRef.current = route
-  const onPublishSuccess = useCallback(() => {
+  const onPublishSuccess = useCallback((newDocument?: {account?: string; path?: string | null}) => {
     const currentRoute = routeRef.current
-    if (currentRoute.key === 'document' || currentRoute.key === 'site-profile') {
+    if (currentRoute.key === 'document') {
+      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+      if (newDocument?.account) {
+        const publishedId = hmId(newDocument.account, {
+          path: entityQueryPathToHmIdPath(newDocument.path),
+          latest: true,
+        })
+        if (currentId && publishedId.id !== currentId.id) {
+          replaceRouteRef.current({...currentRoute, id: publishedId} as any)
+          return
+        }
+      }
+      if (currentId?.version) {
+        replaceRouteRef.current({
+          ...currentRoute,
+          id: {...currentId, version: null},
+        } as any)
+      }
+    } else if (currentRoute.key === 'site-profile') {
       const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
       if (currentId?.version) {
         replaceRouteRef.current({
@@ -259,6 +278,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       : undefined
 
   const siteUid = docId.uid
+  const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
+    locationId: docId,
+    signingAccountId: signingAccountId ?? undefined,
+    canCreate: canEdit && !!signingAccountId,
+  })
+  const extraMenuItems = useMemo(() => (newMenuItem ? [newMenuItem] : []), [newMenuItem])
 
   // Inline subscribe box for non-members
   const {isJoined} = useJoinSite({siteUid})
@@ -299,6 +324,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             profileHeaderButtons={profileHeaderButtons}
             onFollowClick={onFollowClick}
             rightActions={<WebHeaderActions siteUid={docId.uid} />}
+            extraMenuItems={extraMenuItems}
             inlineInsert={inlineInsert}
             DocumentContentComponent={DocumentContentComponent}
             ssrContentHTML={ssrContentHTML}
@@ -309,6 +335,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             publishAccountUid={signingAccountId ?? undefined}
             onEditorReady={onEditorReady}
             existingDraft={existingDraft}
+            existingDraftVisibility={draftData?.visibility}
             existingDraftContent={existingDraftContent}
             existingDraftCursorPosition={existingDraftCursorPosition}
             editingFloatingActions={editingFloatingActions}
@@ -318,6 +345,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       </CommentsProvider>
       {editProfileDialog.content}
       {followAccountContent}
+      {newMenuContent}
       {vaultSuccessContent}
     </WebSitePageShell>
   )

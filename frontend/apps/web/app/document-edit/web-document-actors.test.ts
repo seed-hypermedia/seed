@@ -219,8 +219,6 @@ describe('publishWebDocument', () => {
     expect(await getWebDocDraft(draftId)).toBeNull()
   })
 
-
-
   it('publish deletes removed child drafts after successful parent publish', async () => {
     await putWebDocDraft({
       draftId,
@@ -300,6 +298,106 @@ describe('publishWebDocument', () => {
     const refData = cborDecode(publishCall[0].blobs[1]!.data) as Record<string, unknown>
     expect(refData.type).toBe('Ref')
     expect(refData.visibility).toBe('Private')
+  })
+
+  it('first-publish public placeholder path is replaced with a slug from the title', async () => {
+    const docId = makeDocId(OWNER, [`-${draftId}`])
+    const after = makeBaselineDoc([], {path: '/hello-web'})
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {name: 'Hello Web'},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: [`-${draftId}`],
+      visibility: 'PUBLIC',
+      cursorPosition: null,
+    })
+
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
+      if (key === 'Resource') {
+        resourceCalls += 1
+        return resourceCalls === 1 ? ({type: 'not-found'} as any) : ({type: 'document', document: after} as any)
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({
+      docId,
+      request: requestMock,
+      after,
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hello'}],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument({...baseInput, documentId: docId}, deps)
+
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    expect(prepareCall[1].path).toBe('/hello-web')
+
+    const finalResourceCall = deps.requestMock.mock.calls.filter((c: any) => c[0] === 'Resource').at(-1)!
+    expect(finalResourceCall[1].path).toEqual(['hello-web'])
+  })
+
+  it('first-publish private draft keeps generated path and private visibility', async () => {
+    const docId = makeDocId(OWNER, ['secret-generated-path'])
+    const after = makeBaselineDoc([], {path: '/secret-generated-path', visibility: 'PRIVATE'})
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {name: 'Secret'},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: ['secret-generated-path'],
+      editUid: OWNER,
+      editPath: ['secret-generated-path'],
+      visibility: 'PRIVATE',
+      cursorPosition: null,
+    })
+
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
+      if (key === 'Resource') {
+        resourceCalls += 1
+        return resourceCalls === 1 ? ({type: 'not-found'} as any) : ({type: 'document', document: after} as any)
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({docId, request: requestMock, after, editorBlocks: []})
+
+    await publishWebDocument({...baseInput, documentId: docId, pathOverride: ['public-slug']}, deps)
+
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    expect(prepareCall[1].path).toBe('/secret-generated-path')
+    expect(prepareCall[1].visibility).toBe(ResourceVisibility.PRIVATE)
+
+    const finalResourceCall = deps.requestMock.mock.calls.filter((c: any) => c[0] === 'Resource').at(-1)!
+    expect(finalResourceCall[1].path).toEqual(['secret-generated-path'])
   })
 
   it('non-owner publish includes capability CID', async () => {

@@ -1,3 +1,4 @@
+import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
@@ -15,11 +16,14 @@ import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
-import {Bell, LogOut, Search, User, UserCog} from 'lucide-react'
-import {ReactNode, useMemo, useState} from 'react'
+import {Add} from '@shm/ui/icons'
+import {Bell, FilePlus2, Import as ImportIcon, Lock, LogOut, Search, User, UserCog} from 'lucide-react'
+import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
+import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
@@ -48,6 +52,96 @@ export function useWebMenuItems(): MenuItemType[] {
     ],
     [inspectRoute, navigate],
   )
+}
+
+/** Builds the web document creation submenu item for the document options menu. */
+export function useWebCreateDocumentMenuItem({
+  locationId,
+  signingAccountId,
+  canCreate,
+}: {
+  locationId: UnpackedHypermediaId
+  signingAccountId?: string
+  canCreate: boolean
+}): {
+  menuItem: MenuItemType | null
+  content: ReactNode
+} {
+  const navigate = useNavigate()
+  const importInputRef = useRef<HTMLInputElement>(null)
+
+  const createDraft = useCallback(
+    (visibility?: HMResourceVisibility) => {
+      if (!signingAccountId) return
+      void createWebDocumentDraft({
+        locationId,
+        signingAccountId,
+        visibility,
+        navigate: (route) => navigate(route),
+      })
+    },
+    [locationId, navigate, signingAccountId],
+  )
+
+  const menuItem = useMemo<MenuItemType | null>(() => {
+    if (!canCreate || !signingAccountId) return null
+    return {
+      key: 'new',
+      label: 'New',
+      icon: <Add className="size-4" />,
+      children: [
+        {
+          key: 'new-document',
+          label: 'New Document',
+          icon: <FilePlus2 className="size-4" />,
+          onClick: () => createDraft('PUBLIC'),
+        },
+        {
+          key: 'new-private-document',
+          label: 'New Private Document',
+          icon: <Lock className="size-4" />,
+          onClick: () => createDraft('PRIVATE'),
+        },
+        {
+          key: 'import',
+          label: 'Import Markdown File',
+          icon: <ImportIcon className="size-4" />,
+          onClick: () => importInputRef.current?.click(),
+        },
+      ],
+    }
+  }, [canCreate, createDraft, signingAccountId])
+
+  return {
+    menuItem,
+    content:
+      canCreate && signingAccountId ? (
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".md,.markdown,text/markdown,text/plain"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0]
+            event.currentTarget.value = ''
+            if (!file) return
+            toast.promise(
+              createWebDocumentDraftFromMarkdownFile({
+                file,
+                locationId,
+                signingAccountId,
+                navigate: (route) => navigate(route),
+              }),
+              {
+                loading: 'Importing Markdown…',
+                success: 'Markdown imported.',
+                error: 'Failed to import Markdown.',
+              },
+            )
+          }}
+        />
+      ) : null,
+  }
 }
 
 /**
