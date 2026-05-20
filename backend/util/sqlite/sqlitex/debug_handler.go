@@ -26,6 +26,33 @@ type sqlitePage struct {
 	Active      []activeRow
 	Callers     []callerRow
 	Recent      []recentRow
+	Checkpoint  checkpointSection
+}
+
+type checkpointSection struct {
+	HasRun        bool
+	LastWhen      string
+	LastAgeMs     float64
+	LastDurMs     float64
+	LastDurClass  string
+	LastBusy      int64
+	LastBusyClass string
+	LastLog       int64
+	LastCkpt      int64
+	LastErr       string
+	TotalRuns     uint64
+	TotalPages    uint64
+	Recent        []checkpointRecentRow
+}
+
+type checkpointRecentRow struct {
+	When     string
+	DurMs    float64
+	DurClass string
+	Busy     int64
+	Log      int64
+	Ckpt     int64
+	Err      string
 }
 
 type activeRow struct {
@@ -91,6 +118,7 @@ func buildSQLitePage() sqlitePage {
 
 	page := sqlitePage{
 		GeneratedAt: now.Format(time.RFC3339),
+		Checkpoint:  buildCheckpointSection(now),
 	}
 
 	for _, a := range snap.Active {
@@ -174,6 +202,50 @@ func buildSQLitePage() sqlitePage {
 	}
 
 	return page
+}
+
+// buildCheckpointSection assembles the WAL-checkpoint summary surfaced
+// above the per-caller table. It's safe to call even before the
+// background goroutine has run once; HasRun=false suppresses the rendered
+// detail rows in that case.
+func buildCheckpointSection(now time.Time) checkpointSection {
+	snap := WALCheckpointSnapshot()
+	out := checkpointSection{
+		TotalRuns:  snap.TotalRuns,
+		TotalPages: snap.TotalPages,
+	}
+	if snap.TotalRuns == 0 || snap.Last.When.IsZero() {
+		return out
+	}
+	out.HasRun = true
+	out.LastWhen = snap.Last.When.Format(time.RFC3339)
+	out.LastAgeMs = float64(now.Sub(snap.Last.When)) / float64(time.Millisecond)
+	out.LastDurMs = float64(snap.Last.Duration) / float64(time.Millisecond)
+	out.LastDurClass = classForHoldMs(out.LastDurMs)
+	out.LastBusy = snap.Last.Busy
+	if snap.Last.Busy != 0 {
+		out.LastBusyClass = "note"
+	}
+	out.LastLog = snap.Last.Log
+	out.LastCkpt = snap.Last.Checkpointed
+	if snap.Last.Err != nil {
+		out.LastErr = snap.Last.Err.Error()
+	}
+	for _, r := range snap.Recent {
+		row := checkpointRecentRow{
+			When:     r.When.Format("15:04:05.000"),
+			DurMs:    float64(r.Duration) / float64(time.Millisecond),
+			Busy:     r.Busy,
+			Log:      r.Log,
+			Ckpt:     r.Checkpointed,
+			DurClass: classForHoldMs(float64(r.Duration) / float64(time.Millisecond)),
+		}
+		if r.Err != nil {
+			row.Err = r.Err.Error()
+		}
+		out.Recent = append(out.Recent, row)
+	}
+	return out
 }
 
 func classForHoldMs(ms float64) string {
@@ -276,6 +348,53 @@ th.grp{background:#ececec;text-align:center}
 </table>
 <p>Color thresholds: yellow ≥ 100 ms, red ≥ 1 s. The busy_timeout itself is 10 s.</p>
 </details>
+
+<h2>Background WAL checkpoint</h2>
+<details class="help"><summary>Why this exists</summary>
+<p>Every COMMIT in WAL mode appends frames to the .wal file. By default, SQLite auto-checkpoints inline on the COMMIT that crosses the <code>wal_autocheckpoint</code> threshold — that committing writer pays for the fsync of every dirty page being relocated, which routinely produces multi-hundred-ms COMMIT durations on contended disks. A dedicated goroutine runs <code>PRAGMA wal_checkpoint(PASSIVE)</code> at a steady cadence so foreground writers don't pay that cost. PASSIVE checkpoints don't block readers or writers and don't change what readers see — they only relocate pages from .wal back to the main DB file, bit-identically. <code>busy=1</code> means some frames couldn't be migrated this tick (a reader/writer was at the head of the WAL); they retry next tick.</p>
+</details>
+{{with .Checkpoint}}
+{{if .HasRun}}
+<table>
+<thead><tr>
+<th>last run</th><th class="num">age</th><th class="num">duration</th><th class="num">busy</th><th class="num">log frames</th><th class="num">checkpointed</th><th class="num">total runs</th><th class="num">total pages</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>{{.LastWhen}}{{if .LastErr}} <span class="warn">err: {{.LastErr}}</span>{{end}}</td>
+<td class="num">{{fmtMs .LastAgeMs}}</td>
+<td class="num {{.LastDurClass}}">{{fmtMs .LastDurMs}}</td>
+<td class="num {{.LastBusyClass}}">{{.LastBusy}}</td>
+<td class="num">{{.LastLog}}</td>
+<td class="num">{{.LastCkpt}}</td>
+<td class="num">{{.TotalRuns}}</td>
+<td class="num">{{.TotalPages}}</td>
+</tr>
+</tbody>
+</table>
+{{if .Recent}}
+<details><summary>recent checkpoint ticks ({{len .Recent}})</summary>
+<table>
+<thead><tr><th>when</th><th class="num">duration</th><th class="num">busy</th><th class="num">log frames</th><th class="num">checkpointed</th><th>err</th></tr></thead>
+<tbody>
+{{range .Recent}}
+<tr>
+<td>{{.When}}</td>
+<td class="num {{.DurClass}}">{{fmtMs .DurMs}}</td>
+<td class="num">{{.Busy}}</td>
+<td class="num">{{.Log}}</td>
+<td class="num">{{.Ckpt}}</td>
+<td>{{.Err}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</details>
+{{end}}
+{{else}}
+<div class="subtitle">Background checkpointer has not run yet (no completed ticks). The goroutine starts at <code>OpenSQLite</code> and ticks every few seconds — on a freshly-launched daemon this section may stay empty for one cycle.</div>
+{{end}}
+{{end}}
 
 <h2>Currently in flight</h2>
 {{if .Active}}

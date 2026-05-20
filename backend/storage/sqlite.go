@@ -3,31 +3,93 @@ package storage
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math"
 	"math/big"
 	"path/filepath"
+	"seed/backend/logging"
 	"seed/backend/storage/dbext"
 	"seed/backend/testutil"
 	"testing"
+	"time"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 import "C"
 
+// walCheckpointInterval is how often the background goroutine runs PRAGMA
+// wal_checkpoint(PASSIVE). 5s amortises checkpoint cost away from the
+// foreground writer without letting the WAL grow large enough to trigger an
+// inline auto-checkpoint at the wal_autocheckpoint threshold below.
+const walCheckpointInterval = 5 * time.Second
+
+// walAutoCheckpointPages is the threshold (in WAL pages) above which SQLite
+// would auto-checkpoint inline on COMMIT. Raised from the 1000-page default
+// to 10_000 so the background goroutine almost always wins the race —
+// foreground writers no longer pay the page-migration fsync cost on COMMIT.
+// The background goroutine is non-blocking (PASSIVE), so this only changes
+// where the work happens, not whether it happens.
+const walAutoCheckpointPages = 10_000
+
 // OpenSQLite opens a connection pool for SQLite, enabling some needed functionality for our schema
 // like foreign keys.
+//
+// Also spawns a background PRAGMA wal_checkpoint(PASSIVE) goroutine; this
+// keeps the WAL bounded without making foreground writers pay the
+// page-migration fsync cost on COMMIT. Stopping the checkpointer is wired
+// into Pool.Close via the closeWALCheckpointer hook below.
 func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool, error) {
-	return openSQLite(uri, flags, poolSize,
+	pool, err := openSQLite(uri, flags, poolSize,
 		"PRAGMA foreign_keys = ON;",
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
 		// "PRAGMA cache_size = -20000;",
 		"PRAGMA temp_store = MEMORY;",
+		// Push the foreground auto-checkpoint threshold well above what the
+		// background goroutine should ever let the WAL reach. See doc comment
+		// on walAutoCheckpointPages.
+		fmt.Sprintf("PRAGMA wal_autocheckpoint = %d;", walAutoCheckpointPages),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Spawn the background checkpointer. The returned stop func is intentionally
+	// discarded: the goroutine self-exits when pool.Close() is called (its next
+	// pool.Conn call returns ErrPoolClosed). That means there's a worst-case
+	// goroutine-alive window of `walCheckpointInterval` after pool.Close, which
+	// is acceptable — the goroutine is idle on a ticker, not holding a conn.
+	_ = sqlitex.StartWALCheckpointer(pool, walCheckpointInterval, zapLogger{
+		log: logging.New("seed/sqlite/wal", "info"),
+	})
+	return pool, nil
+}
+
+// zapLogger adapts *zap.Logger to the minimal Logger interface in sqlitex
+// so the sqlitex package doesn't take a direct zap dependency.
+type zapLogger struct {
+	log *zap.Logger
+}
+
+// Warn implements sqlitex.Logger.
+func (z zapLogger) Warn(msg string, kv ...any) {
+	if z.log == nil {
+		return
+	}
+	fields := make([]zap.Field, 0, len(kv)/2)
+	for i := 0; i+1 < len(kv); i += 2 {
+		key, ok := kv[i].(string)
+		if !ok {
+			continue
+		}
+		fields = append(fields, zap.Any(key, kv[i+1]))
+	}
+	z.log.Warn(msg, fields...)
 }
 
 func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, prelude ...string) (*sqlitex.Pool, error) {
