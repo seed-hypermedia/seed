@@ -302,7 +302,13 @@ function GeneralSettings() {
           label="Theme"
           right={
             !isInitialLoading ? (
-              <RadioGroup value={theme || 'light'} onValueChange={setTheme} className="flex items-center gap-4">
+              <RadioGroup value={theme || 'system'} onValueChange={setTheme} className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="system" id="theme-system" />
+                  <Label htmlFor="theme-system" className="text-sm">
+                    System
+                  </Label>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <RadioGroupItem value="light" id="theme-light" />
                   <Label htmlFor="theme-light" className="text-sm">
