@@ -43,7 +43,7 @@ describe('clickHandler', () => {
     anchor.href = 'hm://abc'
 
     const event = createClick(anchor)
-    const handled = plugin.props.handleClick?.(createView(false), 1, event)
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
 
     expect(handled).toBe(true)
     expect(event.defaultPrevented).toBe(true)
@@ -61,7 +61,7 @@ describe('clickHandler', () => {
     anchor.appendChild(mentionText)
 
     const event = createClick(mentionText)
-    const handled = plugin.props.handleClick?.(createView(false), 1, event)
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
 
     expect(handled).toBe(true)
     expect(event.defaultPrevented).toBe(true)
@@ -75,7 +75,7 @@ describe('clickHandler', () => {
     anchor.href = 'hm://abc'
 
     const event = createClick(anchor, {metaKey: true})
-    const handled = plugin.props.handleClick?.(createView(false), 1, event)
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
 
     expect(handled).toBe(false)
     expect(event.defaultPrevented).toBe(false)
@@ -89,7 +89,7 @@ describe('clickHandler', () => {
     anchor.href = 'hm://abc'
 
     const event = createClick(anchor, {metaKey: true})
-    const handled = plugin.props.handleClick?.(createView(false), 1, event)
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
 
     expect(handled).toBe(true)
     expect(event.defaultPrevented).toBe(true)
@@ -103,7 +103,7 @@ describe('clickHandler', () => {
     anchor.href = 'hm://abc'
 
     const event = createClick(anchor)
-    const handled = plugin.props.handleClick?.(createView(true), 1, event)
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(true), event)
 
     expect(handled).toBe(false)
     expect(event.defaultPrevented).toBe(true)
