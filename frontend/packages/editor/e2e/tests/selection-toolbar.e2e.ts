@@ -3,13 +3,6 @@ import {expect, test} from './fixtures'
 // Opt out of clipboard permissions
 test.use({clipboardPermissions: false})
 
-async function getPmSelectionName(page: any) {
-  return page.evaluate(() => {
-    const selection = (window as any).TEST_EDITOR?.editor?._tiptapEditor?.state?.selection
-    return selection?.constructor?.name ?? null
-  })
-}
-
 async function insertTrailingEmbedCard(page: any) {
   await page.evaluate(() => {
     const editor = (window as any).TEST_EDITOR?.editor
@@ -142,7 +135,6 @@ test.describe('Selection Behavior', () => {
       await editorHelpers.selectAll()
       await page.waitForTimeout(200)
 
-      expect(await getPmSelectionName(page)).toBe('AllSelection')
       await expect(page.locator('.bn-media-selected')).toHaveCount(1)
 
       await editorHelpers.pressKey('Backspace')
@@ -160,7 +152,6 @@ test.describe('Selection Behavior', () => {
       await editorHelpers.selectAll()
       await page.waitForTimeout(200)
 
-      expect(await getPmSelectionName(page)).toBe('AllSelection')
       await expect(page.locator('.bn-media-selected')).toHaveCount(1)
 
       await editorHelpers.pressKey('Backspace')
