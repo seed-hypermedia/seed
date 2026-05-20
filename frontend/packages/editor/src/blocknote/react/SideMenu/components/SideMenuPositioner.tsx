@@ -26,12 +26,14 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
   const referencePos = useRef<DOMRect>()
   const [lh, setLh] = useState('')
   useEffect(() => {
-    return props.editor.sideMenu!.onUpdate((sideMenuState) => {
+    const unsubscribe = props.editor.sideMenu!.onUpdate((sideMenuState) => {
       setShow(sideMenuState.show)
       setBlock(sideMenuState.block)
       referencePos.current = sideMenuState.referencePos
       setLh(sideMenuState.lineHeight)
     })
+    props.editor.sideMenu!.refresh()
+    return unsubscribe
   }, [props.editor])
 
   const handleHide = useCallback(() => {

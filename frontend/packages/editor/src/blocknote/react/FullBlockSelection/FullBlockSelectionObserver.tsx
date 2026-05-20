@@ -7,8 +7,8 @@ import type {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
  * and calls the `onBlocksFullSelected` callback whenever the set of
  * fully-selected blocks changes.
  *
- * Renders no DOM — visual feedback is handled entirely by ProseMirror
- * decorations inside the plugin.
+ * Renders no DOM — consumers use this state for actions like fragment links
+ * and block dragging.
  */
 export function FullBlockSelectionObserver<BSchema extends BlockSchema>({
   editor,

@@ -20,20 +20,15 @@ export type SideMenuState<BSchema extends BlockSchema> = BaseUiElementState & {
  */
 class SideMenuView<BSchema extends BlockSchema> implements PluginView {
   private sideMenuState?: SideMenuState<BSchema>
-  private fullBlockUnsubscribe?: () => void
   private monitorCleanup?: () => void
+  private prevBlockIds: string[] = []
+  private prevEditable?: boolean
 
   constructor(
     private readonly editor: BlockNoteEditor<BSchema>,
     private readonly pmView: EditorView,
     private readonly updateSideMenu: (sideMenuState: SideMenuState<BSchema>) => void,
   ) {
-    if (this.editor.fullBlockSelection) {
-      this.fullBlockUnsubscribe = this.editor.fullBlockSelection.onUpdate(({blockIds}) => {
-        this.syncFromSelection(blockIds)
-      })
-    }
-
     if (this.editor.dragStateManager && this.editor.editorDragId) {
       this.monitorCleanup = setupDragMonitor(
         this.pmView.dom as HTMLElement,
@@ -42,10 +37,33 @@ class SideMenuView<BSchema extends BlockSchema> implements PluginView {
         this.editor.editorDragId,
       )
     }
+
+    this.syncFromPluginState(this.pmView)
   }
 
-  private syncFromSelection(blockIds: string[]) {
-    if (!this.editor.isEditable) {
+  update(view: EditorView) {
+    this.syncFromPluginState(view)
+  }
+
+  public refresh() {
+    this.syncFromPluginState(this.pmView, true)
+  }
+
+  private syncFromPluginState(view: EditorView, force = false) {
+    const blockIds = fullBlockSelectionPluginKey.getState(view.state)?.blockIds ?? []
+    const editable = view.editable
+
+    if (!force && this.prevEditable === editable && arraysEqual(this.prevBlockIds, blockIds)) {
+      return
+    }
+
+    this.prevEditable = editable
+    this.prevBlockIds = blockIds
+    this.syncFromSelection(blockIds, editable)
+  }
+
+  private syncFromSelection(blockIds: string[], editable = this.pmView.editable) {
+    if (!editable) {
       this.emitHide()
       return
     }
@@ -112,9 +130,16 @@ class SideMenuView<BSchema extends BlockSchema> implements PluginView {
 
   destroy() {
     this.emitHide()
-    this.fullBlockUnsubscribe?.()
     this.monitorCleanup?.()
   }
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
 }
 
 export const sideMenuPluginKey = new PluginKey('SideMenuPlugin')
@@ -122,15 +147,17 @@ export const sideMenuPluginKey = new PluginKey('SideMenuPlugin')
 export class SideMenuProsemirrorPlugin<BSchema extends BlockSchema> extends EventEmitter<any> {
   public readonly plugin: Plugin
   public readonly blockDragGuardPlugin: Plugin
+  private view?: SideMenuView<BSchema>
 
   constructor(private readonly editor: BlockNoteEditor<BSchema>) {
     super()
     this.plugin = new Plugin({
       key: sideMenuPluginKey,
       view: (editorView) => {
-        return new SideMenuView(editor, editorView, (sideMenuState) => {
+        this.view = new SideMenuView(editor, editorView, (sideMenuState) => {
           this.emit('update', sideMenuState)
         })
+        return this.view
       },
     })
     this.blockDragGuardPlugin = createBlockDragGuardPlugin()
@@ -138,6 +165,13 @@ export class SideMenuProsemirrorPlugin<BSchema extends BlockSchema> extends Even
 
   public onUpdate(callback: (state: SideMenuState<BSchema>) => void) {
     return this.on('update', callback)
+  }
+
+  /**
+   * Emits the current side-menu state from the latest editor selection.
+   */
+  public refresh() {
+    this.view?.refresh()
   }
 
   /**

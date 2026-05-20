@@ -71,7 +71,7 @@ describe('heading section selection', () => {
     editor._tiptapEditor.destroy()
   })
 
-  it('does not mark fully covered non-heading child blocks while full-block selection is disabled', () => {
+  it('marks fully covered non-heading child blocks for side-menu dragging', () => {
     const editor = createEditor([
       {
         id: 'parent',
@@ -86,8 +86,32 @@ describe('heading section selection', () => {
     setTextSelection(editor, parent.blockContent.beforePos + 3, child.blockContent.afterPos - 1)
 
     expect(blockElement(editor, 'parent').classList.contains('bn-full-block-selected')).toBe(false)
-    expect(blockElement(editor, 'child').classList.contains('bn-full-block-selected')).toBe(false)
+    expect(blockElement(editor, 'child').classList.contains('bn-full-block-selected')).toBe(true)
 
+    editor._tiptapEditor.destroy()
+  })
+
+  it('shows the side menu for fully covered non-heading child blocks', () => {
+    const editor = createEditor([
+      {
+        id: 'parent',
+        type: 'paragraph',
+        content: 'Parent',
+        children: [{id: 'child', type: 'paragraph', content: 'Child text'}],
+      },
+    ])
+    const child = getBlockInfo(editor, 'child')
+    let latestSideMenuState: {show: boolean; block: {id: string}} | undefined
+    const unsubscribe = editor.sideMenu!.onUpdate((state) => {
+      latestSideMenuState = state
+    })
+
+    setTextSelection(editor, child.blockContent.beforePos + 1, child.blockContent.afterPos - 1)
+
+    expect(latestSideMenuState?.show).toBe(true)
+    expect(latestSideMenuState?.block.id).toBe('child')
+
+    unsubscribe()
     editor._tiptapEditor.destroy()
   })
 

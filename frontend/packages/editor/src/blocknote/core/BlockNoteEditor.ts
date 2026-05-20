@@ -270,9 +270,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     // Read-only UI plugins: for document + viewer (not embed)
     this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
-    // Temporarily disabled while we evaluate the transition between native text
-    // selection and full-block selection in heading sections.
-    this.fullBlockSelection = null
+    this.fullBlockSelection = isEmbed ? null : new FullBlockSelectionProsemirrorPlugin(this)
 
     // DnD state: only for editable modes (where sideMenu exists)
     this.dragStateManager = this.sideMenu ? new DragStateManager() : null
@@ -291,7 +289,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
 
     if (!isEmbed) {
-      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin]
+      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin, this.fullBlockSelection!.plugin]
 
       // Editing UI plugins only for non-readonly modes
       if (!isReadOnly) {
