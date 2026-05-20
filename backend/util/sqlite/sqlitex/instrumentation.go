@@ -33,7 +33,18 @@ import (
 const (
 	maxCallerLabels = 64
 	slowThreshold   = 100 * time.Millisecond
-	recentSlowCap   = 200
+	// recentWriteCap caps the top-K ring of slowest write-side transactions
+	// (commits/rollbacks/savepoint_top/savepoint and begin_busy/interrupted
+	// attempts). 50 is enough to show a busy week of outliers without
+	// flooding the page; the smaller cap reflects that write contention
+	// rows are far more diagnostic per-entry than read rows.
+	recentWriteCap = 50
+	// recentReadCap caps the top-K ring of slowest read-side
+	// (savepoint_ro) operations. Reads outnumber writes in a typical
+	// daemon by a wide margin, so the cap is correspondingly larger to
+	// catch occasional outliers across the long tail of list/get
+	// endpoints.
+	recentReadCap = 100
 )
 
 // txOutcome is the "outcome" label on the duration histogram.
@@ -44,7 +55,24 @@ const (
 	outcomeRollback         txOutcome = "rollback"
 	outcomeBeginBusy        txOutcome = "begin_busy"
 	outcomeBeginInterrupted txOutcome = "begin_interrupted"
-	outcomeSavepoint        txOutcome = "savepoint"
+	// outcomeSavepoint is a SAVEPOINT issued while the connection was already
+	// inside an outer transaction; it never owns the writer slot on its own,
+	// so its duration is not lock-hold and is excluded from holdReserv.
+	outcomeSavepoint txOutcome = "savepoint"
+	// outcomeSavepointTop is a SAVEPOINT issued on an autocommit connection
+	// that actually wrote at least once before RELEASE. The first write
+	// statement promoted it to the writer-slot active set via the lazy
+	// promoter on the capture buffer. Counts as real writer-slot hold time.
+	// Used by the Pool.WithSave / Read[] / ExecScript paths that historically
+	// bypassed WithTx and made the actual lock-hog invisible on /debug/sqlite.
+	outcomeSavepointTop txOutcome = "savepoint_top"
+	// outcomeSavepointReadOnly is a SAVEPOINT issued on an autocommit
+	// connection that never wrote — the connection only ever held the SHARED
+	// reader lock during the scope and cannot have caused SQLITE_BUSY on
+	// anyone else's BEGIN IMMEDIATE. Excluded from hold/wait percentiles and
+	// the active set, otherwise Read[]-driven callers (ListEvents, ListPeers,
+	// etc.) would flood the writer-health page with irrelevant noise.
+	outcomeSavepointReadOnly txOutcome = "savepoint_ro"
 )
 
 var (
@@ -75,55 +103,102 @@ func init() {
 	prometheus.MustRegister(mTxDuration, mBeginWait, mBeginBusy, mInFlight)
 }
 
-// callerStats accumulates per-caller stats for the debug page.
-// Percentiles are computed from fixed-size reservoirs (one for hold, one for
-// begin_wait); each reservoir is cheap memory (a few KB per caller) and we
-// only have ~20-30 distinct callers in practice. Hold tells us whether THIS
-// caller is the offender; wait tells us whether THIS caller is the victim.
+// callerStats accumulates per-caller stats for the debug page, split into
+// write-side and read-side sub-buckets. A given caller can appear in both
+// (e.g. a service method that goes through Pool.WithTx for one branch and
+// Pool.WithSave for another). The two buckets are populated and read
+// independently so the rendered page can show them as separate tables.
+//
+// Percentiles are computed from fixed-size reservoirs (one for hold, one
+// for begin_wait on the write side; only hold on the read side); each
+// reservoir is cheap memory and we only have ~20-30 distinct callers in
+// practice. Hold tells us whether THIS caller is the offender; wait tells
+// us whether THIS caller is the victim (write-side only — read-only Saves
+// never queue for the writer slot).
 type callerStats struct {
-	mu         sync.Mutex
+	mu    sync.Mutex
+	write writeStats
+	read  readStats
+}
+
+// writeStats tracks observations from outcomes that interacted with the
+// SQLite writer slot: outcomeCommit / outcomeRollback / outcomeBeginBusy /
+// outcomeBeginInterrupted / outcomeSavepoint / outcomeSavepointTop.
+type writeStats struct {
 	count      uint64
 	busyCount  uint64
-	holdSum    time.Duration
 	holdReserv []float64 // hold durations in ms; bounded
 	waitReserv []float64 // begin_wait durations in ms; bounded
 	commits    uint64
 	rollbacks  uint64
 }
 
-const reservoirCap = 1024
+// readStats tracks observations from outcomeSavepointReadOnly: top-level
+// Save scopes that never promoted because their body only read from
+// SQLite. These never own the writer slot, so busy/wait/commits/rollbacks
+// are not meaningful for them — only count and hold (SHARED-lock hold).
+type readStats struct {
+	count      uint64
+	holdReserv []float64 // hold durations in ms; bounded
+}
+
+// reservoirCap controls how many recent samples back each per-caller hold
+// percentile. Bumped from 1024 → 8192 because the recent-slow ring covers a
+// much longer time window than the reservoir for callers with rare slow
+// events (the cap on the recent-slow ring is per total events, not per
+// caller, so for a 2%-slow caller it spans ~50x more history than a fixed
+// reservoir of all events). At 8192 floats per caller × 64-caller cap ≈
+// 4 MiB; still cheap, and brings the windows closer so the visible recent
+// max is reflected in p99 for high-frequency callers like syncing.loadStore.
+const reservoirCap = 8192
 
 func (s *callerStats) record(hold, wait time.Duration, outcome txOutcome) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.count++
-	s.holdSum += hold
-	switch outcome {
-	case outcomeCommit:
-		s.commits++
-	case outcomeRollback:
-		s.rollbacks++
-	case outcomeBeginBusy:
-		s.busyCount++
+
+	if outcome == outcomeSavepointReadOnly {
+		// Read-only top-level Save: track in the read sub-bucket only.
+		// Hold here is the SHARED-lock hold; wait is meaningless (the
+		// SAVEPOINT statement itself never blocks on the writer slot).
+		s.read.count++
+		appendReservoir(&s.read.holdReserv, hold, s.read.count)
+		return
 	}
 
-	// holdReserv tracks real writer-lock hold time, not anything else.
-	// Only commits and rollbacks actually held the lock; begin_busy and
-	// begin_interrupted never started the tx (their "hold" is a synthetic
-	// copy of begin_wait), and outcomeSavepoint is a nested op on an
-	// already-open conn (its duration is fn() runtime, not lock-hold).
-	// Mixing any of those into the reservoir buries the real percentiles
-	// under sub-ms noise and is why /debug/sqlite was reporting p99 ≪ the
-	// values clearly visible in the recent-slow table.
+	w := &s.write
+	w.count++
 	switch outcome {
-	case outcomeCommit, outcomeRollback:
-		appendReservoir(&s.holdReserv, hold, s.count)
+	case outcomeCommit, outcomeSavepointTop:
+		// Top-level SAVEPOINT that actually wrote, successfully released,
+		// is the moral equivalent of a COMMIT — the writer slot was held
+		// and the work persisted.
+		w.commits++
+	case outcomeRollback:
+		w.rollbacks++
+	case outcomeBeginBusy:
+		w.busyCount++
+	}
+
+	// holdReserv tracks real writer-lock hold time. Only outcomes that
+	// actually held the slot belong here: WithTx commits/rollbacks, plus
+	// top-level SAVEPOINTs that promoted (outcomeSavepointTop — the lazy
+	// promoter on the capture buffer fired because a write hit the conn).
+	// Nested outcomeSavepoint is a sub-op inside an already-tracked outer
+	// scope and would double-count. begin_busy and begin_interrupted
+	// never started the tx (their "hold" is a synthetic copy of
+	// begin_wait). Mixing any of those into the reservoir buries the
+	// real percentiles and made the actual lock-hog invisible on
+	// /debug/sqlite — see history at the offender-hunt audit.
+	switch outcome {
+	case outcomeCommit, outcomeRollback, outcomeSavepointTop:
+		appendReservoir(&w.holdReserv, hold, w.count)
 	}
 	// waitReserv tracks how long the caller queued for the writer slot.
-	// That only exists when BEGIN IMMEDIATE was attempted; savepoints don't
-	// issue one, so their `wait` is a meaningless 0 and skews wait p10/p50.
+	// WithTx queues at BEGIN IMMEDIATE; a top-level SAVEPOINT that wrote
+	// queues at the SAVEPOINT statement itself if another writer is
+	// committing. A nested SAVEPOINT never queues for the writer slot.
 	if outcome != outcomeSavepoint {
-		appendReservoir(&s.waitReserv, wait, s.count)
+		appendReservoir(&w.waitReserv, wait, w.count)
 	}
 }
 
@@ -136,18 +211,28 @@ func appendReservoir(r *[]float64, d time.Duration, count uint64) {
 	(*r)[count%reservoirCap] = ms
 }
 
-// holdPercentilesMs returns p10, p50, p90, p99 of recorded hold durations.
-func (s *callerStats) holdPercentilesMs() (p10, p50, p90, p99 float64) {
+// writeHoldPercentilesMs returns p10, p50, p90, p99 of writer-slot hold
+// durations recorded under outcomes that owned the writer slot.
+func (s *callerStats) writeHoldPercentilesMs() (p10, p50, p90, p99 float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return percentilesNearestRank(s.holdReserv)
+	return percentilesNearestRank(s.write.holdReserv)
 }
 
-// waitPercentilesMs returns p10, p50, p90, p99 of begin_wait durations.
-func (s *callerStats) waitPercentilesMs() (p10, p50, p90, p99 float64) {
+// writeWaitPercentilesMs returns p10, p50, p90, p99 of begin_wait
+// durations — how long this caller queued for the writer slot.
+func (s *callerStats) writeWaitPercentilesMs() (p10, p50, p90, p99 float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return percentilesNearestRank(s.waitReserv)
+	return percentilesNearestRank(s.write.waitReserv)
+}
+
+// readHoldPercentilesMs returns p10, p50, p90, p99 of SHARED-lock hold
+// durations recorded under outcomeSavepointReadOnly.
+func (s *callerStats) readHoldPercentilesMs() (p10, p50, p90, p99 float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return percentilesNearestRank(s.read.holdReserv)
 }
 
 // percentilesNearestRank uses the nearest-rank method: with n<100 samples,
@@ -214,9 +299,18 @@ type capturedStmt struct {
 // WithTx body. Exec/ExecTransient append to it via captureExec; if no buffer
 // is attached for the conn the capture path is a single sync.Map load that
 // short-circuits to no-op.
+//
+// promote is the lazy "this Save just wrote something" callback used by
+// top-level sqlitex.Save to defer its writer-slot accounting until an actual
+// write hits the conn. Read-only Saves (the Read[] / ListEvents / ListPeers
+// path) never invoke it and stay out of the active set and the hold
+// percentile reservoir — they only ever held the SHARED reader lock and
+// cannot cause SQLITE_BUSY on BEGIN IMMEDIATE. promoter is nil for WithTx
+// buffers, which are already inside an instrumented writer-slot scope.
 type txCapture struct {
-	mu    sync.Mutex
-	stmts []capturedStmt
+	mu      sync.Mutex
+	stmts   []capturedStmt
+	promote func()
 }
 
 const (
@@ -237,6 +331,23 @@ var captureBufs sync.Map // *sqlite.Conn -> *txCapture
 
 func beginCapture(conn *sqlite.Conn) {
 	captureBufs.Store(conn, &txCapture{})
+}
+
+// armCapturePromoter attaches a lazy "I just wrote something" callback to the
+// capture buffer currently associated with conn. fn must be idempotent (the
+// caller typically wraps a sync.Once around it); it will be invoked the first
+// time a write statement runs inside the savepoint scope, and never again.
+// If no buffer is attached, the call is a no-op — read-only callers without
+// a writer-slot accounting scope simply don't need this signal.
+func armCapturePromoter(conn *sqlite.Conn, fn func()) {
+	v, ok := captureBufs.Load(conn)
+	if !ok {
+		return
+	}
+	c := v.(*txCapture)
+	c.mu.Lock()
+	c.promote = fn
+	c.mu.Unlock()
 }
 
 func endCapture(conn *sqlite.Conn) []capturedStmt {
@@ -280,6 +391,29 @@ func captureExecStart(conn *sqlite.Conn, sql string, args []interface{}) func() 
 	})
 	c.mu.Unlock()
 
+	// Snapshot the promote callback once at start so we can fire it without
+	// re-locking the buffer after Exec returns. Saved by value: the promoter
+	// is sync.Once-guarded, so additional calls past the first are free.
+	c.mu.Lock()
+	promote := c.promote
+	c.mu.Unlock()
+
+	// Snapshot conn.Changes() BEFORE the statement runs. This is critical:
+	// conn.Changes() is the row-count of the most recently completed DML on
+	// this connection and is NOT reset by SELECT statements, NOT reset by
+	// returning the conn to the pool, and NOT reset across savepoint scopes.
+	// A pooled conn that previously ran an INSERT therefore reports a
+	// non-zero Changes() forever after, so reading the raw value to decide
+	// "did this statement write?" falsely promotes every Read[] / ListEvents
+	// / ListPeers Save. The correct signal is the before/after delta around
+	// each individual Exec: a SELECT leaves it unchanged, a successful DML
+	// moves it. Combined with the SQL-prefix check for DDL and zero-row DML
+	// attempts that don't move Changes() at all.
+	var changesBefore int
+	if promote != nil {
+		changesBefore = conn.Changes()
+	}
+
 	t0 := time.Now()
 	return func() {
 		d := time.Since(t0)
@@ -288,10 +422,69 @@ func captureExecStart(conn *sqlite.Conn, sql string, args []interface{}) func() 
 			c.stmts[idx].Duration = d
 		}
 		c.mu.Unlock()
+
+		// Lazy writer-slot promotion. Two complementary signals:
+		//   - conn.Changes() before vs. after this Exec catches all DML
+		//     that actually changed at least one row.
+		//   - isWriteSQL(sql) catches DDL/maintenance verbs and DML that
+		//     ran but affected zero rows (INSERT ... ON CONFLICT DO NOTHING,
+		//     UPDATE ... WHERE no-match, etc.) — those still took the
+		//     writer lock briefly even though Changes() doesn't advance.
+		if promote != nil && (conn.Changes() != changesBefore || isWriteSQL(sql)) {
+			promote()
+		}
 	}
 }
 
 func noopCaptureDone() {}
+
+// isWriteSQL reports whether sql begins with a SQLite verb that takes (or
+// attempts to take) the writer lock. Used as the secondary signal for lazy
+// writer-slot promotion of top-level sqlitex.Save scopes: the primary
+// signal is the before/after delta of conn.Changes() around the Exec, and
+// this catches the cases where the delta is zero — DDL/maintenance, and
+// DML that ran but affected zero rows (e.g. INSERT ... ON CONFLICT DO
+// NOTHING that conflicted, UPDATE with no matching WHERE clause). Even
+// when zero rows changed, those statements briefly acquired the writer
+// lock, which is what matters for writer-health accounting.
+//
+// A leading WITH CTE that ends in a write isn't matched here — those still
+// move conn.Changes() and are caught by the primary delta signal.
+func isWriteSQL(sql string) bool {
+	i := 0
+	for i < len(sql) && (sql[i] == ' ' || sql[i] == '\t' || sql[i] == '\n' || sql[i] == '\r') {
+		i++
+	}
+	rest := sql[i:]
+	for _, v := range writeVerbs {
+		if len(rest) < len(v) {
+			continue
+		}
+		if !strings.EqualFold(rest[:len(v)], v) {
+			continue
+		}
+		if len(rest) == len(v) {
+			return true
+		}
+		next := rest[len(v)]
+		// Verb must be followed by whitespace, ';' or '(' to be a word.
+		if next == ' ' || next == '\t' || next == '\n' || next == '\r' || next == ';' || next == '(' {
+			return true
+		}
+	}
+	return false
+}
+
+var writeVerbs = []string{
+	// DML — these usually move conn.Changes(), but no-op variants (ON
+	// CONFLICT DO NOTHING, WHERE-no-match) don't, so we still need the
+	// prefix match as a backstop.
+	"INSERT", "UPDATE", "DELETE", "REPLACE",
+	// DDL and maintenance — these take the writer lock and never move
+	// conn.Changes(), so the prefix match is the only signal.
+	"CREATE", "DROP", "ALTER", "ATTACH", "DETACH",
+	"VACUUM", "REINDEX", "ANALYZE", "TRUNCATE",
+}
 
 // collapseSQL strips surrounding whitespace and collapses runs of internal
 // whitespace so the captured statements render compactly in the debug page.
@@ -401,9 +594,15 @@ type txTracker struct {
 	// Per-caller cumulative stats (and the cardinality cap state).
 	callers map[string]*callerStats
 
-	// Bounded ring buffer of recent slow transactions.
-	recent    []txSample
-	recentIdx int
+	// Top-K-by-hold buffers of the slowest operations seen since startup,
+	// split by kind. Writes (everything except savepoint_ro) and reads
+	// (savepoint_ro) have separate caps so a steady stream of slow reads
+	// can't displace a rare slow write, and vice versa. New samples
+	// displace the smallest-hold entry within the same ring when it's
+	// full, so an old outlier survives unless something even slower
+	// arrives in the same kind.
+	recentWrite []txSample
+	recentRead  []txSample
 
 	// In-flight transactions, keyed by a monotonic id.
 	active map[uint64]activeTx
@@ -455,10 +654,19 @@ func (t *txTracker) endActive(id uint64, caller string) {
 }
 
 func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx) {
-	mTxDuration.WithLabelValues(caller, string(outcome)).Observe(hold.Seconds())
-	mBeginWait.WithLabelValues(caller).Observe(beginWait.Seconds())
-	if outcome == outcomeBeginBusy {
-		mBeginBusy.WithLabelValues(caller).Inc()
+	// Prometheus mTxDuration is the WRITE-tx histogram by name. Emitting
+	// read-only Saves under it would be a category error and would inflate
+	// every dashboard that reads it. The per-caller writetx_begin_wait and
+	// begin_busy metrics are similarly write-scoped. Reads still flow into
+	// the in-memory tracker below (driving the read-side per-caller table
+	// and the unified slowest-ops table on /debug/sqlite), they just stay
+	// out of the writer-scoped Prometheus surface.
+	if outcome != outcomeSavepointReadOnly {
+		mTxDuration.WithLabelValues(caller, string(outcome)).Observe(hold.Seconds())
+		mBeginWait.WithLabelValues(caller).Observe(beginWait.Seconds())
+		if outcome == outcomeBeginBusy {
+			mBeginBusy.WithLabelValues(caller).Inc()
+		}
 	}
 
 	t.mu.Lock()
@@ -471,7 +679,6 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 	st.record(hold, beginWait, outcome)
 
 	if hold >= slowThreshold || outcome == outcomeBeginBusy {
-		t.mu.Lock()
 		sample := txSample{
 			When:      time.Now(),
 			Caller:    caller,
@@ -481,14 +688,39 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 			Stmts:     stmts,
 			HeldBy:    heldBy,
 		}
-		if len(t.recent) < recentSlowCap {
-			t.recent = append(t.recent, sample)
+		t.mu.Lock()
+		if outcome == outcomeSavepointReadOnly {
+			t.recentRead = insertTopK(t.recentRead, sample, recentReadCap)
 		} else {
-			t.recent[t.recentIdx] = sample
-			t.recentIdx = (t.recentIdx + 1) % recentSlowCap
+			t.recentWrite = insertTopK(t.recentWrite, sample, recentWriteCap)
 		}
 		t.mu.Unlock()
 	}
+}
+
+// insertTopK maintains buf as a top-K-by-hold buffer bounded by cap. New
+// samples displace the smallest-hold entry once full, so an old outlier
+// survives unless something even slower arrives in the same kind.
+// begin_busy rows have hold == beginWait (typically ~10 s) and so win
+// the comparison naturally — no special handling needed.
+//
+// Linear scan for the smallest is fine here: cap is at most a few hundred
+// and slow events are rare, so per-event cost is negligible. A heap would
+// trade simplicity for no measurable win.
+func insertTopK(buf []txSample, sample txSample, cap int) []txSample {
+	if len(buf) < cap {
+		return append(buf, sample)
+	}
+	minIdx := 0
+	for i := 1; i < len(buf); i++ {
+		if buf[i].Hold < buf[minIdx].Hold {
+			minIdx = i
+		}
+	}
+	if sample.Hold > buf[minIdx].Hold {
+		buf[minIdx] = sample
+	}
+	return buf
 }
 
 // snapshotActive returns a copy of the currently-held write transactions.
@@ -507,14 +739,26 @@ func (t *txTracker) snapshotActive() []activeTx {
 	return out
 }
 
-// snapshot returns a stable copy of the tracker state for rendering.
+// snapshot returns a stable copy of the tracker state for rendering. The
+// per-caller view is split into WriteCallers (anything that interacted
+// with the writer slot, including BUSY/INTERRUPT attempts) and ReadCallers
+// (top-level Save scopes that never wrote). The same caller name can
+// appear in both maps if it has both kinds of activity.
+//
+// RecentWrite and RecentRead are independent top-K-by-hold buffers (cap
+// recentWriteCap and recentReadCap respectively), so a steady stream of
+// slow reads cannot evict a rare slow write or vice versa.
 type trackerSnapshot struct {
-	Callers map[string]callerSnapshot
-	Recent  []txSample
-	Active  []activeTx
+	WriteCallers map[string]writeCallerSnapshot
+	ReadCallers  map[string]readCallerSnapshot
+	RecentWrite  []txSample
+	RecentRead   []txSample
+	Active       []activeTx
 }
 
-type callerSnapshot struct {
+// writeCallerSnapshot mirrors the original per-caller stats shape, minus
+// the now-removed Max column.
+type writeCallerSnapshot struct {
 	Count     uint64
 	Commits   uint64
 	Rollbacks uint64
@@ -529,14 +773,26 @@ type callerSnapshot struct {
 	WaitP99Ms float64
 }
 
+// readCallerSnapshot is the read-only-Save counterpart. Reads never own
+// the writer slot, so wait/busy/commits/rollbacks have no meaning here.
+type readCallerSnapshot struct {
+	Count     uint64
+	HoldP10Ms float64
+	HoldP50Ms float64
+	HoldP90Ms float64
+	HoldP99Ms float64
+}
+
 func (t *txTracker) snapshot() trackerSnapshot {
 	t.mu.Lock()
 	callerNames := make([]string, 0, len(t.callers))
 	for name := range t.callers {
 		callerNames = append(callerNames, name)
 	}
-	recent := make([]txSample, len(t.recent))
-	copy(recent, t.recent)
+	recentWrite := make([]txSample, len(t.recentWrite))
+	copy(recentWrite, t.recentWrite)
+	recentRead := make([]txSample, len(t.recentRead))
+	copy(recentRead, t.recentRead)
 	active := make([]activeTx, 0, len(t.active))
 	for _, a := range t.active {
 		active = append(active, a)
@@ -544,9 +800,11 @@ func (t *txTracker) snapshot() trackerSnapshot {
 	t.mu.Unlock()
 
 	out := trackerSnapshot{
-		Callers: make(map[string]callerSnapshot, len(callerNames)),
-		Recent:  recent,
-		Active:  active,
+		WriteCallers: make(map[string]writeCallerSnapshot, len(callerNames)),
+		ReadCallers:  make(map[string]readCallerSnapshot, len(callerNames)),
+		RecentWrite:  recentWrite,
+		RecentRead:   recentRead,
+		Active:       active,
 	}
 
 	for _, name := range callerNames {
@@ -557,26 +815,43 @@ func (t *txTracker) snapshot() trackerSnapshot {
 			continue
 		}
 		st.mu.Lock()
-		count := st.count
-		commits := st.commits
-		rollbacks := st.rollbacks
-		busy := st.busyCount
+		writeCount := st.write.count
+		commits := st.write.commits
+		rollbacks := st.write.rollbacks
+		busy := st.write.busyCount
+		readCount := st.read.count
 		st.mu.Unlock()
-		holdP10, holdP50, holdP90, holdP99 := st.holdPercentilesMs()
-		waitP10, waitP50, waitP90, waitP99 := st.waitPercentilesMs()
-		out.Callers[name] = callerSnapshot{
-			Count:     count,
-			Commits:   commits,
-			Rollbacks: rollbacks,
-			BusyCount: busy,
-			HoldP10Ms: holdP10,
-			HoldP50Ms: holdP50,
-			HoldP90Ms: holdP90,
-			HoldP99Ms: holdP99,
-			WaitP10Ms: waitP10,
-			WaitP50Ms: waitP50,
-			WaitP90Ms: waitP90,
-			WaitP99Ms: waitP99,
+
+		// Callers registered via normalizeCaller but with no recorded
+		// activity at all are skipped — they'd render as blank rows of
+		// zeros and dilute whichever table the user is scanning.
+		if writeCount > 0 {
+			holdP10, holdP50, holdP90, holdP99 := st.writeHoldPercentilesMs()
+			waitP10, waitP50, waitP90, waitP99 := st.writeWaitPercentilesMs()
+			out.WriteCallers[name] = writeCallerSnapshot{
+				Count:     writeCount,
+				Commits:   commits,
+				Rollbacks: rollbacks,
+				BusyCount: busy,
+				HoldP10Ms: holdP10,
+				HoldP50Ms: holdP50,
+				HoldP90Ms: holdP90,
+				HoldP99Ms: holdP99,
+				WaitP10Ms: waitP10,
+				WaitP50Ms: waitP50,
+				WaitP90Ms: waitP90,
+				WaitP99Ms: waitP99,
+			}
+		}
+		if readCount > 0 {
+			rHoldP10, rHoldP50, rHoldP90, rHoldP99 := st.readHoldPercentilesMs()
+			out.ReadCallers[name] = readCallerSnapshot{
+				Count:     readCount,
+				HoldP10Ms: rHoldP10,
+				HoldP50Ms: rHoldP50,
+				HoldP90Ms: rHoldP90,
+				HoldP99Ms: rHoldP99,
+			}
 		}
 	}
 	return out

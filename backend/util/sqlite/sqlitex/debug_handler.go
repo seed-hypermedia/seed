@@ -22,11 +22,15 @@ func DebugHandler() http.Handler {
 }
 
 type sqlitePage struct {
-	GeneratedAt string
-	Active      []activeRow
-	Callers     []callerRow
-	Recent      []recentRow
-	Checkpoint  checkpointSection
+	GeneratedAt    string
+	Active         []activeRow
+	WriteCallers   []callerRow
+	ReadCallers    []readCallerRow
+	RecentWrite    []recentRow
+	RecentRead     []recentRow
+	RecentWriteCap int
+	RecentReadCap  int
+	Checkpoint     checkpointSection
 }
 
 type checkpointSection struct {
@@ -79,6 +83,19 @@ type callerRow struct {
 	WaitP90Ms    float64
 	WaitP99Ms    float64
 	WaitP99Class string
+}
+
+// readCallerRow is the page-render form of a read-only Save caller. Reads
+// never own the writer slot, so there's no wait/busy/rollback dimension —
+// just count + hold percentiles for SHARED-lock hold time.
+type readCallerRow struct {
+	Caller       string
+	Count        uint64
+	HoldP10Ms    float64
+	HoldP50Ms    float64
+	HoldP90Ms    float64
+	HoldP99Ms    float64
+	HoldP99Class string
 }
 
 type recentRow struct {
@@ -135,7 +152,7 @@ func buildSQLitePage() sqlitePage {
 		return page.Active[i].AgeMs > page.Active[j].AgeMs
 	})
 
-	for name, s := range snap.Callers {
+	for name, s := range snap.WriteCallers {
 		row := callerRow{
 			Caller:       name,
 			Count:        s.Count,
@@ -154,18 +171,51 @@ func buildSQLitePage() sqlitePage {
 			WaitP99Ms:    s.WaitP99Ms,
 			WaitP99Class: classForHoldMs(s.WaitP99Ms),
 		}
-		page.Callers = append(page.Callers, row)
+		page.WriteCallers = append(page.WriteCallers, row)
 	}
 	// Sort by hold p99 desc so the most-likely-to-block-publishers caller is
 	// on top. Victims (high wait p99) can be spotted by skimming the same row.
-	sort.Slice(page.Callers, func(i, j int) bool {
-		return page.Callers[i].HoldP99Ms > page.Callers[j].HoldP99Ms
+	sort.Slice(page.WriteCallers, func(i, j int) bool {
+		return page.WriteCallers[i].HoldP99Ms > page.WriteCallers[j].HoldP99Ms
 	})
 
-	recent := make([]txSample, len(snap.Recent))
-	copy(recent, snap.Recent)
-	sort.Slice(recent, func(i, j int) bool { return recent[i].When.After(recent[j].When) })
-	for _, s := range recent {
+	for name, s := range snap.ReadCallers {
+		page.ReadCallers = append(page.ReadCallers, readCallerRow{
+			Caller:       name,
+			Count:        s.Count,
+			HoldP10Ms:    s.HoldP10Ms,
+			HoldP50Ms:    s.HoldP50Ms,
+			HoldP90Ms:    s.HoldP90Ms,
+			HoldP99Ms:    s.HoldP99Ms,
+			HoldP99Class: classForHoldMs(s.HoldP99Ms),
+		})
+	}
+	sort.Slice(page.ReadCallers, func(i, j int) bool {
+		return page.ReadCallers[i].HoldP99Ms > page.ReadCallers[j].HoldP99Ms
+	})
+
+	page.RecentWrite = renderRecent(snap.RecentWrite)
+	page.RecentRead = renderRecent(snap.RecentRead)
+	page.RecentWriteCap = recentWriteCap
+	page.RecentReadCap = recentReadCap
+
+	return page
+}
+
+// renderRecent converts a slice of raw tracker samples into the
+// HTML-render shape. Output is sorted by hold duration descending so the
+// worst outlier renders at the top within a kind-bucket. The caller
+// (buildSQLitePage) hands in a copy of the tracker's ring, so this
+// function is free to sort in place.
+func renderRecent(samples []txSample) []recentRow {
+	if len(samples) == 0 {
+		return nil
+	}
+	cp := make([]txSample, len(samples))
+	copy(cp, samples)
+	sort.Slice(cp, func(i, j int) bool { return cp[i].Hold > cp[j].Hold })
+	out := make([]recentRow, 0, len(cp))
+	for _, s := range cp {
 		ms := float64(s.Hold) / float64(time.Millisecond)
 		waitMs := float64(s.BeginWait) / float64(time.Millisecond)
 		var held []heldByEntry
@@ -187,7 +237,7 @@ func buildSQLitePage() sqlitePage {
 				DurClass: classForHoldMs(d),
 			}
 		}
-		page.Recent = append(page.Recent, recentRow{
+		out = append(out, recentRow{
 			When:      s.When.Format("15:04:05.000"),
 			Caller:    s.Caller,
 			HoldMs:    ms,
@@ -200,8 +250,7 @@ func buildSQLitePage() sqlitePage {
 			HeldBy:    held,
 		})
 	}
-
-	return page
+	return out
 }
 
 // buildCheckpointSection assembles the WAL-checkpoint summary surfaced
@@ -277,6 +326,11 @@ func classForOutcome(o txOutcome) string {
 		// usually ctx cancellation, no lock holder to blame.
 		return "note"
 	default:
+		// outcomeCommit, outcomeSavepoint, outcomeSavepointTop,
+		// outcomeSavepointReadOnly — all successful releases (or, for the
+		// read-only case, never-acquired-in-the-first-place releases).
+		// Neutral colour so the recent table doesn't scream at routine
+		// read traffic.
 		return ""
 	}
 }
@@ -304,6 +358,7 @@ const sqliteHTML = `<!DOCTYPE html>
 body{font-family:sans-serif;margin:1em;color:#222;max-width:1100px}
 h1{font-size:18px;margin:0 0 6px 0}
 h2{font-size:15px;margin:1.4em 0 4px 0}
+h3{font-size:13.5px;margin:1em 0 4px 0;color:#333}
 .meta{color:#555;font-size:13px;margin-bottom:1em}
 .subtitle{color:#666;font-size:12px;margin:0 0 6px 0}
 .note{background:#fff7d6}
@@ -336,7 +391,11 @@ th.grp{background:#ececec;text-align:center}
 <dt>hold</dt><dd>Wall time from successful <code>BEGIN IMMEDIATE</code> to <code>COMMIT</code>/<code>ROLLBACK</code>. Large values mean <em>this caller</em> is doing too much work inside the transaction.</dd>
 <dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Real contention. Surfaces a <em>held by</em> snapshot of whoever had the writer slot at the moment of failure.</dd>
 <dt>begin_interrupted</dt><dd><code>BEGIN IMMEDIATE</code> returned a non-busy error — almost always <code>SQLITE_INTERRUPT</code> from a context cancellation upstream. Not a lock-contention event; no <em>held by</em> snapshot. Common when a caller scopes a tx to a deadline that has expired, e.g. <code>connect.go</code>'s per-attempt timeout.</dd>
+<dt>savepoint_top</dt><dd>Top-level <code>SAVEPOINT</code> on an autocommit connection that <em>actually wrote</em> at least once. The first DML/DDL statement promotes it to the writer-slot active set, so its hold time counts the same as a WithTx commit and it shows up on begin_busy "held by" snapshots. Pre-instrumentation these rows bypassed the page entirely, which is why the actual offender used to be invisible.</dd>
+<dt>savepoint</dt><dd>Nested <code>SAVEPOINT</code> issued while an outer transaction was already holding the writer slot. The outer tx is the lock holder — this row is recorded for completeness but excluded from hold percentiles to avoid double-counting.</dd>
 </dl>
+<p>Read-only <code>SAVEPOINT</code>s (Read[], ListEvents, ListPeers, etc.) are suppressed from this page entirely. They only ever held the SHARED reader lock and cannot cause SQLITE_BUSY on anyone's BEGIN IMMEDIATE; listing them would only dilute the writer-slot signal.</p>
+<p><strong>Temp-table writes are a known false-positive.</strong> Statements like <code>INSERT INTO rbsr_iris ...</code> (used by <code>syncing.(*Server).loadStore</code>) write to per-connection <code>TEMP</code> tables, which live in a separate SQLite database file and don't take the main DB's writer lock. The instrumentation can't tell main-DB writes from temp-DB writes without hooking the VFS xLock callbacks, so any Save scope that runs even one INSERT/DELETE — even purely against temp tables — promotes to <code>savepoint_top</code> and counts toward the writer-slot percentiles. Cross-reference the captured statements on a recent-slow row before treating a caller as a real lock holder.</p>
 <p><strong>Reading <code>hold</code> vs <code>begin_wait</code>:</strong> these phases are independent — <code>begin_wait</code> is contention <em>from others</em>, <code>hold</code> is <em>this caller's own work</em>. They have no reason to track each other; in a healthy daemon <code>hold</code> is much larger than <code>begin_wait</code> because most of the time the lock is free when you ask for it.</p>
 <table style="margin-top:6px">
 <thead><tr><th>shape</th><th>diagnosis</th></tr></thead>
@@ -411,8 +470,11 @@ th.grp{background:#ececec;text-align:center}
 {{end}}
 
 <h2>Per-caller stats</h2>
+<div class="subtitle">Split into <strong>write operations</strong> (everything that interacted with the SQLite writer slot — WithTx commits/rollbacks, top-level Saves that wrote, plus BEGIN IMMEDIATE attempts that failed BUSY/INTERRUPT) and <strong>read operations</strong> (top-level Saves whose body never wrote — they only ever held the SHARED reader lock). A caller can appear in both tables if it does both kinds of work.</div>
+
+<h3>Write operations</h3>
 <div class="subtitle">Sorted by <code>hold p99</code> (highest first). The <em>hold</em> group is this caller's own work inside the writer slot; the <em>wait</em> group is how long this caller was queued behind others. Offender = high hold; victim = high wait.</div>
-{{if .Callers}}
+{{if .WriteCallers}}
 <table>
 <thead>
 <tr>
@@ -436,7 +498,7 @@ th.grp{background:#ececec;text-align:center}
 </tr>
 </thead>
 <tbody>
-{{range .Callers}}
+{{range .WriteCallers}}
 <tr>
 <td>{{.Caller}}</td>
 <td class="num">{{.Count}}</td>
@@ -456,18 +518,69 @@ th.grp{background:#ececec;text-align:center}
 </tbody>
 </table>
 {{else}}
-<div class="subtitle">No write transactions recorded yet.</div>
+<div class="subtitle">No write operations recorded yet.</div>
 {{end}}
 
-<h2>Recent slow / busy transactions</h2>
-<div class="subtitle">Last {{len .Recent}} transactions whose hold time exceeded 100 ms or that hit BEGIN IMMEDIATE busy. Click a row to see the statements that ran inside the tx; byte-slice args are summarised by length to avoid retaining blob payloads.</div>
-{{if .Recent}}
+<h3>Read operations</h3>
+<div class="subtitle">Top-level Save scopes whose body never wrote. Hold = wall time the SHARED reader lock was held. No <code>wait</code> column: read-only Saves never queue for the writer slot (their SAVEPOINT statement runs immediately).</div>
+{{if .ReadCallers}}
+<table>
+<thead>
+<tr>
+<th rowspan="2">caller</th>
+<th class="num" rowspan="2">total</th>
+<th class="grp" colspan="4">hold (SHARED reader lock)</th>
+</tr>
+<tr>
+<th class="num">p10</th>
+<th class="num">p50</th>
+<th class="num">p90</th>
+<th class="num">p99</th>
+</tr>
+</thead>
+<tbody>
+{{range .ReadCallers}}
+<tr>
+<td>{{.Caller}}</td>
+<td class="num">{{.Count}}</td>
+<td class="num">{{fmtMs .HoldP10Ms}}</td>
+<td class="num">{{fmtMs .HoldP50Ms}}</td>
+<td class="num">{{fmtMs .HoldP90Ms}}</td>
+<td class="num {{.HoldP99Class}}">{{fmtMs .HoldP99Ms}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<div class="subtitle">No read operations recorded yet.</div>
+{{end}}
+
+<h2>Slowest slow / busy transactions</h2>
+<div class="subtitle">Split by kind: writes (capped at {{.RecentWriteCap}}) and reads (capped at {{.RecentReadCap}}) each have their own top-K-by-hold buffer, so a steady stream of slow reads can't evict a rare slow write or vice versa. Only operations whose hold exceeded 100 ms or that hit BEGIN IMMEDIATE busy enter either ring. Sorted by <code>hold</code> descending within each section so the worst outlier is always at the top; click a row to expand the statements that ran inside the scope (byte-slice args are summarised by length to avoid retaining blob payloads).</div>
+
+<h3>Slowest write operations</h3>
+<div class="subtitle">Outcomes: <code>commit</code>/<code>rollback</code>/<code>savepoint_top</code> for completed writes, <code>begin_busy</code>/<code>begin_interrupted</code> for failed attempts, <code>savepoint</code> for the nested-tx fallback path. Showing {{len .RecentWrite}} of up to {{.RecentWriteCap}}.</div>
+{{if .RecentWrite}}
+{{template "recentTable" .RecentWrite}}
+{{else}}
+<div class="subtitle">No slow or busy write operations recorded yet.</div>
+{{end}}
+
+<h3>Slowest read operations</h3>
+<div class="subtitle">All entries here have outcome <code>savepoint_ro</code> — top-level Saves whose body never wrote. <code>begin_wait</code> is meaningless for reads (the SAVEPOINT statement never queues for the writer slot) and renders as 0. Showing {{len .RecentRead}} of up to {{.RecentReadCap}}.</div>
+{{if .RecentRead}}
+{{template "recentTable" .RecentRead}}
+{{else}}
+<div class="subtitle">No slow read operations recorded yet.</div>
+{{end}}
+
+{{define "recentTable"}}
 <table class="recent">
 <thead><tr>
 <th>when</th><th>caller</th><th class="num">hold</th><th class="num">begin_wait</th><th>outcome</th><th class="num">stmts</th>
 </tr></thead>
 <tbody>
-{{range $i, $r := .Recent}}
+{{range $i, $r := .}}
 <tr>
 <td>{{$r.When}}</td>
 <td>{{$r.Caller}}</td>
@@ -509,8 +622,6 @@ th.grp{background:#ececec;text-align:center}
 {{end}}
 </tbody>
 </table>
-{{else}}
-<div class="subtitle">No slow or busy transactions recorded yet.</div>
 {{end}}
 </body></html>
 `

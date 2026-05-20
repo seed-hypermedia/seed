@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -276,7 +277,382 @@ func TestDebugHandlerRenders(t *testing.T) {
 	require.Contains(t, body, "<title>seed sqlite writer health</title>")
 	require.Contains(t, body, "Per-caller stats")
 	require.Contains(t, body, "Currently in flight")
-	require.Contains(t, body, "Recent slow")
+	require.Contains(t, body, "Slowest slow")
+}
+
+// TestPoolWithSaveRecordsAsTopLevelSavepoint verifies that Pool.WithSave —
+// which used to bypass the tracker entirely — now contributes to the
+// per-caller hold percentile on /debug/sqlite under outcome=savepoint_top.
+// This is the regression that made the writer-slot offender invisible: every
+// api/documents and api/entities write went through WithSave and produced no
+// hold sample at all, so p99 hold across all callers stayed sub-second even
+// when victims waited the full 10 s busy_timeout.
+func TestPoolWithSaveRecordsAsTopLevelSavepoint(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS withsave (x int);", nil)
+	}))
+
+	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+		time.Sleep(120 * time.Millisecond)
+		return sqlitex.Exec(c, "INSERT INTO withsave (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestPoolWithSaveRecordsAsTopLevelSavepoint",
+		"WithSave caller must now appear on /debug/sqlite — this is the fix")
+	require.Contains(t, body, "savepoint_top",
+		"top-level Save must be labelled savepoint_top in the recent table")
+	require.Regexp(t, `1[0-9]{2}\.[0-9] ms`, body,
+		"hold must reflect the ~120 ms savepoint body, not be elided like before")
+}
+
+// TestSaveDirectRecordsTopLevel verifies the bare `defer sqlitex.Save(conn)(&err)`
+// pattern (used by ExecScript, Read[], and many hand-rolled call sites) also
+// surfaces on /debug/sqlite. Same regression bucket as Pool.WithSave.
+func TestSaveDirectRecordsTopLevel(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS sd (x int);", nil))
+
+	func() (err error) {
+		defer sqlitex.Save(conn)(&err)
+		time.Sleep(110 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO sd (x) VALUES (7);", nil)
+	}()
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestSaveDirectRecordsTopLevel.func1",
+		"bare Save(conn) caller must be resolved past the closure boundary")
+	require.Contains(t, body, "savepoint_top")
+}
+
+// TestSaveTopLevelSnapshotsAsHolder verifies that a top-level Save shows up
+// in the in-flight active set, so a concurrent BEGIN IMMEDIATE that times out
+// can point at the WithSave caller as the holder. This is the missing "held by"
+// data we needed to actually finger the offender.
+func TestSaveTopLevelSnapshotsAsHolder(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	holderConn := pool.Get(nil)
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(100 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		pool.Put(holderConn)
+		_ = pool.Close()
+	})
+
+	require.NoError(t, sqlitex.Exec(holderConn, "CREATE TABLE IF NOT EXISTS h (x int);", nil))
+
+	holderEntered := make(chan struct{})
+	holderRelease := make(chan struct{})
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_ = holderHogSave(holderConn, holderEntered, holderRelease)
+	}()
+	<-holderEntered
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	close(holderRelease)
+	<-holderDone
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "held by",
+		"begin_busy row must surface the holder section")
+	require.Contains(t, body, "holderHogSave",
+		"the WithSave-based holder must be named in the held-by list — without this we are blind to the offender")
+}
+
+func holderHogSave(conn *sqlite.Conn, entered, release chan struct{}) (err error) {
+	defer sqlitex.Save(conn)(&err)
+	// Force the deferred savepoint to actually take the writer lock by
+	// issuing a write before parking; a read-only savepoint stays on the
+	// shared (reader) lock and would not block BEGIN IMMEDIATE.
+	if err := sqlitex.Exec(conn, "INSERT INTO h (x) VALUES (1);", nil); err != nil {
+		return err
+	}
+	close(entered)
+	<-release
+	return nil
+}
+
+// TestSaveReadOnlyAppearsInReadSection verifies that a top-level Save that
+// only reads renders in the dedicated "Read operations" per-caller table
+// and the unified Slowest-ops table, while staying out of the Write
+// operations table (it never owned the writer slot). The previous
+// behavior (suppressing read-only Saves entirely) was changed when the
+// page was split into read-vs-write tables: read-side metrics now have
+// their own surface so the original "don't dilute the writer-slot
+// signal" concern is addressed by separation, not by hiding.
+func TestSaveReadOnlyAppearsInReadSection(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	setupReadOnlyTable(ctx, t, pool)
+
+	// Sleep past slowThreshold so the row is large enough to land in the
+	// top-K slowest ring as well as the per-caller read table.
+	runReadOnlySave(ctx, t, pool)
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "Read operations",
+		"page must render the dedicated read-operations section")
+	require.Contains(t, body, "runReadOnlySave",
+		"the read-only Save caller must appear in the read-operations table")
+	require.Contains(t, body, "savepoint_ro",
+		"savepoint_ro outcome must render on the slowest table because the Save was slow (>100 ms)")
+}
+
+func setupReadOnlyTable(ctx context.Context, t *testing.T, pool *sqlitex.Pool) {
+	t.Helper()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS ro (x int);", nil)
+	}))
+}
+
+func runReadOnlySave(ctx context.Context, t *testing.T, pool *sqlitex.Pool) {
+	t.Helper()
+	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+		time.Sleep(110 * time.Millisecond)
+		return sqlitex.Exec(c, "SELECT COUNT(*) FROM ro;", nil)
+	}))
+}
+
+// TestSaveReadOnAfterWriteOnSameConnNotPromoted is the regression test for
+// the bug that kept ListEvents / ListPeers / DiscoverObjectWithProgress on
+// the WRITE-side of the writer-health page in production: SQLite's
+// conn.Changes() returns the row-count of the most recent DML on this
+// *connection*, and is NOT reset by SELECTs or by returning the conn to
+// the pool. A pooled conn that previously ran an INSERT therefore reports
+// Changes() > 0 forever after, and the lazy write-detection in
+// captureExecStart was firing promote() on a pure SELECT — falsely
+// tagging the Save as a writer-slot holder (savepoint_top instead of
+// savepoint_ro). The correct signal is the before/after delta of
+// Changes() around each individual Exec call.
+//
+// Since the page was split into read/write tables, the regression
+// manifests as the caller showing up under "savepoint_top" instead of
+// "savepoint_ro" — the caller's *name* is now legitimately present in
+// the read section. The negative assertion below is therefore narrowed
+// to "must not render as savepoint_top".
+func TestSaveReadOnAfterWriteOnSameConnNotPromoted(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	setupReadOnlyTableConn(t, conn)
+	// Prime the conn with a real INSERT so conn.Changes() is non-zero
+	// going into the subsequent read-only Save.
+	primeWriteOnConn(t, conn)
+
+	// Now perform the read-only Save on the *same* conn that just wrote.
+	// Under the bug this would be promoted to savepoint_top.
+	runReadOnlySaveOnConn(t, conn)
+
+	body := renderDebugPage(t)
+	// The exact regression: this read-only Save must NOT be promoted into
+	// the write-operations table. (It IS expected to appear in the
+	// read-operations table — the caller name on its own is no longer
+	// load-bearing for the regression assertion.)
+	writeSection, readSection := splitWriteVsReadSections(t, body)
+	require.NotContains(t, writeSection, "runReadOnlySaveOnConn",
+		"read-only Save on a conn with stale Changes() > 0 must NOT be promoted into the write-operations table")
+	require.Contains(t, readSection, "runReadOnlySaveOnConn",
+		"the read-only Save must appear in the read-operations table — the read-side bookkeeping is the whole point of separating the tables")
+}
+
+// splitWriteVsReadSections returns the HTML between the "Write operations"
+// h3 and the "Read operations" h3 as writeSection, and everything from
+// the "Read operations" h3 to the next h2 as readSection. Used by tests
+// that assert a caller appears in one section but not the other.
+func splitWriteVsReadSections(t *testing.T, body string) (writeSection, readSection string) {
+	t.Helper()
+	const writeMarker = "<h3>Write operations</h3>"
+	const readMarker = "<h3>Read operations</h3>"
+	wIdx := strings.Index(body, writeMarker)
+	rIdx := strings.Index(body, readMarker)
+	require.GreaterOrEqual(t, wIdx, 0, "page must include a Write operations section")
+	require.GreaterOrEqual(t, rIdx, 0, "page must include a Read operations section")
+	require.Less(t, wIdx, rIdx, "Write operations section must precede Read operations on the page")
+	writeSection = body[wIdx:rIdx]
+	rest := body[rIdx:]
+	nextH2 := strings.Index(rest, "<h2>")
+	if nextH2 < 0 {
+		readSection = rest
+	} else {
+		readSection = rest[:nextH2]
+	}
+	return writeSection, readSection
+}
+
+func setupReadOnlyTableConn(t *testing.T, conn *sqlite.Conn) {
+	t.Helper()
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		return sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS ro2 (x int);", nil)
+	}))
+}
+
+func primeWriteOnConn(t *testing.T, conn *sqlite.Conn) {
+	t.Helper()
+	// Real INSERT so conn.Changes() becomes 1. The caller of this helper
+	// (a synthetic non-test function name) appears on the page as a
+	// legitimate writer — that's expected and not asserted against.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		return sqlitex.Exec(conn, "INSERT INTO ro2 (x) VALUES (1);", nil)
+	}))
+}
+
+func runReadOnlySaveOnConn(t *testing.T, conn *sqlite.Conn) {
+	t.Helper()
+	err := func() (err error) {
+		defer sqlitex.Save(conn)(&err)
+		return sqlitex.Exec(conn, "SELECT COUNT(*) FROM ro2;", nil)
+	}()
+	require.NoError(t, err)
+}
+
+// TestRecentRingKeepsSlowestNotLast verifies the slow-ring keeps the K
+// slowest transactions seen, not the most recent K — a single outlier from
+// hours ago must survive a steady stream of merely-100ms events. Without
+// this, the writer-health page eventually rolls past the worst case the
+// daemon ever did and the operator loses the most diagnostic row on the
+// table.
+func TestRecentRingKeepsSlowestNotLast(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS slowring (x int);", nil))
+
+	// One genuine outlier: 350 ms hold via sleep. Must survive every later
+	// event we generate, regardless of count.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		time.Sleep(350 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO slowring (x) VALUES (?);", nil, 0)
+	}))
+
+	// Generate 220 follow-up commits whose hold is ~110-120 ms — comfortably
+	// above slowThreshold so they enter the ring, but well below the 350 ms
+	// outlier. Under the old FIFO semantics these would have rotated the
+	// outlier out (ring cap = 200). Under top-K-by-hold it must stick.
+	for i := 0; i < 220; i++ {
+		require.NoError(t, sqlitex.WithTx(conn, func() error {
+			time.Sleep(110 * time.Millisecond)
+			return sqlitex.Exec(conn, "INSERT INTO slowring (x) VALUES (?);", nil, i+1)
+		}))
+	}
+
+	body := renderDebugPage(t)
+	// The 350 ms outlier must still render. fmtMs prints "350.x ms" or "351
+	// ms"-ish depending on overhead; match the magnitude rather than exact ms.
+	require.Regexp(t, `35[0-9]\.[0-9] ms|3[5-9][0-9]\.[0-9] ms`, body,
+		"the 350 ms outlier must remain in the slowest ring after 220 ~110ms events")
+}
+
+// TestSaveSavepointInterruptedAbsent verifies that a Save whose SAVEPOINT
+// statement itself returns SQLITE_INTERRUPT (ctx cancelled mid-acquire)
+// does NOT pollute the writer-health page with the caller's name. The
+// per-caller stats row for such a caller would otherwise have count=N,
+// commits=0, all percentiles=0, and tiny wait values — exactly the
+// nonsense GetDomain produced in production, since at SAVEPOINT-failure
+// time we don't yet know whether the scope was destined to read or write.
+// (Unlike WithTx, where the intent IS unambiguously a write attempt and
+// begin_interrupted is rightly recorded.)
+func TestSaveSavepointInterruptedAbsent(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	conn.SetInterrupt(ctx.Done())
+	defer conn.SetInterrupt(nil)
+
+	saveInterruptedHelper(t, conn)
+
+	body := renderDebugPage(t)
+	require.NotContains(t, body, "TestSaveSavepointInterruptedAbsent",
+		"a Save whose SAVEPOINT was interrupted must not leak its caller to /debug/sqlite")
+	require.NotContains(t, body, "saveInterruptedHelper",
+		"the helper that called Save() must also stay off the page")
+}
+
+func saveInterruptedHelper(t *testing.T, conn *sqlite.Conn) {
+	t.Helper()
+	// Save returns an error-propagating closure when SAVEPOINT returns
+	// SQLITE_INTERRUPT; we honour it by deferring and never running a body.
+	var err error
+	defer func() {
+		// The closure copies the interrupt error into err if err==nil.
+		// We expect err to surface as an SQLite interrupt; just confirm
+		// it's non-nil.
+		require.Error(t, err, "interrupted SAVEPOINT must surface an error to the caller")
+	}()
+	defer sqlitex.Save(conn)(&err)
+}
+
+// TestSaveWriteAfterReadStillPromotes verifies the lazy promoter still fires
+// when a Save reads first and writes later — i.e. the writer-slot accounting
+// is not gated on the FIRST statement being a write.
+func TestSaveWriteAfterReadStillPromotes(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS rw (x int);", nil)
+	}))
+
+	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+		if err := sqlitex.Exec(c, "SELECT COUNT(*) FROM rw;", nil); err != nil {
+			return err
+		}
+		time.Sleep(110 * time.Millisecond)
+		return sqlitex.Exec(c, "INSERT INTO rw (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestSaveWriteAfterReadStillPromotes")
+	require.Contains(t, body, "savepoint_top",
+		"a Save that writes — even after a leading read — must promote")
+}
+
+// TestSaveCapturesStatements verifies that statements running inside a slow
+// top-level Save show up on the recent panel — same UX as WithTx — so we can
+// see which write inside a hot WithSave caller is eating the writer slot.
+func TestSaveCapturesStatements(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS svcap (k text, v int);", nil)
+	}))
+
+	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+		if err := sqlitex.Exec(c, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "alpha", 1); err != nil {
+			return err
+		}
+		time.Sleep(120 * time.Millisecond)
+		return sqlitex.Exec(c, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "beta", 2)
+	}))
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "INSERT INTO svcap",
+		"statement capture must work for top-level Save the same as for WithTx")
+	require.Contains(t, body, "&#34;alpha&#34;")
+	require.Contains(t, body, "&#34;beta&#34;")
 }
 
 // TestPoolWithTxConcurrency exercises the wrapper under concurrent writers to

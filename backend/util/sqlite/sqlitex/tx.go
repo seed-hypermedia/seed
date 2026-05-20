@@ -28,12 +28,12 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		beginWait := time.Since(t0)
 		// Nested-tx fallback is a separate path. SQLite returns this as a text
 		// message (not a numeric code), so keep the string match here.
+		// Save() instruments itself (records outcomeSavepoint for the nested
+		// branch since autocommit is false here), so no manual recordTx.
 		if strings.Contains(err.Error(), "transaction within a transaction") {
-			sp0 := time.Now()
 			releaseSave := Save(conn)
 			fnerr := fn()
 			releaseSave(&fnerr)
-			tracker.recordTx(caller, 0, time.Since(sp0), outcomeSavepoint, nil, nil)
 			return fnerr
 		}
 
