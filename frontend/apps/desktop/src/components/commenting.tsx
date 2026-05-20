@@ -1,4 +1,4 @@
-import {domainResolver, grpcClient} from '@/grpc-client'
+import {domainResolver} from '@/grpc-client'
 import {useCommentDraft} from '@/models/comments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -70,7 +70,8 @@ function CommentBoxImpl(props: {
   const selectedAccountId = useSelectedAccountId()
   const targetEntity = useResource(docId)
   const pushAfterAction = usePushAfterAction()
-  const {getSigner, publish} = useUniversalClient()
+  const universalClient = useUniversalClient()
+  const {getSigner, publish} = universalClient
   const route = useNavRoute()
   const navigate = useNavigate('replace')
 
@@ -379,7 +380,7 @@ function CommentBoxImpl(props: {
       initialBlocks={draft.data?.blocks}
       onContentChange={handleContentChange}
       handleFileAttachment={handleFileAttachment}
-      grpcClient={grpcClient}
+      universalClient={universalClient}
       domainResolver={domainResolver}
       account={{
         id: account.id,
@@ -423,6 +424,7 @@ export function renderDesktopInlineEditor({comment, onSave, onCancel, isSaving}:
 function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentProps) {
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
+  const universalClient = useUniversalClient()
   const contentRef = useRef<HMBlockNode[]>(comment.content)
 
   const handleFileAttachment = useCallback(async (file: File) => {
@@ -456,7 +458,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
         handleFileAttachment={handleFileAttachment}
-        grpcClient={grpcClient}
+        universalClient={universalClient}
         domainResolver={domainResolver}
         account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}

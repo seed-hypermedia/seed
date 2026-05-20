@@ -10,8 +10,8 @@ import {
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   getValidatedWebSeedLinkState,
-  hypermediaUrlToRoute,
   hmId,
+  hypermediaUrlToRoute,
   idToUrl,
   queryAccount,
   queryDomain,
@@ -73,7 +73,8 @@ export default function WebCommenting({
   autoFocus,
 }: WebCommentingProps) {
   const tx = useTxString()
-  const {getSigner, publish} = useUniversalClient()
+  const universalClient = useUniversalClient()
+  const {getSigner, publish} = universalClient
   const {originHomeId} = useUniversalAppContext()
 
   // Resolve reply parent from commentId when explicit version props aren't provided
@@ -399,6 +400,7 @@ export default function WebCommenting({
         onAvatarPress={onAvatarPress}
         importWebFile={(url) => importWebFile(url, draftId)}
         handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
+        universalClient={universalClient}
         getDraftMediaBlob={async (draftId, mediaId) => {
           if (typeof window === 'undefined') return null
           try {
@@ -711,6 +713,7 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
         initialBlocks={comment.content}
         importWebFile={(url) => importWebFile(url)}
         handleFileAttachment={(file) => handleFileAttachment(file)}
+        universalClient={client}
         hideAvatar
         submitButton={({getContent, reset}) => (
           <>

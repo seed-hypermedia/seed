@@ -80,7 +80,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Underline,
     TextColorMark,
     BackgroundColorMark,
-    // LinkExtensionOptions extends LinkOptions with runtime extras (grpcClient,
+    // LinkExtensionOptions extends LinkOptions with runtime extras (universalClient,
     // domainResolver, gwUrl, openUrl) that are read via index access in link.ts.
     // TipTap's `configure` only knows about the declared `LinkOptions` shape, so
     // we widen here at the call boundary.

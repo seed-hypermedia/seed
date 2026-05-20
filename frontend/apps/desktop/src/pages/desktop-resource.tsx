@@ -43,7 +43,7 @@ import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/cli
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
-import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext} from '@shm/shared'
+import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
@@ -174,19 +174,20 @@ export default function DesktopResourcePage() {
   // Link extension options for the paste handler. Platform-specific deps
   // must be injected here because `@shm/editor` can't import from the desktop app.
   const linkOpenUrl = useOpenUrl()
+  const universalClient = useUniversalClient()
   const linkGwUrl = useGatewayUrlStream()
   const checkWebUrlMutation = useMutation({
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
   const linkExtensionOptions = useMemo<LinkExtensionOptions>(
     () => ({
-      grpcClient,
+      universalClient,
       domainResolver,
       gwUrl: linkGwUrl,
       openUrl: linkOpenUrl,
       checkWebUrl: checkWebUrlMutation.mutateAsync,
     }),
-    [linkGwUrl, linkOpenUrl, checkWebUrlMutation.mutateAsync],
+    [universalClient, linkGwUrl, linkOpenUrl, checkWebUrlMutation.mutateAsync],
   )
 
   // Image block's URL submit. Fetch the external image and upload it to IPFS.

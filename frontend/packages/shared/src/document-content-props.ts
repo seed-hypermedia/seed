@@ -1,6 +1,6 @@
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import type {GRPCClient} from './grpc-client'
+import type {UniversalClient} from './universal-client'
 import type {StateStream} from './utils/stream'
 
 /** Options for block range selection with optional clipboard copy. */
@@ -15,8 +15,8 @@ export type BlockRangeSelectOptions = BlockRange & {
  * is therefore optional.
  */
 export type LinkExtensionOptions = {
-  /** Daemon GRPC client used to fetch document titles when resolving pasted hm:// URLs. */
-  grpcClient?: GRPCClient
+  /** Platform-agnostic Seed client used to fetch resources when resolving pasted hm:// URLs. */
+  universalClient?: UniversalClient
   /** Maps a hostname (e.g. a custom domain) to a Seed account UID so URLs at that
    * domain can be resolved to hm:// references instead of erroring as "not a hypermedia link". */
   domainResolver?: DomainResolverFn

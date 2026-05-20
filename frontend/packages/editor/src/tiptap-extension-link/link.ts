@@ -1,6 +1,7 @@
 import {Mark, mergeAttributes} from '@tiptap/core'
 import {Plugin} from '@tiptap/pm/state'
 import {registerCustomProtocol, reset} from 'linkifyjs'
+import type {UniversalClient} from '@shm/shared/universal-client'
 
 import {autolink} from './helpers/autolink'
 import {clickHandler} from './helpers/clickHandler'
@@ -39,6 +40,7 @@ export interface LinkOptions {
    */
   validate?: (url: string) => boolean
   checkWebUrl: (url: string) => Promise<any>
+  universalClient?: UniversalClient
   /**
    * Converts the stored link URL into the href rendered into the DOM.
    */
@@ -196,7 +198,7 @@ export const Link = Mark.create<LinkOptions>({
     }
     plugins.push(
       pasteHandler({
-        grpcClient: (this.options as any).grpcClient,
+        universalClient: this.options.universalClient,
         domainResolver: (this.options as any).domainResolver,
         gwUrl: (this.options as any).gwUrl,
         editor: this.editor,

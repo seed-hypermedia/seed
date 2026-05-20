@@ -1,10 +1,10 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {packReferenceUrl, useOpenUrl, writeableStateStream} from '@shm/shared'
-import type {GRPCClient} from '@shm/shared/grpc-client'
+import {packReferenceUrl, useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
+import type {UniversalClient} from '@shm/shared/universal-client'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {LinkIcon} from '@shm/ui/hm-icon'
@@ -66,7 +66,7 @@ export function useCommentEditor(
       size: number
     }
   }>,
-  grpcClient?: GRPCClient,
+  universalClient?: UniversalClient,
   // Resolver that maps a hostname (e.g. eric.vicenti.net) to its Seed account UID.
   // Required so URLs pasted into embed/link inputs inside a comment can be
   // resolved to hm:// references instead of erroring as "not a hypermedia link".
@@ -89,7 +89,7 @@ export function useCommentEditor(
     },
     linkExtensionOptions: {
       openOnClick: false,
-      grpcClient,
+      universalClient,
       gwUrl,
       domainResolver,
     },
@@ -233,7 +233,7 @@ export function CommentEditor({
   onAvatarPress,
   importWebFile,
   handleFileAttachment,
-  grpcClient,
+  universalClient,
   getDraftMediaBlob,
   hideAvatar,
   domainResolver,
@@ -293,7 +293,7 @@ export function CommentEditor({
   /** Optional resolver that maps a hostname to a Seed account UID, used when
    * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
   domainResolver?: (hostname: string) => Promise<string | null>
-  grpcClient?: GRPCClient
+  universalClient?: UniversalClient
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -301,6 +301,7 @@ export function CommentEditor({
   const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
   const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const contextUniversalClient = useUniversalClient()
 
   const {editor} = useCommentEditor(
     perspectiveAccountUid,
@@ -309,7 +310,7 @@ export function CommentEditor({
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
     importWebFile,
     handleFileAttachment,
-    grpcClient,
+    universalClient ?? contextUniversalClient,
     domainResolver,
   )
   // Check if we have non-empty draft content

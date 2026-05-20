@@ -1,9 +1,8 @@
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
-import {HMDocumentMetadataSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDocumentTitle} from '@shm/shared/content'
-import {GRPCClient} from '@shm/shared/grpc-client'
+import type {UniversalClient} from '@shm/shared/universal-client'
 import {hmId, isHypermediaScheme, isPublicGatewayLink, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
 import {Fragment, Mark, MarkType, Slice} from '@tiptap/pm/model'
@@ -15,7 +14,7 @@ import {getLinkMenuItems} from '../../blocknote/core/extensions/LinkMenu/default
 import {linkMenuPluginKey} from '../../blocknote/core/extensions/LinkMenu/LinkMenuPlugin'
 
 type PasteHandlerOptions = {
-  grpcClient?: GRPCClient
+  universalClient?: UniversalClient
   domainResolver?: DomainResolverFn
   editor: Editor
   type: MarkType
@@ -239,9 +238,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           let tr = view.state.tr
 
           let pos = tr.selection.from
-          if (options.grpcClient) {
-            fetchEntityTitle(unpackedHmId, options.grpcClient, unpackedHmId.blockRef)
-              .then(({title, version}) => {
+          if (options.universalClient) {
+            fetchResourceTitle(unpackedHmId, options.universalClient, unpackedHmId.blockRef)
+              .then(({title, version, type}) => {
                 // When blockRef is present, use the fetched version to ensure
                 // we reference the specific version containing the block
                 const resolvedVersion = unpackedHmId.blockRef && !unpackedHmId.version ? version : unpackedHmId.version
@@ -271,6 +270,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         hmId: unpackHmId(normalizedHmUrl),
                         sourceUrl: normalizedHmUrl,
                         title,
+                        type,
                         gwUrl: options.gwUrl,
                       }),
                     }),
@@ -363,13 +363,15 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
                 // If title is missing (e.g. domain store resolution), fetch it
                 let title = linkMetaResult.title
-                if (!title && options.grpcClient) {
-                  const fetched = await fetchEntityTitle(
+                let type: 'Comment' | 'Document' = linkMetaResult.type === 'Comment' ? 'Comment' : 'Document'
+                if (!title && options.universalClient) {
+                  const fetched = await fetchResourceTitle(
                     linkMetaResult.hmId,
-                    options.grpcClient,
+                    options.universalClient,
                     linkMetaResult.hmId.blockRef,
                   )
                   title = fetched.title
+                  type = fetched.type || type
                 }
 
                 const displayText = title || fullHmUrl
@@ -398,7 +400,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                       hmId: linkMetaResult.hmId,
                       sourceUrl: fullHmUrl,
                       title,
-                      type: linkMetaResult.type === 'Comment' ? 'Comment' : 'Document',
+                      type,
                       gwUrl: options.gwUrl,
                     }),
                   }),
@@ -538,13 +540,15 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
             // If title is missing (e.g. domain store resolution), fetch it
             let title = linkMetaResult.title
-            if (!title && options.grpcClient) {
-              const fetched = await fetchEntityTitle(
+            let type: 'Comment' | 'Document' = linkMetaResult.type === 'Comment' ? 'Comment' : 'Document'
+            if (!title && options.universalClient) {
+              const fetched = await fetchResourceTitle(
                 linkMetaResult.hmId,
-                options.grpcClient,
+                options.universalClient,
                 linkMetaResult.hmId.blockRef,
               )
               title = fetched.title
+              type = fetched.type || type
             }
 
             if (title) {
@@ -570,6 +574,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   isLoading: false,
                   sourceUrl: fullHmUrl,
                   title,
+                  type,
                   gwUrl: options.gwUrl,
                 }),
               }),
@@ -673,63 +678,48 @@ export function restoreBlockRangeSuffix(href: string, fullText: string): string 
   return match ? href + match[0] : href
 }
 
-async function fetchEntityTitle(hmId: UnpackedHypermediaId, grpcClient: GRPCClient, blockRef?: string | null) {
-  const document = await grpcClient.documents.getDocument({
-    account: hmId.uid,
-    path: hmIdPathToEntityQueryPath(hmId.path),
-    version: hmId.version || undefined,
-  })
-  const doc = document
-  let title
-  if (blockRef) {
-    // @ts-ignore
-    const block = doc.content.find((block) => {
-      if (block.block) {
-        return block.block.id === blockRef
+async function fetchResourceTitle(
+  hmId: UnpackedHypermediaId,
+  universalClient: UniversalClient,
+  blockRef?: string | null,
+) {
+  const resource = await universalClient.request('Resource', hmId)
+
+  if (resource.type === 'document') {
+    const doc = resource.document
+    let title
+    if (blockRef) {
+      const block = doc.content.find((blockNode) => blockNode.block?.id === blockRef)
+      if (block?.block?.type === 'Heading') {
+        title = block.block.text
       }
-    })
-    if (block?.block?.type === 'Heading') {
-      title = block.block.text
+    }
+    return {
+      title: title || getDocumentTitle(doc),
+      version: doc.version || null,
+      type: 'Document' as const,
     }
   }
-  if (!title) {
-    title = getDocumentTitle({
-      ...doc,
-      metadata: HMDocumentMetadataSchema.parse(doc.metadata?.toJson({emitDefaultValues: true, enumAsInteger: false})),
-    })
-  }
-  // Return version from document - important when blockRef is present
-  // to ensure we reference the specific version containing the block
-  return {
-    title,
-    version: doc.version || null,
-  }
-  // } else if (hmId.type == 'c') {
-  //   try {
-  //     const comment = await grpcClient.comments.getComment({
-  //       id: hmId.uid,
-  //     })
-  //     if (comment) {
-  //       const authorHomeDocRaw = await grpcClient.documents.getDocument({
-  //         account: comment.author,
-  //       })
-  //       const authorHomeDoc = prepareHMDocument(authorHomeDocRaw)
-  //       return {
-  //         title: `Comment from ${
-  //           authorHomeDoc.metadata?.name ||
-  //           `${comment.author.slice(0, 5)}...${comment.author.slice(-5)}`
-  //         }`,
-  //       }
-  //     } else {
-  //       return {
-  //         title: null,
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error(`fetchEntityTitle error: ${JSON.stringify(error)}`)
-  //     return {title: null}
-  //   }
 
-  // @ts-ignore
-  return {title: null}
+  if (resource.type === 'comment') {
+    const authorName = await fetchAuthorName(resource.comment.author, universalClient)
+    return {
+      title: authorName ? `Comment from ${authorName}` : 'Comment',
+      version: resource.comment.version || null,
+      type: 'Comment' as const,
+    }
+  }
+
+  return {title: null, version: null, type: undefined}
+}
+
+async function fetchAuthorName(authorUid: string, universalClient: UniversalClient) {
+  try {
+    const authorResource = await universalClient.request('Resource', hmId(authorUid))
+    if (authorResource.type !== 'document') return null
+    const name = getDocumentTitle(authorResource.document)
+    return name || null
+  } catch (error) {
+    return null
+  }
 }

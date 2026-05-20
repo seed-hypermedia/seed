@@ -162,7 +162,7 @@ export function DocumentEditor({
         actorRef.send({type: 'change'})
       },
       initialContent,
-      // Caller-provided options (grpcClient, domainResolver, gwUrl,
+      // Caller-provided options (universalClient, domainResolver, gwUrl,
       // checkWebUrl, queryClient, etc.) are required by pasteHandler to
       // (a) convert pasted web URLs to hm:// and (b) apply a link mark to
       // the current selection on paste.

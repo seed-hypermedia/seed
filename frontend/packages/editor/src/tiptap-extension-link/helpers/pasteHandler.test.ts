@@ -1,5 +1,43 @@
+import {Fragment, Schema, Slice} from '@tiptap/pm/model'
+import {EditorState} from '@tiptap/pm/state'
 import {describe, expect, it} from 'vitest'
-import {restoreBlockRangeSuffix} from './pasteHandler'
+import {pasteHandler, restoreBlockRangeSuffix} from './pasteHandler'
+
+const schema = new Schema({
+  nodes: {
+    doc: {content: 'text*'},
+    text: {group: 'inline'},
+  },
+  marks: {
+    link: {
+      attrs: {href: {default: null}},
+      parseDOM: [{tag: 'a[href]'}],
+      toDOM(mark) {
+        return ['a', {href: mark.attrs.href}, 0]
+      },
+    },
+  },
+})
+
+function createPasteView() {
+  let state = EditorState.create({schema})
+  const view = {
+    get state() {
+      return state
+    },
+    dispatch(tr: any) {
+      state = state.apply(tr)
+    },
+  }
+  return view as any
+}
+
+async function flushPasteHandler() {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
 describe('restoreBlockRangeSuffix', () => {
   it('reattaches a [start:end] block range linkifyjs truncates', () => {
@@ -41,5 +79,113 @@ describe('restoreBlockRangeSuffix', () => {
     const href = 'https://site.example/doc#blockId'
     const full = 'https://site.example/doc#blockId[20:52] (was great!)'
     expect(restoreBlockRangeSuffix(href, full)).toBe('https://site.example/doc#blockId[20:52]')
+  })
+})
+
+describe('pasteHandler', () => {
+  it('uses the universal client to insert a pasted hm:// document URL as a titled link', async () => {
+    const url = 'hm://abc/path'
+    const view = createPasteView()
+    const universalClient = {
+      request: async () => ({
+        type: 'document',
+        document: {
+          content: [],
+          metadata: {name: 'Doc Title'},
+          path: '/path',
+          version: 'version-cid',
+        },
+      }),
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Doc Title')
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
+  })
+
+  it('uses the universal client to insert a pasted hm:// comment URL as a titled link', async () => {
+    const url = 'hm://commenter/comment-id'
+    const view = createPasteView()
+    const universalClient = {
+      request: async (_key: string, input: any) => {
+        if (!input.path?.length) {
+          return {
+            type: 'document',
+            document: {
+              content: [],
+              metadata: {name: 'Alice'},
+              path: '',
+              version: 'author-version',
+            },
+          }
+        }
+        return {
+          type: 'comment',
+          comment: {
+            author: 'commenter',
+            content: [{block: {type: 'Paragraph', text: 'Comment body text'}, children: []}],
+            version: 'comment-version',
+          },
+        }
+      },
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Comment from Alice')
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
+  })
+
+  it('does not fall back to a shortened author UID for comment links', async () => {
+    const url = 'hm://commenter/comment-id'
+    const view = createPasteView()
+    const universalClient = {
+      request: async (_key: string, input: any) => {
+        if (!input.path?.length) {
+          return {type: 'not-found'}
+        }
+        return {
+          type: 'comment',
+          comment: {
+            author: 'z6Mklongauthoruid',
+            content: [],
+            version: 'comment-version',
+          },
+        }
+      },
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Comment')
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
   })
 })

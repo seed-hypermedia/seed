@@ -18,6 +18,7 @@ import {
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
+import {useUniversalClient} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -205,7 +206,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   const createDraft = useMutation({
     mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) => client.drafts.write.mutate(input),
   })
-  const {grpcClient} = useAppContext()
+  const universalClient = useUniversalClient()
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
   const checkWebUrl = useMutation({
@@ -255,7 +256,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   ) => {
     const editor = new BlockNoteEditor<BlockSchema>({
       linkExtensionOptions: {
-        grpcClient,
+        universalClient,
         domainResolver,
         gwUrl,
         openUrl,

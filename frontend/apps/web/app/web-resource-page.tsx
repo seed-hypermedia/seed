@@ -83,6 +83,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const vaultSuccessContent = useVaultSuccessDialog()
   const universalClient = useUniversalClient()
+  const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
   const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
 
@@ -329,6 +330,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             DocumentContentComponent={DocumentContentComponent}
             ssrContentHTML={ssrContentHTML}
             perspectiveAccountUid={ownAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
             canEdit={canEdit}
             machine={machine}
             signingAccountId={signingAccountId ?? undefined}
