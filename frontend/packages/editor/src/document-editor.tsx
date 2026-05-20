@@ -41,6 +41,7 @@ import {MentionMenuPositioner} from './mention-menu-positioner'
 import {PublishRequiredDialog} from './publish-required-dialog'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
+import {selectAllEditorContent} from './utils'
 
 export type {DocumentContentProps}
 
@@ -182,8 +183,7 @@ export function DocumentEditor({
             addKeyboardShortcuts() {
               return {
                 'Mod-a': ({editor}) => {
-                  editor.commands.selectAll()
-                  return true
+                  return selectAllEditorContent(editor)
                 },
               }
             },
