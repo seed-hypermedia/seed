@@ -589,15 +589,25 @@ func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerId
 	incomingAddrs := strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")
 
 	if !n.peerWriteIsRedundant(ctx, event.Peer.String(), incomingAddrs) {
-		if err := n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-			// Identify completed — we have direct first-hand evidence this peer exists
-			// right now. Always bump updated_at, regardless of whether addresses changed,
-			// so TTL pruning doesn't evict long-lived peers with stable addrs. Addresses
-			// only overwrite the stored set when the newly observed set is non-empty.
-			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, event.Peer.String(), incomingAddrs, bootstrapped)
-		}); err != nil {
-			n.log.Warn("Could not store new peer", zap.String("PID", event.Peer.String()), zap.Error(err))
-		}
+		// Fire-and-forget: the actual INSERT runs on the dedicated
+		// peerWriter goroutine, which batches outstanding jobs to
+		// amortise the BEGIN IMMEDIATE / COMMIT cost. The dispatcher
+		// goroutine (us) returns immediately so other libp2p events
+		// can continue to drain even if the writer slot is currently
+		// contended elsewhere in the daemon. See peer_writer.go for
+		// the motivation and architectural notes.
+		//
+		// Identify completed — we have direct first-hand evidence
+		// this peer exists right now. The INSERT always bumps
+		// updated_at regardless of whether addresses changed, so TTL
+		// pruning doesn't evict long-lived peers with stable addrs.
+		// Addresses only overwrite the stored set when the newly
+		// observed set is non-empty.
+		n.peerWriter.enqueue(peerWriteJob{
+			pid:                 event.Peer.String(),
+			addrs:               incomingAddrs,
+			explicitlyConnected: bootstrapped,
+		})
 	}
 
 	n.p2p.ConnManager().Protect(event.Peer, ProtocolSupportKey)

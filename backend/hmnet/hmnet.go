@@ -138,6 +138,11 @@ type Node struct {
 	// from Start() and read freely after that.
 	dbSizeAtStart     atomic.Uint64
 	dbSizeAtStartTime atomic.Int64 // unix nano
+
+	// peerWriter owns all peer-table writes that originate from libp2p
+	// identification events. Its goroutine is started from Start() and
+	// stopped via the Start() ctx; see peer_writer.go for design notes.
+	peerWriter *peerWriter
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -217,6 +222,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 		clean: clean,
 		ready: make(chan struct{}),
 	}
+	n.peerWriter = newPeerWriter(db, log)
 	n.currentReachability.Store(network.ReachabilityUnknown)
 	n.libp2pEvents, err = host.EventBus().Subscribe([]interface{}{
 		new(event.EvtPeerIdentificationCompleted),
@@ -486,6 +492,13 @@ func (n *Node) Start(ctx context.Context) (err error) {
 				}
 				t.Reset(peerExchangeTick)
 			}
+		})
+		// peerWriter drains the identify-driven write queue into
+		// batched COMMITs. Exits when ctx is cancelled (Start
+		// teardown) so it shares lifetime with the libp2p event loop.
+		g.Go(func() error {
+			n.peerWriter.run(ctx)
+			return nil
 		})
 	}
 
