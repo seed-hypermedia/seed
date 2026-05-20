@@ -1172,6 +1172,7 @@ function DocumentBody({
         return {
           id,
           metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
+          draftId: draft.id,
           fallbackName: draftName || fallbackName,
           isLoading: false,
           isTombstone: false,
@@ -1196,16 +1197,24 @@ function DocumentBody({
 
       const result = breadcrumbResults[i]
       const data = result?.data
-      const metadata = data?.type === 'document' ? data.document?.metadata || {} : {}
       // Fallback: the document machine knows the current doc is an
       // unpublished draft even before the account draft list resolves.
       // Avoids flashing "not found" on the active draft on first paint.
       const showAsUnpublishedDraft = isCurrent && isUnpublishedDraft
+      const metadata =
+        isCurrent && currentDraftName
+          ? {...(document.metadata || {}), name: currentDraftName}
+          : isCurrent
+          ? document.metadata || {}
+          : data?.type === 'document'
+          ? data.document?.metadata || {}
+          : {}
       return {
         id,
         metadata,
+        draftId: showAsUnpublishedDraft && existingDraft ? existingDraft.id : undefined,
         fallbackName,
-        isLoading: result?.isDiscovering || result?.isLoading,
+        isLoading: !result || result?.isDiscovering || result?.isLoading,
         isTombstone: result?.isTombstone,
         isNotFound: !showAsUnpublishedDraft && data?.type === 'not-found' && !result?.isDiscovering,
         isError: result?.isError && !result?.isDiscovering && !result?.isTombstone,
@@ -1246,6 +1255,7 @@ function DocumentBody({
     breadcrumbResults,
     draftsForBreadcrumbs,
     pendingDraftLookup,
+    document.metadata,
     isUnpublishedDraft,
     existingDraft,
     ctx.metadata?.name,

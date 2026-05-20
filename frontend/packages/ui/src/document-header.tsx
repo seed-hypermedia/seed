@@ -6,6 +6,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, useRouteLink} from '@shm/shared'
+import type {NavRoute} from '@shm/shared/routes'
 import {useAccount} from '@shm/shared/models/entity'
 import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -34,6 +35,8 @@ export type BreadcrumbEntry =
       isError?: boolean
       /** Set on the last crumb when the current page is an unpublished local draft. */
       isUnpublishedDraft?: boolean
+      /** Local draft route target for unpublished breadcrumb sections. */
+      draftId?: string
       fallbackName?: string
     }
   | {label: string}
@@ -175,31 +178,54 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   if (breadcrumbs.length <= 1) return null
 
   const [first, ...rest] = breadcrumbs
+  const lastIndex = breadcrumbs.length - 1
 
   return (
-    <div className="text-muted-foreground flex flex-1 items-center gap-2">
-      {first && 'id' in first ? <HomeBreadcrumb crumb={first} /> : null}
-      {rest.flatMap((crumb, i) => {
-        const key = 'id' in crumb ? crumb.id.id : `label-${i}`
-        return [
-          <SizableText color="muted" key={`${key}-separator`} size="xs">
-            {'>'}
-          </SizableText>,
-          'id' in crumb ? (
-            <BreadcrumbLink key={key} crumb={crumb} />
-          ) : (
-            <span key={key} className="min-w-0 truncate text-xs whitespace-nowrap">
-              {crumb.label}
-            </span>
-          ),
-        ]
-      })}
-    </div>
+    <nav aria-label="Breadcrumb" className="text-muted-foreground flex flex-1 items-center">
+      <ol className="flex min-w-0 flex-1 items-center gap-2">
+        {first && 'id' in first ? (
+          <li className="flex min-w-0 items-center">
+            <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
+          </li>
+        ) : null}
+        {rest.map((crumb, i) => {
+          const index = i + 1
+          const key = 'id' in crumb ? crumb.id.id : `label-${i}`
+          const isCurrent = index === lastIndex
+          return (
+            <li key={key} className="flex min-w-0 items-center gap-2">
+              <SizableText aria-hidden="true" color="muted" size="xs">
+                {'>'}
+              </SizableText>
+              {'id' in crumb ? (
+                <BreadcrumbLink crumb={crumb} isCurrent={isCurrent} />
+              ) : (
+                <span
+                  aria-current={isCurrent ? 'page' : undefined}
+                  className="min-w-0 truncate text-xs whitespace-nowrap"
+                >
+                  {crumb.label}
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </nav>
   )
 }
 
-function HomeBreadcrumb({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
+type DocumentBreadcrumbEntry = Extract<BreadcrumbEntry, {id: any}>
+
+function HomeBreadcrumb({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
   const linkProps = useRouteLink({key: 'document', id: crumb.id})
+  if (isCurrent) {
+    return (
+      <span aria-current="page" className="text-muted-foreground flex items-center gap-1">
+        <Home className="size-3" />
+      </span>
+    )
+  }
   return (
     <a {...linkProps} className="text-muted-foreground flex items-center gap-1 no-underline hover:underline">
       <Home className="size-3" />
@@ -207,28 +233,50 @@ function HomeBreadcrumb({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   )
 }
 
-function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
-  const linkProps = useRouteLink({key: 'document', id: crumb.id})
-  const displayName = crumb.metadata?.name || crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)
+function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
+  const route: NavRoute = crumb.draftId ? {key: 'draft', id: crumb.draftId} : {key: 'document', id: crumb.id}
+  const linkProps = useRouteLink(route)
+  const title = crumb.metadata?.name
+  const fallbackName = crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)
+  const displayName = title || fallbackName
+
+  const renderText = (className: string, label = displayName) =>
+    isCurrent ? (
+      <span aria-current="page" className={className}>
+        {label}
+      </span>
+    ) : (
+      <a {...linkProps} className={`${className} no-underline hover:underline`}>
+        {label}
+      </a>
+    )
 
   if (crumb.isLoading) {
-    return (
-      <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
-        {displayName}
+    const content = (
+      <>
+        {title || 'Loading…'}
         <Spinner size="small" />
-      </span>
+      </>
+    )
+    const className = 'text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap'
+    if (isCurrent) {
+      return (
+        <span aria-current="page" className={className}>
+          {content}
+        </span>
+      )
+    }
+    return (
+      <a {...linkProps} className={`${className} no-underline hover:underline`}>
+        {content}
+      </a>
     )
   }
 
   if (crumb.isTombstone) {
     return (
       <Tooltip content="This document has been deleted">
-        <a
-          {...linkProps}
-          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
-        >
-          {displayName}
-        </a>
+        {renderText('min-w-0 truncate text-xs whitespace-nowrap text-red-500')}
       </Tooltip>
     )
   }
@@ -236,9 +284,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isUnpublishedDraft) {
     return (
       <Tooltip content="This document is a draft and has not been published yet — its URL is private to you.">
-        <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap italic select-none">
-          {displayName}
-        </span>
+        {renderText('text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap italic')}
       </Tooltip>
     )
   }
@@ -246,12 +292,7 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isNotFound) {
     return (
       <Tooltip content="Document not found on the network">
-        <a
-          {...linkProps}
-          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
-        >
-          {displayName}
-        </a>
+        {renderText('min-w-0 truncate text-xs whitespace-nowrap text-red-500')}
       </Tooltip>
     )
   }
@@ -259,28 +300,16 @@ function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
   if (crumb.isError) {
     return (
       <Tooltip content="Failed to load this document">
-        <a
-          {...linkProps}
-          className="min-w-0 truncate text-xs whitespace-nowrap text-red-500 no-underline hover:underline"
-        >
-          {displayName}
-        </a>
+        {renderText('min-w-0 truncate text-xs whitespace-nowrap text-red-500')}
       </Tooltip>
     )
   }
 
   if (!crumb.metadata?.name) {
-    return <span className="text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap">{displayName}</span>
+    return renderText('text-muted-foreground min-w-0 truncate text-xs whitespace-nowrap')
   }
 
-  return (
-    <a
-      {...linkProps}
-      className="min-w-0 truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
-    >
-      {crumb.metadata.name}
-    </a>
-  )
+  return renderText('min-w-0 truncate overflow-hidden text-xs whitespace-nowrap', crumb.metadata.name)
 }
 
 function SiteURLButton({siteUrl, onSiteUrlClick}: {siteUrl: string; onSiteUrlClick?: (url: string) => void}) {
