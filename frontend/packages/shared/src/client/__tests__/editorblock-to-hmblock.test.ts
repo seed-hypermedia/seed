@@ -535,7 +535,7 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
-    test('image wrong width value should be removed (percentage)', () => {
+    test('image percentage width is preserved as a responsive width value', () => {
       const editorBlock: EditorImageBlock = {
         id: 'foo',
         type: 'image',
@@ -559,7 +559,9 @@ describe('EditorBlock to HMBlock', () => {
         text: ``,
         link: 'ipfs://foobarcid_IMAGE',
         annotations: [],
-        attributes: {},
+        attributes: {
+          width: 80,
+        },
       }
       const val = editorBlockToHMBlock(editorBlock)
 

@@ -519,6 +519,41 @@ describe('HMBlock to EditorBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('image responsive percentage width', () => {
+      const hmBlock: HMBlockImage = {
+        id: 'foo',
+        type: 'Image',
+        text: ``,
+        link: 'ipfs://foobarcid_IMAGE',
+        annotations: [],
+        attributes: {
+          width: 80,
+        },
+        revision: 'revision123',
+      }
+
+      const result: EditorImageBlock = {
+        id: 'foo',
+        type: 'image',
+        children: [],
+        props: {
+          url: 'ipfs://foobarcid_IMAGE',
+          revision: 'revision123',
+          width: '80%',
+        },
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val).toEqual(result)
+    })
+
     test('image with wrong width value should be removed', () => {
       const hmBlock: HMBlockImage = {
         id: 'foo',

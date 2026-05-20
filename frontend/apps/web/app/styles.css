@@ -178,6 +178,8 @@ body {
 .ssr-content-placeholder [data-content-type='image'] img {
   max-width: 100%;
   height: auto;
+  max-height: 600px;
+  object-fit: contain;
   border-radius: 4px;
 }
 .ssr-content-placeholder [data-content-type='image'] .inlineContent {

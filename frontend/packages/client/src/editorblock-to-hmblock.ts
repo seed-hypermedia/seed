@@ -25,6 +25,14 @@ function toHMBlockType(editorBlockType: EditorBlock['type']): HMBlockType | unde
   return undefined
 }
 
+function toImageWidthNumber(width: string | undefined): number | null {
+  if (width?.trim().endsWith('%')) {
+    const percentage = Number(width.trim().slice(0, -1))
+    return Number.isFinite(percentage) && percentage > 0 ? percentage : null
+  }
+  return toNumber(width)
+}
+
 // Mutable block type for building HMBlock before validation
 type MutableBlock = {
   id: string
@@ -164,7 +172,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     } else {
       blockImage.link = ''
     }
-    const width = toNumber(editorBlock.props.width)
+    const width = toImageWidthNumber(editorBlock.props.width)
     if (width) {
       blockImage.attributes.width = width
     }
