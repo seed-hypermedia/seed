@@ -18,6 +18,7 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
+import {hasBlockContent} from '@shm/shared/content'
 import {useDocumentComments} from '@shm/shared/models/comments'
 import {useContacts} from '@shm/shared/models/contacts'
 import {useResource} from '@shm/shared/models/entity'
@@ -29,7 +30,7 @@ import {Button} from '@shm/ui/button'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'
-import {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -99,15 +100,8 @@ function CommentBoxImpl(props: {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isDeletingDraft = useRef(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
-
-  // Clean up save timeout on unmount to prevent memory leak
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
-  }, [])
+  const pendingBlocksRef = useRef<HMBlockNode[] | null>(null)
+  const flushPendingDraftSaveRef = useRef<() => void>(() => {})
 
   const commentDraftQueryKey = [queryKeys.COMMENT_DRAFT, docId.id, commentId, quotingBlockId, context]
 
@@ -123,6 +117,7 @@ function CommentBoxImpl(props: {
       }),
     onSuccess: () => {
       invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+      invalidateQueries(commentDraftQueryKey)
     },
   })
 
@@ -233,29 +228,53 @@ function CommentBoxImpl(props: {
   }, [focusOnMount])
 
   // Handle content changes - save draft
+  const saveDraftBlocks = useCallback(
+    (blocks: HMBlockNode[]) => {
+      if (isDeletingDraft.current) return
+
+      const hasContent = blocks.some(hasBlockContent)
+
+      if (!hasContent) {
+        if (draft.data) {
+          removeDraft.mutate()
+        }
+        return
+      }
+
+      writeDraft.mutate(blocks)
+    },
+    [draft.data, writeDraft, removeDraft],
+  )
+
+  const flushPendingDraftSave = useCallback(() => {
+    if (!pendingBlocksRef.current) return
+
+    const blocks = pendingBlocksRef.current
+    pendingBlocksRef.current = null
+    clearTimeout(saveTimeoutRef.current)
+    saveDraftBlocks(blocks)
+  }, [saveDraftBlocks])
+
+  flushPendingDraftSaveRef.current = flushPendingDraftSave
+
+  // Clean up save timeout on unmount, but persist the pending draft first.
+  useEffect(() => {
+    return () => {
+      flushPendingDraftSaveRef.current()
+    }
+  }, [])
+
   const handleContentChange = useCallback(
     (blocks: HMBlockNode[]) => {
       if (isDeletingDraft.current) return
 
+      pendingBlocksRef.current = blocks
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(() => {
-        const hasContent = blocks.some(
-          (block) =>
-            // @ts-expect-error - text exists on paragraph/heading blocks
-            (block.block?.text && block.block.text.trim()) || (block.children && block.children.length > 0),
-        )
-
-        if (!hasContent) {
-          if (draft.data) {
-            removeDraft.mutate()
-          }
-          return
-        }
-
-        writeDraft.mutate(blocks)
+        flushPendingDraftSave()
       }, 500)
     },
-    [draft.data, writeDraft, removeDraft],
+    [flushPendingDraftSave],
   )
 
   // Handle submit
