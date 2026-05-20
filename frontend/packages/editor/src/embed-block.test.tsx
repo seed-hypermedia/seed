@@ -410,6 +410,28 @@ describe('DraftEmbedPlaceholder title input', () => {
     expect(onOpenDraft).toHaveBeenCalledWith('draft-1', ['parent', '-draft-1'])
   })
 
+  it('removes the draft card without deleting the child draft immediately', async () => {
+    const onDeleteDraft = vi.fn().mockResolvedValue(undefined)
+    const {editor} = renderDraftEmbed({onDeleteDraft})
+    const menuButton = container.querySelector('button[aria-label="Draft options"]') as HTMLButtonElement | null
+    expect(menuButton).toBeTruthy()
+
+    await act(async () => {
+      menuButton!.dispatchEvent(new MouseEvent('pointerdown', {bubbles: true, cancelable: true}))
+    })
+    const removeItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find(
+      (el) => el.textContent?.includes('Remove card'),
+    ) as HTMLElement | undefined
+    expect(removeItem).toBeTruthy()
+
+    await act(async () => {
+      removeItem!.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+
+    expect(onDeleteDraft).not.toHaveBeenCalled()
+    expect(editor.removeBlocks).toHaveBeenCalledWith(['block-1'])
+  })
+
   it('blurs title input on Escape', () => {
     const {input} = renderDraftEmbed()
     input.focus()

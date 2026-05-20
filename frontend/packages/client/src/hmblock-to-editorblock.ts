@@ -321,16 +321,30 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       }
 
       if (annotationData.type === 'TextColor') {
-        const color = (annotationData as any).attributes?.color
+        const color = (annotationData as any).attributes?.value
         if (typeof color === 'string' && color) {
           ;(newLeaf.styles as Record<string, string | boolean>).textColor = color
         }
       }
 
       if (annotationData.type === 'BackgroundColor') {
-        const color = (annotationData as any).attributes?.color
+        const color = (annotationData as any).attributes?.value
         if (typeof color === 'string' && color) {
           ;(newLeaf.styles as Record<string, string | boolean>).backgroundColor = color
+        }
+      }
+
+      if (annotationData.type === 'TextSize') {
+        const size = (annotationData as any).attributes?.value
+        if (typeof size === 'string' && size) {
+          ;(newLeaf.styles as Record<string, string | boolean>).textSize = size
+        }
+      }
+
+      if (annotationData.type === 'TextFamily') {
+        const family = (annotationData as any).attributes?.value
+        if (typeof family === 'string' && family) {
+          ;(newLeaf.styles as Record<string, string | boolean>).textFamily = family
         }
       }
     }

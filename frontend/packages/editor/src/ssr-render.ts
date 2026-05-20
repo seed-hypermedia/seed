@@ -311,16 +311,30 @@ function renderAnnotatedText(
           case 'Range':
             break
           case 'TextColor': {
-            const color = (ann as any).attributes?.color
+            const color = (ann as any).attributes?.value
             if (typeof color === 'string' && color) {
               html = `<span data-text-color="${esc(color)}">${html}</span>`
             }
             break
           }
           case 'BackgroundColor': {
-            const color = (ann as any).attributes?.color
+            const color = (ann as any).attributes?.value
             if (typeof color === 'string' && color) {
               html = `<span data-background-color="${esc(color)}">${html}</span>`
+            }
+            break
+          }
+          case 'TextSize': {
+            const size = (ann as any).attributes?.value
+            if (typeof size === 'string' && size) {
+              html = `<span data-text-size="${esc(size)}">${html}</span>`
+            }
+            break
+          }
+          case 'TextFamily': {
+            const family = (ann as any).attributes?.value
+            if (typeof family === 'string' && family) {
+              html = `<span data-text-family="${esc(family)}">${html}</span>`
             }
             break
           }

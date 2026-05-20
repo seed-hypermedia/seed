@@ -1,4 +1,4 @@
-import type {HMAnnotations} from './hm-types'
+import type {HMAnnotation, HMAnnotations} from './hm-types'
 
 /**
  * Mutable annotation shape used during construction.
@@ -64,8 +64,8 @@ export class AnnotationSet {
         return `${type}-${attributes.href}`
       }
 
-      if (attributes.color) {
-        return `${type}-${attributes.color}`
+      if (attributes.value) {
+        return `${type}-${attributes.value}`
       }
     }
 
@@ -133,6 +133,46 @@ export function addSpanToAnnotation(annotation: SpanAnnotation, start: number, e
 export function pushSpanToAnnotation(annotation: SpanAnnotation, start: number, end: number) {
   annotation.starts.push(start)
   annotation.ends.push(end)
+}
+
+const EXCLUSIVE_TYPES = ['TextColor', 'BackgroundColor', 'TextSize', 'TextFamily']
+
+/** Check whether two span annotations have overlapping ranges. */
+function spansOverlap(a: SpanAnnotation, b: SpanAnnotation): boolean {
+  for (let i = 0; i < a.starts.length; i++) {
+    const aStart = a.starts[i]
+    const aEnd = a.ends[i]
+    if (aStart === undefined || aEnd === undefined) continue
+    for (let j = 0; j < b.starts.length; j++) {
+      const bStart = b.starts[j]
+      const bEnd = b.ends[j]
+      if (bStart === undefined || bEnd === undefined) continue
+      if (aStart < bEnd && bStart < aEnd) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Validate that exclusive annotations of the same type with different values
+ * do not have overlapping ranges. Throws on invalid state.
+ */
+export function validateExclusiveAnnotations(annotations: HMAnnotation[]): void {
+  for (const type of EXCLUSIVE_TYPES) {
+    const ofType = annotations.filter((a) => a.type === type)
+    for (let i = 0; i < ofType.length; i++) {
+      for (let j = i + 1; j < ofType.length; j++) {
+        const a = ofType[i]!
+        const b = ofType[j]!
+        const aVal = (a.attributes as Record<string, string> | undefined)?.value
+        const bVal = (b.attributes as Record<string, string> | undefined)?.value
+        if (aVal && bVal && aVal === bVal) continue
+        if (spansOverlap(a, b)) {
+          throw new Error(`${type} annotations with different values have overlapping ranges`)
+        }
+      }
+    }
+  }
 }
 
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */

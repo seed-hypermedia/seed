@@ -88,7 +88,7 @@ function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
       onDiscardConfirm: (discardDraftId: string, send) => {
         deleteDraftDialog.open({
           draftId: discardDraftId,
-          onSuccess: () => send({type: 'edit.discard'}),
+          onConfirm: () => send({type: 'edit.discard'}),
         })
       },
       slugify: pathNameify,

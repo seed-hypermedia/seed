@@ -11,6 +11,7 @@ import {
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
+  DiscardDraftInput,
   PendingRebase,
   PublishInput,
   WriteDraftInput,
@@ -32,6 +33,7 @@ export type DocumentMachineSnapshot = SnapshotFrom<typeof documentMachine>
 export type DocumentMachineProvidedActors = {
   writeDraft: (input: WriteDraftInput) => Promise<{id: string}>
   publishDocument: (input: PublishInput) => Promise<HMDocument>
+  discardDraft: (input: DiscardDraftInput) => Promise<void>
 }
 
 // -- React context --
@@ -1019,5 +1021,6 @@ export type {
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
+  DiscardDraftInput,
   PendingRebase,
 } from './document-machine'

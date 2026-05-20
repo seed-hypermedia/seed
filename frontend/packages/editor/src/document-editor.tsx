@@ -5,6 +5,7 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {hypermediaUrlToHref, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
+import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {
   selectCanEdit,
   selectIsEditing,
@@ -155,8 +156,9 @@ export function DocumentEditor({
       importWebFile: importWebFile as any,
       handleFileAttachment: handleFileAttachment as any,
       getSlashMenuItems: () => getSlashMenuItems({docId: resourceId, onCreateInlineDraft}),
-      onEditorContentChange() {
+      onEditorContentChange(editor) {
         if (suppressChangeRef.current) return
+        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
         actorRef.send({type: 'change'})
       },
       initialContent,
@@ -348,6 +350,7 @@ export function DocumentEditor({
         // Use the post-replace blocks as the diff baseline so future change counts
         // compare against blocks after editor initialization.
         actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
+        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
       getCurrentBlocks: () => editor.topLevelBlocks as any,
       placeCursor: () => {

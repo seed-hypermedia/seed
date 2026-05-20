@@ -92,6 +92,8 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       math?: boolean
       textColor?: string
       backgroundColor?: string
+      textSize?: string
+      textFamily?: string
     }
     href?: string
     link?: string
@@ -137,11 +139,19 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
 
     if (leaf.styles?.textColor) {
-      annotations.addSpan('TextColor', {color: leaf.styles.textColor}, start, end)
+      annotations.addSpan('TextColor', {value: leaf.styles.textColor}, start, end)
     }
 
     if (leaf.styles?.backgroundColor) {
-      annotations.addSpan('BackgroundColor', {color: leaf.styles.backgroundColor}, start, end)
+      annotations.addSpan('BackgroundColor', {value: leaf.styles.backgroundColor}, start, end)
+    }
+
+    if (leaf.styles?.textSize) {
+      annotations.addSpan('TextSize', {value: leaf.styles.textSize}, start, end)
+    }
+
+    if (leaf.styles?.textFamily) {
+      annotations.addSpan('TextFamily', {value: leaf.styles.textFamily}, start, end)
     }
 
     block.text += leaf.text

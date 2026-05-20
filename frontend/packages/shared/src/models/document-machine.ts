@@ -8,6 +8,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {collectChildDraftIds} from '../utils/child-draft-refs'
 import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
 
 // -- Types --
@@ -94,6 +95,10 @@ export type DocumentMachineContext = {
    * on cleanup so it does not leak to a subsequent publish.
    */
   pendingPathOverride: string[] | null
+  /** Child draft ids currently referenced by draft embed cards in editor content. */
+  referencedChildDraftIds: string[]
+  /** Child draft ids whose cards were removed and should be deleted on publish/discard unless restored by undo. */
+  pendingDeletedChildDraftIds: string[]
   /**
    * True when `publish.start` is received while an autosave/create is in flight
    * or while the draft has unsaved changes. Causes the machine to flush the
@@ -124,6 +129,7 @@ export type DocumentMachineEvent =
     }
   | {type: 'document.remoteUpdate'; document: HMDocument}
   | {type: 'edit.discard'}
+  | {type: 'childDraftRefs.changed'; draftIds: string[]}
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
   | {type: 'edit.confirm'}
@@ -180,6 +186,15 @@ export type PublishInput = {
    * inline first-publish slug rename.
    */
   pathOverride?: string[]
+  /** Child drafts removed from this parent draft and confirmed by publishing. */
+  deletedChildDraftIds: string[]
+}
+
+/** Input for the discardDraft actor. */
+export type DiscardDraftInput = {
+  draftId: string
+  /** Child drafts removed from this parent draft and confirmed by discarding. */
+  deletedChildDraftIds: string[]
 }
 
 /** Input for the pushDocument actor, fired after a successful publish. */
@@ -295,6 +310,8 @@ export const documentMachine = setup({
       pendingRebase: null,
       pendingPathOverride: null,
       pendingPublish: false,
+      referencedChildDraftIds: [],
+      pendingDeletedChildDraftIds: [],
     }),
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
@@ -424,6 +441,25 @@ export const documentMachine = setup({
     clearPendingPublish: assign({
       pendingPublish: false,
     }),
+    updateChildDraftRefs: assign({
+      referencedChildDraftIds: ({event, context}) => {
+        if (event.type !== 'childDraftRefs.changed') return context.referencedChildDraftIds
+        return Array.from(new Set(event.draftIds.filter((id) => !!id)))
+      },
+      pendingDeletedChildDraftIds: ({event, context}) => {
+        if (event.type !== 'childDraftRefs.changed') return context.pendingDeletedChildDraftIds
+        const nextRefs = new Set(event.draftIds.filter((id) => !!id))
+        const prevRefs = new Set(context.referencedChildDraftIds)
+        const pending = new Set(context.pendingDeletedChildDraftIds)
+        for (const id of Array.from(prevRefs)) {
+          if (!nextRefs.has(id)) pending.add(id)
+        }
+        for (const id of Array.from(nextRefs)) {
+          pending.delete(id)
+        }
+        return Array.from(pending)
+      },
+    }),
     markDocumentReady: assign({
       documentReady: true,
     }),
@@ -464,6 +500,10 @@ export const documentMachine = setup({
           return event.baseBlocks
         }
         return context.baseBlocks
+      },
+      referencedChildDraftIds: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.content) return collectChildDraftIds(event.content)
+        return context.referencedChildDraftIds
       },
     }),
     setExistingDraft: assign({
@@ -563,6 +603,9 @@ export const documentMachine = setup({
     publishDocument: fromPromise<HMDocument, PublishInput>(async () => {
       throw new Error('publishDocument actor must be provided via .provide()')
     }),
+    discardDraft: fromPromise<void, DiscardDraftInput>(async () => {
+      throw new Error('discardDraft actor must be provided via .provide()')
+    }),
     pushDocument: fromPromise<void, PushDocumentInput>(async () => {
       // Default no-op: consumers that want push-on-publish must provide this actor.
       return
@@ -582,6 +625,9 @@ export const documentMachine = setup({
     },
     'editor.baselineUpdate': {
       actions: ['setEditorBaselineFromSnapshot'],
+    },
+    'childDraftRefs.changed': {
+      actions: ['updateChildDraftRefs'],
     },
   },
   context: ({input}) => ({
@@ -615,6 +661,8 @@ export const documentMachine = setup({
     pendingRebase: null,
     pendingPathOverride: null,
     pendingPublish: false,
+    referencedChildDraftIds: [],
+    pendingDeletedChildDraftIds: [],
     error: null,
   }),
   initial: 'loading',
@@ -670,9 +718,15 @@ export const documentMachine = setup({
             actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
           },
         ],
-        'edit.discard': {
-          actions: ['clearDraftState'],
-        },
+        'edit.discard': [
+          {
+            target: 'discarding',
+            guard: 'hasDraftId',
+          },
+          {
+            actions: ['clearDraftState'],
+          },
+        ],
         'document.remoteUpdate': {
           target: 'loaded',
           actions: ['setDocumentData'],
@@ -748,10 +802,17 @@ export const documentMachine = setup({
           target: 'loaded',
           actions: [() => console.log('[DocMachine] edit.cancel received in editing → loaded'), 'clearEditingState'],
         },
-        'edit.discard': {
-          target: 'loaded',
-          actions: [() => console.log('[DocMachine] edit.discard received in editing → loaded'), 'clearDraftState'],
-        },
+        'edit.discard': [
+          {
+            target: 'discarding',
+            guard: 'hasDraftId',
+            actions: [() => console.log('[DocMachine] edit.discard received in editing → discarding')],
+          },
+          {
+            target: 'loaded',
+            actions: ['clearDraftState'],
+          },
+        ],
         'capability.changed': [
           {
             target: 'loaded',
@@ -1052,6 +1113,27 @@ export const documentMachine = setup({
       },
     },
 
+    discarding: {
+      invoke: {
+        id: 'discardDraft',
+        src: 'discardDraft',
+        input: ({context}) => ({
+          draftId: context.draftId!,
+          deletedChildDraftIds: context.pendingDeletedChildDraftIds,
+        }),
+        onDone: {
+          target: 'loaded',
+          actions: ['clearDraftState'],
+        },
+        onError: {
+          target: 'editing',
+          actions: ({event}: {event: any}) => {
+            console.error('Draft discard failed:', event.error)
+          },
+        },
+      },
+    },
+
     publishing: {
       initial: 'inProgress',
       entry: ['clearPendingPublish'],
@@ -1068,6 +1150,7 @@ export const documentMachine = setup({
               navigation: context.navigation,
               publishAccountUid: context.publishAccountUid,
               pathOverride: context.pendingPathOverride ?? undefined,
+              deletedChildDraftIds: context.pendingDeletedChildDraftIds,
             }),
             onDone: {
               target: 'cleaningUp',

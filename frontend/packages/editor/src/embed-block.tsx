@@ -251,19 +251,11 @@ function DraftEmbedPlaceholder({
             onClick={async (e) => {
               e.preventDefault()
               e.stopPropagation()
-              if (!draftActions?.onDeleteDraft) return
-              try {
-                await draftActions.onDeleteDraft(draftId)
-                // Also remove the embed block from the parent's content
-                editor.removeBlocks([blockId])
-              } catch (err) {
-                console.error('Failed to delete draft', err)
-              }
+              editor.removeBlocks([blockId])
             }}
-            disabled={!draftActions?.onDeleteDraft}
           >
             <Trash2 className="size-4" />
-            Delete draft
+            Remove card
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -36,6 +36,7 @@ function createTestActor(inputOverrides: Partial<DocumentMachineInput> = {}) {
         ...mockDocument,
         version: 'bafynew',
       })),
+      discardDraft: fromPromise<void, any>(async () => {}),
     },
     delays: {
       saveIndicatorDismiss: 50, // Fast dismiss for tests
@@ -129,7 +130,7 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('draftContent is cleared on discard', () => {
+  it('draftContent is cleared on discard', async () => {
     const actor = createTestActor()
     actor.start()
     actor.send({
@@ -141,11 +142,12 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftContent).not.toBeNull()
     actor.send({type: 'edit.discard'})
+    await new Promise((r) => setTimeout(r, 0))
     expect(actor.getSnapshot().context.draftContent).toBeNull()
     actor.stop()
   })
 
-  it('draftCursorPosition is stored on draft.resolved and cleared on discard', () => {
+  it('draftCursorPosition is stored on draft.resolved and cleared on discard', async () => {
     const actor = createTestActor()
     actor.start()
     actor.send({
@@ -157,6 +159,7 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'document.loaded', document: mockDocument})
     expect(actor.getSnapshot().context.draftCursorPosition).toBe(42)
     actor.send({type: 'edit.discard'})
+    await new Promise((r) => setTimeout(r, 0))
     expect(actor.getSnapshot().context.draftCursorPosition).toBeNull()
     actor.stop()
   })
@@ -204,6 +207,7 @@ describe('DocumentLifecycle machine', () => {
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {
         loadingTimeout: 50, // Short timeout for test
@@ -223,6 +227,7 @@ describe('DocumentLifecycle machine', () => {
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {
         loadingTimeout: 50,
@@ -248,6 +253,7 @@ describe('DocumentLifecycle machine', () => {
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {
         loadingTimeout: 200,
@@ -777,16 +783,84 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('edit.discard → loaded (clears draftId)', () => {
+  it('edit.discard → loaded (clears draftId)', async () => {
     const actor = createTestActor({existingDraftId: 'draft-to-discard'})
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
     // auto-transitions to editing because of existingDraftId
     expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.send({type: 'edit.discard'})
+    await new Promise((r) => setTimeout(r, 0))
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBeNull()
     expect(actor.getSnapshot().context.draftCreated).toBe(false)
+    actor.stop()
+  })
+
+  it('tracks removed child draft refs and restores them on undo', () => {
+    const actor = createTestActor({existingDraftId: 'parent-draft'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-a', 'child-b']})
+    expect(actor.getSnapshot().context.referencedChildDraftIds).toEqual(['child-a', 'child-b'])
+    expect(actor.getSnapshot().context.pendingDeletedChildDraftIds).toEqual([])
+
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-b']})
+    expect(actor.getSnapshot().context.pendingDeletedChildDraftIds).toEqual(['child-a'])
+
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-a', 'child-b']})
+    expect(actor.getSnapshot().context.pendingDeletedChildDraftIds).toEqual([])
+    actor.stop()
+  })
+
+  it('passes pending deleted child draft ids to publishDocument', async () => {
+    let publishInput: any = null
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'parent-draft'})),
+        publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+          publishInput = input
+          return {...mockDocument, version: 'published-with-cleanup'}
+        }),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'parent-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-a', 'child-b']})
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-b']})
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 0))
+    expect(publishInput.deletedChildDraftIds).toEqual(['child-a'])
+    actor.stop()
+  })
+
+  it('passes pending deleted child draft ids to discardDraft', async () => {
+    let discardInput: any = null
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'parent-draft'})),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async ({input}) => {
+          discardInput = input
+        }),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'parent-draft'},
+    })
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-a', 'child-b']})
+    actor.send({type: 'childDraftRefs.changed', draftIds: ['child-b']})
+    actor.send({type: 'edit.discard'})
+    await new Promise((r) => setTimeout(r, 0))
+    expect(discardInput).toEqual({draftId: 'parent-draft', deletedChildDraftIds: ['child-a']})
+    expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
   })
 
@@ -833,6 +907,7 @@ describe('DocumentLifecycle machine', () => {
           return {id: 'draft-456'}
         }),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {
         autosaveTimeout: 50,
@@ -958,6 +1033,7 @@ describe('DocumentLifecycle machine', () => {
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-new'})),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
     })
@@ -987,6 +1063,7 @@ describe('DocumentLifecycle machine', () => {
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-disc'})),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
     })
@@ -1002,6 +1079,7 @@ describe('DocumentLifecycle machine', () => {
     await new Promise((r) => setTimeout(r, 80))
     expect(actor.getSnapshot().context.draftId).toBe('draft-disc')
     actor.send({type: 'edit.discard'})
+    await new Promise((r) => setTimeout(r, 0))
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBeNull()
     actor.send({type: 'edit.start'})
@@ -1068,6 +1146,7 @@ describe('DocumentLifecycle machine', () => {
           return {id: 'draft-789'}
         }),
         publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
       },
       delays: {
         autosaveTimeout: 10,

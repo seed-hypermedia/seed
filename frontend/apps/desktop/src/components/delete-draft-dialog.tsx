@@ -10,7 +10,13 @@ export function useDeleteDraftDialog() {
   return useAppDialog(DeleteDraftDialog, {isAlert: true})
 }
 
-function DeleteDraftDialog({onClose, input}: {onClose: () => void; input: {draftId: string; onSuccess?: () => void}}) {
+function DeleteDraftDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {draftId: string; onSuccess?: () => void; onConfirm?: () => void | Promise<void>}
+}) {
   const deleteDraft = useDeleteDraft({
     onSettled: input.onSuccess,
   })
@@ -38,7 +44,11 @@ function DeleteDraftDialog({onClose, input}: {onClose: () => void; input: {draft
         <Button
           variant="ghost"
           onClick={() => {
-            deleteDraft.mutate(input.draftId)
+            if (input.onConfirm) {
+              void Promise.resolve(input.onConfirm()).then(input.onSuccess)
+            } else {
+              deleteDraft.mutate(input.draftId)
+            }
             onClose()
           }}
         >

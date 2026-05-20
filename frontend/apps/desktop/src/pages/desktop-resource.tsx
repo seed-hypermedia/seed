@@ -48,7 +48,13 @@ import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
-import {documentMachine, PublishInput, PushDocumentInput, WriteDraftInput} from '@shm/shared/models/document-machine'
+import {
+  DiscardDraftInput,
+  documentMachine,
+  PublishInput,
+  PushDocumentInput,
+  WriteDraftInput,
+} from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
@@ -67,6 +73,17 @@ import {Copy, FileInput, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
+
+async function deleteDraftsForCleanup(parentDraftId: string, childDraftIds: string[]) {
+  const ids = Array.from(new Set(childDraftIds.filter((id) => id && id !== parentDraftId)))
+  for (const id of ids) {
+    try {
+      await client.drafts.delete.mutate(id)
+    } catch (error) {
+      console.error('Failed to delete removed child draft:', id, error)
+    }
+  }
+}
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
@@ -369,8 +386,18 @@ export default function DesktopResourcePage() {
           }
         }
 
+        await deleteDraftsForCleanup(input.draftId, input.deletedChildDraftIds)
         await client.drafts.delete.mutate(input.draftId)
         return result
+      }),
+    [],
+  )
+
+  const discardDraftActor = useMemo(
+    () =>
+      fromPromise<void, DiscardDraftInput>(async ({input}) => {
+        await deleteDraftsForCleanup(input.draftId, input.deletedChildDraftIds)
+        await client.drafts.delete.mutate(input.draftId)
       }),
     [],
   )
@@ -400,10 +427,11 @@ export default function DesktopResourcePage() {
         actors: {
           writeDraft: writeDraftActor,
           publishDocument: publishDocumentActor,
+          discardDraft: discardDraftActor,
           pushDocument: pushDocumentActor,
         },
       }),
-    [writeDraftActor, publishDocumentActor, pushDocumentActor],
+    [writeDraftActor, publishDocumentActor, discardDraftActor, pushDocumentActor],
   )
 
   // Get site URL for publication actions

@@ -109,11 +109,11 @@ export const HighlightAnnotationSchema = z
   })
   .strict()
 
-const colorAnnotationProperties = {
+const exclusiveAnnotationProperties = {
   ...baseAnnotationProperties,
   attributes: z
     .object({
-      color: z.string(),
+      value: z.string(),
     })
     .optional(),
 } as const
@@ -121,14 +121,28 @@ const colorAnnotationProperties = {
 export const TextColorAnnotationSchema = z
   .object({
     type: z.literal('TextColor'),
-    ...colorAnnotationProperties,
+    ...exclusiveAnnotationProperties,
   })
   .strict()
 
 export const BackgroundColorAnnotationSchema = z
   .object({
     type: z.literal('BackgroundColor'),
-    ...colorAnnotationProperties,
+    ...exclusiveAnnotationProperties,
+  })
+  .strict()
+
+export const TextSizeAnnotationSchema = z
+  .object({
+    type: z.literal('TextSize'),
+    ...exclusiveAnnotationProperties,
+  })
+  .strict()
+
+export const TextFamilyAnnotationSchema = z
+  .object({
+    type: z.literal('TextFamily'),
+    ...exclusiveAnnotationProperties,
   })
   .strict()
 
@@ -143,6 +157,8 @@ export const HMAnnotationSchema = z.discriminatedUnion('type', [
   HighlightAnnotationSchema,
   TextColorAnnotationSchema,
   BackgroundColorAnnotationSchema,
+  TextSizeAnnotationSchema,
+  TextFamilyAnnotationSchema,
 ])
 export type HMAnnotation = z.infer<typeof HMAnnotationSchema>
 
@@ -155,6 +171,8 @@ export type LinkAnnotation = z.infer<typeof LinkAnnotationSchema>
 export type InlineEmbedAnnotation = z.infer<typeof InlineEmbedAnnotationSchema>
 export type TextColorAnnotation = z.infer<typeof TextColorAnnotationSchema>
 export type BackgroundColorAnnotation = z.infer<typeof BackgroundColorAnnotationSchema>
+export type TextSizeAnnotation = z.infer<typeof TextSizeAnnotationSchema>
+export type TextFamilyAnnotation = z.infer<typeof TextFamilyAnnotationSchema>
 
 export const HMAnnotationsSchema = z.array(HMAnnotationSchema).optional()
 export type HMAnnotations = z.infer<typeof HMAnnotationsSchema>
@@ -359,6 +377,14 @@ export type HMPublishableAnnotation =
       starts: number[]
       ends: number[]
       link: string
+    }
+  | {
+      type: 'TextColor' | 'BackgroundColor' | 'TextSize' | 'TextFamily'
+      starts: number[]
+      ends: number[]
+      attributes: {
+        value: string
+      }
     }
 
 export type HMPublishableBlockParagraph = {

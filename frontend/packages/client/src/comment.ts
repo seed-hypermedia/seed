@@ -12,6 +12,7 @@ import type {
 } from './hm-types'
 import {hmIdPathToEntityQueryPath, packHmId} from './hm-types'
 import {signObject, toPublishInput} from './signing'
+import {validateExclusiveAnnotations} from './unicode'
 
 // ─── Block trimming ─────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ type SignedComment = {
 }
 
 function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnnotation[] {
+  validateExclusiveAnnotations(annotations)
   return annotations.map((annotation) => {
     const {type, starts, ends} = annotation
     if (type === 'Bold') return {type: 'Bold', starts, ends}
@@ -107,6 +109,19 @@ function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnn
     if (type === 'Code') return {type: 'Code', starts, ends}
     if (type === 'Link') return {type: 'Link', starts, ends, link: annotation.link || ''}
     if (type === 'Embed') return {type: 'Embed', starts, ends, link: annotation.link || ''}
+    if (type === 'TextColor')
+      return {type: 'TextColor', starts, ends, attributes: {value: (annotation.attributes?.value as string) || ''}}
+    if (type === 'BackgroundColor')
+      return {
+        type: 'BackgroundColor',
+        starts,
+        ends,
+        attributes: {value: (annotation.attributes?.value as string) || ''},
+      }
+    if (type === 'TextSize')
+      return {type: 'TextSize', starts, ends, attributes: {value: (annotation.attributes?.value as string) || ''}}
+    if (type === 'TextFamily')
+      return {type: 'TextFamily', starts, ends, attributes: {value: (annotation.attributes?.value as string) || ''}}
     throw new Error(`Unsupported annotation type: ${type}`)
   })
 }
