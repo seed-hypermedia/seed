@@ -33,7 +33,7 @@ import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
-import {createWebDocumentMachine, discardWebDocDraft} from './document-edit/web-document-actors'
+import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {cleanupOldWebDocDrafts, deleteWebDocDraft, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 
@@ -233,9 +233,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         }),
       onDiscardConfirm: (draftId: string, send) => {
         if (window.confirm('Discard draft changes?')) {
-          discardWebDocDraft(draftId).then(() => {
-            send({type: 'edit.discard'})
-          })
+          send({type: 'edit.discard'})
         }
       },
       slugify: pathNameify,

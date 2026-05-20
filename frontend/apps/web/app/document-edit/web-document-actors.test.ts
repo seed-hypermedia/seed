@@ -156,6 +156,7 @@ const baseInput: PublishInput = {
   metadata: {},
   navigation: undefined,
   publishAccountUid: OWNER,
+  deletedChildDraftIds: [],
 }
 
 describe('publishWebDocument', () => {
@@ -216,6 +217,45 @@ describe('publishWebDocument', () => {
     expect(opCases).toContain('replaceBlock')
 
     expect(await getWebDocDraft(draftId)).toBeNull()
+  })
+
+
+
+  it('publish deletes removed child drafts after successful parent publish', async () => {
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+    await putWebDocDraft({
+      draftId: 'child-removed',
+      docId: 'hm://child-removed',
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: ['doc'],
+      editUid: OWNER,
+      editPath: ['doc', '-child-removed'],
+      cursorPosition: null,
+    })
+
+    const deps = makeDeps({})
+    await publishWebDocument({...baseInput, deletedChildDraftIds: ['child-removed']}, deps)
+
+    expect(await getWebDocDraft(draftId)).toBeNull()
+    expect(await getWebDocDraft('child-removed')).toBeNull()
   })
 
   it('private document publish keeps PrepareDocumentChange and Ref visibility private', async () => {

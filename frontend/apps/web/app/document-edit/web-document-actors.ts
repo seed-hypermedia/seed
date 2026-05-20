@@ -18,6 +18,7 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import type {HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   documentMachine,
+  type DiscardDraftInput,
   type EditorAccessor,
   type PublishInput,
   type PushDocumentInput,
@@ -66,6 +67,7 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
     actors: {
       writeDraft: makeWriteDraftActor(deps),
       publishDocument: makePublishDocumentActor(deps),
+      discardDraft: makeDiscardDraftActor(),
       pushDocument: fromPromise<void, PushDocumentInput>(async () => {
         // V1: no-op. Future: post to a web push endpoint.
       }),
@@ -108,6 +110,12 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
       console.error('[WebPublish] failed', err)
       throw err
     }
+  })
+}
+
+function makeDiscardDraftActor() {
+  return fromPromise<void, DiscardDraftInput>(async ({input}) => {
+    await discardWebDocDraft(input.draftId, input.deletedChildDraftIds)
   })
 }
 
@@ -211,7 +219,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     throw new Error('post-publish resource is not a document')
   }
 
-  await deleteWebDocDraft(input.draftId)
+  await cleanupWebDocDrafts(input.draftId, input.deletedChildDraftIds)
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
@@ -230,7 +238,16 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   return after.document
 }
 
+/** Delete a parent draft plus any removed child drafts. */
+async function cleanupWebDocDrafts(parentDraftId: string, childDraftIds: string[]): Promise<void> {
+  const ids = Array.from(new Set(childDraftIds.filter((id) => id && id !== parentDraftId)))
+  for (const id of ids) {
+    await deleteWebDocDraft(id)
+  }
+  await deleteWebDocDraft(parentDraftId)
+}
+
 /** Cleanup the IDB draft for a given draftId. Used by the toolbar's Discard button. */
-export async function discardWebDocDraft(draftId: string): Promise<void> {
-  await deleteWebDocDraft(draftId)
+export async function discardWebDocDraft(draftId: string, deletedChildDraftIds: string[] = []): Promise<void> {
+  await cleanupWebDocDrafts(draftId, deletedChildDraftIds)
 }
