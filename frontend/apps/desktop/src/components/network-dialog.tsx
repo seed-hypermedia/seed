@@ -1,4 +1,5 @@
 import {useDaemonInfo} from '@/models/daemon'
+import {grpcClient} from '@/grpc-client'
 import {ConnectionStatus} from '@shm/shared/client/grpc-types'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -65,7 +66,7 @@ function getProtocolMessage(peer: HMPeerInfo, myProtocol: string) {
 }
 
 const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInfo; myProtocol: string}) {
-  const {id, addrs, connectionStatus, protocol} = peer
+  const {id, connectionStatus, protocol} = peer
   // const isSite =
   //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
   // const label = isSite
@@ -146,9 +147,24 @@ const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInf
               key: 'copyAddress',
               icon: <Copy className="size-4" />,
               label: 'Copy Addresses',
-              onClick: () => {
-                copyTextToClipboard(addrs.join(','))
-                toast.success('Copied Peer Addresses')
+              // Fetch addresses on demand via the per-peer endpoint.
+              // The peers-list response no longer carries the multiaddr
+              // column to keep that poll cheap; GetPeerInfo reads from
+              // libp2p Peerstore and falls back to the peers DB row for
+              // gossip-only peers.
+              onClick: async () => {
+                try {
+                  const info = await grpcClient.networking.getPeerInfo({deviceId: id})
+                  if (info?.addrs?.length) {
+                    copyTextToClipboard(info.addrs.join(','))
+                    toast.success('Copied Peer Addresses')
+                  } else {
+                    toast.error('No addresses available for this peer')
+                  }
+                } catch (err) {
+                  toast.error('Failed to fetch peer addresses')
+                  console.error('Copy Addresses error:', err)
+                }
               },
             },
           ]}
