@@ -86,7 +86,6 @@ func initHTTP(
 		loopback.HandleNav("/debug/requests", http.DefaultServeMux)
 		loopback.HandleNav("/debug/events", http.DefaultServeMux)
 		loopback.HandleNav("/debug/buildinfo", buildInfoHandler())
-		loopback.HandleNav("/debug/version", gitVersionHandler())
 		loopback.HandleNav("/debug/traces", trcstats.Handler(eztrc.Handler()))
 		if telemetrySrv != nil {
 			loopback.HandleNav("/debug/journeys", journeys.Handler(telemetrySrv))
@@ -103,6 +102,7 @@ func initHTTP(
 		loopback.HandleFunc("/{$}", router.Index)
 
 		router.HandleNav("GET /hm/api/config", p2pnet.HMAPIConfigHandler())
+		router.HandleNav("GET /debug/version", gitVersionHandler())
 		router.HandleFunc("/vault-handoff", apiServer.HandleVaultHandoff)
 
 		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(_ string) bool {
@@ -286,12 +286,11 @@ func gitVersionHandler() http.Handler {
 		res.Branch = branch
 		res.Commit = commit
 		res.Date = date
+		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(res); err != nil {
 			http.Error(w, "Failed to marshal git version: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 	})
 }
 

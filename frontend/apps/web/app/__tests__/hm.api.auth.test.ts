@@ -14,7 +14,7 @@ vi.mock('@/client.server', () => ({
   },
 }))
 
-import {action} from './hm.api.auth'
+import {action} from '../routes/hm.api.auth'
 
 function makeAuthRequest() {
   return new Request('http://localhost/hm/api/auth', {

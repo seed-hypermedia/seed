@@ -265,8 +265,21 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	t.Run("cross-site browser request is rejected", func(t *testing.T) {
+	t.Run("public version endpoint allows cross-site browser requests", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		require.NoError(t, err)
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("cross-site browser request is rejected", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/buildinfo", nil)
 		require.NoError(t, err)
 		req.Header.Set("Sec-Fetch-Site", "cross-site")
 
@@ -279,7 +292,7 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 	})
 
 	t.Run("same-site browser request is rejected", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/buildinfo", nil)
 		require.NoError(t, err)
 		req.Header.Set("Sec-Fetch-Site", "same-site")
 
@@ -292,7 +305,7 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 	})
 
 	t.Run("same-origin browser request is allowed", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/buildinfo", nil)
 		require.NoError(t, err)
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 
@@ -305,7 +318,7 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 	})
 
 	t.Run("direct navigation is allowed", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/buildinfo", nil)
 		require.NoError(t, err)
 		req.Header.Set("Sec-Fetch-Site", "none")
 
@@ -318,7 +331,7 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 	})
 
 	t.Run("non-browser request is allowed", func(t *testing.T) {
-		resp, err := client.Get(baseURL + "/debug/version")
+		resp, err := client.Get(baseURL + "/debug/buildinfo")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		_, _ = io.Copy(io.Discard, resp.Body)

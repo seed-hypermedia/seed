@@ -34,8 +34,14 @@ async function getVersionInfo() {
 }
 
 async function getDaemonVersionInfo() {
-  const version = await fetch(`${DAEMON_HTTP_URL}/debug/version`)
-  return await version.json()
+  try {
+    const version = await fetch(`${DAEMON_HTTP_URL}/debug/version`)
+    if (!version.ok) return null
+    return await version.json()
+  } catch (e) {
+    console.error('Failed to fetch daemon version', e)
+    return null
+  }
 }
 
 let versionInfo: Awaited<ReturnType<typeof getVersionInfo>> | null = null
