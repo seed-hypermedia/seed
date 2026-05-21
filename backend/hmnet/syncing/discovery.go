@@ -605,21 +605,25 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 		}
 	}
 
-	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
-	// until we can't find any more.
+	// Find recursively all the agent capabilities for authors of the blobs
+	// we've currently selected. Convergence is detected via conn.Changes()
+	// after each INSERT — zero new rows means the closure is stable.
+	// Avoids the two SELECT count() probes per iteration of the previous
+	// design (which ran 4 INSERTs even when iter 1 already converged, since
+	// it needed an explicit equality check to break).
 	// Skip when the caller's type allowlist excludes Capability — without
 	// Capability the recursion would never insert anything.
 	if hasType(effectiveBlobTypeFilter(dkeys), "Capability") {
-		for {
-			blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-			if err != nil {
-				return err
-			}
-
-			if blobCountBefore == 0 {
-				break
-			}
-
+		// Probe once for the empty-seed case so we don't run a wasted
+		// INSERT (its IN-subquery would scan all Capability rows for nothing).
+		var hasAny bool
+		if err := sqlitex.Exec(conn, "SELECT 1 FROM rbsr_blobs LIMIT 1;", func(*sqlite.Stmt) error {
+			hasAny = true
+			return nil
+		}); err != nil {
+			return err
+		}
+		if hasAny {
 			const q = `
 				INSERT OR IGNORE INTO rbsr_blobs
 				SELECT id
@@ -632,17 +636,13 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 				)
 				AND sb.extra_attrs->>'role' = 'AGENT';`
 
-			if err := sqlitex.Exec(conn, q, nil); err != nil {
-				return err
-			}
-
-			blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-			if err != nil {
-				return err
-			}
-
-			if blobCountAfter == blobCountBefore {
-				break
+			for {
+				if err := sqlitex.Exec(conn, q, nil); err != nil {
+					return err
+				}
+				if conn.Changes() == 0 {
+					break
+				}
 			}
 		}
 	}
@@ -729,12 +729,17 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 	// Fill Changes based on Refs.
 	// The recursive CTE walks ref/head and change/dep links, all of which
 	// resolve to Change blobs — guard the whole block on Change being allowed.
+	// CROSS JOIN on the seed arm forces SQLite to drive from rbsr_blobs
+	// (small) and probe blob_links via its (source, type, target) PK; without
+	// it the planner scans the full blob_backlinks covering index (35-359×
+	// slower for typical seed sizes of 1-100 IRIs). Same pattern used at the
+	// result-iteration SELECT in loadRBSRStore above.
 	if hasType(typeFilter, "Change") {
 		const q = `WITH RECURSIVE
 				changes (id) AS (
-					SELECT target
-					FROM blob_links bl
-					JOIN rbsr_blobs rb ON rb.id = bl.source
+					SELECT bl.target
+					FROM rbsr_blobs rb
+					CROSS JOIN blob_links bl ON bl.source = rb.id
 						AND bl.type = 'ref/head'
 					UNION
 					SELECT target
