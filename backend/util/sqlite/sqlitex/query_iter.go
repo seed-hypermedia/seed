@@ -15,6 +15,8 @@ import (
 // See the comments on [erriter.Seq] for more info on how to use it.
 func Query(conn *sqlite.Conn, query string, args ...any) erriter.Seq[*sqlite.Stmt] {
 	return erriter.Make(func(yield func(stmt *sqlite.Stmt) bool) (err error) {
+		done := captureExecStart(conn, query, args)
+		defer done()
 		stmt, err := conn.Prepare(query)
 		if err != nil {
 			return err
