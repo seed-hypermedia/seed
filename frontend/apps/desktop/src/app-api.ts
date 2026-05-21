@@ -19,6 +19,7 @@ import {chatApi} from './app-chat'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
+import {eventsApi} from './app-events'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
 import {notificationConfigApi} from './app-notification-config'
@@ -225,6 +226,7 @@ export const router = t.router({
   aiConfig: aiConfigApi,
   chat: chatApi,
   drafts: draftsApi,
+  events: eventsApi,
   experiments: experimentsApi,
   diagnosis: diagnosisApi,
   welcoming: welcomingApi,

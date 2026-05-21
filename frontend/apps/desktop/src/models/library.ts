@@ -13,8 +13,11 @@ import {
 import {BIG_INT} from '@shm/shared/constants'
 import {documentMetadataParseAdjustments, prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {queryClient} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {onEvent, Topics} from '@shm/reactive'
 import {useQuery} from '@tanstack/react-query'
+import {useEffect} from 'react'
 import {useBookmarks} from './bookmarks'
 import {useComments} from './comments'
 import {useContactList} from './contacts'
@@ -225,6 +228,12 @@ export function useSubscribedDocuments() {
       return res.documents.map((docInfo) => prepareHMDocumentInfo(docInfo))
     },
   })
+
+  useEffect(() => {
+    return onEvent(Topics.LIBRARY, () => {
+      queryClient.invalidateQueries({queryKey: [queryKeys.LIBRARY]})
+    })
+  }, [])
 
   // Fetch comments for document-level activity
   const commentIds = (allDocuments.data || [])

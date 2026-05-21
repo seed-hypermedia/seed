@@ -24,6 +24,8 @@
       "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
       "@shm/shared": ["../../packages/shared/src/index.ts"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@shm/reactive": ["../../packages/reactive/src/index.ts"],
+      "@shm/reactive/*": ["../../packages/reactive/src/*"],
       "@shm/editor/*": ["../../packages/editor/src/*"]
     }
   },

@@ -27,6 +27,7 @@ import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
+import {broadcastReactiveEvent} from './app-events'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
 import {appInvalidateQueries, getInvalidationTargetWindowCount} from './app-invalidation'
 import {t} from './app-trpc'
@@ -705,7 +706,7 @@ export async function discoverDocument(
     },
     {
       maxRetryMs: DISCOVERY_POLL_INTERVAL_MS,
-      retryDelayMs: 2_000,
+      retryDelayMs: 250,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
         return error instanceof HMRedirectError || error instanceof HMResourceTombstoneError
@@ -744,6 +745,13 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
         entityId: id.id,
         recursive: getEffectiveRecursive(),
         progress,
+      })
+
+      // Reactive bus: notify renderers a discovery tick happened for this entity.
+      // Renderers can subscribe to DISCOVERY:<id> on the reactive bus and update UI without polling.
+      broadcastReactiveEvent({
+        topic: `DISCOVERY:${id.id}`,
+        hint: progress,
       })
     })
   } catch (e) {

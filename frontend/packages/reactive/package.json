@@ -1,0 +1,39 @@
+{
+  "name": "@shm/reactive",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "bun": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest --run",
+    "test:w": "vitest",
+    "typecheck": "tsc --noEmit --project tsconfig.app.json",
+    "build:types": "tsc -p tsconfig.types.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/react": "18.3.5",
+    "typescript": "5.8.3",
+    "vitest": "0.34.2"
+  },
+  "dependencies": {
+    "@shm/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0 <20"
+  }
+}

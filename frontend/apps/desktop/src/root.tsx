@@ -11,6 +11,7 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
+import {dispatch as dispatchReactiveEvent} from '@shm/reactive'
 import {onlineManager, QueryClientProvider, QueryKey} from '@tanstack/react-query'
 import React, {Suspense, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
@@ -18,6 +19,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DebugDialogs} from './components/debug-dialogs'
+import {ReactiveEventOverlay} from './components/reactive-event-overlay'
 import {Onboarding, OnboardingDebugBox, OnboardingDialog, ResetOnboardingButton} from './components/onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
@@ -26,6 +28,7 @@ import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
 import './tailwind.css'
+import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
 import {ReadOnlyViewer} from '@shm/editor/readonly-viewer'
@@ -265,6 +268,25 @@ function MainApp({}: {}) {
     setShowOnboarding(false)
   }
   useEffect(() => {
+    if (!IS_PROD_DESKTOP) {
+      ;(window as unknown as {__shm_reactive_dispatch?: typeof dispatchReactiveEvent}).__shm_reactive_dispatch =
+        dispatchReactiveEvent
+    }
+    const sub = client.events.watch.subscribe(undefined, {
+      onData: (event: {topic: string; hint?: unknown}) => {
+        if (!event?.topic) return
+        dispatchReactiveEvent(event)
+      },
+      onError: (err: unknown) => {
+        console.log('[ReactiveEvents] subscription error', err)
+      },
+    })
+    return () => {
+      sub.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
     let unsubscribe: (() => void) | undefined
     let disposed = false
     ipc
@@ -297,6 +319,7 @@ function MainApp({}: {}) {
       {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
       {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
       {!IS_PROD_DESKTOP && false && <DebugDialogs />}
+      {!IS_PROD_DESKTOP && <ReactiveEventOverlay />}
     </>
   )
 
