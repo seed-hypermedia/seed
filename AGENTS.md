@@ -28,6 +28,8 @@
 
 ## Workflow
 
+- For cross-subsystem work, read `docs/README.md`, `docs/code-map.md`, and the relevant glossary or architecture doc
+  before planning or making changes.
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
