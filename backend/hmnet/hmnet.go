@@ -444,15 +444,19 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
-	// Startup prune was removed after a regression where it deleted ~1,240 peer
-	// records on first deploy — the `updated_at` always-bump fix shipped in the
-	// same release, so rows still carried stale timestamps from before the fix
-	// and were wrongly judged inactive. Freshness filters on peer-exchange
-	// ingress/egress are enough to keep stale data from propagating; the table
-	// will also shrink naturally over time since rows are updated in place
-	// rather than duplicated. We can revisit an explicit prune once the network
-	// has cycled through at least one full freshness window (30 days) of
-	// updated_at-bumping traffic.
+	// One-shot peers-table hygiene at startup. Two passes in a single
+	// transaction: rewrite every row's addresses through the routable filter
+	// (drops LAN-private/loopback multiaddrs ingested before the filter
+	// landed), then prune gossip-ingested rows whose updated_at is older than
+	// the 30-day freshness window. The prune was disabled earlier pending
+	// one full window of updated_at-bump correctness — that window has now
+	// cycled. Best-effort: log and continue if it fails. See connect.go for
+	// the implementation and the explicitly_connected=0 guard that protects
+	// bootstrap / direct contact peers.
+	const peerPruneFloor = 200
+	if err := n.peerStartupCleanup(ctx, peerPruneFloor); err != nil {
+		n.log.Warn("PeerStartupCleanupFailed", zap.Error(err))
+	}
 
 	if err := n.startLibp2p(ctx); err != nil {
 		return err

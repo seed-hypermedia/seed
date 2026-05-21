@@ -154,10 +154,10 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	// Refresh the peer info after we've connected and identified each other.
 	info = n.p2p.Peerstore().PeerInfo(info.ID)
 
-	addrsStr := AddrInfoToStrings(info)
+	addrsStr := n.filterAddrs(AddrInfoToStrings(info))
 	if len(addrsStr) == 0 {
 		n.p2p.ConnManager().Unprotect(info.ID, ProtocolSupportKey)
-		return fmt.Errorf("Peer with no addresses")
+		return fmt.Errorf("Peer with no routable addresses")
 	}
 	sort.Strings(addrsStr)
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
@@ -443,6 +443,12 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 			if n.cfg.IsBootstrap(pid) {
 				continue
 			}
+			// Strip non-routable addresses (LAN-private, loopback, link-local,
+			// ULA) before persisting. libp2p identify announces every bound
+			// NIC; peers downstream can't reach any of them and storing them
+			// just bloats the column and our future peer-exchange responses.
+			// Gated on AllowPrivateIPs so single-host e2e tests still work.
+			p.Addrs = n.filterAddrs(p.Addrs)
 			if len(p.Addrs) == 0 {
 				continue
 			}
@@ -585,6 +591,10 @@ func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerId
 	for _, addrs := range event.ListenAddrs {
 		addrsString = append(addrsString, strings.ReplaceAll(addrs.String(), "/p2p/"+event.Peer.String(), "")+"/p2p/"+event.Peer.String())
 	}
+	// Drop non-routable advertised addrs (LAN-private, loopback, etc.) before
+	// they enter the column. libp2p identify announces every bound NIC.
+	// Gated on AllowPrivateIPs so single-host e2e tests still work.
+	addrsString = n.filterAddrs(addrsString)
 	sort.Strings(addrsString)
 	incomingAddrs := strings.ReplaceAll(strings.Join(addrsString, ","), " ", "")
 
@@ -650,3 +660,111 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 }
 
 var errDialSelf = errors.New("can't dial self")
+
+// filterAddrs strips non-routable multiaddrs from the given list unless the
+// daemon is configured to allow private IPs (tests, single-host dev setups).
+// All callsites that build the peers.addresses column should funnel through
+// this so test fixtures with only loopback / LAN addresses still work.
+func (n *Node) filterAddrs(addrs []string) []string {
+	if n.ArePrivateIPsAllowed() {
+		return addrs
+	}
+	return netutil.FilterRoutableMultiaddrs(addrs)
+}
+
+// peerStartupCleanup runs the one-shot data-hygiene pass on the peers table
+// at daemon start. Two steps in a single transaction:
+//
+//  1. Rewrite every row's `addresses` column through the routable filter so
+//     existing rows shed any non-routable multiaddrs ingested before that
+//     filter was introduced. Rows that become empty after filtering are
+//     deleted. Skipped entirely when AllowPrivateIPs is on (tests).
+//  2. Delete rows with `explicitly_connected=0 AND updated_at < now - 30d`.
+//     This is the prune that was disabled at hmnet.go pending one full
+//     PeerFreshnessWindow of `updated_at`-bump correctness — that window
+//     has now cycled, so stale timestamps reliably mean "we haven't heard
+//     from this peer in 30 days" rather than "ingested before the fix
+//     shipped". `explicitly_connected=0` protects bootstrap / direct
+//     contact peers from prune regardless of freshness.
+//
+// Guarded with a row-count floor so a near-empty fresh deploy can't
+// accidentally prune itself to zero.
+//
+// Logs an info line for each step describing the work done; errors are
+// returned to the caller, which logs but does NOT fail startup on them —
+// peers-table hygiene is best-effort.
+func (n *Node) peerStartupCleanup(ctx context.Context, floor int64) error {
+	filterAddrs := !n.ArePrivateIPsAllowed()
+	log := n.log
+	return n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		// Step 1: filter existing addresses in-place (skipped when private
+		// IPs are allowed — single-host test fixtures need their loopback
+		// addresses preserved).
+		if filterAddrs {
+			type updateJob struct {
+				id    int64
+				addrs string // empty => delete the row
+			}
+			var jobs []updateJob
+			if err := sqlitex.Exec(conn, "SELECT id, addresses FROM peers;", func(stmt *sqlite.Stmt) error {
+				id := stmt.ColumnInt64(0)
+				raw := stmt.ColumnText(1)
+				filtered := netutil.FilterRoutableMultiaddrs(strings.Split(raw, ","))
+				cleaned := strings.Join(filtered, ",")
+				if cleaned != raw {
+					jobs = append(jobs, updateJob{id: id, addrs: cleaned})
+				}
+				return nil
+			}); err != nil {
+				return fmt.Errorf("peerStartupCleanup: scan peers: %w", err)
+			}
+			var rewritten, deletedAllPriv int
+			for _, j := range jobs {
+				if j.addrs == "" {
+					if err := sqlitex.Exec(conn, "DELETE FROM peers WHERE id = ?;", nil, j.id); err != nil {
+						return fmt.Errorf("peerStartupCleanup: delete all-private peer id=%d: %w", j.id, err)
+					}
+					deletedAllPriv++
+				} else {
+					if err := sqlitex.Exec(conn, "UPDATE peers SET addresses = ? WHERE id = ?;", nil, j.addrs, j.id); err != nil {
+						return fmt.Errorf("peerStartupCleanup: rewrite peer id=%d: %w", j.id, err)
+					}
+					rewritten++
+				}
+			}
+			log.Info("PeerAddressCleanup",
+				zap.Int("rewritten", rewritten),
+				zap.Int("deleted_all_private", deletedAllPriv))
+		} else {
+			log.Info("PeerAddressCleanupSkipped", zap.String("reason", "AllowPrivateIPs is true"))
+		}
+
+		// Step 2: prune stale gossip-ingested peers.
+		var total int64
+		if err := sqlitex.Exec(conn, "SELECT count(*) FROM peers;", func(s *sqlite.Stmt) error {
+			total = s.ColumnInt64(0)
+			return nil
+		}); err != nil {
+			return fmt.Errorf("peerStartupCleanup: count peers: %w", err)
+		}
+		if total < floor {
+			log.Info("PeerPruneSkipped",
+				zap.Int64("total", total),
+				zap.Int64("floor", floor))
+			return nil
+		}
+		if err := sqlitex.Exec(conn,
+			"DELETE FROM peers "+
+				"WHERE explicitly_connected = 0 "+
+				"AND updated_at < (strftime('%s','now') - 30*86400);",
+			nil); err != nil {
+			return fmt.Errorf("peerStartupCleanup: prune stale: %w", err)
+		}
+		deleted := int64(conn.Changes())
+		log.Info("PeerPruneCompleted",
+			zap.Int64("before", total),
+			zap.Int64("deleted", deleted),
+			zap.Int64("after", total-deleted))
+		return nil
+	})
+}
