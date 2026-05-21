@@ -185,8 +185,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             }
           : null
 
+        const isSingleUrlText = !/\s/.test(textContent)
         const unpackedHmId =
-          isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl)
+          isSingleUrlText && (isHypermediaScheme(textContent) || isPublicGatewayLink(textContent, options.gwUrl))
             ? unpackHmId(textContent)
             : null
 

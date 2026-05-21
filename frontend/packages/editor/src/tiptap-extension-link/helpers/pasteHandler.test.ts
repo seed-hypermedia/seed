@@ -113,6 +113,27 @@ describe('pasteHandler', () => {
     expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe(url)
   })
 
+  it('does not treat multiple pasted hm:// URLs as one document link', async () => {
+    const text = 'hm://abc/avatar-options\nhm://abc/autoplay-videos'
+    const view = createPasteView()
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: {
+        request: async () => {
+          throw new Error('multiple URLs should not resolve through the single-link paste flow')
+        },
+      } as any,
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(text)), 0, 0))
+
+    expect(handled).toBe(false)
+    expect(view.state.doc.textContent).toBe('')
+  })
+
   it('uses the universal client to insert a pasted hm:// comment URL as a titled link', async () => {
     const url = 'hm://commenter/comment-id'
     const view = createPasteView()

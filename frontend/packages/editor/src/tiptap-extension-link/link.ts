@@ -51,6 +51,46 @@ export interface LinkOptions {
   handleModifiedClicks?: boolean
 }
 
+/** Returns the canonical raw href stored on a rendered link element. */
+export function getLinkAttrsFromElement(element: HTMLElement): false | Record<string, string> {
+  if (element.hasAttribute('data-inline-embed')) return false
+
+  const href = element.getAttribute('data-hm-link') || element.getAttribute('href')
+  if (!href) return false
+
+  const attrs: Record<string, string> = {
+    href,
+  }
+
+  const target = element.getAttribute('target')
+  if (target) attrs.target = target
+
+  const className = element.getAttribute('class')
+  if (className) attrs.class = className
+
+  const id = element.getAttribute('id')
+  if (id) attrs.id = id
+
+  return attrs
+}
+
+/** Builds DOM attributes for a rendered link while preserving the canonical raw href. */
+export function buildRenderedLinkAttributes(
+  htmlAttributes: Record<string, any>,
+  renderHref?: (url: string) => string,
+): Record<string, any> {
+  const attrs = {...htmlAttributes}
+  const rawHref = typeof attrs.href === 'string' ? attrs.href : null
+  const renderedHref = rawHref ? renderHref?.(rawHref) ?? rawHref : attrs.href
+
+  return {
+    ...attrs,
+    ...(rawHref ? {'data-hm-link': rawHref} : {}),
+    href: renderedHref,
+    class: `${attrs.class} text-link hover:text-link-hover`,
+  }
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     link: {
@@ -132,22 +172,22 @@ export const Link = Mark.create<LinkOptions>({
   },
 
   parseHTML() {
-    return [{tag: 'a[href]:not([href *= "javascript:" i])'}, {tag: 'span.link'}]
+    const getAttrs = (dom: string | HTMLElement) => {
+      if (!(dom instanceof HTMLElement)) return false
+      return getLinkAttrsFromElement(dom)
+    }
+
+    return [
+      {tag: 'a[data-hm-link]:not([data-inline-embed]):not([href *= "javascript:" i])', getAttrs},
+      {tag: 'a[href]:not([data-inline-embed]):not([href *= "javascript:" i])', getAttrs},
+      {tag: 'span.link:not([data-inline-embed])', getAttrs},
+    ]
   },
 
   renderHTML({HTMLAttributes}) {
     const attrs = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)
     const tag = this.options.openOnClick ? 'a' : 'span'
-    const href = typeof attrs.href === 'string' ? this.options.renderHref?.(attrs.href) : attrs.href
-    return [
-      tag,
-      {
-        ...attrs,
-        href,
-        class: `${attrs.class} text-link hover:text-link-hover`,
-      },
-      0,
-    ]
+    return [tag, buildRenderedLinkAttributes(attrs, this.options.renderHref), 0]
   },
 
   addCommands() {

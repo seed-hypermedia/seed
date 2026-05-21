@@ -66,6 +66,13 @@ export const EmbedBlock = createReactBlockSpec({
         return Fragment.empty
       },
     },
+    {
+      tag: 'a[data-content-type=embed]',
+      priority: 1001,
+      getContent: (_node, _schema) => {
+        return Fragment.empty
+      },
+    },
   ],
 })
 

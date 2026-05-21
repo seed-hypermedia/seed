@@ -174,15 +174,19 @@ function renderBlockContent(
 
     case 'Embed': {
       const link = block.link || ''
+      const view = block.attributes?.view || 'Content'
+      const dataUrlAttr = link ? ` data-url="${esc(link)}"` : ''
+      const dataViewAttr = ` data-view="${esc(view)}"`
       const embedData = link ? embeds[link] : undefined
       if (embedData?.title) {
-        return `<div class="blockContent" data-content-type="embed">${renderEmbedCard(
+        return `<div class="blockContent" data-content-type="embed"${dataUrlAttr}${dataViewAttr}>${renderEmbedCard(
           embedData,
           link,
+          view,
           renderHref,
         )}</div>`
       }
-      return `<div class="blockContent" data-content-type="embed"><div class="ssr-embed-block"></div></div>`
+      return `<div class="blockContent" data-content-type="embed"${dataUrlAttr}${dataViewAttr}><div class="ssr-embed-block"></div></div>`
     }
 
     case 'WebEmbed':
@@ -283,6 +287,7 @@ function renderAnnotatedText(
 
       let html = content
       let linkHref: string | null = null
+      let embedHref: string | null = null
       let isInlineEmbed = false
 
       for (const ann of span.annotations) {
@@ -307,6 +312,7 @@ function renderAnnotatedText(
             break
           case 'Embed':
             isInlineEmbed = true
+            embedHref = (ann as any).link || ''
             break
           case 'Range':
             break
@@ -341,12 +347,20 @@ function renderAnnotatedText(
         }
       }
 
-      if (linkHref != null) {
-        html = `<a class="link" href="${esc(resolveHref(linkHref, renderHref))}">${html}</a>`
+      const rawHref = embedHref ?? linkHref
+      if (rawHref != null) {
+        const inlineEmbedAttr = isInlineEmbed ? ` data-inline-embed="${esc(embedHref || rawHref)}"` : ''
+        const inlineEmbedClass = isInlineEmbed ? ' inline-embed' : ''
+        html = `<a class="link${inlineEmbedClass}" href="${esc(resolveHref(rawHref, renderHref))}" data-hm-link="${esc(
+          rawHref,
+        )}"${inlineEmbedAttr}>${html}</a>`
+
+        return html
       }
 
       if (isInlineEmbed) {
-        html = `<span class="inline-embed">${html}</span>`
+        const inlineEmbedAttr = embedHref ? ` data-inline-embed="${esc(embedHref)}"` : ''
+        html = `<span class="inline-embed"${inlineEmbedAttr}>${html}</span>`
       }
 
       return html
@@ -354,7 +368,12 @@ function renderAnnotatedText(
     .join('')
 }
 
-function renderEmbedCard(data: SSREmbedData, link: string, renderHref: SSRRenderOpts['renderHref']): string {
+function renderEmbedCard(
+  data: SSREmbedData,
+  link: string,
+  view: string,
+  renderHref: SSRRenderOpts['renderHref'],
+): string {
   const title = esc(data.title || '')
   const summary = esc(data.summary || '')
   const href = link ? esc(resolveHref(link, renderHref)) : ''
@@ -364,7 +383,9 @@ function renderEmbedCard(data: SSREmbedData, link: string, renderHref: SSRRender
     : ''
 
   return (
-    `<a class="ssr-card" ${href ? `href="${href}"` : ''}>` +
+    `<a class="ssr-card" data-content-type="embed" data-url="${esc(link)}" data-view="${esc(view)}" ${
+      href ? `href="${href}"` : ''
+    }>` +
     imageHtml +
     `<div class="ssr-card-content">` +
     `<div class="ssr-card-title">${title}</div>` +
