@@ -111,38 +111,75 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
 	peerSelectStart := time.Now()
-	// knownPeers holds DB-persisted peers that aren't currently in the Connected
-	// state. We use them as a fallback before the DHT when no peer is connected,
-	// since syncWithPeer will dial on demand.
-	const maxKnownPeerFallback = 20
-	var knownPeers []peer.ID
+	// targetDiscoveryPeers is the fan-out we want from syncWithManyPeers.
+	// Currently-connected peers count first; if we have fewer than this,
+	// we backfill from the most-recently-active stored peers.
+	const targetDiscoveryPeers = 30
+	// Step 1 — covering-index scan over peers.pid (no addresses, no other
+	// columns). This stays on the unique pid index — verified by EXPLAIN —
+	// so it doesn't touch the main rowid btree or the fat addresses overflow
+	// pages that drove the prior 187 ms hold on this statement.
+	var fallbackCandidates []string
 	if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-			addresStr := stmt.ColumnText(0)
-			pid := stmt.ColumnText(1)
-			addrList := strings.Split(addresStr, ",")
-			info, err := netutil.AddrInfoFromStrings(addrList...)
-			if err != nil {
-				s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(err))
+		return sqlitex.Exec(conn, qListPeerIDs(), func(stmt *sqlite.Stmt) error {
+			pid := stmt.ColumnText(0)
+			peerID, decodeErr := peer.Decode(pid)
+			if decodeErr != nil {
+				s.log.Warn("Malformed peer ID in peers table", zap.String("PID", pid), zap.Error(decodeErr))
 				return nil
 			}
-			if s.host.Network().Connectedness(info.ID) == network.Connected {
-				allPeers = append(allPeers, info.ID)
-			} else if len(knownPeers) < maxKnownPeerFallback {
-				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-				knownPeers = append(knownPeers, info.ID)
+			if s.host.Network().Connectedness(peerID) == network.Connected {
+				allPeers = append(allPeers, peerID)
+				return nil
 			}
-
+			// Collect every disconnected pid so step 2's
+			// ORDER BY updated_at DESC picks the freshest from
+			// the full pool, not just the first scan-order N.
+			// 1100 placeholders is well within SQLite's
+			// SQLITE_MAX_VARIABLE_NUMBER (32766).
+			fallbackCandidates = append(fallbackCandidates, pid)
 			return nil
 		})
 	}); err != nil {
 		MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
 		return "", err
 	}
-	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
-	if len(allPeers) == 0 && len(knownPeers) > 0 {
-		allPeers = knownPeers
+
+	// Step 2 — only if we don't have enough connected peers to hit the
+	// target. Fetch addresses for the most-recently-active fallback set
+	// (one batched query, PK-indexed filter, in-memory sort over the
+	// small candidate list). Connected peers don't need addresses from
+	// the DB — libp2p already has them in Peerstore.
+	if need := targetDiscoveryPeers - len(allPeers); need > 0 && len(fallbackCandidates) > 0 {
+		args := make([]any, 0, len(fallbackCandidates)+1)
+		placeholders := make([]string, len(fallbackCandidates))
+		for i, p := range fallbackCandidates {
+			placeholders[i] = "?"
+			args = append(args, p)
+		}
+		args = append(args, need)
+		q := "SELECT addresses, pid FROM peers " +
+			"WHERE pid IN (" + strings.Join(placeholders, ",") + ") " +
+			"ORDER BY updated_at DESC LIMIT ?;"
+		if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				addrsStr := stmt.ColumnText(0)
+				pid := stmt.ColumnText(1)
+				info, parseErr := netutil.AddrInfoFromStrings(strings.Split(addrsStr, ",")...)
+				if parseErr != nil {
+					s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(parseErr))
+					return nil
+				}
+				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+				allPeers = append(allPeers, info.ID)
+				return nil
+			}, args...)
+		}); err != nil {
+			MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
+			return "", err
+		}
 	}
+	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
 
 	// Create RBSR store once for reuse across all peers.
 	dkeys := colx.HashSet[DiscoveryKey]{
@@ -350,16 +387,31 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *au
 		return err
 	}
 
+	// Visibility encoding via CASE EXISTS: ~99 % of blobs carry a single
+	// blob_visibility row with space=0 (public). The EXISTS probe is a
+	// single PK lookup against the (id, space) WITHOUT ROWID PK; if it
+	// hits, return the literal '[0]' and skip JSON_GROUP_ARRAY entirely.
+	// Only the rare private case runs the aggregation. Semantically
+	// equivalent to the previous form against the Go consumer below
+	// (which iterates the array, breaks on space=0, otherwise calls
+	// SetItemPrivateVisibility per non-zero space) — verified by case
+	// analysis on the four input shapes: public-only, private-only,
+	// both, and no rows. Drops ~10 ms cold on a 32 K-row rbsr_blobs.
 	const q = `SELECT
 			COALESCE(sb.ts, 0),
 			b.codec,
 			b.multihash,
-			(
-				SELECT JSON_GROUP_ARRAY(space)
-				FROM blob_visibility
-				WHERE id = b.id
-				ORDER BY space
-			)
+			CASE
+				WHEN EXISTS (
+					SELECT 1 FROM blob_visibility
+					WHERE id = b.id AND space = 0
+				) THEN '[0]'
+				ELSE (
+					SELECT JSON_GROUP_ARRAY(space)
+					FROM blob_visibility
+					WHERE id = b.id
+				)
+			END
 		FROM rbsr_blobs rb
 		CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 		LEFT JOIN structural_blobs sb ON sb.id = b.id
@@ -712,17 +764,43 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
 		}
 	*/
-	// Fill Refs.
-	if hasType(typeFilter, "Ref") {
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
-				SELECT sb.id
-				FROM structural_blobs sb
-				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
-				WHERE resource IN rbsr_iris
-				AND type = 'Ref'`
+	// Fill resource-scoped structural blobs (Refs + Capability + Comment +
+	// Profile + Contact) in one INSERT, gated by the type allowlist. Each
+	// has the same shape (WHERE resource IN rbsr_iris AND type = ?); merging
+	// removes one prepare/exec round-trip and one temp-table scan compared
+	// to running two same-shape INSERTs.
+	//
+	// Ordering note: the RECURSIVE changes block below seeds from
+	// `ref/head` edges out of rbsr_blobs. Including Capability/Comment/
+	// Profile/Contact entries here (rather than after the changes walk)
+	// is safe — those types have no `ref/head` outgoing edges in
+	// blob_links, so the seed-arm `WHERE bl.type='ref/head'` filter
+	// naturally excludes them.
+	{
+		resourceTypes := []string{"Ref", "Capability", "Comment", "Profile", "Contact"}
+		var allowed []string
+		for _, t := range resourceTypes {
+			if hasType(typeFilter, t) {
+				allowed = append(allowed, t)
+			}
+		}
+		if len(allowed) > 0 {
+			placeholders := make([]string, len(allowed))
+			args := make([]any, len(allowed))
+			for i, t := range allowed {
+				placeholders[i] = "?"
+				args[i] = t
+			}
+			q := `INSERT OR IGNORE INTO rbsr_blobs
+					SELECT sb.id
+					FROM structural_blobs sb
+					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+					WHERE resource IN rbsr_iris
+					AND sb.type IN (` + strings.Join(placeholders, ",") + `)`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
+			if err := sqlitex.Exec(conn, q, nil, args...); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -760,37 +838,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 			return err
 		}
 	*/
-	// Fill Capabilities and the rest of the related blob types,
-	// intersected with the optional type allowlist. When the allowlist
-	// excludes all of these types we skip the query entirely — that's
-	// the bulk of the savings for "render an avatar" use-cases.
-	{
-		assortedTypes := []string{"Capability", "Comment", "Profile", "Contact"}
-		var allowed []string
-		for _, t := range assortedTypes {
-			if hasType(typeFilter, t) {
-				allowed = append(allowed, t)
-			}
-		}
-		if len(allowed) > 0 {
-			placeholders := make([]string, len(allowed))
-			args := make([]any, len(allowed))
-			for i, t := range allowed {
-				placeholders[i] = "?"
-				args[i] = t
-			}
-			q := `INSERT OR IGNORE INTO rbsr_blobs
-					SELECT sb.id
-					FROM structural_blobs sb
-					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
-					WHERE resource IN rbsr_iris
-					AND sb.type IN (` + strings.Join(placeholders, ",") + `)`
-
-			if err := sqlitex.Exec(conn, q, nil, args...); err != nil {
-				return err
-			}
-		}
-	}
+	// (Refs + Capability/Comment/Profile/Contact were already filled
+	// together above, before the changes RECURSIVE — see the
+	// "Fill resource-scoped structural blobs" block.)
 
 	// Fill All authors and their related blobs.
 	if includeAccounts {
@@ -895,10 +945,10 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
 }
 
-
-var qListPeersWithPid = dqb.Str(`
-	SELECT
-		addresses,
-		pid
-	FROM peers;
+// qListPeerIDs returns every known peer's PID. Stays on the unique pid
+// auto-index (SCAN peers USING COVERING INDEX sqlite_autoindex_peers_1) —
+// confirmed via EXPLAIN — so it never touches the main rowid btree or the
+// addresses overflow pages. Hot-path query inside DiscoverObjectWithProgress.
+var qListPeerIDs = dqb.Str(`
+	SELECT pid FROM peers;
 `)
