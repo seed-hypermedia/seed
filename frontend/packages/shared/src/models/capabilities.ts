@@ -62,6 +62,7 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+      invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...(id.path || [])])
     },
   })
 }

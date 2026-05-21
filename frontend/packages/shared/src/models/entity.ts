@@ -3,7 +3,6 @@ import {Code, ConnectError} from '@connectrpc/connect'
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {
   HMAccountsMetadata,
-  HMCapability,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
@@ -17,7 +16,6 @@ import {
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
-  HMSiteMember,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
@@ -29,7 +27,6 @@ import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {createWebHMUrl, entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
-import {useContactListOfSubject} from './contacts'
 import {
   queryAccount,
   queryCapabilities,
@@ -37,6 +34,7 @@ import {
   queryCitations,
   queryComments,
   queryDirectory,
+  queryDocumentCollaborators,
   queryDomain,
   queryResource,
 } from './queries'
@@ -234,18 +232,36 @@ export function useAccount(
   const client = useUniversalClient()
   const {subscribe, ...queryOptions} = options ?? {}
 
-  // Profile-scoped discovery subscription (desktop only)
-  useEffect(() => {
-    if (!subscribe || !id || !client.subscribeEntity) return
-    const accountId = hmId(id)
-    const cleanup = client.subscribeEntity({id: accountId, scope: 'profile'})
-    return () => cleanup()
-  }, [subscribe, id, client.subscribeEntity])
+  useAccountSubscriptions(subscribe && id ? [id] : [])
 
   return useQuery({
     ...queryAccount(client, id),
     ...queryOptions,
   })
+}
+
+/**
+ * Subscribes to account profile blobs without reading discovery state.
+ */
+export function useAccountSubscriptions(accountUids: string[]) {
+  const client = useUniversalClient()
+  const idsKey = useMemo(() => [...accountUids].sort().join(','), [accountUids])
+  const previousIdsKeyRef = useRef('')
+  const accountIdsRef = useRef<ReturnType<typeof hmId>[]>([])
+
+  const accountIds = useMemo(() => {
+    if (previousIdsKeyRef.current !== idsKey) {
+      previousIdsKeyRef.current = idsKey
+      accountIdsRef.current = accountUids.map((uid) => hmId(uid))
+    }
+    return accountIdsRef.current
+  }, [accountUids, idsKey])
+
+  useEffect(() => {
+    if (!client.subscribeEntity) return
+    const cleanups = accountIds.map((id) => client.subscribeEntity!({id, scope: 'profile'}))
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }, [accountIds, client.subscribeEntity])
 }
 
 /**
@@ -646,81 +662,49 @@ export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
 }
 
 export function useCollaborators(docId: UnpackedHypermediaId) {
-  const capabilities = useCapabilities(docId)
-
-  const processedData = useMemo(() => {
-    const allCaps = capabilities.data || []
-
-    // Filter out agents (devices) and owners
-    const filteredCaps = allCaps.filter((cap) => cap.role !== 'agent' && cap.role !== 'owner')
-
-    // Separate parent capabilities from direct grants
-    const parentCapabilities = filteredCaps.filter((cap) => cap.grantId.id !== docId.id)
-    const grantedCapabilities = filteredCaps.filter((cap) => cap.grantId.id === docId.id)
-
-    // Deduplicate by accountUid
-    const seen = new Set<string>()
-    const dedupeList = (list: HMCapability[]) =>
-      list.filter((cap) => {
-        if (seen.has(cap.accountUid)) return false
-        seen.add(cap.accountUid)
-        return true
-      })
-
-    return {
-      parentCapabilities: dedupeList(parentCapabilities),
-      grantedCapabilities: dedupeList(grantedCapabilities),
-      publisherUid: docId.uid,
-    }
-  }, [capabilities.data, docId.id, docId.uid])
+  const collaborators = useDocumentCollaborators(docId)
+  const accounts = collaborators.data?.accounts || {}
 
   return {
-    ...processedData,
-    isLoading: capabilities.isLoading,
-    isInitialLoading: capabilities.isInitialLoading,
+    parentCapabilities:
+      collaborators.data?.parentCapabilities.filter((capability) => accounts[capability.accountUid]) || [],
+    grantedCapabilities:
+      collaborators.data?.grantedCapabilities.filter((capability) => accounts[capability.accountUid]) || [],
+    publisherUid: collaborators.data?.publisherUid || docId.uid,
+    accounts,
+    isLoading: collaborators.isLoading,
+    isInitialLoading: collaborators.isInitialLoading,
   }
 }
 
 export function useSiteMembers(id: UnpackedHypermediaId) {
-  const capabilities = useCapabilities(id)
-  const contacts = useContactListOfSubject(id?.uid)
+  const collaborators = useDocumentCollaborators(id)
+  const accounts = collaborators.data?.accounts || {}
 
-  const processedData = useMemo(() => {
-    const seen = new Set<string>()
-    const members: HMSiteMember[] = []
-    const caps = capabilities.data || []
-    caps.forEach((cap) => {
-      if (cap.role === 'agent') return
-      if (cap.role === 'owner') return
-      if (cap.role === 'none') return
-      if (seen.has(cap.accountUid)) return
-      seen.add(cap.accountUid)
-      members.push({
-        account: hmId(cap.accountUid),
-        role: cap.role,
-      })
-    })
-    const grantedMembers: HMSiteMember[] = []
-    contacts.data?.forEach((contact) => {
-      // Only include contacts that are subscribed to the site
-      if (!contact.subscribe?.site) return
-      if (seen.has(contact.account)) return
-      seen.add(contact.account)
-      members.push({
-        account: hmId(contact.account),
-        role: 'member',
-      })
-    })
-    return {
-      grantedMembers,
-      members,
-    }
-  }, [capabilities.data, contacts.data, id.uid])
   return {
-    ...processedData,
-    isLoading: capabilities.isLoading || contacts.isLoading,
-    isInitialLoading: capabilities.isInitialLoading || contacts.isInitialLoading,
+    grantedMembers: collaborators.data?.grantedMembers.filter((member) => accounts[member.account.uid]) || [],
+    members: collaborators.data?.members.filter((member) => accounts[member.account.uid]) || [],
+    accounts,
+    isLoading: collaborators.isLoading,
+    isInitialLoading: collaborators.isInitialLoading,
   }
+}
+
+export function useDocumentCollaborators(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  const result = useQuery(queryDocumentCollaborators(client, id))
+  const collaboratorAccountUids = useMemo(() => {
+    const data = result.data
+    if (!data) return []
+    const uids = new Set<string>([data.publisherUid])
+    data.parentCapabilities.forEach((capability) => uids.add(capability.accountUid))
+    data.grantedCapabilities.forEach((capability) => uids.add(capability.accountUid))
+    data.grantedMembers.forEach((member) => uids.add(member.account.uid))
+    data.members.forEach((member) => uids.add(member.account.uid))
+    return Array.from(uids)
+  }, [result.data])
+  useAccountSubscriptions(collaboratorAccountUids)
+  return result
 }
 
 export function useInfiniteFeed(pageSize: number = 10) {

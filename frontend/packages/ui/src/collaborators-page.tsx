@@ -1,6 +1,12 @@
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
-import {HMCapability, HMMetadata, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  HMCapability,
+  HMMetadata,
+  HMMetadataPayload,
+  HMSiteMember,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
@@ -211,9 +217,8 @@ function getRoleDisplayName(role: string | undefined): string {
 }
 
 /** Publisher/Owner display component */
-function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
+function PublisherCollaborator({uid, siteUid, account}: {uid: string; siteUid: string; account?: HMMetadataPayload}) {
   const publisherId = hmId(uid)
-  const account = useAccount(uid, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(siteUid),
@@ -221,22 +226,15 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
     tab: 'profile',
   })
 
-  const metadata = account.data?.metadata
-  const isLoading = account.isLoading
+  const metadata = account?.metadata
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon
-        id={publisherId}
-        name={isLoading ? undefined : metadata?.name}
-        icon={isLoading ? undefined : metadata?.icon}
-        size={32}
-      />
+      <HMIcon id={publisherId} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(uid)}
         </SizableText>
-        {!metadata?.name ? <Spinner size="small" /> : null}
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           Publisher
         </SizableText>
@@ -245,9 +243,16 @@ function PublisherCollaborator({uid, siteUid}: {uid: string; siteUid: string}) {
   )
 }
 
-function CollaboratorListItem({capability, docId}: {capability: HMCapability; docId: UnpackedHypermediaId}) {
+function CollaboratorListItem({
+  capability,
+  docId,
+  account,
+}: {
+  capability: HMCapability
+  docId: UnpackedHypermediaId
+  account?: HMMetadataPayload
+}) {
   const collaboratorId = hmId(capability.accountUid)
-  const account = useAccount(capability.accountUid, {subscribe: true})
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(docId.uid),
@@ -255,23 +260,16 @@ function CollaboratorListItem({capability, docId}: {capability: HMCapability; do
     tab: 'profile',
   })
 
-  const metadata = account.data?.metadata
-  const isLoading = account.isLoading
+  const metadata = account?.metadata
   const isParentCapability = capability.grantId.id !== docId.id
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon
-        id={collaboratorId}
-        name={isLoading ? undefined : metadata?.name}
-        icon={isLoading ? undefined : metadata?.icon}
-        size={32}
-      />
+      <HMIcon id={collaboratorId} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(capability.accountUid)}
         </SizableText>
-        {!metadata?.name ? <Spinner size="small" /> : null}
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           {getRoleDisplayName(capability.role)}
           {isParentCapability ? ' (Parent Capability)' : ''}
@@ -296,7 +294,7 @@ export function CollaboratorsPage({
 }
 
 function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
-  const {grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
+  const {accounts, grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
   if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -308,18 +306,28 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
   return (
     <div className="flex flex-col gap-4">
       <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
-      <PublisherCollaborator uid={docId.uid} siteUid={docId.uid} />
+      <PublisherCollaborator uid={docId.uid} siteUid={docId.uid} account={accounts[docId.uid]} />
       {grantedMembers.length > 0 && (
         <div className="flex flex-col gap-1">
           {grantedMembers.map((member) => (
-            <MemberListItem member={member} siteUid={docId.uid} key={member.account.uid} />
+            <MemberListItem
+              member={member}
+              siteUid={docId.uid}
+              account={accounts[member.account.uid]}
+              key={member.account.uid}
+            />
           ))}
         </div>
       )}
       {members.length > 0 && (
         <div className="flex flex-col gap-1">
           {members.map((member) => (
-            <MemberListItem member={member} siteUid={docId.uid} key={member.account.uid} />
+            <MemberListItem
+              member={member}
+              siteUid={docId.uid}
+              account={accounts[member.account.uid]}
+              key={member.account.uid}
+            />
           ))}
         </div>
       )}
@@ -332,8 +340,15 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
   )
 }
 
-function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: string}) {
-  const account = useAccount(member.account.uid, {subscribe: true})
+function MemberListItem({
+  member,
+  siteUid,
+  account,
+}: {
+  member: HMSiteMember
+  siteUid: string
+  account?: HMMetadataPayload
+}) {
   const linkProps = useRouteLink({
     key: 'site-profile',
     id: hmId(siteUid),
@@ -341,22 +356,15 @@ function MemberListItem({member, siteUid}: {member: HMSiteMember; siteUid: strin
     tab: 'profile',
   })
 
-  const metadata = account.data?.metadata
-  const isLoading = account.isLoading
+  const metadata = account?.metadata
 
   return (
     <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
-      <HMIcon
-        id={member.account}
-        name={isLoading ? undefined : metadata?.name}
-        icon={isLoading ? undefined : metadata?.icon}
-        size={32}
-      />
+      <HMIcon id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(member.account.uid)}
         </SizableText>
-        {!metadata?.name ? <Spinner size="small" /> : null}
         <SizableText size="xs" color="muted" className="ml-auto shrink-0">
           {getRoleDisplayName(member.role)}
         </SizableText>
@@ -372,7 +380,7 @@ function DocumentCollaborators({
   docId: UnpackedHypermediaId
   domainResolver?: DomainResolverFn
 }) {
-  const {parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
+  const {accounts, parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
 
   if (isInitialLoading) {
     return (
@@ -389,13 +397,18 @@ function DocumentCollaborators({
       <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
 
       {/* Publisher always shown first */}
-      <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} />
+      <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} account={accounts[publisherUid]} />
 
       {/* Parent capabilities section */}
       {parentCapabilities.length > 0 && (
         <div className="flex flex-col gap-1">
           {parentCapabilities.map((cap) => (
-            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
+            <CollaboratorListItem
+              key={cap.accountUid}
+              capability={cap}
+              docId={docId}
+              account={accounts[cap.accountUid]}
+            />
           ))}
         </div>
       )}
@@ -407,7 +420,12 @@ function DocumentCollaborators({
             Granted
           </SizableText>
           {grantedCapabilities.map((cap) => (
-            <CollaboratorListItem key={cap.accountUid} capability={cap} docId={docId} />
+            <CollaboratorListItem
+              key={cap.accountUid}
+              capability={cap}
+              docId={docId}
+              account={accounts[cap.accountUid]}
+            />
           ))}
         </div>
       )}

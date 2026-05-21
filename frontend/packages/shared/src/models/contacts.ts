@@ -55,6 +55,7 @@ export function useSaveContact() {
     onSuccess: (_, contact) => {
       invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subjectUid])
       invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.accountUid])
+      invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, contact.subjectUid])
     },
   })
 }
@@ -78,6 +79,7 @@ export function useDeleteContact() {
     onSuccess: (_, contact) => {
       invalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
       invalidateQueries([queryKeys.CONTACTS_ACCOUNT, contact.account])
+      invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, contact.subject])
     },
   })
 }

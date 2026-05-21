@@ -320,11 +320,12 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
   const blobType = event.data.value.blobType?.toLowerCase()
   const resource = event.data.value.resource
 
-  // Profile events blanket-invalidate all ACCOUNT queries (aliases make per-uid targeting unreliable)
+  // Profile events blanket-invalidate account-derived queries (aliases make per-uid targeting unreliable)
   // and ripple through every surface that displays account-derived names/avatars.
   if (blobType === 'profile') {
     invalidations.push([queryKeys.ACCOUNT])
     invalidations.push([queryKeys.LIST_ACCOUNTS])
+    invalidations.push([queryKeys.DOCUMENT_COLLABORATORS])
     invalidations.push([queryKeys.SEARCH])
     invalidations.push([queryKeys.ACTIVITY_FEED])
     invalidations.push([queryKeys.FEED])
@@ -338,6 +339,7 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
     const id = unpackHmId(resource.split('?')[0] || '')
     if (id) {
       invalidations.push([queryKeys.CAPABILITIES, id.uid])
+      invalidations.push([queryKeys.DOCUMENT_COLLABORATORS, id.uid])
     }
   }
 
@@ -395,7 +397,7 @@ function processEventsInner(events: Event[]) {
 
   // ── Second pass: batched invalidations by event type ──
 
-  // Profile changes: blanket-invalidate all ACCOUNT queries + account list, plus every
+  // Profile changes: blanket-invalidate all account-derived queries, plus every
   // surface that shows account-derived names/avatars (search/mention picker, feed,
   // library). We can't target specific UIDs because accounts may be aliases (A→B):
   // when B updates, [ACCOUNT, A] must also be invalidated since it resolves to B's data.
@@ -403,6 +405,7 @@ function processEventsInner(events: Event[]) {
   if (seenBlobTypes.has('profile')) {
     appInvalidateQueries([queryKeys.ACCOUNT])
     appInvalidateQueries([queryKeys.LIST_ACCOUNTS])
+    appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS])
     appInvalidateQueries([queryKeys.SEARCH])
     appInvalidateQueries([queryKeys.ACTIVITY_FEED])
     appInvalidateQueries([queryKeys.FEED])
@@ -441,14 +444,17 @@ function processEventsInner(events: Event[]) {
     }
   }
 
-  // Capability changes: invalidate target + ancestor capabilities
+  // Capability changes: invalidate target + ancestor capabilities/collaborators
   if (seenBlobTypes.has('capability')) {
     for (const {id, extraAttrs} of capabilityData) {
       appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+      appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...(id.path || [])])
       getParentPaths(id.path).forEach((parentPath) => {
         appInvalidateQueries([queryKeys.CAPABILITIES, id.uid, ...parentPath])
+        appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...parentPath])
       })
       appInvalidateQueries([queryKeys.CAPABILITIES, id.uid])
+      appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid])
 
       if (extraAttrs) {
         try {
@@ -466,12 +472,14 @@ function processEventsInner(events: Event[]) {
   // Contact changes: invalidate contact caches + search/library (contacts carry
   // display-name aliases shown in mention pickers and library author columns) +
   // async subject lookup. Feed is already invalidated via `feedTypes` below.
+  // Also blanket-invalidate collaborator lists because site membership is derived from contacts.
   //
   // Blanket [CONTACTS_SUBJECT] covers site members (useSiteMembers reads
   // useContactListOfSubject(siteUid)) and follower lists (useContactListOfSubject(accountUid))
   // without depending on the async getContact below — extraAttrs carries the subject as
   // an internal pubkey row ID, not a usable uid, so we can't target sync.
   if (seenBlobTypes.has('contact')) {
+    appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS])
     appInvalidateQueries([queryKeys.SEARCH])
     appInvalidateQueries([queryKeys.LIBRARY])
     appInvalidateQueries([queryKeys.SITE_LIBRARY])
@@ -489,6 +497,7 @@ function processEventsInner(events: Event[]) {
               .then((contact) => {
                 if (contact.subject) {
                   appInvalidateQueries([queryKeys.CONTACTS_SUBJECT, contact.subject])
+                  appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, contact.subject])
                 }
               })
               .catch(() => {})

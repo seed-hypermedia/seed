@@ -88,6 +88,9 @@ const QUERY_PARAM_SERIALIZERS: Partial<Record<HMGetRequest['key'], (input: any) 
   ListCapabilities: (input: {targetId: UnpackedHypermediaId}) => ({
     targetId: packHmId(input.targetId),
   }),
+  ListDocumentCollaborators: (input: {targetId: UnpackedHypermediaId}) => ({
+    targetId: packHmId(input.targetId),
+  }),
 }
 
 /** Resolves a schema node, following local `$ref` pointers inside the same document. */

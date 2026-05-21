@@ -16,6 +16,7 @@ import type {
   HMListCommentVersionsOutput,
   HMListCommentsOutput,
   HMListDiscussionsOutput,
+  HMListDocumentCollaboratorsOutput,
   HMMetadataPayload,
   HMRawCapability,
   HMResource,
@@ -310,6 +311,20 @@ export function queryCapabilities(client: UniversalClient, targetId: UnpackedHyp
         createTime: {seconds: 0, nanos: 0},
       })
       return caps
+    },
+    enabled: !!targetId,
+  }
+}
+
+/**
+ * Query options for fetching collaborators with account metadata for a target.
+ */
+export function queryDocumentCollaborators(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
+  return {
+    queryKey: [queryKeys.DOCUMENT_COLLABORATORS, targetId?.uid, ...(targetId?.path || [])] as const,
+    queryFn: async (): Promise<HMListDocumentCollaboratorsOutput | null> => {
+      if (!targetId) return null
+      return await client.request('ListDocumentCollaborators', {targetId})
     },
     enabled: !!targetId,
   }

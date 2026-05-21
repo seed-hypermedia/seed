@@ -165,6 +165,59 @@ describe('handleApiRequest schema introspection', () => {
     })
   })
 
+  it('accepts JSON-encoded targetId for ListDocumentCollaborators GET requests', async () => {
+    const targetId = {
+      id: 'hm://z6Mksite',
+      uid: 'z6Mksite',
+      path: [],
+      version: null,
+      blockRef: null,
+      blockRange: null,
+      hostname: null,
+      scheme: null,
+    }
+    const listCapabilities = vi.fn().mockResolvedValue({
+      capabilities: [
+        {
+          toJson: () => ({
+            id: 'cap-1',
+            delegate: 'z6Mkcollab',
+            account: 'z6Mksite',
+            path: '',
+            role: 'WRITER',
+            label: 'Writer',
+            createTime: '2024-01-01T00:00:00.000Z',
+          }),
+        },
+      ],
+    })
+    const listContacts = vi.fn().mockResolvedValue({contacts: []})
+    const getAccount = vi.fn(async ({id}: {id: string}) => ({
+      aliasAccount: '',
+      profile: {name: id === 'z6Mksite' ? 'Site Owner' : 'Collaborator'},
+      homeDocumentInfo: {version: 'v1'},
+    }))
+    const grpcClient = {
+      accessControl: {listCapabilities},
+      documents: {listContacts, getAccount},
+    } as any
+    const queryDaemon = vi.fn()
+    const result = await handleApiRequest(
+      new URL(
+        `http://localhost/api/ListDocumentCollaborators?targetId=${encodeURIComponent(JSON.stringify(targetId))}`,
+      ),
+      grpcClient,
+      queryDaemon,
+    )
+
+    expect(result.status).toBe(200)
+    const body = deserialize(JSON.parse(result.body)) as any
+    expect(body.publisherUid).toBe('z6Mksite')
+    expect(body.grantedCapabilities).toHaveLength(1)
+    expect(body.accounts.z6Mkcollab.metadata.name).toBe('Collaborator')
+    expect(listCapabilities).toHaveBeenCalledWith({account: 'z6Mksite', path: '', pageSize: expect.any(Number)})
+  })
+
   it('lists available query and action schemas', async () => {
     const grpcClient = {} as any
     const queryDaemon = vi.fn()

@@ -1538,6 +1538,28 @@ export const HMListCapabilitiesRequestSchema = z.object({
 })
 export type HMListCapabilitiesRequest = z.infer<typeof HMListCapabilitiesRequestSchema>
 
+export const HMListDocumentCollaboratorsInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListDocumentCollaboratorsInput = z.infer<typeof HMListDocumentCollaboratorsInputSchema>
+
+export const HMListDocumentCollaboratorsOutputSchema = z.object({
+  publisherUid: z.string(),
+  parentCapabilities: z.array(HMCapabilitySchema),
+  grantedCapabilities: z.array(HMCapabilitySchema),
+  grantedMembers: z.array(HMSiteMemberSchema),
+  members: z.array(HMSiteMemberSchema),
+  accounts: HMAccountsMetadataSchema,
+})
+export type HMListDocumentCollaboratorsOutput = z.infer<typeof HMListDocumentCollaboratorsOutputSchema>
+
+export const HMListDocumentCollaboratorsRequestSchema = z.object({
+  key: z.literal('ListDocumentCollaborators'),
+  input: HMListDocumentCollaboratorsInputSchema,
+  output: HMListDocumentCollaboratorsOutputSchema,
+})
+export type HMListDocumentCollaboratorsRequest = z.infer<typeof HMListDocumentCollaboratorsRequestSchema>
+
 // InteractionSummary - gets interaction summary for a document
 export const HMInteractionSummaryInputSchema = z.object({
   id: unpackedHmIdSchema,
@@ -1742,6 +1764,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListCitationsRequestSchema,
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
+  HMListDocumentCollaboratorsRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
   HMGetDomainRequestSchema,
@@ -1777,6 +1800,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCitationsRequestSchema,
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
+  HMListDocumentCollaboratorsRequestSchema,
   HMInteractionSummaryRequestSchema,
   HMListCommentVersionsRequestSchema,
   HMGetDomainRequestSchema,
