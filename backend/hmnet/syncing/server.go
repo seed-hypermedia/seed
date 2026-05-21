@@ -316,8 +316,10 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 	defer release()
 
 	totalStart := time.Now()
+	rangesBucket := bucketCountLog2(len(in.Ranges))
+	filtersBucket := bucketCountLog2(len(in.Filters))
 	defer func() {
-		MReconcileServerTotalSeconds.Observe(time.Since(totalStart).Seconds())
+		MReconcileServerTotalSeconds.WithLabelValues(rangesBucket, filtersBucket).Observe(time.Since(totalStart).Seconds())
 	}()
 	MReconcileServerFilterSize.Observe(float64(len(in.Filters)))
 
@@ -328,7 +330,7 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 	MReconcileServerStoreSize.Observe(float64(store.Size()))
 
 	sessionStart := time.Now()
-	ne, err := rbsr.NewSession(store, 50000)
+	ne, err := rbsr.NewSession(store, rbsrMsgSizeBytes)
 	MReconcileServerPhaseSeconds.WithLabelValues("rbsr_session").Observe(time.Since(sessionStart).Seconds())
 	if err != nil {
 		return nil, err
@@ -407,4 +409,26 @@ func getRemoteID(ctx context.Context) (peer.ID, error) {
 	}
 
 	return pid, nil
+}
+
+// bucketCountLog2 maps a non-negative count into a coarse log2 bucket label
+// suitable for low-cardinality Prometheus dimensions. The fixed-string return
+// values keep the cardinality bounded regardless of input magnitude.
+func bucketCountLog2(n int) string {
+	switch {
+	case n <= 0:
+		return "0"
+	case n == 1:
+		return "1"
+	case n <= 3:
+		return "2-3"
+	case n <= 9:
+		return "4-9"
+	case n <= 31:
+		return "10-31"
+	case n <= 99:
+		return "32-99"
+	default:
+		return "100+"
+	}
 }

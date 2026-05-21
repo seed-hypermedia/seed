@@ -33,6 +33,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// rbsrMsgSizeBytes caps each ReconcileBlobs response payload. RBSR splits
+// ranges to fit; a smaller budget forces more rounds, each of which re-runs
+// Server.loadStore on the server. 1 MiB matches the scale implied by
+// MReconcileServerStoreSize buckets (up to 4 M items) and leaves 8× headroom
+// below maxP2PMessageSize (8 MiB, see backend/hmnet/client.go). Both client
+// (Service.syncWithPeer) and server (Server.ReconcileBlobs) MUST use the
+// same value — the budget governs the response size on each side, and an
+// asymmetric pair would risk a peer rejecting a too-large message.
+const rbsrMsgSizeBytes = 1 * 1024 * 1024
+
 // Metrics. This is exported as a temporary measure,
 // because we have mostly the same code duplicated in groups and in syncing.
 //
@@ -250,11 +260,24 @@ var (
 	// MReconcileServerTotalSeconds is the whole handler wall-clock — directly
 	// comparable to client-side reconcile_rpc to spot client-side stream/dial
 	// latency that the server can't account for.
-	MReconcileServerTotalSeconds = promauto.NewHistogram(prometheus.HistogramOpts{
+	//
+	// Labels:
+	//   ranges_bucket   — len(in.Ranges) bucketed. Round-1 RBSR requests
+	//                     typically carry 1 range (the initial fingerprint
+	//                     covering the full ID space); deeper rounds carry
+	//                     more as the protocol narrows down divergence.
+	//                     Splitting the histogram by ranges_bucket tells us
+	//                     whether the bulk of handler work is initial-round
+	//                     loadStore rebuilds (≈ candidates for session
+	//                     reuse) or already-narrowing later rounds.
+	//   filters_bucket  — len(in.Filters) bucketed. Tells us whether
+	//                     incoming traffic is fanned-out (one filter per
+	//                     call) or batched (many filters per call).
+	MReconcileServerTotalSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "seed_reconcile_server_total_seconds",
-		Help:    "Wall-clock of the full Server.ReconcileBlobs handler.",
+		Help:    "Wall-clock of the full Server.ReconcileBlobs handler, labelled by input shape.",
 		Buckets: diagBuckets,
-	})
+	}, []string{"ranges_bucket", "filters_bucket"})
 
 	// MReconcileServerStoreSize is store.Size() per request — tells us if the
 	// scale factor on rbsr_reconcile is the corpus the filter pulls in.
@@ -794,7 +817,7 @@ func syncResources(
 		return fmt.Errorf("BUG: syncEntity must have timeout")
 	}
 
-	ne, err := rbsr.NewSession(store, 50000)
+	ne, err := rbsr.NewSession(store, rbsrMsgSizeBytes)
 	if err != nil {
 		return fmt.Errorf("failed to Init Syncing Session: %w", err)
 	}
