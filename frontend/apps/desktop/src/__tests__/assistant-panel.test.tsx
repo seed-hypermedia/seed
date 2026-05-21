@@ -211,7 +211,7 @@ describe('AssistantPanel', () => {
     cleanupRendered(root, container)
   })
 
-  it('renders expandable search tool bubbles and shows raw payload details', () => {
+  it('renders one-line search tool calls with expandable registry details', () => {
     mockState.chatSession = {
       providerId: 'provider-1',
       messages: [
@@ -250,32 +250,21 @@ describe('AssistantPanel', () => {
     }
 
     const {container, root} = renderAssistantPanel()
-    const showResultsButton = Array.from(container.querySelectorAll('button')).find(
-      (element) => element.textContent?.includes('Show results'),
+    const detailsButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.getAttribute('title') === 'Show tool details',
     )
 
     expect(container.textContent).toContain('Search')
     expect(container.textContent).toContain('Found 1 result for "seed".')
-
-    act(() => {
-      showResultsButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
-    })
-
     expect(container.textContent).toContain('Seed Notes')
-    expect(container.textContent).toContain('Search results for "seed"')
-
-    const infoButton = Array.from(container.querySelectorAll('button')).find(
-      (element) => element.getAttribute('title') === 'View raw tool input/output',
-    )
-
-    expect(infoButton?.className).toContain('opacity-0')
+    expect(container.textContent).not.toContain('Search results for "seed"')
 
     act(() => {
-      infoButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      detailsButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
-    expect(document.body.textContent).toContain('Raw tool call payload captured during the assistant response.')
-    expect(document.body.textContent).toContain('"query": "seed"')
+    expect(container.textContent).toContain('Search results for "seed"')
+    expect(container.textContent).toContain('"query": "seed"')
 
     cleanupRendered(root, container)
   })
@@ -316,7 +305,7 @@ describe('AssistantPanel', () => {
 
     expect(container.textContent).toContain('Read')
     expect(container.textContent).toContain('Seed Notes in Seed')
-    expect(container.textContent).not.toContain('Read "Seed Notes".')
+    expect(container.textContent).toContain('Read "Seed Notes".')
     expect(container.textContent).not.toContain('Project status and notes.')
 
     act(() => {
@@ -324,6 +313,82 @@ describe('AssistantPanel', () => {
     })
 
     expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkabc/projects/seed', false)
+
+    cleanupRendered(root, container)
+  })
+
+  it('renders the registry-defined comment.create write UI', () => {
+    mockState.chatSession = {
+      providerId: 'provider-1',
+      messages: [
+        {
+          role: 'assistant',
+          content: '',
+          parts: [
+            {
+              type: 'tool',
+              id: 'tool-comment',
+              name: 'write',
+              args: {command: 'comment.create', input: {target: 'hm://z6Mkdoc/spec', body: 'Great point!'}},
+              result: 'comment.create completed',
+              rawOutput: {
+                command: 'comment.create',
+                commentId: 'z6Mkdoc/spec/comment-1',
+                targetUrl: 'hm://z6Mkdoc/spec',
+                targetName: 'Spec Doc',
+                signer: {profileName: 'Alice', publicKey: 'z6Mkauthor'},
+                markdown: 'Great point!',
+              },
+            },
+          ],
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      ],
+    }
+
+    const {container, root} = renderAssistantPanel()
+
+    expect(container.textContent).toContain('New Comment by Alice on Spec Doc')
+    expect(container.textContent).not.toContain('Great point!')
+
+    const commentButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent === 'New Comment',
+    )
+    const authorButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent === 'Alice',
+    )
+    const docButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent === 'Spec Doc',
+    )
+
+    act(() => {
+      commentButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      authorButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      docButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkdoc/spec/:comments/z6Mkdoc/spec/comment-1', false)
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkauthor', false)
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkdoc/spec', false)
+
+    const expandButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.getAttribute('title') === 'Show tool details',
+    )
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(container.textContent).toContain('Great point!')
+
+    const infoButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.getAttribute('title') === 'View raw tool input/output',
+    )
+    act(() => {
+      infoButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(document.body.textContent).toContain('Raw tool call payload captured during the assistant response.')
+    expect(document.body.textContent).toContain('comment.create')
 
     cleanupRendered(root, container)
   })
@@ -352,9 +417,8 @@ describe('AssistantPanel', () => {
     const {container, root} = renderAssistantPanel()
 
     expect(container.textContent).toContain('unknown_tool')
-    expect(container.textContent).toContain('value:')
-    expect(container.textContent).toContain('example')
     expect(container.textContent).toContain('Completed.')
+    expect(container.textContent).not.toContain('example')
 
     cleanupRendered(root, container)
   })

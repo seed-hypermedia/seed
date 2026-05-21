@@ -398,8 +398,8 @@ function StatusPill(props: {status: string}) {
     props.status === 'streaming' || props.status === 'running'
       ? 'bg-green-500/15 text-green-700 dark:text-green-300'
       : props.status === 'error'
-        ? 'bg-red-500/15 text-red-700 dark:text-red-300'
-        : 'bg-muted text-muted-foreground'
+      ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+      : 'bg-muted text-muted-foreground'
   return <span className={`${color} rounded-full px-2.5 py-1 text-[0.65rem] font-black uppercase`}>{props.status}</span>
 }
 
@@ -417,25 +417,8 @@ function EventCard(props: {event: SessionEvent}) {
       </article>
     )
   }
-  if (type === 'tool_call' && 'name' in payload) {
-    const tool = getSeedToolMetadata(String(payload.name))
-    return (
-      <article className="border-primary/30 bg-primary/5 rounded-2xl border p-4">
-        <EventHeader
-          label={`tool call · ${tool?.render.label || String(payload.name)}`}
-          createdAt={props.event.createdAt}
-        />
-        <CodeBlock value={'input' in payload ? payload.input : payload} />
-      </article>
-    )
-  }
-  if (type === 'tool_result') {
-    return (
-      <article className="border-accent/60 bg-accent/10 rounded-2xl border p-4">
-        <EventHeader label="tool result" createdAt={props.event.createdAt} />
-        <CodeBlock value={payload} />
-      </article>
-    )
+  if ((type === 'tool_call' || type === 'tool_result') && 'name' in payload) {
+    return <ToolEventCard payload={payload} createdAt={props.event.createdAt} />
   }
   if (type === 'error' && 'message' in payload) {
     return (
@@ -451,6 +434,88 @@ function EventCard(props: {event: SessionEvent}) {
       <CodeBlock value={payload} />
     </article>
   )
+}
+
+function ToolEventCard(props: {payload: SessionEventPayload; createdAt: number}) {
+  const [expanded, setExpanded] = useState(false)
+  const name = 'name' in props.payload ? String(props.payload.name) : 'tool'
+  const tool = getSeedToolMetadata(name)
+  const isResult = props.payload.type === 'tool_result'
+  const input = props.payload.type === 'tool_call' && 'input' in props.payload ? props.payload.input : undefined
+  const output = props.payload.type === 'tool_result' && 'output' in props.payload ? props.payload.output : undefined
+  const summary = firstToolText(output, tool?.render.summaryOutputPath) || firstToolText(input, tool?.render.summaryArg)
+  const links = (tool?.render.links || []).flatMap((link) => {
+    const source = link.source === 'input' ? input : output
+    const labels = link.labelPath ? getToolPathValues(source, link.labelPath) : []
+    return getToolPathValues(source, link.path).flatMap((url, index) => {
+      if (typeof url !== 'string') return []
+      return [{url, label: link.label || firstToolInlineText(labels[index]) || shortToolUrl(url)}]
+    })
+  })
+
+  return (
+    <article className="border-primary/30 bg-primary/5 rounded-2xl border p-3">
+      <div className="flex min-w-0 items-center gap-2 text-xs">
+        <button
+          type="button"
+          className="hover:bg-background rounded px-1"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+        >
+          {expanded ? '▾' : '▸'}
+        </button>
+        <span className="text-primary shrink-0 font-black tracking-widest uppercase">
+          {isResult ? 'tool result' : 'tool call'} · {tool?.render.label || name}
+        </span>
+        {summary ? <span className="text-muted-foreground min-w-0 truncate">{summary}</span> : null}
+        <div className="ml-auto flex shrink-0 gap-1 overflow-hidden">
+          {links.map((link) => (
+            <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="hover:underline">
+              {link.label}
+            </a>
+          ))}
+        </div>
+        <span className="text-muted-foreground shrink-0">{formatTime(props.createdAt)}</span>
+      </div>
+      {expanded ? <CodeBlock value={props.payload} /> : null}
+    </article>
+  )
+}
+
+function getToolPathValues(value: unknown, path?: string): unknown[] {
+  if (!path) return [value]
+  return path
+    .split('.')
+    .filter(Boolean)
+    .reduce<unknown[]>(
+      (values, part) => {
+        const arrayKey = part.endsWith('[]') ? part.slice(0, -2) : undefined
+        return values.flatMap((current) => {
+          if (typeof current !== 'object' || current === null) return []
+          const next = (current as Record<string, unknown>)[arrayKey ?? part]
+          return arrayKey ? (Array.isArray(next) ? next : []) : next === undefined ? [] : [next]
+        })
+      },
+      [value],
+    )
+}
+
+function firstToolInlineText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return undefined
+}
+
+function firstToolText(value: unknown, path?: string): string | undefined {
+  for (const item of getToolPathValues(value, path)) {
+    const text = firstToolInlineText(item)
+    if (text) return text
+  }
+  return undefined
+}
+
+function shortToolUrl(url: string): string {
+  return url.length <= 32 ? url : `${url.slice(0, 16)}…${url.slice(-10)}`
 }
 
 function EventHeader(props: {label: string; createdAt: number}) {

@@ -44,12 +44,10 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
           {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         </div>
       ) : (
-        <div className="flex items-start gap-1">
-          <div className="min-w-0 flex-1">
-            <AssistantMessageParts parts={getAssistantMessageParts(message)} />
-          </div>
-          {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
-        </div>
+        <AssistantMessageParts
+          parts={getAssistantMessageParts(message)}
+          rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+        />
       )}
       {message.errorMessage ? (
         <div className="border-destructive/30 bg-destructive/10 text-destructive mt-1 mr-6 rounded-lg border px-3 py-2 text-xs">
@@ -104,10 +102,16 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
 export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts,
   isStreaming = false,
+  rawMarkdownButton,
 }: {
   parts: ChatMessagePart[]
   isStreaming?: boolean
+  rawMarkdownButton?: React.ReactNode
 }) {
+  const rawButtonIndex = rawMarkdownButton
+    ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
+    : -1
+
   return parts.map((part, index) => {
     if (part.type === 'tool') {
       return <ToolCallItem key={`${part.id}:${index}`} item={part} />
@@ -115,9 +119,12 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
 
     const showCursor = isStreaming && index === parts.length - 1
     return (
-      <div key={`text:${index}`} className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-sm">
-        <Markdown enableGfm={!isStreaming}>{part.text}</Markdown>
-        {showCursor && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
+      <div key={`text:${index}`} className="flex items-start gap-1">
+        <div className="bg-muted my-1 mr-6 min-w-0 flex-1 rounded-lg px-3 py-2 text-sm">
+          <Markdown enableGfm={!isStreaming}>{part.text}</Markdown>
+          {showCursor && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
+        </div>
+        {index === rawButtonIndex ? rawMarkdownButton : null}
       </div>
     )
   })
@@ -180,133 +187,8 @@ function getAssistantMessageParts(message: ChatBubbleMessage) {
   })
 }
 
-type SearchToolResultItem = {
-  title: string
-  url: string
-  type: string
-  parentNames: string[]
-  versionTime?: string
-}
-
-type SearchToolOutput = {
-  summary: string
-  markdown: string
-  query: string
-  searchType: string
-  includeBody: boolean
-  results: SearchToolResultItem[]
-}
-
-type ReadToolOutput = {
-  summary: string
-  resourceUrl: string
-  view: string
-  markdown?: string
-  title?: string
-  displayLabel?: string
-}
-
-type NavigateToolOutput = {
-  summary: string
-  resourceUrl: string
-  newWindow: boolean
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function getStringArg(args: Record<string, unknown> | undefined, key: string): string | undefined {
-  if (!args) return undefined
-  const value = args[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-function getBooleanArg(args: Record<string, unknown> | undefined, key: string): boolean | undefined {
-  if (!args) return undefined
-  const value = args[key]
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function getSearchToolOutput(rawOutput: unknown): SearchToolOutput | null {
-  if (!isRecord(rawOutput) || typeof rawOutput.markdown !== 'string' || !Array.isArray(rawOutput.results)) {
-    return null
-  }
-
-  const results = rawOutput.results.flatMap((result) => {
-    if (
-      !isRecord(result) ||
-      typeof result.title !== 'string' ||
-      typeof result.url !== 'string' ||
-      typeof result.type !== 'string' ||
-      !Array.isArray(result.parentNames)
-    ) {
-      return []
-    }
-
-    return [
-      {
-        title: result.title,
-        url: result.url,
-        type: result.type,
-        parentNames: result.parentNames.filter((parent): parent is string => typeof parent === 'string'),
-        versionTime: typeof result.versionTime === 'string' ? result.versionTime : undefined,
-      },
-    ]
-  })
-
-  return {
-    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
-    markdown: rawOutput.markdown,
-    query: typeof rawOutput.query === 'string' ? rawOutput.query : '',
-    searchType: typeof rawOutput.searchType === 'string' ? rawOutput.searchType : 'hybrid',
-    includeBody: rawOutput.includeBody === true,
-    results,
-  }
-}
-
-function getReadToolOutput(rawOutput: unknown): ReadToolOutput | null {
-  if (!isRecord(rawOutput)) return null
-
-  if (
-    typeof rawOutput.resourceUrl === 'string' &&
-    typeof rawOutput.view === 'string' &&
-    (typeof rawOutput.markdown === 'string' || rawOutput.markdown === undefined)
-  ) {
-    return {
-      summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
-      resourceUrl: rawOutput.resourceUrl,
-      view: rawOutput.view,
-      markdown: typeof rawOutput.markdown === 'string' ? rawOutput.markdown : undefined,
-      title: typeof rawOutput.title === 'string' ? rawOutput.title : undefined,
-      displayLabel: typeof rawOutput.displayLabel === 'string' ? rawOutput.displayLabel : undefined,
-    }
-  }
-
-  if (rawOutput.type === 'hypermedia_document' && typeof rawOutput.id === 'string') {
-    return {
-      summary: typeof rawOutput.title === 'string' ? rawOutput.title : '',
-      resourceUrl: rawOutput.id,
-      view: typeof rawOutput.format === 'string' ? rawOutput.format : 'document',
-      markdown: typeof rawOutput.markdown === 'string' ? rawOutput.markdown : undefined,
-      title: typeof rawOutput.title === 'string' ? rawOutput.title : undefined,
-      displayLabel: typeof rawOutput.title === 'string' ? rawOutput.title : undefined,
-    }
-  }
-
-  return null
-}
-
-function getNavigateToolOutput(rawOutput: unknown): NavigateToolOutput | null {
-  if (!isRecord(rawOutput) || typeof rawOutput.resourceUrl !== 'string' || typeof rawOutput.newWindow !== 'boolean') {
-    return null
-  }
-
-  return {
-    summary: typeof rawOutput.summary === 'string' ? rawOutput.summary : '',
-    resourceUrl: rawOutput.resourceUrl,
-    newWindow: rawOutput.newWindow,
-  }
 }
 
 function formatToolDebugValue(value: unknown): string {
@@ -320,29 +202,44 @@ function formatToolDebugValue(value: unknown): string {
   }
 }
 
-function formatCompactValue(value: unknown): string {
+function formatInlineValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
   if (typeof value === 'string') return value
-
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`
+  return undefined
 }
 
-function getToolResourceUrl(item: ChatToolPart): string | undefined {
-  if (isRecord(item.rawOutput) && typeof item.rawOutput.resourceUrl === 'string') {
-    return item.rawOutput.resourceUrl
+function getPathValues(value: unknown, path?: string): unknown[] {
+  if (!path) return [value]
+
+  const parts = path.split('.').filter(Boolean)
+  let values = [value]
+
+  for (const part of parts) {
+    const arrayKey = part.endsWith('[]') ? part.slice(0, -2) : undefined
+    values = values.flatMap((current) => {
+      if (!isRecord(current)) return []
+      const next = current[arrayKey ?? part]
+      if (arrayKey) return Array.isArray(next) ? next : []
+      return next === undefined ? [] : [next]
+    })
   }
-  if (isRecord(item.rawOutput) && typeof item.rawOutput.id === 'string') {
-    return item.rawOutput.id
+
+  return values
+}
+
+function firstInlinePathValue(value: unknown, path?: string): string | undefined {
+  for (const item of getPathValues(value, path)) {
+    const formatted = formatInlineValue(item)
+    if (formatted) return formatted
   }
-  return getStringArg(item.args, 'url') || getStringArg(item.args, 'id')
+  return undefined
 }
 
 function ToolChip({children}: {children: React.ReactNode}) {
   return (
-    <span className="bg-background/75 text-muted-foreground rounded-full border px-1.5 py-0.5 text-[9px] font-medium">
+    <span className="bg-background/75 text-muted-foreground rounded-full border px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap">
       {children}
     </span>
   )
@@ -356,10 +253,25 @@ function ToolResourceLink({url, label}: {url: string; label: string}) {
       type="button"
       title={url}
       onClick={(event) => openUrl(url, event.metaKey || event.shiftKey)}
-      className="bg-background/75 hover:bg-background inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.75 text-left text-[10px] font-medium transition-colors"
+      className="bg-background/75 hover:bg-background inline-flex max-w-40 items-center gap-1 rounded-full border px-2 py-0.75 text-left text-[10px] font-medium transition-colors"
     >
       <span className="truncate">{label}</span>
       <ArrowUpRight className="size-2.5 shrink-0" />
+    </button>
+  )
+}
+
+function ToolTextLink({url, children}: {url: string; children: React.ReactNode}) {
+  const openUrl = useOpenUrl()
+
+  return (
+    <button
+      type="button"
+      title={url}
+      onClick={(event) => openUrl(url, event.metaKey || event.shiftKey)}
+      className="text-foreground font-medium decoration-1 underline-offset-2 hover:underline"
+    >
+      {children}
     </button>
   )
 }
@@ -399,209 +311,238 @@ function ToolCallDebugDialog({
   )
 }
 
-function ToolCallBubble({
-  item,
-  icon: Icon,
-  label,
-  bubbleClassName,
-  iconClassName,
-  hideResultText,
-  children,
-}: {
-  item: ChatToolPart
-  icon: React.ComponentType<{className?: string}>
-  label: string
-  bubbleClassName: string
-  iconClassName: string
-  hideResultText?: boolean
-  children?: React.ReactNode
-}) {
+function getToolLinks(item: ChatToolPart) {
+  const metadata = getSeedToolMetadata(item.name)
+  const input = item.args
+  const output = item.rawOutput
+  const links = metadata?.render.links || []
+  const seen = new Set<string>()
+
+  return links.flatMap((link) => {
+    const source = link.source === 'input' ? input : output
+    const urls = getPathValues(source, link.path)
+    const labels = link.labelPath ? getPathValues(source, link.labelPath) : []
+
+    return urls.flatMap((url, index) => {
+      if (typeof url !== 'string' || !url) return []
+      if (seen.has(url)) return []
+      seen.add(url)
+      const label = link.label || formatInlineValue(labels[index]) || shortUrlLabel(url)
+      return [{url, label}]
+    })
+  })
+}
+
+function shortUrlLabel(url: string): string {
+  if (url.length <= 34) return url
+  return `${url.slice(0, 18)}…${url.slice(-12)}`
+}
+
+function getToolSummary(item: ChatToolPart): string | undefined {
+  const metadata = getSeedToolMetadata(item.name)
+  const outputSummary = firstInlinePathValue(item.rawOutput, metadata?.render.summaryOutputPath)
+  if (outputSummary) return outputSummary
+
+  const inputSummary = firstInlinePathValue(item.args, metadata?.render.summaryArg || metadata?.render.primaryArg)
+  if (inputSummary) return inputSummary
+
+  return item.result
+}
+
+function getToolDetails(item: ChatToolPart) {
+  const metadata = getSeedToolMetadata(item.name)
+  const details = metadata?.render.details || [
+    {label: 'Input', source: 'input' as const},
+    {label: 'Output', source: 'output' as const},
+  ]
+
+  return details.flatMap((detail) => {
+    const source = detail.source === 'input' ? item.args : item.rawOutput ?? item.result
+    const value = detail.path ? getPathValues(source, detail.path)[0] : source
+    if (value === undefined) return []
+    return [{...detail, value}]
+  })
+}
+
+function getToolString(value: unknown, path: string): string | undefined {
+  const found = getPathValues(value, path)[0]
+  return typeof found === 'string' && found ? found : undefined
+}
+
+function getToolCustomView(item: ChatToolPart) {
+  const command = getToolString(item.args, 'command')
+  return getSeedToolMetadata(item.name)?.render.customViews?.find((view) => view.command === command)
+}
+
+function buildCommentUrl(targetUrl: string, commentId: string): string {
+  const hashIndex = targetUrl.indexOf('#')
+  const withoutHash = hashIndex === -1 ? targetUrl : targetUrl.slice(0, hashIndex)
+  const queryIndex = withoutHash.indexOf('?')
+  if (queryIndex === -1) return `${withoutHash}/:comments/${commentId}`
+  return `${withoutHash.slice(0, queryIndex)}/:comments/${commentId}${withoutHash.slice(queryIndex)}`
+}
+
+function isCommentRecordId(value: string | undefined): value is string {
+  return Boolean(value && value.includes('/') && !value.startsWith('bafy'))
+}
+
+function isCommentUrlForRecordId(value: string | undefined): value is string {
+  return Boolean(value && /\/:comments\/[^/?#]+\/[^?#]+/.test(value))
+}
+
+function NewCommentSummary({item}: {item: ChatToolPart}) {
+  const output = item.rawOutput
+  const targetUrl = getToolString(output, 'targetUrl') || getToolString(output, 'target')
+  const commentRecordId = [getToolString(output, 'commentRecordId'), getToolString(output, 'commentId')].find(
+    isCommentRecordId,
+  )
+  const rawCommentUrl = getToolString(output, 'commentUrl')
+  const commentUrl = isCommentUrlForRecordId(rawCommentUrl)
+    ? rawCommentUrl
+    : targetUrl && commentRecordId
+    ? buildCommentUrl(targetUrl, commentRecordId)
+    : undefined
+  const authorPublicKey = getToolString(output, 'authorUrl') || getToolString(output, 'signer.publicKey')
+  const authorUrl = authorPublicKey?.startsWith('hm://')
+    ? authorPublicKey
+    : authorPublicKey
+    ? `hm://${authorPublicKey}`
+    : undefined
+  const authorName =
+    getToolString(output, 'authorName') || getToolString(output, 'signer.profileName') || authorPublicKey || 'Author'
+  const targetName = getToolString(output, 'targetName') || targetUrl || 'document'
+
+  return (
+    <span className="text-foreground/80 min-w-0 truncate">
+      {commentUrl ? (
+        <ToolTextLink url={commentUrl}>New Comment</ToolTextLink>
+      ) : (
+        <span className="font-medium">New Comment</span>
+      )}{' '}
+      by {authorUrl ? <ToolTextLink url={authorUrl}>{authorName}</ToolTextLink> : <span>{authorName}</span>} on{' '}
+      {targetUrl ? <ToolTextLink url={targetUrl}>{targetName}</ToolTextLink> : <span>{targetName}</span>}
+    </span>
+  )
+}
+
+function NewCommentDetails({item}: {item: ChatToolPart}) {
+  const markdown =
+    getToolString(item.rawOutput, 'markdown') ||
+    getToolString(item.args, 'input.body') ||
+    getToolString(item.args, 'input.content') ||
+    getToolString(item.args, 'body') ||
+    getToolString(item.args, 'content')
+
+  return (
+    <div className="space-y-1">
+      <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Comment</div>
+      <div className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border px-2.5 py-2">
+        <Markdown>{markdown || item.result || ''}</Markdown>
+      </div>
+    </div>
+  )
+}
+
+const toolColorClasses = {
+  sky: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  emerald: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  violet: 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  amber: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  indigo: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
+  muted: 'border-border bg-muted/60 text-muted-foreground',
+  hidden: 'border-border bg-muted/60 text-muted-foreground',
+}
+
+const toolIcons = {
+  search: Search,
+  read: BookOpenText,
+  resolve: Wrench,
+  navigate: Compass,
+  write: PenLine,
+  generic: Wrench,
+  hidden: Wrench,
+}
+
+function ToolCallLine({item}: {item: ChatToolPart}) {
+  const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const metadata = getSeedToolMetadata(item.name)
+  const render = metadata?.render
+  const Icon = toolIcons[render?.kind || 'generic']
   const isPending = item.result === undefined && item.rawOutput === undefined
+  const details = getToolDetails(item)
+  const summary = getToolSummary(item)
+  const links = getToolLinks(item)
+  const colorClass = toolColorClasses[render?.color || 'muted']
+  const customView = getToolCustomView(item)
 
   return (
     <>
-      <div
-        className={cn(
-          'group relative my-1.5 mr-6 overflow-hidden rounded-xl border px-2.5 py-2 text-xs shadow-sm',
-          bubbleClassName,
-        )}
-      >
-        <button
-          type="button"
-          title="View raw tool input/output"
-          onClick={() => setDetailsOpen(true)}
-          className="bg-background/85 text-muted-foreground hover:text-foreground absolute top-1.5 right-1.5 rounded-full border p-0.75 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          <Info className="size-3" />
-        </button>
-        <div className="flex items-start gap-2.5 pr-7">
-          <div
-            className={cn('mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border', iconClassName)}
+      <div className={cn('my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs', colorClass)}>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            type="button"
+            title={expanded ? 'Hide tool details' : 'Show tool details'}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+            className="hover:bg-background/70 rounded p-0.5"
           >
-            {isPending ? <Loader2 className="size-3 animate-spin" /> : <Icon className="size-3" />}
-          </div>
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium">{label}</span>
-              {isPending ? <ToolChip>Running</ToolChip> : null}
-            </div>
-            {hideResultText ? null : <p className="text-foreground/80">{item.result || 'Running...'}</p>}
-            {children}
-          </div>
+            {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+          </button>
+          {isPending ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Icon className="size-3 shrink-0" />}
+          {customView?.kind === 'new-comment' ? (
+            <NewCommentSummary item={item} />
+          ) : (
+            <>
+              <span className="shrink-0 font-medium">{render?.label || item.name}</span>
+              {summary ? <span className="text-foreground/75 min-w-0 truncate">{summary}</span> : null}
+              <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-hidden">
+                {links.map((link) => (
+                  <ToolResourceLink key={link.url} url={link.url} label={link.label} />
+                ))}
+              </div>
+            </>
+          )}
+          {isPending ? <ToolChip>{render?.pendingLabel || 'Running'}</ToolChip> : null}
+          <button
+            type="button"
+            title="View raw tool input/output"
+            onClick={() => setDetailsOpen(true)}
+            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 ml-auto rounded-full border p-0.75"
+          >
+            <Info className="size-3" />
+          </button>
         </div>
+        {expanded ? (
+          <div className="mt-2 space-y-2 border-t pt-2">
+            {customView?.kind === 'new-comment' ? (
+              <NewCommentDetails item={item} />
+            ) : (
+              details.map((detail) => (
+                <div key={`${detail.label}:${detail.path || detail.source}`} className="space-y-1">
+                  <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">
+                    {detail.label}
+                  </div>
+                  {detail.format === 'markdown' && typeof detail.value === 'string' ? (
+                    <div className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border px-2.5 py-2">
+                      <Markdown>{detail.value}</Markdown>
+                    </div>
+                  ) : (
+                    <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+                      {formatToolDebugValue(detail.value)}
+                    </pre>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
       </div>
       <ToolCallDebugDialog item={item} open={detailsOpen} onOpenChange={setDetailsOpen} />
     </>
   )
 }
 
-function SearchToolCallBubble({item}: {item: ChatToolPart}) {
-  const [expanded, setExpanded] = useState(false)
-  const searchOutput = getSearchToolOutput(item.rawOutput)
-  const hasExpandableContent = Boolean(searchOutput)
-
-  return (
-    <ToolCallBubble
-      item={item}
-      icon={Search}
-      label="Search"
-      bubbleClassName="border-sky-500/30 bg-sky-500/10"
-      iconClassName="border-sky-500/25 bg-background/80 text-sky-500"
-    >
-      {searchOutput ? (
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap gap-1.5">
-            {searchOutput.query ? <ToolChip>&ldquo;{searchOutput.query}&rdquo;</ToolChip> : null}
-            <ToolChip>
-              {searchOutput.results.length} result{searchOutput.results.length === 1 ? '' : 's'}
-            </ToolChip>
-            <ToolChip>{searchOutput.searchType}</ToolChip>
-            <ToolChip>{searchOutput.includeBody ? 'body included' : 'titles only'}</ToolChip>
-          </div>
-          {hasExpandableContent ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((current) => !current)}
-              className="hover:bg-background/70 inline-flex items-center gap-1 rounded-full border px-2 py-0.75 text-[10px] font-medium transition-colors"
-            >
-              <span>{expanded ? 'Hide results' : 'Show results'}</span>
-              {expanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
-            </button>
-          ) : null}
-          {expanded ? (
-            <div className="bg-background/60 rounded-xl border px-2.5 py-2">
-              <Markdown>{searchOutput.markdown}</Markdown>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </ToolCallBubble>
-  )
-}
-
-function ReadToolCallBubble({item}: {item: ChatToolPart}) {
-  const readOutput = getReadToolOutput(item.rawOutput)
-  const resourceUrl = readOutput?.resourceUrl || getToolResourceUrl(item)
-  const resourceLabel =
-    readOutput?.displayLabel ||
-    (readOutput?.view === 'comments' ? (readOutput.title ? `${readOutput.title} Comments` : 'Comments') : undefined) ||
-    readOutput?.title ||
-    resourceUrl ||
-    'Untitled document'
-
-  return (
-    <ToolCallBubble
-      item={item}
-      icon={BookOpenText}
-      label="Read"
-      bubbleClassName="border-emerald-500/30 bg-emerald-500/10"
-      iconClassName="border-emerald-500/25 bg-background/80 text-emerald-500"
-      hideResultText
-    >
-      <div className="flex flex-wrap gap-2">{readOutput?.view ? <ToolChip>{readOutput.view}</ToolChip> : null}</div>
-      {resourceUrl ? <ToolResourceLink url={resourceUrl} label={resourceLabel} /> : null}
-    </ToolCallBubble>
-  )
-}
-
-function NavigateToolCallBubble({item}: {item: ChatToolPart}) {
-  const navigateOutput = getNavigateToolOutput(item.rawOutput)
-  const resourceUrl = navigateOutput?.resourceUrl || getToolResourceUrl(item)
-  const opensInNewWindow = navigateOutput?.newWindow ?? getBooleanArg(item.args, 'newWindow')
-
-  return (
-    <ToolCallBubble
-      item={item}
-      icon={Compass}
-      label="Navigate"
-      bubbleClassName="border-amber-500/30 bg-amber-500/10"
-      iconClassName="border-amber-500/25 bg-background/80 text-amber-500"
-    >
-      <div className="flex flex-wrap gap-2">
-        <ToolChip>{opensInNewWindow ? 'new window' : 'current window'}</ToolChip>
-      </div>
-      {resourceUrl ? <ToolResourceLink url={resourceUrl} label="Open target" /> : null}
-    </ToolCallBubble>
-  )
-}
-
-function WriteToolCallBubble({item}: {item: ChatToolPart}) {
-  const command = getStringArg(item.args, 'command')
-
-  return (
-    <ToolCallBubble
-      item={item}
-      icon={PenLine}
-      label={getSeedToolMetadata(item.name)?.render.label || 'Write'}
-      bubbleClassName="border-indigo-500/30 bg-indigo-500/10"
-      iconClassName="border-indigo-500/25 bg-background/80 text-indigo-500"
-    >
-      <div className="flex flex-wrap gap-1.5">
-        {command ? <ToolChip>{command}</ToolChip> : null}
-        {isRecord(item.rawOutput) && typeof item.rawOutput.url === 'string' ? (
-          <ToolResourceLink url={item.rawOutput.url} label="Open result" />
-        ) : null}
-      </div>
-    </ToolCallBubble>
-  )
-}
-
-function GenericToolCallBubble({item}: {item: ChatToolPart}) {
-  const hasArgs = Boolean(item.args && Object.keys(item.args).length > 0)
-
-  return (
-    <ToolCallBubble
-      item={item}
-      icon={Wrench}
-      label={item.name}
-      bubbleClassName="border-border bg-muted/60"
-      iconClassName="border-border bg-background/80 text-muted-foreground"
-    >
-      {hasArgs ? (
-        <div className="bg-background/70 text-muted-foreground rounded-xl border px-2 py-1.5 text-[10px]">
-          {Object.entries(item.args!).map(([key, value], index) => (
-            <div key={key} className={cn('break-all', index > 0 && 'mt-1')}>
-              <span className="font-medium">{key}:</span> {formatCompactValue(value)}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </ToolCallBubble>
-  )
-}
-
 function ToolCallItem({item}: {item: ChatToolPart}) {
-  switch (getSeedToolMetadata(item.name)?.render.kind) {
-    case 'search':
-      return <SearchToolCallBubble item={item} />
-    case 'read':
-      return <ReadToolCallBubble item={item} />
-    case 'navigate':
-      return <NavigateToolCallBubble item={item} />
-    case 'write':
-      return <WriteToolCallBubble item={item} />
-    default:
-      return <GenericToolCallBubble item={item} />
-  }
+  return <ToolCallLine item={item} />
 }

@@ -16,6 +16,27 @@ export type ToolRuntime = 'assistant' | 'agent-service'
 
 export type ToolRenderKind = 'search' | 'read' | 'resolve' | 'navigate' | 'write' | 'generic' | 'hidden'
 
+export type ToolRenderValueSource = 'input' | 'output'
+
+export type ToolRenderLink = {
+  source: ToolRenderValueSource
+  path: string
+  label?: string
+  labelPath?: string
+}
+
+export type ToolRenderDetail = {
+  label: string
+  source: ToolRenderValueSource
+  path?: string
+  format?: 'json' | 'markdown'
+}
+
+export type ToolRenderCustomView = {
+  command: string
+  kind: 'new-comment'
+}
+
 export type ToolRenderMetadata = {
   kind: ToolRenderKind
   label: string
@@ -23,6 +44,11 @@ export type ToolRenderMetadata = {
   color: 'sky' | 'emerald' | 'violet' | 'amber' | 'indigo' | 'muted' | 'hidden'
   primaryArg?: string
   resourceArg?: string
+  summaryArg?: string
+  summaryOutputPath?: string
+  links?: ToolRenderLink[]
+  details?: ToolRenderDetail[]
+  customViews?: ToolRenderCustomView[]
 }
 
 export type SeedToolMetadata = {
@@ -175,7 +201,20 @@ export const seedToolRegistry: SeedToolRegistry = {
       required: ['query'],
       additionalProperties: false,
     },
-    render: {kind: 'search', label: 'Search', color: 'sky', primaryArg: 'query'},
+    render: {
+      kind: 'search',
+      label: 'Search',
+      color: 'sky',
+      primaryArg: 'query',
+      summaryArg: 'query',
+      summaryOutputPath: 'summary',
+      links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
+      details: [
+        {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
@@ -193,7 +232,22 @@ export const seedToolRegistry: SeedToolRegistry = {
       required: ['url'],
       additionalProperties: false,
     },
-    render: {kind: 'navigate', label: 'Navigate', color: 'amber', resourceArg: 'url'},
+    render: {
+      kind: 'navigate',
+      label: 'Navigate',
+      color: 'amber',
+      resourceArg: 'url',
+      summaryArg: 'url',
+      summaryOutputPath: 'summary',
+      links: [
+        {source: 'output', path: 'resourceUrl', label: 'Open target'},
+        {source: 'input', path: 'url', label: 'Requested URL'},
+      ],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
     runtimes: ['assistant'],
   },
   list_activity_feed: {
@@ -240,7 +294,19 @@ export const seedToolRegistry: SeedToolRegistry = {
         },
       },
     },
-    render: {kind: 'generic', label: 'Activity Feed', color: 'muted', primaryArg: 'filterResource'},
+    render: {
+      kind: 'generic',
+      label: 'Activity Feed',
+      color: 'muted',
+      primaryArg: 'filterResource',
+      summaryArg: 'filterResource',
+      summaryOutputPath: 'summary',
+      links: [{source: 'input', path: 'filterResource', label: 'Filter'}],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
@@ -250,7 +316,24 @@ export const seedToolRegistry: SeedToolRegistry = {
     description:
       'Read Seed Hypermedia content by URL.Accepts hm:// URLs, gateway URLs, http(s) Seed site web URLs, and document view suffixes for comments, directories, version history, citations, and collaborators. Automatically resolves http(s) URLs before reading.',
     inputSchema: readHypermediaInputSchema,
-    render: {kind: 'read', label: 'Read', color: 'emerald', resourceArg: 'id'},
+    render: {
+      kind: 'read',
+      label: 'Read',
+      color: 'emerald',
+      resourceArg: 'id',
+      summaryArg: 'id',
+      summaryOutputPath: 'summary',
+      links: [
+        {source: 'output', path: 'resourceUrl', labelPath: 'displayLabel'},
+        {source: 'output', path: 'id', labelPath: 'title'},
+        {source: 'input', path: 'id', label: 'Requested URL'},
+      ],
+      details: [
+        {label: 'Content', source: 'output', path: 'markdown', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
@@ -260,7 +343,26 @@ export const seedToolRegistry: SeedToolRegistry = {
     description:
       'Create, update, and publish Seed Hypermedia documents, drafts, comments, capabilities, contacts, and profiles. Structured equivalent of seed-cli write commands. Use selected signer profileName or publicKey. For document.create and draft.create, always set the visible Seed document title as input.name (or title) / frontmatter name; the first markdown heading is body content and is not enough by itself. For comment.create replies, always pass input.replyCommentId with the exact parent comment id (for trigger-created sessions, use activity.comment.id or activity.commentId.id) so the comment is threaded instead of orphaned.',
     inputSchema: writeHypermediaInputSchema,
-    render: {kind: 'write', label: 'Write', color: 'indigo', primaryArg: 'command'},
+    render: {
+      kind: 'write',
+      label: 'Write',
+      color: 'indigo',
+      primaryArg: 'command',
+      summaryArg: 'command',
+      summaryOutputPath: 'summary',
+      links: [
+        {source: 'output', path: 'url', label: 'Open result'},
+        {source: 'output', path: 'resourceUrl', label: 'Open resource'},
+        {source: 'input', path: 'target', label: 'Target'},
+        {source: 'input', path: 'targetId', label: 'Target'},
+        {source: 'input', path: 'id', label: 'ID'},
+      ],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+      customViews: [{command: 'comment.create', kind: 'new-comment'}],
+    },
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
@@ -280,7 +382,7 @@ export const seedToolRegistry: SeedToolRegistry = {
       },
       required: ['title'],
     },
-    render: {kind: 'hidden', label: 'Set Session Title', color: 'hidden', primaryArg: 'title'},
+    render: {kind: 'hidden', label: 'Set Session Title', color: 'hidden', primaryArg: 'title', summaryArg: 'title'},
     runtimes: ['agent-service'],
     hidden: true,
   },
