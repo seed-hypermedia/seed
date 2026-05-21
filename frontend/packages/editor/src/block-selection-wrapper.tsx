@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {NodeSelection, TextSelection} from 'prosemirror-state'
+import {AllSelection, NodeSelection, TextSelection} from 'prosemirror-state'
 import {Node as PMNode} from 'prosemirror-model'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -24,6 +24,8 @@ function updateSelection(
     if (selectedNode && selectedNode.attrs && selectedNode.attrs.id === block.id) {
       isSelected = true
     }
+  } else if (selection instanceof AllSelection) {
+    isSelected = true
   } else if (selection instanceof MultipleNodeSelection) {
     for (const node of selection.nodes) {
       if (node.attrs && node.attrs.id === block.id) {

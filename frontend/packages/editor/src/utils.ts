@@ -8,6 +8,7 @@ import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {toast} from '@shm/ui/toast'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
+import {AllSelection} from '@tiptap/pm/state'
 import {EditorView} from '@tiptap/pm/view'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -32,6 +33,16 @@ export function camelToFlat(camel: string) {
   const camelCase = camel.replace(/([a-z])([A-Z])/g, '$1 $2')
 
   return camelCase
+}
+
+/** Selects the full ProseMirror document, including trailing non-editable blocks. */
+export function selectAllEditorContent(editor: Pick<Editor, 'view'>): boolean {
+  const {view} = editor
+  if (!view) return false
+
+  view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)).scrollIntoView())
+  view.focus()
+  return true
 }
 
 // @ts-expect-error

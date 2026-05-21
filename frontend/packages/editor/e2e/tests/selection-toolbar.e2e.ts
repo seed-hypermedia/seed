@@ -3,6 +3,55 @@ import {expect, test} from './fixtures'
 // Opt out of clipboard permissions
 test.use({clipboardPermissions: false})
 
+async function insertTrailingEmbedCard(page: any) {
+  await page.evaluate(() => {
+    const editor = (window as any).TEST_EDITOR?.editor
+    const firstBlock = editor?.topLevelBlocks?.[0]
+    if (!editor || !firstBlock) throw new Error('Editor not ready')
+
+    editor.insertBlocks(
+      [
+        {
+          type: 'embed',
+          props: {
+            url: 'hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/test-doc',
+            view: 'Card',
+          },
+        },
+      ],
+      firstBlock.id,
+      'after',
+    )
+  })
+}
+
+async function insertTrailingQueryCard(page: any) {
+  await page.evaluate(() => {
+    const editor = (window as any).TEST_EDITOR?.editor
+    const firstBlock = editor?.topLevelBlocks?.[0]
+    if (!editor || !firstBlock) throw new Error('Editor not ready')
+
+    editor.insertBlocks(
+      [
+        {
+          type: 'query',
+          props: {
+            style: 'Card',
+            columnCount: '3',
+            queryLimit: '',
+            queryIncludes: '[{"space":"","path":"","mode":"Children"}]',
+            querySort: '[{"term":"UpdateTime","reverse":false}]',
+            banner: 'false',
+            defaultOpen: 'false',
+          },
+        },
+      ],
+      firstBlock.id,
+      'after',
+    )
+  })
+}
+
 test.describe('Selection Behavior', () => {
   test.describe('Text Selection', () => {
     // test('Should select text with keyboard shortcuts', async ({
@@ -75,6 +124,40 @@ test.describe('Selection Behavior', () => {
       const selectedText = await editorHelpers.getSelectedText()
       expect(selectedText).toContain('First block')
       expect(selectedText).toContain('Second block')
+    })
+
+    test('Should select and delete a trailing embed card with Cmd+A', async ({editorHelpers, page}) => {
+      await editorHelpers.typeText('First block')
+      await insertTrailingEmbedCard(page)
+      await page.waitForTimeout(200)
+
+      await page.locator('[data-testid="editor-container"] p:has-text("First block")').click()
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(200)
+
+      await expect(page.locator('.bn-media-selected')).toHaveCount(1)
+
+      await editorHelpers.pressKey('Backspace')
+      await page.waitForTimeout(200)
+
+      expect(await editorHelpers.getBlocks()).toEqual([])
+    })
+
+    test('Should select and delete a trailing query card with Cmd+A', async ({editorHelpers, page}) => {
+      await editorHelpers.typeText('First block')
+      await insertTrailingQueryCard(page)
+      await page.waitForTimeout(200)
+
+      await page.locator('[data-testid="editor-container"] p:has-text("First block")').click()
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(200)
+
+      await expect(page.locator('.bn-media-selected')).toHaveCount(1)
+
+      await editorHelpers.pressKey('Backspace')
+      await page.waitForTimeout(200)
+
+      expect(await editorHelpers.getBlocks()).toEqual([])
     })
 
     test('Should navigate between blocks with arrow keys', async ({editorHelpers, page}) => {

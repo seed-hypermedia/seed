@@ -23,7 +23,7 @@ import {MobileSlashDialog} from './mobile-slash-dialog'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {isMobileDevice, useMobile} from './use-mobile'
-import {createMediaBlock, handleDragMedia, serverBlockNodesFromEditorBlocks} from './utils'
+import {createMediaBlock, handleDragMedia, selectAllEditorContent, serverBlockNodesFromEditorBlocks} from './utils'
 
 function crawlEditorBlocks(blocks: EditorBlock[], filter: (block: EditorBlock) => boolean): EditorBlock[] {
   const matchedChildren = blocks.flatMap((block) => crawlEditorBlocks(block.children, filter))
@@ -116,8 +116,7 @@ export function useCommentEditor(
           addKeyboardShortcuts() {
             return {
               'Mod-a': ({editor}) => {
-                editor.commands.selectAll()
-                return true
+                return selectAllEditorContent(editor)
               },
               'Mod-Enter': () => {
                 if (onSubmitRef.current) {
