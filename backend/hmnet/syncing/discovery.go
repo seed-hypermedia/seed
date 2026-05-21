@@ -828,24 +828,32 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 	}
 
 	// Fill media files (always, not just for push).
-	// Uses a recursive CTE to traverse blob_links transitively,
-	// handling chains like comment → DagPB root → Raw chunks.
+	// Uses a recursive CTE to traverse blob_links transitively along EVERY
+	// link type — cross-resource chains (comment/reply-parent →
+	// cross-resource Comment → comment/Image → DagPB → dagpb/chunk → Raw)
+	// are real and lose media completeness if we prune by link type.
+	//
+	// CROSS JOIN on the seed arm forces SQLite to drive from rbsr_blobs
+	// (small) and probe blob_links via its (source, type, target) PK; same
+	// pattern as the RECURSIVE changes block earlier. stashed_blobs
+	// anti-join is hoisted out of both recursive arms and applied only at
+	// the final INSERT — that table is empty in steady state, the per-edge
+	// LEFT JOIN inside the recursion is wasted work in 99 % of calls.
 	{
 		const q = `WITH RECURSIVE media (id) AS (
-				SELECT target
-				FROM blob_links bl
-				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
-				WHERE bl.source IN rbsr_blobs
-				AND stashed_blobs.id IS NULL
+				SELECT bl.target
+				FROM rbsr_blobs rb
+				CROSS JOIN blob_links bl ON bl.source = rb.id
 				UNION
 				SELECT bl.target
 				FROM blob_links bl
 				JOIN media m ON m.id = bl.source
-				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
-				WHERE stashed_blobs.id IS NULL
 			)
 			INSERT OR IGNORE INTO rbsr_blobs
-			SELECT id FROM media;`
+			SELECT m.id
+			FROM media m
+			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = m.id
+			WHERE stashed_blobs.id IS NULL;`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
