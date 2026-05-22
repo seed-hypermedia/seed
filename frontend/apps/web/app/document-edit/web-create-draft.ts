@@ -26,12 +26,14 @@ export async function createWebDocumentDraft({
   navigate,
   generateDraftId = () => nanoid(10),
   generatePath = () => nanoid(21),
+  capabilityCid,
 }: {
   locationId: UnpackedHypermediaId
   signingAccountId: string
   visibility?: HMResourceVisibility
   content?: HMBlockNode[]
   metadata?: HMMetadata
+  capabilityCid?: string
   navigate: (route: WebDocumentDraftRoute) => void
   generateDraftId?: () => string
   generatePath?: () => string
@@ -46,6 +48,7 @@ export async function createWebDocumentDraft({
     draftId,
     docId: routeId.id,
     signingAccountId,
+    ...(capabilityCid ? {capabilityCid} : {}),
     content,
     metadata,
     deps: [],
@@ -91,10 +94,12 @@ export async function createWebDocumentDraftFromMarkdownFile({
   locationId,
   signingAccountId,
   navigate,
+  capabilityCid,
 }: {
   file: File
   locationId: UnpackedHypermediaId
   signingAccountId: string
+  capabilityCid?: string
   navigate: (route: WebDocumentDraftRoute) => void
 }): Promise<UnpackedHypermediaId> {
   const text = await file.text()
@@ -103,6 +108,7 @@ export async function createWebDocumentDraftFromMarkdownFile({
   return createWebDocumentDraft({
     locationId,
     signingAccountId,
+    capabilityCid,
     metadata,
     content: markdownToHMBlockNodes(markdown),
     navigate,

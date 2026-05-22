@@ -81,6 +81,20 @@ describe('resolveWebCanEdit', () => {
     expect(result.signingAccountId).toBe(null)
   })
 
+  it('owner can edit before capabilities finish loading', () => {
+    const result = resolveWebCanEdit({
+      docId: makeDocId(OWNER_UID),
+      delegatedAccountUid: OWNER_UID,
+      origin: null,
+      originHomeId: null,
+      capabilities: undefined,
+      isBrowser: true,
+    })
+    expect(result.canEdit).toBe(true)
+    expect(result.signingAccountId).toBe(OWNER_UID)
+    expect(result.capability?.id).toBe('_owner')
+  })
+
   it('owner on gateway can edit', () => {
     const result = resolveWebCanEdit({
       docId: makeDocId(OWNER_UID),

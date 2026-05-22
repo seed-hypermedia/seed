@@ -437,6 +437,42 @@ describe('publishWebDocument', () => {
     expect(args.capability).toBe(capCid)
   })
 
+  it('non-owner publish falls back to draft capability CID', async () => {
+    const capCid = (await makeTestCID({v: 'draft-cap'})).toString()
+
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: ALICE,
+      capabilityCid: capCid,
+      content: [paragraph('b1', 'hi')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const deps = makeDeps({
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hi'}],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument({...baseInput, publishAccountUid: ALICE}, deps)
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    expect(prepareCall[1].capability).toBe(capCid)
+  })
+
   it('metadata-only change emits setAttribute', async () => {
     await putWebDocDraft({
       draftId,
