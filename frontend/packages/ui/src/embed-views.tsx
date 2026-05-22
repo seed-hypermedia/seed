@@ -6,10 +6,11 @@ import {
   HMComment,
   HMDocument,
   HMEmbedView,
-  HMResolvedResource,
+  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
+  abbreviateUid,
   formattedDateMedium,
   getCommentTargetId,
   getDocumentTitle,
@@ -19,7 +20,7 @@ import {
   useRenderResourceStack,
   useUniversalClient,
 } from '@shm/shared'
-import {useResource, useResources} from '@shm/shared/models/entity'
+import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {AlertCircle, Undo2} from 'lucide-react'
@@ -242,8 +243,7 @@ export function BlockEmbedContent({
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const comment = resource.data?.type === 'comment' ? resource.data.comment : undefined
   const commentTargetResource = useResource(getCommentTargetId(comment))
-
-  const author = useResource(comment?.author ? hmId(comment?.author) : null)
+  const author = useAccount(comment?.author, {subscribe: true})
   const candidateKind = comment ? 'comment' : document ? 'document' : null
   const isCyclicEmbed = !!(
     id &&
@@ -305,7 +305,8 @@ export function BlockEmbedContent({
         comment={comment}
         isLoading={resource.isLoading}
         targetResource={commentTargetResource.data ?? undefined}
-        author={author.data?.type === 'document' || author.data?.type === 'comment' ? author.data : undefined}
+        author={author.data}
+        isAuthorLoading={author.isLoading}
         openOnClick={openOnClick}
         isStaleVersion={isStaleCommentVersion}
       />
@@ -405,6 +406,7 @@ export function BlockEmbedContentComment({
   depth,
   comment,
   author,
+  isAuthorLoading = false,
   block,
   targetResource,
   openOnClick = true,
@@ -416,7 +418,8 @@ export function BlockEmbedContentComment({
   block: HMBlockEmbed
   isLoading?: boolean
   comment: HMComment
-  author: HMResolvedResource | null | undefined
+  author: HMMetadataPayload | null | undefined
+  isAuthorLoading?: boolean
   targetResource: HMResource | undefined
   openOnClick?: boolean
   isStaleVersion?: boolean
@@ -438,14 +441,13 @@ export function BlockEmbedContentComment({
         },
       }}
     >
-      {author && (
-        <CommentEmbedHeader
-          comment={comment}
-          author={author}
-          targetResource={targetResource}
-          isStaleVersion={isStaleVersion}
-        />
-      )}
+      <CommentEmbedHeader
+        comment={comment}
+        author={author}
+        isAuthorLoading={isAuthorLoading}
+        targetResource={targetResource}
+        isStaleVersion={isStaleVersion}
+      />
       <CommentContent
         comment={comment}
         resourceId={id}
@@ -461,21 +463,25 @@ export function BlockEmbedContentComment({
 function CommentEmbedHeader({
   comment,
   author,
+  isAuthorLoading = false,
   targetResource,
   isStaleVersion = false,
 }: {
   comment: HMComment
-  author: HMResolvedResource
+  author: HMMetadataPayload | null | undefined
+  isAuthorLoading?: boolean
   targetResource: HMResource | undefined
   isStaleVersion?: boolean
 }) {
-  const authorMetadata = author.type === 'document' ? author.document?.metadata : undefined
+  const authorName = author?.metadata?.name || abbreviateUid(comment.author) || '?'
+  const authorIcon = author?.metadata?.icon
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap justify-between p-3">
         <div className="flex items-center gap-2">
-          {author.id && <HMIcon size={24} id={author.id} name={authorMetadata?.name} icon={authorMetadata?.icon} />}
-          <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
+          <HMIcon size={24} id={author?.id || hmId(comment.author)} name={authorName} icon={authorIcon} />
+          <SizableText weight="bold">{authorName}</SizableText>
+          {isAuthorLoading && !author?.metadata?.name ? <Spinner size="small" /> : null}
           {targetResource && targetResource.type === 'document' ? (
             <>
               {' on '}
