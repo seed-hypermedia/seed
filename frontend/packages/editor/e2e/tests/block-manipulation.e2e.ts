@@ -36,13 +36,24 @@ test.describe('Block Manipulation', () => {
       expect(blocks[0].type).toBe('heading')
     })
 
-    test('Should insert code block with slash menu', async ({editorHelpers, page}) => {
+    test('Should insert code block with slash menu', async ({editorHelpers}) => {
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Code Block')
-      // await page.waitForTimeout(200)
+      await editorHelpers.typeText('const answer = 42')
 
       const blocks = await editorHelpers.getBlocks()
       expect(blocks[0].type).toBe('code-block')
+      expect(blocks[0].content[0].text).toBe('const answer = 42')
+    })
+
+    test('Should remove empty code block formatting on Backspace', async ({editorHelpers}) => {
+      await editorHelpers.openSlashMenu()
+      await editorHelpers.clickSlashMenuItem('Code Block')
+      await editorHelpers.pressKey('Backspace')
+
+      const blocks = await editorHelpers.getAllBlocks()
+      expect(blocks[0].type).toBe('paragraph')
+      expect(blocks[0].content).toEqual([])
     })
 
     test('Should filter slash menu items when typing after slash', async ({editorHelpers, page}) => {

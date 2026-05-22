@@ -154,17 +154,17 @@ export function getSlashMenuItems({
     icon: <Code size={18} />,
     hint: 'Insert a Code Block',
     execute: (editor: BlockNoteEditor) => {
-      insertOrUpdateBlock(editor, {
-        type: 'code-block',
-        props: {
-          language: '',
-        },
-      } as PartialBlock<HMBlockSchema>)
-      // Move cursor to the code-block after converting from paragraph
-      const codeBlock = editor.getTextCursorPosition().prevBlock
-      if (codeBlock && codeBlock.type === 'code-block') {
-        editor.setTextCursorPosition(codeBlock, 'start')
-      }
+      insertOrUpdateBlock(
+        editor,
+        {
+          type: 'code-block',
+          props: {
+            language: '',
+          },
+        } as PartialBlock<HMBlockSchema>,
+        false,
+        true,
+      )
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },

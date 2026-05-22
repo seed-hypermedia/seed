@@ -9,6 +9,7 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
   editor: BlockNoteEditor<BSchema>,
   block: PartialBlock<BSchema>,
   isNode?: boolean,
+  keepSelection?: boolean,
 ) {
   const currentBlock = editor.getTextCursorPosition().block
 
@@ -20,7 +21,11 @@ export function insertOrUpdateBlock<BSchema extends BlockSchema>(
       currentBlock.content[0].text === '/') ||
     currentBlock.content.length === 0
   ) {
-    editor.updateBlock(currentBlock, block)
+    if (keepSelection === undefined) {
+      editor.updateBlock(currentBlock, block)
+    } else {
+      editor.updateBlock(currentBlock, block, keepSelection)
+    }
     if (isNode) {
       const cursorPosition = editor.getTextCursorPosition()
       editor.focus()

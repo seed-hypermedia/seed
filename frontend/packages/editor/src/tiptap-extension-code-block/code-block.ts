@@ -189,7 +189,7 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         }
 
         if (isAtStart || !$anchor.parent.textContent.length) {
-          return this.editor.commands.clearNodes()
+          return this.editor.commands.setNode('paragraph')
         }
 
         return false

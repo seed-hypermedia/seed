@@ -301,10 +301,14 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     const tiptap = props.editor._tiptapEditor
     const {state} = tiptap
     const blockInfo = getBlockInfoFromSelection(state)
-    props.editor.updateBlock(blockInfo.block.node.attrs.id, {
-      type: blockType,
-      props: {},
-    })
+    props.editor.updateBlock(
+      blockInfo.block.node.attrs.id,
+      {
+        type: blockType,
+        props: {},
+      },
+      blockType === 'code-block',
+    )
     setCurrentBlockType(blockType)
   }
 
