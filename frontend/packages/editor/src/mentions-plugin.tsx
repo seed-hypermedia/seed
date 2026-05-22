@@ -10,6 +10,11 @@ import {Plugin} from '@tiptap/pm/state'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
 import './inline-embed.css'
 
+/** Fallback text used when serializing an inline embed to the clipboard. */
+export function inlineEmbedClipboardText(link: string): string {
+  return link || ''
+}
+
 /** Creates the TipTap Node for rendering inline-embed mentions in the document. */
 export function createInlineEmbedNode() {
   const InlineEmbedNode = Node.create({
@@ -20,13 +25,21 @@ export function createInlineEmbedNode() {
     addNodeView() {
       return ReactNodeViewRenderer(InlineEmbedNodeComponent)
     },
-    renderHTML({HTMLAttributes}) {
-      return ['a', {...HTMLAttributes, href: HTMLAttributes.link, 'data-inline-embed': HTMLAttributes.link}]
+    renderHTML({node, HTMLAttributes}) {
+      return [
+        'a',
+        {...HTMLAttributes, href: HTMLAttributes.link, 'data-inline-embed': HTMLAttributes.link},
+        inlineEmbedClipboardText(node.attrs.link),
+      ]
+    },
+    renderText({node}) {
+      return inlineEmbedClipboardText(node.attrs.link)
     },
     parseHTML() {
       return [
         {
           tag: `a[data-inline-embed]`,
+          priority: 1000,
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')
@@ -37,6 +50,7 @@ export function createInlineEmbedNode() {
         },
         {
           tag: `span[data-inline-embed]`,
+          priority: 1000,
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
               var value = dom.getAttribute('data-inline-embed')

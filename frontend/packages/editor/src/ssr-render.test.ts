@@ -22,7 +22,31 @@ describe('renderDocumentToHTML', () => {
     )
 
     expect(html).toContain('href="https://example.com/docs/page"')
+    expect(html).toContain('data-hm-link="hm://uid1/docs/page"')
     expect(html).not.toContain('href="hm://')
+  })
+
+  it('preserves inline embed metadata needed for copy-paste round-trips', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'block-1',
+            type: 'Paragraph',
+            text: 'inline embed',
+            annotations: [{type: 'Embed', starts: [0], ends: [12], link: 'hm://uid1/docs/page'}],
+          },
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {
+        renderHref: (url) => (url === 'hm://uid1/docs/page' ? 'https://example.com/docs/page' : url),
+      },
+    )
+
+    expect(html).toContain('href="https://example.com/docs/page"')
+    expect(html).toContain('data-hm-link="hm://uid1/docs/page"')
+    expect(html).toContain('data-inline-embed="hm://uid1/docs/page"')
   })
 
   it('uses renderHref for SSR embed cards', () => {
@@ -50,6 +74,32 @@ describe('renderDocumentToHTML', () => {
     )
 
     expect(html).toContain('href="https://example.com/docs/page"')
+    expect(html).toContain('data-url="hm://uid1/docs/page"')
+    expect(html).toContain('data-view="Content"')
+    expect(html).toContain('<a class="ssr-card" data-content-type="embed" data-url="hm://uid1/docs/page"')
     expect(html).not.toContain('href="hm://')
+  })
+
+  it('preserves embed block metadata even when no SSR card data is available', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'block-1',
+            type: 'Embed',
+            text: '',
+            link: 'hm://uid1/docs/page',
+            attributes: {view: 'Card'},
+            annotations: [],
+          },
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {},
+    )
+
+    expect(html).toContain('data-url="hm://uid1/docs/page"')
+    expect(html).toContain('data-view="Card"')
+    expect(html).toContain('data-content-type="embed"')
   })
 })
