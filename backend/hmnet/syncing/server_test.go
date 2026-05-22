@@ -22,22 +22,31 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestInboundReconcileLimiterAutoScalesWithGOMAXPROCS(t *testing.T) {
+// TestInboundReconcileLimiterDefaultsToFixedCap pins the auto-default
+// to the conservative fixed cap chosen to prevent OOM under recursive
+// account-root discovery (each call can transiently allocate hundreds
+// of MB in loadRBSRStore; observed 2026-05-22). The previous
+// auto-default of 2×GOMAXPROCS let six+ concurrent calls run on a
+// 4-core host, peaking past the cgroup cap.
+func TestInboundReconcileLimiterDefaultsToFixedCap(t *testing.T) {
 	old := runtime.GOMAXPROCS(2)
 	defer runtime.GOMAXPROCS(old)
 
 	l := newInboundReconcileLimiter(0, time.Second)
 	require.NotNil(t, l)
-	require.Equal(t, 4, l.limit)
+	require.Equal(t, 6, l.limit, "auto-default should be the fixed conservative cap, independent of GOMAXPROCS")
 }
 
-func TestInboundReconcileLimiterHasMinimumAutoLimit(t *testing.T) {
+// TestInboundReconcileLimiterFixedCapIgnoresLowGOMAXPROCS — even on
+// single-core hosts the limit stays at the fixed cap: the constraint
+// is memory, not CPU.
+func TestInboundReconcileLimiterFixedCapIgnoresLowGOMAXPROCS(t *testing.T) {
 	old := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(old)
 
 	l := newInboundReconcileLimiter(0, time.Second)
 	require.NotNil(t, l)
-	require.Equal(t, 2, l.limit)
+	require.Equal(t, 6, l.limit)
 }
 
 func TestInboundReconcileLimiterDefaultsToThreeSecondWait(t *testing.T) {

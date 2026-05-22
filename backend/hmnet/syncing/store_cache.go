@@ -49,7 +49,26 @@ const (
 	// reconciled + recursion / type flags), so 64 leaves comfortable
 	// headroom. Eviction is LRU on overflow.
 	storeCacheCap = 64
+
 )
+
+// storeCacheMaxItems is the per-entry item-count cap. Stores larger
+// than this are still built and returned to the current caller but
+// NOT inserted into the cache — they consume too much memory for
+// the reuse benefit they bring. Recursive account-root filters
+// regularly produce stores of hundreds of thousands of CIDs; with
+// the LRU cap of 64 entries that would pin gigabytes of memory and
+// trigger OOM (observed 2026-05-22). For small per-document filter
+// shapes (the common syncing case), stores stay well under this
+// threshold and the cache still serves its purpose.
+//
+// Memory bound: 10 000 items × ~50 B/Item × 64 cache entries ≈ 32 MB
+// worst-case cache footprint, safely below any reasonable cgroup cap.
+//
+// `var` (not `const`) so tests can lower it without exercising
+// hundreds of thousands of inserts. Production callers must NOT mutate
+// it from non-test code.
+var storeCacheMaxItems = 10_000
 
 // storeFingerprint is the cache key: a deterministic hash of a sorted
 // DiscoveryKey set. Identical filter shapes (modulo Go map iteration
@@ -97,6 +116,10 @@ var (
 	mStoreCacheMisses = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "seed_reconcile_store_cache_misses_total",
 		Help: "Pre-filter RBSR store reuse cache misses (built fresh).",
+	})
+	mStoreCacheSkipsTooLarge = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_reconcile_store_cache_skips_too_large_total",
+		Help: "Built stores not inserted into the cache because their item count exceeded storeCacheMaxItems (recursive-root discoveries typically).",
 	})
 )
 
@@ -235,6 +258,15 @@ func loadOrReusePrefilterStore(ctx context.Context, cache *loadStoreCache, db *s
 	}
 	if err := store.Seal(); err != nil {
 		return nil, err
+	}
+	// Cap retained cache size by item count. Outsized stores (recursive
+	// account-root discoveries) were observed pinning hundreds of MB
+	// per entry × 64 LRU slots and OOM-killing the daemon. Skipping the
+	// Put leaves the request-scoped store for GC once the caller releases
+	// it; the current request still gets the build it paid for.
+	if store.Size() > storeCacheMaxItems {
+		mStoreCacheSkipsTooLarge.Inc()
+		return store, nil
 	}
 	cache.Put(&storeCacheEntry{
 		store: store,

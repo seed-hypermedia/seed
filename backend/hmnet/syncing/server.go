@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"runtime"
 	"seed/backend/blob"
 	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -78,10 +77,15 @@ func newInboundReconcileLimiter(limit int, wait time.Duration) *inboundReconcile
 		return nil
 	}
 	if limit == 0 {
-		limit = 2 * runtime.GOMAXPROCS(0)
-		if limit < 2 {
-			limit = 2
-		}
+		// Recursive account-root filters can each allocate hundreds of
+		// MB transiently in loadRBSRStore (rbsr_iris/rbsr_blobs scratch
+		// + final sealed store). Letting 2×GOMAXPROCS of those run
+		// concurrently OOM-killed the daemon (observed 2026-05-22 — six
+		// concurrent loadOrReusePrefilterStore calls peaked above the
+		// cgroup cap). Cap conservatively at 6 — same scale as the
+		// outbound MaxWorkers default — until the underlying SQL
+		// (Capability / Contact INSERTs in loadRBSRStore) is fixed.
+		limit = 6
 	}
 	if wait <= 0 {
 		wait = defaultInboundReconcileWait

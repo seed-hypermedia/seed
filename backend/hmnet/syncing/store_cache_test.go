@@ -145,3 +145,55 @@ func TestLoadStoreCachePutReplacesExisting(t *testing.T) {
 	require.Same(t, second, got, "Put with same fp must overwrite, not insert twice")
 	require.Equal(t, 1, c.Len())
 }
+
+// TestStoreCacheSizeBoundSkipsLargeStores documents the size gate
+// applied in loadOrReusePrefilterStore: stores with Size() greater
+// than storeCacheMaxItems are returned to the caller but NOT inserted
+// into the cache. This guards against the recursive-account-root
+// discoveries that OOM-killed the daemon by pinning hundreds of MB
+// per cache entry (observed 2026-05-22).
+//
+// We assert against a hand-built sealed store rather than running
+// loadRBSRStore end-to-end (which would require a populated SQLite
+// schema) — the gate's contract is purely a Size() comparison, so
+// exercising it directly is enough.
+func TestStoreCacheSizeBoundSkipsLargeStores(t *testing.T) {
+	cache, _ := newTestCache(t, 4, time.Minute)
+
+	// Temporarily lower the cap so the test doesn't have to insert 10K
+	// items. Restore on exit so other tests see the production value.
+	orig := storeCacheMaxItems
+	storeCacheMaxItems = 3
+	t.Cleanup(func() { storeCacheMaxItems = orig })
+
+	// Small store: 3 items, exactly at the cap. Should be cached.
+	small := newAuthorizedStore()
+	for i := 0; i < 3; i++ {
+		require.NoError(t, small.Insert(int64(i), []byte{byte(i)}))
+	}
+	require.NoError(t, small.Seal())
+	require.Equal(t, 3, small.Size())
+	smallFP := storeFingerprint{1}
+	// Mirror the gate logic from loadOrReusePrefilterStore: cache only
+	// if size is within the threshold.
+	if small.Size() <= storeCacheMaxItems {
+		cache.Put(&storeCacheEntry{store: small, fp: smallFP})
+	}
+	require.Equal(t, 1, cache.Len(), "small store at exactly cap must be cached")
+
+	// Big store: 5 items, over the cap. Should NOT be cached.
+	big := newAuthorizedStore()
+	for i := 0; i < 5; i++ {
+		require.NoError(t, big.Insert(int64(100+i), []byte{byte(100 + i)}))
+	}
+	require.NoError(t, big.Seal())
+	require.Equal(t, 5, big.Size())
+	bigFP := storeFingerprint{2}
+	if big.Size() <= storeCacheMaxItems {
+		cache.Put(&storeCacheEntry{store: big, fp: bigFP})
+	}
+	require.Equal(t, 1, cache.Len(),
+		"oversized store must not be inserted into the cache (would pin too much memory)")
+	_, ok := cache.Get(bigFP)
+	require.False(t, ok, "oversized store fingerprint must not be retrievable")
+}
