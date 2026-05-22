@@ -162,15 +162,14 @@ body {
   }
 }
 
-/* === CODE BLOCK chrome (prose owns font + size inside) === */
+/* === CODE BLOCK chrome ===
+ * Surface (background, border, radius, padding) is owned by `.hm-prose pre`
+ * in packages/ui/src/hm-prose.css. Only structural layout lives here. */
 .ssr-content-placeholder .blockContent[data-content-type='code-block'] {
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
   display: block;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
   position: relative;
 }
 
@@ -190,63 +189,10 @@ body {
   text-align: center;
 }
 
-/* === TEXT COLORS (from Block.module.css) === */
-.ssr-content-placeholder [data-text-color='gray'] {
-  color: #9b9a97;
-}
-.ssr-content-placeholder [data-text-color='brown'] {
-  color: #64473a;
-}
-.ssr-content-placeholder [data-text-color='red'] {
-  color: #e03e3e;
-}
-.ssr-content-placeholder [data-text-color='orange'] {
-  color: #d9730d;
-}
-.ssr-content-placeholder [data-text-color='yellow'] {
-  color: #dfab01;
-}
-.ssr-content-placeholder [data-text-color='green'] {
-  color: #4d6461;
-}
-.ssr-content-placeholder [data-text-color='blue'] {
-  color: #0b6e99;
-}
-.ssr-content-placeholder [data-text-color='purple'] {
-  color: #6940a5;
-}
-.ssr-content-placeholder [data-text-color='pink'] {
-  color: #ad1a72;
-}
-
-/* === BACKGROUND COLORS (from Block.module.css) === */
-.ssr-content-placeholder [data-background-color='gray'] {
-  background-color: #ebeced;
-}
-.ssr-content-placeholder [data-background-color='brown'] {
-  background-color: #e9e5e3;
-}
-.ssr-content-placeholder [data-background-color='red'] {
-  background-color: #fbe4e4;
-}
-.ssr-content-placeholder [data-background-color='orange'] {
-  background-color: #faebdd;
-}
-.ssr-content-placeholder [data-background-color='yellow'] {
-  background-color: #fbf3db;
-}
-.ssr-content-placeholder [data-background-color='green'] {
-  background-color: #ddedea;
-}
-.ssr-content-placeholder [data-background-color='blue'] {
-  background-color: #ddebf1;
-}
-.ssr-content-placeholder [data-background-color='purple'] {
-  background-color: #eae4f2;
-}
-.ssr-content-placeholder [data-background-color='pink'] {
-  background-color: #f4dfeb;
-}
+/* Inline text / background colors are owned by `.hm-prose [data-text-color]`
+ * / `[data-background-color]` in packages/ui/src/hm-prose.css. The SSR
+ * placeholder carries the `hm-prose` class, so those rules (light + dark)
+ * apply directly — no SSR-specific copy needed. */
 
 /* === TEXT ALIGNMENT === */
 .ssr-content-placeholder [data-text-alignment='left'] {

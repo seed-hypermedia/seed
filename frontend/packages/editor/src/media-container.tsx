@@ -222,10 +222,15 @@ export const MediaContainer = ({
       )}
       <div
         className={cn(
-          'group relative flex max-w-full flex-col rounded-md border-2 transition-colors',
-          mediaType === 'file' ? 'w-full' : 'w-full',
-          drag ? 'border-foreground/20 dark:border-foreground/30' : 'border-border',
-          drag && 'border-dashed',
+          'group relative flex w-full max-w-full flex-col rounded-md transition-colors',
+          // Image/video carry their own rounding + shadow (see hm-prose.css),
+          // so they get no chrome border; other media keep the framed box.
+          // The dashed border still appears while dragging as a drop target.
+          drag
+            ? 'border-foreground/20 dark:border-foreground/30 border-2 border-dashed'
+            : mediaType === 'image' || mediaType === 'video'
+            ? ''
+            : 'border-border border-2',
           editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
           className ?? block.type,
         )}

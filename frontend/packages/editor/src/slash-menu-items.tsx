@@ -183,8 +183,10 @@ export function getSlashMenuItems({
         } as PartialBlock<HMBlockSchema>,
         true,
       )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
+      // Select the inserted math block so its render effect opens and
+      // focuses the LaTeX textarea, instead of leaving the cursor in
+      // the following block.
+      selectInsertedBlock(editor)
     },
   })
 

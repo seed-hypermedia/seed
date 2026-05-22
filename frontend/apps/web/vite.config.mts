@@ -78,6 +78,10 @@ export default defineConfig(({isSsrBuild}) => {
     },
     plugins: [
       remix({
+        // Keep colocated test files out of the route table — otherwise Remix
+        // turns e.g. `app/routes/hm.api.auth.test.ts` into a route, bundles it
+        // into the server build, and its `vitest` import crashes every page.
+        ignoredRouteFiles: ['**/*.test.*', '**/*.spec.*'],
         future: {
           v3_fetcherPersist: true,
           v3_relativeSplatPath: true,
