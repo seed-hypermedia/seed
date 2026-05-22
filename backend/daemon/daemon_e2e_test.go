@@ -1159,13 +1159,18 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Alice should receive Carol's comment via syncing.
+	// Alice should receive Carol's comment via syncing. The pre-filter
+	// RBSR store cache on Carol may hold a pre-comment snapshot for up
+	// to storeCacheTTL (1s) — Alice's next ReconcileBlobs after the
+	// entry expires forces a rebuild and surfaces the new comment. The
+	// 5s window matches the Phase 8 v2-propagation budget elsewhere in
+	// this test.
 	require.Eventually(t, func() bool {
 		_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 			Id: carolComment.Id,
 		})
 		return err == nil
-	}, time.Second*1, time.Millisecond*100, "Alice should get Carol's comment")
+	}, time.Second*5, time.Millisecond*100, "Alice should get Carol's comment")
 
 	// Bob should eventually see all three comments (Bob's, Alice's reply, and Carol's).
 	require.Eventually(t, func() bool {

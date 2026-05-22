@@ -387,34 +387,48 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *au
 		return err
 	}
 
-	// Visibility encoding via CASE EXISTS: ~99 % of blobs carry a single
-	// blob_visibility row with space=0 (public). The EXISTS probe is a
-	// single PK lookup against the (id, space) WITHOUT ROWID PK; if it
-	// hits, return the literal '[0]' and skip JSON_GROUP_ARRAY entirely.
-	// Only the rare private case runs the aggregation. Semantically
-	// equivalent to the previous form against the Go consumer below
-	// (which iterates the array, breaks on space=0, otherwise calls
-	// SetItemPrivateVisibility per non-zero space) — verified by case
-	// analysis on the four input shapes: public-only, private-only,
-	// both, and no rows. Drops ~10 ms cold on a 32 K-row rbsr_blobs.
+	// Materialise per-blob visibility once via one GROUP BY pass on
+	// blob_visibility (PK-ordered, cache-friendly sequential reads)
+	// instead of N per-row scalar subqueries against the same PK btree.
+	// The MAX(space=0) hot-path emits the public-blob literal '[0]'
+	// without paying for JSON_GROUP_ARRAY; the private branch returns
+	// the full space list. Both shapes match what the consumer below
+	// parses with gjson — verified by case analysis on the four input
+	// shapes (public-only, private-only, both, no rows).
+	if err := ensureTempVizTable(conn); err != nil {
+		return err
+	}
+	const qViz = `INSERT INTO rbsr_viz
+		SELECT v.id,
+			CASE WHEN MAX(v.space = 0) THEN '[0]'
+				ELSE JSON_GROUP_ARRAY(v.space) END
+		FROM blob_visibility v
+		WHERE v.id IN rbsr_blobs
+		GROUP BY v.id;`
+	if err := sqlitex.Exec(conn, qViz, nil); err != nil {
+		return err
+	}
+
+	// ORDER BY is RETAINED here even though sliceStore.Seal() in the
+	// caller re-sorts: the consumer below calls
+	// store.SetItemPrivateVisibility(i, …) using the *insert-time* index,
+	// and Seal then reorders items by Item.Compare = (ts, value=cidkey).
+	// For single-codec corpora those two orderings happen to coincide,
+	// so the index stays aligned. Dropping the SQL sort exposes a
+	// latent ordering bug (rowid order ≠ Compare order) and causes
+	// private-visibility records to attach to the wrong item — see
+	// TestPrivateDocumentExplicitPublicUpdateBecomesPublic. Fixing
+	// that cleanly needs the visibility application to move post-Seal
+	// (keyed by item Value, not insert index); out of scope here.
 	const q = `SELECT
 			COALESCE(sb.ts, 0),
 			b.codec,
 			b.multihash,
-			CASE
-				WHEN EXISTS (
-					SELECT 1 FROM blob_visibility
-					WHERE id = b.id AND space = 0
-				) THEN '[0]'
-				ELSE (
-					SELECT JSON_GROUP_ARRAY(space)
-					FROM blob_visibility
-					WHERE id = b.id
-				)
-			END
+			v.viz_json
 		FROM rbsr_blobs rb
 		CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 		LEFT JOIN structural_blobs sb ON sb.id = b.id
+		LEFT JOIN rbsr_viz v ON v.id = b.id
 		WHERE b.size >= 0
 		ORDER BY sb.ts, b.multihash;`
 
@@ -495,7 +509,9 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 		}
 	}
 
-	// Load blobs.
+	// Load blobs. No ORDER BY: the consumer (resources.go) treats the
+	// CID list as an unordered allowlist + AnnounceBlobs payload; sort
+	// in SQL would cost a TEMP B-TREE step with no observable effect.
 	{
 		const q = `SELECT
 				COALESCE(sb.ts, 0),
@@ -510,8 +526,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			) rb
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 			LEFT JOIN structural_blobs sb ON sb.id = rb.id
-			WHERE b.size >= 0
-			ORDER BY sb.ts, b.multihash;`
+			WHERE b.size >= 0;`
 
 		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
@@ -552,7 +567,13 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 	// Only applies when discovering an account root recursively and the type
 	// filter allows Contact.
 	if hasType(effectiveBlobTypeFilter(dkeys), "Contact") {
-		for dkey := range dkeys {
+		// Deterministic iteration order: see fillTables for rationale.
+		contactKeys := make([]DiscoveryKey, 0, len(dkeys))
+		for k := range dkeys {
+			contactKeys = append(contactKeys, k)
+		}
+		sortDiscoveryKeys(contactKeys)
+		for _, dkey := range contactKeys {
 			if !dkey.Recursive {
 				continue
 			}
@@ -705,8 +726,22 @@ func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLin
 func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {
 	typeFilter := effectiveBlobTypeFilter(dkeys)
 
+	// Sort dkeys deterministically before iteration. Go map iteration is
+	// randomised; two callers with the same logical dkeys would otherwise
+	// INSERT into the rbsr_iris/rbsr_blobs temp tables in different orders.
+	// rbsr.NewSession does sort items internally before fingerprinting, so
+	// this isn't a correctness requirement today, but the cross-peer store
+	// cache (see store_cache.go) depends on equal dkeys producing
+	// byte-identical pre-filter stores — making the build deterministic
+	// pre-empts any latent ordering dependency we might introduce later.
+	sortedKeys := make([]DiscoveryKey, 0, len(dkeys))
+	for k := range dkeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sortDiscoveryKeys(sortedKeys)
+
 	// Fill IRIs.
-	for dkey := range dkeys {
+	for _, dkey := range sortedKeys {
 		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
 				SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
 			return err
@@ -943,6 +978,20 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 	}
 
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
+}
+
+// ensureTempVizTable lazily creates the rbsr_viz scratch table used by
+// loadRBSRStore to materialise per-blob visibility once per call. Schema
+// differs from the single-column rbsr_iris/rbsr_blobs/rbsr_authorized_spaces
+// tables (it carries the JSON-encoded visibility), so it doesn't fit the
+// shared ensureTempTable helper.
+func ensureTempVizTable(conn *sqlite.Conn) error {
+	err := sqlitex.Exec(conn, "DELETE FROM rbsr_viz", nil)
+	if err == nil {
+		return nil
+	}
+	return sqlitex.Exec(conn,
+		"CREATE TEMP TABLE rbsr_viz (id INTEGER PRIMARY KEY, viz_json TEXT) WITHOUT ROWID;", nil)
 }
 
 // qListPeerIDs returns every known peer's PID. Stays on the unique pid

@@ -39,6 +39,10 @@ type Server struct {
 	bitswap          bitswap
 	log              *zap.Logger
 	reconcileLimiter *inboundReconcileLimiter
+	// cache is the per-daemon pre-filter RBSR store reuse cache. See
+	// store_cache.go for design. Lives on Server (not at package scope)
+	// so multiple in-process daemons in tests don't cross-contaminate.
+	cache *loadStoreCache
 }
 
 type blobIndex interface {
@@ -56,6 +60,7 @@ func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap, maxInboundRec
 		bitswap:          bswap,
 		log:              logging.New("seed/network", logging.GetLogLevel("seed/network").String()),
 		reconcileLimiter: newInboundReconcileLimiter(maxInboundReconciles, inboundReconcileWait),
+		cache:            newLoadStoreCache(),
 	}
 }
 
@@ -348,8 +353,6 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 }
 
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
-	store := newAuthorizedStore()
-
 	dkeys := make(colx.HashSet[DiscoveryKey], len(filters))
 	requestedIRIs := make([]blob.IRI, 0, len(filters))
 	for _, f := range filters {
@@ -378,22 +381,16 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 	MReconcileServerPhaseSeconds.WithLabelValues("auth_resolve").Observe(time.Since(authStart).Seconds())
 
 	loadStart := time.Now()
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return loadRBSRStore(conn, dkeys, store)
-	}); err != nil {
-		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
-		return nil, err
-	}
-
-	if err := store.Seal(); err != nil {
-		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
-		return nil, err
-	}
-
-	store = store.WithFilter(authorizedSpaces)
+	prefilter, err := loadOrReusePrefilterStore(ctx, s.cache, s.db, dkeys)
 	MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
+	if err != nil {
+		return nil, err
+	}
 
-	return store, nil
+	// WithFilter is cheap (shallow clone + btree COW) and per-peer; it
+	// must run on every request so peer-specific authorization gates the
+	// shared pre-filter store correctly.
+	return prefilter.WithFilter(authorizedSpaces), nil
 }
 
 // getRemoteID extracts the remote peer ID from the gRPC context.
