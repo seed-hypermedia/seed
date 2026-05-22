@@ -110,6 +110,16 @@
   box-shadow: none !important;
 }
 
+/* The image caption is a nested contentEditable region. The browser
+ * draws a focus outline on it — tinted by the global `* { outline-ring }`
+ * base rule — which reads as a stray bordered box under the image. The
+ * block already shows its own selection chrome, so suppress it. */
+.image-caption:focus,
+.image-caption:focus-visible,
+.image-caption:focus-within {
+  outline: none;
+}
+
 .hm-file-drop-indicator {
   background: rgba(59, 130, 246, 0.9);
   border-radius: 999px;

@@ -129,11 +129,15 @@ var turnIntoItems = [
     Icon: RiCodeBoxLine,
     onClick: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => {
       editor.focus()
-      editor.updateBlock(block, {
-        type: 'code-block',
-        props: {},
-        content: block.content,
-      })
+      editor.updateBlock(
+        block,
+        {
+          type: 'code-block',
+          props: {},
+          content: block.content,
+        },
+        true,
+      )
     },
   },
   // {

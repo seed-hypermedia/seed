@@ -2,6 +2,33 @@ import {describe, expect, it, vi} from 'vitest'
 import {getSlashMenuItems} from './slash-menu-items'
 
 describe('getSlashMenuItems', () => {
+  it('keeps the cursor in a newly inserted code block', () => {
+    const currentBlock = {id: 'block-1', content: []}
+    const tr = {scrollIntoView: vi.fn(() => 'scroll-tr')}
+    const editor = {
+      getTextCursorPosition: vi.fn(() => ({block: currentBlock})),
+      updateBlock: vi.fn(),
+      _tiptapEditor: {
+        state: {tr},
+        view: {dispatch: vi.fn()},
+      },
+    }
+
+    const item = getSlashMenuItems().find((item) => item.name === 'Code Block')
+
+    item!.execute(editor as any)
+
+    expect(editor.updateBlock).toHaveBeenCalledWith(
+      currentBlock,
+      {
+        type: 'code-block',
+        props: {language: ''},
+      },
+      true,
+    )
+    expect(editor._tiptapEditor.view.dispatch).toHaveBeenCalledWith('scroll-tr')
+  })
+
   it('inserts New document draft embed without focusing/selecting the editor block', async () => {
     const currentBlock = {id: 'block-1', content: [{type: 'text', text: '/'}]}
     const editor = {

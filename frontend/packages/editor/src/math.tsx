@@ -90,12 +90,19 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [block.content])
 
   useEffect(() => {
-    if (opened && inputRef.current) {
-      // @ts-ignore
-      inputRef.current.focus()
-      const length = inputRef.current.value.length
-      inputRef.current.setSelectionRange(length, length)
-    }
+    if (!opened) return
+    // Defer the focus to the next macrotask: when the block is opened right
+    // after insertion, `selectInsertedBlock` calls `view.focus()` on the
+    // ProseMirror view synchronously, which would otherwise steal focus
+    // back from the textarea. Running after that lets the textarea win.
+    const timer = setTimeout(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const length = el.value.length
+      el.setSelectionRange(length, length)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [opened])
 
   // Function to measure content and container widths

@@ -3,6 +3,53 @@ import {updateBlockCommand} from './blocknote/core/api/blockManipulation/command
 import {getBlockInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import styles from './blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {InputRule, mergeAttributes} from '@tiptap/core'
+import {Plugin, PluginKey} from 'prosemirror-state'
+
+/**
+ * Compute the visual heading level for a heading node at the given doc
+ * position. Top-level document headings are h2 — h1 is reserved for the
+ * document title rendered above the editor body — and each level of
+ * nesting demotes one step further, clamped to h6.
+ */
+function computeHeadingDepth(doc: any, pos: number): number {
+  const $pos = doc.resolve(pos)
+  let ancestors = 0
+  for (let d = 0; d <= $pos.depth; d++) {
+    if ($pos.node(d).type.name === 'blockNode') ancestors++
+  }
+  // `ancestors` is 1 for a top-level heading; +1 shifts the scale so the
+  // first level is h2 rather than h1.
+  return Math.min(Math.max(ancestors + 1, 2), 6)
+}
+
+const headingDepthNormalizerKey = new PluginKey('headingDepthNormalizer')
+
+/**
+ * Keeps each heading node's `level` attribute in sync with its actual
+ * nesting depth in the doc tree. Runs once per dispatched transaction
+ * that changes the doc, and is a no-op when every heading is already
+ * at the right level — so it converges in one pass and does not loop.
+ */
+const headingDepthNormalizer = new Plugin({
+  key: headingDepthNormalizerKey,
+  appendTransaction(transactions, _oldState, newState) {
+    if (!transactions.some((tr) => tr.docChanged)) return null
+
+    let tr = newState.tr
+    let modified = false
+
+    newState.doc.descendants((node, pos) => {
+      if (node.type.name !== 'heading') return
+      const target = String(computeHeadingDepth(newState.doc, pos))
+      if (node.attrs.level !== target) {
+        tr = tr.setNodeMarkup(pos, undefined, {...node.attrs, level: target})
+        modified = true
+      }
+    })
+
+    return modified ? tr : null
+  },
+})
 
 export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
   name: 'heading',
@@ -103,6 +150,10 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
       }),
       0,
     ]
+  },
+
+  addProseMirrorPlugins() {
+    return [headingDepthNormalizer]
   },
 })
 

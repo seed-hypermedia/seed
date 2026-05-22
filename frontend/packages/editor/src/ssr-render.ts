@@ -40,8 +40,10 @@ export function renderDocumentToHTML(blocks: HMBlockNode[], opts?: SSRRenderOpts
   try {
     const embeds = opts?.embeds ?? {}
     const renderHref = opts?.renderHref
-    // Wrap in a blockChildren container at depth 1 (matching editor's root group)
-    const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds, renderHref)
+    // Wrap in a blockChildren container at depth 1 (matching editor's root group).
+    // `nestingDepth` tracks blockNode-ancestor count so headings can render
+    // the right h-tag without trusting the stored level prop.
+    const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds, renderHref, 0)
     if (!inner) return null
     const result = `<div class="ssr-content-placeholder hm-prose">${inner}</div>`
 
@@ -66,6 +68,7 @@ function renderBlockChildren(
   columnCount: number | null,
   embeds: Record<string, SSREmbedData>,
   renderHref: SSRRenderOpts['renderHref'],
+  nestingDepth: number,
 ): string {
   const tag = listTag(listType)
   const isGrid = listType === 'Grid'
@@ -76,7 +79,7 @@ function renderBlockChildren(
   const isListContainer = listType === 'Ordered' || listType === 'Unordered'
 
   const childrenHtml = blocks
-    .map((node) => renderBlockNode(node, isListContainer, listLevel, embeds, renderHref))
+    .map((node) => renderBlockNode(node, isListContainer, listLevel, embeds, renderHref, nestingDepth))
     .join('')
 
   return `<${tag} class="blockChildren" data-node-type="blockChildren" data-list-type="${esc(
@@ -94,12 +97,15 @@ function renderBlockNode(
   listLevel: number,
   embeds: Record<string, SSREmbedData>,
   renderHref: SSRRenderOpts['renderHref'],
+  nestingDepth: number,
 ): string {
   const block = node.block
   const tag = insideList ? 'li' : 'div'
   const idAttr = block.id ? ` data-id="${esc(block.id)}" id="${esc(block.id)}"` : ''
 
-  const contentHtml = renderBlockContent(block, embeds, renderHref)
+  // This blockNode itself contributes one ancestor to nested children. The
+  // current heading (if this block is a heading) renders at h{nestingDepth+1}.
+  const contentHtml = renderBlockContent(block, embeds, renderHref, nestingDepth + 1)
 
   // Render children if present
   let childrenHtml = ''
@@ -110,7 +116,15 @@ function renderBlockNode(
 
     const nextLevel = childrenType === 'Ordered' || childrenType === 'Unordered' ? listLevel + 1 : listLevel
 
-    childrenHtml = renderBlockChildren(node.children, childrenType, nextLevel, colCount, embeds, renderHref)
+    childrenHtml = renderBlockChildren(
+      node.children,
+      childrenType,
+      nextLevel,
+      colCount,
+      embeds,
+      renderHref,
+      nestingDepth + 1,
+    )
   }
 
   return `<${tag} class="blockNode" data-node-type="blockNode"${idAttr}>${contentHtml}${childrenHtml}</${tag}>`
@@ -124,6 +138,7 @@ function renderBlockContent(
   block: any,
   embeds: Record<string, SSREmbedData>,
   renderHref: SSRRenderOpts['renderHref'],
+  headingLevel: number,
 ): string {
   const text: string = block.text || ''
   const annotations: HMAnnotation[] = block.annotations || []
@@ -135,8 +150,12 @@ function renderBlockContent(
     }
 
     case 'Heading': {
-      const level = block.attributes?.level || '2'
-      const h = Math.min(Math.max(Number(level) || 2, 1), 5)
+      // Visual level is driven by nesting depth (see `headingLevel` arg),
+      // not the stored `level` attribute, so legacy/imported docs render
+      // consistently and the h-tag always reflects document hierarchy.
+      // `+ 1` shifts the scale so a top-level heading is h2 — h1 is
+      // reserved for the document title.
+      const h = Math.min(Math.max(headingLevel + 1, 2), 6)
       const inlineHtml = renderAnnotatedText(text, annotations, renderHref)
       return `<div class="blockContent" data-content-type="heading" data-level="${h}"><h${h} class="inlineContent">${inlineHtml}</h${h}></div>`
     }

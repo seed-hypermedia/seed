@@ -57,6 +57,9 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       const $anchor = state.doc.resolve(anchor)
       const textblock = $anchor.parent
       if (!textblock.isTextblock || textblock.childCount > 0) return null
+      // Code blocks are textblocks too, but inserting a block from an empty
+      // line inside them makes no sense — suppress the button there.
+      if (textblock.type.name === 'code-block' || textblock.type.spec.code) return null
       // Check if the cursor's block is a list item.
       let inList = false
       for (let d = $anchor.depth; d > 0; d--) {

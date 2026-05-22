@@ -104,7 +104,7 @@ export function DocumentHeader({
         ) : (
           <>
             {showTitle && (
-              <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
+              <SizableText size="5xl" weight="bold" {...highlighter(docId)}>
                 {isHomeDoc ? 'Home' : docMetadata?.name}
               </SizableText>
             )}

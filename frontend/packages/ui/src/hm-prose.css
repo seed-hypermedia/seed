@@ -43,9 +43,13 @@
 .hm-prose {
   font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   font-size: var(--hm-prose-size, 1.125rem);
-  line-height: 1.6;
+  line-height: 1.7;
   color: var(--foreground, inherit);
   max-width: none;
+  /* Extra width code/image blocks may "break out" past the text column
+   * (split evenly — half each side). Inherited by descendants; zeroed in
+   * comments and embeds below so the breakout rule is a no-op there. */
+  --hm-breakout: 120px;
 }
 
 .hm-prose.is-comment,
@@ -61,6 +65,15 @@
     Arial,
     sans-serif;
   font-size: 1rem;
+}
+
+/* No breakout in comments or embedded documents — those render in tight
+ * columns where a wider block would overflow. The custom property is
+ * inherited, so setting it on the subtree root covers all descendants. */
+.hm-prose.is-comment,
+.hm-prose .is-comment,
+.block-embed {
+  --hm-breakout: 0px;
 }
 
 /* Headings ride the UI sans stack so they read as structure, not prose. */
@@ -81,7 +94,8 @@
     Arial,
     sans-serif;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   color: var(--foreground, inherit);
   /* margin-top is owned by the wrapper (.blockNode) so the first-child
    * reset works cleanly in both editor and SSR DOM trees. See below. */
@@ -89,19 +103,23 @@
 }
 
 .hm-prose h1 {
-  font-size: 1.9em;
-  margin-bottom: 0.4em;
+  font-size: 2em;
+  line-height: 1.25;
+  margin-bottom: 0.6em;
 }
 .hm-prose h2 {
-  font-size: 1.5em;
+  font-size: 1.55em;
+  line-height: 1.3;
   margin-bottom: 0.4em;
 }
 .hm-prose h3 {
-  font-size: 1.25em;
+  font-size: 1.3em;
+  line-height: 1.35;
   margin-bottom: 0.35em;
 }
 .hm-prose h4 {
-  font-size: 1.1em;
+  font-size: 1.15em;
+  line-height: 1.4;
   margin-bottom: 0.3em;
 }
 .hm-prose h5,
@@ -121,7 +139,7 @@
  * wrappers override with a bigger section-marker gap, and the
  * `:first-child` rule zeroes it for the first block. */
 .hm-prose [data-node-type='blockNode'] + [data-node-type='blockNode'] {
-  margin-top: 0.75rem; /* ~12px at 16px base — visible "paragraph" gap */
+  margin-top: 0.75rem; /* ~12px — relaxed paragraph rhythm */
 }
 
 /* Section-marker rhythm lives on the heading's WRAPPER, not the
@@ -132,15 +150,15 @@
   margin-top: 2.5rem;
 }
 .hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']) {
-  margin-top: 2rem;
+  margin-top: 2.25rem;
 }
 .hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 .hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
 .hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
 .hm-prose [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
-  margin-top: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 /* Media / code / quote / embed get a bit more breathing room than
@@ -157,10 +175,42 @@
   margin-top: 1.25rem;
 }
 
-/* Top-of-document first block: no margin. Covers both the editor's
- * root ProseMirror child and the SSR outer container. */
-.hm-prose [data-node-type='blockNode']:first-child,
-.hm-prose [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
+/* ---------- Code / media breakout ----------
+ * Code blocks, images, and videos render wider than the prose text
+ * column when the layout has room — a centered "breakout". The block
+ * keeps its normal flow position (margins, rhythm) but is widened and
+ * re-centered on the column's axis via `left: 50%` + a -50% shift.
+ *
+ *   width = the text column (100%) + `--hm-breakout`, but never more
+ *   than the viewport (`100vw - 3rem`) — so on narrow screens it
+ *   collapses cleanly back to the column width with no overflow.
+ *
+ * `--hm-breakout` is 0 in comments/embeds (see Base), making this a
+ * no-op there: width resolves to 100%, and the 50%/-50% pair cancels.
+ *
+ * Both `> child` and `> wrapper > child` are matched: code blocks are
+ * a direct `<pre>` child of the blockNode, while React-rendered image
+ * and video blocks sit one wrapper element deeper. */
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='code-block']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
+.hm-prose [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+.hm-prose [data-node-type='blockNode']:has(> * > [data-content-type='video']) {
+  position: relative;
+  left: 50%;
+  width: min(calc(100% + var(--hm-breakout, 0px)), 100vw - 3rem);
+  max-width: none;
+  transform: translateX(-50%);
+}
+
+/* Top-of-document first block: no margin — UNLESS it is a heading.
+ * A leading heading keeps its section-gap so it sits clear of the
+ * document title above the editor body. */
+.hm-prose [data-node-type='blockNode']:first-child:not(:has(> [data-content-type='heading'])),
+.hm-prose
+  [data-node-type='blockChildren']
+  > [data-node-type='blockNode']:first-child:not(:has(> [data-content-type='heading'])) {
   margin-top: 0;
 }
 
@@ -169,14 +219,6 @@
  * its parent. Specificity (0,3,0) beats the reset above (0,2,0). */
 .hm-prose [data-node-type='blockChildren'] [data-node-type='blockChildren'] > [data-node-type='blockNode']:first-child {
   margin-top: 0.25em;
-}
-
-/* Consecutive headings collapse to body rhythm so stacked H1→H2
- * doesn't open a double section break. */
-.hm-prose
-  [data-node-type='blockNode']:has(> [data-content-type='heading'])
-  + [data-node-type='blockNode']:has(> [data-content-type='heading']) {
-  margin-top: 1rem;
 }
 
 /* List items tighten: items inside a list belong to one visual unit. */
@@ -236,7 +278,7 @@
 /* ---------- Inline marks ---------- */
 .hm-prose strong,
 .hm-prose b {
-  font-weight: 600;
+  font-weight: 500;
   color: inherit;
 }
 .hm-prose em,
@@ -274,40 +316,64 @@
 
 /* ---------- Inline code ----------
  * Pill treatment: visible background, softer foreground, monospace.
- * Light-mode uses a subtle tinted gray; dark-mode flips to a higher-
- * contrast chip that reads clearly against the panel background.
- * Colors are written as fallbacks so the pill works even in contexts
- * that don't register the design tokens (e.g. naked SSR). */
+ * Colors come from Tailwind's sky palette CSS variables so the chip
+ * tracks the design system; dark mode flips to lighter sky steps for
+ * contrast against the panel background. */
 .hm-prose code {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace);
   font-size: 0.875em;
-  background-color: rgba(0, 0, 0, 0.07);
-  color: #b91c1c; /* slate-red, WCAG AA on light muted bg */
-  padding: 0.15em 0.4em;
-  border-radius: 0.3em;
+  background-color: var(--color-sky-50);
+  color: var(--color-sky-700);
+  border: 1px solid var(--color-sky-200);
+  padding: 0.1em 0.4em;
+  border-radius: 0.35em;
   line-height: 1.4;
   font-weight: 500;
 }
 
 .dark .hm-prose code,
 [data-theme='dark'] .hm-prose code {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #fca5a5; /* soft red-pink, WCAG AA on dark muted bg */
+  background-color: var(--color-sky-950);
+  color: var(--color-sky-300);
+  border-color: var(--color-sky-800);
 }
 
-/* ---------- Code blocks ---------- */
+/* ---------- Code blocks ----------
+ * Premium-object treatment: pale surface, soft border, squircle radius,
+ * generous vertical padding. Surface uses the semantic `--muted` /
+ * `--border` theme tokens, which are already redefined under `.dark`
+ * — so no separate dark-mode rule is needed. */
 .hm-prose pre {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace);
   font-size: 0.9em;
-  line-height: 1.5;
+  line-height: 1.6;
   margin: 0;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  /* Horizontal padding absorbs the breakout: when the block is widened
+   * by `--hm-breakout`, half of it on each side pads the code back so
+   * the code text lines up with the regular paragraph column. Falls
+   * back to a normal inset when there is no breakout (comments/embeds). */
+  padding: 1.1em max(1.25em, calc(var(--hm-breakout, 0px) / 2));
+  overflow-x: auto;
 }
 
-.hm-prose pre code {
+/* Code INSIDE a <pre> is plain text, not an inline-code pill — strip the
+ * pill chrome. The dark-mode selector is repeated with `.dark` /
+ * `[data-theme='dark']` so it out-specifies `.dark .hm-prose code`
+ * (0,2,1), which would otherwise paint the inline-code blue background
+ * across the whole code block. */
+.hm-prose pre code,
+.dark .hm-prose pre code,
+[data-theme='dark'] .hm-prose pre code {
   background: transparent;
+  border: 0;
+  color: inherit;
   padding: 0;
   border-radius: 0;
   font-size: inherit;
+  font-weight: inherit;
 }
 
 /* ---------- Blockquotes ---------- */
@@ -335,23 +401,57 @@
 /* ---------- Horizontal rule ---------- */
 .hm-prose hr {
   border: 0;
-  border-top: 1px solid var(--border, currentColor);
-  opacity: 0.4;
-  margin: 1.5em 0;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
 }
 
-/* ---------- Images / figures ----------
+/* ---------- Images ----------
  * Safety-cap is scoped to the image BLOCK specifically, not every <img>
  * under `.hm-prose`. Broad `.hm-prose img` defaults conflict with
  * Tailwind utility classes (`h-full`, `object-cover`, `w-full`) that
  * sibling components like document-card covers and query-block thumbs
  * apply to their own imagery — those shouldn't inherit prose sizing
- * just because they happen to be inside a prose container. */
+ * just because they happen to be inside a prose container.
+ *
+ * Rounded corners + a soft shadow give the image a "premium object"
+ * feel; no border (the shadow alone separates it from the page). */
 .hm-prose [data-content-type='image'] img {
   max-width: 100%;
   height: auto;
   max-height: 600px;
   object-fit: contain;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.dark .hm-prose [data-content-type='image'] img,
+[data-theme='dark'] .hm-prose [data-content-type='image'] img {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 16px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- Videos ----------
+ * The <video>/<iframe> player fills an absolutely-positioned 16:9 box,
+ * so its own width/height are owned by the block component — applying
+ * image-style `height: auto` here breaks that and overflows the frame.
+ * The corner radius, clip, and shadow ride on the block element so the
+ * square-cornered player is masked to the rounded frame. */
+.hm-prose [data-content-type='video'] {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.dark .hm-prose [data-content-type='video'],
+[data-theme='dark'] .hm-prose [data-content-type='video'] {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 16px 32px rgba(0, 0, 0, 0.45);
 }
 
 .hm-prose figure {
@@ -365,99 +465,156 @@
   margin-top: 0.5em;
 }
 
-/* ---------- Comment variant ---------- */
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='1']),
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='2']),
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='3']) {
-  /* Comments tighten section rhythm. */
-  margin-top: 1rem;
+/* ---------- Comment variant ----------
+ * Comments revert to compact rhythm and tighter line-height; editorial
+ * doc spacing is overkill in a threaded comment context. */
+.hm-prose.is-comment {
+  line-height: 1.55;
 }
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='4']),
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='5']),
-.hm-prose.is-comment .blockNode:has(> [data-content-type='heading'][data-level='6']) {
+
+.hm-prose.is-comment [data-node-type='blockNode'] + [data-node-type='blockNode'] {
+  margin-top: 0.5rem;
+}
+
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='file']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='embed']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='button']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='math']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='query']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
   margin-top: 0.75rem;
 }
 
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
+  /* Comments tighten section rhythm. */
+  margin-top: 1rem;
+}
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
+  margin-top: 0.75rem;
+}
+
+/* ---------- Inline text / background colors ----------
+ * The editor's color picker writes `data-text-color` / `data-background-color`
+ * attributes; the palette below maps each name onto Tailwind's built-in
+ * color scales. Text uses the `-600` step in light mode and `-400` in dark
+ * for contrast; backgrounds use the pale `-100` step in light mode and the
+ * deep `-950` step in dark. Tailwind has no "brown" — `stone` (its warm
+ * neutral) stands in. */
 .hm-prose [data-text-color='gray'] {
-  color: #9b9a97;
+  color: var(--color-gray-500);
 }
 .hm-prose [data-text-color='brown'] {
-  color: #64473a;
+  color: var(--color-stone-500);
 }
 .hm-prose [data-text-color='red'] {
-  color: #e03e3e;
+  color: var(--color-red-600);
 }
 .hm-prose [data-text-color='orange'] {
-  color: #d9730d;
+  color: var(--color-orange-600);
 }
 .hm-prose [data-text-color='yellow'] {
-  color: #dfab01;
+  color: var(--color-yellow-600);
 }
 .hm-prose [data-text-color='green'] {
-  color: #4d6461;
+  color: var(--color-emerald-600);
 }
 .hm-prose [data-text-color='blue'] {
-  color: #0b6e99;
+  color: var(--color-sky-600);
 }
 .hm-prose [data-text-color='purple'] {
-  color: #6940a5;
+  color: var(--color-violet-600);
 }
 .hm-prose [data-text-color='pink'] {
-  color: #ad1a72;
+  color: var(--color-pink-600);
+}
+
+.dark .hm-prose [data-text-color='gray'] {
+  color: var(--color-gray-400);
+}
+.dark .hm-prose [data-text-color='brown'] {
+  color: var(--color-stone-400);
+}
+.dark .hm-prose [data-text-color='red'] {
+  color: var(--color-red-400);
+}
+.dark .hm-prose [data-text-color='orange'] {
+  color: var(--color-orange-400);
+}
+.dark .hm-prose [data-text-color='yellow'] {
+  color: var(--color-yellow-400);
+}
+.dark .hm-prose [data-text-color='green'] {
+  color: var(--color-emerald-400);
+}
+.dark .hm-prose [data-text-color='blue'] {
+  color: var(--color-sky-400);
+}
+.dark .hm-prose [data-text-color='purple'] {
+  color: var(--color-violet-400);
+}
+.dark .hm-prose [data-text-color='pink'] {
+  color: var(--color-pink-400);
 }
 
 .hm-prose [data-background-color='gray'] {
-  background-color: #ebeced;
+  background-color: var(--color-gray-100);
 }
 .hm-prose [data-background-color='brown'] {
-  background-color: #e9e5e3;
+  background-color: var(--color-stone-100);
 }
 .hm-prose [data-background-color='red'] {
-  background-color: #fbe4e4;
+  background-color: var(--color-red-100);
 }
 .hm-prose [data-background-color='orange'] {
-  background-color: #faebdd;
+  background-color: var(--color-orange-100);
 }
 .hm-prose [data-background-color='yellow'] {
-  background-color: #fbf3db;
+  background-color: var(--color-yellow-100);
 }
 .hm-prose [data-background-color='green'] {
-  background-color: #ddedea;
+  background-color: var(--color-emerald-100);
 }
 .hm-prose [data-background-color='blue'] {
-  background-color: #ddebf1;
+  background-color: var(--color-sky-100);
 }
 .hm-prose [data-background-color='purple'] {
-  background-color: #eae4f2;
+  background-color: var(--color-violet-100);
 }
 .hm-prose [data-background-color='pink'] {
-  background-color: #f4dfeb;
+  background-color: var(--color-pink-100);
 }
 
 .dark .hm-prose [data-background-color='gray'] {
-  background-color: rgba(155, 154, 151, 0.3);
+  background-color: var(--color-gray-900);
 }
 .dark .hm-prose [data-background-color='brown'] {
-  background-color: rgba(100, 71, 58, 0.4);
+  background-color: var(--color-stone-900);
 }
 .dark .hm-prose [data-background-color='red'] {
-  background-color: rgba(224, 62, 62, 0.35);
+  background-color: var(--color-red-950);
 }
 .dark .hm-prose [data-background-color='orange'] {
-  background-color: rgba(217, 115, 13, 0.35);
+  background-color: var(--color-orange-950);
 }
 .dark .hm-prose [data-background-color='yellow'] {
-  background-color: rgba(223, 171, 1, 0.35);
+  background-color: var(--color-yellow-950);
 }
 .dark .hm-prose [data-background-color='green'] {
-  background-color: rgba(77, 100, 97, 0.5);
+  background-color: var(--color-emerald-950);
 }
 .dark .hm-prose [data-background-color='blue'] {
-  background-color: rgba(11, 110, 153, 0.4);
+  background-color: var(--color-sky-950);
 }
 .dark .hm-prose [data-background-color='purple'] {
-  background-color: rgba(105, 64, 165, 0.4);
+  background-color: var(--color-violet-950);
 }
 .dark .hm-prose [data-background-color='pink'] {
-  background-color: rgba(173, 26, 114, 0.35);
+  background-color: var(--color-pink-950);
 }
