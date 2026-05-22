@@ -59,10 +59,12 @@ export function useWebCreateDocumentMenuItem({
   locationId,
   signingAccountId,
   canCreate,
+  capabilityCid,
 }: {
   locationId: UnpackedHypermediaId
   signingAccountId?: string
   canCreate: boolean
+  capabilityCid?: string
 }): {
   menuItem: MenuItemType | null
   content: ReactNode
@@ -77,10 +79,11 @@ export function useWebCreateDocumentMenuItem({
         locationId,
         signingAccountId,
         visibility,
+        capabilityCid,
         navigate: (route) => navigate(route),
       })
     },
-    [locationId, navigate, signingAccountId],
+    [capabilityCid, locationId, navigate, signingAccountId],
   )
 
   const menuItem = useMemo<MenuItemType | null>(() => {
@@ -130,6 +133,7 @@ export function useWebCreateDocumentMenuItem({
                 file,
                 locationId,
                 signingAccountId,
+                capabilityCid,
                 navigate: (route) => navigate(route),
               }),
               {

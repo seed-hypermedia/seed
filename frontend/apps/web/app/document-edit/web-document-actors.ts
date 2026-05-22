@@ -41,6 +41,7 @@ import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
 import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, type WebDocDraft} from './web-draft-db'
+import {isWebDraftPlaceholderPath} from './web-draft-path'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
 export type WebEditorAccessor = EditorAccessor
@@ -90,6 +91,7 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       draftId,
       docId: deps.docId.id,
       signingAccountId: input.signingAccountId ?? '',
+      capabilityCid: existingDraft?.capabilityCid ?? deps.getCapabilityCid(),
       content,
       metadata: input.metadata ?? {},
       deps: input.deps,
@@ -168,7 +170,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const baseVersion = latestVersion || (draft.deps.length ? draft.deps.join('.') : '')
   const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
   const currentPath = deps.docId.path ?? []
-  const isPlaceholderPath = currentPath.at(-1) === `-${draft.draftId}`
+  const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)
   const publishPath = isPrivate
     ? currentPath
     : input.pathOverride
@@ -187,7 +189,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     throw new Error('No signing account available for publish')
   }
 
-  const capabilityCid = deps.getCapabilityCid() ?? ''
+  const capabilityCid = deps.getCapabilityCid() ?? draft.capabilityCid ?? ''
   const visibility = isPrivate ? ResourceVisibility.PRIVATE : ResourceVisibility.UNSPECIFIED
   // Web signs client-side via `signDocumentChange`. Generation must be strictly
   // greater than existing HEAD's — a tie keeps the old HEAD. Desktop avoids this

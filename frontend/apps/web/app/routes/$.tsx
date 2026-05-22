@@ -6,7 +6,7 @@ import {
   setRequestInstrumentationContext,
 } from '@/instrumentation.server'
 import {createResourceMetadata, metadataToPageMeta} from '@/hypermedia-metadata'
-import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {GRPCError, loadSiteResource, loadWebDraftPlaceholderResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {WebSiteProvider} from '@/providers'
@@ -15,6 +15,7 @@ import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
+import {shouldBypassServerDocumentFetchForWebDraftPath} from '@/document-edit/web-draft-path'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -340,17 +341,30 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     })
   }
 
-  const result = await instrument(ctx, 'loadSiteResource', () =>
-    loadSiteResource(parsedRequest, documentId, {
-      prefersLanguages: parsedRequest.prefersLanguages,
-      viewTerm,
-      panelParam: effectivePanelParam,
-      openComment,
-      accountUid,
-      isInspect,
-      inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
-      instrumentationCtx: ctx,
-    }),
+  const siteResourceData = {
+    prefersLanguages: parsedRequest.prefersLanguages,
+    viewTerm,
+    panelParam: effectivePanelParam,
+    openComment,
+    accountUid,
+    isInspect,
+    inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
+    instrumentationCtx: ctx,
+  }
+
+  const shouldLoadLocalDraftShell = shouldBypassServerDocumentFetchForWebDraftPath({
+    path: documentId.path,
+    isInspect,
+    version,
+  })
+
+  const result = await instrument(
+    ctx,
+    shouldLoadLocalDraftShell ? 'loadWebDraftPlaceholderResource' : 'loadSiteResource',
+    () =>
+      shouldLoadLocalDraftShell
+        ? loadWebDraftPlaceholderResource(parsedRequest, documentId, siteResourceData)
+        : loadSiteResource(parsedRequest, documentId, siteResourceData),
   )
 
   // For data requests (client-side nav), print summary here since there's no SSR phase

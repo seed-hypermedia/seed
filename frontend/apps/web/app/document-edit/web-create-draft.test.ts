@@ -47,6 +47,7 @@ describe('createWebDocumentDraft', () => {
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
+      capabilityCid: 'cap-1',
       navigate,
       generateDraftId: () => 'draft-1',
     })
@@ -59,6 +60,7 @@ describe('createWebDocumentDraft', () => {
       draftId: 'draft-1',
       docId: routeId.id,
       signingAccountId: 'author',
+      capabilityCid: 'cap-1',
       locationUid: 'site',
       locationPath: ['parent'],
       editUid: 'site',

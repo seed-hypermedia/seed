@@ -39,7 +39,16 @@ export function resolveWebCanEdit(args: {
   const caps = args.capabilities ?? []
 
   if (isOwner) {
-    capability = caps.find((c) => c.id === '_owner') ?? null
+    capability =
+      caps.find((c) => c.id === '_owner') ??
+      ({
+        id: '_owner',
+        accountUid: signingAccountId,
+        role: 'owner',
+        grantId: args.docId,
+        label: 'Owner',
+        createTime: {seconds: 0, nanos: 0},
+      } as HMCapability)
   } else {
     capability = caps.find((c) => c.accountUid === signingAccountId && roleCanWrite(c.role)) ?? null
   }

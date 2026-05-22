@@ -576,6 +576,65 @@ export type GRPCError = {
   code: Code
 }
 
+/** Load the shell data for a local web draft placeholder URL without backend document fetch. */
+export async function loadWebDraftPlaceholderResource<T extends Record<string, unknown> = Record<string, never>>(
+  parsedRequest: ParsedRequest,
+  id: UnpackedHypermediaId,
+  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+  const {hostname, origin} = parsedRequest
+  const ctx = extraData?.instrumentationCtx
+  const noopCtx = {
+    enabled: false,
+    requestPath: '',
+    requestMethod: '',
+    root: {name: '', start: 0, children: []},
+    current: {name: '', start: 0, children: []},
+  } as InstrumentationContext
+
+  const config = await getConfig(hostname)
+  if (!config) {
+    throw new Error('No config found for hostname ' + hostname)
+  }
+  let homeMetadata = null
+  let originHomeId: undefined | UnpackedHypermediaId = undefined
+  if (config.registeredAccountUid) {
+    const homeId = hmId(config.registeredAccountUid)
+    try {
+      const result = await instrument(ctx || noopCtx, `getHomeMetadata(${packHmId(homeId)})`, () => getMetadata(homeId))
+      homeMetadata = result.metadata
+      originHomeId = result.id
+    } catch (e) {}
+  }
+
+  const document = {
+    account: id.uid,
+    path: `/${(id.path ?? []).join('/')}`,
+    content: [],
+    metadata: {},
+    visibility: undefined,
+    version: '',
+    authors: [],
+    createTime: undefined,
+    updateTime: undefined,
+    genesis: '',
+  } as unknown as HMDocument
+
+  const loadedSiteDocument = {
+    ...(extraData || {}),
+    id,
+    document,
+    siteHost: origin,
+    isLatest: false,
+    ssrContentHTML: null,
+    homeMetadata,
+    origin,
+    originHomeId,
+  }
+  const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
+  return wrapJSON(cleanDocument)
+}
+
 export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,

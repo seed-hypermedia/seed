@@ -35,8 +35,14 @@ import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
-import {cleanupOldWebDocDrafts, deleteWebDocDraft, getLatestWebDocDraftForDoc} from './document-edit/web-draft-db'
+import {
+  cleanupOldWebDocDrafts,
+  deleteWebDocDraft,
+  getLatestWebDocDraftForDoc,
+  getWebDocDraft,
+} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
+import {getWebDraftPlaceholderId} from './document-edit/web-draft-path'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -136,31 +142,24 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [])
 
-  // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
-  const machine = useMemo(() => {
-    return createWebDocumentMachine({
-      docId,
-      getEditor: () => editorAccessor,
-      client: universalClient,
-      getSigner: (accountUid: string) => {
-        if (!universalClient.getSigner) {
-          throw new Error('Universal client does not provide a signer; cannot publish from web')
-        }
-        return universalClient.getSigner(accountUid)
-      },
-      getCapabilityCid: () => (capability && capability.id !== '_owner' ? capability.id : undefined),
-      onPublishSuccess,
-    })
-  }, [docId.id, universalClient, editorAccessor, capability?.id, onPublishSuccess])
+  const placeholderDraftId = useMemo(() => getWebDraftPlaceholderId(docId.path), [docId.path])
 
-  // Load any local IDB draft for this doc. Used to seed the machine's draft.resolved event.
+  // Load any local IDB draft for this doc. Placeholder draft URLs must load by
+  // exact draft id instead of asking the backend for the nonexistent document.
   const draftQuery = useQuery({
-    queryKey: ['web-doc-draft', docId.id, signingAccountId ?? null] as const,
+    queryKey: ['web-doc-draft', docId.id, signingAccountId ?? null, placeholderDraftId ?? null] as const,
     queryFn: async () => {
       if (!signingAccountId) return null
+      if (placeholderDraftId) {
+        const draft = await getWebDocDraft(placeholderDraftId)
+        if (draft?.docId !== docId.id) return null
+        if (draft.signingAccountId !== signingAccountId) return null
+        return draft
+      }
+      if (!canEdit) return null
       return getLatestWebDocDraftForDoc(docId.id)
     },
-    enabled: typeof window !== 'undefined' && canEdit,
+    enabled: typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId),
     staleTime: 60_000,
   })
   // Detect and auto-delete stale IDB drafts whose base version doesn't match
@@ -177,13 +176,35 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [isDraftStale, draftData])
 
+  const canEditLocalPlaceholderDraft =
+    !!placeholderDraftId && !!draftData && !!signingAccountId && draftData.signingAccountId === signingAccountId
+  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft
+  const effectiveCapabilityCid = capability && capability.id !== '_owner' ? capability.id : draftData?.capabilityCid
+
+  // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
+  const machine = useMemo(() => {
+    return createWebDocumentMachine({
+      docId,
+      getEditor: () => editorAccessor,
+      client: universalClient,
+      getSigner: (accountUid: string) => {
+        if (!universalClient.getSigner) {
+          throw new Error('Universal client does not provide a signer; cannot publish from web')
+        }
+        return universalClient.getSigner(accountUid)
+      },
+      getCapabilityCid: () => effectiveCapabilityCid,
+      onPublishSuccess,
+    })
+  }, [docId.id, universalClient, editorAccessor, effectiveCapabilityCid, onPublishSuccess])
+
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
-    if (!canEdit) return false
+    if (!effectiveCanEdit) return false
     if (draftQuery.isLoading) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
-  }, [canEdit, draftQuery.isLoading, draftData, isDraftStale])
+  }, [effectiveCanEdit, draftQuery.isLoading, draftData, isDraftStale])
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
 
@@ -272,7 +293,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const showPublishToolbar = route.key === 'document'
 
   const editingFloatingActions =
-    canEdit && showPublishToolbar
+    effectiveCanEdit && showPublishToolbar
       ? ({menuItems}: {menuItems: any[]}) => (
           <EditingDocToolsRight docId={docId} existingMenuItems={menuItems} {...webToolbarCallbacks} />
         )
@@ -282,7 +303,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
     locationId: docId,
     signingAccountId: signingAccountId ?? undefined,
-    canCreate: canEdit && !!signingAccountId,
+    canCreate: effectiveCanEdit && !!signingAccountId,
+    capabilityCid: effectiveCapabilityCid,
   })
   const extraMenuItems = useMemo(() => (newMenuItem ? [newMenuItem] : []), [newMenuItem])
 
@@ -331,7 +353,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             ssrContentHTML={ssrContentHTML}
             perspectiveAccountUid={ownAccountUid}
             linkExtensionOptions={linkExtensionOptions}
-            canEdit={canEdit}
+            canEdit={effectiveCanEdit}
             machine={machine}
             signingAccountId={signingAccountId ?? undefined}
             publishAccountUid={signingAccountId ?? undefined}

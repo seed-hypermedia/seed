@@ -15,6 +15,8 @@ export interface WebDocDraft {
   docId: string
   /** Vault-delegated account UID that will sign the publish. */
   signingAccountId: string
+  /** Capability CID used by non-owner publishes. */
+  capabilityCid?: string
   /** Editor blocks at the time of last save. */
   content: HMBlockNode[]
   /** Pending metadata changes for this draft (subset of HMMetadata). */
