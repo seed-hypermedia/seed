@@ -2,7 +2,7 @@ import '@/blocknote/core/style.css'
 import '@/editor.css'
 
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {hypermediaUrlToHref, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
@@ -650,66 +650,70 @@ export function DocumentEditor({
   }, [onBlockSelect, onBlockCommentClick, isUnpublishedDraft, isBlockInPublishedVersion])
 
   return (
-    <FragmentActionsContext.Provider value={fragmentActionsValue}>
-      <BlockNoteView editor={editor} className="hm-prose draft-editor">
-        {/* Editing-only positioners — gated behind isEditing */}
-        {editable && (
-          <>
-            <FormattingToolbarPositioner
-              editor={editor}
-              formattingToolbar={(p) => <HMFormattingToolbar {...p} docId={resourceId} />}
-            />
-            <SideMenuPositioner editor={editor} />
-            <SlashMenuPositioner editor={editor} />
-            <LinkMenuPositioner editor={editor} />
-            <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
-            <HyperlinkToolbarPositioner
-              // @ts-expect-error
-              hyperlinkToolbar={HypermediaLinkPreview}
-              editor={editor}
-              // @ts-expect-error
-              openUrl={openUrl}
-            />
-          </>
-        )}
+    <RenderResourceProvider resource={{kind: 'document', id: resourceId}}>
+      <FragmentActionsContext.Provider value={fragmentActionsValue}>
+        <BlockNoteView editor={editor} className="hm-prose draft-editor">
+          {/* Editing-only positioners — gated behind isEditing */}
+          {editable && (
+            <>
+              <FormattingToolbarPositioner
+                editor={editor}
+                formattingToolbar={(p) => <HMFormattingToolbar {...p} docId={resourceId} />}
+              />
+              <SideMenuPositioner editor={editor} />
+              <SlashMenuPositioner editor={editor} />
+              <LinkMenuPositioner editor={editor} />
+              <MentionMenuPositioner editor={editor} perspectiveAccountUid={perspectiveAccountUid} />
+              <HyperlinkToolbarPositioner
+                // @ts-expect-error
+                hyperlinkToolbar={HypermediaLinkPreview}
+                editor={editor}
+                // @ts-expect-error
+                openUrl={openUrl}
+              />
+            </>
+          )}
 
-        {/* Read-only extensions */}
-        <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
-        <BlockHoverActionsPositioner
-          editor={editor}
-          onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
-          onStartComment={onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined}
+          {/* Read-only extensions */}
+          <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
+          <BlockHoverActionsPositioner
+            editor={editor}
+            onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
+            onStartComment={
+              onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined
+            }
+          />
+          <RangeSelectionPositioner
+            editor={editor}
+            onCopyFragmentLink={
+              onBlockSelect
+                ? (blockId, rangeStart, rangeEnd) =>
+                    onBlockSelect(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true})
+                : undefined
+            }
+            onComment={
+              onBlockCommentClick
+                ? (blockId, rangeStart, rangeEnd) =>
+                    onBlockCommentClick(blockId, {start: rangeStart, end: rangeEnd}, true)
+                : undefined
+            }
+          />
+          <SupernumbersController
+            editor={editor}
+            data={blockCitations ?? null}
+            onSupernumberClick={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
+          />
+          <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
+        </BlockNoteView>
+        {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
+        <PublishRequiredDialog
+          open={publishRequiredDialog.open}
+          intent={publishRequiredDialog.open ? publishRequiredDialog.intent : 'copy-link'}
+          onOpenChange={(open) => {
+            if (!open) setPublishRequiredDialog({open: false})
+          }}
         />
-        <RangeSelectionPositioner
-          editor={editor}
-          onCopyFragmentLink={
-            onBlockSelect
-              ? (blockId, rangeStart, rangeEnd) =>
-                  onBlockSelect(blockId, {start: rangeStart, end: rangeEnd, copyToClipboard: true})
-              : undefined
-          }
-          onComment={
-            onBlockCommentClick
-              ? (blockId, rangeStart, rangeEnd) =>
-                  onBlockCommentClick(blockId, {start: rangeStart, end: rangeEnd}, true)
-              : undefined
-          }
-        />
-        <SupernumbersController
-          editor={editor}
-          data={blockCitations ?? null}
-          onSupernumberClick={onBlockCitationClick ? (blockId) => onBlockCitationClick(blockId) : undefined}
-        />
-        <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
-      </BlockNoteView>
-      {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
-      <PublishRequiredDialog
-        open={publishRequiredDialog.open}
-        intent={publishRequiredDialog.open ? publishRequiredDialog.intent : 'copy-link'}
-        onOpenChange={(open) => {
-          if (!open) setPublishRequiredDialog({open: false})
-        }}
-      />
-    </FragmentActionsContext.Provider>
+      </FragmentActionsContext.Provider>
+    </RenderResourceProvider>
   )
 }

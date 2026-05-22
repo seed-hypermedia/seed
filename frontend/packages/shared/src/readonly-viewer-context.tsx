@@ -1,9 +1,11 @@
 import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {RenderResourceKind} from './render-resource-context'
 import {createContext, useContext} from 'react'
 
 export type ReadOnlyViewerComponent = React.ComponentType<{
   blocks: HMBlockNode[]
   resourceId?: UnpackedHypermediaId
+  resourceKind?: RenderResourceKind
   textUnit?: number
   layoutUnit?: number
   className?: string

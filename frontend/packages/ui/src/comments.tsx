@@ -810,6 +810,7 @@ export function CommentContent({
   size,
   zoomBlockRef,
   selection,
+  resourceId,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
@@ -822,6 +823,7 @@ export function CommentContent({
   allowHighlight?: boolean
   openOnClick?: boolean
   onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
+  resourceId?: UnpackedHypermediaId
 }) {
   const Viewer = useReadOnlyViewer()
   const currentRoute = useNavRoute()
@@ -865,7 +867,7 @@ export function CommentContent({
   )
 
   const focusedId = {
-    ...commentIdToHmId(comment.id),
+    ...(resourceId || commentIdToHmId(comment.id, comment.version)),
     blockRef: selection?.blockId || null,
     blockRange: selection?.blockRange || null,
   }
@@ -878,6 +880,7 @@ export function CommentContent({
     <Viewer
       blocks={zoomedContent}
       resourceId={focusedId}
+      resourceKind="comment"
       commentStyle
       textUnit={textUnit}
       layoutUnit={layoutUnit}
@@ -1080,7 +1083,12 @@ function DeletedCommentPreview({comment}: {comment: HMComment}) {
         </SizableText>
       </div>
       <div className="px-1 pb-2">
-        <CommentContent comment={comment} size="sm" openOnClick={false} />
+        <CommentContent
+          comment={comment}
+          size="sm"
+          openOnClick={false}
+          resourceId={commentIdToHmId(comment.id, comment.version)}
+        />
       </div>
     </div>
   )
@@ -1104,7 +1112,12 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
         </Button>
       </div>
       <div className="px-1 pb-2">
-        <CommentContent comment={version} size="sm" openOnClick={false} />
+        <CommentContent
+          comment={version}
+          size="sm"
+          openOnClick={false}
+          resourceId={commentIdToHmId(version.id, version.version)}
+        />
       </div>
     </div>
   )

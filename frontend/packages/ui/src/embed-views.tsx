@@ -9,7 +9,16 @@ import {
   HMResolvedResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {formattedDateMedium, getCommentTargetId, getDocumentTitle, unpackHmId, useUniversalClient} from '@shm/shared'
+import {
+  formattedDateMedium,
+  getCommentTargetId,
+  getDocumentTitle,
+  RenderResourceProvider,
+  shouldBlockEmbeddedResource,
+  unpackHmId,
+  useRenderResourceStack,
+  useUniversalClient,
+} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -195,6 +204,18 @@ export function BlockEmbedCard({
 }
 
 /** Renders full embedded document or comment content. */
+function CyclicEmbedBlock({entityLabel}: {entityLabel: 'document' | 'comment'}) {
+  return (
+    <ErrorBlock
+      message={
+        entityLabel === 'comment'
+          ? 'This comment can’t embed itself. Link to it instead.'
+          : 'This embed would create a recursive loop. Try linking to it instead, or embed an older version.'
+      }
+    />
+  )
+}
+
 export function BlockEmbedContent({
   block,
   depth,
@@ -209,10 +230,8 @@ export function BlockEmbedContent({
     id: UnpackedHypermediaId
   }) => React.ReactNode
 }) {
-  // TODO: re-implement self-embed detection — the old BlocksContentProvider context
-  // that tracked the parent document's resourceId has been removed. Infinite self-embeds
-  // are currently prevented by embed depth limits in the editor.
   const [showReferenced, setShowReferenced] = useState(false)
+  const renderResourceStack = useRenderResourceStack()
   const id = unpackHmId(block.link)
 
   const resource = useResource(id, {subscribed: true})
@@ -225,6 +244,12 @@ export function BlockEmbedContent({
   const commentTargetResource = useResource(getCommentTargetId(comment))
 
   const author = useResource(comment?.author ? hmId(comment?.author) : null)
+  const candidateKind = comment ? 'comment' : document ? 'document' : null
+  const isCyclicEmbed = !!(
+    id &&
+    candidateKind &&
+    shouldBlockEmbeddedResource(renderResourceStack, {kind: candidateKind, id})
+  )
 
   const isDeleted =
     resource.isTombstone ||
@@ -233,6 +258,7 @@ export function BlockEmbedContent({
     latestCheck.isTombstone
 
   if (!id) return <ErrorBlock message="Invalid embed link" />
+  if (isCyclicEmbed) return <CyclicEmbedBlock entityLabel={candidateKind || 'document'} />
   // No content available at all — banner without toggle
   if (resource.data?.type === 'tombstone') {
     return <DeletedEmbedBanner />
@@ -324,6 +350,7 @@ export function BlockEmbedComments({
 }: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const client = useUniversalClient()
   const id = unpackHmId(block.link)
+  const renderResourceStack = useRenderResourceStack()
 
   const resource = useResource(id, {
     recursive: true,
@@ -336,6 +363,9 @@ export function BlockEmbedComments({
   if (!id) {
     return <ErrorBlock message="Invalid embed link" />
   }
+  if (shouldBlockEmbeddedResource(renderResourceStack, {kind: 'document', id})) {
+    return <CyclicEmbedBlock entityLabel="document" />
+  }
   // No content available at all — banner without toggle
   if (resource.data?.type === 'tombstone') {
     return <DeletedEmbedBanner />
@@ -346,16 +376,18 @@ export function BlockEmbedComments({
 
   const content = (
     <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder openOnClick={openOnClick}>
-      {CommentEditor ? (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-        >
-          <CommentEditor docId={id} />
-        </div>
-      ) : null}
-      <Discussions targetId={id} />
+      <RenderResourceProvider resource={{kind: 'document', id}}>
+        {CommentEditor ? (
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            <CommentEditor docId={id} />
+          </div>
+        ) : null}
+        <Discussions targetId={id} />
+      </RenderResourceProvider>
     </EmbedWrapper>
   )
 
@@ -414,7 +446,13 @@ export function BlockEmbedContentComment({
           isStaleVersion={isStaleVersion}
         />
       )}
-      <CommentContent comment={comment} zoomBlockRef={id.blockRef} allowHighlight={false} openOnClick={openOnClick} />
+      <CommentContent
+        comment={comment}
+        resourceId={id}
+        zoomBlockRef={id.blockRef}
+        allowHighlight={false}
+        openOnClick={openOnClick}
+      />
     </EmbedWrapper>
   )
 }

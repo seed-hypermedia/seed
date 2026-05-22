@@ -1,5 +1,6 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {RenderResourceProvider} from '@shm/shared'
 import {useMemo} from 'react'
 import {BlockNoteEditor, useBlockNote} from './blocknote'
 import {BlockNoteView} from './blocknote/react/BlockNoteView'
@@ -25,23 +26,33 @@ export function useEmbedEditor(blocks: HMBlockNode[]): BlockNoteEditor<HMBlockSc
 
 const MAX_EMBED_DEPTH = 3
 
-export function EmbedEditorView({blocks, depth = 1}: {blocks: HMBlockNode[]; depth?: number}) {
+export function EmbedEditorView({
+  blocks,
+  id,
+  depth = 1,
+}: {
+  blocks: HMBlockNode[]
+  id: UnpackedHypermediaId
+  depth?: number
+}) {
   if (depth > MAX_EMBED_DEPTH) {
     return null
   }
 
   return (
-    <div
-      contentEditable={false}
-      suppressContentEditableWarning
-      onDragStart={(e) => {
-        // Prevent the nested editor from interfering with the outer editor's drag
-        e.stopPropagation()
-        e.preventDefault()
-      }}
-    >
-      <EmbedEditorInner blocks={blocks} />
-    </div>
+    <RenderResourceProvider resource={{kind: 'document', id}}>
+      <div
+        contentEditable={false}
+        suppressContentEditableWarning
+        onDragStart={(e) => {
+          // Prevent the nested editor from interfering with the outer editor's drag
+          e.stopPropagation()
+          e.preventDefault()
+        }}
+      >
+        <EmbedEditorInner blocks={blocks} />
+      </div>
+    </RenderResourceProvider>
   )
 }
 

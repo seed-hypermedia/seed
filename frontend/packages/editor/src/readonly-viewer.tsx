@@ -1,6 +1,12 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hypermediaUrlToHref, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import {
+  hypermediaUrlToHref,
+  RenderResourceProvider,
+  type RenderResourceKind,
+  useOpenUrl,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {useCallback, useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
@@ -13,6 +19,7 @@ import {hmBlockSchema} from './schema'
 export interface ReadOnlyViewerProps {
   blocks: HMBlockNode[]
   resourceId?: UnpackedHypermediaId
+  resourceKind?: RenderResourceKind
   textUnit?: number
   layoutUnit?: number
   className?: string
@@ -29,6 +36,8 @@ export interface ReadOnlyViewerProps {
 
 export function ReadOnlyViewer({
   blocks,
+  resourceId,
+  resourceKind = 'document',
   textUnit,
   layoutUnit,
   className,
@@ -99,31 +108,33 @@ export function ReadOnlyViewer({
   const hasRangeSelection = !!(onCopyFragmentLink || onComment)
 
   return (
-    <div
-      style={
-        {
-          '--text-unit': `${textUnit ?? 18}px`,
-          '--layout-unit': `${layoutUnit ?? 24}px`,
-        } as React.CSSProperties
-      }
-      className={[className ?? '', 'hm-prose', commentStyle ? 'comment-editor is-comment' : '']
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <ReadOnlyBlockNoteView editor={editor}>
-        <>
-          {hasHoverActions && (
-            <BlockHoverActionsPositioner
-              editor={editor}
-              onCopyBlockLink={onCopyBlockLink}
-              onStartComment={onStartComment}
-            />
-          )}
-          {hasRangeSelection && (
-            <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
-          )}
-        </>
-      </ReadOnlyBlockNoteView>
-    </div>
+    <RenderResourceProvider resource={resourceId ? {kind: resourceKind, id: resourceId} : null}>
+      <div
+        style={
+          {
+            '--text-unit': `${textUnit ?? 18}px`,
+            '--layout-unit': `${layoutUnit ?? 24}px`,
+          } as React.CSSProperties
+        }
+        className={[className ?? '', 'hm-prose', commentStyle ? 'comment-editor is-comment' : '']
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <ReadOnlyBlockNoteView editor={editor}>
+          <>
+            {hasHoverActions && (
+              <BlockHoverActionsPositioner
+                editor={editor}
+                onCopyBlockLink={onCopyBlockLink}
+                onStartComment={onStartComment}
+              />
+            )}
+            {hasRangeSelection && (
+              <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
+            )}
+          </>
+        </ReadOnlyBlockNoteView>
+      </div>
+    </RenderResourceProvider>
   )
 }
