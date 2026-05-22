@@ -110,6 +110,20 @@ type scheduler struct {
 	tasks map[DiscoveryKey]*taskHandle
 	queue *heap.Heap[*taskHandle]
 
+	// hotEphemeral is the subset of `tasks` whose lifecycle is governed
+	// by `hotDeadline`: every entry satisfies `!subscription &&
+	// !hotDeadline.IsZero()`. Both `boundedWake` and
+	// `cleanupExpiredHotTasksLocked` iterate this set instead of the
+	// full tasks map — pprof showed two O(N) scans on `tasks` per
+	// scheduler tick burned ~88 % of CPU under load, with map iteration
+	// itself accounting for ~30 % flat. With the subscription pool
+	// typically dwarfing the ephemeral pool, this caps both functions
+	// at O(K) where K = active ephemeral hot tasks. Caller must hold
+	// `mu`. Membership is maintained at the five edges that flip
+	// `subscription` or set `hotDeadline`, and at every `delete(tasks,
+	// …)` site — see the helper methods below.
+	hotEphemeral map[*taskHandle]struct{}
+
 	// inProgress counts tasks that are currently being executed by a worker
 	// goroutine. Bounded by cfg.MaxWorkers. Used to detect saturation for
 	// preemption decisions.
@@ -120,6 +134,31 @@ type scheduler struct {
 	hotTTL time.Duration
 }
 
+// hotEphemeralAddLocked inserts task into the hotEphemeral index if it
+// currently qualifies (non-subscription with a hot deadline set). Safe to
+// call on every relevant edge; idempotent. Caller must hold s.mu.
+func (s *scheduler) hotEphemeralAddLocked(task *taskHandle) {
+	if task.subscription || task.hotDeadline.IsZero() {
+		return
+	}
+	s.hotEphemeral[task] = struct{}{}
+}
+
+// hotEphemeralRemoveLocked drops task from the index. Idempotent. Caller
+// must hold s.mu. Call at every `delete(s.tasks, …)` site, and whenever
+// the task transitions to `subscription = true`.
+func (s *scheduler) hotEphemeralRemoveLocked(task *taskHandle) {
+	delete(s.hotEphemeral, task)
+}
+
+// deleteTaskLocked removes task from both s.tasks and s.hotEphemeral.
+// All call sites that previously did `delete(s.tasks, key)` should funnel
+// through this so the side index can't drift.
+func (s *scheduler) deleteTaskLocked(task *taskHandle) {
+	delete(s.tasks, task.key)
+	delete(s.hotEphemeral, task)
+}
+
 // newScheduler creates a new scheduler.
 func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 	if cfg.MaxWorkers == 0 {
@@ -127,11 +166,12 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 	}
 
 	s := &scheduler{
-		disc:        disc,
-		cfg:         cfg,
-		timer:       time.NewTimer(0),
-		tasks:       make(map[DiscoveryKey]*taskHandle),
-		hotTTL: defaultHotTTL,
+		disc:         disc,
+		cfg:          cfg,
+		timer:        time.NewTimer(0),
+		tasks:        make(map[DiscoveryKey]*taskHandle),
+		hotEphemeral: make(map[*taskHandle]struct{}),
+		hotTTL:       defaultHotTTL,
 		// Two-tier priority: hot tasks always before cold. Within hot tier,
 		// LIFO by hotDeadline desc (most recently touched wins); within cold
 		// tier, FIFO by nextRunTime asc (earliest due wins). nextRunTime is
@@ -290,6 +330,10 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 
 	if opts.forceSubscription && !task.subscription {
 		task.subscription = true
+		// Once subscription, it leaves the hotEphemeral set — its
+		// lifecycle is now driven by the periodic refresh, not by
+		// hotDeadline expiry.
+		s.hotEphemeralRemoveLocked(task)
 		if exists {
 			forceImmediate = true
 		}
@@ -297,6 +341,10 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 
 	if opts.isHot {
 		task.hotDeadline = now.Add(s.hotTTL)
+		// First hotDeadline assignment for a non-subscription task is
+		// the edge that adds it to the index; idempotent on subsequent
+		// extensions.
+		s.hotEphemeralAddLocked(task)
 	}
 
 	if task.state == TaskStateInProgress {
@@ -329,6 +377,10 @@ func (s *scheduler) removeSubscriptions(keys ...DiscoveryKey) {
 		}
 
 		task.subscription = false
+		// Becomes ephemeral now — if a hotDeadline is set, it joins
+		// the index. (cleanupExpiredHotTasksLocked will then handle
+		// it normally once that deadline expires.)
+		s.hotEphemeralAddLocked(task)
 		now := time.Now()
 
 		// If task is not hot and not running, remove immediately.
@@ -336,7 +388,7 @@ func (s *scheduler) removeSubscriptions(keys ...DiscoveryKey) {
 			if task.queueIndex.IsSet() {
 				s.queue.Remove(task.queueIndex.Value())
 			}
-			delete(s.tasks, key)
+			s.deleteTaskLocked(task)
 		}
 	}
 }
@@ -364,7 +416,7 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			// there's nothing to run and no owner to resume it. Drop it.
 			if wantTier == tierCold && !task.subscription {
 				s.queue.Pop()
-				delete(s.tasks, task.key)
+				s.deleteTaskLocked(task)
 				continue
 			}
 			task.queueTier = wantTier
@@ -529,11 +581,11 @@ func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) 
 // user is no longer viewing that document) and drops any queued ephemeral
 // hot tasks in the same state. Caller must hold s.mu.
 func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
+	// Iterates only ephemeral hot tasks (the index excludes subscriptions
+	// and entries without a hotDeadline by construction). Replaces an
+	// O(|tasks|) scan that previously burned ~29 % of CPU on /debug/pprof.
 	var toDelete []*taskHandle
-	for _, t := range s.tasks {
-		if t.subscription {
-			continue
-		}
+	for t := range s.hotEphemeral {
 		if t.IsHot(now) {
 			continue
 		}
@@ -550,18 +602,18 @@ func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
 	}
 	for _, t := range toDelete {
 		s.queue.Remove(t.queueIndex.Value())
-		delete(s.tasks, t.key)
+		s.deleteTaskLocked(t)
 	}
 }
 
 // boundedWake narrows `candidate` by the earliest in-progress hot-task
 // heartbeat expiry so cleanup runs promptly. Caller must hold s.mu.
 func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Duration {
-	for _, t := range s.tasks {
-		if t.state != TaskStateInProgress || t.subscription {
-			continue
-		}
-		if t.hotDeadline.IsZero() {
+	// Iterates only ephemeral hot tasks (subscription / zero-deadline
+	// entries are absent from the index by construction). The
+	// in-progress check is the only filter left.
+	for t := range s.hotEphemeral {
+		if t.state != TaskStateInProgress {
 			continue
 		}
 		d := max(t.hotDeadline.Sub(now), 0)
@@ -591,7 +643,7 @@ func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate
 		if task.queueIndex.IsSet() {
 			s.queue.Remove(task.queueIndex.Value())
 		}
-		delete(s.tasks, task.key)
+		s.deleteTaskLocked(task)
 		return
 	}
 

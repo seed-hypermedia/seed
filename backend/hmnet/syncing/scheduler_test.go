@@ -628,3 +628,85 @@ func TestScheduler_RetouchPromotesColdToHot(t *testing.T) {
 
 	close(blockCh)
 }
+
+// TestSchedulerHotEphemeralIndexMatchesTasks exercises every edge that
+// flips `subscription` or sets/extends `hotDeadline` and asserts the
+// `hotEphemeral` side index stays in lock-step with the
+// `!subscription && !hotDeadline.IsZero()` filter on `s.tasks`.
+// Catches a missed maintenance call site without depending on scheduler
+// dispatch timing.
+func TestSchedulerHotEphemeralIndexMatchesTasks(t *testing.T) {
+	disc := &mockDiscoverer{
+		calls:    make(map[blob.IRI]int),
+		blockCh:  make(chan struct{}), // freeze workers so state stays observable
+		interval: time.Hour,            // never reschedule under us
+	}
+	defer close(disc.blockCh)
+	s := newScheduler(disc, testConfig(time.Hour, 4))
+	// Do NOT start s.run — we want full control of state transitions
+	// from the test goroutine. All scheduleTask / removeSubscriptions
+	// calls take s.mu themselves, so they're safe to call directly.
+
+	check := func(step string) {
+		t.Helper()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		want := make(map[*taskHandle]struct{})
+		for _, task := range s.tasks {
+			if !task.subscription && !task.hotDeadline.IsZero() {
+				want[task] = struct{}{}
+			}
+		}
+		require.Equalf(t, len(want), len(s.hotEphemeral),
+			"%s: index size mismatch (want %d, got %d)", step, len(want), len(s.hotEphemeral))
+		for task := range want {
+			_, ok := s.hotEphemeral[task]
+			require.Truef(t, ok, "%s: missing index entry for %v", step, task.key)
+		}
+		for task := range s.hotEphemeral {
+			require.Falsef(t, task.subscription,
+				"%s: subscription %v leaked into hotEphemeral", step, task.key)
+			require.Falsef(t, task.hotDeadline.IsZero(),
+				"%s: zero-deadline %v leaked into hotEphemeral", step, task.key)
+			_, ok := s.tasks[task.key]
+			require.Truef(t, ok, "%s: orphan index entry for %v (not in s.tasks)", step, task.key)
+		}
+	}
+
+	now := time.Now()
+	keyA := DiscoveryKey{IRI: "hm://alice/a"}
+	keyB := DiscoveryKey{IRI: "hm://alice/b"}
+	keyC := DiscoveryKey{IRI: "hm://alice/c"}
+	keyD := DiscoveryKey{IRI: "hm://alice/d"}
+
+	// 1. Fresh task with isHot=true: should appear in index.
+	s.scheduleTask(keyA, now, schedOpts{isHot: true})
+	check("after hot ephemeral create")
+
+	// 2. Touch the same task again with isHot=true: still in index (idempotent).
+	s.scheduleTask(keyA, now.Add(time.Millisecond), schedOpts{isHot: true})
+	check("after hot extension")
+
+	// 3. Create a subscription task: must NOT enter the index.
+	s.scheduleTask(keyB, now, schedOpts{forceSubscription: true})
+	check("after subscription create")
+
+	// 4. Promote keyA to subscription: must leave the index.
+	s.scheduleTask(keyA, now, schedOpts{forceSubscription: true})
+	check("after promoting ephemeral to subscription")
+
+	// 5. Demote keyA back to ephemeral via removeSubscriptions: with the
+	//    hotDeadline still set, it rejoins the index.
+	s.removeSubscriptions(keyA)
+	check("after demoting subscription to ephemeral")
+
+	// 6. Create a third hot ephemeral, then a subscription that becomes hot.
+	s.scheduleTask(keyC, now, schedOpts{isHot: true})
+	check("after second hot ephemeral")
+	s.scheduleTask(keyD, now, schedOpts{forceSubscription: true, isHot: true})
+	check("after subscription with isHot (must not enter index)")
+
+	// 7. Demote keyD: it had a hotDeadline already, so it should now appear.
+	s.removeSubscriptions(keyD)
+	check("after demoting hot subscription")
+}
