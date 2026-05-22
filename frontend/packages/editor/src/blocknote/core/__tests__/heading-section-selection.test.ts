@@ -71,6 +71,34 @@ describe('heading section selection', () => {
     editor._tiptapEditor.destroy()
   })
 
+  it('marks fully covered heading blocks for side-menu dragging', () => {
+    const editor = createEditor([{id: 'section', type: 'heading', content: 'Heading'}])
+    const heading = getBlockInfo(editor, 'section')
+
+    setTextSelection(editor, heading.blockContent.beforePos + 1, heading.blockContent.afterPos - 1)
+
+    expect(blockElement(editor, 'section').classList.contains('bn-full-block-selected')).toBe(true)
+
+    editor._tiptapEditor.destroy()
+  })
+
+  it('shows the side menu for fully covered heading blocks', () => {
+    const editor = createEditor([{id: 'section', type: 'heading', content: 'Heading'}])
+    const heading = getBlockInfo(editor, 'section')
+    let latestSideMenuState: {show: boolean; block: {id: string}} | undefined
+    const unsubscribe = editor.sideMenu!.onUpdate((state) => {
+      latestSideMenuState = state
+    })
+
+    setTextSelection(editor, heading.blockContent.beforePos + 1, heading.blockContent.afterPos - 1)
+
+    expect(latestSideMenuState?.show).toBe(true)
+    expect(latestSideMenuState?.block.id).toBe('section')
+
+    unsubscribe()
+    editor._tiptapEditor.destroy()
+  })
+
   it('marks fully covered non-heading child blocks for side-menu dragging', () => {
     const editor = createEditor([
       {

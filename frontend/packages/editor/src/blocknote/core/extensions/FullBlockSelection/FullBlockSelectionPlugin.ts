@@ -82,7 +82,7 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
   if (selection instanceof TextSelection) {
     const {from, to} = selection
 
-    if (selectionTouchesHeadingContent(state, from, to)) {
+    if (selectionSpansOutsideHeadingContent(state, from, to)) {
       return fullySelected
     }
 
@@ -123,17 +123,18 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
 }
 
 /**
- * Returns true when a text selection overlaps heading text.
+ * Returns true when a text selection touches heading text and also extends
+ * outside that heading's own text content range.
  *
  * Heading blocks can also be section parents for nested content. When a drag
  * selection starts in a heading and extends into that section's children, the
  * generic full-block detection would otherwise convert the fully-covered child
  * blocks into block selections while the heading remains native text. That
  * mixed visual state makes the two selection backgrounds compete, so heading
- * text selections stay native text selections end-to-end.
+ * section-crossing selections stay native text selections end-to-end.
  */
-function selectionTouchesHeadingContent(state: EditorState, from: number, to: number): boolean {
-  let touchesHeading = false
+function selectionSpansOutsideHeadingContent(state: EditorState, from: number, to: number): boolean {
+  let spansOutsideHeading = false
 
   state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name !== 'heading') return true
@@ -141,15 +142,20 @@ function selectionTouchesHeadingContent(state: EditorState, from: number, to: nu
     const contentStart = pos + 1
     const contentEnd = pos + node.nodeSize - 1
 
-    if (from < contentEnd && to > contentStart) {
-      touchesHeading = true
+    const touchesHeading = from < contentEnd && to > contentStart
+    if (!touchesHeading) {
+      return true
+    }
+
+    if (from < contentStart || to > contentEnd) {
+      spansOutsideHeading = true
       return false
     }
 
     return true
   })
 
-  return touchesHeading
+  return spansOutsideHeading
 }
 
 /**
