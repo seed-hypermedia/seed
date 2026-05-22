@@ -1923,6 +1923,26 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         await hmauth.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
 
         const issuerKeyPair = blobs.nobleKeyPairFromSeed(account.seed)
+        const issuerPrincipal = blobs.principalToString(issuerKeyPair.principal)
+        let issuerProfile = state.profiles[issuerPrincipal]
+        if (!issuerProfile && state.profileLoadStates[issuerPrincipal] !== 'unavailable') {
+          await actions.ensureProfileLoaded(issuerPrincipal)
+          issuerProfile = state.profiles[issuerPrincipal]
+        }
+        if (!issuerProfile?.name) {
+          throw new Error('Selected account profile is unavailable')
+        }
+        const encodedProfile = await blobs.createProfile(
+          issuerKeyPair,
+          {
+            name: issuerProfile.name,
+            ...(issuerProfile.avatar ? {avatar: issuerProfile.avatar} : {}),
+            ...(issuerProfile.description ? {description: issuerProfile.description} : {}),
+          },
+          Date.now(),
+        )
+        await blockstore.put(encodedProfile.cid, encodedProfile.data)
+
         const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
         const encoded = await hmauth.createDelegation(
           issuerKeyPair,
@@ -1950,6 +1970,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           account: issuerKeyPair.principal,
           capability: encoded.decoded,
           capabilityCid: encoded.cid,
+          profile: encodedProfile.decoded,
+          profileCid: encodedProfile.cid,
           notifyServerUrl: getEffectiveNotificationServerUrl(),
         }
         const compressedCallbackData = await (async () => {

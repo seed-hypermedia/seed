@@ -68,6 +68,10 @@ export default function AuthCallbackRoute() {
           {cid: reverseProf.cid.toString(), data: reverseProf.data},
         ]
 
+        if (result.profile) {
+          publishBlobs.push({cid: result.profile.cid.toString(), data: result.profile.data})
+        }
+
         console.log('[auth-callback] Publishing delegation blobs via client.publish', {
           blobCids: publishBlobs.map((b) => b.cid),
           account: result.accountPrincipal,

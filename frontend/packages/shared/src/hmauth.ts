@@ -55,6 +55,8 @@ export interface AuthResult {
   accountPrincipal: string
   /** The signed capability blob with raw CBOR bytes and CID. */
   capability: blobs.Encoded<blobs.Capability>
+  /** The signed profile blob for the account with raw CBOR bytes and CID, when provided by the vault. */
+  profile?: blobs.Encoded<blobs.Profile>
   /** The stored session with the unextractable signing key. */
   session: StoredSession
   /** Notification server URL configured by the vault (optional). */
@@ -399,6 +401,10 @@ export interface CallbackData {
   capability: blobs.Capability
   /** Content-addressed CID of the capability blob. */
   capabilityCid: CID
+  /** Signed profile blob (decoded object) for the delegating account, when provided by the vault. */
+  profile?: blobs.Profile
+  /** Content-addressed CID of the profile blob, when provided by the vault. */
+  profileCid?: CID
   /** Notification server URL configured by the vault (optional). */
   notifyServerUrl?: string
 }
@@ -412,6 +418,7 @@ export async function buildCallbackUrl(
   state: string,
   accountPrincipal: blobs.Principal,
   capability: blobs.Encoded<blobs.Capability>,
+  profile: blobs.Encoded<blobs.Profile>,
   notifyServerUrl?: string,
 ): Promise<string> {
   const url = new URL(redirectUri)
@@ -419,6 +426,8 @@ export async function buildCallbackUrl(
     account: accountPrincipal,
     capability: capability.decoded,
     capabilityCid: capability.cid,
+    profile: profile.decoded,
+    profileCid: profile.cid,
     ...(notifyServerUrl ? {notifyServerUrl} : {}),
   }
   const encodedCbor = cbor.encode(callbackData)

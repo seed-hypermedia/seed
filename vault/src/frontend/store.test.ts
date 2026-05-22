@@ -1796,6 +1796,11 @@ describe('delegation flow', () => {
     store.state.selectedAccountIndex = 0
     store.state.vaultVersion = 0
     store.state.relyingPartyOrigin = 'https://example.com'
+    store.state.profiles[blobs.principalToString(kp.principal)] = {
+      name: profile.decoded.name,
+      avatar: profile.decoded.avatar,
+      description: profile.decoded.description,
+    }
   }
 
   beforeEach(() => {
@@ -1833,10 +1838,15 @@ describe('delegation flow', () => {
     expect(window.location.href).toContain('data=')
     expect(window.location.href).toContain(`state=${request.state}`)
     const redirectUrl = new URL(window.location.href)
-    const callbackData = cbor.decode<{notifyServerUrl: string}>(
-      await decompress(base64.decode(redirectUrl.searchParams.get('data')!)),
-    )
+    const callbackData = cbor.decode<{
+      notifyServerUrl: string
+      profile: blobs.Profile
+      profileCid: CID
+    }>(await decompress(base64.decode(redirectUrl.searchParams.get('data')!)))
     expect(callbackData.notifyServerUrl).toBe('https://notify.example.com')
+    expect(callbackData.profile.type).toBe('Profile')
+    expect(callbackData.profile.name).toBe('Test')
+    expect(blobs.encode(callbackData.profile).cid.toString()).toBe(callbackData.profileCid.toString())
     expect(store.state.vaultData!.accounts[0]!.delegations.length).toBe(1)
     expect(store.state.vaultData!.accounts[0]!.delegations[0]!.deviceType).toBeDefined()
     expect(store.state.delegationRequest).toBeNull()

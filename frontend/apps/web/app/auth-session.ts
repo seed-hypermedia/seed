@@ -208,10 +208,23 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
   if (capability.cid.toString() !== callbackData.capabilityCid.toString()) {
     throw new Error('Capability CID mismatch: data was corrupted in transit')
   }
+  let profile: blobs.Encoded<blobs.Profile> | undefined
+  if (callbackData.profile || callbackData.profileCid) {
+    if (!callbackData.profile || !callbackData.profileCid) {
+      throw new Error('Profile callback data is incomplete')
+    }
+    profile = blobs.encode(callbackData.profile)
+    if (profile.cid.toString() !== callbackData.profileCid.toString()) {
+      throw new Error('Profile CID mismatch: data was corrupted in transit')
+    }
+  }
 
   // Verify signatures.
   if (!blobs.verify(callbackData.capability)) {
     throw new Error('Invalid capability signature')
+  }
+  if (callbackData.profile && !blobs.verify(callbackData.profile)) {
+    throw new Error('Invalid profile signature')
   }
 
   // Cross-blob coherence checks.
@@ -221,6 +234,9 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
   }
   if (!blobs.principalEqual(callbackData.account, callbackData.capability.signer)) {
     throw new Error('Callback account does not match capability signer')
+  }
+  if (callbackData.profile && !blobs.principalEqual(callbackData.account, callbackData.profile.signer)) {
+    throw new Error('Callback account does not match profile signer')
   }
 
   await putAuthSession(vaultUrl, {
@@ -232,6 +248,7 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
   return {
     accountPrincipal: blobs.principalToString(callbackData.account),
     capability,
+    ...(profile ? {profile} : {}),
     session,
     notifyServerUrl,
   }

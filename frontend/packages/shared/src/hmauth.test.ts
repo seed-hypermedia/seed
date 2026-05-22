@@ -137,11 +137,13 @@ describe('delegation callback protocol', () => {
     const issuer = await blobs.generateKeyPair()
     const delegate = await blobs.generateKeyPair()
     const capability = await blobs.createCapability(issuer, delegate.principal, 'AGENT', Date.now())
+    const profile = await blobs.createProfile(issuer, {name: 'Alice'}, Date.now())
     const url = await SDK.buildCallbackUrl(
       'https://example.com/callback',
       'AAAAAAAAAAAAAAAAAAAAAA',
       issuer.principal,
       capability,
+      profile,
       'https://notify.example.com',
     )
     const parsed = new URL(url)
@@ -150,5 +152,10 @@ describe('delegation callback protocol', () => {
     expectString(encodedData)
     const decodedData = cbor.decode<SDK.CallbackData>(await decompress(base64.decode(encodedData!)))
     expect(decodedData.notifyServerUrl).toBe('https://notify.example.com')
+    expect(decodedData.profile).toBeDefined()
+    expect(decodedData.profileCid).toBeDefined()
+    if (!decodedData.profile || !decodedData.profileCid) throw new Error('profile callback data missing')
+    expect(decodedData.profile.name).toBe('Alice')
+    expect(blobs.encode(decodedData.profile).cid.toString()).toBe(decodedData.profileCid.toString())
   })
 })
