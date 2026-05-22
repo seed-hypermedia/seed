@@ -1,4 +1,4 @@
-import {parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
+import {entityQueryPathToHmIdPath, parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /**
  * A domain resolver function that maps a hostname to an account UID
@@ -39,10 +39,9 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   let blockRef: string | null = null
   let blockRange: {start: number; end: number} | {expanded: boolean} | null = null
   let panel: string | null = null
-  let parsedHostname: string | null = null
+  let parsedUrl: URL | null = null
   try {
-    const parsedUrl = new URL(url)
-    parsedHostname = parsedUrl.hostname
+    parsedUrl = new URL(url)
     const hasVersion = parsedUrl.searchParams.has('v')
     const hasLatest = parsedUrl.searchParams.has('l')
     panel = parsedUrl.searchParams.get('panel')
@@ -68,39 +67,16 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   }
 
   // Try domain resolver first (fast, cached, works offline).
-  if (opts?.domainResolver && parsedHostname) {
+  if (opts?.domainResolver && parsedUrl) {
     try {
-      const parsedUrl = new URL(url)
-      const uid = await opts.domainResolver(parsedHostname)
+      const uid = await opts.domainResolver(parsedUrl.hostname)
       if (uid) {
-        const pathSegments = parsedUrl.pathname.split('/').filter(Boolean)
-        const profilePath = resolveProfilePath(uid, pathSegments)
-        const resolvedUid = profilePath?.uid || uid
-        const path = profilePath?.path || (pathSegments.length > 0 ? pathSegments : null)
-        const version = parsedUrl.searchParams.get('v') || null
-        const pathStr = path ? '/' + path.join('/') : ''
-        const siteHostname = parsedUrl.origin
-
-        return {
-          id: `hm://${resolvedUid}${pathStr}`,
-          hmId: {
-            id: `hm://${resolvedUid}${pathStr}`,
-            uid: resolvedUid,
-            path,
-            version,
-            blockRef,
-            blockRange,
-            hostname: siteHostname,
-            scheme: 'hm',
-            latest,
-          } as UnpackedHypermediaId,
-          version,
-          title: null,
-          target: null,
-          authors: null,
-          type: null,
+        return buildResolvedUrlFromDomainUid(parsedUrl, uid, {
+          latest,
+          blockRef,
+          blockRange,
           panel,
-        }
+        })
       }
     } catch {
       // Domain resolver failed, fall through to OPTIONS
@@ -108,9 +84,29 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
   }
 
   // Fall back to OPTIONS request (original method, requires network)
-  const response = await fetch(url, {
-    method: 'OPTIONS',
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'OPTIONS',
+    })
+  } catch (error) {
+    if (opts?.domainResolver && parsedUrl) {
+      try {
+        const uid = await opts.domainResolver(parsedUrl.hostname)
+        if (uid) {
+          return buildResolvedUrlFromDomainUid(parsedUrl, uid, {
+            latest,
+            blockRef,
+            blockRange,
+            panel,
+          })
+        }
+      } catch {
+        // Preserve the original fetch error when fallback resolution also fails.
+      }
+    }
+    throw error
+  }
   if (response.status === 200) {
     const rawId = response.headers.get('x-hypermedia-id')
     const id = rawId ? decodeURIComponent(rawId) : null
@@ -181,6 +177,51 @@ export async function resolveId(input: string, opts?: ResolveOptions): Promise<U
   }
 
   throw new Error(`Invalid Hypermedia ID: ${input}`)
+}
+
+function buildResolvedUrlFromDomainUid(
+  parsedUrl: URL,
+  uid: string,
+  {
+    latest,
+    blockRef,
+    blockRange,
+    panel,
+  }: {
+    latest: boolean
+    blockRef: string | null
+    blockRange: {start: number; end: number} | {expanded: boolean} | null
+    panel: string | null
+  },
+): ResolvedUrl {
+  const pathSegments = entityQueryPathToHmIdPath(parsedUrl.pathname)
+  const profilePath = resolveProfilePath(uid, pathSegments)
+  const resolvedUid = profilePath?.uid || uid
+  const path = profilePath?.path || (pathSegments.length > 0 ? pathSegments : null)
+  const version = parsedUrl.searchParams.get('v') || null
+  const pathStr = path ? '/' + path.join('/') : ''
+  const siteHostname = parsedUrl.origin
+
+  return {
+    id: `hm://${resolvedUid}${pathStr}`,
+    hmId: {
+      id: `hm://${resolvedUid}${pathStr}`,
+      uid: resolvedUid,
+      path,
+      version,
+      blockRef,
+      blockRange,
+      hostname: siteHostname,
+      scheme: 'hm',
+      latest,
+    } as UnpackedHypermediaId,
+    version,
+    title: null,
+    target: null,
+    authors: null,
+    type: null,
+    panel,
+  }
 }
 
 function resolveProfilePath(siteUid: string, pathSegments: string[]): {uid: string; path: string[]} | null {

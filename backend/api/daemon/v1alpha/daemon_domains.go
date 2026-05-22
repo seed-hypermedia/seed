@@ -2,9 +2,12 @@ package daemon
 
 import (
 	context "context"
+	"net/url"
 	"seed/backend/blob"
-
 	daemon "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/util/dqb"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 
 	"google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,11 +22,29 @@ func (srv *Server) GetDomain(ctx context.Context, req *daemon.GetDomainRequest) 
 	}
 
 	entry, err := srv.domains.GetDomain(ctx, req.Domain)
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "domain not found: %s", req.Domain)
+	if err == nil {
+		if entry.LastConfig != nil && entry.LastConfig.RegisteredAccountUID != "" {
+			return domainEntryToProto(entry), nil
+		}
+		fallbackEntry, ok, lookupErr := srv.lookupLocalDomainAccount(ctx, req.Domain)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		if ok {
+			return domainEntryToProto(fallbackEntry), nil
+		}
+		return domainEntryToProto(entry), nil
 	}
 
-	return domainEntryToProto(entry), nil
+	entry, ok, lookupErr := srv.lookupLocalDomainAccount(ctx, req.Domain)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	if ok {
+		return domainEntryToProto(entry), nil
+	}
+
+	return nil, status.Errorf(codes.NotFound, "domain not found: %s", req.Domain)
 }
 
 // ListDomains returns all tracked domains.
@@ -82,11 +103,68 @@ func (srv *Server) CheckDomain(ctx context.Context, req *daemon.CheckDomainReque
 
 	entry, err := srv.domains.CheckDomain(ctx, req.Domain)
 	if err != nil {
+		fallbackEntry, ok, lookupErr := srv.lookupLocalDomainAccount(ctx, req.Domain)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		if ok {
+			return domainEntryToProto(fallbackEntry), nil
+		}
 		return nil, err
+	}
+	if entry.LastConfig == nil || entry.LastConfig.RegisteredAccountUID == "" {
+		fallbackEntry, ok, lookupErr := srv.lookupLocalDomainAccount(ctx, req.Domain)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+		if ok {
+			return domainEntryToProto(fallbackEntry), nil
+		}
 	}
 
 	return domainEntryToProto(entry), nil
 }
+
+func (srv *Server) lookupLocalDomainAccount(ctx context.Context, domain string) (blob.DomainEntry, bool, error) {
+	var entry blob.DomainEntry
+	entry.Domain = domain
+
+	err := srv.store.DB().WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qLookupLocalDomainAccount(), func(stmt *sqlite.Stmt) error {
+			siteURL := stmt.ColumnText(1)
+			if siteURL == "" {
+				return nil
+			}
+			parsed, err := url.Parse(siteURL)
+			if err != nil || parsed.Hostname() != domain {
+				return nil
+			}
+			entry.LastStatus = "success"
+			entry.LastConfig = &blob.SiteConfigResponse{RegisteredAccountUID: stmt.ColumnText(0)}
+			return nil
+		})
+	})
+	if err != nil {
+		return blob.DomainEntry{}, false, status.Errorf(codes.Internal, "failed to inspect local site metadata: %v", err)
+	}
+	if entry.LastConfig == nil || entry.LastConfig.RegisteredAccountUID == "" {
+		return blob.DomainEntry{}, false, nil
+	}
+	return entry, true, nil
+}
+
+var qLookupLocalDomainAccount = dqb.Str(`
+	SELECT substr(r.iri, 6) AS account_uid, COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url
+	FROM document_generations dg
+	JOIN resources r ON r.id = dg.resource
+	WHERE instr(r.iri, 'hm://') = 1
+		AND instr(substr(r.iri, 6), '/') = 0
+		AND dg.generation = (
+			SELECT MAX(dg2.generation)
+			FROM document_generations dg2
+			WHERE dg2.resource = dg.resource
+		)
+`)
 
 func domainEntryToProto(e blob.DomainEntry) *daemon.DomainInfo {
 	info := &daemon.DomainInfo{

@@ -423,11 +423,53 @@ function useURLHandler() {
     },
   })
 
+  const routeFromResolvedUrl = useCallback(
+    (cleanUrl: string, result: Awaited<ReturnType<typeof resolveHypermediaUrl>>) => {
+      const parsedUrl = parseCustomURL(cleanUrl)
+      const fragment = parseFragment(parsedUrl?.fragment || '')
+      const idFragment = {
+        blockRef: fragment?.blockId || null,
+        blockRange:
+          fragment?.start !== undefined && fragment?.end !== undefined
+            ? {start: fragment.start, end: fragment.end}
+            : null,
+      }
+
+      if (!result) {
+        return null
+      }
+
+      if (result.type === 'Comment' && result.target && result.hmId && result.hmId.path) {
+        return {
+          key: 'document',
+          id: result.target,
+          panel: {
+            key: 'comments',
+            id: result.target,
+            openComment: `${result.hmId.uid}/${result.hmId.path.join('/')}`,
+            ...idFragment,
+          },
+        } satisfies NavRoute
+      }
+
+      if (!result.hmId) {
+        return null
+      }
+
+      if (result.panel) {
+        return createDocumentNavRoute({...result.hmId, ...idFragment}, null, result.panel)
+      }
+
+      return appRouteOfId({...result.hmId, ...idFragment})
+    },
+    [],
+  )
+
   return async (search: string): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
-    const directRoute = hypermediaUrlToRoute(search) || hypermediaUrlToRoute(httpSearch)
-    if (directRoute) {
-      return directRoute
+    const existingRoute = hypermediaUrlToRoute(search) || hypermediaUrlToRoute(httpSearch)
+    if (existingRoute) {
+      return existingRoute
     }
 
     // Extract view term (e.g., /:activity) before making request
@@ -443,55 +485,29 @@ function useURLHandler() {
 
     connect.mutate(cleanUrl)
 
+    const directResult = await resolveHypermediaUrl(cleanUrl, {domainResolver}).catch(() => null)
+    const directRoute = routeFromResolvedUrl(cleanUrl, directResult)
+    if (directRoute) {
+      return applyViewTermToRoute(directRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
+    }
+
     if (experiments.data?.webImporting) {
       const webResult = await webQuery.mutateAsync({webUrl: cleanUrl})
       if (webResult.hypermedia) {
-        const res = await resolveHypermediaUrl(webResult.hypermedia.url, {domainResolver})
-        const resId = res?.id ? unpackHmId(res.id) : null
-        const navRoute = resId ? appRouteOfId(resId) : null
-        if (navRoute) return applyViewTermToRoute(navRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
+        const resolvedWebRoute = routeFromResolvedUrl(
+          webResult.hypermedia.url,
+          await resolveHypermediaUrl(webResult.hypermedia.url, {domainResolver}),
+        )
+        if (resolvedWebRoute) {
+          return applyViewTermToRoute(resolvedWebRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
+        }
         console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')
         return null
       }
       toast('Importing from the web')
     } else {
-      const result = await resolveHypermediaUrl(cleanUrl, {domainResolver})
-      const parsedUrl = parseCustomURL(cleanUrl)
-      const fragment = parseFragment(parsedUrl?.fragment || '')
-      const idFragment = {
-        blockRef: fragment?.blockId || null,
-        blockRange:
-          fragment?.start !== undefined && fragment?.end !== undefined
-            ? {start: fragment.start, end: fragment.end}
-            : null,
-      }
-      if (!result) {
-        toast.error('Failed to fetch web link')
-        return null
-      }
-      let route: NavRoute | null | undefined = null
-      if (result.type === 'Comment' && result.target && result.hmId && result.hmId.path) {
-        route = {
-          key: 'document',
-          id: result.target,
-          panel: {
-            key: 'comments',
-            id: result.target,
-            openComment: `${result.hmId.uid}/${result.hmId.path.join('/')}`,
-            ...idFragment,
-          },
-        }
-      } else if (result.hmId) {
-        // Check for panel query param and use createDocumentNavRoute if present
-        if (result.panel) {
-          route = createDocumentNavRoute({...result.hmId, ...idFragment}, null, result.panel)
-        } else {
-          route = appRouteOfId({...result.hmId, ...idFragment})
-        }
-      }
-      if (route) return applyViewTermToRoute(route, routeKey, commentId, accountUid, activityFilter, isInspect)
-      toast.error('Failed to open this hypermedia content')
+      toast.error('Failed to fetch web link')
       return null
     }
     throw new Error('Failed to fetch web link')
