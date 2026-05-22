@@ -4,7 +4,7 @@ import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {isHypermediaScheme, isPublicGatewayLink, normalizeHmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -291,9 +291,9 @@ export async function resolveEmbedUrl(
     domainResolver?: (hostname: string) => Promise<string | null>
   } = {},
 ): Promise<EmbedResolveResult> {
-  if (isPublicGatewayLink(url, opts.gwUrl) || isHypermediaScheme(url)) {
-    const hmLink = normalizeHmId(url, opts.gwUrl)
-    return {kind: 'direct', url: hmLink ?? url}
+  const directHmId = unpackHmId(url)
+  if (directHmId) {
+    return {kind: 'direct', url: packHmId(directHmId)}
   }
   try {
     const res = await resolveHypermediaUrl(url, {domainResolver: opts.domainResolver})

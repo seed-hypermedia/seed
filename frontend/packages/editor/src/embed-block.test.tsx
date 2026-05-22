@@ -81,17 +81,7 @@ vi.mock('@seed-hypermedia/client', () => ({
 }))
 
 vi.mock('@shm/shared/utils/entity-id-url', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shm/shared/utils/entity-id-url')>()
-  return {
-    ...actual,
-    isHypermediaScheme: (url: string) => url.startsWith('hm://'),
-    isPublicGatewayLink: (url: string, gwUrl: any) => {
-      const gw = typeof gwUrl?.get === 'function' ? gwUrl.get() : gwUrl
-      return typeof gw === 'string' && !!gw && url.startsWith(gw)
-    },
-    normalizeHmId: (url: string) => (url.startsWith('hm://') ? url : null),
-    packHmId: (hmId: any) => hmId?.id ?? `hm://${hmId?.uid ?? 'unknown'}`,
-  }
+  return await importOriginal<typeof import('@shm/shared/utils/entity-id-url')>()
 })
 
 import {EmbedBlock, EmbedLauncherInput, resolveEmbedUrl} from './embed-block'
@@ -455,16 +445,23 @@ describe('resolveEmbedUrl', () => {
     expect(resolveHypermediaUrlMock).not.toHaveBeenCalled()
   })
 
-  it('returns direct kind for public gateway links without calling resolver', async () => {
-    const gwUrl = {get: () => 'https://hyper.media'}
-    const result = await resolveEmbedUrl('https://hyper.media/abc/path', {gwUrl})
-    // normalizeHmId mock only normalizes hm://, so falls back to raw url
-    expect(result).toEqual({kind: 'direct', url: 'https://hyper.media/abc/path'})
+  it('returns direct kind for gateway hm URLs without calling resolver', async () => {
+    const result = await resolveEmbedUrl('https://hyper.media/hm/abc/path?v=v1#blk1')
+    expect(result).toEqual({kind: 'direct', url: 'hm://abc/path?v=v1#blk1'})
+    expect(resolveHypermediaUrlMock).not.toHaveBeenCalled()
+  })
+
+  it('returns direct kind for gateway hm URLs even when they are not on the current gateway', async () => {
+    const gwUrl = {get: () => 'https://other-gateway.example'}
+    const result = await resolveEmbedUrl('https://hyper.media/hm/abc/path', {gwUrl})
+    expect(result).toEqual({kind: 'direct', url: 'hm://abc/path'})
     expect(resolveHypermediaUrlMock).not.toHaveBeenCalled()
   })
 
   it('returns resolved kind when resolveHypermediaUrl yields an hmId', async () => {
-    resolveHypermediaUrlMock.mockResolvedValueOnce({hmId: {id: 'hm://xyz/posts/foo', uid: 'xyz'}})
+    resolveHypermediaUrlMock.mockResolvedValueOnce({
+      hmId: {id: 'hm://xyz/posts/foo', uid: 'xyz', path: ['posts', 'foo'], version: null, blockRef: null},
+    })
     const domainResolver = vi.fn().mockResolvedValue('xyz')
     const result = await resolveEmbedUrl('https://eric.vicenti.net/posts/foo', {domainResolver})
     expect(result).toEqual({kind: 'resolved', url: 'hm://xyz/posts/foo'})
