@@ -1177,6 +1177,33 @@ describe('roundtrip: createWebHMUrl -> unpackHmId', () => {
     expect(unpacked?.blockRef).toBe('XK6l8B4d')
     expect(unpacked?.latest).toBe(true)
   })
+
+  test('comment view URL resolves to the comment resource id', () => {
+    const url =
+      'hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/what-i-would-love-to-see-in-seed-hypermedia/:comments/z6Mkm8Uq6nbJDcA5ZyQCAhocWcL6KFfJkC7fFe465ZsMa6tw/z6GZFur8duMqBV'
+    const unpacked = unpackHmId(url)
+    expect(unpacked).toEqual(
+      hmId('z6Mkm8Uq6nbJDcA5ZyQCAhocWcL6KFfJkC7fFe465ZsMa6tw', {
+        path: ['z6GZFur8duMqBV'],
+        latest: true,
+      }),
+    )
+  })
+
+  test('comment view URL preserves version and block ref on the comment resource id', () => {
+    const url =
+      'hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/what-i-would-love-to-see-in-seed-hypermedia/:comments/z6Mkm8Uq6nbJDcA5ZyQCAhocWcL6KFfJkC7fFe465ZsMa6tw/z6GZFur8duMqBV?v=comment-version#blk1+'
+    const unpacked = unpackHmId(url)
+    expect(unpacked).toEqual(
+      hmId('z6Mkm8Uq6nbJDcA5ZyQCAhocWcL6KFfJkC7fFe465ZsMa6tw', {
+        path: ['z6GZFur8duMqBV'],
+        version: 'comment-version',
+        latest: false,
+        blockRef: 'blk1',
+        blockRange: {expanded: true},
+      }),
+    )
+  })
 })
 
 describe('packHmId with latest and version', () => {

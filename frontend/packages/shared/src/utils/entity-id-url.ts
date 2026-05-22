@@ -821,7 +821,23 @@ export function hmId(
 }
 
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
-export const unpackHmId = _unpackHmId
+export function unpackHmId(urlMaybe?: string | null): UnpackedHypermediaId | null {
+  if (!urlMaybe) return null
+
+  const unpacked = _unpackHmId(urlMaybe)
+  const {commentId} = extractViewTermFromUrl(urlMaybe)
+  if (!commentId) return unpacked
+
+  const commentResourceId = commentIdToHmId(commentId, unpacked?.version)
+  return hmId(commentResourceId.uid, {
+    path: commentResourceId.path,
+    version: commentResourceId.version,
+    latest: unpacked?.latest,
+    blockRef: unpacked?.blockRef,
+    blockRange: unpacked?.blockRange,
+    hostname: unpacked?.hostname,
+  })
+}
 
 export function isHypermediaScheme(url?: string) {
   return !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
