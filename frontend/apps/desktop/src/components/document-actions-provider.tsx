@@ -185,16 +185,17 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
     [onCopyReference],
   )
 
-  const getDraftId = useCallback(
+  const getDraft = useCallback(
     (id: UnpackedHypermediaId) => {
-      const draft = drafts.data?.find((d: HMListedDraft) => {
+      return drafts.data?.find((d: HMListedDraft) => {
         if (!d.editUid) return false
         return id.uid === d.editUid && pathMatches(d.editPath || [], id.path)
       })
-      return draft?.id
     },
     [drafts.data],
   )
+
+  const getDraftId = useCallback((id: UnpackedHypermediaId) => getDraft(id)?.id, [getDraft])
 
   const value = useMemo(
     () => ({
@@ -210,6 +211,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onExportDocument,
       onCopyLink,
       getDraftId,
+      getDraft,
     }),
     [
       selectedAccountId,
@@ -224,6 +226,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onExportDocument,
       onCopyLink,
       getDraftId,
+      getDraft,
     ],
   )
 

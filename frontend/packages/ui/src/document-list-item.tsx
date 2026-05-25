@@ -70,9 +70,11 @@ export function DocumentListItem({
   onClick,
 }: DocumentListItemProps) {
   const id = item.id
-  const draftId = draftIdProp
+  const actions = useDocumentActions()
+  const draft = actions.getDraft?.(id)
+  const draftId = draftIdProp ?? draft?.id
 
-  const metadata = item.metadata
+  const metadata = draft?.metadata ? {...item.metadata, ...draft.metadata} : item.metadata
   const visibility = 'visibility' in item ? item.visibility : undefined
   const isPrivate = visibility === 'PRIVATE'
   const headCount = getVersionHeads('version' in item ? item.version : undefined).length
@@ -83,7 +85,7 @@ export function DocumentListItem({
   const itemBreadcrumbs = breadcrumbs !== undefined ? breadcrumbs : 'breadcrumbs' in item ? item.breadcrumbs : null
   const computedIsRead = isRead !== undefined ? isRead : !itemActivitySummary?.isUnread
 
-  const route = draftId ? {key: 'draft' as const, id: draftId} : {key: 'document' as const, id}
+  const route = draftIdProp ? {key: 'draft' as const, id: draftIdProp} : {key: 'document' as const, id}
   const linkProps = useRouteLink(route)
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -98,7 +100,6 @@ export function DocumentListItem({
   }
 
   const highlighter = useHighlighter()
-  const actions = useDocumentActions()
   const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
   const navigate = useNavigate()
 

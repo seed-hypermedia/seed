@@ -1,5 +1,5 @@
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
-import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMDocument, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 export type DocumentActionsContextValue = {
   // Account info — card checks ownership/capabilities itself
@@ -21,6 +21,7 @@ export type DocumentActionsContextValue = {
 
   // Draft lookup
   getDraftId?: (id: UnpackedHypermediaId) => string | undefined
+  getDraft?: (id: UnpackedHypermediaId) => HMListedDraft | undefined
 }
 
 const DocumentActionsContext = createContext<DocumentActionsContextValue>({})
@@ -41,6 +42,7 @@ export function DocumentActionsProvider({children, ...value}: PropsWithChildren<
       value.onExportDocument,
       value.onCopyLink,
       value.getDraftId,
+      value.getDraft,
     ],
   )
   return <DocumentActionsContext.Provider value={ctx}>{children}</DocumentActionsContext.Provider>

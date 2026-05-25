@@ -1,6 +1,7 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, hypermediaUrlToHref, useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
@@ -135,10 +136,13 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
 }
 
 function DocumentMention({unpackedRef, selected}: {unpackedRef: UnpackedHypermediaId; selected?: boolean}) {
-  const entity = useResource(unpackedRef)
+  const entity = useResource(unpackedRef, {subscribed: true})
+  const actions = useDocumentActions()
   const highlight = useHighlighter()
-  const resolved =
+  const draft = actions.getDraft?.(unpackedRef)
+  const publishedTitle =
     entity.data && 'document' in entity.data && entity.data.document ? getDocumentTitle(entity.data.document) : null
+  const resolved = draft?.metadata?.name ?? publishedTitle
   return (
     <MentionText selected={selected} {...highlight(unpackedRef)}>
       {resolved || unpackedRef.id}

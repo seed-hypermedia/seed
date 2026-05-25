@@ -4,6 +4,7 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {UniversalAppProvider} from '@shm/shared/routing'
+import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {DocumentCard} from '../newspaper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
@@ -37,10 +38,12 @@ function renderDocumentCard({
   titleLinkOnly = true,
   parentClick = vi.fn(),
   openRoute = vi.fn(),
+  getDraft,
 }: {
   titleLinkOnly?: boolean
   parentClick?: () => void
   openRoute?: ReturnType<typeof vi.fn>
+  getDraft?: (id: ReturnType<typeof hmId>) => any
 } = {}) {
   const docId = hmId('uid-1', {path: ['doc']})
   const entity = {
@@ -62,15 +65,17 @@ function renderDocumentCard({
         openUrl={vi.fn()}
         universalClient={{request: vi.fn(), publish: vi.fn()} as any}
       >
-        <div data-testid="parent" onClick={parentClick}>
-          <DocumentCard
-            data-testid="card"
-            docId={docId}
-            entity={entity}
-            navigate={false}
-            titleLinkOnly={titleLinkOnly}
-          />
-        </div>
+        <DocumentActionsProvider getDraft={getDraft}>
+          <div data-testid="parent" onClick={parentClick}>
+            <DocumentCard
+              data-testid="card"
+              docId={docId}
+              entity={entity}
+              navigate={false}
+              titleLinkOnly={titleLinkOnly}
+            />
+          </div>
+        </DocumentActionsProvider>
       </UniversalAppProvider>,
     )
   })
@@ -101,5 +106,20 @@ describe('DocumentCard title-only navigation', () => {
 
     expect(openRoute).toHaveBeenCalledWith({key: 'document', id: docId}, undefined)
     expect(parentClick).not.toHaveBeenCalled()
+  })
+})
+
+describe('DocumentCard draft metadata', () => {
+  it('prefers the local draft title and shows draft state', () => {
+    renderDocumentCard({
+      getDraft: () => ({
+        id: 'draft-1',
+        metadata: {name: 'Draft document title'},
+      }),
+    })
+
+    expect(container.textContent).toContain('Draft document title')
+    expect(container.textContent).not.toContain('Embedded document')
+    expect(container.textContent).toContain('Draft')
   })
 })
