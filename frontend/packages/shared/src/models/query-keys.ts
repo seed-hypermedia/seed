@@ -38,6 +38,7 @@ export const queryKeys = {
   // documents
   ACCOUNT_DOCUMENTS: 'ACCOUNT_DOCUMENTS', //, accountId: string
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
+  QUERY_BLOCK: 'QUERY_BLOCK',
   DRAFT: 'DRAFT', // , id: string
   ACCOUNT_DRAFTS: 'ACCOUNT_DRAFTS', // , accountUid: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //

@@ -1,5 +1,6 @@
 import 'katex/dist/katex.min.css'
 import {Button} from './button'
+import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -134,9 +135,10 @@ function Skeleton(
   )
 }
 
-export function BlankQueryBlockMessage({message}: {message: string}) {
+export function BlankQueryBlockMessage({message, loading = false}: {message: string; loading?: boolean}) {
   return (
-    <div className="bg-muted flex items-center rounded-lg p-4">
+    <div className="bg-muted flex items-center gap-2 rounded-lg p-4">
+      {loading ? <Spinner size="small" className="text-muted-foreground" /> : null}
       <SizableText size="lg" color="muted" weight="bold" className="italic">
         {message}
       </SizableText>

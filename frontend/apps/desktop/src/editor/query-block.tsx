@@ -4,11 +4,11 @@ import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideM
 import {createReactBlockSpec, useEditorSelectionChange} from '@shm/editor/blocknote/react'
 import {getNodesInSelection} from '@shm/editor/utils'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
-import {queryBlockSortedItems} from '@shm/shared/content'
+import {queryQueryBlock} from '@shm/shared/models/queries'
+import {useUniversalClient} from '@shm/shared/routing'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMAccountsMetadata, HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
-import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
+import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -19,6 +19,7 @@ import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
+import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
@@ -74,6 +75,7 @@ export const QueryBlock = createReactBlockSpec({
 })
 
 function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
+  const client = useUniversalClient()
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
 
@@ -89,40 +91,22 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return Boolean(block.props.banner == 'true')
   }, [block.props.banner])
 
-  const [queryId, setQueryId] = useState<UnpackedHypermediaId | null>(() => {
-    if (queryIncludes?.[0]?.space) {
-      return hmId(queryIncludes[0].space, {
-        path: queryIncludes[0].path ? queryIncludes[0].path.split('/') : null,
-        latest: true,
-      })
-    }
-    return null
-  })
-  const mode = queryIncludes[0]?.mode || 'Children'
-  const entity = useResource(queryId, {
-    enabled: !!queryId,
-    subscribed: true,
-    recursive: mode === 'AllDescendants',
-  })
-  const directoryItems = useDirectory(queryId, {
-    mode,
-  })
-
-  const sortedItems = useMemo(() => {
-    if (directoryItems.data && querySort) {
-      const sorted = queryBlockSortedItems({
-        entries: directoryItems.data,
+  const queryLimit = useMemo(() => {
+    const parsed = parseInt(block.props.queryLimit || '', 10)
+    return parsed > 0 ? parsed : undefined
+  }, [block.props.queryLimit])
+  const queryBlockInput = useMemo(() => {
+    if (!queryIncludes?.[0]?.space) return null
+    return {
+      query: {
+        includes: queryIncludes,
         sort: querySort,
-      })
-      const queryLimit = parseInt(block.props.queryLimit || '', 10)
-      return sorted.slice(0, queryLimit > 0 ? queryLimit : undefined)
+        limit: queryLimit,
+      },
     }
-    return []
-  }, [directoryItems, querySort, block.props.queryLimit])
-
-  const docResults = useResources(sortedItems.map((item) => item.id) || [], {
-    enabled: !!directoryItems.data?.length || false,
-  })
+  }, [queryIncludes, querySort, queryLimit])
+  const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
+  const sortedItems = queryBlock.data?.results ?? []
 
   useEditorSelectionChange(editor, updateSelection)
 
@@ -154,54 +138,20 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     setSelected(isSelected)
   }
 
-  // Batch-fetch interaction summaries to get comment/mention author UIDs
-  const summaryIds = useMemo(() => sortedItems.map((item) => hmId(item.id.uid, {path: item.id.path})), [sortedItems])
-  const interactionSummaries = useInteractionSummaries(summaryIds)
-
-  // Collect all author UIDs (document + comment/mention) and build per-item contributors map
-  const {allAuthorIds, itemContributors} = useMemo(() => {
-    const allIds = new Set<string>()
+  const interactionSummaries = queryBlock.data?.interactionSummaries ?? {}
+  const itemContributors = useMemo(() => {
     const contributors: Record<string, string[]> = {}
-    sortedItems.forEach((item, idx) => {
+    sortedItems.forEach((item) => {
       const uids = new Set(item.authors)
-      item.authors.forEach((uid) => allIds.add(uid))
-      const summaryUids = interactionSummaries[idx]?.data?.authorUids
-      summaryUids?.forEach((uid) => {
-        uids.add(uid)
-        allIds.add(uid)
-      })
+      interactionSummaries[item.id.id]?.authorUids.forEach((uid) => uids.add(uid))
       contributors[item.id.id] = Array.from(uids)
     })
-    return {allAuthorIds: Array.from(allIds), itemContributors: contributors}
+    return contributors
   }, [sortedItems, interactionSummaries])
 
-  const authors = useResources(allAuthorIds.map((uid) => hmId(uid)))
-
-  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
-    authors
-      .map((document) => {
-        const d = document.data
-        if (!d || d.type !== 'document') return null
-        if (d.id.path && d.id.path.length !== 0) return null
-        return [
-          d.id.uid,
-          {
-            id: d.id,
-            metadata: d.document.metadata,
-          },
-        ]
-      })
-      .filter((m) => !!m),
-  )
+  const accountsMetadata = queryBlock.data?.accountsMetadata ?? {}
 
   const navigate = useNavigate()
-
-  // For Card view, we need getEntity function
-  const documents = useResources(sortedItems.map((item) => item.id))
-
-  function getEntity(id: UnpackedHypermediaId) {
-    return documents?.find((document) => document.data?.id?.id === id.id)?.data || null
-  }
 
   return (
     <div
@@ -210,8 +160,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       className={`group -mx-4 flex flex-col px-4 select-none`}
     >
       <QuerySettings
-        // @ts-expect-error
-        queryDocName={entity.data?.document?.metadata.name || ''}
+        queryDocName={queryBlock.data?.queryTargetName || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
         style={block.props.style as 'Card' | 'List'}
@@ -219,10 +168,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         // @ts-expect-error
         block={block}
         editor={editor}
-        onValuesChange={({id, props}) => {
-          if (id) {
-            setQueryId(id)
-          }
+        onValuesChange={({id: _id, props}) => {
           assign(props)
         }}
       />
@@ -233,8 +179,8 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         banner={banner}
         accountsMetadata={accountsMetadata}
         itemContributors={itemContributors}
-        getEntity={getEntity}
-        isDiscovering={entity.isDiscovering || directoryItems.isLoading}
+        interactionSummaries={interactionSummaries}
+        isDiscovering={queryBlock.isLoading}
       />
     </div>
   )

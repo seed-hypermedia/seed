@@ -23,6 +23,7 @@ import {ListCommentsByAuthor} from './api-list-comments-by-author'
 import {PrepareDocumentChange} from './api-prepare-document-change'
 import {PublishBlobs} from './api-publish-blobs'
 import {Query} from './api-query'
+import {QueryBlock} from './api-query-block'
 import {Resource, ResourceParams} from './api-resource'
 import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
 import {Search} from './api-search'
@@ -37,6 +38,7 @@ export const APIQueries = {
   SubjectContacts,
   Search,
   Query,
+  QueryBlock,
   ListComments,
   ListDiscussions,
   ListCommentsByReference,

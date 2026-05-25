@@ -11,6 +11,8 @@ import type {
   HMContactRecord,
   HMDocumentInfo,
   HMInteractionSummaryOutput,
+  HMQueryBlockInput,
+  HMQueryBlockPayload,
   HMListChangesOutput,
   HMListCitationsOutput,
   HMListCommentVersionsOutput,
@@ -23,7 +25,7 @@ import type {
   HMRole,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {HMQueryResultSchema, HMResourceSchema} from '@seed-hypermedia/client/hm-types'
+import {HMQueryBlockPayloadSchema, HMQueryResultSchema, HMResourceSchema} from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'
 import {hmId} from '../utils/entity-id-url'
@@ -144,6 +146,22 @@ export function queryDirectory(
       return HMQueryResultSchema.parse(result).results
     },
     enabled: !!id,
+  }
+}
+
+/**
+ * Query options for fetching all metadata needed to render a query block.
+ */
+export function queryQueryBlock(client: UniversalClient, input: HMQueryBlockInput | null | undefined) {
+  return {
+    queryKey: [queryKeys.QUERY_BLOCK, input?.query ?? null] as const,
+    queryFn: async (): Promise<HMQueryBlockPayload | null> => {
+      if (!input) return null
+      const result = await client.request('QueryBlock', input)
+      if (!result) return null
+      return HMQueryBlockPayloadSchema.parse(result)
+    },
+    enabled: !!input,
   }
 }
 

@@ -8,6 +8,7 @@ import {
   queryDocumentComments,
   queryDocumentDiscussions,
   queryDomain,
+  queryQueryBlock,
   queryResource,
 } from '../queries'
 
@@ -146,6 +147,59 @@ describe('queryResource', () => {
     const query = queryResource(client, docA)
     const result = await query.queryFn!()
     expect(result).toMatchObject({type: 'error', message: 'Network failure'})
+  })
+})
+
+describe('queryQueryBlock', () => {
+  test('requests the combined query block payload with the expected cache key', async () => {
+    const payload = {
+      queryTargetName: 'Projects',
+      in: docA,
+      results: [
+        {
+          type: 'document' as const,
+          id: docB,
+          path: ['new-name'],
+          authors: ['author-a'],
+          createTime: {seconds: 1, nanos: 0},
+          updateTime: {seconds: 1, nanos: 0},
+          sortTime: new Date('2024-01-01T00:00:00Z'),
+          genesis: 'genesis-1',
+          version: 'v1',
+          breadcrumbs: [],
+          activitySummary: {
+            latestCommentTime: undefined,
+            latestCommentId: '',
+            commentCount: 0,
+            latestChangeTime: {seconds: 1, nanos: 0},
+            isUnread: false,
+          },
+          generationInfo: {generation: 0n, genesis: 'genesis-1'},
+          metadata: {name: 'Doc B'},
+          visibility: 'PUBLIC' as const,
+        },
+      ],
+      mode: 'Children' as const,
+      interactionSummaries: {
+        [docB.id]: {comments: 2, authorUids: ['author-a']},
+      },
+      accountsMetadata: {
+        'author-a': {id: hmId('author-a'), metadata: {name: 'Author A'}},
+      },
+    }
+    const input = {
+      query: {
+        includes: [{space: docA.uid, path: '/old-name', mode: 'Children' as const}],
+        sort: [{term: 'UpdateTime' as const, reverse: false}],
+        limit: 10,
+      },
+    }
+    const client = createMockClient(() => payload)
+    const query = queryQueryBlock(client, input)
+
+    expect(query.queryKey).toEqual([queryKeys.QUERY_BLOCK, input.query])
+    await expect(query.queryFn!()).resolves.toEqual(payload)
+    expect(client.request).toHaveBeenCalledWith('QueryBlock', input)
   })
 })
 

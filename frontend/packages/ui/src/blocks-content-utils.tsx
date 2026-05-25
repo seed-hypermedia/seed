@@ -3,8 +3,7 @@ import {
   HMBlockImage,
   HMBlockNode,
   HMDocumentInfo,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
+  HMQueryBlockItemSummary,
 } from '@seed-hypermedia/client/hm-types'
 import {ReactNode, useMemo} from 'react'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -97,9 +96,9 @@ export function resolveSwipeDirection(deltaX: number): 'prev' | 'next' | null {
 export function DocumentCardGrid({
   firstItem,
   items,
-  getEntity,
   accountsMetadata,
   itemContributors,
+  interactionSummaries,
   columnCount = 1,
   isDiscovering,
   prependItems,
@@ -107,9 +106,9 @@ export function DocumentCardGrid({
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
-  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   accountsMetadata?: HMAccountsMetadata
   itemContributors?: Record<string, string[]>
+  interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   columnCount?: number
   isDiscovering?: boolean
   prependItems?: ReactNode[]
@@ -128,8 +127,12 @@ export function DocumentCardGrid({
         <div className="flex">
           <DocumentCard
             banner
-            entity={getEntity(firstItem.id)}
+            entity={null}
             docId={firstItem.id}
+            metadata={firstItem.metadata}
+            visibility={firstItem.visibility}
+            version={firstItem.version}
+            interactionSummary={interactionSummaries?.[firstItem.id.id]}
             accountsMetadata={accountsMetadata}
             contributorUids={itemContributors?.[firstItem.id.id]}
             showSummary
@@ -149,7 +152,11 @@ export function DocumentCardGrid({
               <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
                 <DocumentCard
                   docId={item.id}
-                  entity={getEntity(item.id)}
+                  entity={null}
+                  metadata={item.metadata}
+                  visibility={item.visibility}
+                  version={item.version}
+                  interactionSummary={interactionSummaries?.[item.id.id]}
                   accountsMetadata={accountsMetadata}
                   contributorUids={itemContributors?.[item.id.id]}
                   showSummary
@@ -160,7 +167,7 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {!hasItems && !hasPrependItems && isDiscovering ? (
-        <BlankQueryBlockMessage message="Searching for documents…" />
+        <BlankQueryBlockMessage message="Searching for documents…" loading />
       ) : !hasItems && !hasPrependItems ? (
         <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}

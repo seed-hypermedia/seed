@@ -1309,6 +1309,11 @@ export const HMQueryRequestSchema = z.object({
 })
 export type HMQueryRequest = z.infer<typeof HMQueryRequestSchema>
 
+export const HMQueryBlockInputSchema = z.object({
+  query: HMQuerySchema,
+})
+export type HMQueryBlockInput = z.infer<typeof HMQueryBlockInputSchema>
+
 // Comments API request schemas
 export const HMListCommentsInputSchema = z.object({
   targetId: unpackedHmIdSchema,
@@ -1589,6 +1594,29 @@ export const HMInteractionSummaryRequestSchema = z.object({
 })
 export type HMInteractionSummaryRequest = z.infer<typeof HMInteractionSummaryRequestSchema>
 
+export const HMQueryBlockItemSummarySchema = z.object({
+  comments: z.number(),
+  authorUids: z.array(z.string()).default([]),
+})
+export type HMQueryBlockItemSummary = z.infer<typeof HMQueryBlockItemSummarySchema>
+
+export const HMQueryBlockPayloadSchema = z.object({
+  queryTargetName: z.string(),
+  in: unpackedHmIdSchema,
+  results: z.array(HMDocumentInfoSchema),
+  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
+  interactionSummaries: z.record(z.string(), HMQueryBlockItemSummarySchema),
+  accountsMetadata: HMAccountsMetadataSchema,
+})
+export type HMQueryBlockPayload = z.infer<typeof HMQueryBlockPayloadSchema>
+
+export const HMQueryBlockRequestSchema = z.object({
+  key: z.literal('QueryBlock'),
+  input: HMQueryBlockInputSchema,
+  output: HMQueryBlockPayloadSchema.nullable(),
+})
+export type HMQueryBlockRequest = z.infer<typeof HMQueryBlockRequestSchema>
+
 // PublishBlobs - store blobs via gRPC StoreBlobs
 export const HMPublishBlobsOutputSchema = z.object({
   cids: z.array(z.string()),
@@ -1751,6 +1779,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMCommentRequestSchema,
   HMSearchRequestSchema,
   HMQueryRequestSchema,
+  HMQueryBlockRequestSchema,
   HMAccountContactsRequestSchema,
   HMSubjectContactsRequestSchema,
   HMListCommentsRequestSchema,
@@ -1787,6 +1816,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMCommentRequestSchema,
   HMSearchRequestSchema,
   HMQueryRequestSchema,
+  HMQueryBlockRequestSchema,
   HMAccountContactsRequestSchema,
   HMSubjectContactsRequestSchema,
   HMListCommentsRequestSchema,

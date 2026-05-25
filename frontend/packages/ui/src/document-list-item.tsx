@@ -5,6 +5,7 @@ import {
   HMComment,
   HMDocumentInfo,
   HMLibraryDocument,
+  HMQueryBlockItemSummary,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -45,7 +46,7 @@ interface DocumentListItemProps {
   breadcrumbs?: HMBreadcrumb[]
   activitySummary?: HMActivitySummary | null
   latestComment?: HMComment | null
-  interactionSummary?: InteractionSummaryPayload | null
+  interactionSummary?: HMQueryBlockItemSummary | InteractionSummaryPayload | null
   /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
   contributorUids?: string[]
   draftId?: string
@@ -104,7 +105,7 @@ export function DocumentListItem({
   const navigate = useNavigate()
 
   const summaryId = useMemo(() => hmId(id.uid, {path: id.path}), [id.uid, id.path])
-  const interactionSummaryData = useInteractionSummary(summaryId)
+  const interactionSummaryData = useInteractionSummary(summaryId, {enabled: !interactionSummary})
   const commentCount = interactionSummary?.comments ?? interactionSummaryData.data?.comments ?? 0
 
   const bookmarked = actions.isBookmarked?.(id) ?? false

@@ -1,35 +1,45 @@
 import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {SortAttribute} from '../client/.generated/documents/v3alpha/documents_pb'
 import {BIG_INT} from '../constants'
 import {queryBlockSortedItems} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
+import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {prepareHMDocumentInfo} from './entity'
 
 function createDirectoryResolver(client: GRPCClient) {
-  async function getDirectory(id: UnpackedHypermediaId, mode: 'Children' | 'AllDescendants' = 'AllDescendants') {
-    const listResult = await client.documents.listDocuments({
-      account: id.uid,
-      pageSize: BIG_INT,
-    })
-    // filter listResult by the id.path, and if mode is "Children", filter by the immediate children
-    const allDocumentInfos = listResult.documents.map(prepareHMDocumentInfo)
-    const filteredDocumentInfos = allDocumentInfos.filter((doc: HMDocumentInfo) => {
-      // Skip if document is the parent itself
-      if (doc.id.id === id.id) return false
+  async function getDirectory(
+    id: UnpackedHypermediaId,
+    mode: 'Children' | 'AllDescendants' = 'AllDescendants',
+    sort?: HMQuery['sort'],
+  ) {
+    const sortTerm = sort?.length === 1 ? sort[0]?.term : undefined
+    const reverse = sort?.length === 1 ? !!sort[0]?.reverse : false
+    const sortOptions =
+      sortTerm === 'ActivityTime'
+        ? {attribute: SortAttribute.ACTIVITY_TIME, descending: !reverse}
+        : sortTerm === 'Title'
+        ? {attribute: SortAttribute.NAME, descending: reverse}
+        : undefined
 
-      // Skip if document is not a descendant of the parent
+    const listResult = await client.documents.listDirectory({
+      account: id.uid,
+      directoryPath: hmIdPathToEntityQueryPath(id.path),
+      recursive: mode === 'AllDescendants',
+      pageSize: BIG_INT,
+      ...(sortOptions ? {sortOptions} : {}),
+    })
+
+    return listResult.documents.map(prepareHMDocumentInfo).filter((doc: HMDocumentInfo) => {
+      if (doc.id.id === id.id) return false
       if (!doc.id.id.startsWith(id.id)) return false
 
       if (mode === 'Children') {
-        // For Children mode, only include immediate children
-        // (path should only be one level deeper than parent)
-        const includeInDir = (doc.id.path?.length || 0) === (id.path?.length || 0) + 1
-        return includeInDir
+        return (doc.id.path?.length || 0) === (id.path?.length || 0) + 1
       }
-      // For AllDescendants mode, include all nested documents
+
       return true
     })
-    return filteredDocumentInfos
   }
 
   return getDirectory
@@ -44,10 +54,9 @@ export function createQueryResolver(client: GRPCClient) {
     const inId = hmId(space, {
       path: entityQueryPathToHmIdPath(path),
     })
-    const dir = await getDirectory(inId, mode)
+    const dir = await getDirectory(inId, mode, sort)
     if (!inId) return null
 
-    // Apply sorting - default to UpdateTime descending if no sort specified
     const sortedDir = sort
       ? queryBlockSortedItems({entries: dir, sort})
       : queryBlockSortedItems({

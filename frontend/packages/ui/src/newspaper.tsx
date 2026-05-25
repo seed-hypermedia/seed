@@ -1,5 +1,11 @@
-import {HMAccountsMetadata, HMResourceFetchResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getDocumentImage, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  HMQueryBlockItemSummary,
+  HMResourceFetchResult,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -24,6 +30,10 @@ import {cn} from './utils'
 export function DocumentCard({
   docId,
   entity,
+  metadata,
+  visibility,
+  version,
+  interactionSummary: interactionSummaryProp,
   accountsMetadata,
   contributorUids,
   navigate: navigateProp = true,
@@ -36,6 +46,10 @@ export function DocumentCard({
 }: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
   entity: HMResourceFetchResult | null | undefined
+  metadata?: HMDocumentInfo['metadata']
+  visibility?: HMDocumentInfo['visibility']
+  version?: string
+  interactionSummary?: HMQueryBlockItemSummary | null
   accountsMetadata?: HMAccountsMetadata
   /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
   contributorUids?: string[]
@@ -55,32 +69,30 @@ export function DocumentCard({
   const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
 
   const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
-  const interactionSummary = useInteractionSummary(summaryId)
-  const commentCount = interactionSummary.data?.comments ?? 0
+  const interactionSummary = useInteractionSummary(summaryId, {enabled: !interactionSummaryProp})
+  const commentCount = interactionSummaryProp?.comments ?? interactionSummary.data?.comments ?? 0
+
+  const resolvedMetadata = metadata ?? entity?.document?.metadata
+  const textContent = useMemo(() => {
+    if (!showSummary) return null
+    if (resolvedMetadata?.summary) {
+      return resolvedMetadata.summary
+    }
+    return plainTextOfContent(entity?.document?.content)
+  }, [showSummary, resolvedMetadata, entity?.document?.content])
+
+  const coverImage = resolvedMetadata?.cover
+  const resolvedVisibility = visibility ?? entity?.document?.visibility
+  const isPrivate = resolvedVisibility === 'PRIVATE'
+  const doc = entity?.document
+  const headCount = getVersionHeads(version ?? doc?.version).length
 
   // Context-driven state
-  const draft = actions.getDraft?.(docId)
-  const draftId = draft?.id ?? actions.getDraftId?.(docId)
+  const draftId = actions.getDraftId?.(docId)
   const bookmarked = actions.isBookmarked?.(docId) ?? false
   const isOwner = actions.selectedAccountUid === docId.uid
   const isLoggedIn = !!actions.myAccountIds?.length
   const hasPath = !!docId.path?.length
-
-  const textContent = useMemo(() => {
-    if (!showSummary) return null
-    if (draft?.metadata?.summary) {
-      return draft.metadata.summary
-    }
-    if (entity?.document?.metadata?.summary) {
-      return entity.document.metadata.summary
-    }
-    return plainTextOfContent(entity?.document?.content)
-  }, [showSummary, draft?.metadata?.summary, entity?.document])
-
-  const coverImage = entity?.document ? getDocumentImage(entity?.document) : undefined
-  const isPrivate = entity?.document?.visibility === 'PRIVATE'
-  const doc = entity?.document
-  const headCount = getVersionHeads(doc?.version).length
 
   // Self-assemble menu items from context
   const menuItems = useMemo(() => {
@@ -215,7 +227,7 @@ export function DocumentCard({
   }
 
   const titleClassName = cn('text-foreground block font-sans leading-tight! font-bold', banner ? 'text-2xl' : 'text-lg')
-  const title = draft?.metadata?.name ?? entity?.document?.metadata?.name
+  const title = resolvedMetadata?.name
   const content = (
     <>
       <div className={cn('flex max-w-full flex-1 flex-col @md:flex-row', navigateProp && 'cursor-pointer')}>
