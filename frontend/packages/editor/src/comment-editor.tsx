@@ -327,12 +327,14 @@ export function CommentEditor({
       }
       return false
     })
-  const [isEditorFocused, setIsEditorFocused] = useState(() => focusOnMount || hasDraftContent || false)
+  const [isExpanded, setIsExpanded] = useState(() => focusOnMount || hasDraftContent || false)
   const openUrl = useOpenUrl()
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const hasPendingContentChangeRef = useRef(false)
+  const hasLocalEditsRef = useRef(false)
+  const isApplyingInitialBlocksRef = useRef(false)
   const shouldFocusOnActivateRef = useRef(false)
   const shouldMoveCursorToEndOnFocusRef = useRef(false)
   const dragDepthRef = useRef(0)
@@ -362,7 +364,7 @@ export function CommentEditor({
   } = {}) => {
     shouldFocusOnActivateRef.current = focusOnActivate
     shouldMoveCursorToEndOnFocusRef.current = moveCursorToEnd
-    setIsEditorFocused(true)
+    setIsExpanded(true)
   }
 
   const getAppendInsertionPos = () => {
@@ -475,68 +477,79 @@ export function CommentEditor({
 
   // Initialize editor with draft content and rehydrate media
   useEffect(() => {
-    if (initialBlocks && initialBlocks.length > 0 && !isInitializedRef.current && editor) {
+    if (!initialBlocks || initialBlocks.length === 0 || isInitializedRef.current || !editor) return
+    if (hasLocalEditsRef.current) {
       isInitializedRef.current = true
+      return
+    }
 
-      const initializeWithRehydration = async () => {
-        try {
-          const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
-            childrenType: 'Group',
-          })
+    isInitializedRef.current = true
 
-          // Rehydrate media blocks from IndexedDB
-          if (getDraftMediaBlob) {
-            const rehydrateEditorBlocks = async (blocks: any[]): Promise<void> => {
-              for (const block of blocks) {
-                if (
-                  (block.type === 'image' || block.type === 'video' || block.type === 'file') &&
-                  block.props?.mediaRef
-                ) {
-                  // Parse mediaRef from JSON string
-                  let mediaRef
-                  try {
-                    mediaRef =
-                      typeof block.props.mediaRef === 'string' ? JSON.parse(block.props.mediaRef) : block.props.mediaRef
-                  } catch (e) {
-                    console.error('Failed to parse mediaRef:', e)
-                    continue
-                  }
+    const initializeWithRehydration = async () => {
+      try {
+        const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
+          childrenType: 'Group',
+        })
 
-                  const {draftId, mediaId} = mediaRef
-                  try {
-                    const blob = await getDraftMediaBlob(draftId, mediaId)
-                    if (blob) {
-                      // Clear any old url and set a new blob url
-                      block.props.url = ''
-                      block.props.displaySrc = URL.createObjectURL(blob)
-                    } else {
-                      console.warn(`Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`)
-                    }
-                  } catch (error) {
-                    console.error(`Failed to rehydrate media ${mediaId}:`, error)
-                  }
+        // Rehydrate media blocks from IndexedDB
+        if (getDraftMediaBlob) {
+          const rehydrateEditorBlocks = async (blocks: any[]): Promise<void> => {
+            for (const block of blocks) {
+              if (
+                (block.type === 'image' || block.type === 'video' || block.type === 'file') &&
+                block.props?.mediaRef
+              ) {
+                // Parse mediaRef from JSON string
+                let mediaRef
+                try {
+                  mediaRef =
+                    typeof block.props.mediaRef === 'string' ? JSON.parse(block.props.mediaRef) : block.props.mediaRef
+                } catch (e) {
+                  console.error('Failed to parse mediaRef:', e)
+                  continue
                 }
 
-                // Process children recursively
-                if (block.children && block.children.length > 0) {
-                  await rehydrateEditorBlocks(block.children)
+                const {draftId, mediaId} = mediaRef
+                try {
+                  const blob = await getDraftMediaBlob(draftId, mediaId)
+                  if (blob) {
+                    // Clear any old url and set a new blob url
+                    block.props.url = ''
+                    block.props.displaySrc = URL.createObjectURL(blob)
+                  } else {
+                    console.warn(`Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`)
+                  }
+                } catch (error) {
+                  console.error(`Failed to rehydrate media ${mediaId}:`, error)
                 }
               }
-            }
 
-            await rehydrateEditorBlocks(editorBlocks)
+              // Process children recursively
+              if (block.children && block.children.length > 0) {
+                await rehydrateEditorBlocks(block.children)
+              }
+            }
           }
 
-          editor.removeBlocks(editor.topLevelBlocks)
-          // @ts-expect-error - EditorBlock type mismatch with BlockNote
-          editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
-        } catch (error) {
-          console.error('Failed to initialize editor with draft content:', error)
+          await rehydrateEditorBlocks(editorBlocks)
         }
-      }
 
-      initializeWithRehydration()
+        if (hasLocalEditsRef.current) {
+          return
+        }
+
+        isApplyingInitialBlocksRef.current = true
+        editor.removeBlocks(editor.topLevelBlocks)
+        // @ts-expect-error - EditorBlock type mismatch with BlockNote
+        editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
+        isApplyingInitialBlocksRef.current = false
+      } catch (error) {
+        isApplyingInitialBlocksRef.current = false
+        console.error('Failed to initialize editor with draft content:', error)
+      }
     }
+
+    initializeWithRehydration()
   }, [initialBlocks, editor, getDraftMediaBlob])
 
   // Cleanup object URLs on unmount to prevent memory leaks
@@ -577,6 +590,9 @@ export function CommentEditor({
 
     const handleChange = () => {
       hasPendingContentChangeRef.current = true
+      if (!isApplyingInitialBlocksRef.current) {
+        hasLocalEditsRef.current = true
+      }
       emitContentChangeNow()
       hasPendingContentChangeRef.current = false
     }
@@ -594,21 +610,29 @@ export function CommentEditor({
   }, [editor, onContentChange])
 
   useEffect(() => {
+    if (hasDraftContent && !isExpanded) {
+      shouldFocusOnActivateRef.current = false
+      shouldMoveCursorToEndOnFocusRef.current = false
+      setIsExpanded(true)
+    }
+  }, [hasDraftContent, isExpanded])
+
+  useEffect(() => {
     if (focusOnMount) {
-      setIsEditorFocused(true)
+      setIsExpanded(true)
       shouldFocusOnActivateRef.current = true
     }
   }, [focusOnMount])
 
   useLayoutEffect(() => {
-    if (!isEditorFocused || !shouldFocusOnActivateRef.current) return
+    if (!isExpanded || !shouldFocusOnActivateRef.current) return
     shouldFocusOnActivateRef.current = false
     focusEditor({moveCursorToEnd: shouldMoveCursorToEndOnFocusRef.current})
     shouldMoveCursorToEndOnFocusRef.current = false
-  }, [editor, isEditorFocused])
+  }, [editor, isExpanded])
 
   useEffect(() => {
-    if (!isEditorFocused || !pendingDropRef.current) return
+    if (!isExpanded || !pendingDropRef.current) return
 
     const pendingDrop = pendingDropRef.current
     pendingDropRef.current = null
@@ -617,7 +641,7 @@ export function CommentEditor({
     })
 
     return () => cancelAnimationFrame(frameId)
-  }, [editor, isEditorFocused])
+  }, [editor, isExpanded])
 
   useEffect(() => {
     if (!onContentChange) return
@@ -636,7 +660,7 @@ export function CommentEditor({
 
   // Handle mobile keyboard - scroll toolbar into view when keyboard appears
   useLayoutEffect(() => {
-    if (!isMobile || !isEditorFocused || !toolbarRef.current) return
+    if (!isMobile || !isExpanded || !toolbarRef.current) return
     if (typeof window === 'undefined' || !window.visualViewport) return
 
     const viewport = window.visualViewport
@@ -670,7 +694,7 @@ export function CommentEditor({
       clearTimeout(scrollTimeout)
       viewport.removeEventListener('resize', handleViewportResize)
     }
-  }, [isMobile, isEditorFocused])
+  }, [isMobile, isExpanded])
 
   const getContent = async (
     prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -813,7 +837,7 @@ export function CommentEditor({
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     if (!isFileDrag(event.dataTransfer)) return false
 
-    const isDropInsideEditor = isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)
+    const isDropInsideEditor = isExpanded && isPointInsideEditor(event.clientX, event.clientY)
     if (isDropInsideEditor) {
       dragDepthRef.current = 0
       setIsDraggingOver(false)
@@ -829,7 +853,7 @@ export function CommentEditor({
     const files = getDraggedFiles(event.dataTransfer)
     if (!files.length) return false
 
-    if (!isEditorFocused) {
+    if (!isExpanded) {
       pendingDropRef.current = {files, dropTarget: 'append'}
       activateEditor({focusOnActivate: false})
       return true
@@ -863,7 +887,7 @@ export function CommentEditor({
         <div
           className={cn(
             'bg-muted w-full min-w-0 flex-1 rounded-lg border border-transparent transition-[filter,border-color,background-color]',
-            isEditorFocused
+            isExpanded
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
             isDraggingOver &&
@@ -871,7 +895,7 @@ export function CommentEditor({
           )}
           onDragEnter={(event) => {
             if (!isFileDrag(event.dataTransfer)) return
-            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+            if (isExpanded && isPointInsideEditor(event.clientX, event.clientY)) {
               dragDepthRef.current = 0
               setIsDraggingOver(false)
               return
@@ -882,7 +906,7 @@ export function CommentEditor({
           }}
           onDragLeave={(event) => {
             if (!isFileDrag(event.dataTransfer)) return
-            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+            if (isExpanded && isPointInsideEditor(event.clientX, event.clientY)) {
               return
             }
             event.preventDefault()
@@ -893,7 +917,7 @@ export function CommentEditor({
           }}
           onDragOver={(event) => {
             if (!isFileDrag(event.dataTransfer)) return
-            if (isEditorFocused && isPointInsideEditor(event.clientX, event.clientY)) {
+            if (isExpanded && isPointInsideEditor(event.clientX, event.clientY)) {
               if (isDraggingOver) {
                 dragDepthRef.current = 0
                 setIsDraggingOver(false)
@@ -919,7 +943,7 @@ export function CommentEditor({
             e.preventDefault()
             e.stopPropagation()
 
-            if (isEditorFocused) {
+            if (isExpanded) {
               focusEditor({moveCursorToEnd: true})
               return
             }
@@ -930,11 +954,11 @@ export function CommentEditor({
           <div
             className={cn(
               'hm-prose is-comment comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
-              isEditorFocused ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
+              isExpanded ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
             )}
             // marginTop="$1"
 
-            // minHeight={isEditorFocused ? 105 : 40}
+            // minHeight={isExpanded ? 105 : 40}
             // paddingHorizontal="$4"
             onClick={(e) => {
               const target = e.target as HTMLElement
@@ -944,14 +968,14 @@ export function CommentEditor({
                 return // Don't focus the editor in this case
               }
               e.stopPropagation()
-              if (isEditorFocused) {
+              if (isExpanded) {
                 focusEditor()
                 return
               }
               activateEditor()
             }}
           >
-            {isEditorFocused ? (
+            {isExpanded ? (
               <HyperMediaEditorView editor={editor} openUrl={openUrl} perspectiveAccountUid={perspectiveAccountUid} />
             ) : (
               <Button
@@ -969,7 +993,7 @@ export function CommentEditor({
               </Button>
             )}
           </div>
-          {isEditorFocused ? (
+          {isExpanded ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isMobile && (
                 <div className="flex items-center gap-2">
