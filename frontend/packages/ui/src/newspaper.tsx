@@ -58,25 +58,29 @@ export function DocumentCard({
   const interactionSummary = useInteractionSummary(summaryId)
   const commentCount = interactionSummary.data?.comments ?? 0
 
+  // Context-driven state
+  const draft = actions.getDraft?.(docId)
+  const draftId = draft?.id ?? actions.getDraftId?.(docId)
+  const bookmarked = actions.isBookmarked?.(docId) ?? false
+  const isOwner = actions.selectedAccountUid === docId.uid
+  const isLoggedIn = !!actions.myAccountIds?.length
+  const hasPath = !!docId.path?.length
+
   const textContent = useMemo(() => {
     if (!showSummary) return null
+    if (draft?.metadata?.summary) {
+      return draft.metadata.summary
+    }
     if (entity?.document?.metadata?.summary) {
       return entity.document.metadata.summary
     }
     return plainTextOfContent(entity?.document?.content)
-  }, [showSummary, entity?.document])
+  }, [showSummary, draft?.metadata?.summary, entity?.document])
 
   const coverImage = entity?.document ? getDocumentImage(entity?.document) : undefined
   const isPrivate = entity?.document?.visibility === 'PRIVATE'
   const doc = entity?.document
   const headCount = getVersionHeads(doc?.version).length
-
-  // Context-driven state
-  const draftId = actions.getDraftId?.(docId)
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
-  const isOwner = actions.selectedAccountUid === docId.uid
-  const isLoggedIn = !!actions.myAccountIds?.length
-  const hasPath = !!docId.path?.length
 
   // Self-assemble menu items from context
   const menuItems = useMemo(() => {
@@ -211,7 +215,7 @@ export function DocumentCard({
   }
 
   const titleClassName = cn('text-foreground block font-sans leading-tight! font-bold', banner ? 'text-2xl' : 'text-lg')
-  const title = entity?.document?.metadata?.name
+  const title = draft?.metadata?.name ?? entity?.document?.metadata?.name
   const content = (
     <>
       <div className={cn('flex max-w-full flex-1 flex-col @md:flex-row', navigateProp && 'cursor-pointer')}>

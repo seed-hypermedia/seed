@@ -1,4 +1,6 @@
 import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useResource} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
@@ -17,8 +19,17 @@ export function ResourceToken({
   }>
 }) {
   const linkProps = useRouteLink({key: 'document', id: id})
+  const actions = useDocumentActions()
+  const draft = actions.getDraft?.(id)
+  const resource = useResource(id, {subscribed: true})
+  const liveMetadata = resource.data?.type === 'document' ? resource.data.document.metadata : undefined
+  const displayMetadata = draft?.metadata
+    ? {...(metadata ?? {}), ...(liveMetadata ?? {}), ...draft.metadata}
+    : liveMetadata ?? metadata
   const icon =
-    !id.path?.length || metadata?.icon ? <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} /> : null
+    !id.path?.length || displayMetadata?.icon ? (
+      <HMIcon size={20} id={id} name={displayMetadata?.name} icon={displayMetadata?.icon} />
+    ) : null
 
   const baseClassName =
     'inline text-sm whitespace-normal bg-gray-100 border hover:dark:text-white dark:bg-gray-800 hover:bg-gray-200'
@@ -29,11 +40,13 @@ export function ResourceToken({
         <HoverCardTrigger asChild>
           <a {...linkProps} className={cn(baseClassName, previewTriggerClassName)}>
             {icon ? <span className="mr-1 inline-block align-middle">{icon}</span> : null}
-            <span className="text-foreground truncate overflow-hidden">{metadata?.name || 'Untitled Resource'}</span>
+            <span className="text-foreground truncate overflow-hidden">
+              {displayMetadata?.name || 'Untitled Resource'}
+            </span>
           </a>
         </HoverCardTrigger>
         <HoverCardContent className="w-full max-w-100 p-0" align="end">
-          <ResourcePreview metadata={metadata} id={id} />
+          <ResourcePreview metadata={displayMetadata} id={id} />
         </HoverCardContent>
       </HoverCard>
     )
@@ -41,7 +54,7 @@ export function ResourceToken({
   return (
     <a {...linkProps} className={baseClassName}>
       {icon ? <span className="mr-1 inline-block align-middle">{icon}</span> : null}
-      {metadata?.name || 'Untitled Resource'}
+      {displayMetadata?.name || 'Untitled Resource'}
     </a>
   )
 }

@@ -1,6 +1,7 @@
 import {HMContactItem, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {abbreviateUid, AnyTimestamp, formattedDateShort, hmId, NavRoute, normalizeDate, useRouteLink} from '@shm/shared'
-import {useAccount} from '@shm/shared/models/entity'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
@@ -108,12 +109,17 @@ export function DocumentNameLink({
   fallback?: string
 }) {
   const linkProps = useRouteLink({key: 'document', id})
+  const actions = useDocumentActions()
+  const draft = actions.getDraft?.(id)
+  const resource = useResource(id, {subscribed: true})
+  const liveMetadata = resource.data?.type === 'document' ? resource.data.document.metadata : undefined
+  const name = draft?.metadata?.name ?? liveMetadata?.name ?? metadata?.name
   return (
     <a
       className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
       {...linkProps}
     >
-      {metadata?.name || fallback}
+      {name || fallback}
     </a>
   )
 }

@@ -57,6 +57,8 @@ import {
 } from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
@@ -275,6 +277,9 @@ export default function DesktopResourcePage() {
           mineTouchedIds: input.mineTouchedIds.length ? input.mineTouchedIds : undefined,
           baseBlocks: input.baseBlocks ?? undefined,
         })
+        invalidateQueries([queryKeys.DRAFT, result.id])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         // console.log('[writeDraft] saved successfully:', {draftId: result.id})
         return result
       }),

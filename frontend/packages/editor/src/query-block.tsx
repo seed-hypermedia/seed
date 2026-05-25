@@ -1,6 +1,7 @@
 import {HMAccountsMetadata, HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {queryBlockSortedItems} from '@shm/shared/content'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -105,22 +106,50 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     recursive: mode === 'AllDescendants',
   })
   const directoryItems = useDirectory(queryId, {mode})
+  const directoryData = directoryItems.data ?? []
+  const documents = useResources(
+    directoryData.map((item) => item.id),
+    {
+      enabled: directoryData.length > 0,
+      subscribed: true,
+    },
+  )
+  const actions = useDocumentActions()
+
+  const enrichedItems = useMemo(() => {
+    if (!directoryData.length) return []
+    const freshDocuments = new Map(
+      documents
+        .map((document) => document.data)
+        .filter((data) => data?.type === 'document')
+        .map((data) => [data.id.id, data.document]),
+    )
+    return directoryData.map((item) => {
+      const freshDocument = freshDocuments.get(item.id.id)
+      const draft = actions.getDraft?.(item.id)
+      if (!freshDocument && !draft?.metadata) return item
+      return {
+        ...item,
+        authors: freshDocument?.authors ?? item.authors,
+        metadata: {...item.metadata, ...freshDocument?.metadata, ...draft?.metadata},
+        updateTime: freshDocument?.updateTime ?? item.updateTime,
+        version: freshDocument?.version ?? item.version,
+        visibility: freshDocument?.visibility ?? item.visibility,
+      }
+    })
+  }, [directoryData, documents, actions.getDraft])
 
   const sortedItems = useMemo(() => {
-    if (directoryItems.data && querySort) {
+    if (enrichedItems.length && querySort) {
       const sorted = queryBlockSortedItems({
-        entries: directoryItems.data,
+        entries: enrichedItems,
         sort: querySort,
       })
       const queryLimit = parseInt(block.props.queryLimit || '', 10)
       return sorted.slice(0, queryLimit > 0 ? queryLimit : undefined)
     }
     return []
-  }, [directoryItems, querySort, block.props.queryLimit])
-
-  const docResults = useResources(sortedItems.map((item) => item.id) || [], {
-    enabled: !!directoryItems.data?.length || false,
-  })
+  }, [enrichedItems, querySort, block.props.queryLimit])
 
   const {canEdit, beginEditIfNeeded} = useEditorGate()
 
@@ -173,8 +202,6 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       .filter((m) => !!m),
   )
 
-  const documents = useResources(sortedItems.map((item) => item.id))
-
   function getEntity(id: UnpackedHypermediaId) {
     return documents?.find((document) => document.data?.id?.id === id.id)?.data || null
   }
@@ -193,7 +220,9 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         accountsMetadata={accountsMetadata}
         itemContributors={itemContributors}
         getEntity={getEntity}
-        isDiscovering={entity.isDiscovering || directoryItems.isLoading}
+        isDiscovering={
+          entity.isDiscovering || directoryItems.isLoading || documents.some((document) => document.isDiscovering)
+        }
         prependItems={prependItems}
         bannerContent={bannerContent}
       />
