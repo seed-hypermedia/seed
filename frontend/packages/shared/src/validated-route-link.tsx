@@ -95,6 +95,7 @@ function parseSeedLink(
   const parseableHref = getParseableHref(route)
   const unpackedId = unpackHmId(parseableHref)
   const parsedRoute = hypermediaUrlToRoute(parseableHref) || (unpackedId ? {key: 'document', id: unpackedId} : null)
+  const routeExpectedAccountUid = getExpectedAccountUid(parsedRoute)
 
   if (!parsedRoute) {
     return {
@@ -110,10 +111,11 @@ function parseSeedLink(
     externalHref: route.startsWith('http://') || route.startsWith('https://') ? route : undefined,
     fallbackTarget: parsedRoute,
     fallbackOpts: opts,
-    expectedAccountUid: unpackedId?.uid || getExpectedAccountUid(parsedRoute),
+    expectedAccountUid: routeExpectedAccountUid || unpackedId?.uid,
     isSeedLink: true,
     routeForExternal: parsedRoute,
-    explicitOrigin: unpackedId?.hostname ? `${unpackedId.scheme}://${unpackedId.hostname}` : getOrigin(route),
+    explicitOrigin:
+      unpackedId?.hostname && unpackedId?.scheme ? `${unpackedId.scheme}://${unpackedId.hostname}` : getOrigin(route),
   }
 }
 

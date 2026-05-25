@@ -580,28 +580,39 @@ export function useOpenUrlWeb() {
     if (!url) return
 
     const unpacked = unpackHmId(url)
-    let newUrl = unpacked ? idToUrl(unpacked, {originHomeId}) : url
+    const parsedRoute = hypermediaUrlToRoute(url) || (unpacked ? ({key: 'document', id: unpacked} as const) : null)
+    const routeId =
+      parsedRoute && typeof parsedRoute !== 'string' && 'id' in parsedRoute && typeof parsedRoute.id === 'object'
+        ? parsedRoute.id
+        : unpacked
+    let newUrl = parsedRoute
+      ? routeToHref(parsedRoute, {originHomeId})
+      : unpacked
+      ? idToUrl(unpacked, {originHomeId})
+      : url
 
     if (!newUrl) {
       console.error('URL is empty', newUrl)
       return
     }
 
-    if (unpacked?.uid) {
-      const parsedRoute = hypermediaUrlToRoute(url) || {key: 'document' as const, id: unpacked}
+    if (routeId?.uid && parsedRoute) {
       const fallbackHref = routeToHref(parsedRoute, {originHomeId})
-      const account =
-        unpacked.hostname || !unpacked.uid ? null : await queryClient.fetchQuery(queryAccount(client, unpacked.uid))
-      const candidateOrigin =
-        unpacked.hostname && unpacked.scheme
+      const explicitOrigin =
+        unpacked?.hostname && unpacked?.scheme
           ? `${unpacked.scheme}://${unpacked.hostname}`
-          : account?.metadata?.siteUrl || null
+          : routeId.hostname && routeId.scheme
+          ? `${routeId.scheme}://${routeId.hostname}`
+          : null
+      const account =
+        explicitOrigin || !routeId.uid ? null : await queryClient.fetchQuery(queryAccount(client, routeId.uid))
+      const candidateOrigin = explicitOrigin || account?.metadata?.siteUrl || null
       const candidateHostname = candidateOrigin ? new URL(candidateOrigin).hostname : null
       const candidateUrl =
         candidateOrigin && parsedRoute
           ? routeToUrl(parsedRoute, {
               hostname: candidateOrigin,
-              originHomeId: hmId(unpacked.uid),
+              originHomeId: hmId(routeId.uid),
             })
           : newUrl
       const domainInfo = candidateHostname
@@ -611,7 +622,7 @@ export function useOpenUrlWeb() {
         href: candidateUrl,
         fallbackHref,
         hostname: candidateHostname,
-        expectedAccountUid: unpacked.uid,
+        expectedAccountUid: routeId.uid,
         registeredAccountUid: domainInfo?.registeredAccountUid,
         isSeedLink: true,
       })
