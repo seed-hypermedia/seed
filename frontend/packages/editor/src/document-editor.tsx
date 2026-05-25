@@ -726,21 +726,18 @@ export function DocumentEditor({
           />
           <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
         </BlockNoteView>
-        {isEditing ? (
-          <button
-            type="button"
-            aria-label="Focus editor at end"
-            tabIndex={-1}
-            className="block h-[500px] w-full cursor-text appearance-none border-0 bg-transparent p-0 text-left"
-            onPointerDown={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              focusEditorEnd()
-            }}
-          />
-        ) : (
-          <div className="h-[500px]" />
-        )}
+
+        <button
+          type="button"
+          aria-label="Focus editor at end"
+          tabIndex={-1}
+          className="block h-[500px] w-full cursor-text appearance-none border-0 bg-transparent p-0 text-left"
+          onPointerDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            focusEditorEnd()
+          }}
+        />
         {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
         <PublishRequiredDialog
           open={publishRequiredDialog.open}
