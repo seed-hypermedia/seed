@@ -1717,7 +1717,7 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1 pb-60', isMobile && 'px-4')}>
+      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
         <MainContent
           docId={docId}
           resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}

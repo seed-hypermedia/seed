@@ -418,6 +418,27 @@ export function DocumentEditor({
     }
   }, [editor, actorRef, handlersRef])
 
+  const focusEditorEnd = useCallback(() => {
+    const view = editor._tiptapEditor?.view
+    if (!view || !view.editable) return
+
+    const endPos = view.state.doc.content.size
+
+    const applySelection = () => {
+      if (view.isDestroyed) return
+      const safePos = Math.min(Math.max(endPos, 0), view.state.doc.content.size)
+      try {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, safePos)))
+      } catch {
+        // Ignore invalid end positions; focus still keeps the editor active.
+      }
+      view.focus()
+    }
+
+    applySelection()
+    requestAnimationFrame(applySelection)
+  }, [editor])
+
   // Keyboard shortcut: while in read-only mode and the document area has
   // focus (or focus is on document.body), pressing Enter enters edit mode
   // and places the cursor at the end of the document. This is the fallback
@@ -705,6 +726,21 @@ export function DocumentEditor({
           />
           <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
         </BlockNoteView>
+        {isEditing ? (
+          <button
+            type="button"
+            aria-label="Focus editor at end"
+            tabIndex={-1}
+            className="block h-[500px] w-full cursor-text appearance-none border-0 bg-transparent p-0 text-left"
+            onPointerDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              focusEditorEnd()
+            }}
+          />
+        ) : (
+          <div className="h-[500px]" />
+        )}
         {canEdit && editor.isEditable && <InlineAddBlockButton editor={editor} />}
         <PublishRequiredDialog
           open={publishRequiredDialog.open}
