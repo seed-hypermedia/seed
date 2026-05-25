@@ -320,6 +320,10 @@ latest_document_generations AS (
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),
+-- Only seed the recursive redirect walk with comments whose resource actually
+-- has a known redirect. Other comments rely on the COALESCE(ecr.resource,
+-- f.resource) fallback in the outer LEFT JOIN below, so they still resolve
+-- correctly without paying the recursion+ROW_NUMBER cost.
 comment_resource_chain(origin_resource, resource, iri, depth) AS (
   SELECT DISTINCT
     f.resource,
@@ -330,6 +334,10 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
   JOIN resources ON resources.id = f.resource
   WHERE f.type = 'comment'
   AND f.resource IS NOT NULL
+  AND f.resource IN (
+    SELECT resource FROM latest_document_generations
+    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+  )
 
   UNION ALL
 
@@ -433,7 +441,10 @@ FROM fts_data AS f
 
   LEFT JOIN resources
     ON resources.id = COALESCE(
-      CASE WHEN f.type = 'comment' THEN ecr.resource END,
+      -- For comments: prefer the redirected target from the CTE; fall back to
+      -- the comment's own resource for the 99%+ of comments whose resource
+      -- has no redirect entry (the CTE no longer seeds those).
+      CASE WHEN f.type = 'comment' THEN COALESCE(ecr.resource, f.resource) END,
       CASE WHEN f.type IN ('title', 'document') THEN current_document_resources.resource END,
       CASE WHEN f.type NOT IN ('comment', 'title', 'document') THEN
       (SELECT resource from structural_blobs WHERE
@@ -468,17 +479,33 @@ FROM fts_data AS f
 WHERE (f.type = 'profile' OR COALESCE(current_document_resources.is_deleted, current_document_generation.is_deleted, document_generations.is_deleted) = False)
 `)
 
+// qKeywordSearch returns FTS5 hits for the given query, filtered to the supplied
+// content types, optional visibility, and optional IRI glob. The CTE applies the
+// cheap per-blob filters (`blobs.size > 0`, visibility) and a sort+LIMIT *before*
+// the expensive cross-table joins, so the post-join work is bounded by the
+// oversample budget regardless of how many FTS rows the MATCH produced. The outer
+// ORDER BY uses the same sort key as the inner one, so the inner top-N is the
+// outer top-N modulo the few outer-only filters (IRI resolution + GLOB).
+//
+// Args: query, type1, type2, type3, type4, type5, publicOnly, oversample, iriGlob, limit.
 var qKeywordSearch = dqb.Str(`
 WITH RECURSIVE
-matched_fts AS (
+matched_fts AS MATERIALIZED (
   SELECT
     fts.rowid,
     fts.rank,
     fts.blob_id,
     fts.type
   FROM fts
+  JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
   WHERE fts.raw_content MATCH ?
-  AND fts.type IN (?, ?, ?, ?, ?)
+    AND fts.type IN (?, ?, ?, ?, ?)
+    AND (? = 0
+         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
+  ORDER BY
+    (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    fts.rank ASC
+  LIMIT ?
 ),
 latest_document_generations AS (
   SELECT dg.*
@@ -486,6 +513,9 @@ latest_document_generations AS (
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),
+-- Only seed the recursive redirect walk with comments whose resource actually
+-- has a known redirect entry. The other 99%+ of comments fall through to
+-- r1.iri via the COALESCE in the outer SELECT, skipping the CTE entirely.
 comment_resource_chain(origin_resource, resource, iri, depth) AS (
   SELECT DISTINCT
     sb.resource,
@@ -497,6 +527,10 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
   JOIN resources ON resources.id = sb.resource
   WHERE mf.type = 'comment'
   AND sb.resource IS NOT NULL
+  AND sb.resource IN (
+    SELECT resource FROM latest_document_generations
+    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+  )
 
   UNION ALL
 
@@ -528,22 +562,130 @@ SELECT
 FROM matched_fts mf
 JOIN fts_index fi ON fi.rowid = mf.rowid
 JOIN structural_blobs sb ON sb.id = mf.blob_id
-JOIN blobs ON blobs.id = mf.blob_id
-LEFT JOIN public_blobs pb ON pb.id = mf.blob_id
 LEFT JOIN resources r1 ON r1.id = sb.resource
-LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head'
+-- The blob_links/sb_ref/r2 fallback only matters when sb.resource is null and
+-- the blob is pointed to by a ref/head edge — a path that never applies to
+-- comments (comments always have a resource). Gating the join on
+-- mf.type != 'comment' skips the per-row index probe entirely for the common
+-- comment-heavy path.
+LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head' AND mf.type != 'comment'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
-WHERE blobs.size > 0
-  AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
   AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB ?
-  AND (? = 0 OR pb.id IS NOT NULL)
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
   mf.rank ASC
 LIMIT ?
 `)
+
+// qKeywordSearchAllIRIs is the same as qKeywordSearch but without the per-row
+// IRI GLOB predicate. Used when the caller passes the catch-all default
+// (`hm://*` or empty), since every resource in our schema has an `hm://` IRI
+// and the GLOB would just be paid for nothing.
+//
+// Args: query, type1, type2, type3, type4, type5, publicOnly, oversample, limit.
+var qKeywordSearchAllIRIs = dqb.Str(`
+WITH RECURSIVE
+matched_fts AS MATERIALIZED (
+  SELECT
+    fts.rowid,
+    fts.rank,
+    fts.blob_id,
+    fts.type
+  FROM fts
+  JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
+  WHERE fts.raw_content MATCH ?
+    AND fts.type IN (?, ?, ?, ?, ?)
+    AND (? = 0
+         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
+  ORDER BY
+    (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
+    fts.rank ASC
+  LIMIT ?
+),
+latest_document_generations AS (
+  SELECT dg.*
+  FROM document_generations dg
+  GROUP BY dg.resource
+  HAVING dg.generation = MAX(dg.generation)
+),
+-- Only seed the recursive redirect walk with comments whose resource actually
+-- has a known redirect entry; see qKeywordSearch above for rationale.
+comment_resource_chain(origin_resource, resource, iri, depth) AS (
+  SELECT DISTINCT
+    sb.resource,
+    sb.resource,
+    resources.iri,
+    0
+  FROM matched_fts mf
+  JOIN structural_blobs sb ON sb.id = mf.blob_id
+  JOIN resources ON resources.id = sb.resource
+  WHERE mf.type = 'comment'
+  AND sb.resource IS NOT NULL
+  AND sb.resource IN (
+    SELECT resource FROM latest_document_generations
+    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+  )
+
+  UNION ALL
+
+  SELECT
+    cr.origin_resource,
+    target.id,
+    target.iri,
+    cr.depth + 1
+  FROM comment_resource_chain cr
+  JOIN latest_document_generations dg ON dg.resource = cr.resource
+  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
+  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  AND target.id != cr.resource
+  AND cr.depth < 16
+),
+effective_comment_resources AS (
+  SELECT origin_resource, resource, iri
+  FROM (
+    SELECT
+      cr.*,
+      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
+    FROM comment_resource_chain cr
+  )
+  WHERE rn = 1
+)
+SELECT
+    mf.rowid,
+    mf.rank
+FROM matched_fts mf
+JOIN fts_index fi ON fi.rowid = mf.rowid
+JOIN structural_blobs sb ON sb.id = mf.blob_id
+LEFT JOIN resources r1 ON r1.id = sb.resource
+-- See qKeywordSearch above: the ref/head fallback never applies to comments.
+LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head' AND mf.type != 'comment'
+LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
+WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+ORDER BY
+  (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.rank ASC
+LIMIT ?
+`)
+
+// keywordSearchOversampleFactor is how much more we ask the inner FTS+visibility
+// CTE for than the caller's final limit. Rows can be dropped by the outer
+// IRI-resolution and IRI-GLOB filters, so we over-fetch to keep the post-join
+// top-N stable. 5× is far more than typical drop-out (most blobs resolve to a
+// resource with an `hm://` IRI), while still bounding the join fan-out.
+const keywordSearchOversampleFactor = 5
+
+// keywordSearchMaxOversample caps the inner CTE budget to keep the join work
+// bounded even when callers pass very large limits.
+const keywordSearchMaxOversample = 5000
+
+// keywordSearchMinOversample is a floor so small `limit` values still leave
+// headroom for the outer filters to drop a few rows.
+const keywordSearchMinOversample = 200
 
 // keywordSearch performs minimal FTS search returning SearchResultMap.
 // This is a standalone function (not Server method) used for hybrid search.
@@ -579,13 +721,39 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 	}
 	score := float32(999999.9)
 
-	if err := sqlitex.Exec(conn, qKeywordSearch(), func(stmt *sqlite.Stmt) error {
-		// The query alredy handles proper ordering and limit. The order depends on type and rank.
+	// Oversample the inner CTE so the post-join filters (IRI resolution, GLOB)
+	// can drop a few rows without shrinking the top-N visible to the caller.
+	oversample := limit * keywordSearchOversampleFactor
+	if oversample < keywordSearchMinOversample {
+		oversample = keywordSearchMinOversample
+	}
+	if oversample > keywordSearchMaxOversample {
+		oversample = keywordSearchMaxOversample
+	}
+
+	cb := func(stmt *sqlite.Stmt) error {
+		// The query already handles proper ordering and limit. The order depends on type and rank.
 		// We assign scores in decreasing order to be consistent with other search methods.
 		results[stmt.ColumnInt64(0)] = score
 		score--
 		return nil
-	}, query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly, limit); err != nil {
+	}
+
+	// Skip the per-row IRI GLOB when the caller passes the catch-all default —
+	// every resource has an `hm://` IRI, so the predicate would just be evaluated
+	// for nothing on every joined row.
+	if iriGlob == "" || iriGlob == "hm://*" {
+		if err := sqlitex.Exec(conn, qKeywordSearchAllIRIs(), cb,
+			query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
+			publicOnly, oversample, limit); err != nil {
+			return nil, fmt.Errorf("keyword search failed: %w", err)
+		}
+		return results, nil
+	}
+
+	if err := sqlitex.Exec(conn, qKeywordSearch(), cb,
+		query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
+		publicOnly, oversample, iriGlob, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
 	}
 
@@ -861,28 +1029,42 @@ var qIsDeletedComment = dqb.Str(`
 // qBatchDeletedComments checks deletion status for a batch of comments in one query.
 // The parameter is a JSON array of objects: [{"author_id": N, "tsid": "..."}, ...]
 // Returns one row per comment: (author_id INTEGER, tsid TEXT, is_deleted INTEGER).
+//
+// The batch CTE drives the join so the planner can probe the partial index
+// `structural_blobs_by_tsid (extra_attrs->>'tsid', author) WHERE … IS NOT NULL`
+// once per batch entry — without the INDEXED BY hint the planner falls back
+// to `structural_blobs_by_type (type)`, which matches every Comment blob and
+// is dramatically slower for small batches against a populated DB. ROW_NUMBER
+// over the per-(author,tsid) partition replaces a per-outer-row correlated
+// MAX(ts) subquery; the resulting is_deleted comes from the latest blob, same
+// semantics as before.
 var qBatchDeletedComments = dqb.Str(`
-    SELECT
-        c.author_id,
-        c.tsid,
-        CASE WHEN sb.extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
-    FROM (
-        SELECT
-            CAST(je.value->>'author_id' AS INTEGER) AS author_id,
-            je.value->>'tsid' AS tsid
+    WITH batch AS (
+        SELECT CAST(je.value->>'author_id' AS INTEGER) AS author_id,
+               je.value->>'tsid' AS tsid
         FROM json_each(?) je
-    ) c
-    JOIN structural_blobs sb
-      ON sb.type = 'Comment'
-     AND sb.author = c.author_id
-     AND sb.extra_attrs->>'tsid' = c.tsid
-    WHERE sb.ts = (
-        SELECT MAX(sb2.ts)
-        FROM structural_blobs sb2
-        WHERE sb2.type = 'Comment'
-          AND sb2.author = c.author_id
-          AND sb2.extra_attrs->>'tsid' = c.tsid
-    );
+    ),
+    ranked AS (
+        SELECT
+            b.author_id,
+            b.tsid,
+            sb.extra_attrs->>'deleted' AS deleted_raw,
+            ROW_NUMBER() OVER (
+                PARTITION BY b.author_id, b.tsid
+                ORDER BY sb.ts DESC
+            ) AS rn
+        FROM batch b
+        JOIN structural_blobs sb INDEXED BY structural_blobs_by_tsid
+          ON sb.extra_attrs->>'tsid' = b.tsid
+         AND sb.author = b.author_id
+        WHERE sb.type = 'Comment'
+    )
+    SELECT
+        author_id,
+        tsid,
+        CASE WHEN deleted_raw = '1' THEN 1 ELSE 0 END AS is_deleted
+    FROM ranked
+    WHERE rn = 1;
 `)
 
 var qGetMetadata = dqb.Str(`
