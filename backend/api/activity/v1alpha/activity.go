@@ -108,47 +108,54 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var authorsJSON, linkTypesJSON string
 
 	filterResource := "*"
+	noResourceFilter := req.FilterResource == "" || req.FilterResource == "*"
 	if len(req.FilterResource) > 0 {
 		if !resourcePattern.MatchString(req.FilterResource) {
 			return nil, fmt.Errorf("Invalid resource format [%s]", req.FilterResource)
 		}
 		filterResource = req.FilterResource
 	}
+	// initialMovedResources and initialEidsUpdated are only populated when the
+	// caller passed an explicit FilterResource. In the unfiltered ("*") path
+	// the IN(...) list these feed would explode to every non-deleted resource,
+	// which forces the planner to scan all resource_links — see the package
+	// hot-path tuning notes in ListEvents below.
 	var initialMovedResources map[string]string = make(map[string]string)
-	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, qGetMovedBlocksByResourceID(), func(stmt *sqlite.Stmt) error {
-			isDeleted := stmt.ColumnInt(2) == 1
-			if !isDeleted {
-				initialMovedResources[stmt.ColumnText(0)] = stmt.ColumnText(1)
-			}
-			return nil
-		}, filterResource)
-	})
-	if err != nil {
-		return nil, err
-	}
-	var initialIris []string
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.ExecTransient(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
-			if stmt.ColumnInt64(0) == 0 {
-				return nil
-			}
-			initialIris = append(initialIris, stmt.ColumnText(1))
-			return nil
-
-		}, filterResource); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
 	var initialEidsUpdated []string
-	for _, iri := range initialIris {
-		oldIri, ok := initialMovedResources[iri]
-		initialEidsUpdated = append(initialEidsUpdated, iri)
-		if ok {
-			initialEidsUpdated = append(initialEidsUpdated, oldIri)
+	if !noResourceFilter {
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.ExecTransient(conn, qGetMovedBlocksByResourceID(), func(stmt *sqlite.Stmt) error {
+				isDeleted := stmt.ColumnInt(2) == 1
+				if !isDeleted {
+					initialMovedResources[stmt.ColumnText(0)] = stmt.ColumnText(1)
+				}
+				return nil
+			}, filterResource)
+		}); err != nil {
+			return nil, err
+		}
+		var initialIris []string
+		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			if err := sqlitex.ExecTransient(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+				if stmt.ColumnInt64(0) == 0 {
+					return nil
+				}
+				initialIris = append(initialIris, stmt.ColumnText(1))
+				return nil
+
+			}, filterResource); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		for _, iri := range initialIris {
+			oldIri, ok := initialMovedResources[iri]
+			initialEidsUpdated = append(initialEidsUpdated, iri)
+			if ok {
+				initialEidsUpdated = append(initialEidsUpdated, oldIri)
+			}
 		}
 	}
 	filterAuthors, err := srv.expandFilterAuthors(ctx, req.FilterAuthors)
@@ -207,11 +214,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		linkTypesJSON += "]"
 		filtersStr += ") AND "
 	}
-	if len(initialEidsUpdated) == 0 {
-		return &activity.ListEventsResponse{}, nil
+	if !noResourceFilter {
+		if len(initialEidsUpdated) == 0 {
+			return &activity.ListEventsResponse{}, nil
+		}
+		filtersStr += storage.ResourcesIRI.String() + " IN ('" + strings.Join(initialEidsUpdated, "', '") + "')"
+		filtersStr += " AND "
 	}
-	filtersStr += storage.ResourcesIRI.String() + " IN ('" + strings.Join(initialEidsUpdated, "', '") + "')"
-	filtersStr += " AND "
 	var (
 		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
 		tableStr             = "FROM " + storage.T_StructuralBlobs
@@ -364,100 +373,113 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		var eids []string
-		irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
-		if err := sqlitex.ExecTransient(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
-			eid := stmt.ColumnInt64(0)
-			if eid == 0 {
+		// In the unfiltered (noResourceFilter) path we skip the IRI→id
+		// resolution entirely and use the no-targets variant of the
+		// mentions query — the IN(...) list would otherwise blow up to
+		// every non-deleted resource id and force a full resource_links
+		// scan even though the filter is semantically a no-op.
+		var queryStr string
+		var args []interface{}
+		if noResourceFilter {
+			queryStr = listMentionsCoreNoTargets
+			args = []interface{}{cursorBlobID}
+		} else {
+			var eids []string
+			irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
+			if err := sqlitex.ExecTransient(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
+				eid := stmt.ColumnInt64(0)
+				if eid == 0 {
+					return nil
+				}
+				eids = append(eids, strconv.FormatInt(eid, 10))
 				return nil
-			}
-			eids = append(eids, strconv.FormatInt(eid, 10))
-			return nil
 
-		}, irisJSON); err != nil {
-			return err
-		}
-
-		if len(eids) > 0 {
-			eidsJSON := "[" + strings.Join(eids, ",") + "]"
-			args := []interface{}{eidsJSON, cursorBlobID}
-			queryStr := listMentionsCore
-			if len(authorsJSON) > 2 {
-				queryStr += authorsFilterMentions
-				args = append(args, authorsJSON)
-			}
-			if len(linkTypesJSON) > 2 {
-				queryStr += linkTypesFilterMentions
-				args = append(args, linkTypesJSON)
-			}
-			queryStr += limitMentions
-			args = append(args, req.PageSize)
-			queryStr = strings.TrimSpace(queryStr)
-			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
-				mentionsRawCount++
-				var (
-					sourceDoc  string
-					target     = stmt.ColumnText(0)
-					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
-					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-					// Structural timestamp (ms) is the event's authored timestamp.
-					structTsMillis = stmt.ColumnInt64(4)
-					eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
-					blobType       = stmt.ColumnText(5)
-
-					isPinned      = stmt.ColumnInt(6) > 0
-					anchor        = stmt.ColumnText(7)
-					targetVersion = stmt.ColumnText(8)
-					fragment      = stmt.ColumnText(9)
-
-					linkType    = stmt.ColumnText(10)
-					blobID      = stmt.ColumnInt64(11)
-					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
-					tsid        = blob.TSID(stmt.ColumnText(13))
-					//extraAttrs  = stmt.ColumnText(14)
-					isDeleted = stmt.ColumnText(16) == "1"
-					source    = stmt.ColumnText(18)
-				)
-				genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
-				if target == "" && blobType != "Comment" {
-					return fmt.Errorf("BUG: missing target for link of type '%s'", blobType)
-				}
-
-				if blobType == "Comment" {
-					sourceDoc = target
-					source = "hm://" + author + "/" + tsid.String()
-					eventTime = timestamppb.New(tsid.Timestamp())
-
-				}
-				if isDeleted {
-					deletedList = append(deletedList, target)
-				}
-				event := activity.Event{
-					Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
-						Source:        source,
-						SourceType:    linkType,
-						SourceContext: anchor,
-						SourceBlob: &entity_proto.Mention_BlobInfo{
-							Cid:        sourceBlob,
-							Author:     author,
-							CreateTime: eventTime,
-						},
-						IsExactVersion: isPinned,
-						SourceDocument: sourceDoc,
-						Target:         target,
-						TargetVersion:  targetVersion,
-						TargetFragment: fragment,
-					}},
-					Account:     author,
-					EventTime:   eventTime,
-					ObserveTime: observeTime,
-				}
-				events = append(events, &event)
-				eventCursorBlobIDs = append(eventCursorBlobIDs, blobID)
-				return nil
-			}, args...); err != nil {
+			}, irisJSON); err != nil {
 				return err
 			}
+			if len(eids) == 0 {
+				return nil
+			}
+			eidsJSON := "[" + strings.Join(eids, ",") + "]"
+			queryStr = listMentionsCore
+			args = []interface{}{eidsJSON, cursorBlobID}
+		}
+
+		if len(authorsJSON) > 2 {
+			queryStr += authorsFilterMentions
+			args = append(args, authorsJSON)
+		}
+		if len(linkTypesJSON) > 2 {
+			queryStr += linkTypesFilterMentions
+			args = append(args, linkTypesJSON)
+		}
+		queryStr += limitMentions
+		args = append(args, req.PageSize)
+		queryStr = strings.TrimSpace(queryStr)
+		if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
+			mentionsRawCount++
+			var (
+				sourceDoc  string
+				target     = stmt.ColumnText(0)
+				sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
+				author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
+				// Structural timestamp (ms) is the event's authored timestamp.
+				structTsMillis = stmt.ColumnInt64(4)
+				eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
+				blobType       = stmt.ColumnText(5)
+
+				isPinned      = stmt.ColumnInt(6) > 0
+				anchor        = stmt.ColumnText(7)
+				targetVersion = stmt.ColumnText(8)
+				fragment      = stmt.ColumnText(9)
+
+				linkType    = stmt.ColumnText(10)
+				blobID      = stmt.ColumnInt64(11)
+				observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
+				tsid        = blob.TSID(stmt.ColumnText(13))
+				//extraAttrs  = stmt.ColumnText(14)
+				isDeleted = stmt.ColumnText(16) == "1"
+				source    = stmt.ColumnText(18)
+			)
+			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
+			if target == "" && blobType != "Comment" {
+				return fmt.Errorf("BUG: missing target for link of type '%s'", blobType)
+			}
+
+			if blobType == "Comment" {
+				sourceDoc = target
+				source = "hm://" + author + "/" + tsid.String()
+				eventTime = timestamppb.New(tsid.Timestamp())
+
+			}
+			if isDeleted {
+				deletedList = append(deletedList, target)
+			}
+			event := activity.Event{
+				Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+					Source:        source,
+					SourceType:    linkType,
+					SourceContext: anchor,
+					SourceBlob: &entity_proto.Mention_BlobInfo{
+						Cid:        sourceBlob,
+						Author:     author,
+						CreateTime: eventTime,
+					},
+					IsExactVersion: isPinned,
+					SourceDocument: sourceDoc,
+					Target:         target,
+					TargetVersion:  targetVersion,
+					TargetFragment: fragment,
+				}},
+				Account:     author,
+				EventTime:   eventTime,
+				ObserveTime: observeTime,
+			}
+			events = append(events, &event)
+			eventCursorBlobIDs = append(eventCursorBlobIDs, blobID)
+			return nil
+		}, args...); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {
@@ -534,13 +556,31 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	//TODO: remove duplicates based on resource, type, author, eventtime
 
 	seen := make(map[string]struct{})
+	// seenMentionGroup replaces the SQL GROUP BY that used to live in
+	// listMentionsCore. The SQL collapsed rows by
+	// (resources.iri, target_version, target_fragment, source_iri); we
+	// mirror it here so dropping the GROUP BY doesn't surface duplicate
+	// mention rows that only differ in non-grouped columns (rl.id,
+	// is_pinned, anchor, etc.). Run before the (Target, SourceType,
+	// Account, EventTime) dedup so the first matching row wins, matching
+	// SQLite's arbitrary-row-per-group behaviour.
+	seenMentionGroup := make(map[string]struct{})
 	for i := 0; i < len(nonDeleted); i++ {
 		e := nonDeleted[i]
 		// switch on event type
 		if _, ok := e.Data.(*activity.Event_NewMention); ok {
+			m := e.Data.(*activity.Event_NewMention).NewMention
+			groupKey := m.Target + "\x00" + m.TargetVersion + "\x00" + m.TargetFragment + "\x00" + m.Source
+			if _, ok := seenMentionGroup[groupKey]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
+				i--
+				continue
+			}
+			seenMentionGroup[groupKey] = struct{}{}
 			key := fmt.Sprintf("%s:%s:%s:%d",
-				e.Data.(*activity.Event_NewMention).NewMention.Target,
-				e.Data.(*activity.Event_NewMention).NewMention.SourceType,
+				m.Target,
+				m.SourceType,
 				e.Account,
 				e.EventTime.AsTime().UnixNano())
 			if _, ok := seen[key]; ok {
@@ -794,7 +834,17 @@ WHERE lp.rn = 1
 AND lp.alias_id = (SELECT id FROM target);
 `)
 
-var listMentionsCore string = `
+// listMentionsCoreSelect is the shared SELECT/FROM/JOIN prefix for the
+// mentions query. The trailing WHERE clause is appended by callers via
+// listMentionsCore (filtered) or listMentionsCoreNoTargets (unfiltered).
+//
+// Historical note: the trailing GROUP BY that used to live here was moved
+// into Go-side dedup (see the seenGroup loop in ListEvents). The GROUP BY
+// forced a TEMP B-TREE that materialised the full candidate set before
+// LIMIT 30 could apply, which blew the wall time to 100-180ms; removing
+// it lets the planner stream rows in structural_blobs.id DESC order and
+// short-circuit at LIMIT.
+var listMentionsCoreSelect = `
 SELECT distinct
     resources.iri,
     blobs.codec,
@@ -828,9 +878,22 @@ LEFT JOIN resources r2
         WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
         ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
      END
+`
+
+// listMentionsCore is the filtered variant: WHERE constrains target to the
+// caller-supplied set of resource ids. Used when req.FilterResource is set.
+var listMentionsCore = listMentionsCoreSelect + `
 WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
 AND structural_blobs.id <= :idx
 `
+
+// listMentionsCoreNoTargets drops the target IN(...) predicate. Used in the
+// unfiltered path where the IN list would otherwise expand to every known
+// resource (a semantic no-op that nevertheless forces a full scan).
+var listMentionsCoreNoTargets = listMentionsCoreSelect + `
+WHERE structural_blobs.id <= :idx
+`
+
 var authorsFilterMentions = `
 AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
 `
@@ -838,7 +901,6 @@ var linkTypesFilterMentions = `
 AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
 `
 var limitMentions = `
-GROUP BY resources.iri, target_version, target_fragment, source_iri
 ORDER BY structural_blobs.id DESC
 LIMIT :page_size;
 `
