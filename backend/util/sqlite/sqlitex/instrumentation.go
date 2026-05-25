@@ -45,6 +45,22 @@ const (
 	// catch occasional outliers across the long tail of list/get
 	// endpoints.
 	recentReadCap = 100
+	// recentBusyCap caps the separate ring of begin_busy /
+	// begin_interrupted events. Kept distinct from recentWrite because
+	// begin_busy synthesises hold == beginWait ≈ busy_timeout (10 s),
+	// which would dominate a hold-ranked combined ring and evict every
+	// real slow commit. Busy events are also repetitive (the same caller
+	// times out over and over), so 25 is enough recent history to scan
+	// contention episodes without bloating the page.
+	recentBusyCap = 25
+	// completedRingCap is the fixed-size ring of recently-completed writes
+	// used to attribute begin_busy victims to the holders that drained the
+	// writer slot during their wait. Bounded by capacity, not time: the
+	// time filter is applied at read time. At ~56 B per entry the static
+	// footprint is ~458 KB. Sized for ~8 s @ 1000 wps or ~80 s @ 100 wps;
+	// the busy_timeout is 10 s so we always cover at least one full timeout
+	// window at realistic steady-state write rates.
+	completedRingCap = 8192
 )
 
 // txOutcome is the "outcome" label on the duration histogram.
@@ -125,12 +141,23 @@ type callerStats struct {
 // SQLite writer slot: outcomeCommit / outcomeRollback / outcomeBeginBusy /
 // outcomeBeginInterrupted / outcomeSavepoint / outcomeSavepointTop.
 type writeStats struct {
-	count      uint64
-	busyCount  uint64
-	holdReserv []float64 // hold durations in ms; bounded
-	waitReserv []float64 // begin_wait durations in ms; bounded
-	commits    uint64
-	rollbacks  uint64
+	count          uint64
+	busyCount      uint64
+	holdReserv     []float64 // hold durations in ms; bounded
+	waitReserv     []float64 // begin_wait durations in ms; bounded
+	poolWaitReserv []float64 // pool-acquire wait durations in ms; bounded
+	totalReserv    []float64 // pool_wait + begin_wait + hold in ms; bounded
+	commits        uint64
+	rollbacks      uint64
+	// holdSumNs is the monotonic Σ of hold durations (ns) for outcomes
+	// that actually owned the writer slot (commit / rollback /
+	// savepoint_top). Used to compute aggregate writer-slot utilisation
+	// per caller, so high-frequency short writers surface as offenders
+	// even when no individual hold trips the slow ring's 100ms threshold.
+	// Gated on the same outcome set as holdReserv; explicitly excludes
+	// savepoint (nested — double-counts the outer scope), begin_busy,
+	// begin_interrupted, and savepoint_ro.
+	holdSumNs uint64
 }
 
 // readStats tracks observations from outcomeSavepointReadOnly: top-level
@@ -152,7 +179,7 @@ type readStats struct {
 // max is reflected in p99 for high-frequency callers like syncing.loadStore.
 const reservoirCap = 8192
 
-func (s *callerStats) record(hold, wait time.Duration, outcome txOutcome) {
+func (s *callerStats) record(hold, wait, poolWait time.Duration, outcome txOutcome) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -192,13 +219,42 @@ func (s *callerStats) record(hold, wait time.Duration, outcome txOutcome) {
 	switch outcome {
 	case outcomeCommit, outcomeRollback, outcomeSavepointTop:
 		appendReservoir(&w.holdReserv, hold, w.count)
+		w.holdSumNs += uint64(hold)
 	}
 	// waitReserv tracks how long the caller queued for the writer slot.
-	// WithTx queues at BEGIN IMMEDIATE; a top-level SAVEPOINT that wrote
-	// queues at the SAVEPOINT statement itself if another writer is
-	// committing. A nested SAVEPOINT never queues for the writer slot.
-	if outcome != outcomeSavepoint {
+	// WithTx queues at BEGIN IMMEDIATE — that wait is real writer-mutex
+	// contention. For a top-level SAVEPOINT on an autocommit conn
+	// (outcomeSavepointTop), the SAVEPOINT statement itself does NOT
+	// queue for the writer mutex — the deferred transaction is upgraded
+	// lazily by the first DML statement inside the savepoint body, and
+	// THAT statement is where the mutex wait actually lands (folded into
+	// the captured statement's duration and the overall hold). The
+	// "begin_wait" we'd record here is just the SAVEPOINT keyword's
+	// execution time — microseconds — which would dilute the percentile
+	// for callers that mix Pool.WithSave + Pool.WithTx. Exclude both
+	// nested savepoint (never queues at all) and savepoint_top (queues
+	// invisibly elsewhere) so this column means "real writer-mutex wait"
+	// throughout the table. See debug_handler help text for the user-
+	// visible explanation.
+	if outcome != outcomeSavepoint && outcome != outcomeSavepointTop {
 		appendReservoir(&w.waitReserv, wait, w.count)
+	}
+	// poolWaitReserv tracks the time the caller spent waiting for a
+	// connection from the pool, BEFORE this tx had any chance to take
+	// the writer mutex. Distinct from begin_wait, which measures the
+	// writer-mutex wait after a conn was already in hand. Zero for
+	// bare-conn callers (WithTx(conn, fn) / Save(conn) directly) since
+	// they never went through Pool.Conn. Same outcome gate as waitReserv
+	// — a nested SAVEPOINT can't have waited for a conn either.
+	if outcome != outcomeSavepoint {
+		appendReservoir(&w.poolWaitReserv, poolWait, w.count)
+		// totalReserv is the caller-visible total latency: pool acquire
+		// + begin wait + scope hold. Lets the operator read "where did
+		// my latency go?" off one column instead of summing three.
+		// Begin_busy rows synthesise hold == beginWait by construction;
+		// adding them as-is here would double-count, but the result is
+		// still meaningful as "total time the caller was blocked".
+		appendReservoir(&w.totalReserv, poolWait+wait+hold, w.count)
 	}
 }
 
@@ -225,6 +281,27 @@ func (s *callerStats) writeWaitPercentilesMs() (p10, p50, p90, p99 float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return percentilesNearestRank(s.write.waitReserv)
+}
+
+// writePoolWaitPercentilesMs returns p10, p50, p90, p99 of the
+// pool-acquire wait — how long this caller queued for a *sqlite.Conn
+// from the pool, BEFORE any writer-mutex contention. Distinct from
+// writeWaitPercentilesMs (the writer-mutex wait, which happens once
+// the conn is already in hand). Zero for bare-conn callers.
+func (s *callerStats) writePoolWaitPercentilesMs() (p10, p50, p90, p99 float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return percentilesNearestRank(s.write.poolWaitReserv)
+}
+
+// writeTotalPercentilesMs returns p10, p50, p90, p99 of pool_wait +
+// begin_wait + hold — the full caller-visible latency. Lets the
+// operator see "where did my latency go?" off one column without
+// summing three percentile groups in their head.
+func (s *callerStats) writeTotalPercentilesMs() (p10, p50, p90, p99 float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return percentilesNearestRank(s.write.totalReserv)
 }
 
 // readHoldPercentilesMs returns p10, p50, p90, p99 of SHARED-lock hold
@@ -267,6 +344,7 @@ type txSample struct {
 	Caller    string
 	Hold      time.Duration
 	BeginWait time.Duration
+	PoolWait  time.Duration
 	Outcome   txOutcome
 	// Stmts is the list of SQL statements (with bind args summarised) that
 	// ran inside this transaction. Only populated for slow / busy samples
@@ -277,6 +355,14 @@ type txSample struct {
 	// outcomeBeginBusy samples; for those rows it answers the "who had the
 	// lock while I was failing?" question directly.
 	HeldBy []activeTx
+	// DrainedDuringWait is the chronologically-ordered list of writer-slot
+	// holders that finished while this caller's BEGIN IMMEDIATE was
+	// queued. Populated only for outcomeBeginBusy samples. Complements
+	// HeldBy: HeldBy names whoever was on the slot at the timeout instant
+	// (usually the *next* caller in the queue, not the actual hog);
+	// DrainedDuringWait names the lineup that drained the slot during the
+	// entire 10 s wait window — i.e. the actual culprits.
+	DrainedDuringWait []completedTx
 }
 
 // capturedStmt is one statement executed inside an instrumented tx.
@@ -328,6 +414,39 @@ const (
 // stable; WithTx Store/LoadAndDelete each pairs so there is no leak across
 // transactions.
 var captureBufs sync.Map // *sqlite.Conn -> *txCapture
+
+// pendingPoolWait is a single-shot handoff from Pool.WithTx / Pool.WithSave
+// down to WithTx(conn, fn) / Save(conn). The pool-side wrapper measures
+// time.Since(t0) across p.Conn(ctx) and stores it here keyed by *conn;
+// the bare-conn entry loads-and-deletes at the top of its critical
+// section so the value is attributed exactly once to the outer scope.
+// Bare-conn callers (callers that already hold a conn and call WithTx
+// directly) never store, so the load returns zero and pool_wait is
+// rendered as 0 ms — which is correct: they never went through a pool.
+//
+// We use a sync.Map keyed by the conn pointer rather than a field on
+// txCapture because txCapture is created INSIDE WithTx/Save (after the
+// handoff would already need to be visible), and adding a field would
+// also break the rule that bare WithTx has no API changes.
+var pendingPoolWait sync.Map // *sqlite.Conn -> time.Duration
+
+// stashPoolWait records the conn-acquire wait time for the next
+// instrumented scope that runs on conn. Called by Pool.WithTx /
+// Pool.WithSave immediately after a successful p.Conn(ctx).
+func stashPoolWait(conn *sqlite.Conn, wait time.Duration) {
+	pendingPoolWait.Store(conn, wait)
+}
+
+// loadAndClearPoolWait returns the pool-wait stashed for conn, if any,
+// and clears it. Called by WithTx and Save on entry to attribute the
+// wait to exactly this scope. Returns zero for bare-conn callers.
+func loadAndClearPoolWait(conn *sqlite.Conn) time.Duration {
+	v, ok := pendingPoolWait.LoadAndDelete(conn)
+	if !ok {
+		return 0
+	}
+	return v.(time.Duration)
+}
 
 func beginCapture(conn *sqlite.Conn) {
 	captureBufs.Store(conn, &txCapture{})
@@ -587,6 +706,18 @@ type activeTx struct {
 	StartedAt time.Time
 }
 
+// completedTx is one writer-slot-owning transaction that has finished. A
+// fixed-size ring of these in txTracker lets a begin_busy victim attribute
+// its 10 s wait to the lineup of holders that drained the slot during the
+// wait, not just whoever happens to be holding at the moment of timeout
+// (which is usually the next caller in the queue, not the actual hog).
+type completedTx struct {
+	When    time.Time
+	Caller  string
+	Hold    time.Duration
+	Outcome txOutcome
+}
+
 // txTracker owns the in-memory state surfaced to /debug/sqlite.
 type txTracker struct {
 	mu sync.Mutex
@@ -595,26 +726,52 @@ type txTracker struct {
 	callers map[string]*callerStats
 
 	// Top-K-by-hold buffers of the slowest operations seen since startup,
-	// split by kind. Writes (everything except savepoint_ro) and reads
-	// (savepoint_ro) have separate caps so a steady stream of slow reads
-	// can't displace a rare slow write, and vice versa. New samples
-	// displace the smallest-hold entry within the same ring when it's
-	// full, so an old outlier survives unless something even slower
-	// arrives in the same kind.
+	// split by kind so a flood in one kind cannot evict the others:
+	//   - recentWrite: real completed writes (commit / rollback /
+	//     savepoint / savepoint_top). Ranked by hold; real lock-hold time.
+	//   - recentBusy: begin_busy and begin_interrupted attempts. These
+	//     synthesise hold == beginWait ≈ busy_timeout (10 s) by
+	//     construction, so they'd dominate a hold-ranked combined ring
+	//     and evict every real slow commit. Separate ring + smaller cap.
+	//   - recentRead: savepoint_ro (SHARED-lock only).
+	// New samples displace the smallest-hold entry within the same ring
+	// when it's full, so an old outlier survives unless something even
+	// slower arrives in the same kind.
 	recentWrite []txSample
+	recentBusy  []txSample
 	recentRead  []txSample
 
 	// In-flight transactions, keyed by a monotonic id.
 	active map[uint64]activeTx
 	nextID atomic.Uint64
+
+	// trackerStart is the process-lifetime baseline used to compute each
+	// caller's writer-slot share (% wall) on the debug page. Set once in
+	// newTxTracker and never written again.
+	trackerStart time.Time
+
+	// recentCompleted is a fixed-size ring of recently-finished writer-slot-
+	// owning transactions. Appended on every commit/rollback/savepoint_top
+	// (under t.mu, folded into the existing callers-map lookup critical
+	// section so it adds no extra lock acquisitions on the hot path).
+	// Scanned newest-first on begin_busy to attribute the wait to the
+	// holders that drained the slot during it. Zero-valued slots before
+	// the ring has filled are filtered out by the When.IsZero() check at
+	// read time.
+	recentCompleted [completedRingCap]completedTx
+	// recentHead is the monotonic write index for recentCompleted; slot
+	// is recentHead % completedRingCap. uint64 at 1M wps overflows in
+	// 584,000 years — not a concern.
+	recentHead uint64
 }
 
 var tracker = newTxTracker()
 
 func newTxTracker() *txTracker {
 	return &txTracker{
-		callers: make(map[string]*callerStats),
-		active:  make(map[uint64]activeTx),
+		callers:      make(map[string]*callerStats),
+		active:       make(map[uint64]activeTx),
+		trackerStart: time.Now(),
 	}
 }
 
@@ -653,7 +810,7 @@ func (t *txTracker) endActive(id uint64, caller string) {
 	mInFlight.WithLabelValues(caller).Dec()
 }
 
-func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx) {
+func (t *txTracker) recordTx(caller string, beginWait, hold, poolWait time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx) {
 	// Prometheus mTxDuration is the WRITE-tx histogram by name. Emitting
 	// read-only Saves under it would be a category error and would inflate
 	// every dashboard that reads it. The per-caller writetx_begin_wait and
@@ -669,29 +826,68 @@ func (t *txTracker) recordTx(caller string, beginWait, hold time.Duration, outco
 		}
 	}
 
+	// Single time.Now() shared across the callers-map lookup, the ring
+	// append, and any slow-sample/begin_busy attribution. Capturing it
+	// before the lock means goroutines can observe out-of-order
+	// timestamps if A captures T1, B captures T2>T1, and B grabs the
+	// mutex first. That's fine for the ring (the newest-first read
+	// filter walks until it crosses the time threshold regardless) and
+	// fine for the slow sample (When is purely descriptive). The hot-
+	// path cost is one monotonic-clock read (~30 ns).
+	now := time.Now()
+
 	t.mu.Lock()
 	st, ok := t.callers[caller]
 	if !ok {
 		st = &callerStats{}
 		t.callers[caller] = st
 	}
+	// Append to the drained-during-wait ring only for outcomes that
+	// actually owned the writer slot. Gated on the same set as
+	// callerStats.holdSumNs; excludes savepoint (nested — counts under
+	// the outer scope), begin_busy / begin_interrupted (never started),
+	// and savepoint_ro (SHARED lock only, never blocks BEGIN IMMEDIATE).
+	switch outcome {
+	case outcomeCommit, outcomeRollback, outcomeSavepointTop:
+		t.recentCompleted[t.recentHead%completedRingCap] = completedTx{
+			When:    now,
+			Caller:  caller,
+			Hold:    hold,
+			Outcome: outcome,
+		}
+		t.recentHead++
+	}
 	t.mu.Unlock()
-	st.record(hold, beginWait, outcome)
+	st.record(hold, beginWait, poolWait, outcome)
 
 	if hold >= slowThreshold || outcome == outcomeBeginBusy {
 		sample := txSample{
-			When:      time.Now(),
+			When:      now,
 			Caller:    caller,
 			Hold:      hold,
 			BeginWait: beginWait,
+			PoolWait:  poolWait,
 			Outcome:   outcome,
 			Stmts:     stmts,
 			HeldBy:    heldBy,
 		}
+		// Only begin_busy rows get the drained-during-wait attribution:
+		// commits/rollbacks weren't waiting on anyone, and the window
+		// math (now-hold, now] is only meaningful when hold is the wait
+		// duration (begin_busy's hold == begin_wait by construction).
+		if outcome == outcomeBeginBusy {
+			sample.DrainedDuringWait = t.snapshotDrainedDuringWait(now, hold)
+		}
 		t.mu.Lock()
-		if outcome == outcomeSavepointReadOnly {
+		switch outcome {
+		case outcomeSavepointReadOnly:
 			t.recentRead = insertTopK(t.recentRead, sample, recentReadCap)
-		} else {
+		case outcomeBeginBusy, outcomeBeginInterrupted:
+			// Separate ring: these synthesise hold == beginWait ≈
+			// busy_timeout (10 s) and would dominate a combined ring,
+			// evicting real slow commits.
+			t.recentBusy = insertTopK(t.recentBusy, sample, recentBusyCap)
+		default:
 			t.recentWrite = insertTopK(t.recentWrite, sample, recentWriteCap)
 		}
 		t.mu.Unlock()
@@ -723,6 +919,55 @@ func insertTopK(buf []txSample, sample txSample, cap int) []txSample {
 	return buf
 }
 
+// snapshotDrainedDuringWait returns the chronologically-ordered list of
+// writer-slot holders that finished while a begin_busy victim was waiting
+// — i.e. completed-tx ring entries whose When falls in (now-hold, now].
+// Only called on begin_busy events (rare), so the O(N) scan up to
+// completedRingCap is fine; the loop breaks as soon as it crosses the
+// time threshold, so steady-state cost is proportional to writes during
+// the wait window, not the ring size.
+//
+// Returned slice is oldest-first so the page renders the lineup in
+// commit order, matching how an operator reads the contention chain.
+func (t *txTracker) snapshotDrainedDuringWait(now time.Time, hold time.Duration) []completedTx {
+	threshold := now.Add(-hold)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	head := t.recentHead
+	n := head
+	if n > completedRingCap {
+		n = completedRingCap
+	}
+	out := make([]completedTx, 0, 32)
+	for i := uint64(0); i < n; i++ {
+		slot := (head - 1 - i) % completedRingCap
+		c := t.recentCompleted[slot]
+		// Zero-valued slot guard: before the ring has wrapped once, the
+		// tail of the array holds the zero value of completedTx. Once
+		// wrapped, every slot is real. IsZero() guards the unfilled
+		// tail without affecting the wrapped case.
+		if c.When.IsZero() {
+			break
+		}
+		if c.When.Before(threshold) {
+			break
+		}
+		if c.When.After(now) {
+			// Defensive: a goroutine that captured `now` slightly later
+			// than us could have appended an entry past our window. We
+			// can't break here because earlier entries might still be
+			// in-window; just skip this one.
+			continue
+		}
+		out = append(out, c)
+	}
+	// Reverse to oldest-first.
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
 // snapshotActive returns a copy of the currently-held write transactions.
 // Used at the moment of a begin_busy failure so the page can show exactly
 // who was on the writer slot while this caller waited it out.
@@ -752,6 +997,7 @@ type trackerSnapshot struct {
 	WriteCallers map[string]writeCallerSnapshot
 	ReadCallers  map[string]readCallerSnapshot
 	RecentWrite  []txSample
+	RecentBusy   []txSample
 	RecentRead   []txSample
 	Active       []activeTx
 }
@@ -759,18 +1005,38 @@ type trackerSnapshot struct {
 // writeCallerSnapshot mirrors the original per-caller stats shape, minus
 // the now-removed Max column.
 type writeCallerSnapshot struct {
-	Count     uint64
-	Commits   uint64
-	Rollbacks uint64
-	BusyCount uint64
-	HoldP10Ms float64
-	HoldP50Ms float64
-	HoldP90Ms float64
-	HoldP99Ms float64
-	WaitP10Ms float64
-	WaitP50Ms float64
-	WaitP90Ms float64
-	WaitP99Ms float64
+	Count         uint64
+	Commits       uint64
+	Rollbacks     uint64
+	BusyCount     uint64
+	HoldP10Ms     float64
+	HoldP50Ms     float64
+	HoldP90Ms     float64
+	HoldP99Ms     float64
+	WaitP10Ms     float64
+	WaitP50Ms     float64
+	WaitP90Ms     float64
+	WaitP99Ms     float64
+	PoolWaitP10Ms float64
+	PoolWaitP50Ms float64
+	PoolWaitP90Ms float64
+	PoolWaitP99Ms float64
+	TotalP10Ms    float64
+	TotalP50Ms    float64
+	TotalP90Ms    float64
+	TotalP99Ms    float64
+	// TotalHoldMs is the Σ of writer-slot hold durations for this caller
+	// since the tracker started. Surfaces aggregate-volume offenders that
+	// fly under the slow-ring's 100ms threshold but collectively saturate
+	// the writer slot (the loadStore / DiscoverObject pattern).
+	TotalHoldMs float64
+	// SharePct is TotalHoldMs as a percentage of process wall time. A
+	// caller at 25% has owned the writer slot for a quarter of process
+	// life; under WAL the slot is mutually exclusive so the sum across
+	// callers cannot exceed 100% — except for savepoint_top scopes that
+	// only write to per-conn TEMP tables (see the existing temp-table
+	// caveat on the page).
+	SharePct float64
 }
 
 // readCallerSnapshot is the read-only-Save counterpart. Reads never own
@@ -791,18 +1057,27 @@ func (t *txTracker) snapshot() trackerSnapshot {
 	}
 	recentWrite := make([]txSample, len(t.recentWrite))
 	copy(recentWrite, t.recentWrite)
+	recentBusy := make([]txSample, len(t.recentBusy))
+	copy(recentBusy, t.recentBusy)
 	recentRead := make([]txSample, len(t.recentRead))
 	copy(recentRead, t.recentRead)
 	active := make([]activeTx, 0, len(t.active))
 	for _, a := range t.active {
 		active = append(active, a)
 	}
+	trackerStart := t.trackerStart
 	t.mu.Unlock()
+
+	// elapsed is the SharePct denominator. Guarded against zero so a
+	// rendered snapshot taken microseconds after init doesn't divide by
+	// zero — falls back to 0% share until the wall clock advances.
+	elapsedMs := float64(time.Since(trackerStart)) / float64(time.Millisecond)
 
 	out := trackerSnapshot{
 		WriteCallers: make(map[string]writeCallerSnapshot, len(callerNames)),
 		ReadCallers:  make(map[string]readCallerSnapshot, len(callerNames)),
 		RecentWrite:  recentWrite,
+		RecentBusy:   recentBusy,
 		RecentRead:   recentRead,
 		Active:       active,
 	}
@@ -819,8 +1094,15 @@ func (t *txTracker) snapshot() trackerSnapshot {
 		commits := st.write.commits
 		rollbacks := st.write.rollbacks
 		busy := st.write.busyCount
+		holdSumNs := st.write.holdSumNs
 		readCount := st.read.count
 		st.mu.Unlock()
+
+		totalHoldMs := float64(holdSumNs) / float64(time.Millisecond)
+		var sharePct float64
+		if elapsedMs > 0 {
+			sharePct = totalHoldMs / elapsedMs * 100
+		}
 
 		// Callers registered via normalizeCaller but with no recorded
 		// activity at all are skipped — they'd render as blank rows of
@@ -828,19 +1110,31 @@ func (t *txTracker) snapshot() trackerSnapshot {
 		if writeCount > 0 {
 			holdP10, holdP50, holdP90, holdP99 := st.writeHoldPercentilesMs()
 			waitP10, waitP50, waitP90, waitP99 := st.writeWaitPercentilesMs()
+			poolWaitP10, poolWaitP50, poolWaitP90, poolWaitP99 := st.writePoolWaitPercentilesMs()
+			totalP10, totalP50, totalP90, totalP99 := st.writeTotalPercentilesMs()
 			out.WriteCallers[name] = writeCallerSnapshot{
-				Count:     writeCount,
-				Commits:   commits,
-				Rollbacks: rollbacks,
-				BusyCount: busy,
-				HoldP10Ms: holdP10,
-				HoldP50Ms: holdP50,
-				HoldP90Ms: holdP90,
-				HoldP99Ms: holdP99,
-				WaitP10Ms: waitP10,
-				WaitP50Ms: waitP50,
-				WaitP90Ms: waitP90,
-				WaitP99Ms: waitP99,
+				Count:         writeCount,
+				Commits:       commits,
+				Rollbacks:     rollbacks,
+				BusyCount:     busy,
+				HoldP10Ms:     holdP10,
+				HoldP50Ms:     holdP50,
+				HoldP90Ms:     holdP90,
+				HoldP99Ms:     holdP99,
+				PoolWaitP10Ms: poolWaitP10,
+				PoolWaitP50Ms: poolWaitP50,
+				PoolWaitP90Ms: poolWaitP90,
+				PoolWaitP99Ms: poolWaitP99,
+				TotalP10Ms:    totalP10,
+				TotalP50Ms:    totalP50,
+				TotalP90Ms:    totalP90,
+				TotalP99Ms:    totalP99,
+				WaitP10Ms:     waitP10,
+				WaitP50Ms:     waitP50,
+				WaitP90Ms:     waitP90,
+				WaitP99Ms:     waitP99,
+				TotalHoldMs:   totalHoldMs,
+				SharePct:      sharePct,
 			}
 		}
 		if readCount > 0 {

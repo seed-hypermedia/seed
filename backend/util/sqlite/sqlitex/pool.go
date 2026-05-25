@@ -254,6 +254,14 @@ func (p *Pool) Query(ctx context.Context, fn func(conn *sqlite.Conn) error) erro
 	return fn(conn)
 }
 
+// Closed returns a channel that is closed when Pool.Close() is called.
+// Useful for background goroutines that hold resources outside the pool
+// (e.g. a dedicated WAL-checkpoint conn) and need a death signal that
+// isn't predicated on grabbing a pool conn.
+func (p *Pool) Closed() <-chan struct{} {
+	return p.closed
+}
+
 // PoolCloseTimeout is the
 var PoolCloseTimeout = 5 * time.Second
 

@@ -18,6 +18,13 @@ var ErrBeginImmediateTx = errors.New("Failed to begin immediate transaction")
 func WithTx(conn *sqlite.Conn, fn func() error) error {
 	caller := tracker.normalizeCaller(resolveCaller())
 
+	// Single-shot handoff from Pool.WithTx: load + clear the pool-acquire
+	// wait time the wrapper stashed for this conn. Zero for bare-conn
+	// callers (they never went through the pool). The load must happen
+	// before the nested-fallback branch below — that branch hands off to
+	// Save(conn), and a stale value would attribute the wait twice.
+	poolWait := loadAndClearPoolWait(conn)
+
 	// Not allowing nested transactions can often be error-prone.
 	// It might indicate a design flaw in the code, but because this is a wrapper that invokes a callback function,
 	// it's relatively safe to just fallback to a savepoint when we receive a nested transaction error.
@@ -31,6 +38,11 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		// Save() instruments itself (records outcomeSavepoint for the nested
 		// branch since autocommit is false here), so no manual recordTx.
 		if strings.Contains(err.Error(), "transaction within a transaction") {
+			// Re-stash the pool wait so the inner Save sees it. Nested
+			// case is rare; the extra store/load is negligible.
+			if poolWait > 0 {
+				stashPoolWait(conn, poolWait)
+			}
 			releaseSave := Save(conn)
 			fnerr := fn()
 			releaseSave(&fnerr)
@@ -44,9 +56,9 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		switch sqlite.ErrCode(err) {
 		case sqlite.SQLITE_BUSY, sqlite.SQLITE_BUSY_RECOVERY, sqlite.SQLITE_BUSY_SNAPSHOT:
 			heldBy := tracker.snapshotActive()
-			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginBusy, nil, heldBy)
+			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcomeBeginBusy, nil, heldBy)
 		default:
-			tracker.recordTx(caller, beginWait, beginWait, outcomeBeginInterrupted, nil, nil)
+			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcomeBeginInterrupted, nil, nil)
 		}
 		return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 	}
@@ -59,10 +71,10 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if err := fn(); err != nil {
 		stmts := endCapture(conn)
 		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
-			tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts, nil)
+			tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil)
 			return fmt.Errorf("ROLLBACK error: %v; original error: %w", rberr, err)
 		}
-		tracker.recordTx(caller, beginWait, time.Since(t1), outcomeRollback, stmts, nil)
+		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil)
 		return err
 	}
 
@@ -72,30 +84,54 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if commitErr != nil {
 		outcome = outcomeRollback
 	}
-	tracker.recordTx(caller, beginWait, time.Since(t1), outcome, stmts, nil)
+	tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcome, stmts, nil)
 	return commitErr
 }
 
 // WithTx executes fn within an immediate transaction using a new connection from the pool.
 func (p *Pool) WithTx(ctx context.Context, fn func(*sqlite.Conn) error) error {
+	t0 := time.Now()
 	conn, release, err := p.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
+	stashPoolWait(conn, time.Since(t0))
 
 	return WithTx(conn, func() error { return fn(conn) })
 }
 
 // WithSave executes fn within a Savepoint.
 func (p *Pool) WithSave(ctx context.Context, fn func(*sqlite.Conn) error) error {
+	t0 := time.Now()
 	conn, release, err := p.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer release()
+	stashPoolWait(conn, time.Since(t0))
 
 	releaseSave := Save(conn)
+	fnerr := fn(conn)
+	releaseSave(&fnerr)
+	return fnerr
+}
+
+// WithSaveTempOnly is the Pool wrapper for SaveTempOnly. Same shape
+// as WithSave but uses the TEMP-only Save variant — see SaveTempOnly
+// for the contract. Use only when the body writes exclusively to TEMP
+// tables (per-connection temp.* attached DB); never for main-DB
+// writes, since the writer-slot tracker will under-report.
+func (p *Pool) WithSaveTempOnly(ctx context.Context, fn func(*sqlite.Conn) error) error {
+	t0 := time.Now()
+	conn, release, err := p.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	stashPoolWait(conn, time.Since(t0))
+
+	releaseSave := SaveTempOnly(conn)
 	fnerr := fn(conn)
 	releaseSave(&fnerr)
 	return fnerr
@@ -109,11 +145,13 @@ func Read[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*s
 	case *sqlite.Conn:
 		conn = db
 	case *Pool:
+		t0 := time.Now()
 		c, release, err := db.Conn(ctx)
 		if err != nil {
 			return out, err
 		}
 		defer release()
+		stashPoolWait(c, time.Since(t0))
 		conn = c
 	}
 
@@ -129,11 +167,13 @@ func Write[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*
 	case *sqlite.Conn:
 		conn = db
 	case *Pool:
+		t0 := time.Now()
 		c, release, err := db.Conn(ctx)
 		if err != nil {
 			return out, err
 		}
 		defer release()
+		stashPoolWait(c, time.Since(t0))
 		conn = c
 	}
 

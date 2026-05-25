@@ -23,10 +23,15 @@ import (
 import "C"
 
 // walCheckpointInterval is how often the background goroutine runs PRAGMA
-// wal_checkpoint(PASSIVE). 5s amortises checkpoint cost away from the
-// foreground writer without letting the WAL grow large enough to trigger an
-// inline auto-checkpoint at the wal_autocheckpoint threshold below.
-const walCheckpointInterval = 5 * time.Second
+// wal_checkpoint(PASSIVE). Tightened from 5s to 2s after live diagnosis on
+// /debug/sqlite showed individual ticks taking 0.5-1.6s on a slow disk
+// (the per-fsync latency is the floor, not per-frame work). A 2s cadence
+// keeps the WAL small enough that any single tick touches few frames,
+// reduces the worst-case window of slow-COMMIT exposure via kernel
+// writeback, and reduces the briefly-held writer-mutex contention that
+// PRAGMA wal_checkpoint(PASSIVE) takes during its WAL-header update.
+// Tradeoff: more goroutine wakeups. Negligible at this cadence (~30/min).
+const walCheckpointInterval = 2 * time.Second
 
 // walAutoCheckpointPages is the threshold (in WAL pages) above which SQLite
 // would auto-checkpoint inline on COMMIT. Raised from the 1000-page default
@@ -39,34 +44,57 @@ const walAutoCheckpointPages = 10_000
 // OpenSQLite opens a connection pool for SQLite, enabling some needed functionality for our schema
 // like foreign keys.
 //
-// Also spawns a background PRAGMA wal_checkpoint(PASSIVE) goroutine; this
-// keeps the WAL bounded without making foreground writers pay the
-// page-migration fsync cost on COMMIT. Stopping the checkpointer is wired
-// into Pool.Close via the closeWALCheckpointer hook below.
+// Also spawns a background PRAGMA wal_checkpoint(PASSIVE) goroutine on a
+// DEDICATED *sqlite.Conn (not borrowed from the pool). The dedicated
+// conn means a slow checkpoint tick (disk fsync stalls can push
+// wal_checkpoint to >1 s even for tiny WALs) does NOT shrink the
+// foreground pool by 1 for the duration. The goroutine self-exits when
+// pool.Closed() fires; a small reaper goroutine then closes the
+// dedicated conn so resources are released cleanly.
 func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool, error) {
-	pool, err := openSQLite(uri, flags, poolSize,
+	prelude := []string{
 		"PRAGMA foreign_keys = ON;",
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
-		// "PRAGMA cache_size = -20000;",
+		"PRAGMA cache_size = -262144;",
 		"PRAGMA temp_store = MEMORY;",
 		// Push the foreground auto-checkpoint threshold well above what the
 		// background goroutine should ever let the WAL reach. See doc comment
 		// on walAutoCheckpointPages.
 		fmt.Sprintf("PRAGMA wal_autocheckpoint = %d;", walAutoCheckpointPages),
-	)
+	}
+	pool, err := openSQLite(uri, flags, poolSize, prelude...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Spawn the background checkpointer. The returned stop func is intentionally
-	// discarded: the goroutine self-exits when pool.Close() is called (its next
-	// pool.Conn call returns ErrPoolClosed). That means there's a worst-case
-	// goroutine-alive window of `walCheckpointInterval` after pool.Close, which
-	// is acceptable — the goroutine is idle on a ticker, not holding a conn.
-	_ = sqlitex.StartWALCheckpointer(pool, walCheckpointInterval, zapLogger{
+	// Open the dedicated checkpoint conn with the same URI/flags as the
+	// pool, apply the same prelude so its view of foreign_keys / journal
+	// mode / etc. is consistent.
+	ckptConn, err := sqlite.OpenConn(uri, flags)
+	if err != nil {
+		_ = pool.Close()
+		return nil, fmt.Errorf("open dedicated WAL-checkpoint conn: %w", err)
+	}
+	for _, stmt := range prelude {
+		if err := sqlitex.ExecTransient(ckptConn, stmt, nil); err != nil {
+			_ = ckptConn.Close()
+			_ = pool.Close()
+			return nil, fmt.Errorf("apply prelude to dedicated WAL-checkpoint conn: %w", err)
+		}
+	}
+
+	stop := sqlitex.StartWALCheckpointer(pool, ckptConn, walCheckpointInterval, zapLogger{
 		log: logging.New("seed/sqlite/wal", "info"),
 	})
+	// Reaper: on pool.Close, stop the checkpointer goroutine, then close
+	// the dedicated conn. Order matters — closing the conn while the
+	// goroutine is still running its tick would race PRAGMA execution.
+	go func() {
+		<-pool.Closed()
+		stop()
+		_ = ckptConn.Close()
+	}()
 	return pool, nil
 }
 

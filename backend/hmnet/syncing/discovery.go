@@ -195,7 +195,14 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	store := newAuthorizedStore()
 	{
 		ctx := ctxLocalPeers
-		if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables
+		// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces). These
+		// don't take the main-DB writer mutex, so this scope is
+		// excluded from /debug/sqlite's writer-slot sections — the
+		// real bitswap-write scopes that come later in
+		// DiscoverObjectWithProgress still use regular WithSave/WithTx
+		// and are tracked normally. See SaveTempOnly contract.
+		if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
 			// Client-side RBSR: include all local blobs (nil = no filter).
 			return loadRBSRStore(conn, dkeys, store)
 		}); err != nil {

@@ -52,20 +52,53 @@ import (
 //
 // https://www.sqlite.org/lang_savepoint.html
 func Save(conn *sqlite.Conn) (releaseFn func(*error)) {
-	name := "sqlitex.Save" // safe as names can be reused
-	var pc [3]uintptr
-	if n := runtime.Callers(0, pc[:]); n > 0 {
+	return saveImpl(conn, savepointName(), false)
+}
+
+// SaveTempOnly is identical to Save except it tells the writer-slot
+// tracker that any writes inside the scope go to TEMP tables only and
+// do NOT take the main-DB writer mutex. The scope records as
+// savepoint_ro on /debug/sqlite regardless of conn.Changes() going up,
+// so it stays out of the Write operations / Aggregate writer-slot
+// utilization / Slowest write operations sections.
+//
+// CONTRACT: the caller must guarantee the body only writes to TEMP
+// tables. If a main-DB write sneaks in, the writer-slot tracker will
+// under-report contention and the operator becomes blind to this
+// caller as a real lock holder. Audit the callsite before using this.
+//
+// Mechanism: skips armCapturePromoter, so the lazy "this Save wrote"
+// signal that conn.Changes() would otherwise trip is never installed.
+// The deferred close then takes the !promoted branch and records as
+// outcomeSavepointReadOnly. Statements are still captured for the
+// recent-read ring rendering.
+//
+// Use cases verified in this repo: loadRBSRStore (writes only to TEMP
+// rbsr_iris / rbsr_blobs). Add more callers only after careful audit.
+func SaveTempOnly(conn *sqlite.Conn) (releaseFn func(*error)) {
+	return saveImpl(conn, savepointName(), true)
+}
+
+// savepointName walks the stack to find the function that called Save
+// or SaveTempOnly. Used as the SAVEPOINT identifier on the wire — not
+// load-bearing semantically (any unique string works), but useful for
+// debugging when nested savepoints share an outer scope.
+//
+// Skip count = 3: runtime.Callers + savepointName + Save (or SaveTempOnly).
+func savepointName() string {
+	name := "sqlitex.Save"
+	var pc [1]uintptr
+	if n := runtime.Callers(3, pc[:]); n > 0 {
 		frames := runtime.CallersFrames(pc[:n])
-		if _, more := frames.Next(); more { // runtime.Callers
-			if _, more := frames.Next(); more { // savepoint.Save
-				frame, _ := frames.Next() // caller we care about
-				if frame.Function != "" {
-					name = frame.Function
-				}
-			}
+		frame, _ := frames.Next()
+		if frame.Function != "" {
+			name = frame.Function
 		}
 	}
+	return name
+}
 
+func saveImpl(conn *sqlite.Conn, name string, tempOnly bool) (releaseFn func(*error)) {
 	if strings.Contains(name, `"`) {
 		panic(fmt.Errorf("sqlitex.Save: invalid name: %q", name))
 	}
@@ -76,6 +109,11 @@ func Save(conn *sqlite.Conn) (releaseFn func(*error)) {
 	// it now so we don't double-instrument inside WithTx's own scope and
 	// don't clobber its capture buffer.
 	nested := !conn.GetAutocommit()
+	// Single-shot handoff from Pool.WithSave / Read[] / Write[]: load the
+	// pool-acquire wait time so we can attribute it to this scope. Zero
+	// for bare-Save callers and for the nested-tx fallback from WithTx
+	// (in that case WithTx itself already consumed the value).
+	poolWait := loadAndClearPoolWait(conn)
 
 	t0 := time.Now()
 	if err := Exec(conn, fmt.Sprintf("SAVEPOINT %q;", name), nil); err != nil {
@@ -118,13 +156,23 @@ func Save(conn *sqlite.Conn) (releaseFn func(*error)) {
 		// begin_busy victims they never actually blocked. The lazy promoter
 		// runs from captureExecStart's done-closure the first time it sees
 		// conn.Changes() > 0 (DML) or a DDL/maintenance verb.
+		//
+		// tempOnly callers (via SaveTempOnly) skip the promoter: their
+		// writes hit TEMP tables only, which bump conn.Changes() but do
+		// NOT take the main-DB writer mutex. Without the promoter
+		// installed, the deferred close naturally takes the !promoted
+		// branch and records as savepoint_ro — keeping the caller off
+		// the writer-slot sections of /debug/sqlite. Statements are
+		// still captured for the recent-read ring.
 		beginCapture(conn)
-		armCapturePromoter(conn, func() {
-			promoteOnce.Do(func() {
-				activeID = tracker.startActive(caller)
-				promoted = true
+		if !tempOnly {
+			armCapturePromoter(conn, func() {
+				promoteOnce.Do(func() {
+					activeID = tracker.startActive(caller)
+					promoted = true
+				})
 			})
-		})
+		}
 	}
 	t1 := time.Now()
 
@@ -167,7 +215,7 @@ func Save(conn *sqlite.Conn) (releaseFn func(*error)) {
 					outcome = outcomeRollback
 				}
 			}
-			tracker.recordTx(caller, wait, hold, outcome, stmts, nil)
+			tracker.recordTx(caller, wait, hold, poolWait, outcome, stmts, nil)
 		}()
 
 		// If a query was interrupted or if a user exec'd COMMIT or

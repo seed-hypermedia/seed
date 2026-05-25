@@ -2,7 +2,6 @@ package sqlitex
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -131,18 +130,23 @@ func init() {
 }
 
 // StartWALCheckpointer launches a background goroutine that, at the given
-// interval, borrows a connection from pool and runs
-// PRAGMA wal_checkpoint(PASSIVE). It exits cleanly when pool is closed
-// (pool.Conn returns ErrPoolClosed) or when stop() is called.
+// interval, runs PRAGMA wal_checkpoint(PASSIVE) on conn. The conn is
+// dedicated to the checkpointer and is NOT part of the main Pool — that
+// way a slow checkpoint (disk fsync stalls can push wal_checkpoint to
+// >1 s even for tiny WALs) does NOT shrink the foreground pool by 1
+// for the duration. The goroutine self-exits when pool.Closed() fires.
 //
-// Recommended interval: 2s-5s. Cadence below 1s wastes work; above 30s lets
-// the WAL grow large enough that an eventual auto-checkpoint trip stalls a
-// foreground writer.
+// The caller is responsible for opening conn (typically the same URI/
+// flags used for the main pool, with the same prelude PRAGMAs applied)
+// and for closing it after the returned stop function returns.
 //
-// The returned stop function blocks until the goroutine has exited and the
-// pool connection has been returned. It is safe to call stop() multiple
-// times; subsequent calls are no-ops.
-func StartWALCheckpointer(pool *Pool, interval time.Duration, log Logger) func() {
+// Recommended interval: 1s-3s. Cadence below 1s wastes work; above 5s
+// lets the WAL grow large enough that an eventual auto-checkpoint trip
+// stalls a foreground writer.
+//
+// The returned stop function blocks until the goroutine has exited.
+// It is safe to call stop() multiple times; subsequent calls are no-ops.
+func StartWALCheckpointer(pool *Pool, conn *sqlite.Conn, interval time.Duration, log Logger) func() {
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
@@ -161,12 +165,11 @@ func StartWALCheckpointer(pool *Pool, interval time.Duration, log Logger) func()
 			select {
 			case <-ctx.Done():
 				return
+			case <-pool.Closed():
+				return
 			case <-t.C:
 			}
-			if !runOneCheckpoint(ctx, pool, log) {
-				// Pool closed — no point in continuing.
-				return
-			}
+			runOneCheckpoint(conn, log)
 		}
 	}()
 
@@ -179,22 +182,12 @@ func StartWALCheckpointer(pool *Pool, interval time.Duration, log Logger) func()
 	}
 }
 
-// runOneCheckpoint executes one PASSIVE checkpoint and records the result.
-// Returns false if the pool is closed (caller should exit its loop).
-func runOneCheckpoint(ctx context.Context, pool *Pool, log Logger) bool {
-	conn, release, err := pool.Conn(ctx)
-	if err != nil {
-		if errors.Is(err, ErrPoolClosed) || errors.Is(err, context.Canceled) {
-			return false
-		}
-		// Transient inability to grab a conn (e.g. all in use) — log and try
-		// again next tick. Not fatal.
-		globalCheckpointTracker.record(CheckpointResult{When: time.Now(), Err: err})
-		log.Warn("WALCheckpointConnFailed", "err", err)
-		return true
-	}
-	defer release()
-
+// runOneCheckpoint executes one PASSIVE checkpoint on the dedicated
+// conn and records the result. Errors are logged + recorded but do not
+// terminate the loop — a transient SQLITE_BUSY (e.g. another writer
+// crossing the WAL header at the wrong instant) just means we retry
+// next tick.
+func runOneCheckpoint(conn *sqlite.Conn, log Logger) {
 	var busy, walLog, ckpt int64
 	t0 := time.Now()
 	execErr := Exec(conn, "PRAGMA wal_checkpoint(PASSIVE);", func(stmt *sqlite.Stmt) error {
@@ -217,7 +210,7 @@ func runOneCheckpoint(ctx context.Context, pool *Pool, log Logger) bool {
 
 	if execErr != nil {
 		log.Warn("WALCheckpointFailed", "err", execErr, "duration", dur)
-		return true
+		return
 	}
 
 	mCheckpointDuration.Observe(dur.Seconds())
@@ -228,7 +221,6 @@ func runOneCheckpoint(ctx context.Context, pool *Pool, log Logger) bool {
 	if busy != 0 {
 		mCheckpointBusy.Inc()
 	}
-	return true
 }
 
 // Logger is a minimal logging interface so this package doesn't take a

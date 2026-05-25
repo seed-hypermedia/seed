@@ -378,7 +378,15 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 	MReconcileServerPhaseSeconds.WithLabelValues("auth_resolve").Observe(time.Since(authStart).Seconds())
 
 	loadStart := time.Now()
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables
+	// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces, all created
+	// via ensureTempTable in discovery.go). These don't take the
+	// main-DB writer mutex, so opting out of writer-slot accounting
+	// keeps loadStore off /debug/sqlite's Aggregate-utilization and
+	// Slowest-write sections — where it was previously the dominant
+	// false-positive offender due to high call rate (one per inbound
+	// ReconcileBlobs RPC). See SaveTempOnly contract.
+	if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
 		return loadRBSRStore(conn, dkeys, store)
 	}); err != nil {
 		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())

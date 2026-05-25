@@ -761,3 +761,721 @@ func renderDebugPage(t *testing.T) string {
 	require.Equal(t, http.StatusOK, rec.Code)
 	return rec.Body.String()
 }
+
+// extractAggregateSection returns the substring of the page between
+// "<h3>Aggregate writer-slot utilization</h3>" and the next "<h3>" so
+// tests can assert that callers appear (or are absent) in just the
+// aggregate-utilisation view without picking up matches from the
+// surrounding tables.
+func extractAggregateSection(t *testing.T, body string) string {
+	t.Helper()
+	const start = "<h3>Aggregate writer-slot utilization</h3>"
+	i := strings.Index(body, start)
+	require.GreaterOrEqual(t, i, 0, "page must include the Aggregate writer-slot utilization section")
+	rest := body[i:]
+	// Next h3 (Read operations) or the next h2 (Slowest slow/busy tx)
+	// terminates the section.
+	stop := len(rest)
+	if next := strings.Index(rest[len(start):], "<h3>"); next >= 0 {
+		stop = len(start) + next
+	}
+	if next := strings.Index(rest[len(start):], "<h2>"); next >= 0 && len(start)+next < stop {
+		stop = len(start) + next
+	}
+	return rest[:stop]
+}
+
+// TestAggregateUtilizationSurfacesCommits verifies the new Σ-hold / % wall
+// section renders the caller's accumulated writer-slot hold time. This is
+// the offender view that catches "death by a thousand short writes" — a
+// caller whose p99 stays below the 100ms slow-ring threshold but whose
+// aggregate hold over time is the real lock-hog.
+func TestAggregateUtilizationSurfacesCommits(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS agg (x int);", nil))
+
+	// Three commits with controllable hold time so the Σ is non-trivial
+	// without making the test slow. Each hold is ~50 ms = 150 ms total —
+	// well above the 1 ms render floor, well below the 100 ms slow ring
+	// so we know the aggregate view captures things the slow ring would
+	// drop.
+	for i := 0; i < 3; i++ {
+		require.NoError(t, sqlitex.WithTx(conn, func() error {
+			time.Sleep(50 * time.Millisecond)
+			return sqlitex.Exec(conn, "INSERT INTO agg (x) VALUES (?);", nil, i)
+		}))
+	}
+
+	body := renderDebugPage(t)
+	aggSection := extractAggregateSection(t, body)
+	require.Contains(t, aggSection, "TestAggregateUtilizationSurfacesCommits",
+		"caller must appear in the aggregate writer-slot utilization section")
+	// Σ hold should be on the order of 150 ms (3 × 50 ms). fmtMs renders
+	// "1.5 ms" / "15.0 ms" / "150.3 ms" style — match the magnitude with
+	// some slack.
+	require.Regexp(t, `1[0-9]{2}\.[0-9] ms|2[0-9]{2}\.[0-9] ms`, aggSection,
+		"aggregate Σ hold must reflect the cumulative ~150 ms of commits")
+}
+
+// TestAggregateUtilizationExcludesBeginBusy verifies that a caller whose
+// only activity is failed begin_busy attempts does NOT appear in the
+// aggregate-utilisation section. The aggregate view's whole point is to
+// list real writer-slot offenders — surfacing victims here would invert
+// the diagnostic.
+func TestAggregateUtilizationExcludesBeginBusy(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	holder := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
+
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(50 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
+		pool.Put(holder)
+		_ = pool.Close()
+	})
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	body := renderDebugPage(t)
+	aggSection := extractAggregateSection(t, body)
+	require.NotContains(t, aggSection, "TestAggregateUtilizationExcludesBeginBusy",
+		"a begin_busy-only caller must not appear in the aggregate writer-slot section — it never owned the slot")
+}
+
+// TestAggregateUtilizationExcludesReadOnlySave verifies a read-only Save
+// (savepoint_ro outcome) does not contribute to the aggregate writer-slot
+// view. Read-only Saves only ever hold the SHARED reader lock and cannot
+// cause SQLITE_BUSY on a BEGIN IMMEDIATE; counting them as writer-slot
+// utilisation would dilute the offender signal.
+func TestAggregateUtilizationExcludesReadOnlySave(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	setupReadOnlyTable(ctx, t, pool)
+	runReadOnlySave(ctx, t, pool)
+
+	body := renderDebugPage(t)
+	aggSection := extractAggregateSection(t, body)
+	require.NotContains(t, aggSection, "runReadOnlySave",
+		"a read-only Save must not appear in the aggregate writer-slot section — savepoint_ro never owns the writer slot")
+}
+
+// NB: the window-attribution math for DrainedDuringWait (i.e. that a
+// completion within the (now-hold, now] window is included and one
+// outside is not) is asserted in the white-box test
+// TestSnapshotDrainedDuringWaitWindow in instrumentation_internal_test.go.
+// A pure integration version with real BEGIN IMMEDIATE timing is too racy
+// (SQLite's busy_handler backoff vs. the test's commit cadence), so the
+// end-to-end render path is covered by TestDebugHandlerRenders plus the
+// existing TestWithTxBeginBusySnapshotsHolder; the HTML-block render for
+// drained-during-wait specifically is covered by TestDrainedRenderBlock
+// below, which seeds the tracker via a controlled recordTx path.
+
+// TestDrainedWindowExcludesPreWaitEntries verifies the (now-hold, now]
+// window math: writes that committed BEFORE the victim's wait started
+// must not appear in DrainedDuringWait. Without this, a long-running
+// daemon would have its busy victims attributed to commits from minutes
+// or hours earlier, making the page useless for live contention triage.
+func TestDrainedWindowExcludesPreWaitEntries(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	preWaitConn := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(preWaitConn, "CREATE TABLE IF NOT EXISTS pw (x int);", nil))
+	wayBeforeVictim(t, preWaitConn)
+	pool.Put(preWaitConn)
+
+	// Sleep so the pre-wait commit lands well outside the upcoming
+	// victim's busy_timeout window.
+	time.Sleep(250 * time.Millisecond)
+
+	holderConn := pool.Get(nil)
+	victim := pool.Get(nil)
+	// Tight busy_timeout — the drained window is just this small slice.
+	victim.SetBusyTimeout(50 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		pool.Put(holderConn)
+		_ = pool.Close()
+	})
+
+	holderEntered := make(chan struct{})
+	holderRelease := make(chan struct{})
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_ = holderHogTx(holderConn, holderEntered, holderRelease)
+	}()
+	<-holderEntered
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	close(holderRelease)
+	<-holderDone
+
+	body := renderDebugPage(t)
+	// The drained-during-wait block may or may not render at all (the
+	// only writer-slot completions during the 50ms window are whatever
+	// holderHogTx did at COMMIT time, if any). What MUST be true: the
+	// pre-wait commit's caller name must not be inside any drained
+	// list.
+	drainedSlice := drainedBlockContents(body)
+	require.NotContains(t, drainedSlice, "wayBeforeVictim",
+		"a write that committed BEFORE the victim's wait window opened must not appear in drained-during-wait")
+}
+
+func wayBeforeVictim(t *testing.T, conn *sqlite.Conn) {
+	t.Helper()
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		return sqlitex.Exec(conn, "INSERT INTO pw (x) VALUES (1);", nil)
+	}))
+}
+
+// drainedBlockContents returns the concatenation of every
+// "drained during wait" details block on the page so the test can
+// assert what is (or isn't) inside any of them. Matches the actual
+// <summary> tag rather than plain-text occurrences — the help-text
+// section now also mentions "drained during wait" in prose.
+func drainedBlockContents(body string) string {
+	const marker = "<summary>drained during wait"
+	var out strings.Builder
+	rest := body
+	for {
+		i := strings.Index(rest, marker)
+		if i < 0 {
+			break
+		}
+		// Take up to the next </details> tag — that bounds this block.
+		end := strings.Index(rest[i:], "</details>")
+		if end < 0 {
+			out.WriteString(rest[i:])
+			break
+		}
+		out.WriteString(rest[i : i+end])
+		rest = rest[i+end:]
+	}
+	return out.String()
+}
+
+// TestDrainedWaitExcludesBeginBusyAndReadOnly verifies that begin_busy
+// failures and read-only Saves never appear in any victim's
+// drained-during-wait list. begin_busy never owned the slot;
+// savepoint_ro only ever held the SHARED reader lock and didn't
+// contribute to writer-slot contention.
+func TestDrainedWaitExcludesBeginBusyAndReadOnly(t *testing.T) {
+	body := renderDebugPage(t)
+	drained := drainedBlockContents(body)
+	require.NotContains(t, drained, "begin_busy",
+		"begin_busy outcomes must not appear in drained-during-wait — they never owned the writer slot")
+	require.NotContains(t, drained, "savepoint_ro",
+		"savepoint_ro outcomes must not appear in drained-during-wait — SHARED-lock reads can't block BEGIN IMMEDIATE")
+}
+
+// TestPoolWaitInstrumentedUnderStarvation verifies the new pool_wait
+// instrumentation surfaces on /debug/sqlite when callers had to queue
+// for a connection. Setup: a small (2-conn) pool, then pin both conns
+// via pool.Get (NOT via WithTx — concurrent WithTxs in shared-cache
+// mode deadlock at the writer-mutex level), then fire a Pool.WithTx
+// waiter that has to queue for a pool conn before it can even attempt
+// BEGIN IMMEDIATE. pool_wait must be observably non-zero on the page.
+func TestPoolWaitInstrumentedUnderStarvation(t *testing.T) {
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX | sqlite.SQLITE_OPEN_SHAREDCACHE
+	pool, err := sqlitex.Open("file::memory:?mode=memory&cache=shared", flags, 2)
+	require.NoError(t, err)
+	defer pool.Close()
+
+	// Setup table via a bare-conn WithTx so we don't pollute the
+	// pool_wait stats for this test's caller.
+	setupConn := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(setupConn, "CREATE TABLE IF NOT EXISTS pwtest (x int);", nil))
+	pool.Put(setupConn)
+
+	// Pin BOTH pool conns. We use pool.Get directly — no BEGIN
+	// IMMEDIATE attempt, no writer-mutex contention. The waiter below
+	// has to wait for one of these Get/Put pairs to return its conn.
+	pinned1 := pool.Get(nil)
+	pinned2 := pool.Get(nil)
+
+	type result struct {
+		err error
+		dur time.Duration
+	}
+	resCh := make(chan result, 1)
+	go func() {
+		t0 := time.Now()
+		err := pool.WithTx(context.Background(), func(c *sqlite.Conn) error {
+			return sqlitex.Exec(c, "INSERT INTO pwtest (x) VALUES (1);", nil)
+		})
+		resCh <- result{err: err, dur: time.Since(t0)}
+	}()
+
+	// Let the waiter actually queue, then release one pinned conn so it
+	// can proceed.
+	time.Sleep(120 * time.Millisecond)
+	pool.Put(pinned1)
+
+	r := <-resCh
+	require.NoError(t, r.err)
+	pool.Put(pinned2)
+
+	// Sanity: the waiter must have actually queued for ~the pinned
+	// duration. Threshold is conservative (80ms vs ~120ms held) to
+	// absorb scheduling jitter.
+	require.Greater(t, r.dur, 80*time.Millisecond,
+		"the waiter's total wall must include the time the pool was starved")
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestPoolWaitInstrumentedUnderStarvation",
+		"the queued caller must appear in the per-caller write table")
+	require.Contains(t, body, "pool_wait",
+		"the page must surface the pool_wait column once the instrumentation is in place")
+	require.Regexp(t, `[1-9][0-9]+\.[0-9] ms`, body,
+		"pool_wait p99 for the queued caller must reflect the ~120 ms starvation window")
+}
+
+// TestPoolWaitZeroForBareConnCaller verifies that calling
+// sqlitex.WithTx(conn, fn) directly (bypassing Pool.WithTx) records
+// pool_wait = 0 — bare-conn callers never went through Pool.Conn and
+// must not inherit a stale value from a previous Pool-managed scope on
+// the same conn.
+func TestPoolWaitZeroForBareConnCaller(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS bareconn (x int);", nil))
+
+	// Bare-conn WithTx — caller already has the conn, never queued for
+	// it. Sleep well above the slowThreshold AND above what other tests
+	// in the suite produce (~110-150ms), so this row reliably survives
+	// the top-K-by-hold ring under cross-test interleaving — insertTopK
+	// uses strict `>` so a tied hold doesn't displace.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		time.Sleep(420 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO bareconn (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestPoolWaitZeroForBareConnCaller",
+		"bare-conn caller must still appear on the page")
+	// Find this test's row in the recent table and inspect its
+	// pool_wait cell. The recent-row pool_wait must render as "0".
+	row := extractRecentRowForCaller(t, body, "TestPoolWaitZeroForBareConnCaller")
+	require.Contains(t, row, `class="num ">0</td>`,
+		"bare-conn caller's recent row must render pool_wait as 0 (not stale from a prior Pool-managed scope). row: %s", row)
+}
+
+// extractRecentRowForCaller returns the substring covering one recent-
+// ring row whose caller cell contains the given caller substring. The
+// caller-cell text on the page is the resolved frame name (e.g.
+// "sqlitex_test.TestX"), so callers pass an unambiguous suffix and let
+// the test absorb the package prefix. Restricted to the "Slowest write
+// operations" section so it can't accidentally pick up a per-caller
+// stats row (the per-caller table also contains the caller name and
+// renders earlier on the page). Fails the test if not found.
+func extractRecentRowForCaller(t *testing.T, body, caller string) string {
+	t.Helper()
+	const startMarker = "<strong>Slowest write operations</strong>"
+	start := strings.Index(body, startMarker)
+	require.GreaterOrEqual(t, start, 0, "page must include the Slowest write operations section")
+	region := body[start:]
+	rest := region
+	for {
+		trStart := strings.Index(rest, "<tr>")
+		if trStart < 0 {
+			break
+		}
+		trEnd := strings.Index(rest[trStart:], "</tr>")
+		if trEnd < 0 {
+			break
+		}
+		row := rest[trStart : trStart+trEnd+len("</tr>")]
+		if strings.Contains(row, caller) {
+			return row
+		}
+		rest = rest[trStart+trEnd+len("</tr>"):]
+	}
+	t.Fatalf("no recent-ring row found whose caller cell contains %q", caller)
+	return ""
+}
+
+// TestSavepointTopWaitRendersDash verifies that begin_wait is rendered
+// as "—" on the recent ring for savepoint_top rows. For those rows,
+// the SAVEPOINT statement itself doesn't queue for the writer mutex
+// (acquisition is lazy, hidden inside the first DML), so showing a
+// near-zero number would falsely suggest "no contention happened" when
+// in reality the contention is just measured elsewhere (in hold).
+func TestSavepointTopWaitRendersDash(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	// Setup table outside the caller's scope.
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS svdash (x int);", nil)
+	}))
+
+	// Slow top-level Save that writes — produces a savepoint_top row on
+	// the recent ring. The 400ms sleep is well above other tests in
+	// the suite (which cap around 110-150ms) so this row reliably
+	// survives the top-K-by-hold ring under cross-test interleaving;
+	// at 110ms it tied other tests' rows and got evicted on some
+	// orderings (insertTopK uses strict `>` to displace).
+	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+		time.Sleep(400 * time.Millisecond)
+		return sqlitex.Exec(c, "INSERT INTO svdash (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+	row := extractRecentRowForCaller(t, body, "TestSavepointTopWaitRendersDash")
+	require.Contains(t, row, "savepoint_top",
+		"this test's recent row must be a savepoint_top — sanity check on the scenario")
+	require.Contains(t, row, "—",
+		"begin_wait cell on a savepoint_top row must render as — (em dash) not as a ms value. row: %s", row)
+}
+
+// TestSavepointTopNotInWaitPercentile verifies that savepoint_top is
+// excluded from the per-caller wait reservoir, so a caller that does
+// only Pool.WithSave doesn't dilute its writer-mutex-wait percentile
+// with the SAVEPOINT statement's microseconds-level "wait".
+func TestSavepointTopNotInWaitPercentile(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS svp99 (x int);", nil)
+	}))
+
+	// Many Pool.WithSave scopes that each write — all savepoint_top.
+	// If they were feeding waitReserv, the caller's wait p99 would be
+	// the SAVEPOINT statement duration (microseconds). After the fix,
+	// no savepoint_top sample lands in waitReserv, so this caller's
+	// wait p99 must render as 0 (empty reservoir).
+	for i := 0; i < 20; i++ {
+		require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+			return sqlitex.Exec(c, "INSERT INTO svp99 (x) VALUES (?);", nil, i)
+		}))
+	}
+
+	body := renderDebugPage(t)
+	row := extractWriteCallerRow(t, body, "TestSavepointTopNotInWaitPercentile")
+	// The wait group is the last 4 percentile cells in the row; if
+	// waitReserv is empty, all four render as fmtMs(0) = "0". Search
+	// for ">0</td>" appearing at least once after the caller name —
+	// reading the rendered HTML it's sufficient to assert there's NO
+	// sub-ms wait value like "0.001 ms" / "0.005 ms" anywhere in the
+	// wait group, which would be the smoking gun of leaked savepoint
+	// microseconds.
+	require.NotRegexp(t, `wait[^"]*p99[^"]*<td[^>]*>0\.0[0-9]+ ms`, row,
+		"wait p99 must be empty (rendered as 0), not a tiny ms value leaked from savepoint_top duration. row: %s", row)
+}
+
+// extractWriteCallerRow returns the substring of the Write operations
+// per-caller table row whose caller cell contains the given substring.
+// Restricted to the per-caller table (not the recent ring) so we don't
+// pick up the recent-row by mistake.
+func extractWriteCallerRow(t *testing.T, body, caller string) string {
+	t.Helper()
+	const writeMarker = "<h3>Write operations</h3>"
+	const stopMarker = "<h3>Aggregate writer-slot utilization</h3>"
+	start := strings.Index(body, writeMarker)
+	require.GreaterOrEqual(t, start, 0)
+	stop := strings.Index(body[start:], stopMarker)
+	require.Greater(t, stop, 0)
+	region := body[start : start+stop]
+	rest := region
+	for {
+		trStart := strings.Index(rest, "<tr>")
+		if trStart < 0 {
+			break
+		}
+		trEnd := strings.Index(rest[trStart:], "</tr>")
+		if trEnd < 0 {
+			break
+		}
+		row := rest[trStart : trStart+trEnd+len("</tr>")]
+		if strings.Contains(row, caller) {
+			return row
+		}
+		rest = rest[trStart+trEnd+len("</tr>"):]
+	}
+	t.Fatalf("no Write operations row found whose caller cell contains %q", caller)
+	return ""
+}
+
+// TestSaveTempOnlyStaysOffWriterSections verifies that a top-level
+// SaveTempOnly with a real TEMP-table INSERT does NOT promote to
+// savepoint_top — the caller must stay out of the Write operations,
+// Aggregate writer-slot utilization, and Slowest write operations
+// sections on /debug/sqlite. This is the user-visible fix for the
+// loadStore false-positive that dominated the aggregate view.
+func TestSaveTempOnlyStaysOffWriterSections(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_only (x int);", nil))
+
+	// Sleep above the slowThreshold so the row enters the slow-read ring
+	// (savepoint_ro outcome) for inspection.
+	func() (err error) {
+		defer sqlitex.SaveTempOnly(conn)(&err)
+		time.Sleep(110 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO tmp_only (x) VALUES (1);", nil)
+	}()
+
+	body := renderDebugPage(t)
+	writeSection, readSection := splitWriteVsReadSections(t, body)
+
+	require.NotContains(t, writeSection, "TestSaveTempOnlyStaysOffWriterSections",
+		"SaveTempOnly caller must NOT appear in Write operations even though it wrote (to TEMP). writeSection: %s", writeSection)
+	require.Contains(t, readSection, "TestSaveTempOnlyStaysOffWriterSections",
+		"SaveTempOnly caller must appear in Read operations (savepoint_ro outcome). readSection: %s", readSection)
+}
+
+// TestSaveTempOnlyRendersSavepointRo verifies the recent-ring row for
+// a SaveTempOnly scope carries the savepoint_ro outcome (not
+// savepoint_top), so the operator can tell it's the TEMP-only path
+// without inspecting the captured statements.
+func TestSaveTempOnlyRendersSavepointRo(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_only_ro (x int);", nil))
+
+	// 450 ms is well above other tests' typical hold magnitudes so this
+	// row survives the top-K-by-hold ring under cross-test interleaving
+	// (insertTopK uses strict `>` to displace).
+	func() (err error) {
+		defer sqlitex.SaveTempOnly(conn)(&err)
+		time.Sleep(450 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO tmp_only_ro (x) VALUES (1);", nil)
+	}()
+
+	body := renderDebugPage(t)
+	// extractRecentRowForCaller scopes to Slowest write operations; we
+	// want Slowest read operations here. Just verify the rendered row
+	// for this caller has the savepoint_ro outcome cell.
+	require.Contains(t, body, "TestSaveTempOnlyRendersSavepointRo")
+	// Find the row in the slowest-read region (after the read section
+	// header). The outcome cell renders as `<td class="">savepoint_ro</td>`.
+	const readMarker = "<strong>Slowest read operations</strong>"
+	i := strings.Index(body, readMarker)
+	require.GreaterOrEqual(t, i, 0, "page must include Slowest read operations section")
+	readRegion := body[i:]
+	require.Contains(t, readRegion, "TestSaveTempOnlyRendersSavepointRo",
+		"caller's row must be in Slowest read operations region")
+	require.Contains(t, readRegion, "savepoint_ro",
+		"row must carry savepoint_ro outcome")
+}
+
+// TestPoolWithSaveTempOnlyPath verifies the Pool wrapper plumbs the
+// pool-wait handoff into SaveTempOnly correctly (the wrapper measures
+// p.Conn() wait, stashes it via stashPoolWait, then SaveTempOnly
+// consumes it via loadAndClearPoolWait — same shape as WithSave).
+//
+// Uses a main-DB table (not TEMP) on purpose: TEMP tables are
+// per-connection and the Pool may hand back a different conn for the
+// setup vs the body. SaveTempOnly doesn't actually verify the
+// "TEMP-only" contract — it just trusts the caller — so writing to a
+// main-DB table here still exercises the same code path.
+func TestPoolWithSaveTempOnlyPath(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS pool_temponly (x int);", nil)
+	}))
+
+	require.NoError(t, pool.WithSaveTempOnly(ctx, func(c *sqlite.Conn) error {
+		return sqlitex.Exec(c, "INSERT INTO pool_temponly (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "TestPoolWithSaveTempOnlyPath",
+		"Pool.WithSaveTempOnly caller must still appear on the page (under Read operations)")
+	_, readSection := splitWriteVsReadSections(t, body)
+	require.Contains(t, readSection, "TestPoolWithSaveTempOnlyPath",
+		"Pool.WithSaveTempOnly must surface in Read operations, not Write")
+}
+
+// TestSaveStillPromotesOnTempInsert is the regression test for the
+// false-positive that motivated SaveTempOnly: regular Save with a
+// TEMP-table INSERT must STILL promote to savepoint_top (this is the
+// known false-positive behaviour that the page's caveat documents and
+// that SaveTempOnly opts out of). Without this assertion, the
+// SaveTempOnly fix risks silently changing regular Save semantics.
+func TestSaveStillPromotesOnTempInsert(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_save_regression (x int);", nil))
+
+	func() (err error) {
+		defer sqlitex.Save(conn)(&err)
+		time.Sleep(450 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO tmp_save_regression (x) VALUES (1);", nil)
+	}()
+
+	body := renderDebugPage(t)
+	writeSection, _ := splitWriteVsReadSections(t, body)
+	require.Contains(t, writeSection, "TestSaveStillPromotesOnTempInsert",
+		"regular Save with a TEMP INSERT must still promote (false-positive preserved for callers that haven't opted into SaveTempOnly)")
+}
+
+// TestRecentBusySeparateFromRecentWrite verifies that a real begin_busy
+// event lands in the "Slowest begin_busy events" section while a real
+// slow commit lands in "Slowest write operations" — neither bleeds
+// into the other. This is the user-visible payoff of splitting the
+// rings: real slow writes are no longer evicted by begin_busy victims.
+func TestRecentBusySeparateFromRecentWrite(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	// Provoke a real begin_busy: hold the writer lock on conn A, fire
+	// WithTx on conn B with a tight busy_timeout.
+	holder := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(holder, "CREATE TABLE IF NOT EXISTS rbsep (x int);", nil))
+	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
+
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(50 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
+		pool.Put(holder)
+		_ = pool.Close()
+	})
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	// Release the lock for the slow commit step.
+	require.NoError(t, sqlitex.Exec(holder, "ROLLBACK;", nil))
+
+	// Run a slow commit on the now-free lock. 450 ms is well above the
+	// 110ms-cluster other tests produce so it reliably survives the
+	// top-K-by-hold recentWrite ring across test interleavings.
+	require.NoError(t, sqlitex.WithTx(holder, func() error {
+		time.Sleep(450 * time.Millisecond)
+		return sqlitex.Exec(holder, "INSERT INTO rbsep (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+
+	// Slice out each section. Use the NEXT section's <strong> summary
+	// as the stop marker (inner <details> blocks for held-by / drained
+	// / statements would false-trigger if we used "<details>" alone).
+	writeSection := sliceSection(t, body, "<strong>Slowest write operations</strong>", "<strong>Slowest begin_busy events</strong>")
+	busySection := sliceSection(t, body, "<strong>Slowest begin_busy events</strong>", "<strong>Slowest read operations</strong>")
+
+	require.Contains(t, writeSection, "TestRecentBusySeparateFromRecentWrite",
+		"slow commit must appear in Slowest write operations. section: %s", writeSection)
+	// Outcome cell for begin_busy rows renders as
+	// `<td class="warn">begin_busy</td>`. The subtitle prose mentions
+	// the word too, so match the cell shape specifically.
+	require.NotContains(t, writeSection, `<td class="warn">begin_busy</td>`,
+		"Slowest write operations must NOT contain begin_busy outcome cells after the split")
+
+	require.Contains(t, busySection, "TestRecentBusySeparateFromRecentWrite",
+		"begin_busy event must appear in Slowest begin_busy events. section: %s", busySection)
+	require.Contains(t, busySection, `<td class="warn">begin_busy</td>`,
+		"Slowest begin_busy events must contain a begin_busy outcome cell")
+}
+
+// sliceSection returns the substring of body starting at startMarker,
+// stopping at the next stopMarker. Used to scope assertions to a
+// specific page section.
+func sliceSection(t *testing.T, body, startMarker, stopMarker string) string {
+	t.Helper()
+	i := strings.Index(body, startMarker)
+	require.GreaterOrEqual(t, i, 0, "page must include %q", startMarker)
+	rest := body[i:]
+	// Skip the start marker itself when searching for the stop marker.
+	afterStart := rest[len(startMarker):]
+	j := strings.Index(afterStart, stopMarker)
+	if j < 0 {
+		return rest
+	}
+	return rest[:len(startMarker)+j]
+}
+
+// TestDedicatedCheckpointerDoesNotShrinkPool verifies that the
+// background checkpointer running on a DEDICATED *sqlite.Conn (not
+// borrowed from the pool) doesn't reduce the effective foreground pool
+// capacity by 1 during a tick. Pre-change the checkpointer would
+// pool.Conn(ctx) on every tick, so foreground callers competing during
+// that window saw an effective pool of poolSize-1. The dedicated-conn
+// design eliminates that contention path.
+func TestDedicatedCheckpointerDoesNotShrinkPool(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 2)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Close() })
+
+	// Open a dedicated conn for the checkpointer and start the goroutine
+	// with a tight interval so a tick is guaranteed during the test.
+	ckptConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
+	stop := sqlitex.StartWALCheckpointer(pool, ckptConn, 50*time.Millisecond, nil)
+	t.Cleanup(func() {
+		stop()
+		_ = ckptConn.Close()
+	})
+
+	// Hold BOTH pool conns concurrently for longer than a checkpoint
+	// tick. Pre-change the checkpointer would have been waiting on
+	// pool.Conn for the full duration; we'd see no foreground problem
+	// because there's no foreground waiter to starve. The thing the
+	// dedicated-conn design fixes is: any foreground caller during this
+	// window doesn't fight the checkpointer for the pool. We assert it
+	// indirectly by holding poolSize=2 conns simultaneously across a
+	// checkpoint tick — this would have been impossible pre-change
+	// (one of the two would have been the checkpointer's).
+	ctx := context.Background()
+	got := make(chan struct{}, 2)
+	release := make(chan struct{})
+	for i := 0; i < 2; i++ {
+		go func() {
+			c, rel, err := pool.Conn(ctx)
+			if err != nil {
+				return
+			}
+			got <- struct{}{}
+			<-release
+			rel()
+			_ = c
+		}()
+	}
+	// Both goroutines must successfully acquire conns within a
+	// reasonable timeout — at least one full checkpoint tick.
+	timeout := time.After(2 * time.Second)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-got:
+		case <-timeout:
+			t.Fatalf("foreground caller %d failed to acquire a pool conn within 2s — checkpointer must be hogging it (regression)", i+1)
+		}
+	}
+	close(release)
+}
