@@ -228,14 +228,6 @@ export const draftRouteSchema = z.object({
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
-export const previewRouteSchema = z.object({
-  key: z.literal('preview'),
-  draftId: z.string().optional(),
-  /** When set, shows the published document (not a draft) with a "published preview" banner. */
-  docId: unpackedHmIdSchema.optional(),
-})
-export type PreviewRoute = z.infer<typeof previewRouteSchema>
-
 export const bookmarksSchema = z.object({
   key: z.literal('bookmarks'),
 })
@@ -293,7 +285,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
-  previewRouteSchema,
   bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,

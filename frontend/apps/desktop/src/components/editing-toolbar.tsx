@@ -1,6 +1,5 @@
 import {useDraft} from '@/models/accounts'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -76,15 +75,6 @@ function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
   const callbacks: EditingToolbarCallbacks = useMemo(
     () => ({
       getDocumentUrl,
-      onOpenPreview: (dId: string | null, id: UnpackedHypermediaId) => {
-        const previewRoute = dId ? {key: 'preview' as const, draftId: dId} : {key: 'preview' as const, docId: id}
-        client.createAppWindow.mutate({
-          routes: [previewRoute],
-          sidebarLocked: false,
-          sidebarWidth: 0,
-          accessoryWidth: 0,
-        })
-      },
       onDiscardConfirm: (discardDraftId: string, send) => {
         deleteDraftDialog.open({
           draftId: discardDraftId,

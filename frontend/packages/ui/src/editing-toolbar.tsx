@@ -29,8 +29,6 @@ import {cn} from './utils'
 export type EditingToolbarCallbacks = {
   /** Resolve the public URL where this doc is/will be available. */
   getDocumentUrl?: (docId: UnpackedHypermediaId) => string | null
-  /** Open a preview window for the draft. Button hidden when undefined. */
-  onOpenPreview?: (draftId: string | null, docId: UnpackedHypermediaId) => void
   /** Confirm + perform discard. Desktop opens delete-draft dialog; web shows a simple confirm. */
   onDiscardConfirm?: (draftId: string, send: (e: DocumentMachineEvent) => void) => void
   /** Path-segment slugifier for the first-publish editable permalink. */
@@ -88,7 +86,6 @@ export function PublishPopoverBody({
   publishDisabled,
   unpublishedChildCount = 0,
   getDocumentUrl,
-  onOpenPreview,
   slugify,
   computeFirstPublishPath,
   onGoToVersions,
@@ -287,19 +284,6 @@ export function PublishPopoverBody({
         >
           Publish: Make it live now
         </Button>
-        {onOpenPreview && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-brand text-brand hover:text-brand dark:border-brand"
-            onClick={() => {
-              onClose()
-              onOpenPreview(draftId, docId)
-            }}
-          >
-            Preview: View before publishing
-          </Button>
-        )}
         <Button size="sm" variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -352,7 +336,6 @@ export function PublishButtonWithPopover({
   existingMenuItems,
   unpublishedChildCount = 0,
   getDocumentUrl,
-  onOpenPreview,
   onDiscardConfirm,
   slugify,
   computeFirstPublishPath,
@@ -437,7 +420,6 @@ export function PublishButtonWithPopover({
             publishDisabled={!canPublish}
             unpublishedChildCount={effectiveUnpublishedChildCount}
             getDocumentUrl={getDocumentUrl}
-            onOpenPreview={onOpenPreview}
             slugify={slugify}
             computeFirstPublishPath={computeFirstPublishPath}
             onGoToVersions={onGoToVersions}
