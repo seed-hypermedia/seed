@@ -507,8 +507,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Notifications'
     case 'draft':
       return 'Draft'
-    case 'preview':
-      return 'Preview'
     default:
       return null
   }
@@ -529,8 +527,8 @@ function useCurrentRouteUrl(): {
   // Get account entity to check for siteUrl
   const routeId = getRouteId(route)
 
-  // For draft/preview routes, fetch draft data
-  const draftId = route.key === 'draft' ? route.id : route.key === 'preview' ? route.draftId : undefined
+  // For draft routes, fetch draft data
+  const draftId = route.key === 'draft' ? route.id : undefined
   const draft = useDraft(draftId)
   const draftData = draft.data
 
@@ -566,14 +564,14 @@ function useCurrentRouteUrl(): {
   const draftTitle = draftData?.metadata?.name
 
   return useMemo(() => {
-    // Handle draft/preview routes (routeToUrl doesn't support them)
-    if (route.key === 'draft' || route.key === 'preview') {
+    // Handle draft routes (routeToUrl doesn't support them)
+    if (route.key === 'draft') {
       const hostname = validatedSiteUrl || gwUrl
       // Resolve edit/location from route or draft data
-      const editUid = (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
-      const editPath = (route.key === 'draft' ? route.editPath : undefined) || draftData?.editPath
-      const locationUid = (route.key === 'draft' ? route.locationUid : undefined) || draftData?.locationUid
-      const locationPath = (route.key === 'draft' ? route.locationPath : undefined) || draftData?.locationPath
+      const editUid = route.editUid || draftData?.editUid
+      const editPath = route.editPath || draftData?.editPath
+      const locationUid = route.locationUid || draftData?.locationUid
+      const locationPath = route.locationPath || draftData?.locationPath
 
       if (editUid) {
         // Editing existing doc - show the doc's URL, copyable
@@ -586,8 +584,7 @@ function useCurrentRouteUrl(): {
       }
       if (locationUid) {
         // New doc - use pathemified title or fallback to draft ID, NOT copyable
-        const draftRouteId = route.key === 'draft' ? route.id : route.draftId || ''
-        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : draftRouteId
+        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : route.id
         const newPath = [...(locationPath || []), pathSegment]
         const url = createWebHMUrl(locationUid, {
           path: newPath,

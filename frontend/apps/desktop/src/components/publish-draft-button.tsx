@@ -508,21 +508,6 @@ export default function PublishDraftButton() {
               <Button size="sm" variant="brand" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-brand text-brand hover:text-brand dark:border-brand"
-                onClick={() => {
-                  client.createAppWindow.mutate({
-                    routes: [{key: 'preview', draftId}],
-                    sidebarLocked: false,
-                    sidebarWidth: 0,
-                    accessoryWidth: 0,
-                  })
-                }}
-              >
-                Preview: View before publishing
-              </Button>
               <Button size="sm" variant="ghost" onClick={() => popoverState.onOpenChange(false)}>
                 Cancel
               </Button>

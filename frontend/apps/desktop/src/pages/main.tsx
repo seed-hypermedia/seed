@@ -56,7 +56,6 @@ var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
-var Preview = lazy(() => import('./preview'))
 var Notifications = lazy(() => import('./notifications'))
 
 /**
@@ -439,11 +438,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'site-profile':
       return {
         PageComponent: Document,
-        Fallback: DocumentPlaceholder,
-      }
-    case 'preview':
-      return {
-        PageComponent: Preview,
         Fallback: DocumentPlaceholder,
       }
     case 'notifications':
