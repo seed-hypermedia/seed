@@ -80,7 +80,7 @@ export function InspectorPage({docId, pageFooter}: {docId: UnpackedHypermediaId;
       mode="inspect"
       inspectRoute={route}
       inspectTabs={inspectTabs}
-      rightActions={openTarget ? <InspectorOpenButton label={openTarget.label} route={openTarget.route} /> : null}
+      activeTabAction={openTarget ? <InspectorOpenButton label={openTarget.label} route={openTarget.route} /> : null}
     />
   )
 
@@ -208,14 +208,31 @@ function InspectorContent({
 function InspectorOpenButton({
   label,
   route,
+  nested = false,
+  accent = false,
 }: {
   label: string
   route: ReturnType<typeof createRouteFromInspectNavRoute>
+  /** When true, button is rendered inside an active tab pill — drop outline, inherit text color, square the left edge. */
+  nested?: boolean
+  /** When true (and not nested), render as a full accent pill matching the active tab styling. */
+  accent?: boolean
 }) {
   const linkProps = useRouteLink(route)
 
   return (
-    <Button asChild size="sm" variant="outline">
+    <Button
+      asChild
+      size="sm"
+      variant={nested ? 'ghost' : accent ? 'accent' : 'outline'}
+      className={
+        nested
+          ? 'h-9 rounded-l-none rounded-r-full px-3 hover:bg-black/5 dark:hover:bg-white/10'
+          : accent
+          ? 'rounded-full'
+          : undefined
+      }
+    >
       <a {...linkProps}>{label}</a>
     </Button>
   )

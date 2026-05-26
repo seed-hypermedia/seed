@@ -21,7 +21,7 @@ import {
   Shield,
   Users,
 } from 'lucide-react'
-import {useRef, useState} from 'react'
+import {cloneElement, isValidElement, useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
 import {cn} from './utils'
 
@@ -31,7 +31,7 @@ export function DocumentTools({
   commentsCount = 0,
   citationsCount = 0,
   collabsCount = 0,
-  rightActions,
+  activeTabAction,
   existingDraft,
   currentPanel,
   mode = 'document',
@@ -44,7 +44,8 @@ export function DocumentTools({
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
-  rightActions?: React.ReactNode
+  /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
+  activeTabAction?: React.ReactNode
   existingDraft?: HMExistingDraft | false
   /** Current panel route — tabs preserve this when navigating */
   currentPanel?: DocumentPanelRoute | null
@@ -238,6 +239,13 @@ export function DocumentTools({
             },
           },
         ]
+  const hasActive = buttons.some((b) => b.active)
+  const standaloneAction =
+    !hasActive && activeTabAction
+      ? isValidElement(activeTabAction)
+        ? cloneElement(activeTabAction as React.ReactElement<{accent?: boolean}>, {accent: true})
+        : activeTabAction
+      : null
   const tabButtons = (
     <>
       {/* Hidden measurement container with labels always visible */}
@@ -257,8 +265,10 @@ export function DocumentTools({
             count={button.count}
             bg={button.bg}
             showLabel
+            trailingAction={button.active ? activeTabAction : undefined}
           />
         ))}
+        {standaloneAction}
       </div>
       {buttons.map((button) => (
         <PageTab
@@ -271,8 +281,10 @@ export function DocumentTools({
           count={button.count}
           bg={button.bg}
           showLabel={showLabels}
+          trailingAction={button.active ? activeTabAction : undefined}
         />
       ))}
+      {standaloneAction}
     </>
   )
 
@@ -295,9 +307,7 @@ export function DocumentTools({
             >
               {tabButtons}
             </div>
-            <div {...sidebarProps} className={cn(sidebarProps.className, 'flex !h-auto items-center !p-0')}>
-              {rightActions ? <div className="flex shrink-0 items-center">{rightActions}</div> : null}
-            </div>
+            <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto !p-0')} />
           </div>
         </div>
       )
@@ -306,7 +316,7 @@ export function DocumentTools({
     // No sidebars: center with mx-auto, no flex-1 (matching header pattern)
     return (
       <div className="flex w-full shrink-0">
-        <div style={wrapperProps.style} className="mx-auto flex w-full items-center justify-between">
+        <div style={wrapperProps.style} className="mx-auto flex w-full items-center">
           <div
             {...mainContentProps}
             ref={containerRef}
@@ -314,7 +324,6 @@ export function DocumentTools({
           >
             {tabButtons}
           </div>
-          {rightActions && <div className="flex shrink-0 items-center">{rightActions}</div>}
         </div>
       </div>
     )
@@ -325,7 +334,6 @@ export function DocumentTools({
       <div ref={containerRef} className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
         {tabButtons}
       </div>
-      {rightActions ? <div className="flex shrink-0 items-center px-0 md:px-2 lg:px-4">{rightActions}</div> : null}
     </div>
   )
 }
