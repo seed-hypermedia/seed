@@ -1,6 +1,5 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
 import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -19,7 +18,7 @@ import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alph
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {DocumentRoute, DraftRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {formattedDate} from '@shm/shared/utils/date'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -527,16 +526,14 @@ function useCurrentRouteUrl(): {
   // Get account entity to check for siteUrl
   const routeId = getRouteId(route)
 
-  // For draft routes, fetch draft data
-  const draftId = route.key === 'draft' ? route.id : undefined
-  const draft = useDraft(draftId)
-  const draftData = draft.data
+  // Resolve draft (if any) attached to this route. `useExistingDraft` matches
+  // listed drafts against the document route id (post-DraftRouteRedirect every
+  // route is `key: 'document'`).
+  const existingDraft = useExistingDraft(route)
+  const draft = existingDraft || null
 
-  // Resolve uid for siteUrl lookup: route > draft data
-  const draftEditUid = (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
-  const draftLocationUid = (route.key === 'draft' ? route.locationUid : undefined) || draftData?.locationUid
-  const draftUid = draftEditUid || draftLocationUid
-  const lookupUid = routeId?.uid || draftUid
+  // Resolve uid for siteUrl lookup: route > draft fields
+  const lookupUid = routeId?.uid || draft?.editUid || draft?.locationUid
   const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
   const entitySiteUrl = accountEntity.data?.type === 'document' ? accountEntity.data.document?.metadata?.siteUrl : null
   // Entity metadata is authoritative; otherwise consider the hostname from the current route.
@@ -561,57 +558,97 @@ function useCurrentRouteUrl(): {
     isDomainLoading: domainInfo.isLoading,
   })
 
-  const draftTitle = draftData?.metadata?.name
+  // Resource lookup for the current route id. The resource type tells us
+  // whether a published document actually exists at this path — anything other
+  // than `'document'` means the URL must not be copyable yet.
+  const routeResource = useResource(routeId)
+  const hasPublishedResource = routeResource.data?.type === 'document'
+
+  // Location-only draft (no `editUid`) = unpublished new doc. We use this even
+  // while `useResource` is still loading so the copy button never flashes on
+  // for a placeholder path.
+  const isLocationOnlyDraft = !!draft && !draft.editUid
+
+  const draftTitle = draft?.metadata?.name
+
+  // Debug: trace omnibar URL resolution so we can see why an unpublished doc
+  // briefly appeared copyable. Remove once verified.
+  useEffect(() => {
+    if (!routeId) return
+    // eslint-disable-next-line no-console
+    console.log('[omnibar-url]', {
+      routeKey: route.key,
+      routeId: routeId.id,
+      routePath: routeId.path,
+      draft:
+        existingDraft === undefined
+          ? 'loading'
+          : existingDraft === false
+          ? 'none'
+          : {
+              id: existingDraft.id,
+              editUid: existingDraft.editUid,
+              editPath: existingDraft.editPath,
+              locationUid: existingDraft.locationUid,
+              locationPath: existingDraft.locationPath,
+            },
+      resourceType: routeResource.data?.type,
+      isFetching: routeResource.isFetching,
+      isDiscovering: routeResource.isDiscovering,
+      hasPublishedResource,
+      isLocationOnlyDraft,
+    })
+  }, [
+    route.key,
+    routeId?.id,
+    existingDraft,
+    routeResource.data?.type,
+    routeResource.isFetching,
+    routeResource.isDiscovering,
+    hasPublishedResource,
+    isLocationOnlyDraft,
+  ])
 
   return useMemo(() => {
-    // Handle draft routes (routeToUrl doesn't support them)
-    if (route.key === 'draft') {
-      const hostname = validatedSiteUrl || gwUrl
-      // Resolve edit/location from route or draft data
-      const editUid = route.editUid || draftData?.editUid
-      const editPath = route.editPath || draftData?.editPath
-      const locationUid = route.locationUid || draftData?.locationUid
-      const locationPath = route.locationPath || draftData?.locationPath
-
-      if (editUid) {
-        // Editing existing doc - show the doc's URL, copyable
-        const url = createWebHMUrl(editUid, {
-          path: editPath,
-          hostname,
-          originHomeId: validatedSiteUrl ? hmId(editUid) : undefined,
-        })
-        return {displayUrl: url, copyableUrl: url}
-      }
-      if (locationUid) {
-        // New doc - use pathemified title or fallback to draft ID, NOT copyable
-        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : route.id
-        const newPath = [...(locationPath || []), pathSegment]
-        const url = createWebHMUrl(locationUid, {
+    if (routeId) {
+      // Unpublished new doc with a location-only draft attached — show
+      // slugified preview URL, never copyable.
+      if (!hasPublishedResource && isLocationOnlyDraft && draft) {
+        const hostname = validatedSiteUrl || gwUrl
+        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : draft.id
+        const parentPath = routeId.path?.slice(0, -1) ?? []
+        const newPath = [...parentPath, pathSegment]
+        const url = createWebHMUrl(routeId.uid, {
           path: newPath,
           hostname,
-          originHomeId: validatedSiteUrl ? hmId(locationUid) : undefined,
+          originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
         })
         return {displayUrl: url, copyableUrl: null}
       }
-      return {displayUrl: null, copyableUrl: null}
-    }
 
-    if (routeId || route.key === 'inspect-ipfs') {
+      // Standard route URL. Only mark copyable once we've confirmed a published
+      // document exists at this id — guards against copying placeholder URLs
+      // while drafts/resources are still loading.
       const url = routeToUrl(route, {
         hostname: validatedSiteUrl || gwUrl,
-        // Only apply originHomeId optimization when the custom domain is still
-        // resolving to the current route's account.
-        originHomeId: validatedSiteUrl && routeId ? hmId(routeId.uid) : undefined,
+        originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
       })
+      return {displayUrl: url, copyableUrl: hasPublishedResource ? url : null}
+    }
+
+    if (route.key === 'inspect-ipfs') {
+      const url = routeToUrl(route, {hostname: validatedSiteUrl || gwUrl})
       return {displayUrl: url, copyableUrl: url}
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, validatedSiteUrl, gwUrl, draftTitle, draftData])
+  }, [routeId, route, validatedSiteUrl, gwUrl, draftTitle, draft, isLocationOnlyDraft, hasPublishedResource])
 }
 
 /**
- * Extract ID from route if applicable
+ * Extract ID from route if applicable. After `DraftRouteRedirect`, drafts are
+ * served on the `document` route, so we no longer special-case `key: 'draft'`
+ * here; unpublished drafts surface via `useResource(routeId)` being not-found.
  */
 function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   if (
@@ -628,18 +665,7 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   ) {
     return route.id
   }
-  // Draft editing existing doc - return the doc's ID for bookmark/copy buttons
-  if (route.key === 'draft' && route.editUid) {
-    return hmId(route.editUid, {path: route.editPath})
-  }
   return null
-}
-
-/**
- * Check if route is a draft route
- */
-function isDraftRoute(route: NavRoute): route is DraftRoute {
-  return route.key === 'draft'
 }
 
 /**
@@ -745,7 +771,8 @@ export function Omnibar() {
 
   const routeId = getRouteId(route)
   const existingDraft = useExistingDraft(route)
-  const isNewDraft = !!(existingDraft && existingDraft.locationUid)
+  // Location-only draft (no `editUid`) means an unpublished new doc.
+  const isNewDraft = !!(existingDraft && !existingDraft.editUid)
   const isUnsharable = !copyableUrl || isNewDraft
 
   // Pass null to the omnibar state when the URL isn't shareable so the focused
@@ -840,8 +867,9 @@ export function Omnibar() {
     }, 150)
   }, [mode, blur])
 
-  const isDraft = isDraftRoute(route)
-  const isPrivate = isDraft && route.visibility === 'PRIVATE'
+  // Private drafts surface via the existing draft record, not the route schema —
+  // post-DraftRouteRedirect the route is `document` even for unpublished drafts.
+  const isPrivate = !!(existingDraft && existingDraft.visibility === 'PRIVATE')
   const routeLabel = getRouteLabel(route)
   const displayText = displayUrl || routeLabel || ''
 

@@ -5,6 +5,7 @@ import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
 import {SearchResultItem, UniversalAppProvider, writeableStateStream} from '@shm/shared'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {Extension} from '@tiptap/core'
 import {useEffect, useState} from 'react'
 import {
   BlockNoteView,
@@ -17,6 +18,7 @@ import type {Block} from '../../src/blocknote/core/extensions/Blocks/api/blockTy
 import type {HMBlockSchema} from '../../src/schema'
 import {hmBlockSchema} from '../../src/schema'
 import {getSlashMenuItems} from '../../src/slash-menu-items'
+import {selectAllEditorContent} from '../../src/utils'
 
 // Create a dummy gateway URL stream for testing
 const [, gwUrl] = writeableStateStream<string | null>('https://hyper.media')
@@ -133,6 +135,23 @@ export function TestEditor() {
     linkExtensionOptions: {
       gwUrl,
     } as any,
+    // Mirror DocumentEditor/CommentEditor: Mod-a sets AllSelection so
+    // trailing non-textblock atoms (embed/query cards) are included.
+    _tiptapOptions: {
+      extensions: [
+        Extension.create({
+          name: 'test-editor-select-all',
+          priority: 1000,
+          addKeyboardShortcuts() {
+            return {
+              'Mod-a': ({editor}) => {
+                return selectAllEditorContent(editor)
+              },
+            }
+          },
+        }),
+      ],
+    },
     // @ts-expect-error
     initialContent: fixtures[fixtureName],
   })
