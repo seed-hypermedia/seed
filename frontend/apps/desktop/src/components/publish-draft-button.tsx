@@ -1,4 +1,5 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
+import {reportError} from '@/errors'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
@@ -362,6 +363,12 @@ export default function PublishDraftButton() {
           })
           pushResource(parentResultId).catch((err) => {
             console.error('Failed to push parent document:', err)
+            reportError(err, {
+              feature: 'publish-draft',
+              operation: 'push-parent',
+              parentResourceId: parentResultId.id,
+              childResourceId: childResultId.id,
+            })
           })
         }
 
@@ -380,6 +387,12 @@ export default function PublishDraftButton() {
       await handlePublish(editId, signingAccountId).catch((err) => {
         console.error('Publish failed:', err)
         toast.error(err.message || 'Publish failed')
+        reportError(err, {
+          feature: 'publish-draft',
+          operation: 'publish-existing',
+          editId: editId.id,
+          signingAccountId,
+        })
       })
     } else if (editableLocation && signingAccountId) {
       // First publish with editable location from popover
@@ -395,6 +408,12 @@ export default function PublishDraftButton() {
       await handlePublish(editableLocation, signingAccountId).catch((err) => {
         console.error('Publish failed:', err)
         setPublishError(err.message || 'Failed to publish. Try a different path name.')
+        reportError(err, {
+          feature: 'publish-draft',
+          operation: 'publish-first',
+          editableLocation,
+          signingAccountId,
+        })
       })
     } else {
       toast.error('Cannot publish: missing location or account')

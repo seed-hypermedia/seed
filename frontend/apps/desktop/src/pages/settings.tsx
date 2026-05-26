@@ -1,6 +1,7 @@
 import {useAppContext, useIPC} from '@/app-context'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
+import {reportError} from '@/errors'
 import {
   useAddProvider,
   useAIProviders,
@@ -614,6 +615,11 @@ export function DeveloperSettings() {
     },
     onError: (error: unknown) => {
       toast.error('Failed to restart daemon: ' + String(error))
+      reportError(error, {
+        feature: 'settings',
+        operation: 'restart-daemon',
+        pendingEmbeddingState,
+      })
     },
   })
   const openDraftLogs = useMutation({
@@ -1246,7 +1252,15 @@ function PushSettingRow({
           onValueChange={(value) => {
             const validValue: 'always' | 'never' = value === 'never' ? 'never' : 'always'
             setMutation.mutate(validValue, {
-              onError: () => toast.error('Failed to update setting.'),
+              onError: (error: unknown) => {
+                toast.error('Failed to update setting.')
+                reportError(error, {
+                  feature: 'settings',
+                  operation: 'update-push-setting',
+                  setting: label,
+                  value: validValue,
+                })
+              },
             })
           }}
           className="flex items-center gap-4"

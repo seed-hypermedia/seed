@@ -5,6 +5,7 @@ import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
+import {reportError} from '@/report-error'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
@@ -672,6 +673,7 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
           state: 'error',
           error: (error as Error).message,
         })
+        reportError(error, {feature: 'device-link', operation: 'link-device'})
       },
       onSuccess: (data) => {
         invalidateQueries([queryKeys.ACCOUNT])

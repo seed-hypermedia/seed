@@ -2,6 +2,7 @@
  * WordPress WXR Import Dialog Component.
  * Provides a multi-step UI for importing WordPress exports.
  */
+import {reportError} from '@/errors'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {client} from '@/trpc'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -71,6 +72,7 @@ function WXRImportDialog({input, onClose}: {input: WXRImportDialogInput; onClose
     },
     onError: (error: Error) => {
       toast.error(`Failed to parse WXR file: ${error.message}`)
+      reportError(error, {feature: 'wxr-import', operation: 'parse'})
     },
   })
 
@@ -89,6 +91,11 @@ function WXRImportDialog({input, onClose}: {input: WXRImportDialogInput; onClose
     },
     onError: (error: Error) => {
       toast.error(`Failed to start import: ${error.message}`)
+      reportError(error, {
+        feature: 'wxr-import',
+        operation: 'start',
+        destinationId: input.destinationId.id,
+      })
     },
   })
 
@@ -533,6 +540,7 @@ function CompleteStep({onClose, results}: {onClose: () => void; results: ImportR
     },
     onError: (error) => {
       toast.error(`Failed to export author keys file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      reportError(error, {feature: 'wxr-import', operation: 'export-author-keys'})
     },
   })
 
