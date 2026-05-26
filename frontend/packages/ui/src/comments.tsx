@@ -119,14 +119,19 @@ export function CommentDiscussions({
     return null
   }, [commentsService.data?.comments, commentId, commentResource.data])
 
-  const isDeletedComment =
-    !focusedComment && (commentResource.isTombstone || commentResource.data?.type === 'tombstone')
+  const isDeletedComment = !focusedComment && commentResource.data?.type === 'tombstone'
 
   // On desktop, fetch version history for deleted comments so we can show their content
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
   const deletedLastVersion = deletedVersions.data?.versions?.[0]
-  const isFocusedCommentLoading = commentResource.isFetching || (commentResource.isLoading && !commentResource.data)
-  const isFocusedCommentDeleted = commentResource.isTombstone || commentResource.data?.type === 'tombstone'
+  // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
+  // flash "This comment was deleted." while peer sync is still in flight (issue #435).
+  const isFocusedCommentLoading =
+    commentResource.isFetching ||
+    commentResource.isLoading ||
+    commentResource.isDiscovering ||
+    (!commentResource.data && !commentResource.error)
+  const isFocusedCommentDeleted = commentResource.data?.type === 'tombstone'
   const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
   const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
 
