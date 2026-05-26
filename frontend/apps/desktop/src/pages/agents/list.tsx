@@ -37,7 +37,7 @@ function AgentsListPage() {
       ),
     [agentQueries, serverUrls],
   )
-  const isLoadingAgents = agentQueries.some((query) => query.isLoading)
+  const isLoadingAgents = !!selectedAccountId && agentQueries.some((query) => query.isFetching && !query.data)
   const agentError = agentQueries.find((query) => query.isError)?.error
   const providersLoading = providerQueries.some((query) => query.isLoading)
   const hasCreatableProvider = providerQueries.some((query) => !!query.data?.length)
@@ -161,13 +161,14 @@ function AgentsListPage() {
               </span>
             </Tooltip>
           </div>
+          {!selectedAccountId ? <SizableText color="muted">Select an account to load agents.</SizableText> : null}
           {isLoadingAgents ? <SizableText color="muted">Loading agents…</SizableText> : null}
           {agentError ? (
             <SizableText className="text-destructive">
               {agentError instanceof Error ? agentError.message : 'Could not load agents'}
             </SizableText>
           ) : null}
-          {!isLoadingAgents && !agents.length ? <SizableText color="muted">No agents yet.</SizableText> : null}
+          {selectedAccountId && !isLoadingAgents && !agents.length ? <SizableText color="muted">No agents yet.</SizableText> : null}
           <div className="flex flex-col gap-2">
             {agents.map((agent) => {
               const statusIndicator = getAgentStatusIndicator(agent.status)
