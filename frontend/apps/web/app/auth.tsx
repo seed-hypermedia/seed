@@ -24,6 +24,7 @@ import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
 import {preparePublicKey, signWithKeyPair} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
+import {reportError} from './report-error'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -115,7 +116,12 @@ function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
 }
 
 function updateKeyPair() {
-  loadLocalWebIdentity().then(syncKeyPair).catch(console.error)
+  loadLocalWebIdentity()
+    .then(syncKeyPair)
+    .catch((err) => {
+      console.error(err)
+      reportError(err, {feature: 'auth', operation: 'load-local-identity'})
+    })
 }
 
 export function logout() {
@@ -128,6 +134,7 @@ export function logout() {
     clearAllAuthState(),
     fetch('/hm/api/auth', {method: 'DELETE', credentials: 'include'}).catch((e) => {
       console.error('Failed to clear daemon auth cookie', e)
+      reportError(e, {feature: 'auth', operation: 'logout-clear-daemon-cookie'})
     }),
   ])
     .then(() => {
@@ -135,6 +142,7 @@ export function logout() {
     })
     .catch((e) => {
       console.error('Failed to log out', e)
+      reportError(e, {feature: 'auth', operation: 'logout'})
     })
 }
 
@@ -166,6 +174,11 @@ export async function createAccount({
   if (existingStored?.vaultUrl) {
     await authSession.clearSession(existingStored.vaultUrl).catch((err) => {
       console.error('Failed to clear delegated session while creating local account', err)
+      reportError(err, {
+        feature: 'auth',
+        operation: 'create-account-clear-delegated',
+        vaultUrl: existingStored.vaultUrl,
+      })
     })
   }
 
@@ -187,6 +200,7 @@ export async function createAccount({
       }
     } catch (err) {
       console.warn('Failed to verify existing local account, proceeding with account creation', err)
+      reportError(err, {feature: 'auth', operation: 'verify-existing-account', uid})
     }
   } else {
     keyPair = await generateAndStoreKeyPair()

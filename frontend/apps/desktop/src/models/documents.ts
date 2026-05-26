@@ -1,5 +1,6 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {desktopUniversalClient} from '@/desktop-universal-client'
+import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
@@ -741,6 +742,13 @@ export async function pushResource(
         }
       } catch (error) {
         console.error('Error loading site resource for pushing to the siteUrl', uid, error)
+        reportError(error, {
+          feature: 'push-resource',
+          operation: 'resolve-site-host',
+          uid,
+          resourceId: id.id,
+          onlyPushToHost,
+        })
       }
     }),
   )
@@ -817,6 +825,13 @@ export async function pushResource(
       } catch (error) {
         console.error('Error getting peerId for host', host, error)
         updateHostStatus(host, 'error', (error as Error).message)
+        reportError(error, {
+          feature: 'push-resource',
+          operation: 'resolve-peer',
+          host,
+          resourceId: id.id,
+          onlyPushToHost,
+        })
       }
     }),
   )
@@ -839,6 +854,15 @@ export async function pushResource(
     console.error('No peers found to push to', {
       resource,
       destinationHosts,
+    })
+    const hostStatuses = status.hosts.map(({host, status, message}) => ({host, status, message}))
+    reportError(new Error('Failed to connect to any sites.'), {
+      feature: 'push-resource',
+      operation: 'no-peers',
+      resourceId: id.id,
+      onlyPushToHost,
+      destinationHosts: Array.from(destinationHosts),
+      hostStatuses,
     })
     throw new Error('Failed to connect to any sites.')
   }
@@ -873,6 +897,16 @@ export async function pushResource(
       } catch (error) {
         console.error(`== publish ${syncDebugId} == Error pushing to peer`, peerId, error)
         updatePeerStatus(peerId, 'error', (error as Error).message)
+        const hostEntry = status.hosts.find((h) => h.peerId === peerId)
+        reportError(error, {
+          feature: 'push-resource',
+          operation: 'push-to-peer',
+          host: hostEntry?.host,
+          peerId,
+          resourceId: id.id,
+          pushResourceUrl,
+          onlyPushToHost,
+        })
       }
       // console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
       // if (lastProgress?.peersFailed ?? 0 > 0) {

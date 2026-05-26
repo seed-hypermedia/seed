@@ -1,3 +1,4 @@
+import {reportError} from '@/errors'
 import {client} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -16,8 +17,9 @@ export function useAIConfig() {
 export function useSetAIConfigValue() {
   return useMutation({
     mutationFn: (input: {path: string; value: any}) => client.aiConfig.setValue.mutate(input),
-    onError() {
+    onError(err) {
       toast.error('Could not save AI config')
+      reportError(err, {feature: 'ai-config', operation: 'set-value'})
     },
     onSuccess() {
       invalidateQueries([queryKeys.AI_CONFIG])
@@ -65,8 +67,9 @@ export function useAddProvider() {
       baseUrl?: string
       authMode?: 'apiKey' | 'login'
     }) => client.aiConfig.addProvider.mutate(input),
-    onError() {
+    onError(err) {
       toast.error('Could not add provider')
+      reportError(err, {feature: 'ai-config', operation: 'add-provider'})
     },
     onSuccess() {
       invalidateProviderQueries()
@@ -85,8 +88,9 @@ export function useUpdateProvider() {
       baseUrl?: string
       authMode?: 'apiKey' | 'login'
     }) => client.aiConfig.updateProvider.mutate(input),
-    onError() {
+    onError(err) {
       toast.error('Could not update provider')
+      reportError(err, {feature: 'ai-config', operation: 'update-provider'})
     },
     onSuccess() {
       invalidateProviderQueries()
@@ -97,8 +101,9 @@ export function useUpdateProvider() {
 export function useDuplicateProvider() {
   return useMutation({
     mutationFn: (id: string) => client.aiConfig.duplicateProvider.mutate(id),
-    onError() {
+    onError(err) {
       toast.error('Could not duplicate provider')
+      reportError(err, {feature: 'ai-config', operation: 'duplicate-provider'})
     },
     onSuccess() {
       invalidateProviderQueries()
@@ -109,8 +114,9 @@ export function useDuplicateProvider() {
 export function useDeleteProvider() {
   return useMutation({
     mutationFn: (id: string) => client.aiConfig.deleteProvider.mutate(id),
-    onError() {
+    onError(err) {
       toast.error('Could not delete provider')
+      reportError(err, {feature: 'ai-config', operation: 'delete-provider'})
     },
     onSuccess() {
       invalidateProviderQueries()
@@ -121,8 +127,9 @@ export function useDeleteProvider() {
 export function useSetSelectedProvider() {
   return useMutation({
     mutationFn: (id: string) => client.aiConfig.setSelectedProvider.mutate(id),
-    onError() {
+    onError(err) {
       toast.error('Could not set selected provider')
+      reportError(err, {feature: 'ai-config', operation: 'set-selected-provider'})
     },
     onSuccess() {
       invalidateProviderQueries()

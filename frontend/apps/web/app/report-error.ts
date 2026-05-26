@@ -1,6 +1,5 @@
 import {ConnectError} from '@connectrpc/connect'
-import * as Sentry from '@sentry/electron/renderer'
-import {toast} from '@shm/ui/toast'
+import * as Sentry from '@sentry/remix'
 
 export type ReportErrorContext = {
   feature?: string
@@ -9,9 +8,9 @@ export type ReportErrorContext = {
 }
 
 /**
- * Report an error to Sentry without surfacing it to the user.
- * Use for caught errors where the user already saw a generic toast (or where
- * the failure is invisible by design) but engineering still needs the details.
+ * Report an error to Sentry without showing it to the user.
+ * Mirrors the desktop `reportError` so call sites stay symmetric across apps.
+ * No-ops when Sentry isn't initialized (its own captureException already does).
  */
 export function reportError(input: unknown, ctx?: ReportErrorContext): void {
   const error = toError(input)
@@ -31,13 +30,9 @@ export function reportError(input: unknown, ctx?: ReportErrorContext): void {
     }
     Sentry.captureException(error)
   })
-  console.error('📣 🚨', error.message, ctx)
-}
-
-export default function appError(message: string, metadata?: Record<string, unknown>): void {
-  toast.error(message)
-  const errorSource = metadata?.error ?? new Error(message)
-  reportError(errorSource, {...metadata, _toastMessage: message})
+  if (typeof console !== 'undefined' && typeof console.error === 'function') {
+    console.error('📣 🚨', error.message, ctx)
+  }
 }
 
 function toError(input: unknown): Error {
@@ -53,7 +48,7 @@ function toError(input: unknown): Error {
 function serializeMetadata(metadata: Headers | undefined): Record<string, string> | undefined {
   if (!metadata) return undefined
   const out: Record<string, string> = {}
-  metadata.forEach((value: string, key: string) => {
+  metadata.forEach((value, key) => {
     out[key] = value
   })
   return out

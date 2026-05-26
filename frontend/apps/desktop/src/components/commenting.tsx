@@ -1,3 +1,4 @@
+import {reportError} from '@/errors'
 import {domainResolver} from '@/grpc-client'
 import {useCommentDraft} from '@/models/comments'
 import {usePushAfterAction} from '@/models/push-after-action'
@@ -189,6 +190,11 @@ function CommentBoxImpl(props: {
       // Do NOT roll back cache or navigation; do NOT invalidate queries (would fail offline).
       setIsSubmitting(false)
       console.warn('Comment publish failed, keeping optimistic comment:', err.message)
+      reportError(err, {
+        feature: 'comment',
+        operation: 'publish',
+        docId: docId.id,
+      })
     },
     onSuccess: () => {
       setIsSubmitting(false)
@@ -333,6 +339,11 @@ function CommentBoxImpl(props: {
       } catch (err) {
         setIsSubmitting(false)
         console.error('Failed to submit comment:', err)
+        reportError(err, {
+          feature: 'comment',
+          operation: 'submit',
+          docId: docId.id,
+        })
       }
     },
     [

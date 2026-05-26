@@ -1,3 +1,4 @@
+import {reportError} from '@/errors'
 import {useCurrencyComparisons} from '@/models/compare-currencies'
 import {
   useCreateLocalInvoice,
@@ -81,6 +82,7 @@ export function AccountWallet({
           createWallet.mutateAsync({accountUid}).catch((e) => {
             console.error(e)
             toast.error(`Failed to create wallet: ${e.message}`)
+            reportError(e, {feature: 'payments', operation: 'create-wallet', accountUid})
           })
         }}
       >

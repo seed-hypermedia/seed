@@ -1,4 +1,5 @@
 import {useAppContext} from '@/app-context'
+import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
@@ -63,6 +64,11 @@ export function useExportDocuments() {
       })
       .catch((err) => {
         toast.error(err)
+        reportError(err, {
+          feature: 'export-documents',
+          operation: 'export',
+          docIds,
+        })
       })
   }
 }

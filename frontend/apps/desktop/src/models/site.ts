@@ -1,3 +1,4 @@
+import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -64,6 +65,12 @@ export function useSiteRegistration(accountUid: string) {
           // error is not a dealbreaker for this workflow, we still want to move to the next step
           console.error('Failed pushing resources to site', error)
           toast.error('Failed to push resources to the new site. Sync can be attempted again later.')
+          reportError(error, {
+            feature: 'site-registration',
+            operation: 'push-resources',
+            siteUrl,
+            accountUid,
+          })
         }
       }
 

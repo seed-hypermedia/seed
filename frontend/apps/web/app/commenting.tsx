@@ -1,4 +1,5 @@
 import {useCreateAccount} from '@/auth'
+import {reportError} from '@/report-error'
 import {useNavigate as useRemixNavigate} from '@remix-run/react'
 import {createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {
@@ -171,6 +172,7 @@ export default function WebCommenting({
       // Keep the optimistic comment visible — the publish can be retried later.
       // Do NOT roll back cache or navigation; do NOT invalidate queries (would crash offline).
       console.warn('Comment publish failed, keeping optimistic comment:', _err)
+      reportError(_err, {feature: 'web-comment', operation: 'publish', docId: docId.id})
     },
     onSuccess: ({response, commentId, commentPayload}) => {
       if (isPerfEnabled()) markCommentSubmitEnd()
@@ -209,6 +211,7 @@ export default function WebCommenting({
         })
         .catch((e) => {
           console.error('Failed to process pending intent after account creation:', e)
+          reportError(e, {feature: 'web-comment', operation: 'process-pending-intent'})
         })
     },
   })

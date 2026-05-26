@@ -1,3 +1,4 @@
+import {reportError} from '@/errors'
 import {usePushResource} from '@/models/documents'
 import {usePushOnCopy, usePushOnPublish} from '@/models/gateway-settings'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -31,6 +32,13 @@ export function usePushAfterAction() {
       })
       promise.catch((err) => {
         console.error('[push-after-action]', params.trigger, err)
+        reportError(err, {
+          feature: 'push-after-action',
+          operation: 'top-level',
+          trigger: params.trigger,
+          resourceId: params.id.id,
+          onlyPushToHost: params.onlyPushToHost,
+        })
       })
     },
     [pushResource, pushOnPublish.data, pushOnCopy.data],
