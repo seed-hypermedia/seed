@@ -16,3 +16,5 @@
 - Follow common Go-specific naming conventions, and avoid stutter in naming.
 - Write idiomatic Go code. Pay extra attention to this when working in multiple languages at the same time. Avoid
   non-idomatic patterns that might be fine in other languages like TypeScript, and others. Especially avoid Java-isms.
+- If you need to implement some periodic background task — avoid using `time.Ticker`. Prefer using `time.Timer`, set
+  initial interval to 0 if you need it to fire immediately, and then use `Reset` to reschedule it.

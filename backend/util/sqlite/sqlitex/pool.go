@@ -224,9 +224,7 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 	if p.checkReset {
 		query := conn.CheckReset()
 		if query != "" {
-			panic(fmt.Sprintf(
-				"connection returned to pool has active statement: %q",
-				query))
+			panic(fmt.Sprintf("connection returned to pool has active statement: %q", query))
 		}
 	}
 
