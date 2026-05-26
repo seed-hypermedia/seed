@@ -35,7 +35,6 @@ type sqlitePage struct {
 	RecentBusyCap   int
 	RecentReadCap   int
 	BusyEventsCount int
-	Checkpoint      checkpointSection
 }
 
 // aggregateRow renders one entry on the "Aggregate writer-slot utilization"
@@ -65,32 +64,6 @@ type aggregateBusyRow struct {
 	HeldDuringWaitMs    float64 // Σ ms this caller held the writer slot inside begin_busy wait windows
 	HeldDuringWaitClass string
 	AvgPerEventMs       float64 // HeldDuringWaitMs / Events
-}
-
-type checkpointSection struct {
-	HasRun        bool
-	LastWhen      string
-	LastAgeMs     float64
-	LastDurMs     float64
-	LastDurClass  string
-	LastBusy      int64
-	LastBusyClass string
-	LastLog       int64
-	LastCkpt      int64
-	LastErr       string
-	TotalRuns     uint64
-	TotalPages    uint64
-	Recent        []checkpointRecentRow
-}
-
-type checkpointRecentRow struct {
-	When     string
-	DurMs    float64
-	DurClass string
-	Busy     int64
-	Log      int64
-	Ckpt     int64
-	Err      string
 }
 
 type activeRow struct {
@@ -210,7 +183,6 @@ func buildSQLitePage() sqlitePage {
 
 	page := sqlitePage{
 		GeneratedAt: now.Format(time.RFC3339),
-		Checkpoint:  buildCheckpointSection(now),
 	}
 
 	for _, a := range snap.Active {
@@ -448,50 +420,6 @@ func renderRecent(samples []txSample) []recentRow {
 	return out
 }
 
-// buildCheckpointSection assembles the WAL-checkpoint summary surfaced
-// above the per-caller table. It's safe to call even before the
-// background goroutine has run once; HasRun=false suppresses the rendered
-// detail rows in that case.
-func buildCheckpointSection(now time.Time) checkpointSection {
-	snap := WALCheckpointSnapshot()
-	out := checkpointSection{
-		TotalRuns:  snap.TotalRuns,
-		TotalPages: snap.TotalPages,
-	}
-	if snap.TotalRuns == 0 || snap.Last.When.IsZero() {
-		return out
-	}
-	out.HasRun = true
-	out.LastWhen = snap.Last.When.Format(time.RFC3339)
-	out.LastAgeMs = float64(now.Sub(snap.Last.When)) / float64(time.Millisecond)
-	out.LastDurMs = float64(snap.Last.Duration) / float64(time.Millisecond)
-	out.LastDurClass = classForHoldMs(out.LastDurMs)
-	out.LastBusy = snap.Last.Busy
-	if snap.Last.Busy != 0 {
-		out.LastBusyClass = "note"
-	}
-	out.LastLog = snap.Last.Log
-	out.LastCkpt = snap.Last.Checkpointed
-	if snap.Last.Err != nil {
-		out.LastErr = snap.Last.Err.Error()
-	}
-	for _, r := range snap.Recent {
-		row := checkpointRecentRow{
-			When:     r.When.Format("15:04:05.000"),
-			DurMs:    float64(r.Duration) / float64(time.Millisecond),
-			Busy:     r.Busy,
-			Log:      r.Log,
-			Ckpt:     r.Checkpointed,
-			DurClass: classForHoldMs(float64(r.Duration) / float64(time.Millisecond)),
-		}
-		if r.Err != nil {
-			row.Err = r.Err.Error()
-		}
-		out.Recent = append(out.Recent, row)
-	}
-	return out
-}
-
 func classForHoldMs(ms float64) string {
 	switch {
 	case ms >= 10000:
@@ -612,7 +540,7 @@ th.grp{background:#ececec;text-align:center}
 <dt>begin_wait</dt><dd>Time spent inside <code>BEGIN IMMEDIATE</code> before it returned (includes SQLite's internal busy-handler backoff). Large values mean the writer slot was held by <em>someone else</em> while this caller waited.</dd>
 <dt>hold</dt><dd>Wall time from successful <code>BEGIN IMMEDIATE</code> to <code>COMMIT</code>/<code>ROLLBACK</code>. Large values mean <em>this caller</em> is doing too much work inside the transaction.</dd>
 <dt>total</dt><dd>Caller-visible end-to-end latency: <code>pool_wait + begin_wait + hold</code>. The single column an operator can use to spot "who is slow" without summing three percentile groups. The per-caller table is sorted by <code>total p99</code> for this reason.</dd>
-<dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Real contention. Each row carries a <em>held by</em> snapshot of whoever owned the writer slot at the moment of failure and a <em>drained during wait</em> list of holders that finished during the wait. <strong>For the aggregate "who caused all these busys" view see the <em>Begin-busy attribution</em> section below — usually the most useful starting point.</strong> begin_busy rows live in their own collapsed ring (separate from completed slow writes) so they can't evict real slow commits via their synthesised 10 s hold.</dd>
+<dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Real contention. Each row carries a <em>held by</em> snapshot of whoever owned the writer slot at the moment of failure and a <em>drained during wait</em> list of holders that finished during the wait. <strong>For the aggregate "who caused all these busys" view see the <em>Begin-busy attribution</em> section below — usually the most useful starting point.</strong> begin_busy rows live in their own collapsed ring (separate from completed slow writes) so they can't evict real slow commits via their synthesised 10 s hold. The synthetic caller <code>sqlitex.WALCheckpointer</code> represents the background <code>PRAGMA wal_checkpoint(PASSIVE)</code> goroutine — it doesn't go through WithTx/Save, so without explicit hooks it would be invisible here; <strong>if it dominates HeldBy or DrainedDuringWait the disk's fsync floor is the bottleneck</strong> (see the WAL checkpoint section's recent-tick durations).</dd>
 <dt>begin_interrupted</dt><dd><code>BEGIN IMMEDIATE</code> returned a non-busy error — almost always <code>SQLITE_INTERRUPT</code> from a context cancellation upstream. Not a lock-contention event; no <em>held by</em> snapshot. Common when a caller scopes a tx to a deadline that has expired, e.g. <code>connect.go</code>'s per-attempt timeout.</dd>
 <dt>savepoint_top</dt><dd>Top-level <code>SAVEPOINT</code> on an autocommit connection that <em>actually wrote</em> at least once. The first DML/DDL statement promotes it to the writer-slot active set, so its hold time counts the same as a WithTx commit and it shows up on begin_busy "held by" snapshots. Pre-instrumentation these rows bypassed the page entirely, which is why the actual offender used to be invisible. <strong>begin_wait is renders as "—" for these rows</strong> and is excluded from the per-caller <em>wait</em> percentile: the SAVEPOINT keyword itself doesn't queue for the writer mutex (the deferred transaction is upgraded lazily by the first DML), so the only thing we could measure here is the SAVEPOINT statement's own ~µs execution time — not real contention. The actual writer-mutex wait, when it exists, is folded into the first DML's duration and shows up in hold.</dd>
 <dt>savepoint</dt><dd>Nested <code>SAVEPOINT</code> issued while an outer transaction was already holding the writer slot. The outer tx is the lock holder — this row is recorded for completeness but excluded from hold percentiles to avoid double-counting.</dd>
@@ -630,53 +558,6 @@ th.grp{background:#ececec;text-align:center}
 </table>
 <p>Color thresholds: yellow ≥ 100 ms, red ≥ 1 s. The busy_timeout itself is 10 s.</p>
 </details>
-
-<h2>Background WAL checkpoint</h2>
-<details class="help"><summary>Why this exists</summary>
-<p>Every COMMIT in WAL mode appends frames to the .wal file. By default, SQLite auto-checkpoints inline on the COMMIT that crosses the <code>wal_autocheckpoint</code> threshold — that committing writer pays for the fsync of every dirty page being relocated, which routinely produces multi-hundred-ms COMMIT durations on contended disks. A dedicated goroutine runs <code>PRAGMA wal_checkpoint(PASSIVE)</code> at a steady cadence so foreground writers don't pay that cost. PASSIVE checkpoints don't block readers or writers and don't change what readers see — they only relocate pages from .wal back to the main DB file, bit-identically. <code>busy=1</code> means some frames couldn't be migrated this tick (a reader/writer was at the head of the WAL); they retry next tick.</p>
-</details>
-{{with .Checkpoint}}
-{{if .HasRun}}
-<table>
-<thead><tr>
-<th>last run</th><th class="num">age</th><th class="num">duration</th><th class="num">busy</th><th class="num">log frames</th><th class="num">checkpointed</th><th class="num">total runs</th><th class="num">total pages</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>{{.LastWhen}}{{if .LastErr}} <span class="warn">err: {{.LastErr}}</span>{{end}}</td>
-<td class="num">{{fmtMs .LastAgeMs}}</td>
-<td class="num {{.LastDurClass}}">{{fmtMs .LastDurMs}}</td>
-<td class="num {{.LastBusyClass}}">{{.LastBusy}}</td>
-<td class="num">{{.LastLog}}</td>
-<td class="num">{{.LastCkpt}}</td>
-<td class="num">{{.TotalRuns}}</td>
-<td class="num">{{.TotalPages}}</td>
-</tr>
-</tbody>
-</table>
-{{if .Recent}}
-<details><summary>recent checkpoint ticks ({{len .Recent}})</summary>
-<table>
-<thead><tr><th>when</th><th class="num">duration</th><th class="num">busy</th><th class="num">log frames</th><th class="num">checkpointed</th><th>err</th></tr></thead>
-<tbody>
-{{range .Recent}}
-<tr>
-<td>{{.When}}</td>
-<td class="num {{.DurClass}}">{{fmtMs .DurMs}}</td>
-<td class="num">{{.Busy}}</td>
-<td class="num">{{.Log}}</td>
-<td class="num">{{.Ckpt}}</td>
-<td>{{.Err}}</td>
-</tr>
-{{end}}
-</tbody>
-</table>
-</details>
-{{end}}
-{{else}}
-<div class="subtitle">Background checkpointer has not run yet (no completed ticks). The goroutine starts at <code>OpenSQLite</code> and ticks every few seconds — on a freshly-launched daemon this section may stay empty for one cycle.</div>
-{{end}}
-{{end}}
 
 <h2>Currently in flight</h2>
 {{if .Active}}

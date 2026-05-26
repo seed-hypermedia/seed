@@ -1419,6 +1419,39 @@ func sliceSection(t *testing.T, body, startMarker, stopMarker string) string {
 	return rest[:len(startMarker)+j]
 }
 
+// TestWALCheckpointerSurfacesAsWriterCaller verifies that the
+// background WAL checkpoint goroutine is instrumented as a real
+// writer-slot caller on /debug/sqlite. Without this hook, the
+// checkpointer's PRAGMA wal_checkpoint(PASSIVE) wouldn't go through
+// WithTx/Save and would be invisible — a victim begin_busy event
+// blocked by slow-disk checkpoint fsync would show "0 holders, 0
+// drained" on the Begin-busy attribution table.
+func TestWALCheckpointerSurfacesAsWriterCaller(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Close() })
+
+	// Open a dedicated conn for the checkpointer (mirrors the OpenSQLite
+	// production wiring) and start the goroutine with a tight interval
+	// so several ticks fire during the test.
+	ckptConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
+	stop := sqlitex.StartWALCheckpointer(pool, ckptConn, 30*time.Millisecond, nil)
+	t.Cleanup(func() {
+		stop()
+		_ = ckptConn.Close()
+	})
+
+	// Give the goroutine time to fire at least 2-3 ticks.
+	time.Sleep(150 * time.Millisecond)
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "sqlitex.WALCheckpointer",
+		"WAL checkpointer must surface as a real caller on /debug/sqlite — otherwise victims blocked by slow checkpoint fsync would show no attributable holder")
+}
+
 // TestDedicatedCheckpointerDoesNotShrinkPool verifies that the
 // background checkpointer running on a DEDICATED *sqlite.Conn (not
 // borrowed from the pool) doesn't reduce the effective foreground pool

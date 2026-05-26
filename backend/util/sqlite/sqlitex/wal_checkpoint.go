@@ -182,13 +182,38 @@ func StartWALCheckpointer(pool *Pool, conn *sqlite.Conn, interval time.Duration,
 	}
 }
 
+// walCheckpointerCaller is the synthetic caller name used to attribute
+// PRAGMA wal_checkpoint(PASSIVE) work to the writer-slot tracker. It
+// appears on /debug/sqlite as a real writer caller — in HeldBy
+// snapshots for begin_busy victims (if the checkpointer is mid-tick
+// at timeout), in DrainedDuringWait (for ticks that completed during a
+// victim's wait), in the per-caller stats, the Aggregate writer-slot
+// utilization table, and the Slowest write operations ring when a
+// tick exceeds the 100 ms slow threshold.
+//
+// Without this attribution, slow checkpoint ticks (1.6 s observed on
+// slow-fsync hardware) would be invisible to the writer-slot
+// instrumentation — they don't go through WithTx/Save — and a victim
+// blocked by checkpoint contention would show as "0 holders, 0 drained"
+// on the Begin-busy attribution table.
+const walCheckpointerCaller = "sqlitex.WALCheckpointer"
+
 // runOneCheckpoint executes one PASSIVE checkpoint on the dedicated
 // conn and records the result. Errors are logged + recorded but do not
 // terminate the loop — a transient SQLITE_BUSY (e.g. another writer
 // crossing the WAL header at the wrong instant) just means we retry
 // next tick.
+//
+// Instrumentation: PRAGMA wal_checkpoint(PASSIVE) doesn't go through
+// WithTx or Save, so without explicit hooks here the checkpointer
+// would be invisible to /debug/sqlite. We wrap the Exec call in
+// startActive/endActive (so concurrent begin_busy victims see it in
+// HeldBy) and call recordTx after (so it lands in the completed ring
+// and surfaces in DrainedDuringWait + per-caller stats). The outcome
+// is outcomeCommit on success / outcomeRollback on Exec error.
 func runOneCheckpoint(conn *sqlite.Conn, log Logger) {
 	var busy, walLog, ckpt int64
+	activeID := tracker.startActive(walCheckpointerCaller)
 	t0 := time.Now()
 	execErr := Exec(conn, "PRAGMA wal_checkpoint(PASSIVE);", func(stmt *sqlite.Stmt) error {
 		busy = stmt.ColumnInt64(0)
@@ -197,6 +222,18 @@ func runOneCheckpoint(conn *sqlite.Conn, log Logger) {
 		return nil
 	})
 	dur := time.Since(t0)
+	tracker.endActive(activeID, walCheckpointerCaller)
+	outcome := outcomeCommit
+	if execErr != nil {
+		outcome = outcomeRollback
+	}
+	// beginWait/poolWait are both zero: the checkpointer owns its
+	// dedicated conn (no pool acquire) and PRAGMA wal_checkpoint
+	// doesn't go through BEGIN IMMEDIATE (no writer-mutex wait phase).
+	// hold == the PRAGMA's wall duration, which captures both the
+	// brief writer-mutex acquisition for WAL-header update AND the
+	// page-relocation fsync work that's the real cost on slow disks.
+	tracker.recordTx(walCheckpointerCaller, 0, dur, 0, outcome, nil, nil)
 
 	res := CheckpointResult{
 		When:         time.Now(),
