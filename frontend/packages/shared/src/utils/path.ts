@@ -19,5 +19,8 @@ export function pathNameify(name: string) {
       // Remove consecutive slashes
       .replace(/\/{2,}/g, '/')
       .toLowerCase()
+      // Strip leading & trailing chars rejected by validatePath
+      .replace(/^[-_.]+/, '')
+      .replace(/[-_.]+$/, '')
   )
 }

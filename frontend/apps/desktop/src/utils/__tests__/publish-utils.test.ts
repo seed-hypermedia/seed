@@ -215,6 +215,25 @@ describe('computeInlineDraftPublishPath', () => {
     expect(computeInlineDraftPublishPath([], '', 'abc')).toEqual([])
     expect(computeInlineDraftPublishPath([], '!@#$', 'abc')).toEqual([])
   })
+
+  it('strips leading/trailing space-derived dashes from the slug', () => {
+    const editPath = ['parent', '-abc']
+    expect(computeInlineDraftPublishPath(editPath, ' hello world ', 'abc')).toEqual(['parent', 'hello-world'])
+  })
+
+  it('strips leading/trailing literal `-`, `_`, `.` from the slug', () => {
+    const editPath = ['parent', '-abc']
+    expect(computeInlineDraftPublishPath(editPath, '-hello-', 'abc')).toEqual(['parent', 'hello'])
+    expect(computeInlineDraftPublishPath(editPath, '_hello_', 'abc')).toEqual(['parent', 'hello'])
+    expect(computeInlineDraftPublishPath(editPath, '.hello.', 'abc')).toEqual(['parent', 'hello'])
+  })
+
+  it('falls back to untitled-${draftId} when title is only special chars', () => {
+    const editPath = ['parent', '-abc']
+    expect(computeInlineDraftPublishPath(editPath, '---', 'abc')).toEqual(['parent', 'untitled-abc'])
+    expect(computeInlineDraftPublishPath(editPath, '___', 'abc')).toEqual(['parent', 'untitled-abc'])
+    expect(computeInlineDraftPublishPath(editPath, '...', 'abc')).toEqual(['parent', 'untitled-abc'])
+  })
 })
 
 describe('resolvePublishPath', () => {
