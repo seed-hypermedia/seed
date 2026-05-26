@@ -76,6 +76,31 @@
   --hm-breakout: 0px;
 }
 
+/* Belt-and-braces: in comments, fully neutralize the breakout layout
+ * primitives so block-level media/code render inline at the column
+ * width regardless of viewport size. Setting `--hm-breakout: 0px`
+ * alone leaves `position:relative; left:50%; translateX(-50%)` active,
+ * which interacts badly with `overflow-x-hidden` on tight column
+ * surfaces (comment editor + rendered comments). */
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']) {
+  position: static;
+  left: auto;
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+}
+
 /* Headings ride the UI sans stack so they read as structure, not prose. */
 .hm-prose h1,
 .hm-prose h2,
