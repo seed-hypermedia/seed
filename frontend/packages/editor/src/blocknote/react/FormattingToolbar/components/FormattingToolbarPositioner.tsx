@@ -26,7 +26,16 @@ export const FormattingToolbarPositioner = <BSchema extends BlockSchema = Defaul
     })
   }, [props.editor])
 
-  useHideOnDocumentScroll(() => setShow(false))
+  // Route scroll-driven hides through the plugin so subscribers (e.g. the
+  // Style Options popover) get notified and can close themselves. Falls back
+  // to local state if the plugin isn't ready yet.
+  useHideOnDocumentScroll(() => {
+    if (props.editor.formattingToolbar) {
+      props.editor.formattingToolbar.hide()
+    } else {
+      setShow(false)
+    }
+  })
 
   const getReferenceClientRect = useMemo(() => {
     if (!referencePos) {

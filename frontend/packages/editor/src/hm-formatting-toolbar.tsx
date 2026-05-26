@@ -487,7 +487,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                     type="button"
                     variant="ghost"
                     data-testid="style-options-trigger"
-                    className="h-9 gap-1.5 rounded-md border border-black/10 px-3 text-sm font-normal hover:bg-black/10 dark:border-white/10 dark:hover:bg-white/10"
+                    className="format-toolbar-item h-9 gap-1.5 rounded-md border border-black/10 px-3 text-sm font-normal hover:bg-black/10 dark:border-white/10 dark:hover:bg-white/10"
                   >
                     <ListChecks className="size-4" />
                     <span>Style options</span>
@@ -501,9 +501,21 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                   collisionPadding={8}
                   onOpenAutoFocus={(e) => e.preventDefault()}
                   onCloseAutoFocus={(e) => e.preventDefault()}
-                  // Keep focus on the editor when a click lands on a
-                  // non-focusable area of the panel.
-                  onPointerDown={(e) => e.preventDefault()}
+                  // Keep focus on the editor when a pointer lands on
+                  // non-focusable areas of the panel (padding, gaps, section
+                  // headings). Focusable controls (buttons, inputs) keep
+                  // their native behavior so text selection and keyboard
+                  // focus still work if the panel ever gains an input.
+                  onPointerDown={(e) => {
+                    const target = e.target as HTMLElement | null
+                    if (
+                      !target?.closest(
+                        'button, input, textarea, select, a, [contenteditable=""], [contenteditable="true"]',
+                      )
+                    ) {
+                      e.preventDefault()
+                    }
+                  }}
                   className="format-toolbar-item bg-background z-[10000] w-[22rem] max-w-[92vw] p-3"
                 >
                   <StyleOptionsPanel

@@ -157,6 +157,20 @@ export class FormattingToolbarView<BSchema extends BlockSchema> {
     }
   }
 
+  /**
+   * Force the toolbar to its hidden state and notify subscribers. Used by
+   * external triggers (e.g. document scroll) so the close goes through the
+   * plugin's event channel instead of the React positioner's local state —
+   * otherwise consumers subscribed to `onUpdate` (such as the Style Options
+   * popover) never learn that the toolbar is going away.
+   */
+  hide() {
+    if (this.formattingToolbarState?.show) {
+      this.formattingToolbarState.show = false
+      this.updateFormattingToolbar()
+    }
+  }
+
   destroy() {
     this.pmView.dom.removeEventListener('mousedown', this.viewMousedownHandler)
     this.pmView.dom.removeEventListener('mouseup', this.viewMouseupHandler)
@@ -208,5 +222,10 @@ export class FormattingToolbarProsemirrorPlugin<BSchema extends BlockSchema> ext
 
   public onUpdate(callback: (state: FormattingToolbarState) => void) {
     return this.on('update', callback)
+  }
+
+  /** Hide the toolbar and notify subscribers via the `update` event. */
+  public hide() {
+    this.view?.hide()
   }
 }
