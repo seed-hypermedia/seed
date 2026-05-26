@@ -1506,17 +1506,7 @@ function DocumentBody({
   }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0
-  const actionButtons = hasOptions ? (
-    <>
-      {/* Only show in the floating overlay on md+ screens — on mobile the same
-          button is rendered inside DocumentTools rightActions (md:hidden), so
-          hiding it here prevents both from showing simultaneously around the
-          md breakpoint (issue #321). */}
-      <div className="hidden md:block">
-        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-      </div>
-    </>
-  ) : null
+  const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
@@ -1683,34 +1673,17 @@ function DocumentBody({
                     showSidebars,
                   }
             }
-            rightActions={
-              <div className="flex items-center gap-1">
-                {/* Mobile: show editing/draft actions inline (desktop uses floating overlay).
-                    These include their own OptionsDropdown, so hide the standalone one. */}
-                {isMobile && isEditing && editingFloatingActions ? (
-                  editingFloatingActions({menuItems: allMenuItems})
-                ) : isMobile && !isEditing && ctx.draftId !== null && draftActions ? (
-                  draftActions({menuItems: allMenuItems})
-                ) : (
-                  <>
-                    {hasOptions && (
-                      <div className="md:hidden">
-                        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
-                      </div>
-                    )}
-                  </>
-                )}
-                {activeView !== 'content' && activeView !== 'site-profile' && !isMobile && (
-                  <OpenInPanelButton
-                    id={docId}
-                    panelRoute={
-                      route.key === activeView
-                        ? extractPanelRoute(route)
-                        : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
-                    }
-                  />
-                )}
-              </div>
+            activeTabAction={
+              activeView !== 'content' && activeView !== 'site-profile' ? (
+                <OpenInPanelButton
+                  id={docId}
+                  panelRoute={
+                    route.key === activeView
+                      ? extractPanelRoute(route)
+                      : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                  }
+                />
+              ) : null
             }
           />
         </div>

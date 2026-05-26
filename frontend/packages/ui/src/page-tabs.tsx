@@ -1,5 +1,6 @@
 import {NavRoute, useRouteLink} from '@shm/shared'
 import {LucideIcon} from 'lucide-react'
+import {cloneElement, isValidElement, ReactNode} from 'react'
 import {Button, ButtonProps} from './button'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -45,6 +46,12 @@ export interface PageTabProps extends Omit<ButtonProps, 'variant' | 'asChild'> {
   showLabel?: boolean
   /** Optional background color class override */
   bg?: string
+  /**
+   * Optional node rendered inside the active tab pill, to the right of label/count.
+   * Only rendered when `active` is true. Receives `nested` prop via cloneElement so
+   * the action can adapt its styling to sit inside the accent pill.
+   */
+  trailingAction?: ReactNode
 }
 
 /**
@@ -60,10 +67,46 @@ export function PageTab({
   active = false,
   showLabel = true,
   bg,
+  trailingAction,
   className,
   ...props
 }: PageTabProps) {
   const linkProps = useRouteLink(route)
+
+  const linkContent = (
+    <>
+      {Icon && <Icon className="size-4" />}
+      {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
+      {count ? <span className="text-sm">{count}</span> : null}
+    </>
+  )
+
+  if (active && trailingAction) {
+    const nestedAction = isValidElement(trailingAction)
+      ? cloneElement(trailingAction as React.ReactElement<{nested?: boolean}>, {nested: true})
+      : trailingAction
+    return (
+      <Tooltip content="">
+        <div
+          className={cn(
+            'bg-accent text-accent-foreground inline-flex items-center rounded-full shadow-xs',
+            bg,
+            className,
+          )}
+        >
+          <a
+            {...linkProps}
+            data-tab={route.key}
+            className="inline-flex h-9 items-center gap-2 rounded-l-full pr-2 pl-4 transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            {linkContent}
+          </a>
+          {nestedAction}
+        </div>
+      </Tooltip>
+    )
+  }
+
   const btn = (
     <Button
       className={cn('flex-1 rounded-full', bg, className)}
@@ -72,9 +115,7 @@ export function PageTab({
       {...props}
     >
       <a {...linkProps} data-tab={route.key}>
-        {Icon && <Icon className="size-4" />}
-        {label && showLabel ? <span className="hidden truncate text-sm md:block">{label}</span> : null}
-        {count ? <span className="text-sm">{count}</span> : null}
+        {linkContent}
       </a>
     </Button>
   )
