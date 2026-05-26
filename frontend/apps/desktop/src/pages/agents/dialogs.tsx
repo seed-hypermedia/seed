@@ -3,6 +3,7 @@ import {
   DEFAULT_AGENT_SERVER_URL,
   useCreateAgent,
   useCreateSigningIdentity,
+  useDeleteModelProvider,
   useDeleteSigningIdentity,
   useModelProviders,
   useProviderModels,
@@ -21,6 +22,7 @@ import {Input} from '@shm/ui/components/input'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
@@ -32,8 +34,67 @@ export function ModelProvidersDialog({
   input: {serverUrl: string; selectedAccountId: string | null | undefined}
   onClose: () => void
 }) {
-  const saveProvider = useSaveModelProvider(input.serverUrl, input.selectedAccountId)
   const providers = useModelProviders(input.serverUrl, input.selectedAccountId)
+  const deleteProvider = useDeleteModelProvider(input.serverUrl, input.selectedAccountId)
+  const addProviderDialog = useAppDialog(AddModelProviderDialog)
+
+  async function handleDeleteProvider(name: string) {
+    try {
+      const result = await deleteProvider.mutateAsync(name)
+      if (result._ !== 'DeleteModelProviderResponse') throw new Error('Unexpected delete response')
+      toast.success('Model provider key deleted')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete model provider key')
+    }
+  }
+
+  return (
+    <div className="flex min-w-[460px] flex-col gap-5">
+      <div>
+        <DialogTitle>Model providers</DialogTitle>
+        <DialogDescription>Save API keys as encrypted server-side secrets for reusable providers.</DialogDescription>
+      </div>
+      <div className="grid gap-3">
+        {providers.data?.map((provider) => (
+          <div key={provider.id} className="border-border flex items-center justify-between gap-3 rounded-lg border p-3">
+            <div>
+              <SizableText weight="bold">{provider.name}</SizableText>
+              <SizableText size="sm" color="muted">
+                {provider.type} · {provider.hasSecrets ? 'secret saved' : 'no secret'}
+              </SizableText>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${provider.name} provider key`}
+              onClick={() => void handleDeleteProvider(provider.name)}
+              disabled={deleteProvider.isLoading}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        ))}
+        {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Close
+        </Button>
+        <Button onClick={() => addProviderDialog.open(input)}>Add provider</Button>
+      </div>
+      {addProviderDialog.content}
+    </div>
+  )
+}
+
+function AddModelProviderDialog({
+  input,
+  onClose,
+}: {
+  input: {serverUrl: string; selectedAccountId: string | null | undefined}
+  onClose: () => void
+}) {
+  const saveProvider = useSaveModelProvider(input.serverUrl, input.selectedAccountId)
   const [type, setType] = useState<ModelProviderType>('openai')
   const [name, setName] = useState('openai')
   const [apiKey, setApiKey] = useState('')
@@ -47,68 +108,60 @@ export function ModelProvidersDialog({
       await saveProvider.mutateAsync({type, name, apiKey})
       setApiKey('')
       toast.success('Model provider saved')
+      onClose()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save model provider')
     }
   }
 
   return (
-    <div className="flex min-w-[460px] flex-col gap-5">
+    <form
+      className="flex min-w-[420px] flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (saveProvider.isLoading || !apiKey.trim()) return
+        void handleSave()
+      }}
+    >
       <div>
-        <DialogTitle>Model providers</DialogTitle>
-        <DialogDescription>Save API keys as encrypted server-side secrets for reusable providers.</DialogDescription>
+        <DialogTitle>Add model provider</DialogTitle>
+        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
       </div>
-      <div className="grid gap-3">
-        {providers.data?.map((provider) => (
-          <div key={provider.id} className="border-border flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <SizableText weight="bold">{provider.name}</SizableText>
-              <SizableText size="sm" color="muted">
-                {provider.type} · {provider.hasSecrets ? 'secret saved' : 'no secret'}
-              </SizableText>
-            </div>
-          </div>
-        ))}
-        {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Provider type
+        </SizableText>
+        <select
+          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          value={type}
+          onChange={(event) => setType(event.target.value as ModelProviderType)}
+        >
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="google">Google</option>
+        </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Provider name
+        </SizableText>
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="openai" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          API key
+        </SizableText>
+        <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saveProvider.isLoading || !apiKey.trim()}>
+          Save provider
+        </Button>
       </div>
-      <div className="border-border grid gap-3 rounded-lg border p-3">
-        <SizableText weight="bold">Add or update provider</SizableText>
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Provider type
-          </SizableText>
-          <select
-            className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-            value={type}
-            onChange={(event) => setType(event.target.value as ModelProviderType)}
-          >
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="google">Google</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Provider name
-          </SizableText>
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="openai" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            API key
-          </SizableText>
-          <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
-        </label>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saveProvider.isLoading || !apiKey.trim()}>
-            Save provider
-          </Button>
-        </div>
-      </div>
-    </div>
+    </form>
   )
 }
 

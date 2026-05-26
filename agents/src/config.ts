@@ -44,7 +44,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'server-port': Number(env.SEED_AGENTS_HTTP_PORT) || 3050,
     'db-path': env.SEED_AGENTS_DB_PATH || './data/agents.sqlite',
     'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
-    'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'http://localhost:3000',
+    'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
     'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
     'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,

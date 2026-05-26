@@ -297,6 +297,19 @@ export function useModelProviderLists(serverUrls: string[] | undefined, accountU
   })
 }
 
+/** Deletes a configured model provider and its API key secret. */
+export function useDeleteModelProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteModelProvider', name}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 /** Stores an API key and configures a model provider. */
 export function useSaveModelProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({

@@ -29,16 +29,16 @@ direnv exec . bash -lc './dev run-desktop'
 
 Config source: `agents/src/config.ts`.
 
-| Environment variable                    | Default                 | Purpose                                                                     |
-| --------------------------------------- | ----------------------- | --------------------------------------------------------------------------- |
-| `SEED_AGENTS_HTTP_HOSTNAME`             | `0.0.0.0`               | HTTP bind hostname.                                                         |
-| `SEED_AGENTS_HTTP_PORT`                 | `3050`                  | HTTP port.                                                                  |
-| `SEED_AGENTS_DB_PATH`                   | `./data/agents.sqlite`  | SQLite DB path.                                                             |
-| `SEED_AGENTS_DATA_DIR`                  | `./data`                | Data directory.                                                             |
-| `SEED_AGENTS_HM_SERVER_URL`             | `http://localhost:3000` | Upstream SHM HTTP API used for ActivityFeed polls and HM tool reads/writes. |
-| `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000`                  | Activity and schedule trigger monitor poll interval.                        |
-| `SEED_AGENTS_ACTIVITY_PAGE_SIZE`        | `50`                    | ActivityFeed page size.                                                     |
-| `SEED_AGENTS_ACTIVITY_MAX_PAGES`        | `5`                     | Max pages fetched per poll.                                                 |
+| Environment variable                    | Default                | Purpose                                                                     |
+| --------------------------------------- | ---------------------- | --------------------------------------------------------------------------- |
+| `SEED_AGENTS_HTTP_HOSTNAME`             | `0.0.0.0`              | HTTP bind hostname.                                                         |
+| `SEED_AGENTS_HTTP_PORT`                 | `3050`                 | HTTP port.                                                                  |
+| `SEED_AGENTS_DB_PATH`                   | `./data/agents.sqlite` | SQLite DB path.                                                             |
+| `SEED_AGENTS_DATA_DIR`                  | `./data`               | Data directory.                                                             |
+| `SEED_AGENTS_HM_SERVER_URL`             | `https://hyper.media`  | Upstream SHM HTTP API used for ActivityFeed polls and HM tool reads/writes. |
+| `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000`                 | Activity and schedule trigger monitor poll interval.                        |
+| `SEED_AGENTS_ACTIVITY_PAGE_SIZE`        | `50`                   | ActivityFeed page size.                                                     |
+| `SEED_AGENTS_ACTIVITY_MAX_PAGES`        | `5`                    | Max pages fetched per poll.                                                 |
 
 CLI flags override env/defaults:
 
@@ -48,7 +48,7 @@ bun src/main.ts \
   --server-port 3050 \
   --db-path ./data/agents.sqlite \
   --data-dir ./data \
-  --hm-server-url http://localhost:3000
+  --hm-server-url https://hyper.media
 ```
 
 ## Local files

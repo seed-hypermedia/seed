@@ -85,6 +85,7 @@ export type UnsignedAgentAction =
   | UpdateSigningIdentity
   | DeleteSigningIdentity
   | SetModelProvider
+  | DeleteModelProvider
   | SetSecret
   | GetAgent
   | UpdateAgent
@@ -155,6 +156,12 @@ export type SetModelProvider = {
   _: 'SetModelProvider'
   name: string
   provider: ModelProviderConfig
+}
+
+/** Deletes a named model provider and its API key secret for the account. */
+export type DeleteModelProvider = {
+  _: 'DeleteModelProvider'
+  name: string
 }
 
 /** Stores a secret value encrypted at rest. */
@@ -468,6 +475,12 @@ export type SetModelProviderResponse = {
   provider: RedactedModelProvider
 }
 
+/** Successful response for `DeleteModelProvider`. */
+export type DeleteModelProviderResponse = {
+  _: 'DeleteModelProviderResponse'
+  name: string
+}
+
 /** Successful response for `ListSigningIdentities`. */
 export type ListSigningIdentitiesResponse = {
   _: 'ListSigningIdentitiesResponse'
@@ -601,6 +614,7 @@ export type AgentResponse =
   | DeleteSigningIdentityResponse
   | CreateAgentResponse
   | SetModelProviderResponse
+  | DeleteModelProviderResponse
   | SetSecretResponse
   | GetAgentResponse
   | DeleteAgentResponse
