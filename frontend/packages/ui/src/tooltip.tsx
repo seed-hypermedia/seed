@@ -8,17 +8,24 @@ export function Tooltip({
   children,
   delay = 200,
   asChild = false,
+  contentClassName,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root> & {
   delay?: number
   content: string
   side?: React.ComponentProps<typeof TooltipContent>['side']
   asChild?: boolean
+  // Extra classes for the tooltip content.
+  contentClassName?: string
 }) {
   return (
     <TooltipPrimitive.Root data-slot="tooltip" {...props} delayDuration={delay}>
       <TooltipTrigger asChild>{asChild ? children : <span>{children}</span>}</TooltipTrigger>
-      {content && <TooltipContent side={side}>{content}</TooltipContent>}
+      {content && (
+        <TooltipContent side={side} className={contentClassName}>
+          {content}
+        </TooltipContent>
+      )}
     </TooltipPrimitive.Root>
   )
 }

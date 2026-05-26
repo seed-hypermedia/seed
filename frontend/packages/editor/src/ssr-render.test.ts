@@ -102,4 +102,62 @@ describe('renderDocumentToHTML', () => {
     expect(html).toContain('data-view="Card"')
     expect(html).toContain('data-content-type="embed"')
   })
+
+  it('renders a TextColor annotation as a span with data-text-color', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'b1',
+            type: 'Paragraph',
+            text: 'hello',
+            annotations: [{type: 'TextColor', starts: [0], ends: [5], attributes: {value: 'red'}}],
+          },
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {renderHref: (url) => url},
+    )
+
+    expect(html).toContain('<span data-text-color="red">hello</span>')
+  })
+
+  it('renders a BackgroundColor annotation as a span with data-background-color', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'b1',
+            type: 'Paragraph',
+            text: 'hello',
+            annotations: [{type: 'BackgroundColor', starts: [0], ends: [5], attributes: {value: 'yellow'}}],
+          },
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {renderHref: (url) => url},
+    )
+
+    expect(html).toContain('<span data-background-color="yellow">hello</span>')
+  })
+
+  it('omits the color span when the color attribute is missing', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {
+            id: 'b1',
+            type: 'Paragraph',
+            text: 'hello',
+            annotations: [{type: 'TextColor', starts: [0], ends: [5], attributes: {}}],
+          },
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {renderHref: (url) => url},
+    )
+
+    expect(html).not.toContain('data-text-color')
+    expect(html).toContain('hello')
+  })
 })

@@ -1190,4 +1190,85 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
   })
+
+  describe('color annotations', () => {
+    test('emits TextColor annotation with the color name in attributes', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [
+          {text: 'A', type: 'text', styles: {}},
+          {text: 'B', type: 'text', styles: {textColor: 'red'}},
+          {text: 'C', type: 'text', styles: {}},
+        ],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'ABC',
+        annotations: [{type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [1], ends: [2]}],
+        attributes: {},
+      })
+    })
+
+    test('emits BackgroundColor annotation distinct from TextColor on the same span', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [{text: 'highlighted', type: 'text', styles: {textColor: 'red', backgroundColor: 'yellow'}}],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
+
+      expect(val.annotations).toEqual([
+        {type: 'BackgroundColor', attributes: {value: 'yellow'}, link: '', starts: [0], ends: [11]},
+        {type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [0], ends: [11]},
+      ])
+    })
+
+    test('keeps spans with different color values as separate annotations', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [
+          {text: 'AA', type: 'text', styles: {textColor: 'red'}},
+          {text: 'BB', type: 'text', styles: {textColor: 'blue'}},
+        ],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
+
+      expect(val.annotations).toEqual([
+        {type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [0], ends: [2]},
+        {type: 'TextColor', attributes: {value: 'blue'}, link: '', starts: [2], ends: [4]},
+      ])
+    })
+
+    test('merges adjacent spans that share the same color value', () => {
+      const editorBlock: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [
+          {text: 'AA', type: 'text', styles: {textColor: 'red', bold: true}},
+          {text: 'BB', type: 'text', styles: {textColor: 'red'}},
+        ],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
+
+      const textColor = val.annotations?.find((a) => a.type === 'TextColor')
+      expect(textColor).toEqual({type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [0], ends: [4]})
+    })
+  })
 })

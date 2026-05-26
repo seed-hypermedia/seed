@@ -3,10 +3,21 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {HeadingIcon, OrderedList, Quote, Type, UnorderedList} from '@shm/ui/icons'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Check} from 'lucide-react'
+import {Check, Highlighter} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockNoteEditor, BlockSchema} from './blocknote'
-import {ToolbarColorName} from './toolbar-color-palette'
+import {HighlightPalette, TEXT_SWATCH_CLASS, TextColorPalette, ToolbarColorName} from './toolbar-color-palette'
+
+export const TEXT_SIZE_OPTIONS = [
+  {label: 'Small', value: 'small'},
+  {label: 'Medium', value: 'medium'},
+  {label: 'Big', value: 'big'},
+] as const
+
+export const TEXT_FAMILY_OPTIONS = [
+  {label: 'Sans serif', value: 'sans'},
+  {label: 'Serif', value: 'serif'},
+] as const
 
 export type StyleOptionsPanelProps<BSchema extends BlockSchema> = {
   editor: BlockNoteEditor<BSchema>
@@ -15,9 +26,13 @@ export type StyleOptionsPanelProps<BSchema extends BlockSchema> = {
   currentColumnCount: string
   currentTextColor: ToolbarColorName
   currentBackgroundColor: ToolbarColorName
+  currentTextSize: string
+  currentTextFamily: string
   onBlockTypeChange: (value: string) => void
   onGroupTypeChange: (value: string) => void
   onColumnCountChange: (value: string) => void
+  onTextSizeChange: (value: string) => void
+  onTextFamilyChange: (value: string) => void
 }
 
 const COLUMN_OPTIONS: {label: string; value: string}[] = [
@@ -34,9 +49,13 @@ export function StyleOptionsPanel<BSchema extends BlockSchema>(props: StyleOptio
     currentColumnCount,
     currentTextColor,
     currentBackgroundColor,
+    currentTextSize,
+    currentTextFamily,
     onBlockTypeChange,
     onGroupTypeChange,
     onColumnCountChange,
+    onTextSizeChange,
+    onTextFamilyChange,
   } = props
 
   return (
@@ -64,9 +83,9 @@ export function StyleOptionsPanel<BSchema extends BlockSchema>(props: StyleOptio
             active={currentGroupType === 'Blockquote'}
             onClick={() => onGroupTypeChange(currentGroupType === 'Blockquote' ? 'Group' : 'Blockquote')}
           />
-          {/* <ColorPaletteItem
+          <ColorPaletteItem
             testId="text-color-trigger"
-            icon={<Palette className="size-4" />}
+            icon={<TextColorSwatch color={currentTextColor} />}
             label="Color"
             active={currentTextColor !== 'default'}
           >
@@ -79,11 +98,9 @@ export function StyleOptionsPanel<BSchema extends BlockSchema>(props: StyleOptio
             active={currentBackgroundColor !== 'default'}
           >
             {({close}) => <HighlightPalette editor={editor} current={currentBackgroundColor} onSelect={close} />}
-          </ColorPaletteItem> */}
+          </ColorPaletteItem>
         </Section>
-      </div>
 
-      <div className="flex flex-col gap-3">
         <Section title="List">
           <PanelItem
             testId="group-type-unordered"
@@ -99,6 +116,37 @@ export function StyleOptionsPanel<BSchema extends BlockSchema>(props: StyleOptio
             active={currentGroupType === 'Ordered'}
             onClick={() => onGroupTypeChange(currentGroupType === 'Ordered' ? 'Group' : 'Ordered')}
           />
+        </Section>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Section title="Size">
+          {TEXT_SIZE_OPTIONS.map((opt) => {
+            // Default value is medium for text size
+            const activeSize = currentTextSize || 'medium'
+            return (
+              <PanelItem
+                key={opt.value}
+                testId={`text-size-${opt.value}`}
+                label={opt.label}
+                active={activeSize === opt.value}
+                onClick={() => onTextSizeChange(opt.value === 'medium' ? '' : opt.value)}
+              />
+            )
+          })}
+        </Section>
+
+        <Section title="Font">
+          {TEXT_FAMILY_OPTIONS.map((opt) => (
+            <PanelItem
+              key={opt.value}
+              testId={`text-family-${opt.value}`}
+              icon={<span className="font-serif text-sm">Aa</span>}
+              label={opt.label}
+              active={currentTextFamily === opt.value}
+              onClick={() => onTextFamilyChange(currentTextFamily === opt.value ? '' : opt.value)}
+            />
+          ))}
         </Section>
 
         <Section title="Grid">
@@ -141,7 +189,7 @@ function PanelItem({
   onClick,
   testId,
 }: {
-  icon: ReactNode
+  icon?: ReactNode
   label: string
   active?: boolean
   onClick?: () => void
@@ -159,7 +207,7 @@ function PanelItem({
       )}
       onClick={onClick}
     >
-      <span className="text-muted-foreground">{icon}</span>
+      {icon && <span className="text-muted-foreground">{icon}</span>}
       <span className="flex-1 truncate text-left">{label}</span>
       {active && <Check className="size-4 text-green-600 dark:text-green-400" />}
     </Button>
@@ -204,11 +252,24 @@ function ColorPaletteItem({
         collisionPadding={8}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        className="w-auto p-3"
+        onPointerDown={(e) => e.preventDefault()}
+        className="format-toolbar-item z-[10000] w-auto p-3"
       >
         {children({close: () => popover.onOpenChange(false)})}
       </PopoverContent>
     </Popover>
+  )
+}
+
+/** Small circle reflecting the currently applied text color. */
+function TextColorSwatch({color}: {color: ToolbarColorName}) {
+  return (
+    <span
+      className={cn(
+        'block size-4 rounded-full border border-black/10 dark:border-white/10',
+        color === 'default' ? 'bg-foreground' : TEXT_SWATCH_CLASS[color],
+      )}
+    />
   )
 }
 

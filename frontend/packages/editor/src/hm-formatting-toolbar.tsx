@@ -17,7 +17,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {ChevronDown, FileText, Link, ListChecks, MessageSquare} from 'lucide-react'
-import {useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
 import {getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
@@ -228,9 +228,26 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   const [currentBlockType, setCurrentBlockType] = useState<string>('paragraph')
   const [currentTextColor, setCurrentTextColor] = useState<ToolbarColorName>('default')
   const [currentBackgroundColor, setCurrentBackgroundColor] = useState<ToolbarColorName>('default')
+  const [currentTextSize, setCurrentTextSize] = useState<string>('')
+  const [currentTextFamily, setCurrentTextFamily] = useState<string>('')
   const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
   const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
   const stylePopover = usePopoverState()
+  // Keep a ref to the latest popover state so the toolbar visibility
+  // subscription doesn't need to resubscribe on every render.
+  const stylePopoverRef = useRef(stylePopover)
+  stylePopoverRef.current = stylePopover
+
+  // Close the style options popover whenever the parent Tippy toolbar wants to hide.
+  useEffect(() => {
+    const plugin = props.editor.formattingToolbar
+    if (!plugin) return
+    return plugin.onUpdate((state) => {
+      if (!state.show && stylePopoverRef.current.open) {
+        stylePopoverRef.current.onOpenChange(false)
+      }
+    })
+  }, [props.editor])
   const isMobile = useMobile()
 
   useEditorSelectionChange(props.editor, () => {
@@ -256,12 +273,16 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
     const activeStyles = props.editor.getActiveStyles()
     setCurrentTextColor(normalizeColorName(activeStyles.textColor))
     setCurrentBackgroundColor(normalizeColorName(activeStyles.backgroundColor))
+    setCurrentTextSize(typeof activeStyles.textSize === 'string' ? activeStyles.textSize : '')
+    setCurrentTextFamily(typeof activeStyles.textFamily === 'string' ? activeStyles.textFamily : '')
   })
 
   useEditorContentChange(props.editor, () => {
     const activeStyles = props.editor.getActiveStyles()
     setCurrentTextColor(normalizeColorName(activeStyles.textColor))
     setCurrentBackgroundColor(normalizeColorName(activeStyles.backgroundColor))
+    setCurrentTextSize(typeof activeStyles.textSize === 'string' ? activeStyles.textSize : '')
+    setCurrentTextFamily(typeof activeStyles.textFamily === 'string' ? activeStyles.textFamily : '')
   })
 
   const handleGroupTypeChange = (listType: string) => {
@@ -320,6 +341,28 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   const handleTextTypeChange = (blockType: string) => {
     handleBlockTypeChange(blockType)
     setIsTextTypeDialogOpen(false)
+  }
+
+  /** Apply a text-size annotation to the current
+   * selection. Empty string clears the mark. */
+  const handleTextSizeChange = (value: string) => {
+    if (value) {
+      props.editor.addStyles({textSize: value})
+    } else {
+      props.editor.removeStyles({textSize: true} as any)
+    }
+    setCurrentTextSize(value)
+  }
+
+  /** Apply a font-family annotation to the current
+   * selection. Empty string clears the mark. */
+  const handleTextFamilyChange = (value: string) => {
+    if (value) {
+      props.editor.addStyles({textFamily: value})
+    } else {
+      props.editor.removeStyles({textFamily: true} as any)
+    }
+    setCurrentTextFamily(value)
   }
 
   /**
@@ -458,7 +501,10 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                   collisionPadding={8}
                   onOpenAutoFocus={(e) => e.preventDefault()}
                   onCloseAutoFocus={(e) => e.preventDefault()}
-                  className="bg-background w-[22rem] max-w-[92vw] p-3"
+                  // Keep focus on the editor when a click lands on a
+                  // non-focusable area of the panel.
+                  onPointerDown={(e) => e.preventDefault()}
+                  className="format-toolbar-item bg-background z-[10000] w-[22rem] max-w-[92vw] p-3"
                 >
                   <StyleOptionsPanel
                     editor={props.editor}
@@ -467,9 +513,13 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                     currentColumnCount={currentColumnCount}
                     currentTextColor={currentTextColor}
                     currentBackgroundColor={currentBackgroundColor}
+                    currentTextSize={currentTextSize}
+                    currentTextFamily={currentTextFamily}
                     onBlockTypeChange={handleBlockTypeChange}
                     onGroupTypeChange={handleGroupTypeChange}
                     onColumnCountChange={handleColumnCountChange}
+                    onTextSizeChange={handleTextSizeChange}
+                    onTextFamilyChange={handleTextFamilyChange}
                   />
                 </PopoverContent>
               </Popover>

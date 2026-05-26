@@ -8,8 +8,14 @@ import type {
   HMInlineContent,
   MediaBlockProps,
 } from './editor-types'
-import {type HMAnnotation, type HMBlock, type HMBlockChildrenType, type HMBlockNode, type HMBlockType} from './hm-types'
-import {isSurrogate} from './hm-types'
+import {
+  isSurrogate,
+  type HMAnnotation,
+  type HMBlock,
+  type HMBlockChildrenType,
+  type HMBlockNode,
+  type HMBlockType,
+} from './hm-types'
 import type {SpanAnnotation} from './unicode'
 
 type ServerToEditorRecursiveOpts = {
@@ -321,14 +327,18 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       }
 
       if (annotationData.type === 'TextColor') {
-        const color = (annotationData as any).attributes?.value
+        // Fallback to attributes.color for documents published before
+        // the schema was renamed.
+        const attrs = (annotationData as any).attributes
+        const color = attrs?.value ?? attrs?.color
         if (typeof color === 'string' && color) {
           ;(newLeaf.styles as Record<string, string | boolean>).textColor = color
         }
       }
 
       if (annotationData.type === 'BackgroundColor') {
-        const color = (annotationData as any).attributes?.value
+        const attrs = (annotationData as any).attributes
+        const color = attrs?.value ?? attrs?.color
         if (typeof color === 'string' && color) {
           ;(newLeaf.styles as Record<string, string | boolean>).backgroundColor = color
         }

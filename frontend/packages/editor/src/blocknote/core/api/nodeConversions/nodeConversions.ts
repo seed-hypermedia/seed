@@ -5,9 +5,11 @@ import {Block, BlockSchema, PartialBlock} from '../../extensions/Blocks/api/bloc
 import {defaultProps} from '../../extensions/Blocks/api/defaultBlocks'
 import {
   ColorStyle,
+  FontStyle,
   InlineContent,
   PartialInlineContent,
   PartialLink,
+  StringStyle,
   StyledText,
   Styles,
   ToggledStyle,
@@ -17,6 +19,7 @@ import {UnreachableCaseError} from '../../shared/utils'
 
 const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
 const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
+const fontStyles = new Set<FontStyle>(['textSize', 'textFamily'])
 
 /**
  * Convert a StyledText inline element to a
@@ -28,8 +31,8 @@ function styledTextToNodes(styledText: StyledText, schema: Schema): Node[] {
   for (const [style, value] of Object.entries(styledText.styles)) {
     if (toggleStyles.has(style as ToggledStyle)) {
       marks.push(schema.mark(style))
-    } else if (colorStyles.has(style as ColorStyle)) {
-      marks.push(schema.mark(style, {color: value}))
+    } else if (colorStyles.has(style as ColorStyle) || fontStyles.has(style as FontStyle)) {
+      marks.push(schema.mark(style, {value}))
     }
   }
 
@@ -243,8 +246,8 @@ function contentNodeToInlineContent(contentNode: Node) {
         linkMark = mark
       } else if (toggleStyles.has(mark.type.name as ToggledStyle)) {
         styles[mark.type.name as ToggledStyle] = true
-      } else if (colorStyles.has(mark.type.name as ColorStyle)) {
-        styles[mark.type.name as ColorStyle] = mark.attrs.color
+      } else if (colorStyles.has(mark.type.name as ColorStyle) || fontStyles.has(mark.type.name as FontStyle)) {
+        styles[mark.type.name as StringStyle] = mark.attrs.value
       } else {
         throw Error('Mark is of an unrecognized type: ' + mark.type.name)
       }

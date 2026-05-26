@@ -33,6 +33,8 @@ import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
 import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
 import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {TextColorMark} from './extensions/TextColor/TextColorMark'
+import {TextFamilyMark} from './extensions/TextFamily/TextFamilyMark'
+import {TextSizeMark} from './extensions/TextSize/TextSizeMark'
 import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
 
@@ -80,6 +82,8 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Underline,
     TextColorMark,
     BackgroundColorMark,
+    TextSizeMark,
+    TextFamilyMark,
     // LinkExtensionOptions extends LinkOptions with runtime extras (universalClient,
     // domainResolver, gwUrl, openUrl) that are read via index access in link.ts.
     // TipTap's `configure` only knows about the declared `LinkOptions` shape, so

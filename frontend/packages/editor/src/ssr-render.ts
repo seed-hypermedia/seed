@@ -336,14 +336,18 @@ function renderAnnotatedText(
           case 'Range':
             break
           case 'TextColor': {
-            const color = (ann as any).attributes?.value
+            // Fallback to attributes.color for documents published before
+            // the schema was renamed.
+            const attrs = (ann as any).attributes
+            const color = attrs?.value ?? attrs?.color
             if (typeof color === 'string' && color) {
               html = `<span data-text-color="${esc(color)}">${html}</span>`
             }
             break
           }
           case 'BackgroundColor': {
-            const color = (ann as any).attributes?.value
+            const attrs = (ann as any).attributes
+            const color = attrs?.value ?? attrs?.color
             if (typeof color === 'string' && color) {
               html = `<span data-background-color="${esc(color)}">${html}</span>`
             }

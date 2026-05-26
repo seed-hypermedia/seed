@@ -187,6 +187,8 @@ export interface EditorInlineStyles {
   range?: boolean
   textColor?: string
   backgroundColor?: string
+  textSize?: string
+  textFamily?: string
 }
 
 export type EditorAnnotationType =

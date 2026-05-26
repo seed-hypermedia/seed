@@ -5,13 +5,13 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
-import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {
   selectCanEdit,
   selectIsEditing,
   useDocumentMachineRef,
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
+import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
@@ -29,6 +29,7 @@ import {
   SlashMenuPositioner,
   SupernumbersController,
   useBlockNote,
+  type FormattingToolbarProps,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
@@ -670,6 +671,15 @@ export function DocumentEditor({
     }
   }, [onBlockSelect, onBlockCommentClick, isUnpublishedDraft, isBlockInPublishedVersion])
 
+  // Memo so the FormattingToolbarPositioner doesn't rebuild its React
+  // tree on every parent render. An inline arrow here was causing
+  // HMFormattingToolbar to mount/unmount continuously, wiping its panel
+  // state
+  const hmFormattingToolbar = useCallback(
+    (p: FormattingToolbarProps<any>) => <HMFormattingToolbar {...p} docId={resourceId} />,
+    [resourceId],
+  )
+
   return (
     <RenderResourceProvider resource={{kind: 'document', id: resourceId}}>
       <FragmentActionsContext.Provider value={fragmentActionsValue}>
@@ -677,10 +687,7 @@ export function DocumentEditor({
           {/* Editing-only positioners — gated behind isEditing */}
           {editable && (
             <>
-              <FormattingToolbarPositioner
-                editor={editor}
-                formattingToolbar={(p) => <HMFormattingToolbar {...p} docId={resourceId} />}
-              />
+              <FormattingToolbarPositioner editor={editor} formattingToolbar={hmFormattingToolbar} />
               <SideMenuPositioner editor={editor} />
               <SlashMenuPositioner editor={editor} />
               <LinkMenuPositioner editor={editor} />

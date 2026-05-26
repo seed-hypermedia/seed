@@ -4,7 +4,6 @@ import {Node} from 'prosemirror-model'
 // @ts-ignore
 import {Editor as TiptapEditor} from '@tiptap/core/dist/packages/core/src/Editor'
 import * as Y from 'yjs'
-import {getBlockNoteExtensions} from './BlockNoteExtensions'
 import {
   // insertBlocks,
   removeBlocks,
@@ -13,6 +12,7 @@ import {
 import {HTMLToBlocks, blocksToHTML, blocksToMarkdown, markdownToBlocks} from './api/formatConversions/formatConversions'
 import {blockToNode, nodeToBlock} from './api/nodeConversions/nodeConversions'
 import {getNodeById} from './api/util/nodeUtil'
+import {getBlockNoteExtensions} from './BlockNoteExtensions'
 import styles from './editor.module.css'
 import {
   Block,
@@ -22,24 +22,24 @@ import {
   PartialBlock,
 } from './extensions/Blocks/api/blockTypes'
 import {TextCursorPosition} from './extensions/Blocks/api/cursorPositionTypes'
-import {ColorStyle, Styles, ToggledStyle} from './extensions/Blocks/api/inlineContentTypes'
+import {ColorStyle, FontStyle, StringStyle, Styles, ToggledStyle} from './extensions/Blocks/api/inlineContentTypes'
 import {Selection} from './extensions/Blocks/api/selectionTypes'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {Transaction} from 'prosemirror-state'
+import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
-import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
 import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
+import {FullBlockSelectionProsemirrorPlugin} from './extensions/FullBlockSelection/FullBlockSelectionPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
 import {LinkMenuProsemirrorPlugin} from './extensions/LinkMenu/LinkMenuPlugin'
-import {FullBlockSelectionProsemirrorPlugin} from './extensions/FullBlockSelection/FullBlockSelectionPlugin'
 import {RangeSelectionProsemirrorPlugin} from './extensions/RangeSelection/RangeSelectionPlugin'
 import {DragStateManager} from './extensions/SideMenu/drag-state'
 import {createEditorDragId} from './extensions/SideMenu/pragmatic-dnd-bridge'
@@ -772,12 +772,14 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
     const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
+    const fontStyles = new Set<FontStyle>(['textSize', 'textFamily'])
 
     for (const mark of marks) {
-      if (toggleStyles.has(mark.type.name as ToggledStyle)) {
-        styles[mark.type.name as ToggledStyle] = true
-      } else if (colorStyles.has(mark.type.name as ColorStyle)) {
-        styles[mark.type.name as ColorStyle] = mark.attrs.color
+      const name = mark.type.name
+      if (toggleStyles.has(name as ToggledStyle)) {
+        styles[name as ToggledStyle] = true
+      } else if (colorStyles.has(name as ColorStyle) || fontStyles.has(name as FontStyle)) {
+        styles[name as StringStyle] = mark.attrs.value
       }
     }
 
@@ -791,14 +793,15 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public addStyles(styles: Styles) {
     const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
+    const fontStyles = new Set<FontStyle>(['textSize', 'textFamily'])
 
     this._tiptapEditor.view.focus()
 
     for (const [style, value] of Object.entries(styles)) {
       if (toggleStyles.has(style as ToggledStyle)) {
         this._tiptapEditor.commands.setMark(style)
-      } else if (colorStyles.has(style as ColorStyle)) {
-        this._tiptapEditor.commands.setMark(style, {color: value})
+      } else if (colorStyles.has(style as ColorStyle) || fontStyles.has(style as FontStyle)) {
+        this._tiptapEditor.commands.setMark(style, {value})
       }
     }
   }
@@ -822,14 +825,15 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public toggleStyles(styles: Styles) {
     const toggleStyles = new Set<ToggledStyle>(['bold', 'italic', 'underline', 'strike', 'code'])
     const colorStyles = new Set<ColorStyle>(['textColor', 'backgroundColor'])
+    const fontStyles = new Set<FontStyle>(['textSize', 'textFamily'])
 
     this._tiptapEditor.view.focus()
 
     for (const [style, value] of Object.entries(styles)) {
       if (toggleStyles.has(style as ToggledStyle)) {
         this._tiptapEditor.commands.toggleMark(style)
-      } else if (colorStyles.has(style as ColorStyle)) {
-        this._tiptapEditor.commands.toggleMark(style, {color: value})
+      } else if (colorStyles.has(style as ColorStyle) || fontStyles.has(style as FontStyle)) {
+        this._tiptapEditor.commands.toggleMark(style, {value})
       }
     }
   }

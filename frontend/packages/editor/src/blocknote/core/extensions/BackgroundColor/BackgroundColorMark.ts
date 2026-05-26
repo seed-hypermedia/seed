@@ -13,11 +13,11 @@ export const BackgroundColorMark = Mark.create({
 
   addAttributes() {
     return {
-      color: {
+      value: {
         default: undefined,
         parseHTML: (element) => element.getAttribute('data-background-color'),
         renderHTML: (attributes) => ({
-          'data-background-color': attributes.color,
+          'data-background-color': attributes.value,
         }),
       },
     }
@@ -33,7 +33,7 @@ export const BackgroundColorMark = Mark.create({
           }
 
           if (element.hasAttribute('data-background-color')) {
-            return {color: element.getAttribute('data-background-color')}
+            return {value: element.getAttribute('data-background-color')}
           }
 
           return false
@@ -52,7 +52,7 @@ export const BackgroundColorMark = Mark.create({
         (color) =>
         ({commands}) => {
           if (color !== 'default') {
-            return commands.setMark(this.name, {color: color})
+            return commands.setMark(this.name, {value: color})
           }
 
           return commands.unsetMark(this.name)

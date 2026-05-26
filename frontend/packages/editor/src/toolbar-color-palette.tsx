@@ -6,43 +6,56 @@ import {BlockNoteEditor, BlockSchema} from './blocknote'
 
 export const TOOLBAR_COLOR_NAMES = [
   'default',
-  'gray',
-  'brown',
   'red',
-  'orange',
+  'amber',
   'yellow',
+  'lime',
   'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
   'blue',
-  'purple',
+  'indigo',
+  'violet',
+  'fuchsia',
   'pink',
 ] as const
 
 export type ToolbarColorName = (typeof TOOLBAR_COLOR_NAMES)[number]
 
-const TEXT_SWATCHES: Record<ToolbarColorName, string> = {
-  default: '#37352f',
-  gray: '#9b9a97',
-  brown: '#64473a',
-  red: '#e03e3e',
-  orange: '#d9730d',
-  yellow: '#dfab01',
-  green: '#4d6461',
-  blue: '#0b6e99',
-  purple: '#6940a5',
-  pink: '#ad1a72',
+export const TEXT_SWATCH_CLASS: Record<Exclude<ToolbarColorName, 'default'>, string> = {
+  red: 'bg-red-700 dark:bg-red-400',
+  amber: 'bg-amber-700 dark:bg-amber-400',
+  yellow: 'bg-yellow-700 dark:bg-yellow-400',
+  lime: 'bg-lime-700 dark:bg-lime-400',
+  green: 'bg-green-700 dark:bg-green-400',
+  emerald: 'bg-emerald-700 dark:bg-emerald-400',
+  teal: 'bg-teal-700 dark:bg-teal-400',
+  cyan: 'bg-cyan-700 dark:bg-cyan-400',
+  sky: 'bg-sky-700 dark:bg-sky-400',
+  blue: 'bg-blue-700 dark:bg-blue-400',
+  indigo: 'bg-indigo-700 dark:bg-indigo-400',
+  violet: 'bg-violet-700 dark:bg-violet-400',
+  fuchsia: 'bg-fuchsia-700 dark:bg-fuchsia-400',
+  pink: 'bg-pink-700 dark:bg-pink-400',
 }
 
-const HIGHLIGHT_SWATCHES: Record<ToolbarColorName, string> = {
-  default: 'transparent',
-  gray: '#ebeced',
-  brown: '#e9e5e3',
-  red: '#fbe4e4',
-  orange: '#faebdd',
-  yellow: '#fbf3db',
-  green: '#ddedea',
-  blue: '#ddebf1',
-  purple: '#eae4f2',
-  pink: '#f4dfeb',
+const HIGHLIGHT_SWATCH_CLASS: Record<Exclude<ToolbarColorName, 'default'>, string> = {
+  red: 'bg-red-100 dark:bg-red-900/40',
+  amber: 'bg-amber-100 dark:bg-amber-900/40',
+  yellow: 'bg-yellow-100 dark:bg-yellow-900/40',
+  lime: 'bg-lime-100 dark:bg-lime-900/40',
+  green: 'bg-green-100 dark:bg-green-900/40',
+  emerald: 'bg-emerald-100 dark:bg-emerald-900/40',
+  teal: 'bg-teal-100 dark:bg-teal-900/40',
+  cyan: 'bg-cyan-100 dark:bg-cyan-900/40',
+  sky: 'bg-sky-100 dark:bg-sky-900/40',
+  blue: 'bg-blue-100 dark:bg-blue-900/40',
+  indigo: 'bg-indigo-100 dark:bg-indigo-900/40',
+  violet: 'bg-violet-100 dark:bg-violet-900/40',
+  fuchsia: 'bg-fuchsia-100 dark:bg-fuchsia-900/40',
+  pink: 'bg-pink-100 dark:bg-pink-900/40',
 }
 
 function applyColorStyle<BSchema extends BlockSchema>(
@@ -55,6 +68,11 @@ function applyColorStyle<BSchema extends BlockSchema>(
   } else {
     editor.addStyles({[style]: color} as any)
   }
+}
+
+function colorLabel(name: ToolbarColorName): string {
+  if (name === 'default') return 'Default'
+  return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
 export function TextColorPalette<BSchema extends BlockSchema>({
@@ -70,31 +88,36 @@ export function TextColorPalette<BSchema extends BlockSchema>({
     <div className="flex flex-col gap-2" data-testid="text-color-palette">
       <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Text color</div>
       <div className="grid grid-cols-5 gap-2">
-        {TOOLBAR_COLOR_NAMES.map((name) => (
-          <Tooltip key={name} content={name === 'default' ? 'Default' : name.charAt(0).toUpperCase() + name.slice(1)}>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              data-testid={`text-color-${name}`}
-              className={cn(
-                'border-border h-7 w-7 rounded-full border p-0 hover:opacity-80',
-                current === name && 'ring-foreground ring-2 ring-offset-1',
-              )}
-              style={{backgroundColor: TEXT_SWATCHES[name]}}
-              onClick={() => {
-                applyColorStyle(editor, 'textColor', name)
-                onSelect?.()
-              }}
-            >
-              {current === name ? (
-                <Check className="size-3.5 text-white mix-blend-difference" />
-              ) : (
-                <span className="sr-only">{name}</span>
-              )}
-            </Button>
-          </Tooltip>
-        ))}
+        {TOOLBAR_COLOR_NAMES.map((name) => {
+          const isDefault = name === 'default'
+          return (
+            <Tooltip key={name} content={colorLabel(name)} contentClassName="z-[10001]">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                data-testid={`text-color-${name}`}
+                className={cn(
+                  'h-7 w-7 rounded-full border border-black/10 p-0 hover:opacity-80 dark:border-white/10',
+                  isDefault ? 'bg-background' : TEXT_SWATCH_CLASS[name],
+                  current === name && 'ring-foreground ring-2 ring-offset-1',
+                )}
+                onClick={() => {
+                  applyColorStyle(editor, 'textColor', name)
+                  onSelect?.()
+                }}
+              >
+                {current === name ? (
+                  <Check
+                    className={cn('size-3.5', isDefault ? 'text-foreground' : 'text-white mix-blend-difference')}
+                  />
+                ) : (
+                  <span className="sr-only">{name}</span>
+                )}
+              </Button>
+            </Tooltip>
+          )
+        })}
       </div>
     </div>
   )
@@ -114,30 +137,27 @@ export function HighlightPalette<BSchema extends BlockSchema>({
       <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Highlight</div>
       <div className="flex flex-col gap-1">
         {TOOLBAR_COLOR_NAMES.map((name) => {
-          // Every named swatch uses a light pastel fill, so its label must
-          // render in dark text regardless of the app theme — `text-foreground`
-          // would resolve to white in dark mode and disappear into the pastel
-          // background. Only the `default` row (no fill) follows the theme.
           const isDefault = name === 'default'
           return (
-            <button
-              type="button"
-              key={name}
-              data-testid={`highlight-${name}`}
-              className={cn(
-                'border-border focus:ring-foreground flex items-center gap-2 rounded-md border px-3 py-1.5 text-left text-sm transition-colors focus:ring-2 focus:outline-none',
-                current === name && 'ring-foreground ring-2',
-                isDefault ? 'text-foreground' : 'text-neutral-700',
-              )}
-              style={{backgroundColor: HIGHLIGHT_SWATCHES[name]}}
-              onClick={() => {
-                applyColorStyle(editor, 'backgroundColor', name)
-                onSelect?.()
-              }}
-            >
-              <span className="font-mono text-xs underline">A</span>
-              <span className="text-xs capitalize">{isDefault ? 'No highlight' : name}</span>
-            </button>
+            <Tooltip key={name} content={colorLabel(name)} contentClassName="z-[10001]" asChild>
+              <button
+                type="button"
+                data-testid={`highlight-${name}`}
+                className={cn(
+                  'focus:ring-foreground flex items-center gap-2 rounded-md border border-black/10 px-3 py-1.5 text-left text-sm transition-colors focus:ring-2 focus:outline-none dark:border-white/10',
+                  isDefault ? 'bg-background text-foreground' : HIGHLIGHT_SWATCH_CLASS[name],
+                  !isDefault && 'dark:text-foreground text-neutral-800',
+                  current === name && 'ring-foreground ring-2',
+                )}
+                onClick={() => {
+                  applyColorStyle(editor, 'backgroundColor', name)
+                  onSelect?.()
+                }}
+              >
+                <span className="font-mono text-xs underline">A</span>
+                {isDefault && <span className="text-xs">No highlight</span>}
+              </button>
+            </Tooltip>
           )
         })}
       </div>

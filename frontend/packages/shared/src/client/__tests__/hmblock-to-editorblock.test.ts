@@ -1064,4 +1064,51 @@ describe('HMBlock to EditorBlock', () => {
       expect(val).toEqual(result)
     })
   })
+
+  describe('color annotations', () => {
+    test('restores textColor style from TextColor annotation', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'ABC',
+        attributes: {},
+        annotations: [{type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [1], ends: [2]}],
+      }
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      const middle = val.content.find((c: any) => c.type === 'text' && c.text === 'B') as any
+      expect(middle).toBeDefined()
+      expect(middle.styles.textColor).toBe('red')
+    })
+
+    test('restores backgroundColor style from BackgroundColor annotation', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'ABC',
+        attributes: {},
+        annotations: [{type: 'BackgroundColor', attributes: {value: 'yellow'}, link: '', starts: [0], ends: [3]}],
+      }
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      const text = val.content.find((c: any) => c.type === 'text') as any
+      expect(text.styles.backgroundColor).toBe('yellow')
+    })
+
+    test('ignores TextColor annotation with missing color attribute', () => {
+      const hmBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'AB',
+        attributes: {},
+        annotations: [{type: 'TextColor', attributes: {}, link: '', starts: [0], ends: [2]}],
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+      const text = val.content.find((c: any) => c.type === 'text') as any
+      expect(text.styles.textColor).toBeUndefined()
+    })
+  })
 })

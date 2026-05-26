@@ -6,15 +6,23 @@ export type Styles = {
   code?: true
   textColor?: string
   backgroundColor?: string
+  textSize?: string
+  textFamily?: string
 }
 
 export type ToggledStyle = {
   [K in keyof Styles]-?: Required<Styles>[K] extends true ? K : never
 }[keyof Styles]
 
-export type ColorStyle = {
-  [K in keyof Styles]-?: Required<Styles>[K] extends string ? K : never
-}[keyof Styles]
+/** Marks that carry a CSS color value */
+export type ColorStyle = 'textColor' | 'backgroundColor'
+
+/** Marks that carry a font size or family. */
+export type FontStyle = 'textSize' | 'textFamily'
+
+/** All string valued styles. Useful when the distinction
+ * between color and font marks doesn't matter. */
+export type StringStyle = ColorStyle | FontStyle
 
 export type StyledText = {
   type: 'text'
