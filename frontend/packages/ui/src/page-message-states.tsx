@@ -2,10 +2,8 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {ArrowRight, Lock} from 'lucide-react'
 import {ReactNode} from 'react'
 import {Button} from './button'
-import {panelContainerStyles} from './container'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
-import {cn} from './utils'
 
 // Re-export PageLayout from its own file for backwards compatibility
 export {PageLayout} from './page-layout'
@@ -26,7 +24,7 @@ export function PageMessageBox({
   spinner?: boolean
 }) {
   return (
-    <div className={cn(panelContainerStyles)}>
+    <div className="flex h-full w-full flex-col">
       <div className="mx-auto px-8 py-10">
         <div className="border-border bg-background flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
           {spinner ? (
