@@ -50,7 +50,43 @@ func TestListEvents(t *testing.T) {
 	require.Len(t, events.Events, 0)
 }
 
-func TestListEventsOrdersByLocalObservation(t *testing.T) {
+func TestListEventsDefaultsToClaimedTimeOrder(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 1, 1, author.String()+"/newer-claimed", 2_000); err != nil {
+			return err
+		}
+		return insertActivityProfileEvent(conn, 2, 2, author.String()+"/older-claimed", 1_000)
+	}))
+
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        1,
+		FilterEventType: []string{"Profile"},
+	})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+	require.Equal(t, int64(1), events.Events[0].GetNewBlob().GetBlobId())
+	require.NotEmpty(t, events.NextPageToken)
+
+	nextPage, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        1,
+		PageToken:       events.NextPageToken,
+		FilterEventType: []string{"Profile"},
+	})
+	require.NoError(t, err)
+	require.Len(t, nextPage.Events, 1)
+	require.Equal(t, int64(2), nextPage.Events[0].GetNewBlob().GetBlobId())
+}
+
+func TestListEventsOrdersByLocalObservationWhenRequested(t *testing.T) {
 	alice := newTestServer(t, "alice")
 	ctx := context.Background()
 
@@ -70,6 +106,7 @@ func TestListEventsOrdersByLocalObservation(t *testing.T) {
 	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
 		PageSize:        1,
 		FilterEventType: []string{"Profile"},
+		Order:           activity.FeedOrder_FEED_ORDER_OBSERVED_TIME,
 	})
 	require.NoError(t, err)
 	require.Len(t, events.Events, 1)
@@ -80,6 +117,7 @@ func TestListEventsOrdersByLocalObservation(t *testing.T) {
 		PageSize:        1,
 		PageToken:       events.NextPageToken,
 		FilterEventType: []string{"Profile"},
+		Order:           activity.FeedOrder_FEED_ORDER_OBSERVED_TIME,
 	})
 	require.NoError(t, err)
 	require.Len(t, nextPage.Events, 1)
@@ -113,6 +151,7 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 	page1, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
 		PageSize:        2,
 		FilterEventType: []string{"Profile"},
+		Order:           activity.FeedOrder_FEED_ORDER_OBSERVED_TIME,
 	})
 	require.NoError(t, err)
 	require.Len(t, page1.Events, 1)
@@ -124,6 +163,7 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 		PageSize:        2,
 		PageToken:       page1.NextPageToken,
 		FilterEventType: []string{"Profile"},
+		Order:           activity.FeedOrder_FEED_ORDER_OBSERVED_TIME,
 	})
 	require.NoError(t, err)
 	// Dedup is intra-page, so id=2 re-surfaces alongside id=1 — that's a separate

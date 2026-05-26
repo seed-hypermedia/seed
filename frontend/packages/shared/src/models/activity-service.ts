@@ -10,6 +10,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CID} from 'multiformats'
+import {FeedOrder} from '../client/.generated/activity/v1alpha/activity_pb'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
@@ -23,6 +24,7 @@ export type HMListEventsParams = {
   filterAuthors?: string[]
   filterEventType?: string[]
   filterResource?: string
+  order?: FeedOrder
 }
 
 export type HMListEventsResponse = {
@@ -251,6 +253,7 @@ export async function listEventsImpl(
       'doc/Button',
     ],
     filterResource: params.filterResource || '',
+    order: params.order ?? FeedOrder.CLAIMED_TIME,
   })
 
   let res = response.toJson({

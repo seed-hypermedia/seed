@@ -94,16 +94,17 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 
 // ListEvents list all the events seen locally.
 func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsRequest) (*activity.ListEventsResponse, error) {
-	var cursorBlobID int64 = math.MaxInt64
+	var cursorValue int64 = math.MaxInt64
 	if req.PageToken != "" {
-		if err := apiutil.DecodePageToken(req.PageToken, &cursorBlobID, nil); err != nil {
+		if err := apiutil.DecodePageToken(req.PageToken, &cursorValue, nil); err != nil {
 			return nil, fmt.Errorf("failed to decode page token: %w", err)
 		}
 	}
 	var events []*activity.Event
-	// Track the local blob insertion order used for DB paging, aligned with events slice.
-	var eventCursorBlobIDs []int64
-	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
+	// Track the feed-order cursor value used for DB paging, aligned with events slice.
+	var eventCursorValues []int64
+	orderByObserved := req.Order == activity.FeedOrder_FEED_ORDER_OBSERVED_TIME
+	srv.log.Debug("Listing events", zap.Int64("cursor_value", cursorValue), zap.String("order", req.Order.String()))
 	var filtersStr string
 	var authorsJSON, linkTypesJSON string
 
@@ -229,8 +230,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
-		pageTokenStr = storage.StructuralBlobsID.String() + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + storage.StructuralBlobsID.String() + " desc limit :page_size"
+		mainCursorColumn = storage.StructuralBlobsTs.String()
 	)
+	if orderByObserved {
+		mainCursorColumn = storage.StructuralBlobsID.String()
+	}
+	pageTokenStr := mainCursorColumn + " <= :idx AND " + storage.StructuralBlobsType.String() + " != 'Change' AND " + storage.BlobsSize.String() + ">0 ORDER BY " + mainCursorColumn + " desc limit :page_size"
 	if req.PageSize <= 0 {
 		req.PageSize = 30
 	}
@@ -286,10 +291,14 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				ObserveTime: observeTime,
 			}
 			events = append(events, &event)
-			eventCursorBlobIDs = append(eventCursorBlobIDs, id)
+			cursor := structTsMillis
+			if orderByObserved {
+				cursor = id
+			}
+			eventCursorValues = append(eventCursorValues, cursor)
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(10), 10))
 			return nil
-		}, cursorBlobID, req.PageSize)
+		}, cursorValue, req.PageSize)
 		if err != nil {
 			return fmt.Errorf("Problem collecting activity feed, Probably token out of range or no feed at all: %w", err)
 		}
@@ -382,7 +391,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		var args []interface{}
 		if noResourceFilter {
 			queryStr = listMentionsCoreNoTargets
-			args = []interface{}{cursorBlobID}
+			args = []interface{}{cursorValue}
 		} else {
 			var eids []string
 			irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
@@ -402,7 +411,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			eidsJSON := "[" + strings.Join(eids, ",") + "]"
 			queryStr = listMentionsCore
-			args = []interface{}{eidsJSON, cursorBlobID}
+			args = []interface{}{eidsJSON, cursorValue}
+		}
+		if !orderByObserved {
+			queryStr = strings.Replace(queryStr, "structural_blobs.id <= :idx", "structural_blobs.ts <= :idx", 1)
 		}
 
 		if len(authorsJSON) > 2 {
@@ -413,7 +425,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			queryStr += linkTypesFilterMentions
 			args = append(args, linkTypesJSON)
 		}
-		queryStr += limitMentions
+		if orderByObserved {
+			queryStr += limitMentionsByObserved
+		} else {
+			queryStr += limitMentionsByClaimed
+		}
 		args = append(args, req.PageSize)
 		queryStr = strings.TrimSpace(queryStr)
 		if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
@@ -476,7 +492,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				ObserveTime: observeTime,
 			}
 			events = append(events, &event)
-			eventCursorBlobIDs = append(eventCursorBlobIDs, blobID)
+			cursor := structTsMillis
+			if orderByObserved {
+				cursor = blobID
+			}
+			eventCursorValues = append(eventCursorValues, cursor)
 			return nil
 		}, args...); err != nil {
 			return err
@@ -535,21 +555,21 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 
 	nonDeleted := make([]*activity.Event, 0, len(events))
-	nonDeletedCursors := make([]int64, 0, len(eventCursorBlobIDs))
+	nonDeletedCursors := make([]int64, 0, len(eventCursorValues))
 	for i, e := range events {
 		// switch on event type
 		// for mentions
 		if _, ok := e.Data.(*activity.Event_NewMention); ok {
 			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
 				nonDeleted = append(nonDeleted, e)
-				nonDeletedCursors = append(nonDeletedCursors, eventCursorBlobIDs[i])
+				nonDeletedCursors = append(nonDeletedCursors, eventCursorValues[i])
 			}
 			continue
 		}
 		// for new blobs
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
 			nonDeleted = append(nonDeleted, e)
-			nonDeletedCursors = append(nonDeletedCursors, eventCursorBlobIDs[i])
+			nonDeletedCursors = append(nonDeletedCursors, eventCursorValues[i])
 		}
 	}
 
@@ -609,28 +629,30 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 
-	// Sort and paginate by local blob insertion order so newly discovered old events
-	// still appear at the front of the feed.
+	// Sort and paginate according to the requested feed order.
 	idx := make([]int, len(nonDeleted))
 	for i := range idx {
 		idx[i] = i
 	}
 	sort.Slice(idx, func(i, j int) bool {
-		return nonDeletedCursors[idx[i]] > nonDeletedCursors[idx[j]]
+		if orderByObserved {
+			return nonDeletedCursors[idx[i]] > nonDeletedCursors[idx[j]]
+		}
+		return nonDeleted[idx[i]].EventTime.AsTime().After(nonDeleted[idx[j]].EventTime.AsTime())
 	})
 	sortedEvents := make([]*activity.Event, len(nonDeleted))
-	sortedCursorBlobIDs := make([]int64, len(nonDeletedCursors))
+	sortedCursorValues := make([]int64, len(nonDeletedCursors))
 	for k, i := range idx {
 		sortedEvents[k] = nonDeleted[i]
-		sortedCursorBlobIDs[k] = nonDeletedCursors[i]
+		sortedCursorValues[k] = nonDeletedCursors[i]
 	}
 	events = sortedEvents
-	eventCursorBlobIDs = sortedCursorBlobIDs
+	eventCursorValues = sortedCursorValues
 
 	// Apply page size to both arrays.
 	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
 	events = events[:pageLen]
-	eventCursorBlobIDs = eventCursorBlobIDs[:pageLen]
+	eventCursorValues = eventCursorValues[:pageLen]
 
 	if srv.telemetry != nil {
 		now := time.Now()
@@ -657,21 +679,21 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 
-	// Next page token based on the minimum local blob ID in the returned page.
+	// Next page token based on the minimum cursor value in the returned page.
 	// Emit a token whenever either DB fetch returned a full batch, because the
 	// deleted/dedup filters above can shorten the visible page below req.PageSize
 	// while older rows remain in the database.
 	rawHasMore := mainRawCount >= int(req.PageSize) || mentionsRawCount >= int(req.PageSize)
 	var nextPageToken string
 	if pageLen > 0 && rawHasMore {
-		minBlobID := eventCursorBlobIDs[0]
-		for _, blobID := range eventCursorBlobIDs[1:] {
-			if blobID != 0 && (minBlobID == 0 || blobID < minBlobID) {
-				minBlobID = blobID
+		minCursor := eventCursorValues[0]
+		for _, cursor := range eventCursorValues[1:] {
+			if cursor != 0 && (minCursor == 0 || cursor < minCursor) {
+				minCursor = cursor
 			}
 		}
-		if minBlobID != 0 {
-			nextPageToken = apiutil.EncodePageToken(minBlobID-1, nil)
+		if minCursor != 0 {
+			nextPageToken = apiutil.EncodePageToken(minCursor-1, nil)
 		}
 	}
 
@@ -900,7 +922,12 @@ AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
 var linkTypesFilterMentions = `
 AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
 `
-var limitMentions = `
+var limitMentionsByObserved = `
 ORDER BY structural_blobs.id DESC
+LIMIT :page_size;
+`
+
+var limitMentionsByClaimed = `
+ORDER BY structural_blobs.ts DESC
 LIMIT :page_size;
 `

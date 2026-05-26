@@ -26,6 +26,7 @@ import {
   normalizeDate,
   unpackHmId,
 } from '@shm/shared'
+import {FeedOrder} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {createDomainVerifier} from '@shm/shared/models/domain-resolver'
 import {
@@ -412,6 +413,7 @@ async function getLastEventId(): Promise<string | undefined> {
     const response = await grpcClient.activityFeed.listEvents({
       pageToken,
       pageSize: EVENT_PAGE_SIZE,
+      order: FeedOrder.OBSERVED_TIME,
     })
     for (const event of response.events) {
       const plainEvent =
@@ -1864,6 +1866,7 @@ async function loadEventsAfterEventId(lastProcessedEventId: string, signal?: Abo
         grpcClient.activityFeed.listEvents({
           pageToken: currentPageToken,
           pageSize: EVENT_PAGE_SIZE,
+          order: FeedOrder.OBSERVED_TIME,
         }),
         `listEvents page ${pageCount}`,
       )
