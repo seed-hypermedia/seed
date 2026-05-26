@@ -131,3 +131,113 @@ func TestFilterRoutableMultiaddrs(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterCertHashMultiaddrs(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		keep []string
+	}{
+		{
+			name: "drops webrtc-direct with certhash",
+			in: []string{
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA-GugbhlMianZMR4Y3IoyhJCCgU1rwpgsBUIiq2NwX-g/p2p/12D3KooWtest",
+			},
+			keep: nil,
+		},
+		{
+			name: "drops webtransport with certhash",
+			in: []string{
+				"/ip4/15.204.217.165/udp/4002/quic-v1/webtransport/certhash/uEiAtest/p2p/12D3KooWtest",
+			},
+			keep: nil,
+		},
+		{
+			name: "drops relayed webrtc-direct with relay certhash",
+			in: []string{
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA-Gugbhl/p2p/12D3KooWRELAY/p2p-circuit/p2p/12D3KooWTARGET",
+			},
+			keep: nil,
+		},
+		{
+			name: "keeps tcp",
+			in:   []string{"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest"},
+			keep: []string{"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest"},
+		},
+		{
+			name: "keeps quic-v1",
+			in:   []string{"/ip4/15.204.217.165/udp/4002/quic-v1/p2p/12D3KooWtest"},
+			keep: []string{"/ip4/15.204.217.165/udp/4002/quic-v1/p2p/12D3KooWtest"},
+		},
+		{
+			name: "keeps webrtc-direct without certhash (libp2p will reject at dial time if it needs one)",
+			in:   []string{"/ip4/15.204.217.165/udp/4002/webrtc-direct/p2p/12D3KooWtest"},
+			keep: []string{"/ip4/15.204.217.165/udp/4002/webrtc-direct/p2p/12D3KooWtest"},
+		},
+		{
+			name: "keeps dns",
+			in:   []string{"/dns4/gabo.es/tcp/56000/p2p/12D3KooWtest"},
+			keep: []string{"/dns4/gabo.es/tcp/56000/p2p/12D3KooWtest"},
+		},
+		{
+			name: "mixed input — drops only certhash entries, preserves order",
+			in: []string{
+				"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest",
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA1/p2p/12D3KooWtest",
+				"/ip4/15.204.217.165/udp/4002/quic-v1/p2p/12D3KooWtest",
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA2/p2p/12D3KooWtest",
+				"/dns4/hyper.media/tcp/56000/p2p/12D3KooWtest",
+			},
+			keep: []string{
+				"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest",
+				"/ip4/15.204.217.165/udp/4002/quic-v1/p2p/12D3KooWtest",
+				"/dns4/hyper.media/tcp/56000/p2p/12D3KooWtest",
+			},
+		},
+		{
+			name: "collapses many certhash variants of the same endpoint to nothing",
+			in: []string{
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA1/p2p/12D3KooWtest",
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA2/p2p/12D3KooWtest",
+				"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA3/p2p/12D3KooWtest",
+			},
+			keep: nil,
+		},
+		{
+			name: "empty input",
+			in:   nil,
+			keep: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			in := append([]string(nil), tc.in...)
+			got := FilterCertHashMultiaddrs(in)
+			if len(tc.keep) == 0 {
+				require.Empty(t, got)
+				return
+			}
+			require.Equal(t, tc.keep, got)
+		})
+	}
+
+	t.Run("idempotent", func(t *testing.T) {
+		in := []string{
+			"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest",
+			"/ip4/40.160.6.196/udp/4002/webrtc-direct/certhash/uEiA1/p2p/12D3KooWtest",
+		}
+		once := FilterCertHashMultiaddrs(append([]string(nil), in...))
+		twice := FilterCertHashMultiaddrs(append([]string(nil), once...))
+		require.Equal(t, once, twice)
+	})
+
+	t.Run("composes with FilterRoutableMultiaddrs", func(t *testing.T) {
+		in := []string{
+			"/ip4/10.0.0.1/tcp/4002/p2p/12D3KooWtest",
+			"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest",
+			"/ip4/15.204.217.165/udp/4002/webrtc-direct/certhash/uEiA1/p2p/12D3KooWtest",
+		}
+		got := FilterCertHashMultiaddrs(FilterRoutableMultiaddrs(append([]string(nil), in...)))
+		require.Equal(t, []string{"/ip4/15.204.217.165/tcp/4002/p2p/12D3KooWtest"}, got)
+	})
+}

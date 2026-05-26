@@ -36,6 +36,40 @@ func FilterRoutableMultiaddrs(addrs []string) []string {
 	return out
 }
 
+// FilterCertHashMultiaddrs drops any multiaddr containing a /certhash/
+// segment. These are advertised by transports that pin the remote's
+// self-signed DTLS cert by SHA-256 (WebRTC-direct, WebTransport) — primarily
+// so browsers can verify a self-signed cert without a CA chain.
+//
+// The cached form is stale by construction: the only correct cert hash for
+// any peer at any moment is the one in that peer's current identify
+// response, learned in-band over a working transport. Each restart or
+// programmatic cert rotation produces a new hash; libp2p's Peerstore
+// appends without ever pruning, so persisting whatever Peerstore returns
+// accumulates dozens of dead variants per peer (observed up to 65 for one
+// row). The bloated TEXT column spills into SQLite overflow pages and
+// dominates the writer-slot hold time of every UPDATE.
+//
+// Dropping these at write time and on the startup migration is safe in
+// this codebase because no consumer of peers.addresses relies on the
+// cached cert hash being correct: the daemon's own dialer uses TCP/QUIC
+// for native-native, and the frontend's only WebRTC-direct flow (device
+// linking) sources the AddrInfo from the daemon's live libp2p Host, not
+// from the peers table.
+//
+// The returned slice may alias the input; callers that mutate further
+// should copy first.
+func FilterCertHashMultiaddrs(addrs []string) []string {
+	out := addrs[:0]
+	for _, a := range addrs {
+		if strings.Contains(a, "/certhash/") {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
 // isNonRoutableMultiaddr reports whether the leading IP component of a
 // multiaddr (if any) is in a range we can never route to from outside the
 // originating LAN. Anything not starting with /ip4/ or /ip6/ (e.g. /dns*,

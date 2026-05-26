@@ -662,23 +662,34 @@ func (n *Node) CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, 
 var errDialSelf = errors.New("can't dial self")
 
 // filterAddrs strips non-routable multiaddrs from the given list unless the
-// daemon is configured to allow private IPs (tests, single-host dev setups).
-// All callsites that build the peers.addresses column should funnel through
-// this so test fixtures with only loopback / LAN addresses still work.
+// daemon is configured to allow private IPs (tests, single-host dev setups),
+// and always strips /certhash/-bearing multiaddrs (WebRTC-direct /
+// WebTransport cert-pinned addresses): the cached hash goes stale the moment
+// the remote rotates its DTLS cert, the live hash is re-learned in-band from
+// the next Identify exchange, and no consumer of peers.addresses relies on
+// it being correct. See netutil.FilterCertHashMultiaddrs for the full
+// rationale. All callsites that build the peers.addresses column should
+// funnel through this so test fixtures with only loopback / LAN addresses
+// still work.
 func (n *Node) filterAddrs(addrs []string) []string {
-	if n.ArePrivateIPsAllowed() {
-		return addrs
+	if !n.ArePrivateIPsAllowed() {
+		addrs = netutil.FilterRoutableMultiaddrs(addrs)
 	}
-	return netutil.FilterRoutableMultiaddrs(addrs)
+	return netutil.FilterCertHashMultiaddrs(addrs)
 }
 
 // peerStartupCleanup runs the one-shot data-hygiene pass on the peers table
 // at daemon start. Two steps in a single transaction:
 //
-//  1. Rewrite every row's `addresses` column through the routable filter so
-//     existing rows shed any non-routable multiaddrs ingested before that
-//     filter was introduced. Rows that become empty after filtering are
-//     deleted. Skipped entirely when AllowPrivateIPs is on (tests).
+//  1. Rewrite every row's `addresses` column through filterAddrs so existing
+//     rows shed (a) any non-routable multiaddrs ingested before that filter
+//     was introduced, and (b) any /certhash/-bearing multiaddrs — these
+//     accumulate one variant per remote DTLS-cert rotation, bloat the row
+//     into SQLite overflow pages, and are useless without the live cert
+//     hash anyway (see netutil.FilterCertHashMultiaddrs). The routability
+//     pass is skipped when AllowPrivateIPs is on (tests); the certhash
+//     pass always runs since stale hashes are unconditionally dead weight.
+//     Rows that become empty after filtering are deleted.
 //  2. Delete rows with `explicitly_connected=0 AND updated_at < now - 30d`.
 //     This is the prune that was disabled at hmnet.go pending one full
 //     PeerFreshnessWindow of `updated_at`-bump correctness — that window
@@ -694,50 +705,49 @@ func (n *Node) filterAddrs(addrs []string) []string {
 // returned to the caller, which logs but does NOT fail startup on them —
 // peers-table hygiene is best-effort.
 func (n *Node) peerStartupCleanup(ctx context.Context, floor int64) error {
-	filterAddrs := !n.ArePrivateIPsAllowed()
+	applyRoutabilityFilter := !n.ArePrivateIPsAllowed()
 	log := n.log
 	return n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		// Step 1: filter existing addresses in-place (skipped when private
-		// IPs are allowed — single-host test fixtures need their loopback
-		// addresses preserved).
-		if filterAddrs {
-			type updateJob struct {
-				id    int64
-				addrs string // empty => delete the row
-			}
-			var jobs []updateJob
-			if err := sqlitex.Exec(conn, "SELECT id, addresses FROM peers;", func(stmt *sqlite.Stmt) error {
-				id := stmt.ColumnInt64(0)
-				raw := stmt.ColumnText(1)
-				filtered := netutil.FilterRoutableMultiaddrs(strings.Split(raw, ","))
-				cleaned := strings.Join(filtered, ",")
-				if cleaned != raw {
-					jobs = append(jobs, updateJob{id: id, addrs: cleaned})
-				}
-				return nil
-			}); err != nil {
-				return fmt.Errorf("peerStartupCleanup: scan peers: %w", err)
-			}
-			var rewritten, deletedAllPriv int
-			for _, j := range jobs {
-				if j.addrs == "" {
-					if err := sqlitex.Exec(conn, "DELETE FROM peers WHERE id = ?;", nil, j.id); err != nil {
-						return fmt.Errorf("peerStartupCleanup: delete all-private peer id=%d: %w", j.id, err)
-					}
-					deletedAllPriv++
-				} else {
-					if err := sqlitex.Exec(conn, "UPDATE peers SET addresses = ? WHERE id = ?;", nil, j.addrs, j.id); err != nil {
-						return fmt.Errorf("peerStartupCleanup: rewrite peer id=%d: %w", j.id, err)
-					}
-					rewritten++
-				}
-			}
-			log.Info("PeerAddressCleanup",
-				zap.Int("rewritten", rewritten),
-				zap.Int("deleted_all_private", deletedAllPriv))
-		} else {
-			log.Info("PeerAddressCleanupSkipped", zap.String("reason", "AllowPrivateIPs is true"))
+		// Step 1: filter existing addresses in-place.
+		type updateJob struct {
+			id    int64
+			addrs string // empty => delete the row
 		}
+		var jobs []updateJob
+		if err := sqlitex.Exec(conn, "SELECT id, addresses FROM peers;", func(stmt *sqlite.Stmt) error {
+			id := stmt.ColumnInt64(0)
+			raw := stmt.ColumnText(1)
+			addrs := strings.Split(raw, ",")
+			if applyRoutabilityFilter {
+				addrs = netutil.FilterRoutableMultiaddrs(addrs)
+			}
+			addrs = netutil.FilterCertHashMultiaddrs(addrs)
+			cleaned := strings.Join(addrs, ",")
+			if cleaned != raw {
+				jobs = append(jobs, updateJob{id: id, addrs: cleaned})
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("peerStartupCleanup: scan peers: %w", err)
+		}
+		var rewritten, deletedEmpty int
+		for _, j := range jobs {
+			if j.addrs == "" {
+				if err := sqlitex.Exec(conn, "DELETE FROM peers WHERE id = ?;", nil, j.id); err != nil {
+					return fmt.Errorf("peerStartupCleanup: delete empty-after-filter peer id=%d: %w", j.id, err)
+				}
+				deletedEmpty++
+			} else {
+				if err := sqlitex.Exec(conn, "UPDATE peers SET addresses = ? WHERE id = ?;", nil, j.addrs, j.id); err != nil {
+					return fmt.Errorf("peerStartupCleanup: rewrite peer id=%d: %w", j.id, err)
+				}
+				rewritten++
+			}
+		}
+		log.Info("PeerAddressCleanup",
+			zap.Bool("routability_filter", applyRoutabilityFilter),
+			zap.Int("rewritten", rewritten),
+			zap.Int("deleted_empty", deletedEmpty))
 
 		// Step 2: prune stale gossip-ingested peers.
 		var total int64
