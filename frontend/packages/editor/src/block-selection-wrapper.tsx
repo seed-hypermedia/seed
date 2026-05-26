@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {AllSelection, NodeSelection, TextSelection} from 'prosemirror-state'
 import {Node as PMNode} from 'prosemirror-model'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
@@ -59,15 +59,21 @@ export function BlockSelectionWrapper({
   block,
   children,
   className,
+  onSelectionChange,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   children: React.ReactNode
   className?: string
+  onSelectionChange?: (selected: boolean) => void
 }) {
   const [selected, setSelected] = useState(false)
 
   useEditorSelectionChange(editor, () => updateSelection(editor, block, setSelected))
+
+  useEffect(() => {
+    onSelectionChange?.(selected)
+  }, [onSelectionChange, selected])
 
   return (
     <div contentEditable={false} className={cn(className, selected && 'bn-media-selected')}>

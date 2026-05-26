@@ -1,8 +1,12 @@
 import {HMAccountsMetadata, HMDocumentInfo, HMQueryBlockItemSummary} from '@seed-hypermedia/client/hm-types'
-import {ReactNode} from 'react'
+import {ReactNode, useEffect, useRef, useState} from 'react'
 import {DocumentCardGrid} from './blocks-content-utils'
 import {DocumentListItem} from './document-list-item'
 import {Spinner} from './spinner'
+
+const INITIAL_LIST_CHUNK_SIZE = 25
+const LIST_CHUNK_SIZE = 25
+const LIST_CHUNK_ROOT_MARGIN = '800px 0px'
 
 export interface QueryBlockContentProps {
   items: HMDocumentInfo[]
@@ -115,6 +119,35 @@ function QueryBlockListView({
   prependItems?: ReactNode[]
 }) {
   const hasPrependItems = prependItems && prependItems.length > 0
+  const [visibleCount, setVisibleCount] = useState(() => Math.min(items.length, INITIAL_LIST_CHUNK_SIZE))
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setVisibleCount(Math.min(items.length, INITIAL_LIST_CHUNK_SIZE))
+  }, [items])
+
+  useEffect(() => {
+    if (visibleCount >= items.length) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisibleCount(items.length)
+      return
+    }
+
+    const el = loadMoreRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting) return
+        setVisibleCount((count) => Math.min(items.length, count + LIST_CHUNK_SIZE))
+      },
+      {rootMargin: LIST_CHUNK_ROOT_MARGIN},
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [items.length, visibleCount])
 
   if (items.length === 0 && !hasPrependItems && isDiscovering) {
     return (
@@ -125,10 +158,13 @@ function QueryBlockListView({
     )
   }
 
+  const visibleItems = items.slice(0, visibleCount)
+  const hasMoreItems = visibleCount < items.length
+
   return (
     <div className="my-4 flex w-full flex-col gap-1">
       {prependItems}
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         return (
           <DocumentListItem
             key={item.id.id}
@@ -139,6 +175,7 @@ function QueryBlockListView({
           />
         )
       })}
+      {hasMoreItems ? <div ref={loadMoreRef} className="h-6" aria-hidden="true" /> : null}
     </div>
   )
 }

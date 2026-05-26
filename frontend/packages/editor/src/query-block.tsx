@@ -14,13 +14,15 @@ import {InlineDraftCard} from '@shm/ui/inline-draft-card'
 import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
 import {NewDocumentCard} from '@shm/ui/new-document-card'
 import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
+import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
+import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
-import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
+import {FocusEvent, Profiler, ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
@@ -115,6 +117,8 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const sortedItems = queryBlock.data?.results ?? []
 
   const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const [isSelected, setIsSelected] = useState(false)
+  const [isFocusedWithin, setIsFocusedWithin] = useState(false)
 
   const assign = useCallback(
     (props: Partial<EditorQueryBlock['props']>) => {
@@ -158,9 +162,33 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     )
   }
 
+  const isActive = isSelected || isFocusedWithin
+  const {onRender} = useQueryBlockFrontendPerf({
+    source: 'editor',
+    blockId: block.id,
+    queryInput: queryBlockInput,
+    style,
+    banner,
+    active: isActive,
+    status: queryBlock.status,
+    fetchStatus: queryBlock.fetchStatus,
+    data: queryBlock.data,
+    error: queryBlock.error,
+  })
+
+  const handleBlurCapture = (e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsFocusedWithin(false)
+    }
+  }
+
   return (
-    <BlockSelectionWrapper editor={editor} block={block}>
-      <div className="group relative -mx-4 flex flex-col px-4 select-none">
+    <BlockSelectionWrapper editor={editor} block={block} onSelectionChange={setIsSelected}>
+      <div
+        className="group relative -mx-4 flex flex-col px-4 select-none"
+        onFocusCapture={() => setIsFocusedWithin(true)}
+        onBlurCapture={handleBlurCapture}
+      >
         {canEdit && (
           <QuerySettings
             queryDocName={queryBlock.data?.queryTargetName || ''}
@@ -179,11 +207,15 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         )}
         {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
         <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          {DraftSlot ? (
-            <DraftSlot targetId={queryTargetId}>{(data) => renderContent(data)}</DraftSlot>
-          ) : (
-            renderContent(null)
-          )}
+          <LazyViewportMount active={isActive}>
+            <Profiler id={`query-block-${block.id}`} onRender={onRender}>
+              {DraftSlot ? (
+                <DraftSlot targetId={queryTargetId}>{(data) => renderContent(data)}</DraftSlot>
+              ) : (
+                renderContent(null)
+              )}
+            </Profiler>
+          </LazyViewportMount>
         </div>
       </div>
     </BlockSelectionWrapper>

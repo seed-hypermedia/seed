@@ -15,6 +15,8 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
+import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
+import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -22,8 +24,7 @@ import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
-import {useCallback, useEffect, useMemo, useState} from 'react'
-import {useNavigate} from '../utils/useNavigate'
+import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useState} from 'react'
 import {HMBlockSchema} from './schema'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
@@ -150,14 +151,34 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [sortedItems, interactionSummaries])
 
   const accountsMetadata = queryBlock.data?.accountsMetadata ?? {}
+  const [isFocusedWithin, setIsFocusedWithin] = useState(false)
+  const isActive = selected || isFocusedWithin
+  const {onRender} = useQueryBlockFrontendPerf({
+    source: 'desktop',
+    blockId: block.id,
+    queryInput: queryBlockInput,
+    style: block.props.style as 'Card' | 'List',
+    banner,
+    active: isActive,
+    status: queryBlock.status,
+    fetchStatus: queryBlock.fetchStatus,
+    data: queryBlock.data,
+    error: queryBlock.error,
+  })
 
-  const navigate = useNavigate()
+  const handleBlurCapture = (e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsFocusedWithin(false)
+    }
+  }
 
   return (
     <div
       // @ts-ignore
       contentEditable={false}
       className={`group -mx-4 flex flex-col px-4 select-none`}
+      onFocusCapture={() => setIsFocusedWithin(true)}
+      onBlurCapture={handleBlurCapture}
     >
       <QuerySettings
         queryDocName={queryBlock.data?.queryTargetName || ''}
@@ -172,16 +193,20 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           assign(props)
         }}
       />
-      <QueryBlockContent
-        items={sortedItems}
-        style={block.props.style as 'Card' | 'List'}
-        columnCount={block.props.columnCount}
-        banner={banner}
-        accountsMetadata={accountsMetadata}
-        itemContributors={itemContributors}
-        interactionSummaries={interactionSummaries}
-        isDiscovering={queryBlock.isLoading}
-      />
+      <LazyViewportMount active={isActive}>
+        <Profiler id={`query-block-${block.id}`} onRender={onRender}>
+          <QueryBlockContent
+            items={sortedItems}
+            style={block.props.style as 'Card' | 'List'}
+            columnCount={block.props.columnCount}
+            banner={banner}
+            accountsMetadata={accountsMetadata}
+            itemContributors={itemContributors}
+            interactionSummaries={interactionSummaries}
+            isDiscovering={queryBlock.isLoading}
+          />
+        </Profiler>
+      </LazyViewportMount>
     </div>
   )
 }
