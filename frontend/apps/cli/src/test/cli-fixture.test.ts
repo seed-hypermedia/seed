@@ -573,6 +573,12 @@ describe('CLI Full Integration Tests', () => {
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
         expect(data.document.metadata.name).toBe('CLI Test Document')
+        const createTime = data.document.createTime
+        const createTimeMs =
+          typeof createTime === 'string'
+            ? Date.parse(createTime)
+            : Number(createTime?.seconds ?? 0) * 1000 + Number(createTime?.nanos ?? 0) / 1_000_000
+        expect(createTimeMs).toBeGreaterThan(Date.UTC(2020, 0, 1))
       },
       TEST_TIMEOUT,
     )

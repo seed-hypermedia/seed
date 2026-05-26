@@ -25,12 +25,12 @@ export type DocumentOperation =
 export type CreateChangeOpsInput = {
   /** Native CBOR ops */
   ops: DocumentOperation[]
-  /** CID of the genesis change blob */
-  genesisCid: CID
-  /** CIDs of dependency changes */
-  deps: CID[]
-  /** Depth of the change (max depth of deps + 1) */
-  depth: number
+  /** CID of the genesis change blob. Omit when creating the first content change for a document. */
+  genesisCid?: CID
+  /** CIDs of dependency changes. Omit when creating the first content change for a document. */
+  deps?: CID[]
+  /** Depth of the change (max depth of deps + 1). Omit when creating the first content change for a document. */
+  depth?: number
   /** Timestamp (defaults to Date.now()) */
   ts?: bigint
 }
@@ -50,9 +50,11 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
     signer: null,
     ts,
     sig: null,
-    genesis: input.genesisCid,
-    deps: input.deps,
-    depth: input.depth,
+  }
+  if (input.genesisCid) {
+    unsigned.genesis = input.genesisCid
+    unsigned.deps = input.deps ?? []
+    unsigned.depth = input.depth ?? 1
   }
   return {unsignedBytes: cborEncode(unsigned), ts}
 }
@@ -96,7 +98,7 @@ export const signPreparedChange = async (
 
 /**
  * Create a signed genesis Change blob (empty, ts=0).
- * This is the bootstrap blob for a new document, matching the web pattern.
+ * This deterministic sentinel is only intended for home documents.
  */
 export async function createGenesisChange(signer: HMSigner): Promise<{bytes: Uint8Array; cid: CID}> {
   const pubKey = await signer.getPublicKey()

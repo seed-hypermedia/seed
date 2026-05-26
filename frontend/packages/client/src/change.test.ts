@@ -2,7 +2,14 @@ import {describe, it, expect} from 'vitest'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
-import {createChange, createChangeOps, signPreparedChange, signDocumentChange, visibilityToCbor} from './change'
+import {
+  createChange,
+  createChangeOps,
+  createGenesisChange,
+  signPreparedChange,
+  signDocumentChange,
+  visibilityToCbor,
+} from './change'
 import type {HMSigner} from './hm-types'
 
 // A valid base58btc-encoded account UID (multibase 'z' prefix)
@@ -133,7 +140,37 @@ describe('createChange', () => {
   })
 })
 
+describe('createGenesisChange', () => {
+  it('defaults to timestamp zero for deterministic home document genesis changes', async () => {
+    const signer = createMockSigner()
+
+    const result = await createGenesisChange(signer)
+
+    const decoded = cborDecode(result.bytes) as Record<string, unknown>
+    expect(BigInt(decoded['ts'] as number | bigint)).toBe(0n)
+  })
+})
+
 describe('createChangeOps', () => {
+  it('can create the first content change for a non-home document', async () => {
+    const signer = createMockSigner()
+
+    const {unsignedBytes, ts} = createChangeOps({
+      ops: [{type: 'SetAttributes', attrs: [{key: ['title'], value: 'Test'}]}],
+    })
+
+    expect(ts).toBeGreaterThan(0n)
+
+    const decodedUnsigned = cborDecode(unsignedBytes) as Record<string, unknown>
+    expect(decodedUnsigned['genesis']).toBeUndefined()
+    expect(decodedUnsigned['deps']).toBeUndefined()
+    expect(decodedUnsigned['depth']).toBeUndefined()
+
+    const result = await createChange(unsignedBytes, signer)
+    expect(result.genesis).toBeNull()
+    expect(result.cid.toString()).toMatch(/^bafy/)
+  })
+
   it('produces unsigned bytes that createChange can sign', async () => {
     const genesisCID = await makeTestCID({type: 'Change', ts: 0n})
     const signer = createMockSigner()
