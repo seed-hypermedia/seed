@@ -231,6 +231,38 @@ stdout.log / stderr.log  raw process streams
 
 Logrotate config under `/home/km/.config/logrotate.d/km-logs.conf` keeps 30 days / 5 GB.
 
+## Observability Center
+
+The Bun app in `../observability-center/` turns the audit/state-machine trail into an operator console for questions like:
+
+- “Why did KM not answer this comment?”
+- “How many actors are alive now?”
+- “What is KM currently doing?”
+- “How is syncing working?”
+
+It runs separately from the agent and can sit behind `https://oc.hyper.media`:
+
+```bash
+cd seed-knowledge-manager/observability-center
+bun install
+OC_DB_PATH=/home/km/oc-data/oc.sqlite \
+OC_INGEST_TOKEN=<shared-secret> \
+OC_IMPORT_KM_LOGS_DIR=/home/km/km-logs \
+OC_IMPORT_KM_STATE_DIR=/home/km/km-state \
+OC_IMPORT_FULL_PAYLOAD=0 \
+bun src/main.ts serve
+```
+
+Wire live telemetry from the poll daemon:
+
+```bash
+KM_OBS_URL=https://oc.hyper.media/api/ingest
+KM_OBS_TOKEN=<shared-secret>
+KM_OBS_FULL_PAYLOAD=0
+```
+
+`KM_OBS_FULL_PAYLOAD=0` and `OC_IMPORT_FULL_PAYLOAD=0` are the defaults: LLM prompts/full tool payloads are dropped or previewed, while IDs, states, counters, timings, and short redacted previews are preserved. Set either to `1` only for a short debugging session.
+
 ## End-to-end setup (bootstrap from scratch)
 
 These are the as-built steps, in order. Anything we discovered along the way that diverges from the original plan is captured in **bold notes**.

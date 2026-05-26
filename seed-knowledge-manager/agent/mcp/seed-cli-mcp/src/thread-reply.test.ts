@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'bun:test'
-import {buildThreadReplyMention, detectThreadReplyToKm} from './mentions.js'
+import {buildThreadReplyMention, detectThreadReplyToKm, findKmMentionInComment} from './mentions.js'
 import type {SeedComment} from './mentions.js'
 
 const KM = 'z6MkAgent'
@@ -116,6 +116,105 @@ describe('detectThreadReplyToKm', () => {
     const fetchComment = async () => null
     const child = makeComment('c-child', USER, 'c-missing')
     const result = await detectThreadReplyToKm({comment: child, kmAccountId: KM, fetchComment, cache})
+    expect(result).toBeNull()
+  })
+})
+
+describe('findKmMentionInComment — embed false positives', () => {
+  it('detects a bare account embed as a mention', () => {
+    const comment: SeedComment = {
+      id: 'c1',
+      author: USER,
+      targetAccount: SITE,
+      content: [
+        {
+          block: {
+            id: 'b1',
+            text: 'hi ￼',
+            annotations: [{type: 'Embed', link: `hm://${SITE}`}],
+          },
+        },
+      ],
+    }
+    const result = findKmMentionInComment(comment, [SITE])
+    expect(result).not.toBeNull()
+    expect(result!.blockId).toBe('b1')
+  })
+
+  it('does NOT treat a document embed link as a mention', () => {
+    const comment: SeedComment = {
+      id: 'c2',
+      author: USER,
+      targetAccount: SITE,
+      content: [
+        {
+          block: {
+            id: 'b1',
+            text: 'check this doc ￼',
+            annotations: [{type: 'Embed', link: `hm://${SITE}/tech-talks/measurement`}],
+          },
+        },
+      ],
+    }
+    const result = findKmMentionInComment(comment, [SITE])
+    expect(result).toBeNull()
+  })
+
+  it('detects /:profile embed as a mention', () => {
+    const comment: SeedComment = {
+      id: 'c-profile',
+      author: USER,
+      targetAccount: SITE,
+      content: [
+        {
+          block: {
+            id: 'b1',
+            text: '￼ what do you think?',
+            annotations: [{type: 'Embed', link: `hm://${SITE}/:profile`}],
+          },
+        },
+      ],
+    }
+    const result = findKmMentionInComment(comment, [SITE])
+    expect(result).not.toBeNull()
+    expect(result!.blockId).toBe('b1')
+  })
+
+  it('detects /:profile?v=... embed as a mention', () => {
+    const comment: SeedComment = {
+      id: 'c-profile-ver',
+      author: USER,
+      targetAccount: SITE,
+      content: [
+        {
+          block: {
+            id: 'b1',
+            text: '￼',
+            annotations: [{type: 'Embed', link: `hm://${SITE}/:profile?v=bafy123&l`}],
+          },
+        },
+      ],
+    }
+    const result = findKmMentionInComment(comment, [SITE])
+    expect(result).not.toBeNull()
+  })
+
+  it('does NOT treat a nested document path as a mention', () => {
+    const comment: SeedComment = {
+      id: 'c3',
+      author: USER,
+      targetAccount: SITE,
+      content: [
+        {
+          block: {
+            id: 'b1',
+            text: '￼',
+            annotations: [{type: 'Embed', link: `hm://${SITE}/projects/data-flow`}],
+          },
+        },
+      ],
+    }
+    const result = findKmMentionInComment(comment, [SITE])
     expect(result).toBeNull()
   })
 })

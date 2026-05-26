@@ -10,6 +10,10 @@ Environment=KM_TRIGGER=poll-cli
 Environment=SEED_CLI_PATH=/home/km/.local/bin/seed-cli
 Environment=KM_STATE_DIR=/home/km/km-state
 Environment=KM_LOGS_DIR=/home/km/km-logs
+# Optional live telemetry mirror for the Bun Observability Center.
+# Environment=KM_OBS_URL=https://oc.hyper.media/api/ingest
+# Environment=KM_OBS_TOKEN=change-me
+# Environment=KM_OBS_FULL_PAYLOAD=0
 # Standalone polling driver. Bypasses nanobot — DeepSeek call happens
 # inline, no LLM tool-orchestration. Whole loop is deterministic except
 # for the single chat-completion that drafts the reply text.

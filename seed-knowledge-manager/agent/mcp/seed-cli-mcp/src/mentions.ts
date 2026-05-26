@@ -143,8 +143,11 @@ export function findKmMentionInComment(
     for (const ann of block.annotations ?? []) {
       if (ann.type !== 'Embed') continue
       if (typeof ann.link !== 'string') continue
-      const m = ann.link.match(/^hm:\/\/([^/?#]+)/)
+      const m = ann.link.match(/^hm:\/\/([^/?#]+)(\/.*)?/)
       if (!m) continue
+      // Document links (hm://account/path) are NOT mentions — skip.
+      // But /:profile is an account mention, not a document.
+      if (m[2] && m[2] !== '/:profile' && !m[2].startsWith('/:profile?')) continue
       if (idSet.has(m[1]!)) {
         return {blockId: block.id, text: block.text ?? ''}
       }

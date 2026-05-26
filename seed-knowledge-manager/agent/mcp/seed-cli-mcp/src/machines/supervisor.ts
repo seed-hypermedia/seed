@@ -18,6 +18,7 @@ import {createActor, type Actor} from 'xstate'
 import {mentionMachine, type MentionCallbacks, type MentionEvent} from './mention-machine.js'
 import type {Mention} from '../mentions.js'
 import {mentionKey} from '../state.js'
+import type {TelemetryKind} from '../observability.js'
 
 const MACHINES_SUBDIR = 'machines'
 
@@ -33,10 +34,21 @@ export class MentionSupervisor {
   private readonly machinesDir: string
   private readonly actors = new Map<string, Actor<typeof mentionMachine>>()
   private readonly callbacks: MentionCallbacks
+  private readonly telemetry?: (kind: Extract<TelemetryKind, 'machine_event' | 'machine_snapshot'>, data: unknown) => void
+  private readonly runId?: string
 
-  constructor(stateDir: string, callbacks: MentionCallbacks) {
+  constructor(
+    stateDir: string,
+    callbacks: MentionCallbacks,
+    opts: {
+      telemetry?: (kind: Extract<TelemetryKind, 'machine_event' | 'machine_snapshot'>, data: unknown) => void
+      runId?: string
+    } = {},
+  ) {
     this.callbacks = callbacks
     void this.callbacks
+    this.telemetry = opts.telemetry
+    this.runId = opts.runId
     this.machinesDir = join(stateDir, MACHINES_SUBDIR)
     if (!existsSync(this.machinesDir)) {
       mkdirSync(this.machinesDir, {recursive: true, mode: 0o700})
@@ -60,6 +72,7 @@ export class MentionSupervisor {
 
     const actor = this.createActor(mention, id)
     actor.start()
+    this.emitMachineEvent('actor_spawned', mention, id, {trigger: 'fresh'})
     return actor
   }
 
@@ -69,6 +82,7 @@ export class MentionSupervisor {
     const actor = this.actors.get(id)
     if (!actor) return
     this.persist(id, {ts: new Date().toISOString(), type: event.type, payload: extractPayload(event)})
+    this.emitMachineEvent('actor_event', mention, id, {type: event.type, payload: extractPayload(event)})
     actor.send(event)
   }
 
@@ -118,8 +132,10 @@ export class MentionSupervisor {
       if (snapshot.status === 'done') {
         actor.stop()
         this.actors.delete(id)
+        this.emitMachineEvent('actor_rehydrated_terminal', initialMention, id, {status: snapshot.status})
         skipped++
       } else {
+        this.emitMachineEvent('actor_rehydrated', initialMention, id, {status: snapshot.status})
         restored++
       }
     }
@@ -128,7 +144,16 @@ export class MentionSupervisor {
 
   /** Stop all actors. Called on graceful shutdown. */
   stopAll(): void {
-    for (const actor of this.actors.values()) actor.stop()
+    for (const [id, actor] of this.actors.entries()) {
+      actor.stop()
+      this.telemetry?.('machine_event', {
+        event: 'actor_stopped',
+        ts: new Date().toISOString(),
+        runId: this.runId,
+        actorId: id,
+        mentionId: id,
+      })
+    }
     this.actors.clear()
   }
 
@@ -136,16 +161,54 @@ export class MentionSupervisor {
     const actor = createActor(mentionMachine, {input: {mention}})
     this.actors.set(id, actor)
     actor.subscribe((snapshot) => {
+      if (!opts.silent) this.emitSnapshot(mention, id, snapshot)
       if (snapshot.status === 'done') {
         // Terminal — drop the actor. The JSONL log stays as audit trail.
         setImmediate(() => {
           actor.stop()
           this.actors.delete(id)
+          this.emitMachineEvent('actor_stopped', mention, id, {status: snapshot.status})
         })
       }
     })
-    void opts
     return actor
+  }
+
+  private emitMachineEvent(event: string, mention: Mention, id: string, data: Record<string, unknown> = {}): void {
+    this.telemetry?.('machine_event', {
+      event,
+      ts: new Date().toISOString(),
+      runId: this.runId,
+      actorId: id,
+      mentionId: id,
+      commentId: mention.commentId,
+      docId: mention.docId,
+      kind: mention.kind,
+      ...data,
+    })
+  }
+
+  private emitSnapshot(mention: Mention, id: string, snapshot: unknown): void {
+    const snap = isRecord(snapshot) ? snapshot : {}
+    const context = isRecord(snap.context) ? snap.context : {}
+    this.telemetry?.('machine_snapshot', {
+      event: 'actor_snapshot',
+      ts: new Date().toISOString(),
+      runId: this.runId,
+      actorId: id,
+      mentionId: id,
+      commentId: mention.commentId,
+      docId: mention.docId,
+      state: snap.value,
+      status: snap.status,
+      context: {
+        placeholderId: context.placeholderId,
+        draftRetries: context.draftRetries,
+        finaliseRetries: context.finaliseRetries,
+        failureReason: context.failureReason,
+        lastError: context.lastError,
+      },
+    })
   }
 
   private persist(id: string, event: PersistedEvent): void {
@@ -169,4 +232,8 @@ function extractPayload(event: MentionEvent): Record<string, unknown> | undefine
 function reconstructEvent(persisted: PersistedEvent): MentionEvent {
   const base = {type: persisted.type as MentionEvent['type']}
   return {...base, ...(persisted.payload ?? {})} as MentionEvent
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

@@ -28,29 +28,36 @@ export async function runMachinePassB(opts: RunMachinePassBOptions): Promise<{fi
   let finalised = 0
   let errored = 0
 
-  const supervisor = new MentionSupervisor(config.stateDir, {
-    // Placeholder is already posted in Pass A; the machine starts straight at
-    // `placeholder_posted` by sending POST_PLACEHOLDER + PLACEHOLDER_POSTED in
-    // sequence below.
-    postPlaceholder: async () => ({placeholderId: ''}),
-    runAgent: async (mention) => {
-      const question = mention.text.replace(/￼/g, ' ').trim()
-      const context = await gatherCommentReplyContext({cli, mention, siteAccount, audit})
-      if (config.useMastraAgent) {
-        const {runMastraReply} = await import('../agent/mastra-agent.js')
-        const reply = await runMastraReply({question, context, mention, audit, cli})
+  const supervisor = new MentionSupervisor(
+    config.stateDir,
+    {
+      // Placeholder is already posted in Pass A; the machine starts straight at
+      // `placeholder_posted` by sending POST_PLACEHOLDER + PLACEHOLDER_POSTED in
+      // sequence below.
+      postPlaceholder: async () => ({placeholderId: ''}),
+      runAgent: async (mention) => {
+        const question = mention.text.replace(/￼/g, ' ').trim()
+        const context = await gatherCommentReplyContext({cli, mention, siteAccount, audit})
+        if (config.useMastraAgent) {
+          const {runMastraReply} = await import('../agent/mastra-agent.js')
+          const reply = await runMastraReply({question, context, mention, audit, cli})
+          return {replyBody: reply ?? fallbackBody}
+        }
+        const reply = await draftReply(question, context, audit)
         return {replyBody: reply ?? fallbackBody}
-      }
-      const reply = await draftReply(question, context, audit)
-      return {replyBody: reply ?? fallbackBody}
+      },
+      finaliseComment: async (placeholderId, replyBody) => {
+        const r = await cli.runWrite(['comment', 'edit', placeholderId, '--body', replyBody])
+        if (r.exitCode !== 0) {
+          throw new Error(`comment edit failed: exit=${r.exitCode} stderr=${r.stderr.slice(0, 200)}`)
+        }
+      },
     },
-    finaliseComment: async (placeholderId, replyBody) => {
-      const r = await cli.runWrite(['comment', 'edit', placeholderId, '--body', replyBody])
-      if (r.exitCode !== 0) {
-        throw new Error(`comment edit failed: exit=${r.exitCode} stderr=${r.stderr.slice(0, 200)}`)
-      }
+    {
+      runId: audit.meta.runId,
+      telemetry: (kind, data) => audit.telemetry(kind, data),
     },
-  })
+  )
 
   // Replay any actors persisted from prior runs so we resume mid-flight.
   const replay = supervisor.rehydrate()

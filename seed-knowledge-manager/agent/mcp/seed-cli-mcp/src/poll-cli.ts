@@ -76,6 +76,7 @@ async function main(): Promise<void> {
       if (!ready) {
         audit.trace({ts: nowIso(), level: 'warn', event: 'preflight_skipped', data: {reason: 'local-daemon-not-ready'}})
         audit.close({status: 'denied', logsDir: config.logsDir})
+        await audit.flushTelemetry()
         return
       }
     }
@@ -479,6 +480,7 @@ async function main(): Promise<void> {
   } finally {
     audit.trace({ts: nowIso(), level: 'info', event: 'agent_end', data: {status}})
     audit.close({status, logsDir: config.logsDir})
+    await audit.flushTelemetry()
   }
 }
 

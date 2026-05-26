@@ -21,6 +21,7 @@ import {appendFileSync, closeSync, existsSync, mkdirSync, openSync, statSync, sy
 import {join} from 'node:path'
 import {ulid} from 'ulid'
 import type {Redactor} from './redact.js'
+import {createObservabilityClientFromEnv, type ObservabilityClient, type TelemetryKind} from './observability.js'
 
 export type Trigger = string
 
@@ -79,11 +80,13 @@ export class AuditRun {
   readonly meta: AuditMeta
   readonly dir: string
   private readonly redactor: Redactor
+  private readonly observability: ObservabilityClient | null
   private closed = false
   private startTime: number
 
   constructor(opts: {logsDir: string; trigger: Trigger; redactor: Redactor; kmAccountId?: string; seedSite?: string}) {
     this.redactor = opts.redactor
+    this.observability = createObservabilityClientFromEnv(opts.redactor)
     const runId = ulid()
     const now = new Date()
     this.startTime = now.getTime()
@@ -100,26 +103,39 @@ export class AuditRun {
       counters: {},
     }
     this.flushMeta()
+    this.emitTelemetry('run_meta', this.meta)
     this.updateCurrent(opts.logsDir, slug)
   }
 
   trace(event: TraceEvent): void {
     this.appendJsonl('trace.jsonl', event)
+    this.emitTelemetry('trace', event)
   }
 
   tool(record: ToolCallRecord): void {
     this.appendJsonl('tools.jsonl', record)
+    this.emitTelemetry('tool', record)
     this.bumpCounter('tool_calls')
   }
 
   llm(record: LlmRecord): void {
     this.appendJsonl('llm.jsonl', record)
+    this.emitTelemetry('llm', record)
     this.bumpCounter('llm_calls')
   }
 
   seedCli(record: SeedCliRecord): void {
     this.appendJsonl('seed-cli.jsonl', record)
+    this.emitTelemetry('seed_cli', record)
     this.bumpCounter('seed_cli_calls')
+  }
+
+  telemetry(kind: TelemetryKind, data: unknown): void {
+    this.emitTelemetry(kind, data)
+  }
+
+  async flushTelemetry(timeoutMs = 1_500): Promise<void> {
+    await this.observability?.flush(timeoutMs)
   }
 
   bumpCounter(name: string, delta = 1): void {
@@ -135,7 +151,12 @@ export class AuditRun {
     this.meta.wallMs = now.getTime() - this.startTime
     this.meta.status = opts.status ?? 'ok'
     this.flushMeta()
+    this.emitTelemetry('run_meta', this.meta)
     appendIndex(opts.logsDir, this.meta)
+  }
+
+  private emitTelemetry(kind: TelemetryKind, data: unknown): void {
+    this.observability?.emit(kind, this.meta.runId, data)
   }
 
   private appendJsonl(file: string, value: unknown): void {

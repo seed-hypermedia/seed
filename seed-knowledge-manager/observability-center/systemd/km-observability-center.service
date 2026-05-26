@@ -1,0 +1,26 @@
+[Unit]
+Description=Knowledge Manager Observability Center
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=km
+WorkingDirectory=/home/km/observability-center
+Environment=NODE_ENV=production
+Environment=OC_HTTP_HOSTNAME=127.0.0.1
+Environment=OC_HTTP_PORT=4317
+Environment=OC_DB_PATH=/home/km/oc-data/oc.sqlite
+Environment=OC_IMPORT_KM_LOGS_DIR=/home/km/km-logs
+Environment=OC_IMPORT_KM_STATE_DIR=/home/km/km-state
+Environment=OC_IMPORT_INTERVAL_MS=10000
+# Keep compact historical imports unless explicitly debugging.
+Environment=OC_IMPORT_FULL_PAYLOAD=0
+# Set the same token in km-poll.service as KM_OBS_TOKEN.
+Environment=OC_INGEST_TOKEN=change-me
+ExecStart=/home/km/.bun/bin/bun src/main.ts serve
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
