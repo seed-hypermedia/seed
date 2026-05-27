@@ -49,7 +49,7 @@
   /* Extra width code/image blocks may "break out" past the text column
    * (split evenly — half each side). Inherited by descendants; zeroed in
    * comments and embeds below so the breakout rule is a no-op there. */
-  --hm-breakout: 120px;
+  --hm-breakout: 60px;
 }
 
 .hm-prose.is-comment,
