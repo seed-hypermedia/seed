@@ -438,8 +438,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 				tsid        = blob.TSID(stmt.ColumnText(13))
 				//extraAttrs  = stmt.ColumnText(14)
-				isDeleted = stmt.ColumnText(16) == "1"
-				source    = stmt.ColumnText(18)
+				isDeleted      = stmt.ColumnText(16) == "1"
+				source         = stmt.ColumnText(18)
+				sourceResource = stmt.ColumnText(19)
 			)
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
 			if target == "" && blobType != "Comment" {
@@ -447,7 +448,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 
 			if blobType == "Comment" {
-				sourceDoc = target
+				sourceDoc = sourceResource
 				source = "hm://" + author + "/" + tsid.String()
 				eventTime = timestamppb.New(tsid.Timestamp())
 
@@ -867,7 +868,8 @@ SELECT distinct
         WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
         ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
     END AS effective_genesis,
-	r2.iri AS source_iri
+	r2.iri AS source_iri,
+	source_resources.iri AS source_resource_iri
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -878,6 +880,7 @@ LEFT JOIN resources r2
         WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
         ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
      END
+LEFT JOIN resources source_resources ON source_resources.id = structural_blobs.resource
 `
 
 // listMentionsCore is the filtered variant: WHERE constrains target to the

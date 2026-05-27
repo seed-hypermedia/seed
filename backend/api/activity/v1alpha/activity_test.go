@@ -3,6 +3,7 @@ package activity
 import (
 	context "context"
 	"fmt"
+	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/logging"
@@ -11,6 +12,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
+	"time"
 
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -135,6 +137,54 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 	}
 	require.Contains(t, page2IDs, int64(1),
 		"id=1 must be reachable via pagination after dedup shortens page 1")
+}
+
+func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+	mentioned, err := core.DecodePrincipal("z6Mkj6fUDHMAvGm1MRqtjrBH5vLX5gQnDYh2f74NRFfccbVt")
+	require.NoError(t, err)
+
+	sourceDocument := "hm://" + author.String() + "/project-plan"
+	mentionedProfile := "hm://" + mentioned.String() + "/:profile"
+	commentTime := time.UnixMilli(2_000).UTC().Round(blob.ClockPrecision)
+	commentTSID := blob.NewTSID(commentTime, []byte("comment mentions profile"))
+	commentAttrs := fmt.Sprintf(`{"tsid":%q}`, commentTSID.String())
+	commentHash, err := multihash.Sum([]byte("comment mentions profile"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?), (2, ?);`, nil, []byte(author), []byte(mentioned)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri, owner, create_time) VALUES (1, ?, 1, 0), (2, ?, 2, 0);`, nil, sourceDocument, mentionedProfile); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (10, ?, ?, ?, 1, 10);`, nil, []byte(commentHash), int64(0x71), []byte{1}); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, extra_attrs) VALUES (10, 'Comment', ?, 1, 1, ?);`, nil, commentTime.UnixMilli(), commentAttrs); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (source, target, type, is_pinned, extra_attrs) VALUES (10, 2, 'comment/Embed', 0, '{"a":"comment-block"}');`, nil)
+	}))
+
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{PageSize: 10})
+	require.NoError(t, err)
+
+	var mention = (*activity.Event)(nil)
+	for _, event := range events.Events {
+		if event.GetNewMention().GetSourceType() == "comment/Embed" {
+			mention = event
+			break
+		}
+	}
+	require.NotNil(t, mention, "expected comment profile mention in unfiltered activity feed")
+	require.Equal(t, sourceDocument, mention.GetNewMention().GetSourceDocument())
+	require.Equal(t, mentionedProfile, mention.GetNewMention().GetTarget())
 }
 
 // TODO: update profile idempotent no change
