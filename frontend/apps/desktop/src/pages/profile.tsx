@@ -6,7 +6,7 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {AccountPage} from '@shm/ui/account-page'
 import {PanelContainer} from '@shm/ui/container'
-import {PageDiscovery, PageNotFound} from '@shm/ui/page-message-states'
+import {PageNotFound} from '@shm/ui/page-message-states'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo} from 'react'
@@ -38,29 +38,9 @@ export default function ProfilePage() {
 
   if (!profileRoute) throw new Error('Profile route not found')
 
-  if (resource.isInitialLoading) {
-    return (
-      <PanelContainer>
-        <MainWrapper scrollable className="w-full">
-          <div className="flex flex-1 items-center justify-center">
-            <Spinner />
-          </div>
-        </MainWrapper>
-      </PanelContainer>
-    )
-  }
+  const isProfileLoading = !profile.data && (profile.isLoading || resource.isInitialLoading || resource.isDiscovering)
 
-  if (resource.isDiscovering) {
-    return (
-      <PanelContainer>
-        <MainWrapper scrollable className="w-full">
-          <PageDiscovery entityType="profile" />
-        </MainWrapper>
-      </PanelContainer>
-    )
-  }
-
-  if (profile.isLoading) {
+  if (isProfileLoading) {
     return (
       <PanelContainer>
         <MainWrapper scrollable className="w-full">
