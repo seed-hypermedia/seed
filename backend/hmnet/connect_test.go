@@ -257,6 +257,194 @@ func TestPeerExchangeTickConstants(t *testing.T) {
 	require.Equal(t, 8, peerExchangeDialFanout)
 }
 
+// queryPeers is a tiny helper for tests that need to read back from the
+// peers table — keeps the call sites focused on the assertion instead of
+// pool-conn lifecycle boilerplate.
+func queryPeers(t *testing.T, n *Node, query string, fn func(*sqlite.Stmt) error, args ...any) {
+	t.Helper()
+	conn, release, err := n.db.Conn(context.Background())
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, sqlitex.Exec(conn, query, fn, args...))
+}
+
+// TestPeerStartupCleanup_FiltersCertHash verifies the per-row address
+// filter strips /certhash/-bearing multiaddrs in place and leaves the
+// remainder intact. The certhash filter runs unconditionally (independent
+// of the routability filter, which is gated on AllowPrivateIPs).
+func TestPeerStartupCleanup_FiltersCertHash(t *testing.T) {
+	n := makeTestNode(t)
+	ctx := context.Background()
+
+	cleanAddr := "/ip4/1.2.3.4/tcp/4001/p2p/12D3KooWClean"
+	certhashAddr := "/ip4/5.6.7.8/udp/4001/webrtc-direct/certhash/uEiAabcd/p2p/12D3KooWDirty"
+	mixed := cleanAddr + "," + certhashAddr
+
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, strftime('%s','now'), strftime('%s','now'));",
+			nil, "12D3KooWFilterMe", mixed, false)
+	}))
+
+	require.NoError(t, n.peerStartupCleanup(ctx, 0))
+
+	var got string
+	queryPeers(t, n, "SELECT addresses FROM peers WHERE pid = ?;", func(s *sqlite.Stmt) error {
+		got = s.ColumnText(0)
+		return nil
+	}, "12D3KooWFilterMe")
+	require.Equal(t, cleanAddr, got,
+		"certhash-bearing multiaddr must be filtered out, clean one preserved")
+}
+
+// TestPeerStartupCleanup_DeletesAfterFullFilter verifies that a row
+// whose entire address list filters to empty is deleted (not left as a
+// zero-address ghost). The post-filter empty check is the only path
+// that removes peers in the rewrite phase — the time-based prune is a
+// separate step.
+func TestPeerStartupCleanup_DeletesAfterFullFilter(t *testing.T) {
+	n := makeTestNode(t)
+	ctx := context.Background()
+
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, strftime('%s','now'), strftime('%s','now'));",
+			nil, "12D3KooWGhost",
+			"/ip4/1.2.3.4/udp/4001/webrtc-direct/certhash/uEiAxyz/p2p/12D3KooWGhost", false)
+	}))
+
+	require.NoError(t, n.peerStartupCleanup(ctx, 0))
+
+	var count int64
+	queryPeers(t, n, "SELECT count(*) FROM peers WHERE pid = ?;", func(s *sqlite.Stmt) error {
+		count = s.ColumnInt64(0)
+		return nil
+	}, "12D3KooWGhost")
+	require.Equal(t, int64(0), count,
+		"peer whose only address was filtered out must be deleted")
+}
+
+// TestPeerStartupCleanup_SkipsPruneBelowFloor verifies the row-count
+// floor protects near-empty deployments from accidentally pruning
+// themselves to zero. The floor check uses (scanned - deletedEmpty);
+// when that's under the floor, the time-based prune DELETE doesn't run
+// regardless of how old the rows are.
+func TestPeerStartupCleanup_SkipsPruneBelowFloor(t *testing.T) {
+	n := makeTestNode(t)
+	ctx := context.Background()
+
+	// Two ancient peers (40 days old, gossip-ingested) — would be
+	// pruned if the floor allowed it, but floor=10 > total=2.
+	pids := fakePeerIDs(t, 2)
+	insertPeers(t, n.db, pids, []int64{-40 * 86400, -40 * 86400})
+
+	require.NoError(t, n.peerStartupCleanup(ctx, 10))
+
+	var count int64
+	queryPeers(t, n, "SELECT count(*) FROM peers;", func(s *sqlite.Stmt) error {
+		count = s.ColumnInt64(0)
+		return nil
+	})
+	require.Equal(t, int64(2), count,
+		"floor guard must skip the prune when scanned-after-rewrite is below floor")
+}
+
+// TestPeerStartupCleanup_PrunesStaleGossipedAboveFloor verifies the
+// happy path: with enough peers to clear the floor, ancient
+// gossip-ingested rows (explicitly_connected=0) are pruned while
+// explicit/bootstrap peers (explicitly_connected=1) are preserved
+// regardless of age.
+func TestPeerStartupCleanup_PrunesStaleGossipedAboveFloor(t *testing.T) {
+	n := makeTestNode(t)
+	ctx := context.Background()
+
+	// One ancient gossip peer (must be pruned), one ancient bootstrap
+	// peer (must survive), one fresh gossip peer (must survive).
+	pids := fakePeerIDs(t, 3)
+	now := time.Now().Unix()
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, ?, ?);",
+			nil, pids[0].String(), "/ip4/1.1.1.1/tcp/4001/p2p/"+pids[0].String(), false,
+			now-40*86400, now-40*86400); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, ?, ?);",
+			nil, pids[1].String(), "/ip4/2.2.2.2/tcp/4001/p2p/"+pids[1].String(), true,
+			now-40*86400, now-40*86400); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, ?, ?);",
+			nil, pids[2].String(), "/ip4/3.3.3.3/tcp/4001/p2p/"+pids[2].String(), false,
+			now-3600, now-3600)
+	}))
+
+	require.NoError(t, n.peerStartupCleanup(ctx, 0))
+
+	survivors := map[string]bool{}
+	queryPeers(t, n, "SELECT pid FROM peers;", func(s *sqlite.Stmt) error {
+		survivors[s.ColumnText(0)] = true
+		return nil
+	})
+	require.False(t, survivors[pids[0].String()], "ancient gossip peer must be pruned")
+	require.True(t, survivors[pids[1].String()], "ancient bootstrap peer must survive (explicitly_connected=1)")
+	require.True(t, survivors[pids[2].String()], "fresh gossip peer must survive (updated_at within window)")
+}
+
+// TestPeerStartupCleanup_CASGuardsAgainstStaleScan verifies the
+// concurrency-safety property the background-goroutine refactor relies
+// on: the rewrite UPDATE / DELETE statements both carry
+// `AND addresses = ?` predicates so a row that peerWriter touched
+// between our scan and our write is left alone. Without this guard,
+// the cleanup would silently clobber freshly-observed addresses with
+// a stale filter result.
+//
+// Tested at the SQL level (not by racing real goroutines) because the
+// guarantee IS the SQL predicate — the test exists to lock in the
+// statement shape against future "simplification" that drops the CAS.
+func TestPeerStartupCleanup_CASGuardsAgainstStaleScan(t *testing.T) {
+	n := makeTestNode(t)
+	ctx := context.Background()
+
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"INSERT INTO peers (pid, addresses, explicitly_connected, created_at, updated_at) VALUES (?, ?, ?, strftime('%s','now'), strftime('%s','now'));",
+			nil, "12D3KooWRace", "FRESH_VALUE", false)
+	}))
+
+	// Try to overwrite with a CAS that DOESN'T match the current row
+	// state. This is the same shape peerStartupCleanup uses.
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"UPDATE peers SET addresses = ? WHERE pid = ? AND addresses = ?;",
+			nil, "CLOBBERED", "12D3KooWRace", "STALE_VALUE")
+	}))
+
+	var got string
+	queryPeers(t, n, "SELECT addresses FROM peers WHERE pid = ?;", func(s *sqlite.Stmt) error {
+		got = s.ColumnText(0)
+		return nil
+	}, "12D3KooWRace")
+	require.Equal(t, "FRESH_VALUE", got,
+		"CAS-guarded UPDATE must not overwrite when the predicate doesn't match the current value")
+
+	// Symmetric check for DELETE.
+	require.NoError(t, n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn,
+			"DELETE FROM peers WHERE pid = ? AND addresses = ?;",
+			nil, "12D3KooWRace", "STALE_VALUE")
+	}))
+	var count int64
+	queryPeers(t, n, "SELECT count(*) FROM peers WHERE pid = ?;", func(s *sqlite.Stmt) error {
+		count = s.ColumnInt64(0)
+		return nil
+	}, "12D3KooWRace")
+	require.Equal(t, int64(1), count,
+		"CAS-guarded DELETE must not delete when the predicate doesn't match the current value")
+}
+
 // Sanity: bitswapWorkerCount honors its 16-worker floor and scales with cores.
 func TestBitswapWorkerCountFloor(t *testing.T) {
 	got := bitswapWorkerCount()

@@ -444,20 +444,6 @@ func (n *Node) Start(ctx context.Context) (err error) {
 
 	defer func() { n.log.Info("P2PNodeFinished", zap.Error(err)) }()
 
-	// One-shot peers-table hygiene at startup. Two passes in a single
-	// transaction: rewrite every row's addresses through the routable filter
-	// (drops LAN-private/loopback multiaddrs ingested before the filter
-	// landed), then prune gossip-ingested rows whose updated_at is older than
-	// the 30-day freshness window. The prune was disabled earlier pending
-	// one full window of updated_at-bump correctness — that window has now
-	// cycled. Best-effort: log and continue if it fails. See connect.go for
-	// the implementation and the explicitly_connected=0 guard that protects
-	// bootstrap / direct contact peers.
-	const peerPruneFloor = 200
-	if err := n.peerStartupCleanup(ctx, peerPruneFloor); err != nil {
-		n.log.Warn("PeerStartupCleanupFailed", zap.Error(err))
-	}
-
 	if err := n.startLibp2p(ctx); err != nil {
 		return err
 	}
@@ -502,6 +488,25 @@ func (n *Node) Start(ctx context.Context) (err error) {
 		// teardown) so it shares lifetime with the libp2p event loop.
 		g.Go(func() error {
 			n.peerWriter.run(ctx)
+			return nil
+		})
+		// One-shot peers-table hygiene, run in background so it does
+		// NOT gate startup. Two passes: rewrite every row's addresses
+		// through the routable + certhash filters, then prune
+		// gossip-ingested rows whose updated_at is older than the
+		// 30-day freshness window. The cleanup is purely
+		// best-effort hygiene — it does not need to complete before
+		// the daemon answers RPCs. Holding it inline previously kept
+		// the writer mutex for ~4 s on populated tables, blocking
+		// every other writer for that whole window. See
+		// peerStartupCleanup for the split read-scan / write-tx
+		// design that lets it coexist with concurrent peerWriter
+		// flushes via CAS guards on the row's `addresses` value.
+		const peerPruneFloor = 200
+		g.Go(func() error {
+			if err := n.peerStartupCleanup(ctx, peerPruneFloor); err != nil && ctx.Err() == nil {
+				n.log.Warn("PeerStartupCleanupFailed", zap.Error(err))
+			}
 			return nil
 		})
 	}

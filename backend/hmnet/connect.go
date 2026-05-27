@@ -679,8 +679,8 @@ func (n *Node) filterAddrs(addrs []string) []string {
 	return netutil.FilterCertHashMultiaddrs(addrs)
 }
 
-// peerStartupCleanup runs the one-shot data-hygiene pass on the peers table
-// at daemon start. Two steps in a single transaction:
+// peerStartupCleanup runs the one-shot data-hygiene pass on the peers table.
+// Two steps:
 //
 //  1. Rewrite every row's `addresses` column through filterAddrs so existing
 //     rows shed (a) any non-routable multiaddrs ingested before that filter
@@ -702,20 +702,42 @@ func (n *Node) filterAddrs(addrs []string) []string {
 // Guarded with a row-count floor so a near-empty fresh deploy can't
 // accidentally prune itself to zero.
 //
+// Split into two phases — a read-only scan (no writer mutex held) and a
+// write tx that applies the rewrites + prune. The scan dominates wall
+// time on populated tables (observed at 2.5+ s on cold cache), and
+// holding the writer mutex through it blocks every other writer in the
+// daemon. Splitting drops the writer-mutex hold time to just the actual
+// write work + COMMIT. Callers that pre-`fixPeerWriter`-refactor relied
+// on this being one transaction got no atomicity guarantee that
+// survived crashes anyway (the filter is idempotent — a partial run
+// just rewrites less, the next run picks up the rest).
+//
+// Concurrency safety: writes carry a CAS guard on the original
+// `addresses` value, so if `peerWriter` overwrote a row between our
+// scan and our write the UPDATE/DELETE silently skips that row — the
+// next startup will pick it up if it still needs cleaning. This is the
+// right semantic now that the function runs on a background goroutine
+// (see hmnet.go Start) concurrently with normal traffic, instead of
+// synchronously gating startup.
+//
 // Logs an info line for each step describing the work done; errors are
 // returned to the caller, which logs but does NOT fail startup on them —
 // peers-table hygiene is best-effort.
 func (n *Node) peerStartupCleanup(ctx context.Context, floor int64) error {
 	applyRoutabilityFilter := !n.ArePrivateIPsAllowed()
 	log := n.log
-	return n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		// Step 1: filter existing addresses in-place.
-		type updateJob struct {
-			id    int64
-			addrs string // empty => delete the row
-		}
-		var jobs []updateJob
-		if err := sqlitex.Exec(conn, "SELECT id, addresses FROM peers;", func(stmt *sqlite.Stmt) error {
+
+	// Phase 1: read-only scan + per-row filter. No writer mutex held.
+	type updateJob struct {
+		id       int64
+		rawWas   string // original addresses; CAS guard on the WRITE
+		newAddrs string // empty => delete the row
+	}
+	var jobs []updateJob
+	var scanned int64
+	if _, err := sqlitex.Read(ctx, n.db, func(conn *sqlite.Conn) (struct{}, error) {
+		return struct{}{}, sqlitex.Exec(conn, "SELECT id, addresses FROM peers;", func(stmt *sqlite.Stmt) error {
+			scanned++
 			id := stmt.ColumnInt64(0)
 			raw := stmt.ColumnText(1)
 			addrs := strings.Split(raw, ",")
@@ -725,39 +747,55 @@ func (n *Node) peerStartupCleanup(ctx context.Context, floor int64) error {
 			addrs = netutil.FilterCertHashMultiaddrs(addrs)
 			cleaned := strings.Join(addrs, ",")
 			if cleaned != raw {
-				jobs = append(jobs, updateJob{id: id, addrs: cleaned})
+				jobs = append(jobs, updateJob{id: id, rawWas: raw, newAddrs: cleaned})
 			}
 			return nil
-		}); err != nil {
-			return fmt.Errorf("peerStartupCleanup: scan peers: %w", err)
-		}
-		var rewritten, deletedEmpty int
+		})
+	}); err != nil {
+		return fmt.Errorf("peerStartupCleanup: scan peers: %w", err)
+	}
+
+	// Phase 2: apply rewrites + prune in a single write tx.
+	return n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		var rewritten, deletedEmpty, skippedRace int
 		for _, j := range jobs {
-			if j.addrs == "" {
-				if err := sqlitex.Exec(conn, "DELETE FROM peers WHERE id = ?;", nil, j.id); err != nil {
+			if j.newAddrs == "" {
+				// CAS on the original raw value: if peerWriter /
+				// connect overwrote this row between our scan and now
+				// the WHERE clause misses and we skip. Next startup
+				// picks it up if it still needs deletion.
+				if err := sqlitex.Exec(conn, "DELETE FROM peers WHERE id = ? AND addresses = ?;", nil, j.id, j.rawWas); err != nil {
 					return fmt.Errorf("peerStartupCleanup: delete empty-after-filter peer id=%d: %w", j.id, err)
 				}
-				deletedEmpty++
+				if conn.Changes() > 0 {
+					deletedEmpty++
+				} else {
+					skippedRace++
+				}
 			} else {
-				if err := sqlitex.Exec(conn, "UPDATE peers SET addresses = ? WHERE id = ?;", nil, j.addrs, j.id); err != nil {
+				if err := sqlitex.Exec(conn, "UPDATE peers SET addresses = ? WHERE id = ? AND addresses = ?;", nil, j.newAddrs, j.id, j.rawWas); err != nil {
 					return fmt.Errorf("peerStartupCleanup: rewrite peer id=%d: %w", j.id, err)
 				}
-				rewritten++
+				if conn.Changes() > 0 {
+					rewritten++
+				} else {
+					skippedRace++
+				}
 			}
 		}
 		log.Info("PeerAddressCleanup",
 			zap.Bool("routability_filter", applyRoutabilityFilter),
+			zap.Int64("scanned", scanned),
 			zap.Int("rewritten", rewritten),
-			zap.Int("deleted_empty", deletedEmpty))
+			zap.Int("deleted_empty", deletedEmpty),
+			zap.Int("skipped_race", skippedRace))
 
-		// Step 2: prune stale gossip-ingested peers.
-		var total int64
-		if err := sqlitex.Exec(conn, "SELECT count(*) FROM peers;", func(s *sqlite.Stmt) error {
-			total = s.ColumnInt64(0)
-			return nil
-		}); err != nil {
-			return fmt.Errorf("peerStartupCleanup: count peers: %w", err)
-		}
+		// Floor uses the post-empty-delete count. scanned is the
+		// pre-cleanup population; subtract the empties we just deleted
+		// (the rows that were ingested before the certhash/routability
+		// filters and have nothing left after filtering — they were
+		// never real peers we could dial anyway).
+		total := scanned - int64(deletedEmpty)
 		if total < floor {
 			log.Info("PeerPruneSkipped",
 				zap.Int64("total", total),
