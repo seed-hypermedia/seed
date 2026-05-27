@@ -163,21 +163,22 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 	initialAddrs := strings.ReplaceAll(strings.Join(addrsStr, ","), " ", "")
 
 	if initialAddrs != "" && !n.peerWriteIsRedundant(ctx, info.ID.String(), initialAddrs) {
-		if err = n.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-			// On direct contact we always bump updated_at, whether or not the address
-			// set changed. Gating the update on address change would let an active
-			// peer with stable addrs age past our TTL and get pruned despite being
-			// alive and healthy. Addresses are still only overwritten when non-empty.
-			return sqlitex.Exec(conn, "INSERT INTO peers (pid, addresses, explicitly_connected) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET addresses=CASE WHEN excluded.addresses!='' THEN excluded.addresses ELSE addresses END, updated_at=strftime('%s', 'now');", nil, info.ID.String(), initialAddrs, true)
-		}); err != nil {
-			// Transient write lock contention (e.g. during reindexing) should not
-			// fail an otherwise successful P2P connection. The peer address will be
-			// persisted on the next identify/connect cycle.
-			if !errors.Is(err, sqlitex.ErrBeginImmediateTx) {
-				return err
-			}
-			n.log.Warn("Failing to store peer, will retry later", zap.Error(err))
-		}
+		// Fire-and-forget: route the peer-row INSERT through the dedicated
+		// peerWriter goroutine, which batches outstanding jobs from this
+		// path AND from onLibp2pIdentification into a single BEGIN
+		// IMMEDIATE / COMMIT cycle. Without this, each explicit Connect()
+		// fanout (e.g. syncWithManyPeers dialing N peers in parallel)
+		// would issue N concurrent WithTx calls and stampede the writer
+		// mutex — directly observable on /debug/sqlite as connect
+		// dominating "contender events". The INSERT semantics are
+		// preserved: ON CONFLICT bumps updated_at unconditionally and
+		// overwrites addresses only when the new set is non-empty (see
+		// peerWriter.flush insertStmt).
+		n.peerWriter.enqueue(peerWriteJob{
+			pid:                 info.ID.String(),
+			addrs:               initialAddrs,
+			explicitlyConnected: true,
+		})
 	}
 	return nil
 }

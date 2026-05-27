@@ -117,38 +117,33 @@ func (srv *Server) GetComment(ctx context.Context, in *documents.GetCommentReque
 }
 
 // BatchGetComments implements Comments API.
-func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetCommentsRequest) (out *documents.BatchGetCommentsResponse, err error) {
-	resp := &documents.BatchGetCommentsResponse{
-		Comments: make([]*documents.Comment, len(in.Ids)),
-	}
-
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetCommentsRequest) (*documents.BatchGetCommentsResponse, error) {
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (resp *documents.BatchGetCommentsResponse, err error) {
+		resp = &documents.BatchGetCommentsResponse{
+			Comments: make([]*documents.Comment, len(in.Ids)),
+		}
 		lookup := blob.NewLookupCache(conn)
 		for i, id := range in.Ids {
 			icmt, err := srv.getComment(conn, id)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			if icmt.Comment.Visibility == blob.VisibilityPrivate {
 				if err := srv.denyPrivateComment(ctx, icmt.Comment.Space(), icmt.Comment.Path); err != nil {
-					return err
+					return nil, err
 				}
 			}
 
 			pb, err := commentToProto(lookup, icmt.CID, icmt.Comment, icmt.TSID)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			resp.Comments[i] = pb
 		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return resp, nil
+		return resp, nil
+	})
 }
 
 // ListComments implements Comments API.
