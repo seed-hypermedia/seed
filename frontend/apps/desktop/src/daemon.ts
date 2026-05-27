@@ -20,20 +20,9 @@ const lndhubFlags = !__SEED_P2P_TESTNET_NAME__ ? '-lndhub.mainnet=true' : '-lndh
 
 // Base daemon arguments (without embedding flags)
 const baseDaemonArguments = [
-  '-http.port',
-  String(DAEMON_HTTP_PORT),
-
-  '-grpc.port',
-  String(DAEMON_GRPC_PORT),
-
-  '-p2p.port',
-  String(P2P_PORT),
-
-  '-log-level=debug',
-
-  '-syncing.smart=true',
-
-  '-syncing.no-sync-back=true',
+  `-http.port=${String(DAEMON_HTTP_PORT)}`,
+  `-grpc.port=${String(DAEMON_GRPC_PORT)}`,
+  `-p2p.port=${String(P2P_PORT)}`,
 
   lndhubFlags,
 
@@ -41,19 +30,15 @@ const baseDaemonArguments = [
 
   // Daemon data is always at {userDataPath}/daemon.
   // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
-  '-data-dir',
-  `${userDataPath}/daemon`,
+  `-data-dir=${userDataPath}/daemon`,
 ]
 
 // Embedding-specific flags
 const embeddingFlags = [
   '-llm.embedding.enabled',
-  '-llm.backend.sleep-between-batches',
-  '0s',
-  '-llm.backend.batch-size',
-  '100',
-  '-llm.embedding.index-pass-size',
-  '100',
+  '-llm.backend.sleep-between-batches=0s',
+  '-llm.backend.batch-size=100',
+  '-llm.embedding.index-pass-size=100',
 ]
 
 // Build daemon arguments based on embedding setting
@@ -62,16 +47,12 @@ function buildDaemonArguments(embeddingEnabled: boolean): string[] {
 
   // Use file-based keystore in fixture mode.
   if (process.env.SEED_FIXTURE_DATA_DIR) {
-    args.push('-keystore-dir', `${userDataPath}/daemon/keys`)
+    args.push(`-keystore-dir=${userDataPath}/daemon/keys`)
   }
 
   if (embeddingEnabled) {
     args.push(...embeddingFlags)
   }
-
-  // SENTRY_DSN must come last - it's not a flag, and Go's flag parser
-  // stops at the first non-flag argument.
-  args.push(`SENTRY_DSN=${__SENTRY_DSN__}`)
 
   return args
 }
@@ -120,11 +101,6 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
     }
   }
-  const daemonEnv = {
-    ...process.env,
-    SENTRY_RELEASE: VERSION,
-    SENTRY_DSN: __SENTRY_DSN__,
-  }
 
   const args = buildDaemonArguments(embeddingEnabled)
   log.info('Starting daemon with arguments:', {args, embeddingEnabled})
@@ -132,7 +108,11 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
   const daemonProcess = spawn(goDaemonExecutablePath, args, {
     // daemon env
     cwd: path.join(process.cwd(), '../../..'),
-    env: daemonEnv,
+    env: {
+      ...process.env,
+      SENTRY_RELEASE: VERSION,
+      SENTRY_DSN: __SENTRY_DSN__,
+    },
     stdio: 'pipe',
   })
 
