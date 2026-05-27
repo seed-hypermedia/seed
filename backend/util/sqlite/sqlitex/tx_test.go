@@ -1419,6 +1419,222 @@ func sliceSection(t *testing.T, body, startMarker, stopMarker string) string {
 	return rest[:len(startMarker)+j]
 }
 
+// TestBeginBusyExposesExtendedCodeAndErrMsg verifies that when
+// BEGIN IMMEDIATE fails with a BUSY-class error, the recorded sample
+// (a) carries one of the new outcome subcode labels (begin_busy,
+// begin_busy_timeout, begin_busy_snapshot, or begin_busy_recovery)
+// AND (b) carries a non-empty SQLite errmsg captured at the failure
+// site. Both are surfaced on /debug/sqlite's Slowest begin_busy
+// events ring and load-bearing for diagnosing "held_by empty but
+// BEGIN failed for 10 s" mystery cases.
+func TestBeginBusyExposesExtendedCodeAndErrMsg(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	// Hog the writer mutex on conn A; victim on conn B will time out.
+	holder := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
+
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(50 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
+		pool.Put(holder)
+		_ = pool.Close()
+	})
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	body := renderDebugPage(t)
+	// One of the four busy-class outcome labels must appear on the
+	// rendered page (the exact subcode depends on the platform's VFS
+	// behaviour — Linux with iBusyTimeout typically yields
+	// begin_busy_timeout, but the test is tolerant of any valid kind).
+	busyLabels := []string{"begin_busy_timeout", "begin_busy_snapshot", "begin_busy_recovery", "begin_busy"}
+	var seen string
+	for _, label := range busyLabels {
+		// Outcome cell renders as `<td class="warn">label</td>`.
+		needle := `<td class="warn">` + label + `</td>`
+		if strings.Contains(body, needle) {
+			seen = label
+			break
+		}
+	}
+	require.NotEmpty(t, seen,
+		"page must carry one of %v as the outcome label for a begin_busy-class row", busyLabels)
+	// The sqlite_errmsg column must carry a non-empty value for the
+	// row of THIS test's caller — typically "database is locked", but
+	// the test only asserts non-empty since the exact wording is
+	// SQLite-version-dependent.
+	row := extractRecentRowForBusyCaller(t, body, "TestBeginBusyExposesExtendedCodeAndErrMsg")
+	require.Contains(t, row, "database is locked",
+		"the begin_busy row for this test must carry a non-empty sqlite_errmsg column with the standard 'database is locked' text. row: %s", row)
+}
+
+// extractRecentRowForBusyCaller scopes the search to the "Slowest
+// begin_busy events" section (separate from the slow write ring) and
+// returns the row containing the named caller substring.
+func extractRecentRowForBusyCaller(t *testing.T, body, caller string) string {
+	t.Helper()
+	const startMarker = "<strong>Slowest begin_busy events</strong>"
+	start := strings.Index(body, startMarker)
+	require.GreaterOrEqual(t, start, 0, "page must include the Slowest begin_busy events section")
+	region := body[start:]
+	rest := region
+	for {
+		trStart := strings.Index(rest, "<tr>")
+		if trStart < 0 {
+			break
+		}
+		trEnd := strings.Index(rest[trStart:], "</tr>")
+		if trEnd < 0 {
+			break
+		}
+		row := rest[trStart : trStart+trEnd+len("</tr>")]
+		if strings.Contains(row, caller) {
+			return row
+		}
+		rest = rest[trStart+trEnd+len("</tr>"):]
+	}
+	t.Fatalf("no begin_busy row found whose caller cell contains %q", caller)
+	return ""
+}
+
+// TestExtendedErrCodeOnCleanConn verifies that calling ExtendedErrCode
+// on a freshly-opened conn (no error pending) returns 0 — i.e. it
+// doesn't accidentally surface a stale code from a prior connection.
+// This protects against callers using ExtendedErrCode without first
+// checking that an error was actually returned.
+func TestExtendedErrCodeOnCleanConn(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	conn, err := sqlite.OpenConn("file:"+dir+"/clean.db", flags)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Successful query — no error pending.
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE clean (x int);", nil))
+
+	require.Equal(t, sqlite.ErrorCode(0), conn.ExtendedErrCode(),
+		"ExtendedErrCode must be 0 on a conn with no pending error")
+	require.Equal(t, "not an error", conn.ErrMsg(),
+		"ErrMsg must be 'not an error' on a conn with no pending error (the SQLite default)")
+}
+
+// TestBeginContendersCapturedDuringStorm verifies that when multiple
+// goroutines are simultaneously stuck inside Exec("BEGIN IMMEDIATE
+// ...") (the storm pattern that motivated the whole rework), the
+// snapshot taken at the moment of a BUSY victim's timeout names them
+// in the rendered begin_busy row's "also stuck in BEGIN IMMEDIATE"
+// section AND increments their ContenderEvents count in the
+// Begin-busy attribution table. This is the dimension that used to
+// require expanding the now-removed goroutine dump.
+//
+// Provocation: hold the writer mutex with one WithTx (so held_by is
+// non-empty for the storm goroutines) and launch a band of victims
+// with a short busy_timeout. Each victim will fail BUSY, and the
+// last one to fire will see the others still stuck in their own
+// BEGIN IMMEDIATE retry loops.
+func TestBeginContendersCapturedDuringStorm(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 10)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Close() })
+
+	// Holder owns the writer mutex via a WithTx. Block long enough
+	// that several victim BEGIN IMMEDIATEs race in concurrently and
+	// stay stuck for a window where the storm-snapshot is meaningful.
+	holderConn := pool.Get(nil)
+	t.Cleanup(func() { pool.Put(holderConn) })
+	holderEntered := make(chan struct{})
+	holderRelease := make(chan struct{})
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		_ = holderHogTx(holderConn, holderEntered, holderRelease)
+	}()
+	<-holderEntered
+
+	// Launch a band of victims. Each runs in its own goroutine,
+	// grabs a conn from the pool, sets a short busy_timeout, and
+	// calls WithTx. They all enter the BEGIN IMMEDIATE retry loop
+	// roughly concurrently.
+	const victims = 5
+	const busyTimeout = 200 * time.Millisecond
+	victimDone := make(chan struct{}, victims)
+	for i := 0; i < victims; i++ {
+		go contenderVictim(pool, busyTimeout, victimDone)
+	}
+	for i := 0; i < victims; i++ {
+		<-victimDone
+	}
+
+	close(holderRelease)
+	<-holderDone
+
+	body := renderDebugPage(t)
+	require.Contains(t, body, "also stuck in BEGIN IMMEDIATE",
+		"begin_busy rows must carry an 'also stuck in BEGIN IMMEDIATE' contenders block")
+	require.Contains(t, body, "contender events",
+		"Begin-busy attribution table must carry a contender-events column")
+	require.Contains(t, body, "sqlitex_test.contenderVictim",
+		"contenders block must name the victim's caller — the goroutines that ran contenderVictim should appear because they were stuck in BEGIN IMMEDIATE at the moment of their peers' timeouts")
+}
+
+// contenderVictim runs a WithTx that is expected to BUSY-timeout. It
+// blocks long enough on BEGIN IMMEDIATE that other concurrent victims'
+// timeouts can snapshot it as a contender.
+func contenderVictim(pool *sqlitex.Pool, busyTimeout time.Duration, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
+	conn := pool.Get(nil)
+	defer pool.Put(conn)
+	conn.SetBusyTimeout(busyTimeout)
+	_ = sqlitex.WithTx(conn, func() error { return nil })
+}
+
+// TestRecentBusyRowsHaveNoGoroutineDump verifies the prior goroutine-
+// dump probe is fully removed: the rendered page must NOT contain the
+// dump <pre> block or its <details> summary, even when a begin_busy
+// event fires with empty held_by. The clean structured replacement
+// is the contenders block surfaced by TestBeginContendersCapturedDuringStorm.
+func TestRecentBusyRowsHaveNoGoroutineDump(t *testing.T) {
+	dir := t.TempDir()
+	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
+	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
+	require.NoError(t, err)
+
+	// Raw BEGIN IMMEDIATE bypasses WithTx, so held_by would have been
+	// empty at the victim's timeout — the exact case where the old
+	// code captured a goroutine dump.
+	holder := pool.Get(nil)
+	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
+
+	victim := pool.Get(nil)
+	victim.SetBusyTimeout(50 * time.Millisecond)
+	t.Cleanup(func() {
+		pool.Put(victim)
+		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
+		pool.Put(holder)
+		_ = pool.Close()
+	})
+
+	err = sqlitex.WithTx(victim, func() error { return nil })
+	require.Error(t, err)
+	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx))
+
+	body := renderDebugPage(t)
+	require.NotContains(t, body, "goroutine dump — held_by was empty at timeout",
+		"the goroutine dump details block must be gone — replaced by the structured contenders block")
+	require.NotContains(t, body, "<pre style=\"white-space:pre",
+		"the <pre> block carrying runtime.Stack output must be gone")
+}
+
 // TestWALCheckpointerSurfacesAsWriterCaller verifies that the
 // background WAL checkpoint goroutine is instrumented as a real
 // writer-slot caller on /debug/sqlite. Without this hook, the

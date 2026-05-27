@@ -648,6 +648,32 @@ func (conn *Conn) LastInsertRowID() int64 {
 	return int64(C.sqlite3_last_insert_rowid(conn.conn))
 }
 
+// ExtendedErrCode returns sqlite3_extended_errcode for the most recent
+// error on this conn. Use immediately after an error return from Exec,
+// Step, etc — the extended code reflects the latest call.
+//
+// The package's standard error wrapper (reserr) currently surfaces
+// only the primary 8-bit code on Error.Code, so callers that need to
+// distinguish extended variants (e.g. SQLITE_BUSY_TIMEOUT vs
+// SQLITE_BUSY_SNAPSHOT vs plain SQLITE_BUSY) must call this directly
+// at the error site. The sqlitex BEGIN IMMEDIATE busy handler does
+// this to classify begin_busy events on /debug/sqlite.
+func (conn *Conn) ExtendedErrCode() ErrorCode {
+	return ErrorCode(C.sqlite3_extended_errcode(conn.conn))
+}
+
+// ErrMsg returns sqlite3_errmsg for the most recent error on this
+// conn (e.g. "database is locked"). Use immediately after an error
+// return — the message reflects the latest C call.
+//
+// reserr does not populate Error.Msg by default; callers that want
+// the human-readable message must call this at the error site.
+// The sqlitex begin_busy handler does this to surface the SQLite
+// error text on /debug/sqlite alongside the extended code.
+func (conn *Conn) ErrMsg() string {
+	return C.GoString(C.sqlite3_errmsg(conn.conn))
+}
+
 // extreserr asks SQLite for a string explaining the error.
 // Only called for errors that are probably program bugs.
 func (conn *Conn) extreserr(loc, query string, res C.int) error {

@@ -23,9 +23,9 @@ func TestSnapshotDrainedDuringWaitWindow(t *testing.T) {
 	// directly inject timestamps. Instead, lay down three completions
 	// with deliberate sleeps so their relative ordering matches our
 	// assertion.
-	tt.recordTx("preWindowCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("preWindowCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 	time.Sleep(60 * time.Millisecond)
-	tt.recordTx("inWindowCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("inWindowCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 	time.Sleep(10 * time.Millisecond)
 
 	// Snapshot with a 30 ms window: only `inWindowCaller` should be
@@ -50,12 +50,12 @@ func TestSnapshotDrainedDuringWaitWindow(t *testing.T) {
 func TestSnapshotDrainedDuringWaitExcludesNonOwners(t *testing.T) {
 	tt := newTxTracker()
 	// All four outcomes that the ring must NOT record:
-	tt.recordTx("busyCaller", 1*time.Millisecond, 1*time.Millisecond, 0, outcomeBeginBusy, nil, nil)
-	tt.recordTx("interruptedCaller", 1*time.Millisecond, 1*time.Millisecond, 0, outcomeBeginInterrupted, nil, nil)
-	tt.recordTx("nestedSavepointCaller", 0, 1*time.Millisecond, 0, outcomeSavepoint, nil, nil)
-	tt.recordTx("readOnlyCaller", 0, 1*time.Millisecond, 0, outcomeSavepointReadOnly, nil, nil)
+	tt.recordTx("busyCaller", 1*time.Millisecond, 1*time.Millisecond, 0, outcomeBeginBusy, nil, nil, nil, "")
+	tt.recordTx("interruptedCaller", 1*time.Millisecond, 1*time.Millisecond, 0, outcomeBeginInterrupted, nil, nil, nil, "")
+	tt.recordTx("nestedSavepointCaller", 0, 1*time.Millisecond, 0, outcomeSavepoint, nil, nil, nil, "")
+	tt.recordTx("readOnlyCaller", 0, 1*time.Millisecond, 0, outcomeSavepointReadOnly, nil, nil, nil, "")
 	// Plus one that the ring MUST record, as a control.
-	tt.recordTx("commitCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("commitCaller", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 
 	got := tt.snapshotDrainedDuringWait(time.Now(), time.Hour)
 	for _, c := range got {
@@ -82,7 +82,7 @@ func TestRecentCompletedRingWrapsKeepingNewest(t *testing.T) {
 	// in well under a second.
 	overshoot := 50
 	for i := 0; i < completedRingCap+overshoot; i++ {
-		tt.recordTx("ringCaller", 0, 1*time.Microsecond, 0, outcomeCommit, nil, nil)
+		tt.recordTx("ringCaller", 0, 1*time.Microsecond, 0, outcomeCommit, nil, nil, nil, "")
 	}
 
 	got := tt.snapshotDrainedDuringWait(time.Now(), time.Hour)
@@ -97,11 +97,11 @@ func TestRecentCompletedRingWrapsKeepingNewest(t *testing.T) {
 // reverses so the operator reads the contention chain top-to-bottom.
 func TestSnapshotDrainedDuringWaitOldestFirst(t *testing.T) {
 	tt := newTxTracker()
-	tt.recordTx("first", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("first", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 	time.Sleep(5 * time.Millisecond)
-	tt.recordTx("second", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("second", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 	time.Sleep(5 * time.Millisecond)
-	tt.recordTx("third", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("third", 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 
 	got := tt.snapshotDrainedDuringWait(time.Now(), time.Hour)
 	require.Equal(t, 3, len(got))
@@ -132,8 +132,8 @@ func TestDrainedRenderBlock(t *testing.T) {
 	// the singleton tracker.
 	const drainerName = "renderblock.drainerCaller"
 	const victimName = "renderblock.victimCaller"
-	tracker.recordTx(drainerName, 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
-	tracker.recordTx(drainerName, 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tracker.recordTx(drainerName, 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
+	tracker.recordTx(drainerName, 0, 1*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 
 	// Begin_busy sample with hold large enough that the drainer commits
 	// land inside (now - hold, now]. The recordTx slow-sample branch
@@ -141,7 +141,7 @@ func TestDrainedRenderBlock(t *testing.T) {
 	// begin_busy enters the recent ring regardless of hold magnitude.
 	// Use a hold that's bigger than the few ms between the two commits
 	// above and `now`, so the window covers them.
-	tracker.recordTx(victimName, 200*time.Millisecond, 200*time.Millisecond, 0, outcomeBeginBusy, nil, nil)
+	tracker.recordTx(victimName, 200*time.Millisecond, 200*time.Millisecond, 0, outcomeBeginBusy, nil, nil, nil, "")
 
 	body := renderPage(t)
 
@@ -184,12 +184,12 @@ func TestBeginBusyAttributionAggregates(t *testing.T) {
 	// picked up by the begin_busy snapshotDrainedDuringWait walk. Each
 	// commit's hold contributes to HeldDuringWaitMs.
 	for i := 0; i < 3; i++ {
-		tracker.recordTx(offender, 0, 10*time.Millisecond, 0, outcomeCommit, nil, nil)
+		tracker.recordTx(offender, 0, 10*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 	}
 	// Fire 3 begin_busy events with a 1-hour hold so the wait window
 	// covers all the offender commits above.
 	for i := 0; i < 3; i++ {
-		tracker.recordTx(victim, time.Hour, time.Hour, 0, outcomeBeginBusy, nil, nil)
+		tracker.recordTx(victim, time.Hour, time.Hour, 0, outcomeBeginBusy, nil, nil, nil, "")
 	}
 
 	body := renderPage(t)
@@ -213,6 +213,80 @@ func TestBeginBusyAttributionAggregates(t *testing.T) {
 		"attribution section must show Events=3 for the offender. section: %s", section)
 }
 
+// TestBeginAttemptsStartEndSnapshot exercises the in-flight begin set
+// in isolation: two attempts started, both visible; end one, one
+// visible; end the other, snapshot empty. The set is the source of
+// truth for the storm dimension surfaced as BeginContenders and the
+// live "Currently in BEGIN IMMEDIATE" page section.
+func TestBeginAttemptsStartEndSnapshot(t *testing.T) {
+	tt := newTxTracker()
+
+	id1 := tt.startBeginAttempt("attempt.callerA", 0)
+	id2 := tt.startBeginAttempt("attempt.callerB", 0)
+
+	got := tt.snapshotBeginAttempts()
+	require.Len(t, got, 2, "two in-flight attempts must both be in the snapshot")
+	names := map[string]bool{}
+	for _, a := range got {
+		names[a.Caller] = true
+	}
+	require.True(t, names["attempt.callerA"])
+	require.True(t, names["attempt.callerB"])
+
+	tt.endBeginAttempt(id1)
+	got = tt.snapshotBeginAttempts()
+	require.Len(t, got, 1, "after ending attempt 1, snapshot must show only attempt 2")
+	require.Equal(t, "attempt.callerB", got[0].Caller)
+
+	tt.endBeginAttempt(id2)
+	got = tt.snapshotBeginAttempts()
+	require.Nil(t, got, "after ending all attempts, snapshot must be nil (empty-set sentinel)")
+}
+
+// TestBeginContenderAttributionAggregates verifies the ContenderEvents
+// column on the Begin-busy attribution table: caller A appears in
+// BOTH begin_busy events' contender snapshots, caller B in only one.
+// The page must report ContenderEvents=2 for A and =1 for B without
+// double-counting (set semantics on distinct events).
+func TestBeginContenderAttributionAggregates(t *testing.T) {
+	const callerA = "attribution.contenderA"
+	const callerB = "attribution.contenderB"
+	const victim = "attribution.busyVictim"
+
+	// Two synthetic contender entries for caller A — they must collapse
+	// to ONE event count for A under set semantics, because they belong
+	// to the same begin_busy event.
+	contenders1 := []beginAttempt{
+		{Caller: callerA, StartedAt: time.Now().Add(-100 * time.Millisecond)},
+		{Caller: callerA, StartedAt: time.Now().Add(-90 * time.Millisecond)},
+		{Caller: callerB, StartedAt: time.Now().Add(-80 * time.Millisecond)},
+	}
+	contenders2 := []beginAttempt{
+		{Caller: callerA, StartedAt: time.Now().Add(-50 * time.Millisecond)},
+	}
+
+	tracker.recordTx(victim, time.Second, time.Second, 0, outcomeBeginBusy, nil, nil, contenders1, "")
+	tracker.recordTx(victim, time.Second, time.Second, 0, outcomeBeginBusy, nil, nil, contenders2, "")
+
+	page := buildSQLitePage()
+	var rowA, rowB *aggregateBusyRow
+	for i := range page.BusyAttribution {
+		r := &page.BusyAttribution[i]
+		switch r.Caller {
+		case callerA:
+			rowA = r
+		case callerB:
+			rowB = r
+		}
+	}
+	require.NotNil(t, rowA, "caller A must appear in BusyAttribution; rows: %#v", page.BusyAttribution)
+	require.NotNil(t, rowB, "caller B must appear in BusyAttribution; rows: %#v", page.BusyAttribution)
+	require.Equal(t, uint64(2), rowA.ContenderEvents,
+		"caller A appeared in 2 distinct begin_busy events; duplicate entries within one event must collapse")
+	require.Equal(t, uint64(1), rowB.ContenderEvents,
+		"caller B appeared in only 1 begin_busy event")
+}
+
 // TestRecentBusyHasOwnCap verifies that begin_busy events go into the
 // separate recentBusy ring (capped at recentBusyCap=25), so flooding
 // the daemon with begin_busy victims cannot evict real slow commits
@@ -225,10 +299,10 @@ func TestRecentBusyHasOwnCap(t *testing.T) {
 	// latter applies, so any hold works for ring entry).
 	const overshoot = 10
 	for i := 0; i < recentBusyCap+overshoot; i++ {
-		tt.recordTx("busyFlooder", time.Second, time.Second, 0, outcomeBeginBusy, nil, nil)
+		tt.recordTx("busyFlooder", time.Second, time.Second, 0, outcomeBeginBusy, nil, nil, nil, "")
 	}
 	// Plus a slow commit to verify it's NOT evicted by the busy flood.
-	tt.recordTx("slowCommitter", 0, 200*time.Millisecond, 0, outcomeCommit, nil, nil)
+	tt.recordTx("slowCommitter", 0, 200*time.Millisecond, 0, outcomeCommit, nil, nil, nil, "")
 
 	snap := tt.snapshot()
 	require.Equal(t, recentBusyCap, len(snap.RecentBusy),

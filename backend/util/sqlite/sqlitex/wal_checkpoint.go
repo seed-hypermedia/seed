@@ -233,7 +233,7 @@ func runOneCheckpoint(conn *sqlite.Conn, log Logger) {
 	// hold == the PRAGMA's wall duration, which captures both the
 	// brief writer-mutex acquisition for WAL-header update AND the
 	// page-relocation fsync work that's the real cost on slow disks.
-	tracker.recordTx(walCheckpointerCaller, 0, dur, 0, outcome, nil, nil)
+	tracker.recordTx(walCheckpointerCaller, 0, dur, 0, outcome, nil, nil, nil, "")
 
 	res := CheckpointResult{
 		When:         time.Now(),

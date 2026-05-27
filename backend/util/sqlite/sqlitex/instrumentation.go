@@ -67,10 +67,35 @@ const (
 type txOutcome string
 
 const (
-	outcomeCommit           txOutcome = "commit"
-	outcomeRollback         txOutcome = "rollback"
-	outcomeBeginBusy        txOutcome = "begin_busy"
-	outcomeBeginInterrupted txOutcome = "begin_interrupted"
+	outcomeCommit   txOutcome = "commit"
+	outcomeRollback txOutcome = "rollback"
+	// outcomeBeginBusy is the default "BUSY-class error of unknown subkind"
+	// label, used when SQLite's extended errcode is the primary
+	// SQLITE_BUSY (5) — i.e. the busy-handler exhausted without a more
+	// specific reason. Pre-extended-errcode-lookup, ALL begin_busy events
+	// got this label by default; after the subcode-distinguishing work,
+	// this label means "the standard busy-handler ran out of retries and
+	// the writer mutex was still contested" — which, combined with an
+	// empty held_by snapshot, is itself diagnostic of an uninstrumented
+	// holder.
+	outcomeBeginBusy txOutcome = "begin_busy"
+	// outcomeBeginBusyTimeout: SQLITE_BUSY_TIMEOUT (5 | (3 << 8) = 773).
+	// The unix VFS's fcntl-based busy-timeout path expired. A file-level
+	// lock byte (typically byte 120 on the main DB file) was contested
+	// for the full busy_timeout. Diagnostic: either kernel-level fcntl
+	// contention or another process opens the same DB file
+	// (multi-process SQLite is not our intended mode).
+	outcomeBeginBusyTimeout txOutcome = "begin_busy_timeout"
+	// outcomeBeginBusySnapshot: SQLITE_BUSY_SNAPSHOT (5 | (2 << 8) = 517).
+	// A wal_index snapshot held by a reader couldn't be advanced past
+	// for the writer's BEGIN IMMEDIATE. Long-held reads on the same
+	// pool conn are the likely cause.
+	outcomeBeginBusySnapshot txOutcome = "begin_busy_snapshot"
+	// outcomeBeginBusyRecovery: SQLITE_BUSY_RECOVERY (5 | (1 << 8) = 261).
+	// Hot journal recovery needed — happens after an unclean shutdown
+	// of a writer. Should be one-shot at startup.
+	outcomeBeginBusyRecovery txOutcome = "begin_busy_recovery"
+	outcomeBeginInterrupted  txOutcome = "begin_interrupted"
 	// outcomeSavepoint is a SAVEPOINT issued while the connection was already
 	// inside an outer transaction; it never owns the writer slot on its own,
 	// so its duration is not lock-hold and is excluded from holdReserv.
@@ -90,6 +115,19 @@ const (
 	// etc.) would flood the writer-health page with irrelevant noise.
 	outcomeSavepointReadOnly txOutcome = "savepoint_ro"
 )
+
+// isBeginBusyClass returns true for any of the four BUSY-class outcomes
+// that share routing: drained-during-wait snapshot, recentBusy ring
+// placement, busy-counter increment, and Begin-busy attribution
+// aggregation. They differ only by extended-errcode classification
+// which determines the rendered label.
+func isBeginBusyClass(o txOutcome) bool {
+	switch o {
+	case outcomeBeginBusy, outcomeBeginBusyTimeout, outcomeBeginBusySnapshot, outcomeBeginBusyRecovery:
+		return true
+	}
+	return false
+}
 
 var (
 	mTxDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -202,7 +240,9 @@ func (s *callerStats) record(hold, wait, poolWait time.Duration, outcome txOutco
 		w.commits++
 	case outcomeRollback:
 		w.rollbacks++
-	case outcomeBeginBusy:
+	case outcomeBeginBusy, outcomeBeginBusyTimeout, outcomeBeginBusySnapshot, outcomeBeginBusyRecovery:
+		// All four BUSY-class outcomes count toward the per-caller busy
+		// counter — they differ only by extended-errcode classification.
 		w.busyCount++
 	}
 
@@ -363,6 +403,24 @@ type txSample struct {
 	// DrainedDuringWait names the lineup that drained the slot during the
 	// entire 10 s wait window — i.e. the actual culprits.
 	DrainedDuringWait []completedTx
+	// ErrMsg is sqlite3_errmsg captured at the BUSY-class failure site
+	// (e.g. "database is locked"). Populated only for begin_busy-class
+	// samples. Most messages are uninformative ("database is locked")
+	// but the rare exceptions are load-bearing for diagnosis.
+	ErrMsg string
+	// BeginContenders is the snapshot of other goroutines that were
+	// themselves stuck inside Exec("BEGIN IMMEDIATE ...") at the moment
+	// this victim's BEGIN IMMEDIATE timed out. Populated only for
+	// outcomeBeginBusy-class samples; the victim's own attempt is
+	// already removed before the snapshot is taken so it cannot
+	// self-attribute. A caller dominating this list across multiple
+	// begin_busy events is the source of a contention storm — too many
+	// parallel BEGIN IMMEDIATEs from one origin starving each other in
+	// SQLite's busy_handler retry loop. Complements HeldBy (writer-slot
+	// holders) and DrainedDuringWait (slot-owners that completed inside
+	// the wait window); contenders are the goroutines neither set sees
+	// because they're in cgo limbo between user-fn entry and recordTx.
+	BeginContenders []beginAttempt
 }
 
 // capturedStmt is one statement executed inside an instrumented tx.
@@ -706,6 +764,22 @@ type activeTx struct {
 	StartedAt time.Time
 }
 
+// beginAttempt is one goroutine currently inside Exec("BEGIN IMMEDIATE ...")
+// — i.e., in SQLite's cgo busy_handler retry loop trying to acquire the
+// writer mutex. Captured by the tracker so a begin_busy victim can report
+// not only who HELD the slot (HeldBy) and who DRAINED during its wait
+// (DrainedDuringWait), but also who else was ALSO stuck contending at the
+// moment of timeout. A caller dominating the contender snapshot is the
+// source of a contention storm: too many parallel BEGIN IMMEDIATEs
+// starving each other inside the busy_handler loop, none individually
+// holding the writer mutex for long enough to appear in the active set.
+type beginAttempt struct {
+	ID        uint64
+	Caller    string
+	StartedAt time.Time
+	PoolWait  time.Duration
+}
+
 // completedTx is one writer-slot-owning transaction that has finished. A
 // fixed-size ring of these in txTracker lets a begin_busy victim attribute
 // its 10 s wait to the lineup of holders that drained the slot during the
@@ -745,6 +819,18 @@ type txTracker struct {
 	active map[uint64]activeTx
 	nextID atomic.Uint64
 
+	// In-flight BEGIN IMMEDIATE Exec calls, keyed by the same monotonic
+	// nextID counter. Populated by startBeginAttempt right before the
+	// BEGIN IMMEDIATE Exec at tx.go and cleared by endBeginAttempt the
+	// moment that Exec returns (success / busy / interrupt / nested-tx
+	// fallback all funnel through). Snapshotted on begin_busy events to
+	// reveal contenders that are themselves stuck in the busy_handler
+	// retry loop — those goroutines never reach startActive (post-BEGIN
+	// success) nor recentCompleted (post-commit/rollback), so without
+	// this set they're invisible to the page. See ContenderEvents on
+	// aggregateBusyRow and BeginContenders on txSample.
+	beginAttempts map[uint64]beginAttempt
+
 	// trackerStart is the process-lifetime baseline used to compute each
 	// caller's writer-slot share (% wall) on the debug page. Set once in
 	// newTxTracker and never written again.
@@ -769,9 +855,10 @@ var tracker = newTxTracker()
 
 func newTxTracker() *txTracker {
 	return &txTracker{
-		callers:      make(map[string]*callerStats),
-		active:       make(map[uint64]activeTx),
-		trackerStart: time.Now(),
+		callers:       make(map[string]*callerStats),
+		active:        make(map[uint64]activeTx),
+		beginAttempts: make(map[uint64]beginAttempt),
+		trackerStart:  time.Now(),
 	}
 }
 
@@ -810,7 +897,53 @@ func (t *txTracker) endActive(id uint64, caller string) {
 	mInFlight.WithLabelValues(caller).Dec()
 }
 
-func (t *txTracker) recordTx(caller string, beginWait, hold, poolWait time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx) {
+// startBeginAttempt records that a goroutine has entered the BEGIN IMMEDIATE
+// Exec call. Returns an ID that must be passed to endBeginAttempt the
+// moment the Exec returns (regardless of outcome). The ID counter is
+// shared with startActive so attempt IDs are globally distinct, which
+// makes accidental cross-deletion impossible.
+func (t *txTracker) startBeginAttempt(caller string, poolWait time.Duration) uint64 {
+	id := t.nextID.Add(1)
+	t.mu.Lock()
+	t.beginAttempts[id] = beginAttempt{
+		ID:        id,
+		Caller:    caller,
+		StartedAt: time.Now(),
+		PoolWait:  poolWait,
+	}
+	t.mu.Unlock()
+	return id
+}
+
+// endBeginAttempt clears the attempt slot. Always called after the BEGIN
+// IMMEDIATE Exec returns, so a contender snapshot taken in the BUSY
+// branch of WithTx naturally excludes the victim itself.
+func (t *txTracker) endBeginAttempt(id uint64) {
+	t.mu.Lock()
+	delete(t.beginAttempts, id)
+	t.mu.Unlock()
+}
+
+// snapshotBeginAttempts returns a copy of the in-flight BEGIN IMMEDIATE
+// attempts at this instant. Used at the moment of a begin_busy failure
+// so the page can show which other callers were ALSO stuck in their own
+// busy_handler retry loop — the contention-storm dimension that's
+// invisible to snapshotActive (post-BEGIN only) and snapshotDrainedDuringWait
+// (post-commit only).
+func (t *txTracker) snapshotBeginAttempts() []beginAttempt {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.beginAttempts) == 0 {
+		return nil
+	}
+	out := make([]beginAttempt, 0, len(t.beginAttempts))
+	for _, a := range t.beginAttempts {
+		out = append(out, a)
+	}
+	return out
+}
+
+func (t *txTracker) recordTx(caller string, beginWait, hold, poolWait time.Duration, outcome txOutcome, stmts []capturedStmt, heldBy []activeTx, contenders []beginAttempt, errMsg string) {
 	// Prometheus mTxDuration is the WRITE-tx histogram by name. Emitting
 	// read-only Saves under it would be a category error and would inflate
 	// every dashboard that reads it. The per-caller writetx_begin_wait and
@@ -821,7 +954,7 @@ func (t *txTracker) recordTx(caller string, beginWait, hold, poolWait time.Durat
 	if outcome != outcomeSavepointReadOnly {
 		mTxDuration.WithLabelValues(caller, string(outcome)).Observe(hold.Seconds())
 		mBeginWait.WithLabelValues(caller).Observe(beginWait.Seconds())
-		if outcome == outcomeBeginBusy {
+		if isBeginBusyClass(outcome) {
 			mBeginBusy.WithLabelValues(caller).Inc()
 		}
 	}
@@ -860,29 +993,32 @@ func (t *txTracker) recordTx(caller string, beginWait, hold, poolWait time.Durat
 	t.mu.Unlock()
 	st.record(hold, beginWait, poolWait, outcome)
 
-	if hold >= slowThreshold || outcome == outcomeBeginBusy {
+	if hold >= slowThreshold || isBeginBusyClass(outcome) {
 		sample := txSample{
-			When:      now,
-			Caller:    caller,
-			Hold:      hold,
-			BeginWait: beginWait,
-			PoolWait:  poolWait,
-			Outcome:   outcome,
-			Stmts:     stmts,
-			HeldBy:    heldBy,
+			When:            now,
+			Caller:          caller,
+			Hold:            hold,
+			BeginWait:       beginWait,
+			PoolWait:        poolWait,
+			Outcome:         outcome,
+			Stmts:           stmts,
+			HeldBy:          heldBy,
+			BeginContenders: contenders,
+			ErrMsg:          errMsg,
 		}
-		// Only begin_busy rows get the drained-during-wait attribution:
-		// commits/rollbacks weren't waiting on anyone, and the window
-		// math (now-hold, now] is only meaningful when hold is the wait
-		// duration (begin_busy's hold == begin_wait by construction).
-		if outcome == outcomeBeginBusy {
+		// Only begin_busy-class rows get the drained-during-wait
+		// attribution: commits/rollbacks weren't waiting on anyone, and
+		// the window math (now-hold, now] is only meaningful when hold
+		// is the wait duration (begin_busy's hold == begin_wait by
+		// construction). All four BUSY subkinds share this behaviour.
+		if isBeginBusyClass(outcome) {
 			sample.DrainedDuringWait = t.snapshotDrainedDuringWait(now, hold)
 		}
 		t.mu.Lock()
-		switch outcome {
-		case outcomeSavepointReadOnly:
+		switch {
+		case outcome == outcomeSavepointReadOnly:
 			t.recentRead = insertTopK(t.recentRead, sample, recentReadCap)
-		case outcomeBeginBusy, outcomeBeginInterrupted:
+		case isBeginBusyClass(outcome) || outcome == outcomeBeginInterrupted:
 			// Separate ring: these synthesise hold == beginWait ≈
 			// busy_timeout (10 s) and would dominate a combined ring,
 			// evicting real slow commits.
@@ -1000,6 +1136,11 @@ type trackerSnapshot struct {
 	RecentBusy   []txSample
 	RecentRead   []txSample
 	Active       []activeTx
+	// BeginAttempts is the live snapshot of goroutines currently inside
+	// Exec("BEGIN IMMEDIATE ..."). Surfaced as the "Currently in BEGIN
+	// IMMEDIATE" section on the debug page so an operator can catch a
+	// contention storm in the act by refreshing.
+	BeginAttempts []beginAttempt
 }
 
 // writeCallerSnapshot mirrors the original per-caller stats shape, minus
@@ -1065,6 +1206,10 @@ func (t *txTracker) snapshot() trackerSnapshot {
 	for _, a := range t.active {
 		active = append(active, a)
 	}
+	beginAttempts := make([]beginAttempt, 0, len(t.beginAttempts))
+	for _, a := range t.beginAttempts {
+		beginAttempts = append(beginAttempts, a)
+	}
 	trackerStart := t.trackerStart
 	t.mu.Unlock()
 
@@ -1074,12 +1219,13 @@ func (t *txTracker) snapshot() trackerSnapshot {
 	elapsedMs := float64(time.Since(trackerStart)) / float64(time.Millisecond)
 
 	out := trackerSnapshot{
-		WriteCallers: make(map[string]writeCallerSnapshot, len(callerNames)),
-		ReadCallers:  make(map[string]readCallerSnapshot, len(callerNames)),
-		RecentWrite:  recentWrite,
-		RecentBusy:   recentBusy,
-		RecentRead:   recentRead,
-		Active:       active,
+		WriteCallers:  make(map[string]writeCallerSnapshot, len(callerNames)),
+		ReadCallers:   make(map[string]readCallerSnapshot, len(callerNames)),
+		RecentWrite:   recentWrite,
+		RecentBusy:    recentBusy,
+		RecentRead:    recentRead,
+		Active:        active,
+		BeginAttempts: beginAttempts,
 	}
 
 	for _, name := range callerNames {

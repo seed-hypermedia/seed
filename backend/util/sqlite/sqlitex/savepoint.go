@@ -215,7 +215,7 @@ func saveImpl(conn *sqlite.Conn, name string, tempOnly bool) (releaseFn func(*er
 					outcome = outcomeRollback
 				}
 			}
-			tracker.recordTx(caller, wait, hold, poolWait, outcome, stmts, nil)
+			tracker.recordTx(caller, wait, hold, poolWait, outcome, stmts, nil, nil, "")
 		}()
 
 		// If a query was interrupted or if a user exec'd COMMIT or

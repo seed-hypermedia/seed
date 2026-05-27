@@ -22,8 +22,16 @@ func DebugHandler() http.Handler {
 }
 
 type sqlitePage struct {
-	GeneratedAt     string
-	Active          []activeRow
+	GeneratedAt string
+	Active      []activeRow
+	// BeginContending is the live snapshot of goroutines currently inside
+	// Exec("BEGIN IMMEDIATE ...") at the moment of the page fetch. Under
+	// steady state it is normally empty; during a contention storm it
+	// lights up with several rows (most often all from the same caller),
+	// giving the operator an at-a-glance "this is happening right now"
+	// view that complements the post-hoc per-event detail under each
+	// begin_busy row.
+	BeginContending []beginContendingRow
 	WriteAggregate  []aggregateRow
 	BusyAttribution []aggregateBusyRow
 	WriteCallers    []callerRow
@@ -55,15 +63,39 @@ type aggregateRow struct {
 // aggregateBusyRow is the per-caller projection of the "Begin-busy
 // attribution" section. Built by walking every begin_busy event in
 // recentBusy and bucketing the holders that finished during its wait
-// (DrainedDuringWait) plus the holder active at timeout (HeldBy). A
-// caller at the top of this table — high Events count, high
-// HeldDuringWaitMs — is the one whose work is starving everyone else.
+// (DrainedDuringWait), the holder active at timeout (HeldBy), and any
+// caller that was ALSO stuck in BEGIN IMMEDIATE at the timeout instant
+// (BeginContenders). High HeldDuringWaitMs identifies the holder-class
+// offender; high ContenderEvents with low HeldDuringWaitMs identifies
+// the storm-class offender (many short BEGIN IMMEDIATE attempts from
+// one caller saturating the busy_handler retry loop, none individually
+// holding the writer mutex for long enough to appear in held-by).
 type aggregateBusyRow struct {
 	Caller              string
-	Events              uint64  // distinct begin_busy events this caller appeared in
+	Events              uint64  // distinct begin_busy events this caller appeared in (as holder or drainer)
 	HeldDuringWaitMs    float64 // Σ ms this caller held the writer slot inside begin_busy wait windows
 	HeldDuringWaitClass string
 	AvgPerEventMs       float64 // HeldDuringWaitMs / Events
+	// ContenderEvents is the distinct count of begin_busy events where
+	// this caller appeared in the BeginContenders snapshot — i.e., it
+	// was ALSO stuck in BEGIN IMMEDIATE's busy_handler retry loop at the
+	// moment the victim timed out. The storm dimension that's invisible
+	// to HeldDuringWaitMs (which only counts callers that completed a
+	// writer-slot hold during the wait window).
+	ContenderEvents      uint64
+	ContenderEventsClass string
+}
+
+// beginContendingRow is one entry on the live "Currently in BEGIN
+// IMMEDIATE" table — a goroutine stuck inside Exec("BEGIN IMMEDIATE ...")
+// at the moment of the page fetch. Same shape as activeRow; renders
+// separately to keep the two distinct (active = post-BEGIN, in the user
+// fn; contending = pre-BEGIN-success, in the busy_handler retry loop).
+type beginContendingRow struct {
+	Caller    string
+	StartedAt string
+	AgeMs     float64
+	AgeClass  string
 }
 
 type activeRow struct {
@@ -136,7 +168,11 @@ type recentRow struct {
 	PoolWaitClass string
 	Outcome       string
 	OutClass      string
-	Stmts         []recentStmt
+	// ErrMsg is the captured sqlite3_errmsg for begin_busy-class rows
+	// (typically "database is locked", but the rare exceptions are
+	// diagnostic). Empty for all non-busy outcomes.
+	ErrMsg string
+	Stmts  []recentStmt
 	// HeldBy is populated for begin_busy rows: each entry is the caller +
 	// how long it had been holding the writer slot at the moment this row's
 	// BEGIN IMMEDIATE timed out.
@@ -148,6 +184,30 @@ type recentRow struct {
 	// DrainedDuringWait is the actual sequence of holders that consumed
 	// the 10 s wait.
 	DrainedDuringWait []drainedEntry
+	// BeginContenders is populated for begin_busy rows: each entry is
+	// another caller that was ALSO stuck inside Exec("BEGIN IMMEDIATE ...")
+	// at the moment this row's BEGIN IMMEDIATE timed out. Sorted by
+	// "stuck for" descending so the longest-waiting contender renders
+	// first. A row whose BeginContenders is dominated by a single caller
+	// (especially when HeldBy is empty) is the storm-pattern signature
+	// that used to require expanding the now-removed goroutine dump.
+	BeginContenders []contenderEntry
+}
+
+// contenderEntry is one goroutine that was stuck in BEGIN IMMEDIATE's
+// busy_handler retry loop at the moment a begin_busy victim timed out.
+// Rendered under the row in the "also stuck in BEGIN IMMEDIATE" details
+// block. PoolWait carries forward the pool-acquire wait this contender
+// already paid before reaching BEGIN IMMEDIATE — surfaced because a
+// caller that's already starved on conn-acquire is a different shape
+// of contention than one that grabbed a conn instantly and then queued
+// on the writer mutex.
+type contenderEntry struct {
+	Caller        string
+	StuckForMs    float64
+	StuckClass    string
+	PoolWaitMs    float64
+	PoolWaitClass string
 }
 
 // recentStmt is the page-render form of capturedStmt: pre-computed duration
@@ -279,21 +339,31 @@ func buildSQLitePage() sqlitePage {
 	})
 
 	// Begin-busy attribution: aggregate across all begin_busy events in
-	// recentBusy. For each event, walk its DrainedDuringWait list
-	// (holders that finished during the wait) and its HeldBy list
-	// (holder still on the slot at timeout) — both are direct culprits.
-	// A caller's Events count is how many distinct begin_busy events
-	// named it; HeldDuringWaitMs is the Σ ms it held the writer slot
-	// inside those wait windows.
+	// recentBusy. For each event, walk three signals:
+	//   - DrainedDuringWait — holders that finished a writer-slot hold
+	//     during the wait window. Real culprits of past contention.
+	//   - HeldBy — holder still on the slot at the moment of timeout.
+	//   - BeginContenders — other goroutines ALSO stuck in BEGIN IMMEDIATE
+	//     at the moment of timeout. The storm dimension: a caller dominating
+	//     this column is the source of the contention even when individual
+	//     hold-times are small.
+	// Events = distinct begin_busy events this caller appeared in as a
+	// holder/drainer. ContenderEvents = distinct events where it appeared
+	// as a fellow contender. The two are tracked separately because a
+	// holder-class offender is a different fix than a storm-class offender.
 	type busyBucket struct {
 		events           map[*txSample]struct{} // set semantics: don't double-count if a caller appears twice in one event's drained list
+		contenderEvents  map[*txSample]struct{}
 		heldDuringWaitNs uint64
 	}
 	buckets := make(map[string]*busyBucket)
 	getBucket := func(caller string) *busyBucket {
 		b, ok := buckets[caller]
 		if !ok {
-			b = &busyBucket{events: make(map[*txSample]struct{})}
+			b = &busyBucket{
+				events:          make(map[*txSample]struct{}),
+				contenderEvents: make(map[*txSample]struct{}),
+			}
 			buckets[caller] = b
 		}
 		return b
@@ -318,29 +388,63 @@ func buildSQLitePage() sqlitePage {
 			b.events[ev] = struct{}{}
 			b.heldDuringWaitNs += uint64(heldFor)
 		}
+		for _, c := range ev.BeginContenders {
+			// One distinct event per caller — set semantics ensures we
+			// don't count two contender goroutines from the same caller
+			// in the same event twice.
+			getBucket(c.Caller).contenderEvents[ev] = struct{}{}
+		}
 	}
 	for caller, b := range buckets {
 		events := uint64(len(b.events))
+		contenderEvents := uint64(len(b.contenderEvents))
 		held := float64(b.heldDuringWaitNs) / float64(time.Millisecond)
 		var avg float64
 		if events > 0 {
 			avg = held / float64(events)
 		}
 		page.BusyAttribution = append(page.BusyAttribution, aggregateBusyRow{
-			Caller:              caller,
-			Events:              events,
-			HeldDuringWaitMs:    held,
-			HeldDuringWaitClass: classForHoldMs(held),
-			AvgPerEventMs:       avg,
+			Caller:               caller,
+			Events:               events,
+			HeldDuringWaitMs:     held,
+			HeldDuringWaitClass:  classForHoldMs(held),
+			AvgPerEventMs:        avg,
+			ContenderEvents:      contenderEvents,
+			ContenderEventsClass: classForContenderEvents(contenderEvents),
 		})
 	}
+	// Sort: ContenderEvents desc first (storm offenders surface at the
+	// top — the dimension that was previously invisible), then
+	// HeldDuringWaitMs desc as a tiebreak so holder-class offenders
+	// still order sensibly among themselves.
 	sort.Slice(page.BusyAttribution, func(i, j int) bool {
+		if page.BusyAttribution[i].ContenderEvents != page.BusyAttribution[j].ContenderEvents {
+			return page.BusyAttribution[i].ContenderEvents > page.BusyAttribution[j].ContenderEvents
+		}
 		return page.BusyAttribution[i].HeldDuringWaitMs > page.BusyAttribution[j].HeldDuringWaitMs
 	})
 	if len(page.BusyAttribution) > 10 {
 		page.BusyAttribution = page.BusyAttribution[:10]
 	}
 	page.BusyEventsCount = len(snap.RecentBusy)
+
+	// Live "Currently in BEGIN IMMEDIATE" view: goroutines stuck inside
+	// Exec("BEGIN IMMEDIATE ...") at the moment of the page fetch. Empty
+	// under steady state; lights up during a contention storm episode so
+	// the operator can catch it red-handed by refreshing the page.
+	for _, a := range snap.BeginAttempts {
+		age := now.Sub(a.StartedAt)
+		ms := float64(age) / float64(time.Millisecond)
+		page.BeginContending = append(page.BeginContending, beginContendingRow{
+			Caller:    a.Caller,
+			StartedAt: a.StartedAt.Format(time.RFC3339),
+			AgeMs:     ms,
+			AgeClass:  classForHoldMs(ms),
+		})
+	}
+	sort.Slice(page.BeginContending, func(i, j int) bool {
+		return page.BeginContending[i].AgeMs > page.BeginContending[j].AgeMs
+	})
 
 	page.RecentWrite = renderRecent(snap.RecentWrite)
 	page.RecentBusy = renderRecent(snap.RecentBusy)
@@ -400,6 +504,24 @@ func renderRecent(samples []txSample) []recentRow {
 				OutClass:  classForOutcome(d.Outcome),
 			})
 		}
+		var contenders []contenderEntry
+		for _, c := range s.BeginContenders {
+			stuckMs := float64(s.When.Sub(c.StartedAt)) / float64(time.Millisecond)
+			pwMs := float64(c.PoolWait) / float64(time.Millisecond)
+			contenders = append(contenders, contenderEntry{
+				Caller:        c.Caller,
+				StuckForMs:    stuckMs,
+				StuckClass:    classForHoldMs(stuckMs),
+				PoolWaitMs:    pwMs,
+				PoolWaitClass: classForHoldMs(pwMs),
+			})
+		}
+		// Sort so the longest-stuck contender renders first — that's
+		// usually the most diagnostic ("this goroutine has been stuck
+		// in BEGIN IMMEDIATE for almost as long as I have").
+		sort.Slice(contenders, func(i, j int) bool {
+			return contenders[i].StuckForMs > contenders[j].StuckForMs
+		})
 		out = append(out, recentRow{
 			When:              s.When.Format("15:04:05.000"),
 			Caller:            s.Caller,
@@ -412,9 +534,11 @@ func renderRecent(samples []txSample) []recentRow {
 			PoolWaitClass:     classForHoldMs(poolWaitMs),
 			Outcome:           string(s.Outcome),
 			OutClass:          classForOutcome(s.Outcome),
+			ErrMsg:            s.ErrMsg,
 			Stmts:             stmts,
 			HeldBy:            held,
 			DrainedDuringWait: drained,
+			BeginContenders:   contenders,
 		})
 	}
 	return out
@@ -440,6 +564,22 @@ func classForBusy(n uint64) string {
 	return ""
 }
 
+// classForContenderEvents colours the contender-events column. Thresholds
+// pick the points where a single caller's storm pattern is unmistakable:
+// ≥10 events is a sustained storm (this caller was stuck in BEGIN
+// IMMEDIATE during 10+ of the recent ≤25 begin_busy events); ≥3 is a
+// repeating pattern worth investigating.
+func classForContenderEvents(n uint64) string {
+	switch {
+	case n >= 10:
+		return "warn"
+	case n >= 3:
+		return "note"
+	default:
+		return ""
+	}
+}
+
 // classForSharePct colours the aggregate writer-slot share column. Thresholds
 // pick the eye-catch points where a single caller is materially eating the
 // slot under WAL (mutex-exclusive): ≥25% is hard to miss as a regression
@@ -457,7 +597,7 @@ func classForSharePct(pct float64) string {
 
 func classForOutcome(o txOutcome) string {
 	switch o {
-	case outcomeBeginBusy, outcomeRollback:
+	case outcomeBeginBusy, outcomeBeginBusyTimeout, outcomeBeginBusySnapshot, outcomeBeginBusyRecovery, outcomeRollback:
 		return "warn"
 	case outcomeBeginInterrupted:
 		// Yellow: interesting (BEGIN failed) but not a contention event —
@@ -540,11 +680,17 @@ th.grp{background:#ececec;text-align:center}
 <dt>begin_wait</dt><dd>Time spent inside <code>BEGIN IMMEDIATE</code> before it returned (includes SQLite's internal busy-handler backoff). Large values mean the writer slot was held by <em>someone else</em> while this caller waited.</dd>
 <dt>hold</dt><dd>Wall time from successful <code>BEGIN IMMEDIATE</code> to <code>COMMIT</code>/<code>ROLLBACK</code>. Large values mean <em>this caller</em> is doing too much work inside the transaction.</dd>
 <dt>total</dt><dd>Caller-visible end-to-end latency: <code>pool_wait + begin_wait + hold</code>. The single column an operator can use to spot "who is slow" without summing three percentile groups. The per-caller table is sorted by <code>total p99</code> for this reason.</dd>
-<dt>begin_busy</dt><dd>The 10 s busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Real contention. Each row carries a <em>held by</em> snapshot of whoever owned the writer slot at the moment of failure and a <em>drained during wait</em> list of holders that finished during the wait. <strong>For the aggregate "who caused all these busys" view see the <em>Begin-busy attribution</em> section below — usually the most useful starting point.</strong> begin_busy rows live in their own collapsed ring (separate from completed slow writes) so they can't evict real slow commits via their synthesised 10 s hold. The synthetic caller <code>sqlitex.WALCheckpointer</code> represents the background <code>PRAGMA wal_checkpoint(PASSIVE)</code> goroutine — it doesn't go through WithTx/Save, so without explicit hooks it would be invisible here; <strong>if it dominates HeldBy or DrainedDuringWait the disk's fsync floor is the bottleneck</strong> (see the WAL checkpoint section's recent-tick durations).</dd>
+<dt>begin_busy</dt><dd>The busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Each row carries a <em>held by</em> snapshot of whoever owned the writer slot at the moment of failure and a <em>drained during wait</em> list of holders that finished during the wait. <strong>For the aggregate "who caused all these busys" view see the <em>Begin-busy attribution</em> section below — usually the most useful starting point.</strong> begin_busy rows live in their own collapsed ring (separate from completed slow writes) so they can't evict real slow commits via their synthesised hold. The synthetic caller <code>sqlitex.WALCheckpointer</code> represents the background <code>PRAGMA wal_checkpoint(PASSIVE)</code> goroutine — it doesn't go through WithTx/Save, so without explicit hooks it would be invisible here; <strong>if it dominates HeldBy or DrainedDuringWait the disk's fsync floor is the bottleneck.</strong></dd>
+<dt>begin_busy_timeout</dt><dd>SQLite returned <code>SQLITE_BUSY_TIMEOUT</code> — the unix VFS's fcntl-based busy_timeout path expired. A file-level lock byte was contested for the full busy_timeout. <strong>If <em>held by</em> is also empty for these rows, that means no instrumented WithTx/Save was holding the writer mutex; the kernel-level fcntl byte was nevertheless unavailable.</strong> Diagnostic: another process holds the same DB file (multi-process SQLite is not our intended mode), or a kernel-level contention pattern is in play.</dd>
+<dt>begin_busy_snapshot</dt><dd>SQLite returned <code>SQLITE_BUSY_SNAPSHOT</code> — a wal_index snapshot held by a reader couldn't be advanced past for the writer. Look at the Read operations table for callers with high <em>hold p99</em>; a long-held read transaction on the same connection blocks new writers from acquiring a fresh snapshot.</dd>
+<dt>begin_busy_recovery</dt><dd>SQLite returned <code>SQLITE_BUSY_RECOVERY</code> — a hot journal needs recovery from a prior unclean shutdown of a writer. Self-healing: should be one-shot at the next successful write.</dd>
 <dt>begin_interrupted</dt><dd><code>BEGIN IMMEDIATE</code> returned a non-busy error — almost always <code>SQLITE_INTERRUPT</code> from a context cancellation upstream. Not a lock-contention event; no <em>held by</em> snapshot. Common when a caller scopes a tx to a deadline that has expired, e.g. <code>connect.go</code>'s per-attempt timeout.</dd>
 <dt>savepoint_top</dt><dd>Top-level <code>SAVEPOINT</code> on an autocommit connection that <em>actually wrote</em> at least once. The first DML/DDL statement promotes it to the writer-slot active set, so its hold time counts the same as a WithTx commit and it shows up on begin_busy "held by" snapshots. Pre-instrumentation these rows bypassed the page entirely, which is why the actual offender used to be invisible. <strong>begin_wait is renders as "—" for these rows</strong> and is excluded from the per-caller <em>wait</em> percentile: the SAVEPOINT keyword itself doesn't queue for the writer mutex (the deferred transaction is upgraded lazily by the first DML), so the only thing we could measure here is the SAVEPOINT statement's own ~µs execution time — not real contention. The actual writer-mutex wait, when it exists, is folded into the first DML's duration and shows up in hold.</dd>
 <dt>savepoint</dt><dd>Nested <code>SAVEPOINT</code> issued while an outer transaction was already holding the writer slot. The outer tx is the lock holder — this row is recorded for completeness but excluded from hold percentiles to avoid double-counting.</dd>
+<dt>contender events</dt><dd>Distinct <code>begin_busy</code> events where this caller was itself stuck inside <code>Exec("BEGIN IMMEDIATE ...")</code> — i.e., in SQLite's busy_handler retry loop — at the moment of another caller's timeout. Different from <em>events</em> (which counts <code>begin_busy</code>s this caller helped CAUSE via the writer-slot it held during a wait window). <em>Contender events</em> counts <code>begin_busy</code>s this caller SHARED with the victim because both were stuck in their own retry loops. A caller dominating this column is the source of a contention storm: too many parallel <code>BEGIN IMMEDIATE</code>s from one origin starve each other inside the busy_handler, even when none individually holds the writer mutex for long.</dd>
 </dl>
+<p><strong>If you see begin_busy events with <em>held by</em> empty and <em>drained during wait</em> near-zero</strong>, the writer mutex was NOT actually held by an instrumented caller that completed during the wait window — and SQLite's exhausted busy-handler ran out anyway. Expand the <strong>also stuck in BEGIN IMMEDIATE</strong> block on the row: it lists, by caller name, every other goroutine that was also in <code>BEGIN IMMEDIATE</code>'s busy_handler retry loop at the moment of timeout. A single caller name dominating that list across multiple begin_busy rows is your offender — its parallel <code>BEGIN IMMEDIATE</code>s are starving each other (and the victim) inside <code>sqlite3_step</code>. The aggregate version of the same signal is the <em>contender events</em> column in the Begin-busy attribution table below.</p>
+<p>If the contender list is ALSO empty, cross-reference the <em>outcome</em> column subkind to identify the physical cause: <code>begin_busy_snapshot</code> points at long-held readers; <code>begin_busy_timeout</code> points at kernel-level fcntl contention or another process holding the DB file; <code>begin_busy_recovery</code> points at a prior unclean shutdown. The plain <code>begin_busy</code> label (no extended subkind) with no contenders and no holders means "BUSY-class error of unknown subkind with no instrumented contender" — a true mystery, escalate to direct VFS-level inspection.</p>
 <p>Read-only <code>SAVEPOINT</code>s (Read[], ListEvents, ListPeers, etc.) are suppressed from this page entirely. They only ever held the SHARED reader lock and cannot cause SQLITE_BUSY on anyone's BEGIN IMMEDIATE; listing them would only dilute the writer-slot signal.</p>
 <p><strong>Temp-table writes are a known false-positive — but the worst offenders now opt out.</strong> Statements like <code>INSERT INTO rbsr_iris ...</code> write to per-connection <code>TEMP</code> tables, which live in a separate SQLite database file and don't take the main DB's writer lock. The instrumentation can't tell main-DB writes from temp-DB writes without hooking the VFS xLock callbacks, so any plain <code>Save</code> scope that runs even one INSERT/DELETE — even purely against temp tables — promotes to <code>savepoint_top</code> and counts toward the writer-slot percentiles. <strong>Callers that know their scope only writes to TEMP can opt out via <code>sqlitex.SaveTempOnly</code> / <code>Pool.WithSaveTempOnly</code></strong>; the RBSR machinery (<code>syncing.(*Server).loadStore</code>, <code>syncing.(*Service).DiscoverObjectWithProgress</code>) does this, which is why they no longer dominate the Aggregate writer-slot utilization section. They render under <strong>Read operations</strong> instead. Cross-reference the captured statements on any remaining savepoint_top row before treating its caller as a real lock holder, and add a new opt-out only after auditing that the scope truly never writes to the main DB.</p>
 <p><strong>Reading <code>hold</code> vs <code>begin_wait</code>:</strong> these phases are independent — <code>begin_wait</code> is contention <em>from others</em>, <code>hold</code> is <em>this caller's own work</em>. They have no reason to track each other; in a healthy daemon <code>hold</code> is much larger than <code>begin_wait</code> because most of the time the lock is free when you ask for it.</p>
@@ -560,6 +706,7 @@ th.grp{background:#ececec;text-align:center}
 </details>
 
 <h2>Currently in flight</h2>
+<div class="subtitle">Write transactions that have successfully passed <code>BEGIN IMMEDIATE</code> and are running their user fn (between <code>BEGIN</code> and <code>COMMIT</code>/<code>ROLLBACK</code>). These hold the writer mutex right now.</div>
 {{if .Active}}
 <table>
 <thead><tr><th>caller</th><th>started</th><th class="num">age</th></tr></thead>
@@ -571,6 +718,21 @@ th.grp{background:#ececec;text-align:center}
 </table>
 {{else}}
 <div class="subtitle">No write transactions in flight right now.</div>
+{{end}}
+
+<h2>Currently in BEGIN IMMEDIATE (contending for writer mutex)</h2>
+<div class="subtitle">Goroutines stuck inside <code>Exec("BEGIN IMMEDIATE ...")</code> at the moment of this page fetch — i.e., in SQLite's busy_handler retry loop waiting for the writer mutex. Normally empty under steady state. During a contention storm, refreshing the page catches the storm in the act: a stack of rows from the same caller is the signature of a thundering herd.</div>
+{{if .BeginContending}}
+<table>
+<thead><tr><th>caller</th><th>started</th><th class="num">age</th></tr></thead>
+<tbody>
+{{range .BeginContending}}
+<tr><td>{{.Caller}}</td><td>{{.StartedAt}}</td><td class="num {{.AgeClass}}">{{fmtMs .AgeMs}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{else}}
+<div class="subtitle">Nobody is stuck in BEGIN IMMEDIATE right now.</div>
 {{end}}
 
 <h2>Per-caller stats</h2>
@@ -705,10 +867,15 @@ th.grp{background:#ececec;text-align:center}
 <div class="subtitle">Split by kind: writes (capped at {{.RecentWriteCap}}) and reads (capped at {{.RecentReadCap}}) each have their own top-K-by-hold buffer, so a steady stream of slow reads can't evict a rare slow write or vice versa. Only operations whose hold exceeded 100 ms or that hit BEGIN IMMEDIATE busy enter either ring. Sorted by <code>hold</code> descending within each section so the worst outlier is always at the top; click a row to expand the statements that ran inside the scope (byte-slice args are summarised by length to avoid retaining blob payloads).</div>
 
 <h3>Begin-busy attribution</h3>
-<div class="subtitle">Aggregate view across the last <strong>{{.BusyEventsCount}}</strong> begin_busy events kept in the ring (cap {{.RecentBusyCap}}). For each event, we sum the writer-slot hold time contributed by every caller that finished during the wait (<em>drained during wait</em>) plus the caller still holding at timeout (<em>held by</em>). Top of this table = the caller most responsible for the recent busy storm. Empty if no begin_busy events have been recorded.</div>
+<div class="subtitle">Aggregate view across the last <strong>{{.BusyEventsCount}}</strong> begin_busy events kept in the ring (cap {{.RecentBusyCap}}). Two offender shapes surface here:
+<ul style="margin:4px 0 0 0;padding-left:1.4em">
+<li><strong>Holder-class</strong>: high <em>Σ held during wait</em> — this caller actually held the writer mutex during begin_busy wait windows. Sum of <em>drained during wait</em> hold times plus the <em>held by</em> contribution at timeout.</li>
+<li><strong>Storm-class</strong>: high <em>contender events</em> — this caller was itself stuck in BEGIN IMMEDIATE (in its own busy_handler retry loop) at the moment of the victim's timeout. The dimension that's invisible to held-by / drained-during-wait, surfaced explicitly so a thundering herd of short BEGIN IMMEDIATE attempts can't hide as "nobody held the lock for long" while still starving the system.</li>
+</ul>
+Sorted by <em>contender events</em> desc first, then <em>Σ held during wait</em>. Empty if no begin_busy events have been recorded.</div>
 {{if .BusyAttribution}}
 <table>
-<thead><tr><th>caller</th><th class="num">events</th><th class="num">Σ held during wait</th><th class="num">avg per event</th></tr></thead>
+<thead><tr><th>caller</th><th class="num">events</th><th class="num">Σ held during wait</th><th class="num">avg per event</th><th class="num">contender events</th></tr></thead>
 <tbody>
 {{range .BusyAttribution}}
 <tr>
@@ -716,6 +883,7 @@ th.grp{background:#ececec;text-align:center}
 <td class="num">{{.Events}}</td>
 <td class="num {{.HeldDuringWaitClass}}">{{fmtMs .HeldDuringWaitMs}}</td>
 <td class="num">{{fmtMs .AvgPerEventMs}}</td>
+<td class="num {{.ContenderEventsClass}}">{{.ContenderEvents}}</td>
 </tr>
 {{end}}
 </tbody>
@@ -734,7 +902,7 @@ th.grp{background:#ececec;text-align:center}
 </details>
 
 <details><summary><strong>Slowest begin_busy events</strong> — showing {{len .RecentBusy}} of up to {{.RecentBusyCap}} (click to expand)</summary>
-<div class="subtitle">Each row is a BEGIN IMMEDIATE that hit the busy_timeout. <code>hold</code> and <code>begin_wait</code> are both ≈ busy_timeout (10 s) by construction. Use the Begin-busy attribution section above for the aggregate view across all of these; expand individual rows for the per-event <em>held by</em> and <em>drained during wait</em> drill-downs.</div>
+<div class="subtitle">Each row is a BEGIN IMMEDIATE that hit the busy_timeout. <code>hold</code> and <code>begin_wait</code> are both ≈ busy_timeout (10 s) by construction. Use the Begin-busy attribution section above for the aggregate view across all of these; expand individual rows for the per-event <em>held by</em>, <em>drained during wait</em>, and <em>also stuck in BEGIN IMMEDIATE</em> drill-downs.</div>
 {{if .RecentBusy}}
 {{template "recentTable" .RecentBusy}}
 {{else}}
@@ -754,7 +922,7 @@ th.grp{background:#ececec;text-align:center}
 {{define "recentTable"}}
 <table class="recent">
 <thead><tr>
-<th>when</th><th>caller</th><th class="num">pool_wait</th><th class="num">begin_wait</th><th class="num">hold</th><th>outcome</th><th class="num">stmts</th>
+<th>when</th><th>caller</th><th class="num">pool_wait</th><th class="num">begin_wait</th><th class="num">hold</th><th>outcome</th><th>sqlite_errmsg</th><th class="num">stmts</th>
 </tr></thead>
 <tbody>
 {{range $i, $r := .}}
@@ -765,10 +933,11 @@ th.grp{background:#ececec;text-align:center}
 <td class="num {{if $r.WaitNA}}{{else}}{{$r.WaitClass}}{{end}}" title="{{if $r.WaitNA}}begin_wait n/a for savepoint_top — actual writer-mutex acquisition is lazy, hidden inside the first DML and counted as hold{{end}}">{{if $r.WaitNA}}—{{else}}{{fmtMs $r.WaitMs}}{{end}}</td>
 <td class="num {{$r.HoldClass}}">{{fmtMs $r.HoldMs}}</td>
 <td class="{{$r.OutClass}}">{{$r.Outcome}}</td>
+<td>{{$r.ErrMsg}}</td>
 <td class="num">{{len $r.Stmts}}</td>
 </tr>
 {{if $r.HeldBy}}
-<tr class="stmts"><td colspan="7">
+<tr class="stmts"><td colspan="8">
 <details><summary>held by ({{len $r.HeldBy}}) — who had the writer slot when this row's BEGIN IMMEDIATE failed</summary>
 <table class="inner">
 <colgroup><col class="idx"><col class="sql"><col class="args"></colgroup>
@@ -783,7 +952,7 @@ th.grp{background:#ececec;text-align:center}
 </td></tr>
 {{end}}
 {{if $r.DrainedDuringWait}}
-<tr class="stmts"><td colspan="7">
+<tr class="stmts"><td colspan="8">
 <details><summary>drained during wait ({{len $r.DrainedDuringWait}}) — holders that finished while this BEGIN IMMEDIATE was waiting</summary>
 <table class="inner">
 <thead><tr><th class="num">#</th><th>when</th><th>caller</th><th class="num">hold</th><th>outcome</th></tr></thead>
@@ -796,8 +965,22 @@ th.grp{background:#ececec;text-align:center}
 </details>
 </td></tr>
 {{end}}
+{{if $r.BeginContenders}}
+<tr class="stmts"><td colspan="8">
+<details><summary>also stuck in BEGIN IMMEDIATE ({{len $r.BeginContenders}}) — other goroutines in their own busy_handler retry loop at the moment this row's BEGIN IMMEDIATE timed out</summary>
+<table class="inner">
+<thead><tr><th class="num">#</th><th>caller</th><th class="num">stuck for</th><th class="num">pool_wait</th></tr></thead>
+<tbody>
+{{range $k, $c := $r.BeginContenders}}
+<tr><td class="num">{{$k}}</td><td>{{$c.Caller}}</td><td class="num {{$c.StuckClass}}">{{fmtMs $c.StuckForMs}}</td><td class="num {{$c.PoolWaitClass}}">{{fmtMs $c.PoolWaitMs}}</td></tr>
+{{end}}
+</tbody>
+</table>
+</details>
+</td></tr>
+{{end}}
 {{if $r.Stmts}}
-<tr class="stmts"><td colspan="7">
+<tr class="stmts"><td colspan="8">
 <details><summary>statements ({{len $r.Stmts}})</summary>
 <table class="inner">
 <colgroup><col class="idx"><col class="dur"><col class="sql"><col class="args"></colgroup>

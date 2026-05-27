@@ -31,7 +31,16 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	//
 	// This behavior should not be abused. Check [Read] and [Write] functions for better alternatives.
 	t0 := time.Now()
-	if err := Exec(conn, "BEGIN IMMEDIATE TRANSACTION;", nil); err != nil {
+	// Register this goroutine as in-flight on BEGIN IMMEDIATE before the
+	// Exec call so a CONCURRENT begin_busy victim (in a different goroutine)
+	// can see us as a contender in its snapshot. Cleared the moment Exec
+	// returns — success, busy, interrupt, or nested-tx fallback all funnel
+	// through endBeginAttempt below, so the set is always exactly the
+	// goroutines currently stuck inside SQLite's cgo busy_handler.
+	attemptID := tracker.startBeginAttempt(caller, poolWait)
+	err := Exec(conn, "BEGIN IMMEDIATE TRANSACTION;", nil)
+	tracker.endBeginAttempt(attemptID)
+	if err != nil {
 		beginWait := time.Since(t0)
 		// Nested-tx fallback is a separate path. SQLite returns this as a text
 		// message (not a numeric code), so keep the string match here.
@@ -55,10 +64,29 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 		// caller giving up on its own ctx and have no lock holder to blame.
 		switch sqlite.ErrCode(err) {
 		case sqlite.SQLITE_BUSY, sqlite.SQLITE_BUSY_RECOVERY, sqlite.SQLITE_BUSY_SNAPSHOT:
+			// Look up the SQLite extended errcode + msg DIRECTLY on the
+			// conn — reserr in the binding currently strips errors to the
+			// primary 8-bit code, so we lose the subcode (TIMEOUT vs
+			// SNAPSHOT vs RECOVERY vs plain BUSY). The extended code +
+			// human-readable message are the load-bearing diagnostic for
+			// "writer mutex appears unheld but BEGIN IMMEDIATE failed
+			// anyway" — see /debug/sqlite Begin-busy attribution section.
+			extCode := conn.ExtendedErrCode()
+			errMsg := conn.ErrMsg()
+			outcome := classifyBeginBusy(extCode)
 			heldBy := tracker.snapshotActive()
-			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcomeBeginBusy, nil, heldBy)
+			// Snapshot of other goroutines also stuck inside the BEGIN
+			// IMMEDIATE Exec right now. Excludes self by construction —
+			// endBeginAttempt above already removed our own attempt — so
+			// the rendered "also stuck in BEGIN IMMEDIATE" block on the
+			// row lists genuine concurrent contenders. This is the
+			// dimension that's invisible to HeldBy (post-BEGIN, in the
+			// user fn) and DrainedDuringWait (post-COMMIT only); without
+			// it, a thundering-herd offender stays unattributed.
+			contenders := tracker.snapshotBeginAttempts()
+			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcome, nil, heldBy, contenders, errMsg)
 		default:
-			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcomeBeginInterrupted, nil, nil)
+			tracker.recordTx(caller, beginWait, beginWait, poolWait, outcomeBeginInterrupted, nil, nil, nil, "")
 		}
 		return fmt.Errorf("%w; original error: %w", ErrBeginImmediateTx, err)
 	}
@@ -71,10 +99,10 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if err := fn(); err != nil {
 		stmts := endCapture(conn)
 		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
-			tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil)
+			tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
 			return fmt.Errorf("ROLLBACK error: %v; original error: %w", rberr, err)
 		}
-		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil)
+		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
 		return err
 	}
 
@@ -84,9 +112,38 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if commitErr != nil {
 		outcome = outcomeRollback
 	}
-	tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcome, stmts, nil)
+	tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcome, stmts, nil, nil, "")
 	return commitErr
 }
+
+// classifyBeginBusy maps an extended SQLite error code from a failed
+// BEGIN IMMEDIATE into the corresponding outcome label so the page
+// surfaces the distinction. The Go binding's reserr currently strips
+// the extended code (see sqlite.go:670 // TODO), so this function
+// receives the raw extended code looked up via conn.ExtendedErrCode().
+//
+// Unknown extended codes — including primary SQLITE_BUSY without an
+// extended bit — fall through to outcomeBeginBusy, which now means
+// "BUSY-class error of unknown subkind" and is itself diagnostic of
+// an uninstrumented holder when paired with empty held_by.
+func classifyBeginBusy(extCode sqlite.ErrorCode) txOutcome {
+	switch extCode {
+	case sqlite.SQLITE_BUSY_RECOVERY:
+		return outcomeBeginBusyRecovery
+	case sqlite.SQLITE_BUSY_SNAPSHOT:
+		return outcomeBeginBusySnapshot
+	case sqliteBusyTimeout:
+		return outcomeBeginBusyTimeout
+	}
+	return outcomeBeginBusy
+}
+
+// sqliteBusyTimeout is SQLITE_BUSY_TIMEOUT (5 | (3 << 8) = 773).
+// Not bound by name in our sqlite package today (only BUSY,
+// BUSY_RECOVERY, BUSY_SNAPSHOT are exposed), so we declare the
+// literal locally. Matches sqlite3.h: #define SQLITE_BUSY_TIMEOUT
+// (SQLITE_BUSY | (3<<8)).
+const sqliteBusyTimeout sqlite.ErrorCode = sqlite.ErrorCode(sqlite.SQLITE_BUSY) | (3 << 8)
 
 // WithTx executes fn within an immediate transaction using a new connection from the pool.
 func (p *Pool) WithTx(ctx context.Context, fn func(*sqlite.Conn) error) error {
