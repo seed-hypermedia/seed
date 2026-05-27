@@ -852,7 +852,8 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 	// Fill All authors and their related blobs.
 	if includeAccounts {
 		// Fill All authors.
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
+		if hasType(typeFilter, "Ref") {
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT DISTINCT
 					sb.id as id
 					FROM resources r
@@ -862,11 +863,12 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					AND r.iri GLOB 'hm://*'
 					AND r.iri NOT GLOB 'hm://*/*';`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
 		}
 
-		{
+		if hasType(typeFilter, "Profile") {
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
@@ -875,7 +877,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					AND sb.author IN (
 						SELECT DISTINCT author
 						FROM structural_blobs
-						WHERE id IN rbsr_blobs AND type = 'Comment'
+						WHERE id IN rbsr_blobs AND author IS NOT NULL
 					);`
 
 			if err := sqlitex.Exec(conn, q, nil); err != nil {

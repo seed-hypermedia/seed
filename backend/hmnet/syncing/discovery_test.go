@@ -50,7 +50,7 @@ func TestEffectiveBlobTypeFilter(t *testing.T) {
 
 	t.Run("any unfiltered dkey disables filter", func(t *testing.T) {
 		dkeys := map[DiscoveryKey]struct{}{
-			dkeyWith("Profile"):       {},
+			dkeyWith("Profile"):        {},
 			dkeyWith( /* no types */ ): {},
 		}
 		require.Nil(t, effectiveBlobTypeFilter(dkeys))
@@ -58,7 +58,7 @@ func TestEffectiveBlobTypeFilter(t *testing.T) {
 
 	t.Run("union across dkeys", func(t *testing.T) {
 		dkeys := map[DiscoveryKey]struct{}{
-			{IRI: blob.IRI("hm://a"), BlobTypes: BlobTypesString([]string{"Profile"})}: {},
+			{IRI: blob.IRI("hm://a"), BlobTypes: BlobTypesString([]string{"Profile"})}:       {},
 			{IRI: blob.IRI("hm://b"), BlobTypes: BlobTypesString([]string{"Ref", "Change"})}: {},
 		}
 		got := effectiveBlobTypeFilter(dkeys)
@@ -372,6 +372,66 @@ func TestCollectBlobs_InboundContacts(t *testing.T) {
 		require.NotContains(t, got, "Contact",
 			"inbound contacts should NOT appear when Contact is filtered out")
 	})
+}
+
+// TestCollectBlobs_IncludeAuthorProfiles verifies that pushing a non-root
+// document also includes the author's Profile blob from the account root.
+func TestCollectBlobs_IncludeAuthorProfiles(t *testing.T) {
+	t.Parallel()
+
+	db := storage.MakeTestDB(t)
+
+	alice := coretest.NewTester("alice").Account.Principal()
+	aliceRoot := blob.IRI("hm://" + alice.String())
+	aliceDoc := aliceRoot + "/docs/published"
+
+	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO resources (id, iri) VALUES (100, ?)`, nil, string(aliceRoot)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO resources (id, iri) VALUES (101, ?)`, nil, string(aliceDoc)); err != nil {
+			return err
+		}
+
+		for _, q := range []string{
+			// Alice's Profile is anchored to the account root.
+			`INSERT INTO blobs (id, multihash, codec, size) VALUES (10, X'10', 113, 1)`,
+			`INSERT INTO structural_blobs (id, type, author, resource) VALUES (10, 'Profile', 1, 100)`,
+
+			// Alice's published document is a child resource.
+			`INSERT INTO blobs (id, multihash, codec, size) VALUES (20, X'20', 113, 1)`,
+			`INSERT INTO structural_blobs (id, type, author, resource) VALUES (20, 'Ref', 1, 101)`,
+		} {
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+
+	got := map[string][]int{}
+	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		if err := collectBlobs(conn, map[DiscoveryKey]struct{}{
+			{IRI: aliceDoc}: {},
+		}, true); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn,
+			`SELECT sb.type, rb.id FROM rbsr_blobs rb JOIN structural_blobs sb ON sb.id = rb.id ORDER BY sb.type, rb.id`,
+			func(stmt *sqlite.Stmt) error {
+				got[stmt.ColumnText(0)] = append(got[stmt.ColumnText(0)], stmt.ColumnInt(1))
+				return nil
+			})
+	}))
+
+	require.Equal(t, []int{20}, got["Ref"], "document Ref must be selected")
+	require.Equal(t, []int{10}, got["Profile"], "author Profile must be selected")
 }
 
 // TestDiscoveryKey_StableMapKey verifies that DiscoveryKey works as a map key
