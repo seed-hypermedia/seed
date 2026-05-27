@@ -42,6 +42,7 @@ const mockUniversalAppContext = {
 }
 
 let mockNavRoute: {key: 'document' | 'feed'; id: ReturnType<typeof hmId>}
+let mockSearchParams = new URLSearchParams()
 
 // Helper to wrap component in required providers
 function withProviders(queryClient: QueryClient, component: React.ReactElement) {
@@ -114,6 +115,14 @@ vi.mock('@/auth', () => ({
   LogoutButton: () => null,
   LogoutDialog: () => null,
 }))
+
+vi.mock('@remix-run/react', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    useSearchParams: () => [mockSearchParams, vi.fn()],
+  }
+})
 
 // Mock navigation hooks used by WebResourcePage
 vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
@@ -231,6 +240,7 @@ function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMD
 describe('SSR Document Rendering with React Query Hydration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSearchParams = new URLSearchParams()
     mockUniversalAppContext.origin = 'http://localhost:3000'
     mockUniversalAppContext.originHomeId = {
       uid: TEST_UID,
@@ -332,5 +342,21 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
     expect(html).toContain('Hosted on')
     expect(html).toContain('localhost:3000')
+  })
+
+  it('should render the discussions feed view when feedView=discussions is present', async () => {
+    const {WebFeedPage} = await import('@/web-feed-page')
+
+    const testDocument = createTestDocument('Feed page hydration test content')
+    const docId = hmId(TEST_UID, {version: TEST_VERSION})
+    const queryClient = createHydratedQueryClient(docId, testDocument)
+
+    mockNavRoute = {key: 'feed', id: hmId(TEST_UID)}
+    mockSearchParams = new URLSearchParams('feedView=discussions')
+
+    const html = renderToString(withProviders(queryClient, createElement(WebFeedPage, {docId})))
+
+    expect(html).toContain('Discussions')
+    expect(html).toContain('No comment discussions yet')
   })
 })

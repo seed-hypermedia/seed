@@ -1,4 +1,4 @@
-import {renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
+import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -133,7 +133,7 @@ export default function DesktopFeedPage() {
         showDeletedContent
       >
         <DesktopDocumentActionsProvider>
-          <FeedPage docId={docId} extraMenuItems={menuItems} />
+          <FeedPage docId={docId} extraMenuItems={menuItems} CommentEditor={CommentBox} />
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {copyGatewayContent}
