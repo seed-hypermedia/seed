@@ -3,6 +3,7 @@ package activity
 import (
 	context "context"
 	"fmt"
+	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/logging"
@@ -11,6 +12,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
+	"time"
 
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
@@ -135,6 +137,59 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 	}
 	require.Contains(t, page2IDs, int64(1),
 		"id=1 must be reachable via pagination after dedup shortens page 1")
+}
+
+func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+	mentioned, err := core.DecodePrincipal("z6MkrJVnaZkeF1cWQrJ7g4LtpZvZQJtnYFWCKq66P2pyGcGP")
+	require.NoError(t, err)
+	commentTime := time.UnixMilli(1_000).UTC()
+	commentTSID := blob.NewTSID(commentTime, []byte("comment"))
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?), (2, ?);`, nil, []byte(author), []byte(mentioned)); err != nil {
+			return err
+		}
+
+		hash, err := multihash.Sum([]byte("comment-blob"), multihash.SHA2_256, -1)
+		if err != nil {
+			return err
+		}
+		profileHash, err := multihash.Sum([]byte("profile-resource"), multihash.SHA2_256, -1)
+		if err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (100, ?, ?, ?, 1, 1), (101, ?, ?, ?, 1, 1);`, nil, []byte(hash), int64(0x55), []byte{1}, []byte(profileHash), int64(0x55), []byte{1}); err != nil {
+			return err
+		}
+
+		docIRI := "hm://" + author.String() + "/doc"
+		mentionedProfileIRI := "hm://" + mentioned.String() + "/:profile"
+		if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri, owner, genesis_blob, create_time) VALUES (10, ?, 1, 100, 0), (20, ?, 2, 101, 0);`, nil, docIRI, mentionedProfileIRI); err != nil {
+			return err
+		}
+
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (100, 'Comment', ?, 1, 100, 10, json_object('tsid', ?));`, nil, commentTime.UnixMilli(), commentTSID.String()); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (source, target, type, is_pinned, extra_attrs) VALUES (100, 20, 'comment/Embed', 0, '{}');`, nil)
+	}))
+
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        10,
+		FilterEventType: []string{"comment/Embed"},
+	})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+
+	mention := events.Events[0].GetNewMention()
+	require.NotNil(t, mention)
+	require.Equal(t, "hm://"+author.String()+"/doc", mention.SourceDocument)
+	require.Equal(t, "hm://"+mentioned.String()+"/:profile", mention.Target)
 }
 
 // TODO: update profile idempotent no change
