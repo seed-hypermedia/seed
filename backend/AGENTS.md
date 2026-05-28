@@ -5,8 +5,13 @@
 - Use `dqb.Str` for SQL queries, with explicit query variants for conditional logic.
 - In Go tests, use `github.com/stretchr/testify/require`.
 - For bug fixes, add a failing test first when practical.
-- Before finishing backend work, run `go test ./backend/...` and
-  `golangci-lint run --new-from-merge-base origin/main ./backend/...`.
+- Toolchain setup: this repo uses `direnv` + `mise` to pin Go/tooling versions. In non-interactive shells, `direnv allow`
+  does not automatically apply to the current process — load it explicitly before running Go commands:
+  - `eval "$(direnv export zsh)"`
+  This avoids errors like `go.mod: unknown block type: tool` when your global Go is too old.
+- Before finishing backend work, run:
+  - `eval "$(direnv export zsh)" && go test ./backend/...`
+  - `eval "$(direnv export zsh)" && mise x golangci-lint@2.12.2 -- golangci-lint run --new-from-merge-base origin/main ./backend/...`
 - For full CI parity before pushing, validate locally via agent-ci:
   - Lint (fast): `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`
   - Tests (CPU llama build cached after first run): `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`

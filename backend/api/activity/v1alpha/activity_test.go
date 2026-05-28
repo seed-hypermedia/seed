@@ -2,6 +2,7 @@ package activity
 
 import (
 	context "context"
+	"encoding/json"
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -225,6 +226,60 @@ func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
 	require.NotNil(t, mention, "expected comment profile mention in unfiltered activity feed")
 	require.Equal(t, sourceDocument, mention.GetNewMention().GetSourceDocument())
 	require.Equal(t, mentionedProfile, mention.GetNewMention().GetTarget())
+}
+
+func TestListEventsCommentExtraAttrsContainsTarget(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	targetIRI := "hm://" + author.String() + "/doc/path"
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+
+		hash, err := multihash.Sum([]byte("comment-blob"), multihash.SHA2_256, -1)
+		if err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (?, ?, ?, ?, ?, ?);`, nil, int64(1), []byte(hash), int64(0x55), []byte{1}, int64(1), int64(1)); err != nil {
+			return err
+		}
+
+		if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri, owner, genesis_blob, create_time) VALUES (1, ?, 1, ?, 0);`, nil, targetIRI, int64(1)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO document_generations (resource, generation, genesis, genesis_change_time) VALUES (1, 0, ?, 0);`, nil, targetIRI); err != nil {
+			return err
+		}
+
+		ts := time.UnixMilli(1_700_000_000_000).Round(blob.ClockPrecision)
+		tsid := blob.NewTSID(ts, []byte("comment"))
+		extraAttrs := fmt.Sprintf(`{"tsid":%q}`, tsid.String())
+
+		return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Comment', ?, 1, ?, 1, ?);`, nil, int64(1), ts.UnixMilli(), int64(1), extraAttrs)
+	}))
+
+	resp, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        10,
+		FilterEventType: []string{"Comment"},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Events, 1)
+
+	evt := resp.Events[0].GetNewBlob()
+
+	// Resource should be the comment's own IRI, not the target.
+	require.Contains(t, evt.GetResource(), "hm://"+author.String()+"/")
+
+	// ExtraAttrs should contain the target document IRI.
+	var attrs map[string]any
+	require.NoError(t, json.Unmarshal([]byte(evt.GetExtraAttrs()), &attrs))
+	require.Equal(t, targetIRI, attrs["target"])
 }
 
 // TODO: update profile idempotent no change

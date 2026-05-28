@@ -274,6 +274,15 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				resources = append(resources, resource)
 			}
 			if eventType == "Comment" {
+				if resource != "" {
+					var attrs map[string]any
+					if err := json.Unmarshal([]byte(extraAttrs), &attrs); err == nil {
+						attrs["target"] = resource
+						if b, err := json.Marshal(attrs); err == nil {
+							extraAttrs = string(b)
+						}
+					}
+				}
 				resource = "hm://" + accountID + "/" + tsid.String()
 				eventTime = timestamppb.New(tsid.Timestamp())
 			}

@@ -31,6 +31,9 @@
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
+- When running repo commands in a non-interactive shell, remember that `direnv allow` might not apply to the current
+  process. Load the environment explicitly when needed:
+  - `eval "$(direnv export zsh)"`
 
 ## Local CI
 
