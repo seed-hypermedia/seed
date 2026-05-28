@@ -174,6 +174,37 @@ jobs:
             exit 1
           fi
 
+      - name: Verify published tarball installs cleanly
+        working-directory: frontend/apps/cli
+        run: |
+          set -euo pipefail
+
+          PACK_DIR=$(mktemp -d)
+          INSTALL_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR" "$INSTALL_DIR"' EXIT
+
+          TARBALL=$(npm pack --pack-destination "$PACK_DIR")
+          TARBALL_PATH="$PACK_DIR/$TARBALL"
+
+          PACKAGE_JSON=$(mktemp)
+          trap 'rm -rf "$PACK_DIR" "$INSTALL_DIR" "$PACKAGE_JSON"' EXIT
+          tar -xOf "$TARBALL_PATH" package/package.json > "$PACKAGE_JSON"
+
+          node -e '
+            const fs = require("node:fs")
+            const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+            for (const field of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+              for (const [name, spec] of Object.entries(pkg[field] || {})) {
+                if (typeof spec === "string" && spec.startsWith("workspace:")) {
+                  throw new Error(`Packed CLI contains unsupported workspace protocol in ${field}.${name}: ${spec}`)
+                }
+              }
+            }
+          ' "$PACKAGE_JSON"
+
+          npm install -g "$TARBALL_PATH" --prefix "$INSTALL_DIR"
+          "$INSTALL_DIR/bin/seed-hypermedia" --version >/dev/null
+
       - name: Publish
         run: npm publish --access public
         working-directory: frontend/apps/cli
