@@ -103,7 +103,7 @@ type SubscriptionState = {
 
 type SyncState = {
   // Activity polling state
-  lastEventId: string | null
+  lastBlobId: bigint
   isPolling: boolean
   pendingInvalidations: Set<string>
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -128,7 +128,7 @@ type SyncState = {
 }
 
 const state: SyncState = {
-  lastEventId: null,
+  lastBlobId: BigInt(0),
   isPolling: false,
   pendingInvalidations: new Set(),
   debounceTimer: null,
@@ -263,26 +263,11 @@ function scheduleInvalidation(resource: string) {
 
 // ============ Activity Feed Polling ============
 
-function getEventId(event: Event): string {
-  if (event.data.case === 'newBlob') {
-    return `blob-${event.data.value.cid}`
-  }
-  if (event.data.case === 'newMention') {
-    const mention = event.data.value
-    return `mention-${mention.sourceBlob?.cid}-${mention.mentionType}-${mention.target}`
-  }
-  return `unknown-${Date.now()}`
-}
-
-/** Extracts the resource IRI from an activity event (exported for testing). */
+/** Extracts the resource IRI from a newBlob activity event (exported for testing). */
 export function extractResource(event: Event): string | null {
   if (event.data.case === 'newBlob') {
     const resource = event.data.value.resource
     return resource.split('?')[0] || null
-  }
-  if (event.data.case === 'newMention') {
-    const target = event.data.value.target
-    return target?.split('?')[0] || null
   }
   return null
 }
@@ -354,44 +339,41 @@ export function processEvents(events: Event[]) {
 function processEventsInner(events: Event[]) {
   // ── First pass: collect event data for batched invalidation ──
   const seenBlobTypes = new Set<string>()
-  const commentCids: string[] = []
+  const commentTargetIRIs: string[] = []
   const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
   const contactData: {author: string; extraAttrs: string}[] = []
-  let hasMentions = false
 
   for (const event of events) {
-    // Subscribed-resource invalidation (debounced via scheduleInvalidation)
+    if (event.data.case !== 'newBlob') continue
+
     const resource = extractResource(event)
     if (resource && isResourceSubscribed(resource)) {
-      console.log(`[Sync] Invalidating ${event.data.case}: ${resource}`)
       scheduleInvalidation(resource)
     }
 
-    if (event.data.case === 'newBlob') {
-      const blobType = event.data.value.blobType?.toLowerCase()
-      if (blobType) seenBlobTypes.add(blobType)
+    const blobType = event.data.value.blobType?.toLowerCase()
+    if (blobType) seenBlobTypes.add(blobType)
 
-      if (blobType === 'comment') {
-        const cid = event.data.value.cid
-        if (cid) commentCids.push(cid)
-      }
-
-      if (blobType === 'capability') {
-        const res = event.data.value.resource
-        if (res) {
-          const id = unpackHmId(res.split('?')[0] || '')
-          if (id) capabilityData.push({id, extraAttrs: event.data.value.extraAttrs})
-        }
-      }
-
-      if (blobType === 'contact') {
-        const author = event.data.value.author
-        if (author) contactData.push({author, extraAttrs: event.data.value.extraAttrs})
+    if (blobType === 'comment') {
+      try {
+        const attrs = JSON.parse(event.data.value.extraAttrs) as {target?: string}
+        if (attrs.target) commentTargetIRIs.push(attrs.target)
+      } catch {
+        // extraAttrs missing or unparseable
       }
     }
 
-    if (event.data.case === 'newMention') {
-      hasMentions = true
+    if (blobType === 'capability') {
+      const res = event.data.value.resource
+      if (res) {
+        const id = unpackHmId(res.split('?')[0] || '')
+        if (id) capabilityData.push({id, extraAttrs: event.data.value.extraAttrs})
+      }
+    }
+
+    if (blobType === 'contact') {
+      const author = event.data.value.author
+      if (author) contactData.push({author, extraAttrs: event.data.value.extraAttrs})
     }
   }
 
@@ -424,24 +406,15 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.AUTHORED_COMMENTS])
     appInvalidateQueries([queryKeys.COMMENT_VERSIONS])
 
-    // Async batch: look up comment targets for targeted DOCUMENT_INTERACTION_SUMMARY invalidation.
-    // All CIDs are fetched in parallel; results are deduplicated by target doc before invalidating.
-    if (commentCids.length > 0) {
-      Promise.allSettled(commentCids.map((cid) => grpcClient.comments.getComment({id: cid}))).then((results) => {
-        const targetIds = new Set<string>()
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value.targetAccount) {
-            const targetId = hmId(result.value.targetAccount, {
-              path: result.value.targetPath?.split('/').filter(Boolean) || null,
-            })
-            targetIds.add(targetId.id)
-          }
-        }
-        targetIds.forEach((id) => {
-          appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id])
-        })
-      })
+    // Targeted DOCUMENT_INTERACTION_SUMMARY invalidation using `target` from extraAttrs.
+    const targetIds = new Set<string>()
+    for (const iri of commentTargetIRIs) {
+      const id = unpackHmId(iri.split('?')[0] || '')
+      if (id) targetIds.add(id.id)
     }
+    targetIds.forEach((id) => {
+      appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id])
+    })
   }
 
   // Capability changes: invalidate target + ancestor capabilities/collaborators
@@ -517,47 +490,44 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
   }
 
-  // Citation/mention changes
-  if (hasMentions) {
+  // Citation invalidation: comments and refs can introduce new mentions/citations
+  if (seenBlobTypes.has('comment') || seenBlobTypes.has('ref')) {
     appInvalidateQueries([queryKeys.CITATIONS])
     appInvalidateQueries([queryKeys.DOC_CITATIONS])
   }
 
   // Any feed-visible event type → invalidate feed caches once for the whole batch
   const feedTypes = ['comment', 'ref', 'capability', 'contact']
-  if (feedTypes.some((t) => seenBlobTypes.has(t)) || hasMentions) {
+  if (feedTypes.some((t) => seenBlobTypes.has(t))) {
     appInvalidateQueries([queryKeys.ACTIVITY_FEED])
     appInvalidateQueries([queryKeys.FEED])
   }
 }
 
-// Poll the activity feed without a type filter. Subscribed-resource invalidation
-// depends on seeing every new resource-related blob, not just feed-visible types.
-const ACTIVITY_EVENT_FILTER = 'all'
+/** Blob-only event types — excludes mentions (link types like comment/target, doc/embed). */
+const ACTIVITY_BLOB_TYPES = ['Capability', 'Ref', 'Comment', 'DagPB', 'Profile', 'Contact']
+
+/** Extract blobId from a newBlob event. Returns 0 for non-blob events. */
+function getBlobId(event: Event): bigint {
+  if (event.data.case === 'newBlob') return event.data.value.blobId
+  return BigInt(0)
+}
 
 async function fetchNewEvents(): Promise<Event[]> {
-  if (!state.lastEventId) {
-    // First poll: set a watermark so existing feed events are not replayed.
+  if (state.lastBlobId === BigInt(0)) {
+    // First poll: set watermark so existing feed events are not replayed.
     const response = await grpcClient.activityFeed.listEvents({
-      pageSize: ACTIVITY_PAGE_SIZE,
+      pageSize: 1,
+      filterEventType: ACTIVITY_BLOB_TYPES,
       order: FeedOrder.OBSERVED_TIME,
     })
-    if (response.events[0]) {
-      state.lastEventId = getEventId(response.events[0])
+    const firstEvent = response.events[0]
+    if (firstEvent) {
+      state.lastBlobId = getBlobId(firstEvent)
     }
-    console.log('[Sync] Activity monitor watermark initialized; existing feed events will not be replayed', {
-      eventCount: response.events.length,
-      filterEventType: ACTIVITY_EVENT_FILTER,
-      pageSize: ACTIVITY_PAGE_SIZE,
-      watermarkEventId: state.lastEventId,
+    console.log('[Sync] Activity monitor watermark initialized', {
+      watermarkBlobId: state.lastBlobId.toString(),
     })
-    if (response.nextPageToken) {
-      console.log('[Sync] Initial activity poll returned a truncated page while setting the watermark', {
-        pageSize: ACTIVITY_PAGE_SIZE,
-        eventCount: response.events.length,
-        newestEventId: state.lastEventId,
-      })
-    }
     return []
   }
 
@@ -568,17 +538,21 @@ async function fetchNewEvents(): Promise<Event[]> {
     const response = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: ACTIVITY_PAGE_SIZE,
+      filterEventType: ACTIVITY_BLOB_TYPES,
       order: FeedOrder.OBSERVED_TIME,
     })
 
+    let reachedWatermark = false
     for (const event of response.events) {
-      const eventId = getEventId(event)
-      if (eventId === state.lastEventId) {
-        return eventsToProcess
+      const blobId = getBlobId(event)
+      if (blobId <= state.lastBlobId) {
+        reachedWatermark = true
+        break
       }
       eventsToProcess.push(event)
     }
 
+    if (reachedWatermark) break
     if (!response.nextPageToken) break
     currentPageToken = response.nextPageToken
   }
@@ -586,7 +560,9 @@ async function fetchNewEvents(): Promise<Event[]> {
   return eventsToProcess
 }
 
+const startTime = Date.now()
 async function pollActivity() {
+  console.log('[Sync] Polling activity', {sinceStartMs: Date.now() - startTime})
   if (state.isPolling) return
   state.isPolling = true
 
@@ -594,17 +570,17 @@ async function pollActivity() {
     await timeAsync('pollActivity', async () => {
       const newEvents = await fetchNewEvents()
       if (newEvents.length > 0) {
+        const highestBlobId = getBlobId(newEvents[0]!)
         console.log('[Sync] Activity poll found new events', {
           eventCount: newEvents.length,
-          previousWatermarkEventId: state.lastEventId,
-          nextWatermarkEventId: getEventId(newEvents[0]!),
-          filterEventType: ACTIVITY_EVENT_FILTER,
+          previousWatermarkBlobId: state.lastBlobId.toString(),
+          nextWatermarkBlobId: highestBlobId.toString(),
         })
         if (PROFILE_ENABLED) {
           profileLog(`pollActivity: ${newEvents.length} new events`)
         }
         processEvents(newEvents)
-        state.lastEventId = getEventId(newEvents[0]!)
+        state.lastBlobId = highestBlobId
       }
     })
   } catch (error) {
@@ -615,9 +591,12 @@ async function pollActivity() {
 }
 
 function scheduleNextActivityPoll() {
+  if (state.activityPollTimer) {
+    clearTimeout(state.activityPollTimer)
+  }
   state.activityPollTimer = setTimeout(() => {
     pollActivity().finally(() => {
-      if (state.activityPollTimer) {
+      if (state.activityPollTimer !== null) {
         scheduleNextActivityPoll()
       }
     })
@@ -631,7 +610,7 @@ function ensureActivityPolling() {
   state.activityPollTimer = setTimeout(() => {}, 0)
   ensureFocusListener()
   console.log('[Sync] Starting activity monitor', {
-    filterEventType: ACTIVITY_EVENT_FILTER,
+    filterEventType: ACTIVITY_BLOB_TYPES,
     pageSize: ACTIVITY_PAGE_SIZE,
     intervalMs: getAdaptiveInterval(ACTIVITY_POLL_INTERVAL_MS),
   })
@@ -658,8 +637,7 @@ let _focusCleanup: (() => void) | null = null
 function ensureFocusListener() {
   if (_focusCleanup) return
   _focusCleanup = onAppFocusChange(() => {
-    // Restart activity polling timer with updated multiplier
-    if (state.activityPollTimer) {
+    if (state.activityPollTimer && !state.isPolling) {
       clearTimeout(state.activityPollTimer)
       scheduleNextActivityPoll()
     }
@@ -751,16 +729,16 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
-    console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
+    // console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
   }
 
   updateAggregatedDiscoveryState()
 
   // After discovery, check resource status via GetResource
   const status = await checkResourceStatus(id)
-  if (!PROFILE_ENABLED) {
-    console.log(`[Discovery] ${id.id}: status=${status}`)
-  }
+  // if (!PROFILE_ENABLED) {
+  //   console.log(`[Discovery] ${id.id}: status=${status}`)
+  // }
 
   // Get current stream state to detect transitions
   const currentState = discoveryStream.stream.get()
