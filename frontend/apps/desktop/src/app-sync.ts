@@ -15,7 +15,7 @@ import {
   DiscoveryState,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {Event} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
+import {Event, FeedOrder} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {getErrorMessage, HMRedirectError, HMResourceTombstoneError} from '@shm/shared/models/entity'
@@ -540,6 +540,7 @@ async function fetchNewEvents(): Promise<Event[]> {
     // First poll: set a watermark so existing feed events are not replayed.
     const response = await grpcClient.activityFeed.listEvents({
       pageSize: ACTIVITY_PAGE_SIZE,
+      order: FeedOrder.OBSERVED_TIME,
     })
     if (response.events[0]) {
       state.lastEventId = getEventId(response.events[0])
@@ -567,6 +568,7 @@ async function fetchNewEvents(): Promise<Event[]> {
     const response = await grpcClient.activityFeed.listEvents({
       pageToken: currentPageToken,
       pageSize: ACTIVITY_PAGE_SIZE,
+      order: FeedOrder.OBSERVED_TIME,
     })
 
     for (const event of response.events) {

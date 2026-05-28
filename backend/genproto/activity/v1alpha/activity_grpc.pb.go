@@ -28,8 +28,7 @@ const (
 //
 // ActivityFeed service provides information about the recent activity events happened in the system.
 type ActivityFeedClient interface {
-	// Lists the recent activity events,
-	// sorted by locally observed time (newest first).
+	// Lists the recent activity events.
 	ListEvents(ctx context.Context, in *ListEventsRequest, opts ...grpc.CallOption) (*ListEventsResponse, error)
 }
 
@@ -57,8 +56,7 @@ func (c *activityFeedClient) ListEvents(ctx context.Context, in *ListEventsReque
 //
 // ActivityFeed service provides information about the recent activity events happened in the system.
 type ActivityFeedServer interface {
-	// Lists the recent activity events,
-	// sorted by locally observed time (newest first).
+	// Lists the recent activity events.
 	ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error)
 }
 

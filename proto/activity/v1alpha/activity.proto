@@ -9,9 +9,17 @@ option go_package = "seed/backend/genproto/activity/v1alpha;activity";
 
 // ActivityFeed service provides information about the recent activity events happened in the system.
 service ActivityFeed {
-  // Lists the recent activity events,
-  // sorted by locally observed time (newest first).
+  // Lists the recent activity events.
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+}
+
+// The order used when listing activity feed events.
+enum FeedOrder {
+  // Default. Order by the timestamp claimed by the event/blob.
+  FEED_ORDER_CLAIMED_TIME = 0;
+
+  // Order by the time the event/blob was observed locally.
+  FEED_ORDER_OBSERVED_TIME = 1;
 }
 
 // The request to list the events.
@@ -48,6 +56,9 @@ message ListEventsRequest {
   // Optional. If we want events only from specific resource IDs.
   // It admits wildards, i.e. we can filter by path prefixes.
   string filter_resource = 6;
+
+  // Optional. Controls feed ordering. Defaults to claimed event/blob time.
+  FeedOrder order = 7;
 }
 
 // The response with the list of events.
