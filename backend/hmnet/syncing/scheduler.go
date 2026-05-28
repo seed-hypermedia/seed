@@ -127,10 +127,10 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 	}
 
 	s := &scheduler{
-		disc:        disc,
-		cfg:         cfg,
-		timer:       time.NewTimer(0),
-		tasks:       make(map[DiscoveryKey]*taskHandle),
+		disc:   disc,
+		cfg:    cfg,
+		timer:  time.NewTimer(0),
+		tasks:  make(map[DiscoveryKey]*taskHandle),
 		hotTTL: defaultHotTTL,
 		// Two-tier priority: hot tasks always before cold. Within hot tier,
 		// LIFO by hotDeadline desc (most recently touched wins); within cold
@@ -307,11 +307,40 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 
 	if forceImmediate || task.runCount == 0 {
 		s.scheduleNext(task, now, forceImmediate)
-	} else if opts.isHot && task.queueIndex.IsSet() {
-		// Re-touching an already-queued task: its hot deadline changed, which
-		// may move it up in the hot tier (LIFO ordering) or migrate it from
-		// cold into hot. Re-seat it in the queue without changing nextRunTime.
-		s.enqueueLocked(task, now)
+	} else if opts.isHot {
+		retryNow := false
+		if task.lastErr != nil {
+			retryNow = true
+		}
+		if task.key.Version != "" && task.result != task.key.Version {
+			retryNow = true
+		}
+		if task.result == "" {
+			var peersSyncedOK int32
+			if task.progress != nil {
+				peersSyncedOK = task.progress.PeersSyncedOK.Load()
+			}
+			if peersSyncedOK == 0 {
+				retryNow = true
+			}
+		}
+		if retryNow {
+			task.nextRunTime = now
+			if task.result == "" && task.lastErr == nil {
+				// An empty result with no successful peer sync usually means
+				// we ran before Connect/Identify-side peer bookkeeping caught
+				// up. Don't report it as a final completed discovery while a
+				// hot caller is still polling; enqueue an immediate retry.
+				task.state = TaskStateIdle
+				task.progress = nil
+			}
+			s.enqueueLocked(task, now)
+		} else if task.queueIndex.IsSet() {
+			// Re-touching an already-queued task: its hot deadline changed, which
+			// may move it up in the hot tier (LIFO ordering) or migrate it from
+			// cold into hot. Re-seat it in the queue without changing nextRunTime.
+			s.enqueueLocked(task, now)
+		}
 	}
 
 	return task.Info()

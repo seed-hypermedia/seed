@@ -237,6 +237,76 @@ func TestScheduler_OnDemandDeadlineExpiry(t *testing.T) {
 	s.mu.Unlock()
 }
 
+func TestScheduler_HotRetouchRetriesIncompleteCompletedTask(t *testing.T) {
+	t.Run("empty result with no successful peer sync is not final", func(t *testing.T) {
+		s := newScheduler(nil, testConfig(10*time.Second, 1))
+		now := time.Now()
+		retouchAt := now.Add(time.Millisecond)
+		key := DiscoveryKey{IRI: "hm://alice/missing"}
+
+		s.scheduleTask(key, now, schedOpts{isHot: true})
+
+		s.mu.Lock()
+		task := s.tasks[key]
+		require.NotNil(t, task)
+		if task.queueIndex.IsSet() {
+			s.queue.Remove(task.queueIndex.Value())
+		}
+		task.state = TaskStateCompleted
+		task.runCount = 1
+		task.result = ""
+		task.lastErr = nil
+		task.progress = &Progress{}
+		task.nextRunTime = now.Add(defaultHotCooldown)
+		s.enqueueLocked(task, now)
+		s.mu.Unlock()
+
+		info := s.scheduleTask(key, retouchAt, schedOpts{isHot: true})
+		require.Equal(t, TaskStateIdle, info.State, "no-peer empty result must be retried instead of reported completed")
+
+		s.mu.Lock()
+		task = s.tasks[key]
+		require.NotNil(t, task)
+		require.Equal(t, retouchAt, task.nextRunTime)
+		require.Equal(t, tierHot, task.queueTier)
+		s.mu.Unlock()
+	})
+
+	t.Run("wrong requested version retries immediately", func(t *testing.T) {
+		s := newScheduler(nil, testConfig(10*time.Second, 1))
+		now := time.Now()
+		retouchAt := now.Add(time.Millisecond)
+		key := DiscoveryKey{IRI: "hm://alice/doc", Version: "want"}
+		progress := &Progress{}
+		progress.PeersSyncedOK.Add(1)
+
+		s.scheduleTask(key, now, schedOpts{isHot: true})
+
+		s.mu.Lock()
+		task := s.tasks[key]
+		require.NotNil(t, task)
+		if task.queueIndex.IsSet() {
+			s.queue.Remove(task.queueIndex.Value())
+		}
+		task.state = TaskStateCompleted
+		task.runCount = 1
+		task.result = "got"
+		task.progress = progress
+		task.nextRunTime = now.Add(defaultHotCooldown)
+		s.enqueueLocked(task, now)
+		s.mu.Unlock()
+
+		_ = s.scheduleTask(key, retouchAt, schedOpts{isHot: true})
+
+		s.mu.Lock()
+		task = s.tasks[key]
+		require.NotNil(t, task)
+		require.Equal(t, retouchAt, task.nextRunTime)
+		require.Equal(t, tierHot, task.queueTier)
+		s.mu.Unlock()
+	})
+}
+
 // TestScheduler_HeapIndexCorrectness verifies that heapIndex is correctly tracked
 // after heap operations (push, pop, fix). This tests for a bug where OnSwap callback
 // was recording indices incorrectly.

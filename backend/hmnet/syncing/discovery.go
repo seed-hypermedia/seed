@@ -110,11 +110,46 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
+	seenPeers := make(map[peer.ID]struct{})
+	addPeer := func(pid peer.ID) {
+		if pid == "" {
+			return
+		}
+		if _, ok := seenPeers[pid]; ok {
+			return
+		}
+		seenPeers[pid] = struct{}{}
+		allPeers = append(allPeers, pid)
+	}
 	peerSelectStart := time.Now()
 	// targetDiscoveryPeers is the fan-out we want from syncWithManyPeers.
 	// Currently-connected peers count first; if we have fewer than this,
 	// we backfill from the most-recently-active stored peers.
 	const targetDiscoveryPeers = 30
+	livePeerSupportsProtocol := func(pid peer.ID) bool {
+		if s.pc.checker == nil {
+			return true
+		}
+		protos, err := s.host.Peerstore().GetProtocols(pid)
+		if err != nil || len(protos) == 0 {
+			return false
+		}
+		return s.pc.checker(ctxLocalPeers, pid, s.pc.version, protos...) == nil
+	}
+	// Live libp2p connections are the source of truth for immediate
+	// discovery. The peers table is updated asynchronously by peerWriter after
+	// Connect/Identify, so a caller can ForceConnect and then DiscoverEntity
+	// before the row is committed. We still require already-known protocol
+	// support before using a live peer: unsupported/unknown peers are skipped
+	// here and can be retried by the hot-task scheduler once Identify catches
+	// up or by the persisted peers-table path after the protocol hook stores
+	// them.
+	for _, pid := range s.host.Network().Peers() {
+		if !livePeerSupportsProtocol(pid) {
+			continue
+		}
+		addPeer(pid)
+	}
 	// Step 1 — covering-index scan over peers.pid (no addresses, no other
 	// columns). This stays on the unique pid index — verified by EXPLAIN —
 	// so it doesn't touch the main rowid btree or the fat addresses overflow
@@ -129,7 +164,10 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 				return nil
 			}
 			if s.host.Network().Connectedness(peerID) == network.Connected {
-				allPeers = append(allPeers, peerID)
+				addPeer(peerID)
+				return nil
+			}
+			if _, ok := seenPeers[peerID]; ok {
 				return nil
 			}
 			// Collect every disconnected pid so step 2's
@@ -171,7 +209,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 					return nil
 				}
 				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-				allPeers = append(allPeers, info.ID)
+				addPeer(info.ID)
 				return nil
 			}, args...)
 		}); err != nil {

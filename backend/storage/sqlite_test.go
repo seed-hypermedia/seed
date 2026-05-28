@@ -3,17 +3,29 @@ package storage
 import (
 	"context"
 	"math"
+	"net/url"
 	"os"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitedbg"
+	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+var sqliteTestMemoryDBCounter atomic.Uint64
+
+func sqliteTestMemoryURI(t testing.TB) string {
+	t.Helper()
+
+	name := t.Name() + "-" + strconv.FormatUint(sqliteTestMemoryDBCounter.Add(1), 10)
+	return "file:" + url.PathEscape(name) + "?mode=memory&cache=shared"
+}
+
 func TestSQLite(t *testing.T) {
-	pool, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 1)
 	require.NoError(t, err)
 
 	defer pool.Close()
@@ -23,7 +35,7 @@ func TestSQLite(t *testing.T) {
 }
 
 func TestRoaring(t *testing.T) {
-	pool, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 1)
 	require.NoError(t, err)
 
 	defer pool.Close()
@@ -47,7 +59,7 @@ INSERT INTO data VALUES (rb64_create(1,2,3,4,5,6,200,100,300,400));
 }
 
 func TestSqliteVec(t *testing.T) {
-	pool, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 1)
 	require.NoError(t, err)
 
 	defer pool.Close()
@@ -290,7 +302,7 @@ func TestSqliteVec(t *testing.T) {
 }
 
 func TestBase58BTC(t *testing.T) {
-	pool, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 1)
 	require.NoError(t, err)
 	defer pool.Close()
 
