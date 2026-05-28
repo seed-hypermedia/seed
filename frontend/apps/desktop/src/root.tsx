@@ -175,6 +175,12 @@ function useDarkMode(): boolean {
 // Register the desktop QueryClient so shared invalidateQueries() works
 registerQueryClient(queryClient)
 
+// Dev-only: expose the QueryClient on window so we can poke the React Query cache from
+// DevTools (e.g. forcing transient resource errors to verify the document banner).
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+  ;(window as any).__qc = queryClient
+}
+
 // Broadcast invalidations to all windows via IPC (local invalidation handled by invalidateQueries itself)
 onQueryInvalidation((queryKey: QueryKey) => {
   ipc.send?.('invalidate_queries', queryKey)
