@@ -926,6 +926,55 @@ function environmentPresets(env) {
 function defaultReleaseChannel(env) {
   return env === "dev" ? "dev" : "latest";
 }
+var CUSTOM_RELEASE_CHANNEL = "__custom__";
+function isPresetReleaseChannel(channel) {
+  return channel === "latest" || channel === "dev";
+}
+function validateDockerImageTag(tag) {
+  if (!tag)
+    return "Required";
+  if (tag.trim() !== tag)
+    return "Remove leading or trailing spaces";
+  if (tag.length > 128)
+    return "Must be 128 characters or fewer";
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(tag)) {
+    return "Use a Docker image tag: letters, numbers, _, . or -; must start with a letter, number or _";
+  }
+}
+async function promptReleaseChannel(options) {
+  const initialTag = options.initialTag ?? defaultReleaseChannel(options.environment);
+  const hasCustomTag = !isPresetReleaseChannel(initialTag);
+  const selected = await de({
+    message: "Release channel",
+    initialValue: hasCustomTag ? CUSTOM_RELEASE_CHANNEL : initialTag,
+    options: [
+      {
+        value: "latest",
+        label: "Stable",
+        hint: "official releases, recommended for production"
+      },
+      {
+        value: "dev",
+        label: "Bleeding edge",
+        hint: "main branch builds, may be unstable"
+      },
+      {
+        value: CUSTOM_RELEASE_CHANNEL,
+        label: "Custom tag",
+        hint: "run images from a specific Docker tag or branch build"
+      }
+    ]
+  });
+  if (BD(selected) || selected !== CUSTOM_RELEASE_CHANNEL) {
+    return selected;
+  }
+  return ue({
+    message: "Custom Docker image tag",
+    initialValue: hasCustomTag ? initialTag : undefined,
+    placeholder: "feature-branch",
+    validate: validateDockerImageTag
+  });
+}
 async function configExists(paths) {
   try {
     await access(paths.configPath);
@@ -1223,21 +1272,9 @@ async function runMigrationWizard(old, paths, shell) {
         }
       ]
     }),
-    release_channel: ({ results }) => de({
-      message: "Release channel",
-      initialValue: old.imageTag === "dev" ? "dev" : defaultReleaseChannel(results.environment),
-      options: [
-        {
-          value: "latest",
-          label: "Stable",
-          hint: "official releases, recommended for production"
-        },
-        {
-          value: "dev",
-          label: "Development",
-          hint: "bleeding-edge main branch builds, may be unstable"
-        }
-      ]
+    release_channel: ({ results }) => promptReleaseChannel({
+      initialTag: old.imageTag,
+      environment: results.environment
     }),
     log_level: () => de({
       message: "Log level",
@@ -1368,21 +1405,9 @@ async function runFreshWizard(paths, existing) {
         }
       ]
     }),
-    release_channel: ({ results }) => de({
-      message: "Release channel",
-      initialValue: existing?.release_channel ?? defaultReleaseChannel(results.environment),
-      options: [
-        {
-          value: "latest",
-          label: "Stable",
-          hint: "official releases, recommended for production"
-        },
-        {
-          value: "dev",
-          label: "Development",
-          hint: "bleeding-edge main branch builds, may be unstable"
-        }
-      ]
+    release_channel: ({ results }) => promptReleaseChannel({
+      initialTag: existing?.release_channel,
+      environment: results.environment
     }),
     log_level: () => de({
       message: "Log level for Seed services",
@@ -2537,6 +2562,7 @@ if (import.meta.main) {
 }
 export {
   writeConfig,
+  validateDockerImageTag,
   sha256,
   setupCron,
   selfUpdate,

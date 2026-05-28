@@ -35,6 +35,7 @@ import {
   ensureSeedDir,
   environmentPresets,
   defaultReleaseChannel,
+  validateDockerImageTag,
   buildCrontab,
   parseArgs,
   extractSeedCronLines,
@@ -260,6 +261,23 @@ describe('defaultReleaseChannel', () => {
 
   test('dev defaults to dev', () => {
     expect(defaultReleaseChannel('dev')).toBe('dev')
+  })
+})
+
+describe('validateDockerImageTag', () => {
+  test('accepts preset and custom Docker tags', () => {
+    expect(validateDockerImageTag('latest')).toBeUndefined()
+    expect(validateDockerImageTag('dev')).toBeUndefined()
+    expect(validateDockerImageTag('feature-branch')).toBeUndefined()
+    expect(validateDockerImageTag('release_2026.05')).toBeUndefined()
+  })
+
+  test('rejects tags Docker cannot pull', () => {
+    expect(validateDockerImageTag('')).toBe('Required')
+    expect(validateDockerImageTag(' feature')).toContain('spaces')
+    expect(validateDockerImageTag('feature/foo')).toContain('Docker image tag')
+    expect(validateDockerImageTag('-feature')).toContain('Docker image tag')
+    expect(validateDockerImageTag('a'.repeat(129))).toContain('128')
   })
 })
 
@@ -513,6 +531,9 @@ describe('buildComposeEnv', () => {
     expect(buildComposeEnv(makeTestConfig({release_channel: 'dev'}), makePaths())).toContain('SEED_SITE_TAG="dev"')
     expect(buildComposeEnv(makeTestConfig({release_channel: 'latest'}), makePaths())).toContain(
       'SEED_SITE_TAG="latest"',
+    )
+    expect(buildComposeEnv(makeTestConfig({release_channel: 'feature-branch'}), makePaths())).toContain(
+      'SEED_SITE_TAG="feature-branch"',
     )
   })
 
@@ -826,6 +847,23 @@ describe('checkForNewImages', () => {
     })
     const result = await checkForNewImages(config, paths, shell)
     expect(result).toBe(true)
+  })
+
+  test('uses the configured custom image tag when cron checks for updates', async () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      'docker compose': '',
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:feature-branch',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:feature-branch',
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      "image inspect seedhypermedia/web:feature-branch --format '{{.Id}}'": 'sha256:bbb',
+      "image inspect seedhypermedia/site:feature-branch --format '{{.Id}}'": 'sha256:ccc',
+    })
+    const result = await checkForNewImages({...config, release_channel: 'feature-branch'}, paths, shell)
+    expect(result).toBe(false)
   })
 })
 

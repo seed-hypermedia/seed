@@ -237,6 +237,62 @@ export function defaultReleaseChannel(env: SeedConfig['environment']): string {
   return env === 'dev' ? 'dev' : 'latest'
 }
 
+const CUSTOM_RELEASE_CHANNEL = '__custom__'
+
+function isPresetReleaseChannel(channel: string | null | undefined): channel is 'latest' | 'dev' {
+  return channel === 'latest' || channel === 'dev'
+}
+
+/** Validate a Docker image tag entered at the setup/reconfigure boundary. */
+export function validateDockerImageTag(tag: string): string | undefined {
+  if (!tag) return 'Required'
+  if (tag.trim() !== tag) return 'Remove leading or trailing spaces'
+  if (tag.length > 128) return 'Must be 128 characters or fewer'
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(tag)) {
+    return 'Use a Docker image tag: letters, numbers, _, . or -; must start with a letter, number or _'
+  }
+}
+
+async function promptReleaseChannel(options: {
+  initialTag: string | null | undefined
+  environment: SeedConfig['environment']
+}): Promise<string | symbol> {
+  const initialTag = options.initialTag ?? defaultReleaseChannel(options.environment)
+  const hasCustomTag = !isPresetReleaseChannel(initialTag)
+  const selected = await p.select<string>({
+    message: 'Release channel',
+    initialValue: hasCustomTag ? CUSTOM_RELEASE_CHANNEL : initialTag,
+    options: [
+      {
+        value: 'latest',
+        label: 'Stable',
+        hint: 'official releases, recommended for production',
+      },
+      {
+        value: 'dev',
+        label: 'Bleeding edge',
+        hint: 'main branch builds, may be unstable',
+      },
+      {
+        value: CUSTOM_RELEASE_CHANNEL,
+        label: 'Custom tag',
+        hint: 'run images from a specific Docker tag or branch build',
+      },
+    ],
+  })
+
+  if (p.isCancel(selected) || selected !== CUSTOM_RELEASE_CHANNEL) {
+    return selected
+  }
+
+  return p.text({
+    message: 'Custom Docker image tag',
+    initialValue: hasCustomTag ? initialTag : undefined,
+    placeholder: 'feature-branch',
+    validate: validateDockerImageTag,
+  })
+}
+
 export async function configExists(paths: DeployPaths): Promise<boolean> {
   try {
     await access(paths.configPath)
@@ -669,24 +725,9 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
           ],
         }),
       release_channel: ({results}) =>
-        p.select({
-          message: 'Release channel',
-          initialValue:
-            old.imageTag === 'dev'
-              ? 'dev'
-              : defaultReleaseChannel(results.environment as SeedConfig['environment']),
-          options: [
-            {
-              value: 'latest',
-              label: 'Stable',
-              hint: 'official releases, recommended for production',
-            },
-            {
-              value: 'dev',
-              label: 'Development',
-              hint: 'bleeding-edge main branch builds, may be unstable',
-            },
-          ],
+        promptReleaseChannel({
+          initialTag: old.imageTag,
+          environment: results.environment as SeedConfig['environment'],
         }),
       log_level: () =>
         p.select({
@@ -844,23 +885,9 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
           ],
         }),
       release_channel: ({results}) =>
-        p.select({
-          message: 'Release channel',
-          initialValue:
-            existing?.release_channel ??
-            defaultReleaseChannel(results.environment as SeedConfig['environment']),
-          options: [
-            {
-              value: 'latest',
-              label: 'Stable',
-              hint: 'official releases, recommended for production',
-            },
-            {
-              value: 'dev',
-              label: 'Development',
-              hint: 'bleeding-edge main branch builds, may be unstable',
-            },
-          ],
+        promptReleaseChannel({
+          initialTag: existing?.release_channel,
+          environment: results.environment as SeedConfig['environment'],
         }),
       log_level: () =>
         p.select({

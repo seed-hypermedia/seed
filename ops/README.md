@@ -45,10 +45,11 @@ The production bundle (`deploy.js`) is built by CI and distributed as a GitHub R
 When no `config.json` exists, the script launches a terminal wizard:
 
 1. **Public hostname** — the `https://` URL for the node (required)
-2. **Environment** — Production / Staging / Development
-3. **Log level** — Debug / Info / Warn / Error
-4. **Gateway mode** — whether the node serves all known public content
-5. **Contact email** — optional, for security update notifications
+2. **Environment** — Production / Development
+3. **Release channel** — Stable (`latest`), Bleeding edge (`dev`), or a custom Docker image tag
+4. **Log level** — Debug / Info / Warn / Error
+5. **Gateway mode** — whether the node serves all known public content
+6. **Contact email** — optional, for security update notifications
 
 The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
 values from the old config.
@@ -100,14 +101,24 @@ seed-deploy [command] [options]
 | `-h`, `--help`    | Show help message                               |
 | `-v`, `--version` | Show script version                             |
 
-## Environment Presets
+## Environment Presets and Image Tags
 
-A single "Environment" choice controls multiple settings:
+The "Environment" choice controls network defaults, and the "Release channel" choice controls the Docker image tag.
 
 | Environment     | Image Tag | Network | Use Case                                    |
 | --------------- | --------- | ------- | ------------------------------------------- |
 | **Production**  | `latest`  | Mainnet | Stable releases (recommended)               |
 | **Development** | `dev`     | Testnet | Development builds on isolated test network |
+
+The release channel wizard also supports **Custom tag** for testing branch builds or any other Docker tag:
+
+```sh
+seed-deploy deploy --reconfigure
+```
+
+Choose **Custom tag**, then enter the exact image tag that CI pushed, for example `feature-branch`. Automatic cron
+updates keep following the saved tag by pulling `seedhypermedia/web:<tag>` and `seedhypermedia/site:<tag>` on each run.
+Docker tags cannot contain `/`; if your branch name contains slashes, use the Docker-safe tag produced by CI.
 
 ## Configuration
 
