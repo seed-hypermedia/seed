@@ -69,6 +69,19 @@ type head struct {
 	Codec     uint64 `json:"codec"`
 }
 
+const (
+	feedCursorKindBlob = iota
+	feedCursorKindMention
+)
+
+type feedCursor struct {
+	cursorValue int64
+	blobID      int64
+	kind        int
+	linkID      int64
+	key         string
+}
+
 var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`)
 
 // NewServer creates a new Server.
@@ -101,8 +114,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 	var events []*activity.Event
-	// Track the feed-order cursor value used for DB paging, aligned with events slice.
-	var eventCursorValues []int64
+	// Track the feed-order cursor used for DB paging and stable same-blob
+	// tie-breaking, aligned with events slice.
+	var eventCursors []feedCursor
 	orderByObserved := req.Order == activity.FeedOrder_FEED_ORDER_OBSERVED_TIME
 	srv.log.Debug("Listing events", zap.Int64("cursor_value", cursorValue), zap.String("order", req.Order.String()))
 	var filtersStr string
@@ -304,7 +318,12 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if orderByObserved {
 				cursor = id
 			}
-			eventCursorValues = append(eventCursorValues, cursor)
+			eventCursors = append(eventCursors, feedCursor{
+				cursorValue: cursor,
+				blobID:      id,
+				kind:        feedCursorKindBlob,
+				key:         cID.String(),
+			})
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(10), 10))
 			return nil
 		}, cursorValue, req.PageSize)
@@ -463,6 +482,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 				tsid        = blob.TSID(stmt.ColumnText(13))
 				//extraAttrs  = stmt.ColumnText(14)
+				linkID         = stmt.ColumnInt64(15)
 				isDeleted      = stmt.ColumnText(16) == "1"
 				source         = stmt.ColumnText(18)
 				sourceResource = stmt.ColumnText(19)
@@ -506,7 +526,20 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if orderByObserved {
 				cursor = blobID
 			}
-			eventCursorValues = append(eventCursorValues, cursor)
+			eventCursors = append(eventCursors, feedCursor{
+				cursorValue: cursor,
+				blobID:      blobID,
+				kind:        feedCursorKindMention,
+				linkID:      linkID,
+				key: strings.Join([]string{
+					sourceBlob,
+					linkType,
+					target,
+					targetVersion,
+					fragment,
+					source,
+				}, "\x00"),
+			})
 			return nil
 		}, args...); err != nil {
 			return err
@@ -565,21 +598,21 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 
 	nonDeleted := make([]*activity.Event, 0, len(events))
-	nonDeletedCursors := make([]int64, 0, len(eventCursorValues))
+	nonDeletedCursors := make([]feedCursor, 0, len(eventCursors))
 	for i, e := range events {
 		// switch on event type
 		// for mentions
 		if _, ok := e.Data.(*activity.Event_NewMention); ok {
 			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
 				nonDeleted = append(nonDeleted, e)
-				nonDeletedCursors = append(nonDeletedCursors, eventCursorValues[i])
+				nonDeletedCursors = append(nonDeletedCursors, eventCursors[i])
 			}
 			continue
 		}
 		// for new blobs
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
 			nonDeleted = append(nonDeleted, e)
-			nonDeletedCursors = append(nonDeletedCursors, eventCursorValues[i])
+			nonDeletedCursors = append(nonDeletedCursors, eventCursors[i])
 		}
 	}
 
@@ -592,8 +625,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// mirror it here so dropping the GROUP BY doesn't surface duplicate
 	// mention rows that only differ in non-grouped columns (rl.id,
 	// is_pinned, anchor, etc.). Run before the (Target, SourceType,
-	// Account, EventTime) dedup so the first matching row wins, matching
-	// SQLite's arbitrary-row-per-group behaviour.
+	// Account, EventTime) dedup so the first matching row wins from a
+	// deterministic same-blob order, without depending on SQLite's
+	// arbitrary row choice.
+	sortFeedEvents(nonDeleted, nonDeletedCursors, orderByObserved)
+
 	seenMentionGroup := make(map[string]struct{})
 	for i := 0; i < len(nonDeleted); i++ {
 		e := nonDeleted[i]
@@ -639,30 +675,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 
-	// Sort and paginate according to the requested feed order.
-	idx := make([]int, len(nonDeleted))
-	for i := range idx {
-		idx[i] = i
-	}
-	sort.Slice(idx, func(i, j int) bool {
-		if orderByObserved {
-			return nonDeletedCursors[idx[i]] > nonDeletedCursors[idx[j]]
-		}
-		return nonDeleted[idx[i]].EventTime.AsTime().After(nonDeleted[idx[j]].EventTime.AsTime())
-	})
-	sortedEvents := make([]*activity.Event, len(nonDeleted))
-	sortedCursorValues := make([]int64, len(nonDeletedCursors))
-	for k, i := range idx {
-		sortedEvents[k] = nonDeleted[i]
-		sortedCursorValues[k] = nonDeletedCursors[i]
-	}
-	events = sortedEvents
-	eventCursorValues = sortedCursorValues
+	events = nonDeleted
+	eventCursors = nonDeletedCursors
 
 	// Apply page size to both arrays.
 	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
 	events = events[:pageLen]
-	eventCursorValues = eventCursorValues[:pageLen]
+	eventCursors = eventCursors[:pageLen]
 
 	if srv.telemetry != nil {
 		now := time.Now()
@@ -696,10 +715,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	rawHasMore := mainRawCount >= int(req.PageSize) || mentionsRawCount >= int(req.PageSize)
 	var nextPageToken string
 	if pageLen > 0 && rawHasMore {
-		minCursor := eventCursorValues[0]
-		for _, cursor := range eventCursorValues[1:] {
-			if cursor != 0 && (minCursor == 0 || cursor < minCursor) {
-				minCursor = cursor
+		minCursor := eventCursors[0].cursorValue
+		for _, cursor := range eventCursors[1:] {
+			if cursor.cursorValue != 0 && (minCursor == 0 || cursor.cursorValue < minCursor) {
+				minCursor = cursor.cursorValue
 			}
 		}
 		if minCursor != 0 {
@@ -711,6 +730,45 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		Events:        events,
 		NextPageToken: nextPageToken,
 	}, err
+}
+
+func sortFeedEvents(events []*activity.Event, cursors []feedCursor, orderByObserved bool) {
+	idx := make([]int, len(events))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.Slice(idx, func(i, j int) bool {
+		aIdx := idx[i]
+		bIdx := idx[j]
+		a := cursors[aIdx]
+		b := cursors[bIdx]
+		if orderByObserved {
+			if a.cursorValue != b.cursorValue {
+				return a.cursorValue > b.cursorValue
+			}
+		} else if cmp := events[aIdx].EventTime.AsTime().Compare(events[bIdx].EventTime.AsTime()); cmp != 0 {
+			return cmp > 0
+		}
+		switch {
+		case a.blobID != b.blobID:
+			return a.blobID > b.blobID
+		case a.kind != b.kind:
+			return a.kind < b.kind
+		case a.linkID != b.linkID:
+			return a.linkID < b.linkID
+		default:
+			return a.key < b.key
+		}
+	})
+
+	sortedEvents := make([]*activity.Event, len(events))
+	sortedCursors := make([]feedCursor, len(cursors))
+	for k, i := range idx {
+		sortedEvents[k] = events[i]
+		sortedCursors[k] = cursors[i]
+	}
+	copy(events, sortedEvents)
+	copy(cursors, sortedCursors)
 }
 
 // newBlobTelemetryKey builds the correlation key used by the journeys

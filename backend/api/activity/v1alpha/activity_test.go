@@ -7,6 +7,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
+	entity_proto "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
@@ -280,6 +281,84 @@ func TestListEventsCommentExtraAttrsContainsTarget(t *testing.T) {
 	var attrs map[string]any
 	require.NoError(t, json.Unmarshal([]byte(evt.GetExtraAttrs()), &attrs))
 	require.Equal(t, targetIRI, attrs["target"])
+}
+
+func TestListEventsOrdersSameBlobMentionsByLinkID(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	sourceDocument := "hm://" + author.String() + "/project-plan"
+	earlyTarget := "hm://" + author.String() + "/early-target"
+	lateTarget := "hm://" + author.String() + "/late-target"
+	commentTime := time.UnixMilli(2_000).UTC().Round(blob.ClockPrecision)
+	commentTSID := blob.NewTSID(commentTime, []byte("comment mentions two docs"))
+	commentAttrs := fmt.Sprintf(`{"tsid":%q}`, commentTSID.String())
+	commentHash, err := multihash.Sum([]byte("comment mentions two docs"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (10, ?, ?, ?, 1, 10);`, nil, []byte(commentHash), int64(0x71), []byte{1}); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri, owner, genesis_blob, create_time) VALUES (1, ?, 1, 10, 0), (2, ?, 1, NULL, 0), (3, ?, 1, NULL, 0);`, nil, sourceDocument, earlyTarget, lateTarget); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, genesis_blob, extra_attrs) VALUES (10, 'Comment', ?, 1, 1, 10, ?);`, nil, commentTime.UnixMilli(), commentAttrs); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO resource_links (id, source, target, type, is_pinned, extra_attrs) VALUES (30, 10, 3, 'comment/Embed', 0, '{"a":"late-link"}');`, nil); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (id, source, target, type, is_pinned, extra_attrs) VALUES (20, 10, 2, 'comment/Embed', 0, '{"a":"early-link"}');`, nil)
+	}))
+
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        10,
+		FilterEventType: []string{"Comment", "comment/Embed"},
+	})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 3)
+	require.NotNil(t, events.Events[0].GetNewBlob())
+	require.Equal(t, earlyTarget, events.Events[1].GetNewMention().GetTarget())
+	require.Equal(t, lateTarget, events.Events[2].GetNewMention().GetTarget())
+}
+
+func TestSortFeedEventsUsesSameBlobTieBreakers(t *testing.T) {
+	events := []*activity.Event{
+		{Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{Target: "hm://target-b"}}},
+		{Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{Cid: "newer"}}},
+		{Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{Cid: "same-blob"}}},
+		{Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{Target: "hm://target-a"}}},
+	}
+	cursors := []feedCursor{
+		{cursorValue: 10, blobID: 10, kind: feedCursorKindMention, linkID: 30, key: "target-b"},
+		{cursorValue: 11, blobID: 11, kind: feedCursorKindBlob, key: "newer"},
+		{cursorValue: 10, blobID: 10, kind: feedCursorKindBlob, key: "same-blob"},
+		{cursorValue: 10, blobID: 10, kind: feedCursorKindMention, linkID: 20, key: "target-a"},
+	}
+
+	sortFeedEvents(events, cursors, true)
+
+	var got []string
+	for _, event := range events {
+		if nb := event.GetNewBlob(); nb != nil {
+			got = append(got, "blob:"+nb.GetCid())
+			continue
+		}
+		got = append(got, "mention:"+event.GetNewMention().GetTarget())
+	}
+	require.Equal(t, []string{
+		"blob:newer",
+		"blob:same-blob",
+		"mention:hm://target-a",
+		"mention:hm://target-b",
+	}, got)
 }
 
 // TODO: update profile idempotent no change
