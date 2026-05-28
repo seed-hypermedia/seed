@@ -1301,4 +1301,71 @@ describe('DocumentLifecycle machine', () => {
       actor.stop()
     })
   })
+
+  describe('transient resource error', () => {
+    it('resource.transientError on loaded keeps state in loaded and stores the error', () => {
+      const actor = createTestActor()
+      actor.start()
+      loadDocument(actor)
+      expect(actor.getSnapshot().value).toBe('loaded')
+
+      actor.send({
+        type: 'resource.transientError',
+        error: {kind: 'refetch-error', message: 'peer unreachable'},
+      })
+      expect(actor.getSnapshot().value).toBe('loaded')
+      expect(actor.getSnapshot().context.transientResourceError).toEqual({
+        kind: 'refetch-error',
+        message: 'peer unreachable',
+      })
+      actor.stop()
+    })
+
+    it('resource.recovered clears the transient error without touching state', () => {
+      const actor = createTestActor()
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'resource.transientError', error: {kind: 'discovering'}})
+      expect(actor.getSnapshot().context.transientResourceError).toEqual({kind: 'discovering'})
+
+      actor.send({type: 'resource.recovered'})
+      expect(actor.getSnapshot().value).toBe('loaded')
+      expect(actor.getSnapshot().context.transientResourceError).toBeNull()
+      actor.stop()
+    })
+
+    it('document.loaded populates lastGoodDocument and lastGoodVersion', () => {
+      const actor = createTestActor()
+      actor.start()
+      loadDocument(actor)
+      const snap = actor.getSnapshot()
+      expect(snap.context.lastGoodDocument).toBe(mockDocument)
+      expect(snap.context.lastGoodVersion).toBe('bafyabc.bafydef')
+      actor.stop()
+    })
+
+    it('document.remoteUpdate refreshes lastGoodDocument and lastGoodVersion', () => {
+      const actor = createTestActor()
+      actor.start()
+      loadDocument(actor)
+      const updated = {...mockDocument, version: 'bafyabc.bafyupdated'} as HMDocument
+      actor.send({type: 'document.remoteUpdate', document: updated})
+      const snap = actor.getSnapshot()
+      expect(snap.context.lastGoodDocument).toBe(updated)
+      expect(snap.context.lastGoodVersion).toBe('bafyabc.bafyupdated')
+      actor.stop()
+    })
+
+    it('transient error fires during editing without changing the parallel state', () => {
+      const actor = createTestActor()
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'edit.start'})
+      const before = actor.getSnapshot().value
+      actor.send({type: 'resource.transientError', error: {kind: 'not-found-transient'}})
+      expect(actor.getSnapshot().value).toEqual(before)
+      expect(actor.getSnapshot().context.transientResourceError).toEqual({kind: 'not-found-transient'})
+      actor.stop()
+    })
+  })
 })

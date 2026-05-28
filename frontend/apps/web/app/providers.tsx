@@ -73,6 +73,10 @@ function getQueryClient() {
   if (!browserQueryClient) {
     browserQueryClient = createQueryClient()
     registerQueryClient(browserQueryClient)
+    // Dev-only: expose for DevTools console (e.g. forcing transient resource errors).
+    if (import.meta.env?.DEV) {
+      ;(window as any).__qc = browserQueryClient
+    }
   }
   return browserQueryClient
 }

@@ -14,6 +14,7 @@ import {
   DiscardDraftInput,
   PendingRebase,
   PublishInput,
+  TransientResourceError,
   WriteDraftInput,
 } from './document-machine'
 import {EditorHandlers, EditorHandlersContext} from './editor-handlers-context'
@@ -307,6 +308,40 @@ export function useExistingDraftSync(existingDraft: {id: string} | false | undef
   }, [actorRef, existingDraft])
 }
 
+/**
+ * Sync transient resource fetch state (refetch errors, discovery flapping, transient
+ * not-found) into the machine. Dispatches `resource.transientError` when a non-null
+ * error appears or changes, and `resource.recovered` once the resource fetch is healthy
+ * again. The machine stores the error in context without changing its top-level state,
+ * so the document keeps rendering while the consumer surfaces a banner.
+ */
+export function useResourceTransientSync(transientError: TransientResourceError) {
+  const actorRef = useDocumentMachineRef()
+  const prevRef = useRef<TransientResourceError>(null)
+
+  useEffect(() => {
+    const prev = prevRef.current
+    if (!sameTransientError(prev, transientError)) {
+      prevRef.current = transientError
+      if (transientError) {
+        actorRef.send({type: 'resource.transientError', error: transientError})
+      } else {
+        actorRef.send({type: 'resource.recovered'})
+      }
+    }
+  }, [actorRef, transientError])
+}
+
+function sameTransientError(a: TransientResourceError, b: TransientResourceError): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'refetch-error' && b.kind === 'refetch-error') {
+    return a.message === b.message
+  }
+  return true
+}
+
 // -- Selectors --
 
 /** Whether the machine is in the `loading` state. */
@@ -394,6 +429,21 @@ export function selectNavigation(snapshot: DocumentMachineSnapshot): HMNavigatio
 }
 
 /** The current error, if any (available in both loading and error states). */
+/** Last document payload the machine accepted; survives transient resource refetch failures. */
+export function selectLastGoodDocument(snapshot: DocumentMachineSnapshot): HMDocument | null {
+  return snapshot.context.lastGoodDocument
+}
+
+/** Version of {@link selectLastGoodDocument}. */
+export function selectLastGoodVersion(snapshot: DocumentMachineSnapshot): string | null {
+  return snapshot.context.lastGoodVersion
+}
+
+/** Non-fatal resource fetch state surfaced by the consumer; `null` when the resource is healthy. */
+export function selectTransientResourceError(snapshot: DocumentMachineSnapshot): TransientResourceError {
+  return snapshot.context.transientResourceError
+}
+
 export function selectError(snapshot: DocumentMachineSnapshot): unknown {
   return snapshot.context.error
 }

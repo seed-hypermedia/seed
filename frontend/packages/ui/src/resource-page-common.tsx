@@ -58,9 +58,11 @@ import {
   useDocumentSend,
   useDocumentSync,
   useDraftResolutionSync,
+  useResourceTransientSync,
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
+import type {TransientResourceError} from '@shm/shared/models/document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
@@ -452,6 +454,17 @@ export function ResourcePage({
     recursive: true,
   })
 
+  // Once a real document has been seen, keep DocumentMachineProvider mounted across any
+  // subsequent transient resource failures (refetch errors, discovery flapping, transient
+  // not-found from a stale daemon `latest` pointer). Without this sticky gate, the early
+  // returns below would unmount DocumentBody and destroy the XState actor on each blip.
+  const hasEverLoadedRef = useRef(false)
+  const lastGoodDocumentRef = useRef<HMDocument | null>(null)
+  if (resource.data?.type === 'document') {
+    hasEverLoadedRef.current = true
+    lastGoodDocumentRef.current = resource.data.document
+  }
+
   // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
@@ -471,6 +484,22 @@ export function ResourcePage({
     subscribed: true,
     recursive: true,
   })
+
+  // Transient (non-fatal) resource state surfaced as a banner under the site header
+  // while the document keeps rendering. Only meaningful after the doc has loaded at
+  // least once; before that, the regular loading/error branches still take over.
+  const transientResourceError: TransientResourceError = (() => {
+    if (!hasEverLoadedRef.current) return null
+    if (resource.data?.type === 'error') {
+      const msg = resource.data.message ?? 'Refresh failed'
+      // Permission errors are persistent, not transient — leave to the regular branch.
+      if (msg.toLowerCase().includes('permission')) return null
+      return {kind: 'refetch-error', message: msg}
+    }
+    if (resource.isDiscovering) return {kind: 'discovering'}
+    if (resource.data?.type === 'not-found') return {kind: 'not-found-transient'}
+    return null
+  })()
 
   // Site profile view: subscribe to and discover the profile account, then render profile content
   if (isSiteProfile) {
@@ -498,7 +527,7 @@ export function ResourcePage({
   }
 
   // Loading state - should not show during SSR if data was prefetched
-  if (resource.isInitialLoading) {
+  if (resource.isInitialLoading && !hasEverLoadedRef.current) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center">
@@ -522,7 +551,7 @@ export function ResourcePage({
       (resource.data.type === 'error' && !resource.data.message?.toLowerCase?.().includes('permission')))
 
   // Handle discovery state
-  if (resource.isDiscovering && !hasUnpublishedDraft) {
+  if (resource.isDiscovering && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDiscovery />
@@ -532,7 +561,7 @@ export function ResourcePage({
   }
 
   // Handle not-found
-  if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft) {
+  if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageNotFound />
@@ -541,7 +570,7 @@ export function ResourcePage({
     )
   }
 
-  // Handle tombstone (deleted)
+  // Handle tombstone (deleted) — real deletion, not transient. Always unmount.
   if (!hasUnpublishedDraft && (resource.isTombstone || resource.data?.type === 'tombstone')) {
     const isCommentRoute = route.key === 'comments'
     return (
@@ -552,7 +581,7 @@ export function ResourcePage({
     )
   }
 
-  // Handle private document (permission denied)
+  // Handle private document (permission denied) — persistent state, always unmount.
   if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
@@ -562,8 +591,9 @@ export function ResourcePage({
     )
   }
 
-  // Handle error
-  if (!hasUnpublishedDraft && resource.data?.type === 'error') {
+  // Handle error — only if we never loaded successfully. Otherwise fall through to the
+  // success render path with a banner so the user keeps the document in view.
+  if (!hasUnpublishedDraft && resource.data?.type === 'error' && !hasEverLoadedRef.current) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center p-8">
@@ -638,6 +668,10 @@ export function ResourcePage({
   let document: HMDocument
   if (resource.data?.type === 'document') {
     document = resource.data.document
+  } else if (lastGoodDocumentRef.current) {
+    // Transient refetch failure / not-found / discovery flap — keep showing the last
+    // good document. The banner in PageWrapper informs the user.
+    document = lastGoodDocumentRef.current
   } else if (hasUnpublishedDraft) {
     document = {
       account: docId.uid,
@@ -686,6 +720,7 @@ export function ResourcePage({
         document={document}
         rightActions={rightActions}
         editNavPane={editNavPane}
+        transientResourceError={transientResourceError}
       >
         <DocumentBody
           docId={docId}
@@ -716,6 +751,7 @@ export function ResourcePage({
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
+          transientResourceError={transientResourceError}
         />
       </PageWrapper>
       {machineExtras}
@@ -783,6 +819,7 @@ export function PageWrapper({
   isMainFeedVisible = false,
   rightActions,
   editNavPane,
+  transientResourceError,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -792,6 +829,8 @@ export function PageWrapper({
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
+  /** Non-fatal resource fetch state rendered as a banner below the header. */
+  transientResourceError?: TransientResourceError
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -853,7 +892,33 @@ export function PageWrapper({
         rightActions={rightActions}
         editNavPane={editNavPane}
       />
+      <TransientResourceBanner error={transientResourceError ?? null} />
       {children}
+    </div>
+  )
+}
+
+function TransientResourceBanner({error}: {error: TransientResourceError}) {
+  if (!error) return null
+  const tone =
+    error.kind === 'refetch-error'
+      ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100'
+      : 'bg-muted text-muted-foreground'
+  let message: string
+  switch (error.kind) {
+    case 'refetch-error':
+      message = `Couldn't refresh from peers. Showing last loaded version. (${error.message})`
+      break
+    case 'discovering':
+      message = 'Looking for newer version…'
+      break
+    case 'not-found-transient':
+      message = 'Document temporarily unreachable. Retrying…'
+      break
+  }
+  return (
+    <div role="status" className={cn('px-4 py-2 text-xs', tone)} data-testid="transient-resource-banner">
+      {message}
     </div>
   )
 }
@@ -889,6 +954,7 @@ function DocumentBody({
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
+  transientResourceError,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -932,6 +998,8 @@ function DocumentBody({
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
   linkExtensionOptions?: LinkExtensionOptions
+  /** Non-fatal resource fetch state synced into the machine context. */
+  transientResourceError?: TransientResourceError
 }) {
   // Sync document into state machine
   useDocumentSync(document)
@@ -943,6 +1011,8 @@ function DocumentBody({
   useAccountSync(signingAccountId, publishAccountUid)
   // Forward scroll events from the scroll container to the machine
   useScrollSync()
+  // Surface transient resource fetch state inside the machine for debug / inner consumers.
+  useResourceTransientSync(transientResourceError ?? null)
   // Sync draft resolution — machine stays in loading until this settles.
   // undefined = still loading, {draftId: null} = no draft, {draftId: string} = draft + content ready
   const draftResolution = useMemo(() => {

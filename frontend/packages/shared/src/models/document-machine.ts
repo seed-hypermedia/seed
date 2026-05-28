@@ -107,7 +107,32 @@ export type DocumentMachineContext = {
    */
   pendingPublish: boolean
   error: unknown
+  /**
+   * Last document payload seen via `document.loaded` or `document.remoteUpdate`. Survives
+   * subsequent transient resource failures so UI can keep rendering the document while a
+   * background refetch is errored / discovering / not-found.
+   */
+  lastGoodDocument: HMDocument | null
+  /** Version string for {@link lastGoodDocument}; mirrors `publishedVersion` at the time of capture. */
+  lastGoodVersion: string | null
+  /**
+   * Non-fatal resource fetch state surfaced by the consumer (`useResource`). Drives a banner
+   * in the page header without changing the machine's top-level state. `null` when the
+   * resource fetch is in a healthy state.
+   */
+  transientResourceError: TransientResourceError
 }
+
+/**
+ * Non-fatal resource fetch state derived by the consumer of {@link useResource}.
+ * Stored in {@link DocumentMachineContext} so banners and debug tooling read from
+ * a single source of truth.
+ */
+export type TransientResourceError =
+  | {kind: 'refetch-error'; message: string}
+  | {kind: 'discovering'}
+  | {kind: 'not-found-transient'}
+  | null
 
 /** All events the machine can receive. */
 export type DocumentMachineEvent =
@@ -154,6 +179,8 @@ export type DocumentMachineEvent =
   | {type: 'rebase.apply'; mergedBlocks: HMBlockNode[]; newDocument: HMDocument}
   | {type: 'rebase.detectConflict'; conflictedBlockIds: string[]; author: string | null}
   | {type: 'rebase.dismiss'}
+  | {type: 'resource.transientError'; error: NonNullable<TransientResourceError>}
+  | {type: 'resource.recovered'}
 
 /** Input for the writeDraft actor. */
 export type WriteDraftInput = {
@@ -233,6 +260,27 @@ export const documentMachine = setup({
         }
         return null
       },
+      lastGoodDocument: ({context, event}) => {
+        if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
+          return event.document
+        }
+        return context.lastGoodDocument
+      },
+      lastGoodVersion: ({context, event}) => {
+        if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
+          return event.document.version
+        }
+        return context.lastGoodVersion
+      },
+    }),
+    setTransientResourceError: assign({
+      transientResourceError: ({context, event}) => {
+        if (event.type !== 'resource.transientError') return context.transientResourceError
+        return event.error
+      },
+    }),
+    clearTransientResourceError: assign({
+      transientResourceError: null,
     }),
     setMetadata: assign({
       metadata: ({context, event}) => {
@@ -406,6 +454,14 @@ export const documentMachine = setup({
         if (event.type !== 'rebase.apply') return context.baseBlocks
         return event.mergedBlocks
       },
+      lastGoodDocument: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.lastGoodDocument
+        return event.newDocument
+      },
+      lastGoodVersion: ({context, event}) => {
+        if (event.type !== 'rebase.apply') return context.lastGoodVersion
+        return event.newDocument.version ?? context.lastGoodVersion
+      },
       mineTouchedIds: [],
       pendingRemoteDocument: null,
       pendingRemoteVersion: null,
@@ -559,6 +615,14 @@ export const documentMachine = setup({
         if (!doc) return null
         return hmBlocksToEditorContent(doc.content ?? [], {childrenType: 'Group'})
       },
+      lastGoodDocument: ({context, event}) => {
+        const doc = (event as any).output as HMDocument
+        return doc ?? context.lastGoodDocument
+      },
+      lastGoodVersion: ({context, event}) => {
+        const doc = (event as any).output as HMDocument
+        return doc?.version ?? context.lastGoodVersion
+      },
     }),
     setEditorBaselineFromSnapshot: assign({
       editorBaseline: ({event, context}) => {
@@ -629,6 +693,12 @@ export const documentMachine = setup({
     'childDraftRefs.changed': {
       actions: ['updateChildDraftRefs'],
     },
+    'resource.transientError': {
+      actions: ['setTransientResourceError'],
+    },
+    'resource.recovered': {
+      actions: ['clearTransientResourceError'],
+    },
   },
   context: ({input}) => ({
     documentId: input.documentId,
@@ -664,6 +734,9 @@ export const documentMachine = setup({
     referencedChildDraftIds: [],
     pendingDeletedChildDraftIds: [],
     error: null,
+    lastGoodDocument: null,
+    lastGoodVersion: null,
+    transientResourceError: null,
   }),
   initial: 'loading',
   states: {
