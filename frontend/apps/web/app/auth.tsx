@@ -9,8 +9,8 @@ import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
-import {Spinner} from '@shm/ui/spinner'
 import {SeedLogo} from '@shm/ui/seed-logo'
+import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -20,12 +20,9 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {SubmitHandler} from 'react-hook-form'
 import {encodeBlock, rawCodec} from './api'
-import {createSecretTapUnlock} from './secret-tap-unlock'
 import * as authSession from './auth-session'
 import {preparePublicKey, signWithKeyPair} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
-import {reportError} from './report-error'
-import {getVaultAccountSettingsUrl} from './vault-links'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
@@ -39,6 +36,9 @@ import {
   writeLocalKeys,
 } from './local-db'
 import {queryAPI} from './models'
+import {reportError} from './report-error'
+import {createSecretTapUnlock} from './secret-tap-unlock'
+import {getVaultAccountSettingsUrl} from './vault-links'
 
 const seedClient = createSeedClient('')
 
@@ -356,7 +356,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
   const siteName = hostnameStripProtocol(origin)
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
-  const [customVaultUrl, setCustomVaultUrl] = useState('')
+  const [customVaultUrl, setCustomVaultUrl] = useState('https://hyper.media')
   const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
   const [localAccountUnlocked, setLocalAccountUnlocked] = useState(false)
   const [vaultEmail, setVaultEmail] = useState('')
@@ -416,17 +416,17 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   return (
     <>
-      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={secretTap.tap}>
+      <DialogTitle className="flex gap-2 items-center max-sm:text-base" onClick={secretTap.tap}>
         {localAccountUnlocked ? (
           tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
             siteName: siteName || 'this site',
           })
         ) : (
           <>
-            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
-              <SeedLogo className="size-4 text-white" />
+            <div className="flex justify-center items-center bg-emerald-600 rounded-full size-8">
+              <SeedLogo className="text-white size-4" />
             </div>
-            Join the conversation
+            {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
           </>
         )}
       </DialogTitle>
@@ -452,33 +452,10 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
       ) : (
         <>
           <DialogDescription className="max-sm:text-sm">
-            To comment on <span className="font-medium">{siteName || 'this site'}</span> and join the discussion,
-            you&apos;ll need a free Hypermedia account.
+            Sign in or create your identity to get started.
           </DialogDescription>
 
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (vaultEmail.trim()) {
-                handleVaultSignIn(undefined, vaultEmail.trim())
-              }
-            }}
-          >
-            <div className="mb-4 flex flex-col gap-1.5">
-              <SizableText size="sm" className="font-medium">
-                Enter your email to continue
-              </SizableText>
-              <input
-                type="email"
-                className="rounded-md border px-3 py-2 text-sm dark:bg-neutral-900"
-                value={vaultEmail}
-                onChange={(e) => setVaultEmail(e.target.value)}
-                placeholder="Enter your email"
-                required
-                autoFocus
-              />
-              <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
+          {/* <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
                 By continuing, you agree to our{' '}
                 <a
                   href="https://hyper.media/terms"
@@ -489,32 +466,27 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
                   Terms and Privacy Policy
                 </a>
                 .
-              </SizableText>
-            </div>
-
-            <Button variant="default" type="submit" size="lg" className="w-full" disabled={!vaultEmail.trim()}>
-              Continue to join
-            </Button>
-          </form>
+              </SizableText> */}
+          <Button variant="default" type="submit" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
+            {tx('Create Identity on Hypermedia')}
+          </Button>
 
           {/* Divider */}
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-            <span className="text-xs text-neutral-400 dark:text-neutral-500">
-              Or, already have a Hypermedia account?
-            </span>
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+            <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
+            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
           </div>
 
           <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
-            Sign in
+            Already have a Hypermedia Identity?
           </Button>
 
-          <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Do you have another domain?{' '}
+          <div className="text-sm text-center text-neutral-500 dark:text-neutral-400">
+            Do you have another identity domain?{' '}
             <button
               type="button"
-              className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              className="font-medium text-emerald-600 underline cursor-pointer underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
               onClick={() => setShowCustomVaultInput(true)}
             >
               Sign in with it
@@ -522,9 +494,9 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           </div>
 
           {showCustomVaultInput && (
-            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
+            <div className="flex flex-col gap-2 p-3 rounded-md border border-neutral-200 dark:border-neutral-700">
               <SizableText size="sm" className="font-medium">
-                Custom Vault URL
+                Hypermedia Vault URL
               </SizableText>
               <input
                 ref={customVaultInputRef}
@@ -539,7 +511,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
                   }
                 }}
               />
-              <div className="flex justify-end gap-2">
+              <div className="flex gap-2 justify-end">
                 <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
                   Cancel
                 </Button>
@@ -572,7 +544,7 @@ function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'joi
 
   return (
     <>
-      <DialogTitle className="flex items-center gap-2">
+      <DialogTitle className="flex gap-2 items-center">
         You are in <span aria-hidden>🎉</span>
       </DialogTitle>
       {input.variant === 'comment' ? (
@@ -647,7 +619,7 @@ export function LogoutDialog({onClose}: {onClose: () => void}) {
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -860,7 +832,7 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
 
   if (!userKeyPair) return null
   return (
-    <div className="flex max-w-full flex-wrap justify-end gap-2">
+    <div className="flex flex-wrap gap-2 justify-end max-w-full">
       {logoutDialog.content}
       {editProfileDialog.content}
       {linkKeysDialog.content}
