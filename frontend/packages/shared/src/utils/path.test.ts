@@ -61,11 +61,28 @@ describe('pathNameify', () => {
     expect(pathNameify('foo--bar')).toBe('foo-bar')
   })
 
-  test('removes forward slashes', () => {
-    expect(pathNameify('foo/bar')).toBe('foobar')
+  test('converts forward slashes to dashes', () => {
+    expect(pathNameify('foo/bar')).toBe('foo-bar')
+    expect(pathNameify('a/b/c')).toBe('a-b-c')
   })
 
-  test('drops disallowed characters then trims', () => {
+  test('converts other separator-like chars to dashes', () => {
+    expect(pathNameify('design + development')).toBe('design-development')
+    expect(pathNameify('foo & bar')).toBe('foo-bar')
+    expect(pathNameify('one, two; three | four')).toBe('one-two-three-four')
+    expect(pathNameify('a@b')).toBe('a-b')
+  })
+
+  test('collapses runs of disallowed chars into a single dash', () => {
+    expect(pathNameify('foo +&/ bar')).toBe('foo-bar')
+    expect(pathNameify('foo!@#bar')).toBe('foo-bar')
+  })
+
+  test('drops surrounding disallowed characters then trims', () => {
     expect(pathNameify('!@#hello!@#')).toBe('hello')
+  })
+
+  test('normalizes en-dash like em-dash', () => {
+    expect(pathNameify('foo – bar')).toBe('foo-bar')
   })
 })
