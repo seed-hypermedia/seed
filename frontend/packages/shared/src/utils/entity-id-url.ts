@@ -685,6 +685,13 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
   ) {
     return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
   }
+  if (route.key === 'profile') {
+    return `${packBaseId(route.id.uid)}/:${route.tab || 'profile'}`
+  }
+  if (route.key === 'site-profile') {
+    const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
+    return `${packBaseId(route.id.uid)}/:${route.tab}${accountSuffix}`
+  }
   return null
 }
 

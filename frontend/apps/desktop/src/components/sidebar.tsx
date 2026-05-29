@@ -19,7 +19,7 @@ import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
-import {createDocumentNavRoute} from '@shm/shared/routes'
+import {createDocumentNavRoute, ProfileTab} from '@shm/shared/routes'
 import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
@@ -209,6 +209,7 @@ function BookmarksSection() {
               metadata={metadata}
               active={currentBookmarkUrl === bookmarkItem.url}
               visibility={document?.visibility}
+              bookmarkKey={bookmarkItem.key}
               viewTerm={bookmarkItem.viewTerm}
             />
           </SidebarMenuItem>
@@ -241,20 +242,40 @@ const VIEW_TERM_ICONS: Record<string, React.ElementType> = {
   ':feed': History,
 }
 
+function profileTabFromViewTerm(viewTerm: ViewTerm | null): ProfileTab {
+  switch (viewTerm) {
+    case ':membership':
+      return 'membership'
+    case ':followers':
+      return 'followers'
+    case ':following':
+      return 'following'
+    default:
+      return 'profile'
+  }
+}
+
 function BookmarkListItem({
   id,
   metadata,
   active,
   visibility,
+  bookmarkKey,
   viewTerm,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
   active: boolean
   visibility?: HMResourceVisibility
+  bookmarkKey: 'document' | 'profile'
   viewTerm: ViewTerm | null
 }) {
-  const navRoute = viewTerm ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm)) : {key: 'document' as const, id}
+  const navRoute =
+    bookmarkKey === 'profile'
+      ? {key: 'profile' as const, id, tab: profileTabFromViewTerm(viewTerm)}
+      : viewTerm
+      ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
+      : {key: 'document' as const, id}
   const linkProps = useRouteLink(navRoute)
   const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (

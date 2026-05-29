@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {DEFAULT_GATEWAY_URL} from '../../constants'
 import {
+  bookmarkUrlFromRoute,
   buildCopyLinkUrl,
   createCommentUrl,
   createOSProtocolUrl,
@@ -919,6 +920,20 @@ describe('extractViewTermFromUrl', () => {
       viewTerm: ':activity',
       activityFilter: 'versions',
     })
+  })
+})
+
+describe('bookmarkUrlFromRoute', () => {
+  test('preserves profile view terms for profile bookmarks', () => {
+    expect(bookmarkUrlFromRoute({key: 'profile', id: hmId('personUid'), tab: 'profile'})).toBe(
+      'hm://personUid/:profile',
+    )
+  })
+
+  test('preserves account uid for site profile bookmarks', () => {
+    expect(
+      bookmarkUrlFromRoute({key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'followers'}),
+    ).toBe('hm://siteUid/:followers/personUid')
   })
 })
 
