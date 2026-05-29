@@ -58,7 +58,9 @@ describe('feedback helpers', () => {
   it('formats timestamps and titles consistently', () => {
     const submittedAt = formatFeedbackTimestamp(new Date(2026, 4, 28, 14, 32))
     expect(submittedAt).toBe('2026-05-28 14:32')
-    expect(buildFeedbackDocumentTitle(submittedAt)).toBe(`Feedback on ${FEEDBACK_CONFIG.testedPageLabel} — 2026-05-28 14:32`)
+    expect(buildFeedbackDocumentTitle(submittedAt)).toBe(
+      `Feedback on ${FEEDBACK_CONFIG.testedPageLabel} — 2026-05-28 14:32`,
+    )
   })
 
   it('builds markdown with context markers and omits empty sections', () => {
@@ -87,8 +89,8 @@ describe('feedback helpers', () => {
   })
 
   it('publishes a private feedback document with the generated path and capability', async () => {
-    const request = vi.fn(async () => ({unsignedChange: new Uint8Array([1, 2, 3])}))
-    const publish = vi.fn(async () => undefined)
+    const request = vi.fn(async (_method: string, _payload: unknown) => ({unsignedChange: new Uint8Array([1, 2, 3])}))
+    const publish = vi.fn(async (_input: {blobs: Array<{cid?: string; data: Uint8Array}>}) => ({cids: []}))
     const signer = {
       getPublicKey: vi.fn(async () => new Uint8Array([1, 2, 3])),
       sign: vi.fn(async () => new Uint8Array(64)),
@@ -109,7 +111,6 @@ describe('feedback helpers', () => {
         capabilityCid: 'cap-123',
         publishedUnderLabel: 'Ethosfera',
         publishedUnderAccountUid: 'site-uid',
-        submittedAt: '',
       },
     )
 
