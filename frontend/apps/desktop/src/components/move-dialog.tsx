@@ -1,14 +1,16 @@
-import {useMoveDocument} from '@/models/documents'
+import {useListSite, useMoveDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
+import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useMemo, useRef, useState} from 'react'
 import {LocationPicker} from './location-picker'
@@ -24,6 +26,7 @@ export function MoveDialog({
   const {data: resource} = useResource(input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
   const moveDoc = useMoveDocument()
+  const list = useListSite(input.id)
   const navigate = useNavigate()
   const selectedAccount = useSelectedAccount()
   const [location, setLocation] = useState<UnpackedHypermediaId | null>(input.id)
@@ -32,6 +35,17 @@ export function MoveDialog({
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
+  const childDocs = useMemo(() => {
+    const parentPath = input.id.path || []
+    return (
+      list.data?.filter((item) => {
+        if (!item.path?.length) return false
+        return (
+          item.path.length > parentPath.length && parentPath.every((segment, index) => item.path[index] === segment)
+        )
+      }) || []
+    )
+  }, [list.data, input.id.path])
   if (!selectedAccount) {
     return <div>No account selected</div>
   }
@@ -56,6 +70,18 @@ export function MoveDialog({
               isAvailable.current = isAvail
             }}
           />
+          {childDocs.length ? (
+            <>
+              <Text className="text-muted-foreground text-sm">
+                You will move {childDocs.length} {childDocs.length === 1 ? 'child document' : 'children documents'}.
+              </Text>
+              <div className="my-4 flex flex-col gap-3">
+                {childDocs.map((item) => (
+                  <MoveListItem key={item.path?.join('/')} metadata={item.metadata} path={item.path} />
+                ))}
+              </div>
+            </>
+          ) : null}
           <div className="flex gap-2">
             <Spinner hide={!moveDoc.isLoading} />
 
@@ -98,6 +124,15 @@ export function MoveDialog({
           <Spinner />
         </div>
       )}
+    </div>
+  )
+}
+
+function MoveListItem({metadata, path}: {metadata: HMMetadata; path: string[] | null}) {
+  return (
+    <div className="flex justify-between gap-3">
+      <Text>{getMetadataName(metadata)}</Text>
+      <Text className="text-muted-foreground">{path?.join('/') || '?'}</Text>
     </div>
   )
 }

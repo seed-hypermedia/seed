@@ -14,6 +14,8 @@ import {
   HMBlockNode,
   HMDocument,
   HMDocumentMetadataSchema,
+  HMPublishBlobsInput,
+  HMSigner,
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
@@ -1135,6 +1137,119 @@ export function useForkDocument() {
   })
 }
 
+function isChildDocumentPath(path: string[], parentPath: string[]) {
+  return path.length > parentPath.length && parentPath.every((segment, index) => path[index] === segment)
+}
+
+function getMovedChildPath(childPath: string[], fromPath: string[], toPath: string[]) {
+  return [...toPath, ...childPath.slice(fromPath.length)]
+}
+
+const MOVE_DOCUMENT_LOG_PREFIX = '[move-document]'
+
+type MoveRefBundle = {
+  sourceId: UnpackedHypermediaId
+  targetId: UnpackedHypermediaId
+  versionRefOperation: Record<string, unknown>
+  versionRefInput: HMPublishBlobsInput
+  redirectRefOperation: Record<string, unknown>
+  redirectRefInput: HMPublishBlobsInput
+}
+
+function movePathLabel(id: UnpackedHypermediaId) {
+  return id.path?.join('/') || '/'
+}
+
+function logMoveRefBlob({
+  kind,
+  sourceId,
+  targetId,
+  refInput,
+  publishInput,
+}: {
+  kind: 'version' | 'redirect'
+  sourceId: UnpackedHypermediaId
+  targetId: UnpackedHypermediaId
+  refInput: Record<string, unknown>
+  publishInput: HMPublishBlobsInput
+}) {
+  console.groupCollapsed(
+    `${MOVE_DOCUMENT_LOG_PREFIX} created ${kind} ref blob: ${movePathLabel(sourceId)} -> ${movePathLabel(targetId)}`,
+  )
+  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} sourceId`, sourceId)
+  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} targetId`, targetId)
+  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} ref operation`, refInput)
+  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publish input`, publishInput)
+  console.log(
+    `${MOVE_DOCUMENT_LOG_PREFIX} ref blob bytes`,
+    publishInput.blobs.map((blob, index) => ({
+      index,
+      cid: blob.cid,
+      data: blob.data,
+      bytes: Array.from(blob.data),
+    })),
+  )
+  console.groupEnd()
+}
+
+async function createDocumentMoveRefs({
+  sourceId,
+  targetId,
+  doc,
+  signer,
+}: {
+  sourceId: UnpackedHypermediaId
+  targetId: UnpackedHypermediaId
+  doc: HMDocument
+  signer: HMSigner
+}): Promise<MoveRefBundle> {
+  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} creating move refs`, {sourceId, targetId, doc})
+  if (!doc.generationInfo) throw new Error('No generation info for document')
+  const generation = Number(doc.generationInfo.generation)
+
+  const versionRefOperation = {
+    space: targetId.uid,
+    path: hmIdPathToEntityQueryPath(targetId.path),
+    genesis: doc.generationInfo.genesis,
+    version: doc.version,
+    generation,
+  }
+  const versionRefInput = await createVersionRef(versionRefOperation, signer)
+  logMoveRefBlob({
+    kind: 'version',
+    sourceId,
+    targetId,
+    refInput: versionRefOperation,
+    publishInput: versionRefInput,
+  })
+
+  const redirectRefOperation = {
+    space: sourceId.uid,
+    path: hmIdPathToEntityQueryPath(sourceId.path),
+    genesis: doc.generationInfo.genesis,
+    generation,
+    targetSpace: targetId.uid,
+    targetPath: hmIdPathToEntityQueryPath(targetId.path),
+  }
+  const redirectRefInput = await createRedirectRef(redirectRefOperation, signer)
+  logMoveRefBlob({
+    kind: 'redirect',
+    sourceId,
+    targetId,
+    refInput: redirectRefOperation,
+    publishInput: redirectRefInput,
+  })
+
+  return {
+    sourceId,
+    targetId,
+    versionRefOperation,
+    versionRefInput,
+    redirectRefOperation,
+    redirectRefInput,
+  }
+}
+
 export function useMoveDocument() {
   const push = usePushResource()
   const universalClient = useUniversalClient()
@@ -1149,60 +1264,108 @@ export function useMoveDocument() {
       signingAccountId: string
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
-      const resource = await universalClient.request('Resource', from)
-      if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
-      const doc = resource.document
-      if (!doc.generationInfo) throw new Error('No generation info for document')
       const signer = universalClient.getSigner(signingAccountId)
-      // Create version ref at destination
-      const versionRefInput = await createVersionRef(
-        {
-          space: to.uid,
-          path: hmIdPathToEntityQueryPath(to.path),
-          genesis: doc.generationInfo.genesis,
-          version: doc.version,
-          generation: Number(doc.generationInfo.generation),
-        },
-        signer,
+      const fromPath = from.path || []
+      const toPath = to.path || []
+      const listedDocs = await grpcClient.documents.listDocuments({
+        account: from.uid,
+        pageSize: BIG_INT,
+      })
+      const childMoves = listedDocs.documents
+        .map((item) => prepareHMDocumentInfo(item).path)
+        .filter((path) => isChildDocumentPath(path, fromPath))
+        .sort((a, b) => a.length - b.length)
+        .map((path) => ({
+          from: hmId(from.uid, {path}),
+          to: hmId(to.uid, {path: getMovedChildPath(path, fromPath, toPath)}),
+        }))
+      const moves = [{from, to}, ...childMoves]
+      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} recursive move plan`, {from, to, childMoves, moves})
+      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loading source documents`, {count: moves.length, moves})
+      const moveResources = await Promise.all(
+        moves.map(async ({from: sourceId, to: targetId}) => {
+          console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loading source document`, {sourceId, targetId})
+          const resource = await universalClient.request('Resource', sourceId)
+          if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
+          const doc = resource.document
+          if (!doc.generationInfo) throw new Error('No generation info for document')
+          console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loaded source document`, {
+            sourceId,
+            targetId,
+            version: doc.version,
+            generationInfo: doc.generationInfo,
+          })
+          return {from: sourceId, to: targetId, doc}
+        }),
       )
-      await universalClient.publish(versionRefInput)
-      // Create redirect ref at source
-      const redirectRefInput = await createRedirectRef(
-        {
-          space: from.uid,
-          path: hmIdPathToEntityQueryPath(from.path),
-          genesis: doc.generationInfo.genesis,
-          generation: Number(doc.generationInfo.generation),
-          targetSpace: to.uid,
-          targetPath: hmIdPathToEntityQueryPath(to.path),
-        },
-        signer,
-      )
-      await universalClient.publish(redirectRefInput)
-      push(from)
-      push(to)
+
+      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} creating ref bundles`, {count: moveResources.length})
+      const moveRefBundles = []
+      for (const {from: sourceId, to: targetId, doc} of moveResources) {
+        const moveRefs = await createDocumentMoveRefs({sourceId, targetId, doc, signer})
+        moveRefBundles.push(moveRefs)
+      }
+
+      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing move ref bundles`, {
+        count: moveRefBundles.length,
+        moveRefBundles,
+      })
+      for (const moveRefs of moveRefBundles) {
+        console.groupCollapsed(
+          `${MOVE_DOCUMENT_LOG_PREFIX} publishing move: ${movePathLabel(moveRefs.sourceId)} -> ${movePathLabel(
+            moveRefs.targetId,
+          )}`,
+        )
+        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing version ref`, moveRefs.versionRefInput)
+        await universalClient.publish(moveRefs.versionRefInput)
+        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} published version ref`, {
+          sourceId: moveRefs.sourceId,
+          targetId: moveRefs.targetId,
+          versionRefOperation: moveRefs.versionRefOperation,
+        })
+        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing redirect ref`, moveRefs.redirectRefInput)
+        await universalClient.publish(moveRefs.redirectRefInput)
+        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} published redirect ref`, {
+          sourceId: moveRefs.sourceId,
+          targetId: moveRefs.targetId,
+          redirectRefOperation: moveRefs.redirectRefOperation,
+        })
+        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} pushing moved source and target`, {
+          sourceId: moveRefs.sourceId,
+          targetId: moveRefs.targetId,
+        })
+        push(moveRefs.sourceId)
+        push(moveRefs.targetId)
+        console.groupEnd()
+      }
+      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} recursive move complete`, {moves})
+
+      return moves
     },
-    onSuccess: (_, {from, to}) => {
-      invalidateQueries([queryKeys.ENTITY, from.id])
-      invalidateQueries([queryKeys.ENTITY, to.id])
-      invalidateQueries([queryKeys.RESOLVED_ENTITY, from.id])
-      invalidateQueries([queryKeys.RESOLVED_ENTITY, to.id])
+    onSuccess: (moves, {from, to}) => {
+      const idsToInvalidate = moves || [{from, to}]
+      idsToInvalidate.forEach(({from: sourceId, to: targetId}) => {
+        invalidateQueries([queryKeys.ENTITY, sourceId.id])
+        invalidateQueries([queryKeys.ENTITY, targetId.id])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, sourceId.id])
+        invalidateQueries([queryKeys.RESOLVED_ENTITY, targetId.id])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, sourceId.id])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, targetId.id])
+        getParentPaths(sourceId.path).forEach((path) => {
+          const parentId = hmId(sourceId.uid, {path})
+          invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+        })
+        getParentPaths(targetId.path).forEach((path) => {
+          const parentId = hmId(targetId.uid, {path})
+          invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+        })
+      })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
       invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
-      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, from.id])
-      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, to.id])
-      getParentPaths(from.path).forEach((path) => {
-        const parentId = hmId(from.uid, {path})
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
-      })
-      getParentPaths(to.path).forEach((path) => {
-        const parentId = hmId(to.uid, {path})
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
-      })
     },
   })
 }
