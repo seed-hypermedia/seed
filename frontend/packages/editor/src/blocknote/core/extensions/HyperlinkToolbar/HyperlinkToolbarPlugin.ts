@@ -10,7 +10,7 @@ import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 
-export type HyperlinkNodeType = 'link' | 'inline-embed' | 'embed' | 'card' | 'button' | null
+export type HyperlinkNodeType = 'link' | 'inline-embed' | 'embed' | 'card' | 'embed-link' | 'button' | null
 
 export type HyperlinkToolbarState = BaseUiElementState & {
   // The link node's URL
@@ -114,10 +114,19 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
           name: text,
           alignment: alignment,
         })
-      } else if (this.hyperlinkToolbarState.type === 'embed' || this.hyperlinkToolbarState.type === 'card') {
+      } else if (
+        this.hyperlinkToolbarState.type === 'embed' ||
+        this.hyperlinkToolbarState.type === 'card' ||
+        this.hyperlinkToolbarState.type === 'embed-link'
+      ) {
         tr = tr.setNodeMarkup(pos, null, {
           url: url,
-          view: this.hyperlinkToolbarState.type === 'card' ? 'Card' : 'Content',
+          view:
+            this.hyperlinkToolbarState.type === 'card'
+              ? 'Card'
+              : this.hyperlinkToolbarState.type === 'embed-link'
+              ? 'Link'
+              : 'Content',
         })
       } else {
         const newText = text.length ? text : ' '
@@ -293,7 +302,12 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             referencePos: embedTopRightRect,
             url: this.selectedNode!.attrs.url,
             text: '',
-            type: this.selectedNode.attrs.view === 'Card' ? 'card' : 'embed',
+            type:
+              this.selectedNode.attrs.view === 'Card'
+                ? 'card'
+                : this.selectedNode.attrs.view === 'Link'
+                ? 'embed-link'
+                : 'embed',
             id: container ? container.attrs.id : '',
           }
         }

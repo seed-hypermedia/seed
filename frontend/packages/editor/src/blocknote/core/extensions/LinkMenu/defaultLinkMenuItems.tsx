@@ -2,6 +2,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmIdToURL, isHypermediaScheme, isPublicGatewayLink, normalizeHmId, StateStream} from '@shm/shared'
 import {
   CircleDot,
+  ExternalLink,
   File as FileIcon,
   ImageIcon,
   Instagram,
@@ -83,6 +84,19 @@ export function getLinkMenuItems({
           insertNode(editor, sourceUrl, node)
         },
       },
+      {
+        key: 'embed-link',
+        name: 'Embed Link',
+        disabled: false,
+        icon: <ExternalLink size={18} />,
+        execute: (editor: BlockNoteEditor<HMBlockSchema>, _ref: string) => {
+          const {state, schema} = editor._tiptapEditor
+          const {selection} = state
+          if (!selection.empty) return
+          const node = schema.nodes.embed.create({url: sourceUrl, view: 'Link'}, schema.text(' '))
+          insertNode(editor, sourceUrl, node)
+        },
+      },
       ...linkMenuItems,
     ]
   }
@@ -130,6 +144,20 @@ export function getLinkMenuItems({
               schema.text(' '),
             )
 
+            insertNode(editor, sourceUrl || hmRef, node)
+          },
+        },
+        {
+          key: 'embed-link',
+          name: 'Embed Link',
+          disabled: false,
+          icon: <Link size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, _ref: string) => {
+            const {state, schema} = editor._tiptapEditor
+            const {selection} = state
+            if (!selection.empty) return
+            const hmRef = hmIdToURL(hmId)
+            const node = schema.nodes.embed.create({url: hmRef, view: 'Link'}, schema.text(' '))
             insertNode(editor, sourceUrl || hmRef, node)
           },
         },

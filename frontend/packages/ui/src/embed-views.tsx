@@ -1,3 +1,4 @@
+import type {HMResource} from '@seed-hypermedia/client/hm-types'
 import {
   BlockRange,
   HMBlock,
@@ -18,16 +19,17 @@ import {
   shouldBlockEmbeddedResource,
   unpackHmId,
   useRenderResourceStack,
+  useRouteLink,
   useUniversalClient,
 } from '@shm/shared'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
+import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {AlertCircle, Undo2} from 'lucide-react'
+import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe, Undo2} from 'lucide-react'
 import React, {ReactNode, useCallback, useMemo, useState} from 'react'
 import {toast} from 'sonner'
-import type {HMResource} from '@seed-hypermedia/client/hm-types'
-import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
@@ -39,6 +41,7 @@ import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 /** Props shared by embed block renderers. */
 type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
@@ -120,7 +123,12 @@ export function BlockEmbedCard({
   parentBlockId,
   openOnClick = true,
   titleLinkOnly = false,
-}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean; titleLinkOnly?: boolean}) {
+  hideInlineActions = false,
+}: BlockContentProps<HMBlockEmbed> & {
+  openOnClick?: boolean
+  titleLinkOnly?: boolean
+  hideInlineActions?: boolean
+}) {
   const id = unpackHmId(block.link) ?? undefined
   const doc = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
@@ -193,6 +201,8 @@ export function BlockEmbedCard({
         accountsMetadata={accountsMetadata}
         navigate={false}
         titleLinkOnly={titleLinkOnly}
+        hideInlineActions={hideInlineActions}
+        showSummary
       />
     </EmbedWrapper>
   )
@@ -202,6 +212,184 @@ export function BlockEmbedCard({
   }
 
   return card
+}
+
+/**
+ * Renders an embed as a single-row "link". Can be external or HM link
+ */
+export function BlockEmbedLink({
+  block,
+  parentBlockId,
+  openOnClick = true,
+}: BlockContentProps<HMBlockEmbed> & {
+  openOnClick?: boolean
+}) {
+  const url = block.link
+  const id = useMemo(() => unpackHmId(url) ?? undefined, [url])
+  const isHm = !!id
+
+  if (isHm && id) {
+    return <HmLinkEmbed id={id} parentBlockId={parentBlockId} openOnClick={openOnClick} />
+  }
+  return <ExternalLinkEmbed url={url} parentBlockId={parentBlockId} openOnClick={openOnClick} />
+}
+
+/** HM-link variant: loads the target doc, picks the subdoc vs cross-doc icon,
+ *  and renders a compact horizontal "card" with the same visual treatment as
+ *  Card view. */
+function HmLinkEmbed({
+  id,
+  parentBlockId,
+  openOnClick,
+}: {
+  id: UnpackedHypermediaId
+  parentBlockId: string | null
+  openOnClick: boolean
+}) {
+  const doc = useResource(id, {subscribed: true})
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const title = getDocumentTitle(document) || abbreviateUid(id.uid)
+  const renderStack = useRenderResourceStack()
+  const parentDocId =
+    [...renderStack].reverse().find((entry) => entry.kind === 'document' && entry.id.id !== id.id)?.id ?? null
+  const isSubdoc = isHmDescendantOf(id, parentDocId)
+  const Icon = isSubdoc ? FileTextIcon : FileSymlinkIcon
+  const titleLink = useRouteLink(openOnClick ? null : {key: 'document', id})
+  const titleIsLink = !openOnClick && !!titleLink.href
+
+  return (
+    <EmbedWrapper
+      id={id}
+      parentBlockId={parentBlockId}
+      hideBorder
+      route={{key: 'document', id}}
+      openOnClick={openOnClick}
+      viewType="Link"
+    >
+      <div
+        className={cn(
+          'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
+          'bg-white shadow-md transition-colors duration-300 dark:bg-black',
+          'px-3 py-2',
+        )}
+      >
+        {/* Green icon placeholder, mirrors DocumentCard's no-cover variant. */}
+        <div className="flex aspect-square size-10 shrink-0 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900/30">
+          <Icon className="size-5 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
+        </div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {titleIsLink ? (
+            <a
+              href={titleLink.href}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                titleLink.onClick?.(e)
+              }}
+              className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+            >
+              {title}
+            </a>
+          ) : (
+            <span className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 dark:text-blue-400">
+              {title}
+            </span>
+          )}
+        </div>
+      </div>
+    </EmbedWrapper>
+  )
+}
+
+/** Non-HM-link variant: shows site favicon or blue-globe fallback and link text. */
+function ExternalLinkEmbed({
+  url,
+  parentBlockId,
+  openOnClick,
+}: {
+  url: string
+  parentBlockId: string | null
+  openOnClick: boolean
+}) {
+  const domain = useMemo(() => safeUrlHostname(url), [url])
+  const [faviconFailed, setFaviconFailed] = useState(false)
+  // Try the site's own favicon directly via <img> tag
+  const faviconSrc = domain ? `https://${domain}/favicon.ico` : null
+  const linkText = domain || url
+  const link = useRouteLink(url)
+  const sharedAttrs = {
+    'data-content-type': 'embed',
+    'data-url': url,
+    'data-view': 'Link',
+    'data-parent-block-id': parentBlockId ?? undefined,
+  }
+  const icon =
+    faviconSrc && !faviconFailed ? (
+      <img src={faviconSrc} alt="" className="size-5 shrink-0" onError={() => setFaviconFailed(true)} />
+    ) : (
+      <Globe className="size-5 shrink-0 text-blue-600 dark:text-blue-400" />
+    )
+
+  if (openOnClick) {
+    // Published view - whole row navigates.
+    return (
+      <a
+        {...sharedAttrs}
+        href={link.href}
+        onClick={link.onClick}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
+          'bg-white shadow-md transition-colors duration-300 dark:bg-black',
+          'px-3 py-2 no-underline',
+        )}
+      >
+        {icon}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <span className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 dark:text-blue-400">
+            {linkText}
+          </span>
+        </div>
+      </a>
+    )
+  }
+  // Edit mode - only the title text navigates, the rest stays selectable.
+  return (
+    <div
+      {...sharedAttrs}
+      className={cn(
+        'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
+        'bg-white shadow-md transition-colors duration-300 dark:bg-black',
+        'px-3 py-2',
+      )}
+    >
+      {icon}
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <a
+          href={link.href}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            link.onClick?.(e)
+          }}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+        >
+          {linkText}
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function safeUrlHostname(url: string): string | null {
+  try {
+    return new URL(url).hostname || null
+  } catch {
+    return null
+  }
 }
 
 /** Renders full embedded document or comment content. */

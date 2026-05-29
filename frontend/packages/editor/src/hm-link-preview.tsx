@@ -19,7 +19,7 @@ export function HypermediaLinkPreview(
     stopEditing: boolean
     forceEditing?: boolean
     formComponents: () => React.JSX.Element
-    type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button'
+    type: 'link' | 'inline-embed' | 'embed' | 'card' | 'embed-link' | 'button'
     toolbarProps?: {
       alignment?: 'flex-start' | 'center' | 'flex-end'
       view?: string
@@ -70,11 +70,11 @@ export function HypermediaLinkPreview(
     } else if (type === 'button') {
       const node = schema.nodes.button.create({url: props.url, name: title})
       insertNode(props.editor, props.id, props.url, props.text, props.type, node)
-    } else if (type === 'embed' || type === 'card' || type === 'comments') {
+    } else if (type === 'embed' || type === 'card' || type === 'comments' || type === 'embed-link') {
       const node = schema.nodes.embed.create(
         {
           url: props.url,
-          view: type === 'embed' ? 'Content' : type === 'card' ? 'Card' : 'Comments',
+          view: type === 'embed' ? 'Content' : type === 'card' ? 'Card' : type === 'embed-link' ? 'Link' : 'Comments',
         },
         schema.text(' '),
       )
@@ -83,6 +83,9 @@ export function HypermediaLinkPreview(
 
     props.resetHyperlink()
   }
+
+  // Card and Link view embeds have their own action bar. Suppress toolbar for those types
+  if (props.type === 'card' || props.type === 'embed-link') return null
 
   return (
     <div
@@ -109,7 +112,7 @@ export function HypermediaLinkPreview(
               handleChangeBlockType(type)
             }}
             type={props.type}
-            hasName={props.type !== 'embed' && props.type !== 'inline-embed' && props.type !== 'card'}
+            hasName={props.type !== 'embed' && props.type !== 'inline-embed'}
             hasSearch={props.type !== 'link'}
             resetLink={props.resetHyperlink}
             isHmLink={!!unpackedRef}
@@ -143,6 +146,30 @@ export function HypermediaLinkPreview(
       )}
     </div>
   )
+}
+
+/**
+ * Replace the embed/card block under `selectedId` with a different node type
+ * pointing at the same URL.
+ */
+export function transformEmbedNode(
+  editor: BlockNoteEditor<HMBlockSchema>,
+  selectedId: string,
+  url: string,
+  toType: 'link' | 'button' | 'embed' | 'card',
+  fallbackTitle: string,
+) {
+  const {state} = editor._tiptapEditor
+  const schema = state.schema
+  let node: Node
+  if (toType === 'link') {
+    node = schema.text(fallbackTitle || url, [schema.marks['link'].create({href: url})])
+  } else if (toType === 'button') {
+    node = schema.nodes.button.create({url, name: fallbackTitle || url})
+  } else {
+    node = schema.nodes.embed.create({url, view: toType === 'card' ? 'Card' : 'Content'}, schema.text(' '))
+  }
+  insertNode(editor, selectedId, url, '', 'embed', node)
 }
 
 function getTitleFromEntity(unpackedId?: UnpackedHypermediaId | null, document?: HMDocument | null) {

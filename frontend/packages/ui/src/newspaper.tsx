@@ -11,7 +11,21 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
+import {
+  Bookmark,
+  Copy,
+  FilePen,
+  FileText,
+  Forward,
+  Globe,
+  History,
+  Layers,
+  Link,
+  Link2,
+  MessageSquare,
+  Pencil,
+  Split,
+} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
@@ -27,75 +41,20 @@ import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
-export function DocumentCard({
-  docId,
-  entity,
-  metadata,
-  visibility,
-  version,
-  interactionSummary: interactionSummaryProp,
-  accountsMetadata,
-  contributorUids,
-  navigate: navigateProp = true,
-  titleLinkOnly = false,
-  onMouseEnter,
-  onMouseLeave,
-  banner = false,
-  showSummary = false,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  docId: UnpackedHypermediaId
-  entity: HMResourceFetchResult | null | undefined
-  metadata?: HMDocumentInfo['metadata']
-  visibility?: HMDocumentInfo['visibility']
-  version?: string
-  interactionSummary?: HMQueryBlockItemSummary | null
-  accountsMetadata?: HMAccountsMetadata
-  /** Pre-computed contributor UIDs (document authors + comment/mention authors). */
-  contributorUids?: string[]
-  navigate?: boolean
-  titleLinkOnly?: boolean
-  onMouseEnter?: (id: UnpackedHypermediaId) => void
-  onMouseLeave?: (id: UnpackedHypermediaId) => void
-  banner?: boolean
-  showSummary?: boolean
-}) {
-  const highlighter = useHighlighter()
-  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
-  const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
-  const imageUrl = useImageUrl()
-  const navigate = useNavigate()
+/** Builds the DocumentCard inline menu items */
+export function useDocumentCardMenuItems(
+  docId: UnpackedHypermediaId,
+  doc?: HMResourceFetchResult['document'] | null,
+): MenuItemType[] {
   const actions = useDocumentActions()
+  const navigate = useNavigate()
   const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
-
-  const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
-  const interactionSummary = useInteractionSummary(summaryId, {enabled: !interactionSummaryProp})
-  const commentCount = interactionSummaryProp?.comments ?? interactionSummary.data?.comments ?? 0
-
-  const resolvedMetadata = metadata ?? entity?.document?.metadata
-  const textContent = useMemo(() => {
-    if (!showSummary) return null
-    if (resolvedMetadata?.summary) {
-      return resolvedMetadata.summary
-    }
-    return plainTextOfContent(entity?.document?.content)
-  }, [showSummary, resolvedMetadata, entity?.document?.content])
-
-  const coverImage = resolvedMetadata?.cover
-  const resolvedVisibility = visibility ?? entity?.document?.visibility
-  const isPrivate = resolvedVisibility === 'PRIVATE'
-  const doc = entity?.document
-  const headCount = getVersionHeads(version ?? doc?.version).length
-
-  // Context-driven state
   const draftId = actions.getDraftId?.(docId)
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
   const isOwner = actions.selectedAccountUid === docId.uid
   const isLoggedIn = !!actions.myAccountIds?.length
   const hasPath = !!docId.path?.length
 
-  // Self-assemble menu items from context
-  const menuItems = useMemo(() => {
+  return useMemo(() => {
     const items: MenuItemType[] = []
     if (actions.onEditDocument && isOwner) {
       items.push({
@@ -108,21 +67,34 @@ export function DocumentCard({
         },
       })
     }
-    if (actions.onDuplicateDocument && isOwner && hasPath) {
+    items.push({
+      key: 'versions',
+      label: 'Versions history',
+      icon: <History className="size-4" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        navigate({
+          key: 'document',
+          id: docId,
+          panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+        } as any)
+      },
+    })
+    if (isOwner) {
       items.push({
-        key: 'duplicate',
-        label: 'Duplicate Document',
-        icon: <Copy className="size-4" />,
+        key: 'options',
+        label: 'Document Settings',
+        icon: <FilePen className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
-          actions.onDuplicateDocument!(docId)
+          navigate({key: 'document', id: docId, panel: {key: 'options'}} as any)
         },
       })
     }
     if (actions.onCopyLink) {
       items.push({
         key: 'copy-link',
-        label: 'Copy Link',
+        label: 'Share link',
         icon: <Link className="size-4" />,
         children: [
           {
@@ -173,7 +145,7 @@ export function DocumentCard({
     if (actions.onMoveDocument && isOwner && hasPath) {
       items.push({
         key: 'move',
-        label: 'Move Document',
+        label: 'Move',
         icon: <Forward className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
@@ -181,11 +153,22 @@ export function DocumentCard({
         },
       })
     }
+    if (actions.onDuplicateDocument && isOwner && hasPath) {
+      items.push({
+        key: 'duplicate',
+        label: 'Duplicate document',
+        icon: <Copy className="size-4" />,
+        onClick: (e) => {
+          e?.stopPropagation()
+          actions.onDuplicateDocument!(docId)
+        },
+      })
+    }
     if (actions.onBranchDocument && isLoggedIn) {
       items.push({
         key: 'branch',
-        label: 'Create Document Branch',
-        icon: <GitFork className="size-4" />,
+        label: 'Republish',
+        icon: <Split className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
           actions.onBranchDocument!(docId)
@@ -195,7 +178,7 @@ export function DocumentCard({
     if (actions.onExportDocument && doc) {
       items.push({
         key: 'export',
-        label: 'Export',
+        label: 'Export document',
         icon: <Download className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
@@ -203,10 +186,19 @@ export function DocumentCard({
         },
       })
     }
+    items.push({
+      key: 'directory',
+      label: 'Subdocuments',
+      icon: <Layers className="size-4" />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        navigate({key: 'directory', id: docId} as any)
+      },
+    })
     if (actions.onDeleteDocument && isOwner && hasPath) {
       items.push({
         key: 'delete',
-        label: 'Delete Document',
+        label: 'Delete document',
         icon: <Trash className="size-4" />,
         variant: 'destructive' as const,
         onClick: (e) => {
@@ -216,28 +208,130 @@ export function DocumentCard({
       })
     }
     return items
-  }, [actions, docId, doc, isOwner, isLoggedIn, hasPath, onCopyReference, onPushReference, origin])
+  }, [actions, docId, doc, isOwner, isLoggedIn, hasPath, navigate, onCopyReference, onPushReference, origin, draftId])
+}
+
+export function DocumentCard({
+  docId,
+  entity,
+  metadata,
+  visibility,
+  version,
+  interactionSummary: interactionSummaryProp,
+  accountsMetadata,
+  contributorUids,
+  navigate: navigateProp = true,
+  titleLinkOnly = false,
+  onMouseEnter,
+  onMouseLeave,
+  banner = false,
+  showSummary = false,
+  hideInlineActions = false,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  docId: UnpackedHypermediaId
+  entity: HMResourceFetchResult | null | undefined
+  metadata?: HMDocumentInfo['metadata']
+  visibility?: HMDocumentInfo['visibility']
+  version?: string
+  interactionSummary?: HMQueryBlockItemSummary | null
+  accountsMetadata?: HMAccountsMetadata
+  contributorUids?: string[]
+  navigate?: boolean
+  titleLinkOnly?: boolean
+  onMouseEnter?: (id: UnpackedHypermediaId) => void
+  onMouseLeave?: (id: UnpackedHypermediaId) => void
+  banner?: boolean
+  showSummary?: boolean
+  /** Hide the inline bookmark / comments / options-dropdown row */
+  hideInlineActions?: boolean
+}) {
+  const highlighter = useHighlighter()
+  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+  const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
+  const imageUrl = useImageUrl()
+  const navigate = useNavigate()
+  const actions = useDocumentActions()
+
+  const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
+  const interactionSummary = useInteractionSummary(summaryId, {enabled: !interactionSummaryProp})
+  const commentCount = interactionSummaryProp?.comments ?? interactionSummary.data?.comments ?? 0
+
+  const resolvedMetadata = metadata ?? entity?.document?.metadata
+  const textContent = useMemo(() => {
+    if (!showSummary) return null
+    if (resolvedMetadata?.summary) {
+      return resolvedMetadata.summary
+    }
+    return plainTextOfContent(entity?.document?.content)
+  }, [showSummary, resolvedMetadata, entity?.document?.content])
+
+  const coverImage = resolvedMetadata?.cover
+  const iconImage = resolvedMetadata?.icon
+  const resolvedVisibility = visibility ?? entity?.document?.visibility
+  const isPrivate = resolvedVisibility === 'PRIVATE'
+  const doc = entity?.document
+  const headCount = getVersionHeads(version ?? doc?.version).length
+
+  // Context-driven state for the inline row (badges, bookmark button).
+  const draftId = actions.getDraftId?.(docId)
+  const bookmarked = actions.isBookmarked?.(docId) ?? false
+
+  const menuItems = useDocumentCardMenuItems(docId, doc)
 
   const sharedProps = {
     ...highlighter(docId),
     className: cn(
-      'hover:bg-accent dark:hover:bg-accent @container flex min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
-      banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
+      'hover:bg-accent dark:hover:bg-accent @container flex w-full overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
+      banner && coverImage && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
+      banner && !coverImage && 'rounded-xl',
     ),
   }
-
-  const titleClassName = cn('text-foreground block font-sans leading-tight! font-bold', banner ? 'text-2xl' : 'text-lg')
+  const titleClassName = cn(
+    'text-foreground block font-sans leading-tight! font-bold',
+    banner ? 'text-2xl' : 'truncate text-lg',
+  )
   const title = resolvedMetadata?.name
   const content = (
     <>
-      <div className={cn('flex max-w-full flex-1 flex-col @md:flex-row', navigateProp && 'cursor-pointer')}>
-        {coverImage && (
-          <div className={cn('relative h-40 w-full shrink-0 @md:h-auto @md:w-1/2', banner && '@md:h-auto')}>
+      <div
+        className={cn(
+          'flex max-w-full flex-1 flex-col @md:flex-row',
+          navigateProp && 'cursor-pointer',
+          // Stack items vertically in narrow containers like grid items.
+          // Wwitch to horizontal once the card has room.
+          '@md:items-center',
+          coverImage && '@md:items-stretch',
+        )}
+      >
+        {coverImage ? (
+          // Cover image is inset with margin and rounded corners so it sits
+          // "framed" inside the card. In wide single-card layouts, the cover takes
+          // a slice of the left side and stretches vertically to match the row height.
+          // Banner cards get a larger cover. Regular row cards get a small
+          // thumbnail strip so the title and summary keep most of the row.
+          <div
+            className={cn(
+              'relative m-3 h-24 shrink-0 overflow-hidden rounded-md @md:m-3 @md:h-auto',
+              banner ? '@md:w-1/2' : '@md:w-44',
+            )}
+          >
             <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
+          </div>
+        ) : iconImage ? (
+          // No cover, but the doc has an icon — render it as a square
+          // thumbnail aligned top-left next to the title.
+          <div className="bg-muted m-3 flex aspect-square size-12 shrink-0 items-center justify-center overflow-hidden rounded-md @md:size-14">
+            <img src={imageUrl(iconImage, 'S')} alt="" className="size-full object-cover" />
+          </div>
+        ) : (
+          // Neither cover nor icon — green doc-icon placeholder.
+          <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
+            <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
           </div>
         )}
         <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
-          <div className="p-4">
+          <div className="p-3">
             {titleLinkOnly && linkAttributes.href ? (
               <a
                 {...linkAttributes}
@@ -256,12 +350,12 @@ export function DocumentCard({
               <p className={titleClassName}>{title}</p>
             )}
             {textContent && (
-              <p className={cn('text-muted-foreground mt-2 line-clamp-3 font-sans', !banner && 'text-sm')}>
+              <p className={cn('text-muted-foreground mt-2 line-clamp-2 font-sans', !banner && 'text-sm')}>
                 {textContent}
               </p>
             )}
           </div>
-          <div className="flex items-center justify-between py-3 pr-2 pl-4">
+          <div className="flex items-center justify-between py-2 pr-2 pl-3">
             <div className="flex items-center gap-1.5">
               {contributorUids && contributorUids.length > 0 && accountsMetadata && (
                 <FacePile accounts={contributorUids} accountsMetadata={accountsMetadata} />
@@ -270,42 +364,44 @@ export function DocumentCard({
               {!draftId && isPrivate && <PrivateBadge size="sm" />}
               {!draftId && headCount > 1 && <MergedBadge count={headCount} size="sm" />}
             </div>
-            <div className="flex items-center gap-1">
-              {actions.onBookmarkToggle && (
-                <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="no-window-drag"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      actions.onBookmarkToggle!(docId)
-                    }}
-                  >
-                    {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
-                  </Button>
-                </Tooltip>
-              )}
-              {commentCount > 0 && (
-                <Tooltip content="View discussions">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="no-window-drag flex items-center gap-1"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      navigate({key: 'comments', id: docId})
-                    }}
-                  >
-                    <MessageSquare className="size-3" />
-                    <SizableText size="xs">{commentCount}</SizableText>
-                  </Button>
-                </Tooltip>
-              )}
-              {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="top" />}
-            </div>
+            {!hideInlineActions && (
+              <div className="flex items-center gap-1">
+                {actions.onBookmarkToggle && (
+                  <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="no-window-drag"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        actions.onBookmarkToggle!(docId)
+                      }}
+                    >
+                      {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
+                    </Button>
+                  </Tooltip>
+                )}
+                {commentCount > 0 && (
+                  <Tooltip content="View discussions">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="no-window-drag flex items-center gap-1"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        navigate({key: 'comments', id: docId})
+                      }}
+                    >
+                      <MessageSquare className="size-3" />
+                      <SizableText size="xs">{commentCount}</SizableText>
+                    </Button>
+                  </Tooltip>
+                )}
+                {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="top" />}
+              </div>
+            )}
           </div>
         </div>
       </div>

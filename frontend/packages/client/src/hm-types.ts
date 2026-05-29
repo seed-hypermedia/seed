@@ -37,7 +37,12 @@ export const HMBlockChildrenTypeSchema = z
   .nullable() // null or missing childrenType means "Group"
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 
-export const HMEmbedViewSchema = z.union([z.literal('Content'), z.literal('Card'), z.literal('Comments')])
+export const HMEmbedViewSchema = z.union([
+  z.literal('Content'),
+  z.literal('Card'),
+  z.literal('Comments'),
+  z.literal('Link'),
+])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
 export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List')])

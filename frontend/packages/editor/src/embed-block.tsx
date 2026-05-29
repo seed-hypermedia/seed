@@ -1,38 +1,70 @@
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
-import {HMBlockEmbed, HMEmbedViewSchema} from '@seed-hypermedia/client/hm-types'
+import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
+import {useResource} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
-import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent} from '@shm/ui/embed-views'
+import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent, BlockEmbedLink} from '@shm/ui/embed-views'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {ExternalLink, FileText, MoreHorizontal} from '@shm/ui/icons'
+import {useDocumentCardMenuItems} from '@shm/ui/newspaper'
+import {MenuItemType} from '@shm/ui/options-dropdown'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Fragment, Node as PMNode} from '@tiptap/pm/model'
+import {
+  BetweenHorizontalStart,
+  Bookmark,
+  CreditCard,
+  ExternalLink as ExternalLinkIcon,
+  Link2,
+  MessageSquare,
+  Pencil,
+  SquareMinus,
+  SquarePen,
+  Trash2,
+} from 'lucide-react'
 import {NodeSelection} from 'prosemirror-state'
-import {Pencil, Trash2} from 'lucide-react'
-import {type FormEvent, type KeyboardEvent, type SyntheticEvent, useCallback, useEffect, useRef, useState} from 'react'
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type SyntheticEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {BlockSelectionWrapper, useIsBlockSelected} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
 import {EmbedEditorView} from './embed-editor'
+import {transformEmbedNode} from './hm-link-preview'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
-import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {HMBlockSchema} from './schema'
 
 export const EmbedBlock = createReactBlockSpec({
@@ -46,7 +78,7 @@ export const EmbedBlock = createReactBlockSpec({
       default: 'false',
     },
     view: {
-      values: ['Content', 'Card', 'Comments'], // TODO: convert HMEmbedView type to array items
+      values: ['Content', 'Card', 'Comments', 'Link'], // TODO: convert HMEmbedView type to array items
       default: 'Content',
     },
     draftId: {
@@ -379,8 +411,14 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 
 const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
+  const isSelected = useIsBlockSelected(editor, block)
+  const isCardView = block.props.view === 'Card'
+  const isLinkView = block.props.view === 'Link'
+  // Card and Link views share the same floating action bar.
+  const isAtomicEmbedView = isCardView || isLinkView
+  const showActions = canEdit && (isCardView || isLinkView) && !!block.props.url
   const selectCardBlock = useCallback(() => {
-    if (!canEdit || block.props.view !== 'Card') return
+    if (!canEdit || !(block.props.view === 'Card' || block.props.view === 'Link')) return
     beginEditIfNeeded()
     const view = editor._tiptapEditor?.view
     if (!view) return
@@ -395,34 +433,20 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       return true
     })
   }, [beginEditIfNeeded, block.id, block.props.view, canEdit, editor])
-  return (
+  const content = (
     <MediaContainer
       editor={editor}
       block={block}
       mediaType="embed"
       assign={assign}
-      onPress={canEdit && block.props.view === 'Card' ? selectCardBlock : undefined}
-      // styleProps={{
-      //   pointerEvents: activeId && activeId !== block.id ? 'none' : '',
-      // }}
-      // onHoverIn={() => {
-      //   if (!activeId) {
-      //     setHovered(true)
-      //     setActiveId(block.id)
-      //   }
-      // }}
-      // onHoverOut={() => {
-      //   setHovered(false)
-      //   if (activeId && activeId === block.id) {
-      //     setActiveId(null)
-      //   }
-      // }}
+      onPress={canEdit && isAtomicEmbedView ? selectCardBlock : undefined}
     >
       {block.props.url && (
         <EditorEmbedContent
           openOnClick={!canEdit || !isEditing}
           titleLinkOnly={canEdit}
           parentBlockId={block.props.parentBlockId || null}
+          hideInlineActions={canEdit && isAtomicEmbedView}
           block={{
             id: block.id,
             type: 'Embed',
@@ -436,7 +460,256 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
           }}
         />
       )}
+      {showActions ? <SelectedEmbedActions editor={editor} block={block} isSelected={isSelected} /> : null}
     </MediaContainer>
+  )
+  return content
+}
+
+function renderMenuItem(item: MenuItemType, close: () => void): React.ReactNode {
+  if (item.children && item.children.length > 0) {
+    return (
+      <DropdownMenuSub key={item.key}>
+        <DropdownMenuSubTrigger>
+          {item.icon}
+          <SizableText>{item.label}</SizableText>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {item.children.map((child) => (
+            <DropdownMenuItem
+              key={child.key}
+              variant={child.variant}
+              onClick={(e) => {
+                e.stopPropagation()
+                close()
+                child.onClick?.(e as any)
+              }}
+            >
+              {child.icon}
+              <SizableText>{child.label}</SizableText>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
+  return (
+    <DropdownMenuItem
+      key={item.key}
+      variant={item.variant}
+      onClick={(e) => {
+        e.stopPropagation()
+        close()
+        item.onClick?.(e as any)
+      }}
+    >
+      {item.icon}
+      <SizableText>{item.label}</SizableText>
+    </DropdownMenuItem>
+  )
+}
+
+/** 3-dot contextual menu for a selected subdocument embed. */
+function SubdocumentMenu({
+  editor,
+  block,
+  docId,
+}: {
+  editor: BlockNoteEditor<HMBlockSchema>
+  block: Block<HMBlockSchema>
+  docId: UnpackedHypermediaId
+}) {
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const docResource = useResource(docId)
+  const doc = docResource.data?.type === 'document' ? docResource.data.document : null
+  const baseItems = useDocumentCardMenuItems(docId, doc)
+  const actions = useDocumentActions()
+  const openLink = useRouteLink({key: 'document', id: docId} as any)
+  const bookmarked = actions.isBookmarked?.(docId) ?? false
+  const currentView = (block.props.view as string) || 'Content'
+  const url = block.props.url as string
+
+  // Embed specific items prepended to the document menu.
+  const prependedItems: MenuItemType[] = []
+
+  prependedItems.push({
+    key: 'open',
+    label: 'Open document',
+    icon: <ExternalLinkIcon className="size-4" />,
+    onClick: (e) => {
+      e?.stopPropagation()
+      openLink.onClick?.(e as any)
+    },
+  })
+
+  const docTitle = doc?.metadata?.name || url
+  const transformTo = (toType: 'card' | 'embed' | 'link' | 'button') => () => {
+    if (toType === 'card') {
+      editor.updateBlock(block.id, {props: {view: 'Card'}} as any)
+    } else if (toType === 'embed') {
+      editor.updateBlock(block.id, {props: {view: 'Content'}} as any)
+    } else if (toType === 'link') {
+      editor.updateBlock(block.id, {props: {view: 'Link'}} as any)
+    } else {
+      transformEmbedNode(editor, block.id, url, toType, docTitle)
+    }
+  }
+  const labelWithCurrent = (label: string, isCurrent: boolean) => (isCurrent ? `${label} (current)` : label)
+  prependedItems.push({
+    key: 'change-view',
+    label: 'Change subdocument view',
+    icon: <SquarePen className="size-4" />,
+    children: [
+      {
+        key: 'view-card',
+        label: labelWithCurrent('Card', currentView === 'Card'),
+        icon: <CreditCard className="size-4" />,
+        onClick: transformTo('card'),
+      },
+      {
+        key: 'view-embed',
+        label: labelWithCurrent('Embed', currentView === 'Content'),
+        icon: <BetweenHorizontalStart className="size-4" />,
+        onClick: transformTo('embed'),
+      },
+      {
+        key: 'view-link',
+        label: labelWithCurrent('Link', currentView === 'Link'),
+        icon: <Link2 className="size-4 rotate-135" />,
+        onClick: transformTo('link'),
+      },
+      {
+        key: 'view-button',
+        label: 'Button',
+        icon: <SquareMinus className="size-4" />,
+        onClick: transformTo('button'),
+      },
+    ],
+  })
+
+  if (actions.onBookmarkToggle) {
+    prependedItems.push({
+      key: 'bookmark',
+      label: bookmarked ? 'Remove Bookmark' : 'Bookmark',
+      icon: <Bookmark className={cn('size-4', bookmarked && 'fill-current')} />,
+      onClick: (e) => {
+        e?.stopPropagation()
+        actions.onBookmarkToggle!(docId)
+      },
+    })
+  }
+
+  // On delete document also remove the block.
+  const enhancedBaseItems = baseItems.map((item) =>
+    item.key === 'delete'
+      ? {
+          ...item,
+          onClick: (e: any) => {
+            item.onClick?.(e)
+            editor.removeBlocks([block.id])
+          },
+        }
+      : item,
+  )
+
+  // Reorder so destructive items render at the bottom with a separator.
+  const allItems = [...prependedItems, ...enhancedBaseItems]
+  const nonDestructive = allItems.filter((i) => i.variant !== 'destructive')
+  const destructive = allItems.filter((i) => i.variant === 'destructive')
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label="Subdocument options"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+        >
+          <MoreHorizontal className="size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {nonDestructive.map((item) => renderMenuItem(item, close))}
+        {destructive.length > 0 && nonDestructive.length > 0 && (
+          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+        )}
+        {destructive.map((item) => renderMenuItem(item, close))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** Floating action bar on the bottom right
+ * of a Card and Link embeds in edit mode. */
+function SelectedEmbedActions({
+  editor,
+  block,
+  isSelected,
+}: {
+  editor: BlockNoteEditor<HMBlockSchema>
+  block: Block<HMBlockSchema>
+  isSelected: boolean
+}) {
+  const url = block.props.url as string
+  const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
+  const summary = useInteractionSummary(docId)
+  const commentCount = summary.data?.comments ?? 0
+  const navigate = useNavigate()
+  const {onCopyReference} = useUniversalAppContext()
+
+  // External URLs have no action bar
+  if (!docId) return null
+
+  return (
+    <div
+      contentEditable={false}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="border-border bg-background absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md border px-1 py-0.5 shadow-sm"
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1 px-2"
+        aria-label="View comments"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          navigate({key: 'comments', id: docId} as any)
+        }}
+      >
+        <MessageSquare className="size-3.5" />
+        <SizableText size="xs">{commentCount}</SizableText>
+      </Button>
+      {isSelected && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label="Copy link"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (onCopyReference) {
+                onCopyReference(docId)
+              } else if (url) {
+                void navigator.clipboard.writeText(url).then(() => toast.success('Copied link'))
+              }
+            }}
+          >
+            <Link2 className="size-3.5" />
+          </Button>
+          <SubdocumentMenu editor={editor} block={block} docId={docId} />
+        </>
+      )}
+    </div>
   )
 }
 
@@ -445,11 +718,13 @@ function EditorEmbedContent({
   parentBlockId,
   openOnClick,
   titleLinkOnly,
+  hideInlineActions,
 }: {
   block: HMBlockEmbed
   parentBlockId: string | null
   openOnClick: boolean
   titleLinkOnly: boolean
+  hideInlineActions?: boolean
 }) {
   if (block.attributes.view === 'Card')
     return (
@@ -458,10 +733,14 @@ function EditorEmbedContent({
         parentBlockId={parentBlockId}
         openOnClick={openOnClick}
         titleLinkOnly={titleLinkOnly}
+        hideInlineActions={hideInlineActions}
       />
     )
   if (block.attributes.view === 'Comments')
     return <BlockEmbedComments block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
+  if (block.attributes.view === 'Link')
+    return <BlockEmbedLink block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
+
   // if (block.attributes.view === 'Content') // content is the default
   return (
     <BlockEmbedContent

@@ -13,6 +13,7 @@ import {
   AlignRight,
   ChevronDown,
   CircleDot,
+  ExternalLink,
   File,
   Link as LinkIcon,
   PanelBottom,
@@ -40,6 +41,7 @@ const LINK_TYPES = [
   {value: 'embed', label: 'Content Embed', icon: File},
   {value: 'comments', label: 'Discussions Embed', icon: File},
   {value: 'card', label: 'Card', icon: PanelBottom},
+  {value: 'embed-link', label: 'Embed Link', icon: ExternalLink},
 ]
 
 export type HypermediaLinkFormProps = {
@@ -49,7 +51,7 @@ export type HypermediaLinkFormProps = {
   url: string
   text: string
   isHmLink: boolean
-  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'button' | 'comments'
+  type: 'link' | 'inline-embed' | 'embed' | 'card' | 'embed-link' | 'button' | 'comments'
   updateLink: (url: string, text: string, hideMenu: boolean) => void
   resetLink: () => void
   hasName?: boolean
@@ -460,7 +462,7 @@ export function LinkTypeDropdown({
   const portalRoot = document.body
   const selectedTypeObj = LINK_TYPES.find((t) => t.value === selected)
   const filteredTypes = LINK_TYPES.filter((t) => {
-    if (t.value === 'link' || t.value === 'button') return true
+    if (t.value === 'link' || t.value === 'button' || t.value === 'embed-link') return true
     return !!isHmLink
   })
 

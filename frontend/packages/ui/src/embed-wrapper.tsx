@@ -25,7 +25,7 @@ export function EmbedWrapper({
     id?: UnpackedHypermediaId
     parentBlockId: string | null
     depth?: number
-    viewType?: 'Content' | 'Card' | 'Comments'
+    viewType?: 'Content' | 'Card' | 'Comments' | 'Link'
     hideBorder?: boolean
     isRange?: boolean
     route?: NavRoute
