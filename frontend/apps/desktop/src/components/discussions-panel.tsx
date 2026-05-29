@@ -16,11 +16,20 @@ function DiscussionsPanelImpl(props: {docId: UnpackedHypermediaId; selection: Co
   const homeDoc = useResource(hmId(targetDocId.uid))
   const targetDomain = homeDoc.data?.type === 'document' ? homeDoc.data.document.metadata.siteUrl : undefined
 
+  const quotingRange =
+    selection.blockRange &&
+    'start' in selection.blockRange &&
+    typeof selection.blockRange.start === 'number' &&
+    typeof selection.blockRange.end === 'number'
+      ? {start: selection.blockRange.start, end: selection.blockRange.end}
+      : undefined
+
   const commentEditor = (
     <CommentBox
       docId={targetDocId}
       commentId={selection.openComment}
       quotingBlockId={selection.targetBlockId}
+      quotingRange={quotingRange}
       context="accessory"
       focusOnMount={selection.autoFocus}
       replyCommentVersion={selection.replyCommentVersion}

@@ -8,11 +8,20 @@ interface CommentDraft {
   timestamp: number
 }
 
+/** Range of a quoted fragment within a block, in codepoint offsets. */
+export type QuotingRange = {start: number; end: number}
+
 // Generate a unique key for storing drafts
-function getDraftKey(docId: string, replyCommentId?: string | null, quotingBlockId?: string): string {
+function getDraftKey(
+  docId: string,
+  replyCommentId?: string | null,
+  quotingBlockId?: string,
+  quotingRange?: QuotingRange,
+): string {
   const parts = ['comment-draft', docId]
   if (replyCommentId) parts.push(`reply-${replyCommentId}`)
   if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
+  if (quotingRange) parts.push(`range-${quotingRange.start}-${quotingRange.end}`)
   return parts.join('-')
 }
 
@@ -47,8 +56,13 @@ function cleanupOldDrafts() {
   keysToRemove.forEach((key) => localStorage.removeItem(key))
 }
 
-export function useCommentDraftPersistence(docId: string, replyCommentId?: string | null, quotingBlockId?: string) {
-  const draftKey = getDraftKey(docId, replyCommentId, quotingBlockId)
+export function useCommentDraftPersistence(
+  docId: string,
+  replyCommentId?: string | null,
+  quotingBlockId?: string,
+  quotingRange?: QuotingRange,
+) {
+  const draftKey = getDraftKey(docId, replyCommentId, quotingBlockId, quotingRange)
   const [draft, setDraftState] = useState<CommentDraft | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout>()

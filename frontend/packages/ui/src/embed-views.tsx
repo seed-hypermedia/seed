@@ -229,11 +229,20 @@ export function BlockEmbedContent({
     embedBlocks: HMBlockNode[]
     document: HMDocument | null | undefined
     id: UnpackedHypermediaId
+    /** Block id within the embedded document to scroll-anchor / focus-highlight. */
+    blockRef?: string | null
+    /** Codepoint range within `blockRef` to highlight when the link targets a fragment. */
+    blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
   }) => React.ReactNode
 }) {
   const [showReferenced, setShowReferenced] = useState(false)
   const renderResourceStack = useRenderResourceStack()
-  const id = unpackHmId(block.link)
+  const rawId = unpackHmId(block.link)
+  // When the link targets a specific codepoint range we MUST resolve against
+  // the pinned version, otherwise later edits to the source doc shift the
+  // range and the highlight lands on different text. Force `latest:false`
+  // whenever blockRange is present, even on legacy links that still carry `&l`.
+  const id = rawId && rawId.blockRange && rawId.version ? {...rawId, latest: false} : rawId
 
   const resource = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
@@ -533,6 +542,8 @@ function BlockEmbedContentDocument(props: {
     embedBlocks: HMBlockNode[]
     document: HMDocument | null | undefined
     id: UnpackedHypermediaId
+    blockRef?: string | null
+    blockRange?: BlockRange | null
   }) => React.ReactNode
 }) {
   const {
@@ -553,27 +564,11 @@ function BlockEmbedContentDocument(props: {
     const selectedBlock =
       props.blockRef && document?.content ? getBlockNodeById(document.content, props.blockRef) : null
 
-    // @ts-expect-error
-    const currentAnnotations = selectedBlock?.block?.annotations || []
     const embedBlocks = props.blockRef
       ? selectedBlock
         ? [
             {
               ...selectedBlock,
-              block: {
-                ...selectedBlock.block,
-                annotations:
-                  props.blockRange && 'start' in props.blockRange
-                    ? [
-                        ...currentAnnotations,
-                        {
-                          type: 'Range',
-                          starts: [props.blockRange.start],
-                          ends: [props.blockRange.end],
-                        },
-                      ]
-                    : currentAnnotations,
-              },
               children:
                 props.blockRange && 'expanded' in props.blockRange && props.blockRange.expanded
                   ? [...(selectedBlock.children || [])]
@@ -630,6 +625,8 @@ function BlockEmbedContentDocument(props: {
             embedBlocks: embedData.data.embedBlocks as HMBlockNode[],
             document,
             id,
+            blockRef: props.blockRef,
+            blockRange: props.blockRange ?? null,
           })}
         </>
       )
@@ -641,6 +638,7 @@ function BlockEmbedContentDocument(props: {
           id={id}
           blockId={blockId}
           blockRef={props.blockRef}
+          blockRange={props.blockRange ?? null}
           onCopyBlockLink={(bid) => {
             embedOnBlockSelect(bid, {copyToClipboard: true, start: 0, end: 0})
           }}
@@ -691,6 +689,7 @@ function EmbedContentFallback({
   id,
   blockId,
   blockRef,
+  blockRange,
   onCopyBlockLink,
   showReferenced,
   onShowReferenced,
@@ -700,6 +699,8 @@ function EmbedContentFallback({
   id: UnpackedHypermediaId
   blockId: string
   blockRef: string | null
+  /** Codepoint range to highlight inside `blockRef`. Absent ⇒ whole block. */
+  blockRange?: BlockRange | null
   onCopyBlockLink?: (blockId: string) => void
   showReferenced: boolean
   onShowReferenced: (show: boolean) => void
@@ -726,9 +727,21 @@ function EmbedContentFallback({
 
   if (!Viewer) return null
 
+  // Only forward a codepoint range — `{expanded: true}` should not highlight.
+  const fragmentRange =
+    blockRange && 'start' in blockRange && 'end' in blockRange && typeof blockRange.start === 'number'
+      ? blockRange
+      : undefined
+
   return (
     <>
-      <Viewer blocks={blocks} resourceId={id} onCopyBlockLink={onCopyBlockLink} />
+      <Viewer
+        blocks={blocks}
+        resourceId={id}
+        onCopyBlockLink={onCopyBlockLink}
+        focusBlockId={blockRef && fragmentRange ? blockRef : undefined}
+        blockRange={fragmentRange}
+      />
       {showReferenced ? (
         <div className="flex justify-end">
           <Tooltip content="The latest reference was not found. Click to try again.">

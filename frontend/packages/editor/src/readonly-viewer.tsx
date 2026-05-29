@@ -62,7 +62,7 @@ export function ReadOnlyViewer({
   )
   const initialContent = useMemo(() => {
     const editorBlocks = hmBlocksToEditorContent(blocks, {childrenType: 'Group'})
-    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const, id: 'empty'}]
+    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
   }, [blocks])
 
   const editor = useBlockNote<HMBlockSchema>(

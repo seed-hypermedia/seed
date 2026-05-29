@@ -238,6 +238,7 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
       targetDocId: string
       replyCommentId?: string
       quotingBlockId?: string
+      quotingRange?: {start: number; end: number}
       context?: 'accessory' | 'feed' | 'document-content'
     }) => client.comments.removeCommentDraft.mutate(input),
     onSuccess: () => {

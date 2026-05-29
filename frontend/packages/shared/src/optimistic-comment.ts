@@ -1,4 +1,5 @@
 import {commentRecordIdFromBlob, trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
+import type {QuotingTarget} from '@seed-hypermedia/client'
 import {
   hmIdPathToEntityQueryPath,
   HMBlockNode,
@@ -25,6 +26,9 @@ export type BuildOptimisticCommentParams = {
   contentBlocks: HMBlockNode[]
   replyParentId?: string
   threadRootVersion?: string
+  /** Structured quote target (preferred). */
+  quoting?: QuotingTarget
+  /** Deprecated alias retained for callers still passing only a block id. */
   quotingBlockId?: string
   visibility?: 'PUBLIC' | 'PRIVATE'
 }
@@ -43,8 +47,9 @@ export async function buildOptimisticComment(params: BuildOptimisticCommentParam
 
   // Apply same transformations as createComment: trim trailing empty blocks + wrap with embed if quoting
   let content = trimTrailingEmptyBlocks(params.contentBlocks)
-  if (params.quotingBlockId) {
-    content = wrapQuotedContent(content, params.docId, params.docVersion, params.quotingBlockId)
+  const quoting = resolveQuoting(params)
+  if (quoting) {
+    content = wrapQuotedContent(content, params.docId, params.docVersion, quoting)
   }
 
   return {
@@ -68,7 +73,7 @@ function wrapQuotedContent(
   content: HMBlockNode[],
   docId: UnpackedHypermediaId,
   docVersion: string,
-  quotingBlockId: string,
+  quoting: QuotingTarget,
 ): HMBlockNode[] {
   return [
     {
@@ -78,11 +83,29 @@ function wrapQuotedContent(
         text: '',
         attributes: {childrenType: 'Group', view: 'Content'},
         annotations: [],
-        link: packHmId({...docId, blockRef: quotingBlockId, version: docVersion}),
+        link: packHmId({
+          ...docId,
+          blockRef: quoting.blockId,
+          blockRange: quoting.range ?? null,
+          version: docVersion,
+          latest: false,
+        }),
       },
       children: content,
     } as HMBlockNode,
   ]
+}
+
+/** Reconciles legacy `quotingBlockId` and the new `quoting` param. */
+function resolveQuoting(params: {quoting?: QuotingTarget; quotingBlockId?: string}): QuotingTarget | undefined {
+  if (params.quoting) {
+    if (params.quoting.range && params.quoting.range.start === params.quoting.range.end) {
+      return {blockId: params.quoting.blockId}
+    }
+    return params.quoting
+  }
+  if (params.quotingBlockId) return {blockId: params.quotingBlockId}
+  return undefined
 }
 
 function generateBlockId(length: number): string {
@@ -105,9 +128,11 @@ export function applyOptimisticComment(
   targetId: UnpackedHypermediaId,
   comment: HMComment,
   authorMetadata?: HMMetadataPayload | null,
-  quotingBlockId?: string,
+  quoting?: QuotingTarget | string,
 ): () => void {
   const rollbacks: (() => void)[] = []
+  // Back-compat: callers used to pass `quotingBlockId: string` as the 5th arg.
+  const quotingTarget: QuotingTarget | undefined = typeof quoting === 'string' ? {blockId: quoting} : quoting
 
   // Update DOCUMENT_COMMENTS cache
   const commentsKey = [queryKeys.DOCUMENT_COMMENTS, targetId]
@@ -123,8 +148,8 @@ export function applyOptimisticComment(
   rollbacks.push(() => qc.setQueryData(commentsKey, prevComments))
 
   // Also update BLOCK_DISCUSSIONS cache when quoting a specific block
-  if (quotingBlockId) {
-    const blockTargetId = {...targetId, blockRef: quotingBlockId}
+  if (quotingTarget) {
+    const blockTargetId = {...targetId, blockRef: quotingTarget.blockId}
     const blockKey = [queryKeys.BLOCK_DISCUSSIONS, blockTargetId]
     const prevBlock = qc.getQueryData<HMListCommentsOutput>(blockKey)
     if (prevBlock) {

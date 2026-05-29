@@ -227,21 +227,56 @@ type CommentDraftTarget = {
   docId: string
   commentId?: string
   quotingBlockId?: string
+  quotingRangeStart?: number
+  quotingRangeEnd?: number
+}
+
+function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
+  if (!blockRange) return undefined
+  if (
+    'start' in blockRange &&
+    'end' in blockRange &&
+    typeof blockRange.start === 'number' &&
+    typeof blockRange.end === 'number'
+  ) {
+    return {start: blockRange.start, end: blockRange.end}
+  }
+  return undefined
+}
+
+function getCommentEditorRouteKey(params?: {
+  openComment?: string
+  targetBlockId?: string
+  blockRange?: BlockRange | null
+}) {
+  const range = extractQuotingRange(params?.blockRange ?? null)
+  return [params?.openComment ?? 'new', params?.targetBlockId ?? 'document', range?.start ?? '', range?.end ?? ''].join(
+    ':',
+  )
 }
 
 function getCommentDraftTarget(
   docId: UnpackedHypermediaId,
-  params?: {openComment?: string; targetBlockId?: string},
+  params?: {openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null},
 ): CommentDraftTarget {
+  const range = extractQuotingRange(params?.blockRange ?? null)
   return {
     docId: docId.id,
     commentId: params?.openComment,
     quotingBlockId: params?.targetBlockId,
+    quotingRangeStart: range?.start,
+    quotingRangeEnd: range?.end,
   }
 }
 
 function areSameCommentDraftTarget(a: CommentDraftTarget, b: CommentDraftTarget) {
-  return a.docId === b.docId && a.commentId === b.commentId && a.quotingBlockId === b.quotingBlockId
+  return (
+    a.docId === b.docId &&
+    a.commentId === b.commentId &&
+    a.quotingBlockId === b.quotingBlockId &&
+    a.quotingRangeStart === b.quotingRangeStart &&
+    a.quotingRangeEnd === b.quotingRangeEnd
+  )
 }
 
 export function shouldSuppressMainCommentEditor({
@@ -252,7 +287,7 @@ export function shouldSuppressMainCommentEditor({
 }: {
   docId: UnpackedHypermediaId
   activeView: ActiveView
-  discussionsParams?: {openComment?: string; targetBlockId?: string}
+  discussionsParams?: {openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null}
   panelRoute: DocumentPanelRoute | null
 }) {
   if (activeView !== 'comments' || panelRoute?.key !== 'comments') return false
@@ -262,6 +297,7 @@ export function shouldSuppressMainCommentEditor({
     getCommentDraftTarget(panelRoute.id, {
       openComment: panelRoute.openComment,
       targetBlockId: panelRoute.targetBlockId,
+      blockRange: panelRoute.blockRange,
     }),
   )
 }
@@ -315,6 +351,8 @@ function getActiveView(routeKey: string): ActiveView {
 export interface CommentEditorProps {
   docId: UnpackedHypermediaId
   quotingBlockId?: string
+  /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
+  quotingRange?: {start: number; end: number}
   commentId?: string
   isReplying?: boolean
   /** Focus the editor on mount. Renamed from `autoFocus` to avoid `jsx-a11y/no-autofocus`; focus driven imperatively. */
@@ -1104,6 +1142,7 @@ function DocumentBody({
 
   const route = useNavRoute()
   const navigate = useNavigate()
+  const replaceRoute = useNavigate('replace')
 
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
@@ -1140,7 +1179,6 @@ function DocumentBody({
   const {scrollToBlock} = useBlockScroll(routeBlockRef)
 
   // On mount, sync URL hash (#blockId) into route if not already present
-  const replaceRoute = useNavigate('replace')
   useEffect(() => {
     if (typeof window === 'undefined') return
     const hash = window.location.hash
@@ -1505,6 +1543,20 @@ function DocumentBody({
     ],
   )
 
+  const handleTextSelection = useCallback(() => {
+    if (route.key !== 'document' && route.key !== 'feed') return
+    if (!route.id.blockRef && !route.id.blockRange) return
+
+    replaceRoute({
+      ...route,
+      id: {
+        ...route.id,
+        blockRef: null,
+        blockRange: null,
+      },
+    })
+  }, [route, replaceRoute])
+
   // Activity filter change handler (main page)
   const handleMainActivityFilterChange = (filter: {filterEventType?: string[]}) => {
     if (route.key === 'activity') {
@@ -1780,6 +1832,7 @@ function DocumentBody({
           onBlockCitationClick={handleBlockCitationClick}
           onBlockCommentClick={handleBlockCommentClick}
           onBlockSelect={handleBlockSelect}
+          onTextSelection={handleTextSelection}
           isUnpublishedDraft={isUnpublishedDraft}
           isBlockInPublishedVersion={isBlockInPublishedVersion}
           CommentEditor={CommentEditor}
@@ -1846,9 +1899,20 @@ function DocumentBody({
               commentEditor={
                 CommentEditor ? (
                   <CommentEditor
-                    key={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
+                    key={
+                      panelRoute?.key === 'comments'
+                        ? getCommentEditorRouteKey({
+                            openComment: panelRoute.openComment,
+                            targetBlockId: panelRoute.targetBlockId,
+                            blockRange: panelRoute.blockRange,
+                          })
+                        : undefined
+                    }
                     docId={docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                    quotingRange={
+                      panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
+                    }
                     commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
                     isReplying={
                       panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
@@ -2250,9 +2314,14 @@ function CommentsPanelContent({
         commentEditor={
           CommentEditor ? (
             <CommentEditor
-              key={panelRoute.openComment}
+              key={getCommentEditorRouteKey({
+                openComment: panelRoute.openComment,
+                targetBlockId: panelRoute.targetBlockId,
+                blockRange: panelRoute.blockRange,
+              })}
               docId={docId}
               quotingBlockId={panelRoute.targetBlockId}
+              quotingRange={extractQuotingRange(panelRoute.blockRange)}
               commentId={panelRoute.openComment}
               isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
               replyCommentVersion={panelRoute.replyCommentVersion}
@@ -2317,6 +2386,7 @@ function MainContent({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
+  onTextSelection,
   isUnpublishedDraft,
   isBlockInPublishedVersion,
   CommentEditor,
@@ -2364,6 +2434,7 @@ function MainContent({
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  onTextSelection?: () => void
   isUnpublishedDraft?: boolean
   isBlockInPublishedVersion?: (blockId: string) => boolean
   CommentEditor?: React.ComponentType<CommentEditorProps>
@@ -2421,9 +2492,14 @@ function MainContent({
           commentEditor={
             CommentEditor && !suppressCommentEditor ? (
               <CommentEditor
-                key={discussionsParams?.openComment}
+                key={getCommentEditorRouteKey({
+                  openComment: discussionsParams?.openComment,
+                  targetBlockId: discussionsParams?.targetBlockId,
+                  blockRange: discussionsParams?.blockRange,
+                })}
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
+                quotingRange={extractQuotingRange(discussionsParams?.blockRange)}
                 commentId={discussionsParams?.openComment}
                 isReplying={discussionsParams?.isReplying ?? !!discussionsParams?.openComment}
                 replyCommentVersion={discussionsParams?.replyCommentVersion}
@@ -2451,6 +2527,7 @@ function MainContent({
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
+          onTextSelection={onTextSelection}
           isUnpublishedDraft={isUnpublishedDraft}
           isBlockInPublishedVersion={isBlockInPublishedVersion}
           directory={directory}
@@ -2482,6 +2559,7 @@ function ContentViewWithOutline({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
+  onTextSelection,
   isUnpublishedDraft,
   isBlockInPublishedVersion,
   directory,
@@ -2512,6 +2590,7 @@ function ContentViewWithOutline({
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  onTextSelection?: () => void
   isUnpublishedDraft?: boolean
   isBlockInPublishedVersion?: (blockId: string) => boolean
   directory?: import('@seed-hypermedia/client/hm-types').HMDocumentInfo[]
@@ -2559,7 +2638,7 @@ function ContentViewWithOutline({
                   }}
                   outline={outline}
                   id={docId}
-                  activeBlockId={docId.blockRef}
+                  activeBlockId={resourceId.blockRef}
                 />
               </DocNavigationWrapper>
             </div>
@@ -2572,12 +2651,13 @@ function ContentViewWithOutline({
           <DocumentContentComponent
             blocks={existingDraftContent ?? document.content}
             resourceId={resourceId}
-            focusBlockId={docId.blockRef ?? undefined}
-            focusBlockRange={docId.blockRange ?? undefined}
+            focusBlockId={resourceId.blockRef ?? undefined}
+            focusBlockRange={resourceId.blockRange ?? undefined}
             blockCitations={blockCitations}
             onBlockCitationClick={onBlockCitationClick}
             onBlockCommentClick={onBlockCommentClick}
             onBlockSelect={onBlockSelect}
+            onTextSelection={onTextSelection}
             onEditorReady={onEditorReady}
             draftCursorPosition={existingDraftCursorPosition}
             perspectiveAccountUid={perspectiveAccountUid}

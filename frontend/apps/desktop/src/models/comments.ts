@@ -14,16 +14,26 @@ export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
   commentId: string | undefined,
   quotingBlockId: string | undefined,
+  quotingRange: {start: number; end: number} | undefined,
   context: 'accessory' | 'feed' | 'document-content' | undefined,
   opts?: {enabled?: boolean},
 ) {
   const comment = useQuery({
-    queryKey: [queryKeys.COMMENT_DRAFT, targetDocId.id, commentId, quotingBlockId, context],
+    queryKey: [
+      queryKeys.COMMENT_DRAFT,
+      targetDocId.id,
+      commentId,
+      quotingBlockId,
+      quotingRange?.start,
+      quotingRange?.end,
+      context,
+    ],
     queryFn: () =>
       client.comments.getCommentDraft.query({
         targetDocId: targetDocId.id,
         replyCommentId: commentId,
         quotingBlockId: quotingBlockId,
+        quotingRange: quotingRange,
         context: context,
       }),
     enabled: opts?.enabled,

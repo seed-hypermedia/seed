@@ -1,5 +1,6 @@
 import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import {Link, MessageSquare} from 'lucide-react'
+import {TextSelection} from 'prosemirror-state'
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
@@ -81,6 +82,7 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
   })
 
   const rectRef = useRef<DOMRect | null>(null)
+  const lastTouchActionAtRef = useRef(0)
 
   useEffect(() => {
     const plugin = editor.rangeSelection
@@ -102,6 +104,21 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
     }, []),
   )
 
+  // Hide on visualViewport resize (e.g. mobile soft-keyboard opens). The
+  // OS selection rect we cached becomes stale once the layout shifts.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const vv = window.visualViewport
+    if (!vv) return
+    const handle = () => {
+      setSelectionState({show: false, blockId: null, rangeStart: null, rangeEnd: null, referenceRect: null})
+    }
+    vv.addEventListener('resize', handle)
+    return () => {
+      vv.removeEventListener('resize', handle)
+    }
+  }, [])
+
   if (
     !selectionState.show ||
     !selectionState.referenceRect ||
@@ -114,37 +131,74 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
 
   const rect = selectionState.referenceRect
   const {blockId, rangeStart, rangeEnd} = selectionState
+  const clearTextSelection = () => {
+    setSelectionState({show: false, blockId: null, rangeStart: null, rangeEnd: null, referenceRect: null})
+    clearEditorTextSelection(editor)
+  }
+  const runCopyFragmentLink = () => {
+    onCopyFragmentLink?.(blockId, rangeStart, rangeEnd)
+    clearTextSelection()
+  }
+  const runComment = () => {
+    onComment?.(blockId, rangeStart, rangeEnd)
+    clearTextSelection()
+  }
+  const suppressSyntheticClick = () => {
+    lastTouchActionAtRef.current = Date.now()
+  }
+  const shouldIgnoreSyntheticClick = () => Date.now() - lastTouchActionAtRef.current < 700
 
   // Position the bubble centered above the selection, 8 px above the top edge.
   // `fixed` positioning lets us use the viewport-relative coords from
-  // getBoundingClientRect / posToDOMRect directly.
+  // getBoundingClientRect / posToDOMRect directly. Clamp to the visual viewport
+  // so the bubble does not fall under the iOS selection magnifier or off-screen.
+  const viewportWidth = typeof window !== 'undefined' ? window.visualViewport?.width ?? window.innerWidth ?? 1024 : 1024
+  const viewportHeight =
+    typeof window !== 'undefined' ? window.visualViewport?.height ?? window.innerHeight ?? 768 : 768
+  const desiredLeft = rect.left + rect.width / 2
+  const clampedLeft = Math.min(Math.max(desiredLeft, 60), Math.max(60, viewportWidth - 60))
+  // Keep an extra 48px margin below the top of the viewport so the bubble does
+  // not get clipped under a sticky header / iOS dynamic island.
+  const desiredTop = rect.top - 8
+  const clampedTop = Math.min(Math.max(desiredTop, 48), Math.max(48, viewportHeight - 48))
   const bubbleStyle: React.CSSProperties = {
     position: 'fixed',
-    top: rect.top - 8,
-    left: rect.left + rect.width / 2,
+    top: clampedTop,
+    left: clampedLeft,
     transform: 'translate(-50%, -100%)',
     zIndex: 50,
   }
 
   return (
-    <div style={bubbleStyle} onMouseDown={stopPropagation}>
+    <div style={bubbleStyle} onMouseDown={stopPropagation} onTouchStart={stopPropagationTouch}>
       <div className="bg-popover flex items-center gap-1 rounded-md border p-1 shadow-md transition-all duration-150">
         {onCopyFragmentLink && (
           <button
             type="button"
             aria-label="Copy link to selection"
             title="Copy Link"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-2"
             onMouseDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
             }}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              suppressSyntheticClick()
+              runCopyFragmentLink()
+            }}
             onClick={(e) => {
               e.stopPropagation()
-              onCopyFragmentLink(blockId, rangeStart, rangeEnd)
+              if (shouldIgnoreSyntheticClick()) return
+              runCopyFragmentLink()
             }}
           >
-            <Link size={14} />
+            <Link size={16} />
           </button>
         )}
         {onComment && (
@@ -152,17 +206,28 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
             type="button"
             aria-label="Comment on selection"
             title="Comment"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-2"
             onMouseDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
             }}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              suppressSyntheticClick()
+              runComment()
+            }}
             onClick={(e) => {
               e.stopPropagation()
-              onComment(blockId, rangeStart, rangeEnd)
+              if (shouldIgnoreSyntheticClick()) return
+              runComment()
             }}
           >
-            <MessageSquare size={14} />
+            <MessageSquare size={16} />
           </button>
         )}
       </div>
@@ -177,4 +242,31 @@ export function RangeSelectionPositioner<BSchema extends BlockSchema = BlockSche
 /** Prevents mousedown events on the bubble from clearing the editor selection. */
 function stopPropagation(e: React.MouseEvent) {
   e.stopPropagation()
+}
+
+/** Prevents touchstart events on the bubble from collapsing the OS text
+ * selection. Without this, tapping the bubble on iOS deselects the text
+ * before the click handler can read it. */
+function stopPropagationTouch(e: React.TouchEvent) {
+  // Don't preventDefault here — that would block subsequent click events
+  // generated by the touch. Only stop propagation so the OS keeps the selection.
+  e.stopPropagation()
+}
+
+/** Clears the visible browser/ProseMirror selection after fragment actions. */
+function clearEditorTextSelection<BSchema extends BlockSchema>(editor: EditorWithRangeSelection<BSchema>) {
+  const view = editor._tiptapEditor?.view
+  if (view && !view.isDestroyed) {
+    const {state} = view
+    const pos = Math.min(Math.max(state.selection.to, 0), state.doc.content.size)
+    try {
+      view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, pos)))
+    } catch {
+      // Ignore invalid positions; clearing the native selection below is still useful.
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.getSelection()?.removeAllRanges()
+  }
 }

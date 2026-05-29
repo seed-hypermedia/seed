@@ -265,6 +265,8 @@ export interface PendingCommentIntent {
   replyCommentVersion?: string
   rootReplyCommentVersion?: string
   quotingBlockId?: string
+  /** Codepoint offsets within the quoted block. Absent ⇒ whole-block quote. */
+  quotingRange?: {start: number; end: number}
 }
 
 export interface PendingJoinIntent {
@@ -289,6 +291,12 @@ const PendingCommentIntentSchema = z.object({
   replyCommentVersion: z.string().optional(),
   rootReplyCommentVersion: z.string().optional(),
   quotingBlockId: z.string().optional(),
+  quotingRange: z
+    .object({
+      start: z.number(),
+      end: z.number(),
+    })
+    .optional(),
 })
 
 const PendingJoinIntentSchema = z.object({

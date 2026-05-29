@@ -32,6 +32,13 @@ export type LinkExtensionOptions = {
   renderHref?: (url: string) => string
   /** Whether the link mark should be rendered as `<a>` (clickable) or `<span>`. */
   openOnClick?: boolean
+  /**
+   * Called when a Hypermedia URL whose fragment targets a specific block
+   * (`#blockId[start:end]`) is pasted into an empty selection. Implementations
+   * typically replace the cursor block with an Embed block referencing the URL.
+   * Return `false` to fall back to the default link-mark behavior.
+   */
+  onPasteHypermediaBlockFragment?: (resolvedHmUrl: string) => void | boolean
 }
 
 export type DocumentContentProps = {
@@ -48,6 +55,8 @@ export type DocumentContentProps = {
     startCommentingNow?: boolean,
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRange & {copyToClipboard?: boolean}) => void
+  /** Called when the user creates a non-empty text selection inside the document editor. */
+  onTextSelection?: () => void
   /** Called when the set of fully-selected blocks changes. Receives the IDs of blocks whose entire content is covered by the current selection. */
   onBlocksFullSelected?: (blockIds: string[]) => void
   /** Called when the editor instance is created. Used by the desktop app to capture the editor ref for draft saving. */

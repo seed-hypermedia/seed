@@ -146,6 +146,60 @@ describe('createComment', () => {
       data: new Uint8Array([8, 9]),
     })
   })
+
+  it('wraps content with an Embed whose link includes the codepoint range fragment', async () => {
+    const signer = makeSigner()
+    const publishInput = await createComment(
+      {
+        content: makeBlocks('quoting reply'),
+        docId: TEST_DOC_ID,
+        docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        quoting: {blockId: 'quoted-block', range: {start: 3, end: 17}},
+      },
+      signer,
+    )
+
+    const decodedComment = cborDecode(publishInput.blobs[0]!.data) as any
+    expect(decodedComment.body).toHaveLength(1)
+    expect(decodedComment.body[0].type).toBe('Embed')
+    expect(decodedComment.body[0].link).toContain('#quoted-block[3:17]')
+    expect(decodedComment.body[0].children[0].text).toBe('quoting reply')
+  })
+
+  it('drops the range fragment when start === end (empty selection collapses to whole block)', async () => {
+    const signer = makeSigner()
+    const publishInput = await createComment(
+      {
+        content: makeBlocks('hello'),
+        docId: TEST_DOC_ID,
+        docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        quoting: {blockId: 'quoted-block', range: {start: 5, end: 5}},
+      },
+      signer,
+    )
+
+    const decodedComment = cborDecode(publishInput.blobs[0]!.data) as any
+    expect(decodedComment.body[0].link).toContain('#quoted-block')
+    expect(decodedComment.body[0].link).not.toContain('[')
+  })
+
+  it('accepts the legacy quotingBlockId field for back-compat (no range encoded)', async () => {
+    const signer = makeSigner()
+    const publishInput = await createComment(
+      {
+        content: makeBlocks('legacy quote'),
+        docId: TEST_DOC_ID,
+        docVersion: 'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi',
+        quotingBlockId: 'quoted-block',
+      },
+      signer,
+    )
+
+    const decodedComment = cborDecode(publishInput.blobs[0]!.data) as any
+    expect(decodedComment.body[0].type).toBe('Embed')
+    expect(decodedComment.body[0].link).toContain('#quoted-block')
+    expect(decodedComment.body[0].link).not.toContain('[')
+  })
 })
 
 describe('updateComment', () => {

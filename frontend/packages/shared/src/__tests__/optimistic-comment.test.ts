@@ -224,6 +224,21 @@ describe('applyOptimisticComment', () => {
     expect(blockData?.comments?.[0]?.id).toBe(commentRecordId)
   })
 
+  it('accepts the new QuotingTarget shape with a range', () => {
+    const qc = createQueryClient()
+    const comment = makeComment()
+    const quoting = {blockId: 'blockXYZ', range: {start: 1, end: 4}}
+
+    const blockTargetId = {...docId, blockRef: quoting.blockId}
+    const blockKey = [queryKeys.BLOCK_DISCUSSIONS, blockTargetId]
+    qc.setQueryData(blockKey, {comments: [], authors: {}})
+
+    applyOptimisticComment(qc, docId, comment, authorMetadata, quoting)
+
+    const blockData = qc.getQueryData<HMListCommentsOutput>(blockKey)
+    expect(blockData?.comments).toHaveLength(1)
+  })
+
   it('skips BLOCK_DISCUSSIONS when no quoting block is given', () => {
     const qc = createQueryClient()
     const comment = makeComment()

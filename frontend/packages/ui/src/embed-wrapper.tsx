@@ -64,9 +64,9 @@ export function EmbedWrapper({
         blockStyles,
         !hideBorder && 'border-l-primary border-l-3',
         'm-0 rounded-none',
-        isRange && 'hm-embed-range-wrapper',
         openOnClick && effectiveRoute && 'cursor-pointer text-inherit no-underline',
       )}
+      data-is-range={isRange ? 'true' : undefined}
       data-content-type="embed"
       data-url={packHmId(id)}
       data-view={viewType}

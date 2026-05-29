@@ -49,6 +49,13 @@ export interface LinkOptions {
    * If enabled, modified clicks are handled by the platform openUrl handler.
    */
   handleModifiedClicks?: boolean
+  /**
+   * Called when a Hypermedia URL with a `blockRef` (block-fragment link) is
+   * pasted into an empty selection. Implementations should insert an
+   * Embed block to replace the cursor block. Returning truthy signals that
+   * the paste was handled and the default link-mark fallback is skipped.
+   */
+  onPasteHypermediaBlockFragment?: (resolvedHmUrl: string) => void | boolean
 }
 
 /** Returns the canonical raw href stored on a rendered link element. */
@@ -245,6 +252,7 @@ export const Link = Mark.create<LinkOptions>({
         type: this.type,
         linkOnPaste: this.options.linkOnPaste,
         checkWebUrl: this.options.checkWebUrl,
+        onPasteHypermediaBlockFragment: this.options.onPasteHypermediaBlockFragment,
       }),
     )
 
