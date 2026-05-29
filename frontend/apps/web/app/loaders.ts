@@ -441,7 +441,30 @@ export async function loadResource(
     current: {name: '', start: 0, children: []},
   } as InstrumentationContext
 
-  const resource = await instrument(ctx || noopCtx, `resolveResource(${packHmId(id)})`, () => resolveResource(id))
+  const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
+  if (resource.type === 'redirect') {
+    const destRedirectUrl = createWebHMUrl(resource.redirectTarget.uid, {
+      path: resource.redirectTarget.path,
+      version: resource.redirectTarget.version,
+      latest: resource.redirectTarget.latest,
+      blockRef: resource.redirectTarget.blockRef,
+      blockRange: resource.redirectTarget.blockRange,
+      originHomeId: options?.originHomeId,
+      hostname: null,
+    })
+    console.log('[web-loader] redirecting resource route', {
+      from: id,
+      to: resource.redirectTarget,
+      destRedirectUrl,
+    })
+    throw redirect(destRedirectUrl)
+  }
+  if (resource.type === 'not-found') {
+    throw new HMNotFoundError()
+  }
+  if (resource.type === 'error') {
+    throw new Error(resource.message)
+  }
   if (resource.type === 'comment') {
     const comment = resource.comment
     const commentId = resource.id
@@ -685,6 +708,9 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       headers: metadataToHeaders(metadata),
     })
   } catch (e) {
+    if (e instanceof Response) {
+      throw e
+    }
     console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
       const destRedirectUrl = createWebHMUrl(e.target.uid, {
