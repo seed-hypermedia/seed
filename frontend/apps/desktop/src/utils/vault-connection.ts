@@ -21,16 +21,14 @@ export function normalizeVaultOriginURL(rawUrl: string, fieldName: string): stri
   return `${parsedURL.protocol}//${parsedURL.host}${normalizedPath}`
 }
 
-/** Build the browser handoff URL for remote-vault connection. */
-export function buildVaultConnectionURL(vaultUrl: string, handoffToken: string, callbackBase: string): string {
+/** Build the Vault Connect URL for remote-vault connection. */
+export function buildVaultConnectionURL(vaultUrl: string, connectToken: string, callbackBase: string): string {
   const vaultOrigin = normalizeVaultOriginURL(vaultUrl, 'vault URL')
-  const callbackOrigin = normalizeVaultOriginURL(callbackBase, 'callback URL')
-  const callbackURL = new URL('/vault-handoff', `${callbackOrigin}/`)
+  normalizeVaultOriginURL(callbackBase, 'callback URL')
   const connectionURL = new URL(vaultOrigin)
   connectionURL.pathname = connectionURL.pathname ? `${connectionURL.pathname}/connect` : '/connect'
   connectionURL.hash = new URLSearchParams({
-    token: handoffToken,
-    callback: callbackURL.toString(),
+    token: connectToken,
   }).toString()
   return connectionURL.toString()
 }

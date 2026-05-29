@@ -29,12 +29,16 @@ import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/docu
  *   `getConfig`, `getAccount`.
  * - Session cookie required: `getSession`, `logout`, `changeEmail*`,
  *   `addPasskey*`, `addPassword`,
- *   `changePassword`, `addSecretCredential`.
+ *   `changePassword`, `addSecretCredential`, `putVaultConnect`.
  * - Session cookie OR bearer (`credentialId:authKey`, secret credential only):
  *   `getVault`, `saveVault`. Bearer wins when both are present. The bearer's
  *   `credentialId` is the credentials-table primary key, so lookup is a single
  *   indexed hit that yields `userId` — no scan and no need to include
  *   `userId` in the URL.
+ * - Secret bearer for the same credential: `deleteSecretCredential`.
+ * - Unauthenticated by design: `getVaultConnect`, where the connect ID is a
+ *   hash of a high-entropy browser-fragment secret and the stored payload is
+ *   one-time-use encrypted ciphertext.
  */
 export interface ServiceDefinition {
   // Session and identity.
@@ -57,6 +61,7 @@ export interface ServiceDefinition {
   addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
   changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
   addSecretCredential(req: AddSecretCredentialRequest): Promise<AddSecretCredentialResponse>
+  deleteSecretCredential(req: DeleteSecretCredentialRequest): Promise<DeleteSecretCredentialResponse>
   addPasskeyStart(): Promise<AddPasskeyStartResponse>
   addPasskeyFinish(req: AddPasskeyFinishRequest): Promise<AddPasskeyFinishResponse>
 
@@ -67,6 +72,10 @@ export interface ServiceDefinition {
   // Email change.
   changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
   changeEmailVerify(req: ChangeEmailVerifyRequest): Promise<ChangeEmailVerifyResponse>
+
+  // Desktop Vault Connect mailbox.
+  putVaultConnect(req: PutVaultConnectRequest): Promise<PutVaultConnectResponse>
+  getVaultConnect(req: GetVaultConnectRequest): Promise<GetVaultConnectResponse>
 }
 
 // Pre-login.
@@ -130,6 +139,34 @@ export type AddSecretCredentialResponse = {
   success: boolean
   credentialId: string
 }
+
+export type DeleteSecretCredentialRequest = {
+  credentialId: string
+}
+export type DeleteSecretCredentialResponse = {
+  success: boolean
+}
+
+export type PutVaultConnectRequest = {
+  connectId: string
+  payload: string
+}
+export type PutVaultConnectResponse = {
+  success: boolean
+  expireTime: number
+}
+
+export type GetVaultConnectRequest = {
+  connectId: string
+}
+export type GetVaultConnectFoundResponse = {
+  found: true
+  payload: string
+}
+export type GetVaultConnectMissingResponse = {
+  found: false
+}
+export type GetVaultConnectResponse = GetVaultConnectFoundResponse | GetVaultConnectMissingResponse
 
 // Login (password).
 export type LoginRequest = {

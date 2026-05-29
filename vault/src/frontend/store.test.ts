@@ -92,7 +92,7 @@ describe('Store', () => {
       expect(
         getPendingFlowPath({
           delegationRequest: {} as any,
-          vaultConnectionRequest: {handoffToken: 'token', callbackURL: 'http://127.0.0.1:7777/vault-handoff'},
+          vaultConnectionRequest: {connectToken: 'token'},
         }),
       ).toBe('/delegate')
     })
@@ -101,7 +101,7 @@ describe('Store', () => {
       expect(
         getPendingFlowPath({
           delegationRequest: null,
-          vaultConnectionRequest: {handoffToken: 'token', callbackURL: 'http://127.0.0.1:7777/vault-handoff'},
+          vaultConnectionRequest: {connectToken: 'token'},
         }),
       ).toBe('/connect')
     })
@@ -1933,9 +1933,9 @@ describe('delegation flow', () => {
   })
 })
 
-describe('vault connection handoff flow', () => {
-  const originalFetch = globalThis.fetch
+describe('vault connection flow', () => {
   const originalLocation = window.location
+  const connectToken = base64.encode(new Uint8Array(32).fill(7))
 
   beforeEach(() => {
     // @ts-expect-error
@@ -1949,28 +1949,19 @@ describe('vault connection handoff flow', () => {
   })
 
   afterEach(() => {
-    globalThis.fetch = originalFetch
     window.location = originalLocation as any
   })
 
-  test('parses fragment, exchanges handoff token, and registers secret credential', async () => {
-    const registerRequests: Array<{authKey: string; wrappedDEK: string}> = []
-    const handoffRequests: Array<{url: string; init?: RequestInit}> = []
+  async function expectedVaultConnectId() {
+    const digest = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', base64.decode(connectToken) as Uint8Array<ArrayBuffer>),
+    )
+    return base64.encode(digest)
+  }
 
-    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      handoffRequests.push({url: String(input), init})
-      if (handoffRequests.length === 1) {
-        return new Response(JSON.stringify({success: true}), {
-          status: 200,
-          headers: {'Content-Type': 'application/json'},
-        })
-      }
-      return new Response(JSON.stringify({success: true}), {
-        status: 200,
-        headers: {'Content-Type': 'application/json'},
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+  test('parses fragment, posts encrypted Vault Connect payload, and registers secret credential', async () => {
+    const registerRequests: Array<{authKey: string; wrappedDEK: string}> = []
+    const vaultConnectRequests: Array<{connectId: string; payload: string}> = []
 
     const {state, actions, navigator} = createStore(
       createMockClient({
@@ -1978,13 +1969,16 @@ describe('vault connection handoff flow', () => {
           registerRequests.push(req)
           return {success: true, credentialId: 'secret-credential'}
         },
+        putVaultConnect: async (req) => {
+          vaultConnectRequests.push(req)
+          return {success: true, expireTime: Date.now() + 120_000}
+        },
       }),
       createMockBlockstore(),
     )
     const navigate = mock()
     navigator.setNavigate(navigate)
-    const dek = new Uint8Array(64)
-    dek.fill(9)
+    const dek = new Uint8Array(64).fill(9)
     state.decryptedDEK = dek
     state.session = {
       authenticated: true,
@@ -1992,44 +1986,32 @@ describe('vault connection handoff flow', () => {
       userId: 'user-123',
     }
 
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
+    actions.parseVaultConnectionFromUrl(`https://example.com/vault/connect#token=${encodeURIComponent(connectToken)}`)
 
     await actions.completeVaultConnection()
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(handoffRequests[0]?.url).toBe('http://127.0.0.1:7777/vault-handoff')
-    expect(handoffRequests[0]?.init).toMatchObject({
-      method: 'POST',
-    })
-    expect(JSON.parse((handoffRequests[0]?.init?.body as string) || '{}')).toEqual({
-      handoffToken: 'token-123',
-      vaultUrl: 'https://example.com/vault',
-      userId: 'user-123',
-    })
-    expect(handoffRequests[1]?.url).toBe('http://127.0.0.1:7777/vault-handoff')
-    expect(handoffRequests[1]?.init).toMatchObject({
-      method: 'POST',
-    })
-    const handoffRequest = JSON.parse((handoffRequests[1]?.init?.body as string) || '{}')
-    expect(handoffRequest).toMatchObject({
-      handoffToken: 'token-123',
+    expect(registerRequests).toHaveLength(1)
+    expect(vaultConnectRequests).toHaveLength(1)
+    expect(vaultConnectRequests[0]?.connectId).toBe(await expectedVaultConnectId())
+
+    const plaintext = await localCrypto.decrypt(
+      base64.decode(vaultConnectRequests[0]!.payload),
+      base64.decode(connectToken),
+    )
+    const connectPayload = JSON.parse(new TextDecoder().decode(plaintext))
+    expect(connectPayload).toMatchObject({
       vaultUrl: 'https://example.com/vault',
       userId: 'user-123',
       credentialId: 'secret-credential',
     })
-
-    expect(registerRequests.length).toBe(1)
     expect(registerRequests[0]?.authKey).toBe(
-      base64.encode(await localCrypto.deriveSecretCredentialAuthKey(base64.decode(handoffRequest.secret))),
+      base64.encode(await localCrypto.deriveSecretCredentialAuthKey(base64.decode(connectPayload.secret))),
     )
-    expect(typeof handoffRequest.secret).toBe('string')
-    const decrypted = await localCrypto.decrypt(
+    const decryptedDEK = await localCrypto.decrypt(
       base64.decode(registerRequests[0]!.wrappedDEK),
-      base64.decode(handoffRequest.secret),
+      base64.decode(connectPayload.secret),
     )
-    expect(Array.from(decrypted)).toEqual(Array.from(dek))
+    expect(Array.from(decryptedDEK)).toEqual(Array.from(dek))
     expect(state.vaultConnectionRequest).toBeNull()
     expect(state.vaultConnectionSuccessMessage).toBe(
       'Your Seed desktop app has been linked with this remote vault successfully.',
@@ -2038,229 +2020,84 @@ describe('vault connection handoff flow', () => {
     expect(navigate).toHaveBeenCalledWith('/')
   })
 
-  test('finishes when daemon connects with an existing credential', async () => {
-    const fetchBodies: unknown[] = []
-    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
-      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
-      return new Response(JSON.stringify({success: true, connected: true}), {
-        status: 200,
-        headers: {'Content-Type': 'application/json'},
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
-    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
-    const {state, actions, navigator} = createStore(
-      createMockClient({
-        addSecretCredential,
-      }),
-      createMockBlockstore(),
-    )
-    const navigate = mock()
-    navigator.setNavigate(navigate)
-    state.decryptedDEK = new Uint8Array(64)
-    state.session = {
-      authenticated: true,
-      relyingPartyOrigin: 'https://example.com',
-      userId: 'user-123',
-    }
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-existing&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    await actions.completeVaultConnection()
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchBodies[0]).toEqual({
-      handoffToken: 'token-existing',
-      vaultUrl: 'https://example.com/vault',
-      userId: 'user-123',
-    })
-    expect(addSecretCredential).not.toHaveBeenCalled()
-    expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('registers a fresh credential when daemon lookup is unsupported', async () => {
-    const fetchBodies: unknown[] = []
-    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
-      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
-      if (fetchBodies.length === 1) {
-        return new Response('credentialId is required', {status: 400})
-      }
-      return new Response(JSON.stringify({success: true}), {
-        status: 200,
-        headers: {'Content-Type': 'application/json'},
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
-    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
-    const getVault = mock(async () => ({encryptedData: '', version: 0, credentials: []}))
-    const {state, actions, navigator} = createStore(
-      createMockClient({
-        addSecretCredential,
-        getVault,
-      }),
-      createMockBlockstore(),
-    )
-    const navigate = mock()
-    navigator.setNavigate(navigate)
-    state.decryptedDEK = new Uint8Array(64)
-    state.session = {
-      authenticated: true,
-      relyingPartyOrigin: 'https://example.com',
-      userId: 'user-123',
-    }
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-legacy&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    await actions.completeVaultConnection()
-
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchBodies[0]).toEqual({
-      handoffToken: 'token-legacy',
-      vaultUrl: 'https://example.com/vault',
-      userId: 'user-123',
-    })
-    expect(fetchBodies[1]).toMatchObject({
-      handoffToken: 'token-legacy',
-      vaultUrl: 'https://example.com/vault',
-      userId: 'user-123',
-      credentialId: 'new-secret-credential',
-    })
-    expect(fetchBodies[1]).toHaveProperty('secret')
-    expect(addSecretCredential).toHaveBeenCalledTimes(1)
-    expect(getVault).not.toHaveBeenCalled()
-    expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('registers a fresh credential when daemon probe does not connect', async () => {
-    const fetchBodies: unknown[] = []
-    const fetchMock = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe('http://127.0.0.1:7777/vault-handoff')
-      fetchBodies.push(JSON.parse((init?.body as string) || '{}'))
-      if (fetchBodies.length === 1) {
-        return new Response(JSON.stringify({success: true, connected: false}), {
-          status: 200,
-          headers: {'Content-Type': 'application/json'},
-        })
-      }
-      return new Response(JSON.stringify({success: true}), {
-        status: 200,
-        headers: {'Content-Type': 'application/json'},
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
-    const addSecretCredential = mock(async () => ({success: true, credentialId: 'new-secret-credential'}))
-    const {state, actions, navigator} = createStore(
-      createMockClient({
-        addSecretCredential,
-      }),
-      createMockBlockstore(),
-    )
-    const navigate = mock()
-    navigator.setNavigate(navigate)
-    state.decryptedDEK = new Uint8Array(64)
-    state.session = {
-      authenticated: true,
-      relyingPartyOrigin: 'https://example.com',
-      userId: 'user-123',
-    }
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-stale&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    await actions.completeVaultConnection()
-
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchBodies[1]).toMatchObject({
-      handoffToken: 'token-stale',
-      vaultUrl: 'https://example.com/vault',
-      userId: 'user-123',
-      credentialId: 'new-secret-credential',
-    })
-    expect(fetchBodies[1]).toHaveProperty('secret')
-    expect(addSecretCredential).toHaveBeenCalledTimes(1)
-    expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('scrubs handoff token fragment after parsing connection request', () => {
+  test('scrubs connect token fragment after parsing connection request', () => {
     const replaceState = spyOn(window.history, 'replaceState').mockImplementation(() => undefined)
     try {
       const {state, actions} = createStore(createMockClient(), createMockBlockstore())
       // @ts-expect-error
       window.location = {
-        href: 'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+        href: `https://example.com/vault/connect#token=${encodeURIComponent(connectToken)}`,
         origin: 'https://example.com',
         pathname: '/vault/connect',
-        hash: '#token=token-123&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
+        hash: `#token=${encodeURIComponent(connectToken)}`,
       }
 
       actions.parseVaultConnectionFromUrl(window.location.href)
 
-      expect(state.vaultConnectionRequest).toEqual({
-        handoffToken: 'token-123',
-        callbackURL: 'http://127.0.0.1:7777/vault-handoff',
-      })
+      expect(state.vaultConnectionRequest).toEqual({connectToken})
       expect(replaceState).toHaveBeenCalledWith(window.history.state, '', 'https://example.com/vault/connect')
     } finally {
       replaceState.mockRestore()
     }
   })
 
-  test('keeps invalid handoff fragment in URL for error context', () => {
-    const replaceState = spyOn(window.history, 'replaceState').mockImplementation(() => undefined)
-    try {
-      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-      // @ts-expect-error
-      window.location = {
-        href: 'https://example.com/vault/connect#token=token-only',
-        origin: 'https://example.com',
-        pathname: '/vault/connect',
-        hash: '#token=token-only',
-      }
+  test('surfaces missing token validation errors', () => {
+    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
 
-      actions.parseVaultConnectionFromUrl(window.location.href)
+    actions.parseVaultConnectionFromUrl('https://example.com/vault#callback=http%3A%2F%2F127.0.0.1%3A7777')
 
-      expect(state.vaultConnectionRequest).toBeNull()
-      expect(state.error).toBe('Invalid vault connection fragment')
-      expect(replaceState).not.toHaveBeenCalled()
-    } finally {
-      replaceState.mockRestore()
-    }
+    expect(state.vaultConnectionRequest).toBeNull()
+    expect(state.error).toContain('Invalid vault connection fragment')
   })
 
-  test('accepts localhost handoff URL with any port', async () => {
-    let fetchCalls = 0
-    const fetchMock = mock(async (input: RequestInfo | URL) => {
-      fetchCalls++
-      if (fetchCalls === 1) {
-        return new Response(JSON.stringify({success: true}), {
-          status: 200,
-          headers: {'Content-Type': 'application/json'},
-        })
-      }
-      return new Response(JSON.stringify({success: true}), {
-        status: 200,
-        headers: {'Content-Type': 'application/json'},
-      })
+  test('keeps pending request when mailbox post fails', async () => {
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
+    const putVaultConnect = mock(async () => {
+      throw new Error('mailbox unavailable')
     })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+    const {state, actions} = createStore(
+      createMockClient({
+        addSecretCredential,
+        putVaultConnect,
+      }),
+      createMockBlockstore(),
+    )
+    state.decryptedDEK = new Uint8Array(64)
+    state.session = {
+      authenticated: true,
+      relyingPartyOrigin: 'https://example.com',
+      userId: 'user-123',
+    }
+    actions.parseVaultConnectionFromUrl(`https://example.com/vault/connect#token=${encodeURIComponent(connectToken)}`)
 
+    await actions.completeVaultConnection()
+
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(putVaultConnect).toHaveBeenCalledTimes(1)
+    expect(state.vaultConnectionRequest).toMatchObject({
+      connectToken,
+      pendingCredential: {
+        credentialId: 'secret-credential',
+      },
+    })
+    expect(state.error).toContain('mailbox unavailable')
+  })
+
+  test('reuses pending secret credential on Vault Connect retry', async () => {
+    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
+    const vaultConnectRequests: Array<{connectId: string; payload: string}> = []
+    let failNextPost = true
     const {state, actions, navigator} = createStore(
       createMockClient({
-        addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),
+        addSecretCredential,
+        putVaultConnect: async (req) => {
+          vaultConnectRequests.push(req)
+          if (failNextPost) {
+            failNextPost = false
+            throw new Error('mailbox unavailable')
+          }
+          return {success: true, expireTime: Date.now() + 120_000}
+        },
       }),
       createMockBlockstore(),
     )
@@ -2272,136 +2109,30 @@ describe('vault connection handoff flow', () => {
       relyingPartyOrigin: 'https://example.com',
       userId: 'user-123',
     }
+    actions.parseVaultConnectionFromUrl(`https://example.com/vault/connect#token=${encodeURIComponent(connectToken)}`)
 
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-abc&callback=http%3A%2F%2Flocalhost%3A43125%2Fvault-handoff',
-    )
+    await actions.completeVaultConnection()
+    const pendingCredential = state.vaultConnectionRequest?.pendingCredential
+    expect(pendingCredential).toBeDefined()
 
     await actions.completeVaultConnection()
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:43125/vault-handoff')
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:43125/vault-handoff')
-    expect(state.vaultConnectionSuccessMessage).toBe(
-      'Your Seed desktop app has been linked with this remote vault successfully.',
+    expect(addSecretCredential).toHaveBeenCalledTimes(1)
+    expect(vaultConnectRequests).toHaveLength(2)
+    const firstPlaintext = await localCrypto.decrypt(
+      base64.decode(vaultConnectRequests[0]!.payload),
+      base64.decode(connectToken),
     )
+    const secondPlaintext = await localCrypto.decrypt(
+      base64.decode(vaultConnectRequests[1]!.payload),
+      base64.decode(connectToken),
+    )
+    expect(JSON.parse(new TextDecoder().decode(firstPlaintext))).toEqual(
+      JSON.parse(new TextDecoder().decode(secondPlaintext)),
+    )
+    expect(state.vaultConnectionRequest).toBeNull()
     expect(state.error).toBe('')
     expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('surfaces fragment validation errors', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-
-    actions.parseVaultConnectionFromUrl('https://example.com/vault#token=token-only')
-
-    expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.error).toContain('Invalid vault connection fragment')
-  })
-
-  test('rejects non-loopback callback URLs', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault#token=token-only&callback=http%3A%2F%2Fexample.com%2Fvault-handoff',
-    )
-
-    expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.error).toContain('Invalid callback URL: host must be localhost or 127.0.0.1')
-  })
-
-  test('rejects callback URLs with the wrong path', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault#token=token-only&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fproxy%2Fvault-handoff',
-    )
-
-    expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.error).toContain('Invalid callback URL: path must be /vault-handoff')
-  })
-
-  test('rejects callback URLs with the wrong protocol', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault#token=token-only&callback=https%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.error).toContain('Invalid callback URL: protocol must be http')
-  })
-
-  test('surfaces daemon vault URL mismatch errors', async () => {
-    const fetchMock = mock(async () => {
-      return new Response('vault URL mismatch: expected https://example.com/vault, got https://example.net/vault', {
-        status: 400,
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
-    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
-    const {state, actions} = createStore(
-      createMockClient({
-        addSecretCredential,
-      }),
-      createMockBlockstore(),
-    )
-    state.decryptedDEK = new Uint8Array(64)
-    state.session = {
-      authenticated: true,
-      relyingPartyOrigin: 'https://example.com',
-      userId: 'user-123',
-    }
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-456&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    await actions.completeVaultConnection()
-
-    expect(addSecretCredential).toHaveBeenCalledTimes(1)
-    expect(state.vaultConnectionRequest).toEqual({
-      handoffToken: 'token-456',
-      callbackURL: 'http://127.0.0.1:7777/vault-handoff',
-    })
-    expect(state.error).toContain('vault URL mismatch')
-  })
-
-  test('surfaces daemon vault URL mismatch errors for same-origin path mismatches', async () => {
-    // @ts-expect-error
-    window.location = {
-      href: 'https://example.com/vault-b/connect',
-      origin: 'https://example.com',
-      pathname: '/vault-b/connect',
-    }
-
-    const fetchMock = mock(async () => {
-      return new Response('vault URL mismatch: expected https://example.com/vault-a, got https://example.com/vault-b', {
-        status: 400,
-      })
-    })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-
-    const addSecretCredential = mock(async () => ({success: true, credentialId: 'secret-credential'}))
-    const {state, actions} = createStore(
-      createMockClient({
-        addSecretCredential,
-      }),
-      createMockBlockstore(),
-    )
-    state.decryptedDEK = new Uint8Array(64)
-    state.session = {
-      authenticated: true,
-      relyingPartyOrigin: 'https://example.com',
-      userId: 'user-123',
-    }
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault-b/connect#token=token-789&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
-
-    await actions.completeVaultConnection()
-
-    expect(addSecretCredential).toHaveBeenCalledTimes(1)
-    expect(state.error).toContain('vault URL mismatch')
   })
 
   test('cancel clears the pending desktop connection flow', () => {
@@ -2409,9 +2140,7 @@ describe('vault connection handoff flow', () => {
     const navigate = mock()
     navigator.setNavigate(navigate)
 
-    actions.parseVaultConnectionFromUrl(
-      'https://example.com/vault/connect#token=token-789&callback=http%3A%2F%2F127.0.0.1%3A7777%2Fvault-handoff',
-    )
+    actions.parseVaultConnectionFromUrl(`https://example.com/vault/connect#token=${encodeURIComponent(connectToken)}`)
     actions.cancelVaultConnection()
 
     expect(state.vaultConnectionRequest).toBeNull()

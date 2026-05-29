@@ -450,6 +450,7 @@ export function VaultBackendSettings() {
   const gatewayUrl = useGatewayUrl().data || 'https://hyper.media'
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [remoteVaultURL, setRemoteVaultURL] = useState(gatewayUrl + '/vault')
+  const [vaultConnectURL, setVaultConnectURL] = useState('')
 
   useEffect(() => {
     setSelectedMode(vaultStatus.data?.backendMode === VaultBackendMode.REMOTE ? 'remote' : 'local')
@@ -497,13 +498,14 @@ export function VaultBackendSettings() {
       return
     }
     try {
-      const handoff = await startVaultConnection.mutateAsync({
+      const vaultConnect = await startVaultConnection.mutateAsync({
         vaultUrl: normalizedVaultURL,
-        force: connectionState === 'connected',
+        force: true,
       })
-      const browserURL = buildVaultConnectionURL(handoff.vaultUrl, handoff.handoffToken, DAEMON_HTTP_URL)
+      const browserURL = buildVaultConnectionURL(vaultConnect.vaultUrl, vaultConnect.connectToken, DAEMON_HTTP_URL)
+      setVaultConnectURL(browserURL)
       openUrl(browserURL)
-      toast.success('Opened browser handoff. Complete sign-in, then return here.')
+      toast.success('Opened Vault Connect. Complete sign-in, then return here.')
     } catch (error) {
       toast.error('Failed to start vault connection: ' + (error instanceof Error ? error.message : String(error)))
     }
@@ -571,7 +573,7 @@ export function VaultBackendSettings() {
             description={
               connectionState === 'connected'
                 ? `Connected to ${vaultStatus.data?.remoteVaultUrl || 'remote vault'}.`
-                : 'Not connected. Open the browser handoff to sign in.'
+                : 'Not connected. Open the Vault Connect to sign in.'
             }
             right={
               <div className="flex items-center gap-2">
@@ -591,6 +593,29 @@ export function VaultBackendSettings() {
               </div>
             }
           />
+          {vaultConnectURL && (
+            <SettingsRow
+              label="Vault Connect URL"
+              description="Use this URL if you need to continue in another browser."
+              right={
+                <div className="flex items-center gap-2">
+                  <Input id="vault-connect-url" value={vaultConnectURL} readOnly className="w-[360px]" />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    aria-label="Copy Vault Connect URL"
+                    title="Copy Vault Connect URL"
+                    onClick={() => {
+                      copyTextToClipboard(vaultConnectURL)
+                      toast.success('Vault Connect URL copied')
+                    }}
+                  >
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+              }
+            />
+          )}
           {syncStatus?.lastSyncError && <SettingsRow label="Sync Error" description={syncStatus.lastSyncError} />}
         </>
       )}

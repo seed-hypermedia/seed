@@ -488,6 +488,16 @@ func (s fixedTestSecretStore) Store(key string, credentialID string, secret []by
 	return nil
 }
 
+func (s fixedTestSecretStore) Delete(key string, credentialID string) error {
+	bundle, ok := s.bundles[key]
+	if !ok {
+		return fmt.Errorf("missing credential bundle %q", key)
+	}
+	delete(bundle.Credentials, strings.TrimSpace(credentialID))
+	s.bundles[key] = bundle
+	return nil
+}
+
 func (s fixedTestSecretStore) ListCredentialIDs(key string) ([]string, error) {
 	bundle, ok := s.bundles[key]
 	if !ok {

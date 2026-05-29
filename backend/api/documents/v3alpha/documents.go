@@ -875,8 +875,10 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 	)
 
 	var attrs blob.DocIndexedAttrs
-	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
-		srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
+	if len(metadataJSON) > 0 {
+		if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
+			srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
+		}
 	}
 
 	metadata := attrs.PublicMap()

@@ -26,12 +26,15 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     addPassword: notImplemented('addPassword'),
     changePassword: notImplemented('changePassword'),
     addSecretCredential: notImplemented('addSecretCredential'),
+    deleteSecretCredential: notImplemented('deleteSecretCredential'),
     addPasskeyStart: notImplemented('addPasskeyStart'),
     addPasskeyFinish: notImplemented('addPasskeyFinish'),
     loginPasskeyStart: notImplemented('loginPasskeyStart'),
     loginPasskeyFinish: notImplemented('loginPasskeyFinish'),
     changeEmailStart: notImplemented('changeEmailStart'),
     changeEmailVerify: notImplemented('changeEmailVerify'),
+    putVaultConnect: notImplemented('putVaultConnect'),
+    getVaultConnect: notImplemented('getVaultConnect'),
     ...overrides,
   }
 }
@@ -68,6 +71,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     addPassword: async () => ({success: true}),
     changePassword: async () => ({success: true}),
     addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),
+    deleteSecretCredential: async () => ({success: true}),
     addPasskeyStart: async () => ({
       challenge: 'challenge',
       rp: {name: 'test', id: 'test'},
@@ -98,6 +102,8 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       newEmail: 'new@example.com',
     }),
+    putVaultConnect: async () => ({success: true, expireTime: Date.now() + 120_000}),
+    getVaultConnect: async () => ({found: false}),
     ...overrides,
   }
 }

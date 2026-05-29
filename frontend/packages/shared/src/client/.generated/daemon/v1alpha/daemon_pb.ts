@@ -584,7 +584,7 @@ export class GetVaultStatusRequest extends Message<GetVaultStatusRequest> {
 }
 
 /**
- * Request to start remote vault connection handoff.
+ * Request to start remote vault connection.
  *
  * @generated from message com.seed.daemon.v1alpha.StartVaultConnectionRequest
  */
@@ -633,7 +633,7 @@ export class StartVaultConnectionRequest extends Message<StartVaultConnectionReq
 }
 
 /**
- * Response with daemon-issued handoff token metadata.
+ * Response with daemon-issued connect token metadata.
  *
  * @generated from message com.seed.daemon.v1alpha.StartVaultConnectionResponse
  */
@@ -646,14 +646,14 @@ export class StartVaultConnectionResponse extends Message<StartVaultConnectionRe
   vaultUrl = "";
 
   /**
-   * Ephemeral handoff token for browser-mediated daemon exchange.
+   * Ephemeral connect token for browser-mediated daemon exchange.
    *
-   * @generated from field: string handoff_token = 2;
+   * @generated from field: string connect_token = 2;
    */
-  handoffToken = "";
+  connectToken = "";
 
   /**
-   * Handoff token expiration time.
+   * Connect token expiration time.
    *
    * @generated from field: google.protobuf.Timestamp expire_time = 3;
    */
@@ -668,7 +668,7 @@ export class StartVaultConnectionResponse extends Message<StartVaultConnectionRe
   static readonly typeName = "com.seed.daemon.v1alpha.StartVaultConnectionResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "handoff_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "connect_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "expire_time", kind: "message", T: Timestamp },
   ]);
 

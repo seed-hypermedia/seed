@@ -1209,6 +1209,34 @@ describe('vault auth service', () => {
     })
   })
 
+  test('Vault Connect payload creation requires a cookie session', async () => {
+    const svc = createService()
+    const userId = createUser('vault-connect@test.com')
+    const sessionId = createSession(userId)
+    const payload = base64.encode(new Uint8Array([1, 2, 3]))
+    const req = {
+      connectId: 'A'.repeat(43),
+      payload,
+    }
+
+    await expect(svc.putVaultConnect(req, createContext())).rejects.toMatchObject({
+      statusCode: 401,
+    } as Partial<APIError>)
+
+    await expect(svc.putVaultConnect(req, createContext(null, 'credential:auth'))).rejects.toMatchObject({
+      statusCode: 401,
+    } as Partial<APIError>)
+
+    await expect(svc.putVaultConnect(req, createContext(sessionId))).resolves.toMatchObject({
+      success: true,
+    })
+
+    const row = db
+      .query<{payload: string}, [string]>(`SELECT payload FROM vault_connects WHERE id = ?`)
+      .get(req.connectId)
+    expect(row?.payload).toBe(payload)
+  })
+
   test('addPasskeyStart requires user verification', async () => {
     const svc = createService()
     const email = 'passkey-register@test.com'

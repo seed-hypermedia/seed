@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -228,7 +229,9 @@ const (
 	defaultPollInterval      = 2 * time.Second
 	defaultPollTimeout       = 2 * time.Minute
 
-	vaultPath = "api/vault"
+	vaultPath            = "api/vault"
+	vaultConnectPath     = "api/vault-connect"
+	secretCredentialPath = "api/credentials/secret"
 )
 
 var (
@@ -240,13 +243,13 @@ var (
 	ErrInvalidRemoteURL = errors.New("invalid vault URL")
 	// ErrAlreadyConnected reports that the remote vault is already connected.
 	ErrAlreadyConnected = errors.New("remote vault is already connected")
-	// ErrConnectionInProgress reports that a vault connection handoff is already in progress.
+	// ErrConnectionInProgress reports that a vault connection is already in progress.
 	ErrConnectionInProgress = errors.New("vault connection is already in progress")
-	// ErrConnectionTokenExpired reports that the browser handoff token expired.
-	ErrConnectionTokenExpired = errors.New("vault handoff token expired")
-	// ErrConnectionTokenInvalid reports that the browser handoff token is invalid.
-	ErrConnectionTokenInvalid = errors.New("vault handoff token is invalid")
-	// ErrConnectionRemoteURLMismatch reports that the browser handoff targeted a different remote vault URL.
+	// ErrConnectionTokenExpired reports that the browser connect token expired.
+	ErrConnectionTokenExpired = errors.New("vault connect token expired")
+	// ErrConnectionTokenInvalid reports that the browser connect token is invalid.
+	ErrConnectionTokenInvalid = errors.New("vault connect token is invalid")
+	// ErrConnectionRemoteURLMismatch reports that the Vault Connect targeted a different remote vault URL.
 	ErrConnectionRemoteURLMismatch = errors.New("vault URL mismatch")
 )
 
@@ -263,26 +266,26 @@ type Status struct {
 // ConnectionStart is the result of starting a browser-mediated vault connection.
 type ConnectionStart struct {
 	RemoteURL    string
-	HandoffToken string
+	ConnectToken string
 	ExpireTime   time.Time
 }
 
-// ConnectionHandoff is the one-time browser handoff response.
-type ConnectionHandoff struct {
-	RemoteURL    string
-	UserID       string
-	CredentialID string
-	Credential   string
+// ConnectPayload is the one-time Vault Connect response.
+type ConnectPayload struct {
+	RemoteURL    string `json:"vaultUrl"`
+	UserID       string `json:"userId"`
+	CredentialID string `json:"credentialId"`
+	Credential   string `json:"secret"`
 }
 
-// ConnectionProbe describes whether an existing remote credential completed a browser handoff.
+// ConnectionProbe describes whether an existing remote credential completed a Vault Connect.
 type ConnectionProbe struct {
 	Connected bool
 }
 
 type connectionState struct {
 	remoteURL  string
-	token      string
+	secret     string
 	expireTime time.Time
 }
 
@@ -367,6 +370,11 @@ type saveResponse struct {
 	Success bool `json:"success"`
 }
 
+type vaultConnectResponse struct {
+	Found   bool   `json:"found"`
+	Payload string `json:"payload"`
+}
+
 type mergeAccount struct {
 	Principal string
 	Account   AccountInfo
@@ -411,7 +419,7 @@ func (ks *Vault) ResumeRemoteConnection() {
 	go ks.syncRemoteMaybe(context.Background())
 }
 
-// SetPendingConnectionExpiry rewrites the current pending handoff expiry.
+// SetPendingConnectionExpiry rewrites the current pending Vault Connect expiry.
 func (ks *Vault) SetPendingConnectionExpiry(expireTime time.Time) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
@@ -651,7 +659,7 @@ func (ks *Vault) Status() (Status, error) {
 	return status, nil
 }
 
-// StartConnection prepares a browser-mediated remote vault connection handoff.
+// StartConnection prepares a browser-mediated remote vault connection.
 func (ks *Vault) StartConnection(remoteURL string, force bool) (ConnectionStart, error) {
 	normalizedRemoteURL, err := normalizeOriginURL(strings.TrimSpace(remoteURL))
 	if err != nil {
@@ -675,46 +683,46 @@ func (ks *Vault) StartConnection(remoteURL string, force bool) (ConnectionStart,
 		return ConnectionStart{}, fmt.Errorf("%w; retry with force=true", ErrConnectionInProgress)
 	}
 
-	token, err := newConnectionToken()
+	secret, err := newConnectionToken()
 	if err != nil {
 		return ConnectionStart{}, fmt.Errorf("failed to create vault connection token: %w", err)
 	}
 
 	state := &connectionState{
 		remoteURL:  normalizedRemoteURL,
-		token:      token,
+		secret:     secret,
 		expireTime: now.Add(connectionTokenTTL),
 	}
 	ks.connection = state
 
 	return ConnectionStart{
 		RemoteURL:    state.remoteURL,
-		HandoffToken: state.token,
+		ConnectToken: state.secret,
 		ExpireTime:   state.expireTime,
 	}, nil
 }
 
 // HandleConnection finalizes a browser-mediated remote vault connection.
-func (ks *Vault) HandleConnection(ctx context.Context, handoffToken string, handoff ConnectionHandoff) error {
-	normalizedURL, err := normalizeOriginURL(handoff.RemoteURL)
+func (ks *Vault) HandleConnection(ctx context.Context, connectToken string, connectPayload ConnectPayload) error {
+	normalizedURL, err := normalizeOriginURL(connectPayload.RemoteURL)
 	if err != nil {
 		return err
 	}
 
-	userID := handoff.UserID
+	userID := connectPayload.UserID
 	if userID == "" {
 		return fmt.Errorf("remote vault user ID is required")
 	}
 
-	credentialID := handoff.CredentialID
+	credentialID := connectPayload.CredentialID
 	if credentialID == "" {
 		return fmt.Errorf("remote credential ID is required")
 	}
-	if err := ks.validateConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+	if err := ks.validateVaultConnectPayload(connectToken, normalizedURL, time.Now().UTC()); err != nil {
 		return err
 	}
 
-	encodedSecret := handoff.Credential
+	encodedSecret := connectPayload.Credential
 	var decodedSecret []byte
 	if encodedSecret == "" {
 		decodedSecret, err = loadRemoteCredentialSecret(ks.secretStore, normalizedURL, userID, credentialID)
@@ -732,15 +740,59 @@ func (ks *Vault) HandleConnection(ctx context.Context, handoffToken string, hand
 		}
 	}
 
-	if err := ks.consumeConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+	if err := ks.consumeVaultConnectPayload(connectToken, normalizedURL, time.Now().UTC()); err != nil {
 		return err
 	}
 
 	return ks.finishConnection(ctx, normalizedURL, userID, credentialID, encodedSecret)
 }
 
-// ProbeConnectionCredentials tries existing remote credentials and completes the handoff if one works.
-func (ks *Vault) ProbeConnectionCredentials(ctx context.Context, handoffToken string, remoteURL string, userID string) (ConnectionProbe, error) {
+// PollConnection waits for a browser to post an encrypted Vault Connect payload
+// to the remote server, then decrypts and consumes that payload locally.
+func (ks *Vault) PollConnection(ctx context.Context, connectSecret string) error {
+	decodedSecret, err := decodeBase64URLField(connectSecret, "connect secret")
+	if err != nil {
+		return err
+	}
+	if len(decodedSecret) != connectionTokenRawLength {
+		return ErrConnectionTokenInvalid
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, ks.pollTimeout)
+	defer cancel()
+
+	interval := time.NewTimer(0)
+	defer interval.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return ErrConnectionTokenExpired
+			}
+			return ctx.Err()
+		case <-interval.C:
+		}
+
+		remoteURL, err := ks.pendingConnectionRemoteURL(connectSecret, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+
+		connectPayload, found, err := ks.fetchVaultConnectPayload(ctx, remoteURL, decodedSecret)
+		if err != nil {
+			return err
+		}
+		if found {
+			return ks.HandleConnection(ctx, connectSecret, connectPayload)
+		}
+
+		interval.Reset(ks.pollInterval)
+	}
+}
+
+// ProbeConnectionCredentials tries existing remote credentials and completes Vault Connect if one works.
+func (ks *Vault) ProbeConnectionCredentials(ctx context.Context, connectToken string, remoteURL string, userID string) (ConnectionProbe, error) {
 	normalizedURL, err := normalizeOriginURL(remoteURL)
 	if err != nil {
 		return ConnectionProbe{}, err
@@ -748,7 +800,7 @@ func (ks *Vault) ProbeConnectionCredentials(ctx context.Context, handoffToken st
 	if userID == "" {
 		return ConnectionProbe{}, fmt.Errorf("remote vault user ID is required")
 	}
-	if err := ks.validateConnectionHandoff(handoffToken, normalizedURL, time.Now().UTC()); err != nil {
+	if err := ks.validateVaultConnectPayload(connectToken, normalizedURL, time.Now().UTC()); err != nil {
 		return ConnectionProbe{}, err
 	}
 
@@ -779,7 +831,7 @@ func (ks *Vault) ProbeConnectionCredentials(ctx context.Context, handoffToken st
 		if err := ks.finishConnection(ctx, normalizedURL, userID, credentialID, encodedSecret); err != nil {
 			return ConnectionProbe{}, err
 		}
-		if err := ks.clearConnectionHandoff(handoffToken, normalizedURL); err != nil {
+		if err := ks.clearVaultConnectPayload(connectToken, normalizedURL); err != nil {
 			return ConnectionProbe{}, err
 		}
 		return ConnectionProbe{Connected: true}, nil
@@ -806,6 +858,61 @@ func (ks *Vault) probeConnectionCredential(ctx context.Context, remoteURL string
 	}
 	_, err = decodeRemoteDataEncryptionKey(secret, credential.WrappedDEK)
 	return err == nil
+}
+
+func (ks *Vault) fetchVaultConnectPayload(ctx context.Context, remoteURL string, connectSecret []byte) (ConnectPayload, bool, error) {
+	connectID := vaultConnectIDFromSecret(connectSecret)
+	endpoint, err := resolveDaemonEndpointURL(remoteURL, vaultConnectPath+"/"+url.PathEscape(connectID))
+	if err != nil {
+		return ConnectPayload{}, false, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return ConnectPayload{}, false, err
+	}
+
+	resp, err := ks.httpClientDo(req)
+	if err != nil {
+		return ConnectPayload{}, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return ConnectPayload{}, false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := readRemoteBody(resp.Body, controlMaxBody, "remote vault connect error response")
+		return ConnectPayload{}, false, fmt.Errorf("unexpected Vault Connect status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var response vaultConnectResponse
+	if err := decodeRemoteJSON(resp.Body, controlMaxBody, "remote vault connect response", &response); err != nil {
+		return ConnectPayload{}, false, err
+	}
+	if !response.Found {
+		return ConnectPayload{}, false, nil
+	}
+
+	ciphertext, err := decodeBase64URLField(response.Payload, "vault connect payload")
+	if err != nil {
+		return ConnectPayload{}, false, err
+	}
+	plaintext, err := decryptXChaCha20Payload(ciphertext, connectSecret, "vault connect payload")
+	if err != nil {
+		return ConnectPayload{}, false, err
+	}
+
+	var connectPayload ConnectPayload
+	if err := json.Unmarshal(plaintext, &connectPayload); err != nil {
+		return ConnectPayload{}, false, fmt.Errorf("failed to decode vault connect payload: %w", err)
+	}
+	return connectPayload, true, nil
+}
+
+func vaultConnectIDFromSecret(connectSecret []byte) string {
+	sum := sha256.Sum256(connectSecret)
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // Disconnect clears remote vault metadata/state and switches back to local mode.
@@ -885,11 +992,11 @@ func (ks *Vault) saveSnapshotLocked(snapshot vaultSnapshot) error {
 	return nil
 }
 
-func (ks *Vault) consumeConnectionHandoff(handoffToken string, remoteURL string, now time.Time) error {
+func (ks *Vault) consumeVaultConnectPayload(connectToken string, remoteURL string, now time.Time) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	if err := ks.validateConnectionHandoffLocked(handoffToken, remoteURL, now); err != nil {
+	if err := ks.validateVaultConnectPayloadLocked(connectToken, remoteURL, now); err != nil {
 		return err
 	}
 
@@ -897,14 +1004,14 @@ func (ks *Vault) consumeConnectionHandoff(handoffToken string, remoteURL string,
 	return nil
 }
 
-func (ks *Vault) clearConnectionHandoff(handoffToken string, remoteURL string) error {
+func (ks *Vault) clearVaultConnectPayload(connectToken string, remoteURL string) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
 	if ks.connection == nil {
 		return ErrConnectionTokenInvalid
 	}
-	if subtle.ConstantTimeCompare([]byte(handoffToken), []byte(ks.connection.token)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(connectToken), []byte(ks.connection.secret)) != 1 {
 		return ErrConnectionTokenInvalid
 	}
 	if ks.connection.remoteURL != remoteURL {
@@ -914,14 +1021,32 @@ func (ks *Vault) clearConnectionHandoff(handoffToken string, remoteURL string) e
 	return nil
 }
 
-func (ks *Vault) validateConnectionHandoff(handoffToken string, remoteURL string, now time.Time) error {
+func (ks *Vault) validateVaultConnectPayload(connectToken string, remoteURL string, now time.Time) error {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
 
-	return ks.validateConnectionHandoffLocked(handoffToken, remoteURL, now)
+	return ks.validateVaultConnectPayloadLocked(connectToken, remoteURL, now)
 }
 
-func (ks *Vault) validateConnectionHandoffLocked(handoffToken string, remoteURL string, now time.Time) error {
+func (ks *Vault) pendingConnectionRemoteURL(connectSecret string, now time.Time) (string, error) {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	if ks.connection == nil {
+		return "", ErrConnectionTokenInvalid
+	}
+	if now.After(ks.connection.expireTime) {
+		ks.connection = nil
+		return "", ErrConnectionTokenExpired
+	}
+	if subtle.ConstantTimeCompare([]byte(connectSecret), []byte(ks.connection.secret)) != 1 {
+		return "", ErrConnectionTokenInvalid
+	}
+
+	return ks.connection.remoteURL, nil
+}
+
+func (ks *Vault) validateVaultConnectPayloadLocked(connectToken string, remoteURL string, now time.Time) error {
 	if ks.connection == nil {
 		return ErrConnectionTokenInvalid
 	}
@@ -929,7 +1054,7 @@ func (ks *Vault) validateConnectionHandoffLocked(handoffToken string, remoteURL 
 		ks.connection = nil
 		return ErrConnectionTokenExpired
 	}
-	if subtle.ConstantTimeCompare([]byte(handoffToken), []byte(ks.connection.token)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(connectToken), []byte(ks.connection.secret)) != 1 {
 		return ErrConnectionTokenInvalid
 	}
 	if ks.connection.remoteURL != remoteURL {
@@ -944,6 +1069,7 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if err != nil {
 		return fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
 	}
+	oldCredentialID, oldSecret := ks.currentRemoteCredential(remoteURL, userID, credentialID)
 
 	remoteSnapshot, err := ks.getRemote(ctx, remoteURL, bearerAuth, 0)
 	if err != nil {
@@ -1005,8 +1131,107 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if err := ks.connect(remoteURL, userID, credentialID, secret, credential.WrappedDEK, credentials, remoteVersion, syncedLocalVersion, time.Now().UTC()); err != nil {
 		return fmt.Errorf("failed to persist remote vault connection: %w", err)
 	}
+	if oldCredentialID != "" && oldSecret != "" {
+		ks.cleanupOldRemoteCredential(ctx, remoteURL, userID, oldCredentialID, oldSecret)
+	}
 
 	return nil
+}
+
+func (ks *Vault) currentRemoteCredential(remoteURL string, userID string, newCredentialID string) (string, string) {
+	ks.mu.RLock()
+	envelope, err := ks.store.LoadEnvelope()
+	ks.mu.RUnlock()
+	if err != nil || envelope == nil || envelope.Remote == nil {
+		return "", ""
+	}
+	remote := envelope.Remote
+	if remote.VaultURL != remoteURL || remote.UserID != userID || remote.CredentialID == "" || remote.CredentialID == newCredentialID {
+		return "", ""
+	}
+
+	secret, err := loadRemoteCredentialSecret(ks.secretStore, remote.VaultURL, remote.UserID, remote.CredentialID)
+	if err != nil {
+		return "", ""
+	}
+	return remote.CredentialID, base64.RawURLEncoding.EncodeToString(secret)
+}
+
+func (ks *Vault) cleanupOldRemoteCredential(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) {
+	_ = ks.deleteRemoteSecretCredential(ctx, remoteURL, credentialID, secret)
+	_ = ks.deleteLocalRemoteCredentialSecret(remoteURL, userID, credentialID)
+	_ = ks.removeRemoteCredentialFromEnvelope(credentialID)
+}
+
+func (ks *Vault) deleteRemoteSecretCredential(ctx context.Context, remoteURL string, credentialID string, secret string) error {
+	bearerAuth, err := buildRemoteBearerAuth(credentialID, secret)
+	if err != nil {
+		return fmt.Errorf("failed to derive old remote credential bearer auth: %w", err)
+	}
+	endpoint, err := resolveDaemonEndpointURL(remoteURL, secretCredentialPath+"/"+url.PathEscape(credentialID))
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+bearerAuth)
+
+	resp, err := ks.httpClientDo(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := readRemoteBody(resp.Body, controlMaxBody, "remote credential deletion error response")
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	return nil
+}
+
+func (ks *Vault) deleteLocalRemoteCredentialSecret(remoteURL string, userID string, credentialID string) error {
+	key, err := remoteVaultKEKName(remoteURL, userID)
+	if err != nil {
+		return err
+	}
+	if err := ks.secretStore.Delete(key, credentialID); err != nil {
+		return fmt.Errorf("failed to delete old local remote credential secret: %w", err)
+	}
+	return nil
+}
+
+func removeCredentialJSON(credentials []Credential, credentialID string) []Credential {
+	if credentialID == "" || len(credentials) == 0 {
+		return credentials
+	}
+	out := credentials[:0]
+	for _, credential := range credentials {
+		if credential.Kind == "secret" && credential.CredentialID == credentialID {
+			continue
+		}
+		out = append(out, credential)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (ks *Vault) removeRemoteCredentialFromEnvelope(credentialID string) error {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	envelope, err := ks.store.LoadEnvelope()
+	if err != nil {
+		return err
+	}
+	if envelope == nil {
+		return nil
+	}
+	envelope.Credentials = removeCredentialJSON(envelope.Credentials, credentialID)
+	return ks.store.SaveEnvelope(envelope)
 }
 
 func (ks *Vault) recordSyncFailure(message string) {

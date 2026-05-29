@@ -366,6 +366,18 @@ describe('Onboarding flow', () => {
     cleanupRendered(root, container, queryClient)
   })
 
+  it('skips vault choice when creating another account after initial vault setup', async () => {
+    mockState.initialAccountIdCount = 1
+    const {container, root, queryClient} = renderComponent()
+
+    await reachVaultStep(container)
+
+    expect(container.textContent).toContain('CREATING YOUR SITE')
+    expect(container.textContent).not.toContain('CHOOSE YOUR VAULT')
+
+    cleanupRendered(root, container, queryClient)
+  })
+
   it('retries account creation without minting a second account', async () => {
     genMnemonicMock.mockResolvedValue({
       mnemonic: ['alpha', 'beta', 'gamma'],
@@ -487,7 +499,7 @@ describe('Onboarding flow', () => {
     cleanupRendered(root, container, queryClient)
   })
 
-  it('validates the remote vault URL before starting browser handoff', async () => {
+  it('validates the remote vault URL before starting Vault Connect', async () => {
     const {container, root, queryClient} = renderComponent()
 
     await reachVaultStep(container)
@@ -517,10 +529,10 @@ describe('Onboarding flow', () => {
     cleanupRendered(root, container, queryClient)
   })
 
-  it('starts browser handoff and unlocks remote-sync actions after returning connected', async () => {
+  it('starts Vault Connect and unlocks remote-sync actions after returning connected', async () => {
     startVaultConnectionMutateAsyncMock.mockResolvedValue({
       vaultUrl: 'https://example.com/vault',
-      handoffToken: 'token-123',
+      connectToken: 'token-123',
     })
 
     const rendered = renderComponent()
@@ -548,9 +560,7 @@ describe('Onboarding flow', () => {
       vaultUrl: 'https://example.com/vault',
       force: false,
     })
-    expect(openUrlMock).toHaveBeenCalledWith(
-      'https://example.com/vault/connect#token=token-123&callback=http%3A%2F%2Flocalhost%3A58001%2Fvault-handoff',
-    )
+    expect(openUrlMock).toHaveBeenCalledWith('https://example.com/vault/connect#token=token-123')
 
     mockState.vaultStatusData = {
       backendMode: VaultBackendMode.REMOTE,
@@ -578,7 +588,7 @@ describe('Onboarding flow', () => {
     }
     startVaultConnectionMutateAsyncMock.mockResolvedValue({
       vaultUrl: 'https://example.com/vault',
-      handoffToken: 'token-456',
+      connectToken: 'token-456',
     })
 
     const {container, root, queryClient} = renderComponent()

@@ -121,7 +121,7 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	start, err := ks.StartConnection("https://vault.example.com", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://vault.example.com", start.RemoteURL)
-	_, err = base64.RawURLEncoding.DecodeString(start.HandoffToken)
+	_, err = base64.RawURLEncoding.DecodeString(start.ConnectToken)
 	require.NoError(t, err)
 }
 
@@ -210,6 +210,7 @@ type boomSecretStore struct{}
 
 func (boomSecretStore) Load(string, string) ([]byte, error) { return nil, fmt.Errorf("boom") }
 func (boomSecretStore) Store(string, string, []byte) error  { return fmt.Errorf("boom") }
+func (boomSecretStore) Delete(string, string) error         { return fmt.Errorf("boom") }
 func (boomSecretStore) ListCredentialIDs(string) ([]string, error) {
 	return nil, fmt.Errorf("boom")
 }

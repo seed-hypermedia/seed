@@ -56,6 +56,8 @@ export class Store {
    * Get a session by ID if it's still valid.
    */
   getSession(sessionId: string): Session | null {
+    this.cleanupExpiredSessions()
+
     const row = this.database
       .query<Session, [string, number]>(`SELECT * FROM sessions WHERE id = ? AND expire_time > ?`)
       .get(sessionId, Date.now())

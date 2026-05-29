@@ -32,13 +32,11 @@ export interface SessionInfo {
 }
 
 type VaultConnectionRequest = {
-  handoffToken: string
-  callbackURL: string
-}
-
-type VaultConnectionHandoffResponse = {
-  success: boolean
-  connected?: boolean
+  connectToken: string
+  pendingCredential?: {
+    credentialId: string
+    secret: string
+  }
 }
 
 const VAULT_CONNECTION_SUCCESS_MESSAGE = 'Your Seed desktop app has been linked with this remote vault successfully.'
@@ -84,11 +82,11 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     delegationRequest: null as hmauth.DelegationRequest | null,
     /** Whether the user has given consent for the current delegation. */
     delegationConsented: false,
-    /** Pending vault handoff parsed from URL fragment. */
+    /** Pending Vault Connect request parsed from URL fragment. */
     vaultConnectionRequest: null as VaultConnectionRequest | null,
-    /** Prevent duplicate handoff completion calls. */
+    /** Prevent duplicate Vault Connect completion calls. */
     vaultConnectionInProgress: false,
-    /** Success notice shown after a desktop handoff completes. */
+    /** Success notice shown after Vault Connect completes. */
     vaultConnectionSuccessMessage: '',
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
@@ -234,33 +232,6 @@ function getCurrentVaultBaseURL() {
   return normalizeBaseURL(new URL('.', window.location.href).toString(), 'current vault URL')
 }
 
-function normalizeCallbackURL(rawURL: string) {
-  let parsed: URL
-  try {
-    parsed = new URL(rawURL)
-  } catch {
-    throw new Error('Invalid callback URL: must be a valid URL')
-  }
-
-  if (parsed.protocol !== 'http:') {
-    throw new Error('Invalid callback URL: protocol must be http')
-  }
-  if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
-    throw new Error('Invalid callback URL: host must be localhost or 127.0.0.1')
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('Invalid callback URL: username and password are not allowed')
-  }
-  if (parsed.pathname !== '/vault-handoff') {
-    throw new Error('Invalid callback URL: path must be /vault-handoff')
-  }
-  if (parsed.search || parsed.hash) {
-    throw new Error('Invalid callback URL: query string and fragment are not allowed')
-  }
-
-  return `${parsed.origin}${parsed.pathname}`
-}
-
 function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequest | null {
   const parsedURL = typeof urlLike === 'string' ? new URL(urlLike) : urlLike
   const fragment = parsedURL.hash.startsWith('#') ? parsedURL.hash.slice(1) : parsedURL.hash
@@ -269,19 +240,44 @@ function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequ
   }
 
   const params = new URLSearchParams(fragment)
-  const handoffToken = (params.get('token') ?? '').trim()
+  const connectToken = (params.get('token') ?? '').trim()
   const callback = (params.get('callback') ?? '').trim()
-  if (!handoffToken && !callback) {
+  if (!connectToken && !callback) {
     return null
   }
-  if (!handoffToken || !callback) {
+  if (!connectToken) {
     throw new Error('Invalid vault connection fragment')
   }
 
   return {
-    handoffToken,
-    callbackURL: normalizeCallbackURL(callback),
+    connectToken,
   }
+}
+
+async function vaultConnectIDFromSecret(connectSecret: string): Promise<string> {
+  const decodedSecret = base64.decode(connectSecret)
+  if (decodedSecret.length !== 32) {
+    throw new Error('Invalid vault connection token')
+  }
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(decodedSecret)))
+  return base64.encode(digest)
+}
+
+async function encryptVaultConnectPayload(
+  connectSecret: string,
+  payload: {
+    vaultUrl: string
+    userId: string
+    credentialId: string
+    secret: string
+  },
+): Promise<string> {
+  const decodedSecret = base64.decode(connectSecret)
+  if (decodedSecret.length !== 32) {
+    throw new Error('Invalid vault connection token')
+  }
+  const encodedPayload = new TextEncoder().encode(JSON.stringify(payload))
+  return base64.encode(await localCrypto.encrypt(encodedPayload, decodedSecret))
 }
 
 function clearCurrentURLFragment() {
@@ -1762,8 +1758,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     /**
-     * Parse vault handoff connection data from URL fragment and store it for post-login completion.
-     * The fragment must include a handoff token and callback URL.
+     * Parse Vault Connect data from URL fragment and store it for post-login completion.
+     * The fragment must include a connect token.
      */
     parseVaultConnectionFromUrl(url: URL | string) {
       try {
@@ -1780,7 +1776,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    /** Complete vault handoff by reusing or registering a daemon credential. */
+    /** Complete Vault Connect by reusing or registering a daemon credential. */
     async completeVaultConnection() {
       if (state.vaultConnectionInProgress) {
         return
@@ -1801,7 +1797,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.vaultConnectionInProgress = true
       state.error = ''
 
-      const {handoffToken, callbackURL} = state.vaultConnectionRequest
+      const {connectToken} = state.vaultConnectionRequest
       try {
         const expectedVaultBaseURL = getCurrentVaultBaseURL()
         const userId = state.session.userId?.trim()
@@ -1809,28 +1805,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           throw new Error('Session is missing the authenticated user ID')
         }
 
-        let connected = false
-        try {
-          const probeResp = await fetch(callbackURL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              handoffToken,
-              vaultUrl: expectedVaultBaseURL,
-              userId,
-            }),
-          })
-          if (probeResp.ok) {
-            const probe = (await probeResp.json()) as VaultConnectionHandoffResponse
-            connected = probe.success && probe.connected === true
-          }
-        } catch {
-          // Credential probing is best-effort so older daemons and transient probe failures still connect with a fresh secret.
-        }
-
-        if (!connected) {
+        const connectId = await vaultConnectIDFromSecret(connectToken)
+        let pendingCredential = state.vaultConnectionRequest.pendingCredential
+        if (!pendingCredential) {
           const daemonSecret = crypto.getRandomValues(new Uint8Array(32))
           const encodedSecret = base64.encode(daemonSecret)
           const authKey = await localCrypto.deriveSecretCredentialAuthKey(daemonSecret)
@@ -1839,29 +1816,24 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
             authKey: base64.encode(authKey),
             wrappedDEK: base64.encode(wrappedDEK),
           })
-
-          const handoffResp = await fetch(callbackURL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              handoffToken,
-              vaultUrl: expectedVaultBaseURL,
-              userId,
-              credentialId: credential.credentialId,
-              secret: encodedSecret,
-            }),
-          })
-          if (!handoffResp.ok) {
-            const bodyText = await handoffResp.text()
-            throw new Error(bodyText || 'Failed to complete vault handoff')
+          pendingCredential = {
+            credentialId: credential.credentialId,
+            secret: encodedSecret,
           }
-          const handoff = (await handoffResp.json()) as VaultConnectionHandoffResponse
-          if (!handoff.success) {
-            throw new Error('Failed to complete vault handoff')
-          }
+          state.vaultConnectionRequest.pendingCredential = pendingCredential
         }
+
+        const payload = await encryptVaultConnectPayload(connectToken, {
+          vaultUrl: expectedVaultBaseURL,
+          userId,
+          credentialId: pendingCredential.credentialId,
+          secret: pendingCredential.secret,
+        })
+
+        await client.putVaultConnect({
+          connectId,
+          payload,
+        })
 
         state.vaultConnectionRequest = null
         state.vaultConnectionSuccessMessage = VAULT_CONNECTION_SUCCESS_MESSAGE

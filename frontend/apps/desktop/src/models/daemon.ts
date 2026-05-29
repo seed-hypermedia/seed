@@ -142,7 +142,7 @@ export type StartVaultConnectionInput = {
   force?: boolean
 }
 
-/** Starts daemon remote vault connection handoff and returns browser handoff metadata. */
+/** Starts daemon remote vault connection and returns Vault Connect metadata. */
 export function useStartVaultConnection(
   opts?: UseMutationOptions<StartVaultConnectionResponse, unknown, StartVaultConnectionInput>,
 ) {

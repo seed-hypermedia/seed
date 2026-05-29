@@ -724,7 +724,7 @@ func (x *GetVaultStatusRequest) GetForceSync() bool {
 	return false
 }
 
-// Request to start remote vault connection handoff.
+// Request to start remote vault connection.
 type StartVaultConnectionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Remote vault base URL.
@@ -779,14 +779,14 @@ func (x *StartVaultConnectionRequest) GetForce() bool {
 	return false
 }
 
-// Response with daemon-issued handoff token metadata.
+// Response with daemon-issued connect token metadata.
 type StartVaultConnectionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Normalized remote vault base URL.
 	VaultUrl string `protobuf:"bytes,1,opt,name=vault_url,json=vaultUrl,proto3" json:"vault_url,omitempty"`
-	// Ephemeral handoff token for browser-mediated daemon exchange.
-	HandoffToken string `protobuf:"bytes,2,opt,name=handoff_token,json=handoffToken,proto3" json:"handoff_token,omitempty"`
-	// Handoff token expiration time.
+	// Ephemeral connect token for browser-mediated daemon exchange.
+	ConnectToken string `protobuf:"bytes,2,opt,name=connect_token,json=connectToken,proto3" json:"connect_token,omitempty"`
+	// Connect token expiration time.
 	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -829,9 +829,9 @@ func (x *StartVaultConnectionResponse) GetVaultUrl() string {
 	return ""
 }
 
-func (x *StartVaultConnectionResponse) GetHandoffToken() string {
+func (x *StartVaultConnectionResponse) GetConnectToken() string {
 	if x != nil {
-		return x.HandoffToken
+		return x.ConnectToken
 	}
 	return ""
 }
@@ -2475,7 +2475,7 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"\x9d\x01\n" +
 	"\x1cStartVaultConnectionResponse\x12\x1b\n" +
 	"\tvault_url\x18\x01 \x01(\tR\bvaultUrl\x12#\n" +
-	"\rhandoff_token\x18\x02 \x01(\tR\fhandoffToken\x12;\n" +
+	"\rconnect_token\x18\x02 \x01(\tR\fconnectToken\x12;\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\"\x18\n" +
 	"\x16DisconnectVaultRequest\"\x12\n" +

@@ -32,6 +32,7 @@ const (
 type SecretStore interface {
 	Load(key string, credentialID string) ([]byte, error)
 	Store(key string, credentialID string, secret []byte) error
+	Delete(key string, credentialID string) error
 	ListCredentialIDs(key string) ([]string, error)
 }
 
@@ -125,6 +126,31 @@ func (s *memorySecretStore) Store(key string, credentialID string, secret []byte
 	defer s.mu.Unlock()
 
 	return s.storeCredentialLocked(key, credentialID, secret)
+}
+
+func (s *memorySecretStore) Delete(key string, credentialID string) error {
+	key, err := normalizeKEKName(key)
+	if err != nil {
+		return err
+	}
+	credentialID = strings.TrimSpace(credentialID)
+	if credentialID == "" {
+		return fmt.Errorf("vault credential ID is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bundle, ok := s.bundles[key]
+	if !ok {
+		return fmt.Errorf("vault credential bundle not found for %s: %w", key, keyring.ErrNotFound)
+	}
+	if _, ok := bundle.Credentials[credentialID]; !ok {
+		return credentialNotFoundError(credentialID)
+	}
+	delete(bundle.Credentials, credentialID)
+	s.bundles[key] = bundle
+	return nil
 }
 
 func (s *memorySecretStore) ListCredentialIDs(key string) ([]string, error) {
@@ -260,6 +286,47 @@ func (s *osKeychainSecretStore) Store(key string, credentialID string, secret []
 		s.bundles[account] = bundle
 		return nil
 	}
+	encoded, err := encodeSecretBundle(bundle)
+	if err != nil {
+		return err
+	}
+	if err := s.set(vaultKEKKeychainService, account, encoded); err != nil {
+		return fmt.Errorf("failed storing vault credentials in keyring: %w", err)
+	}
+	s.bundles[account] = bundle
+	delete(s.legacyKeys, account)
+	return nil
+}
+
+func (s *osKeychainSecretStore) Delete(key string, credentialID string) error {
+	account, err := normalizeKEKName(key)
+	if err != nil {
+		return err
+	}
+	credentialID = strings.TrimSpace(credentialID)
+	if credentialID == "" {
+		return fmt.Errorf("vault credential ID is required")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bundle, ok := s.bundles[account]
+	if !ok {
+		var legacy bool
+		bundle, legacy, err = s.loadBundleFromKeyringLocked(account)
+		if err != nil {
+			return err
+		}
+		if legacy {
+			return errLegacyRemoteCredentialRecord
+		}
+	}
+	if _, ok := bundle.Credentials[credentialID]; !ok {
+		return credentialNotFoundError(credentialID)
+	}
+	delete(bundle.Credentials, credentialID)
+
 	encoded, err := encodeSecretBundle(bundle)
 	if err != nil {
 		return err

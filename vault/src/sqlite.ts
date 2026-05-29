@@ -13,6 +13,14 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 // This list is prepend-only.
 export const migrations = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE TABLE vault_connects (
+      id TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      create_time INTEGER NOT NULL,
+      expire_time INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX vault_connects_by_expire_time ON vault_connects (expire_time);`,
+
   `DROP TABLE email_challenges;
   CREATE TABLE email_challenges (
       email TEXT PRIMARY KEY,

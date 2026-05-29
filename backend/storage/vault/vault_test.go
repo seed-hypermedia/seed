@@ -1267,7 +1267,7 @@ func TestProbeConnectionCredentialsTriesStoredCredentialsUntilOneConnects(t *tes
 	start, err := ks.StartConnection(server.URL, false)
 	require.NoError(t, err)
 
-	probe, err := ks.ProbeConnectionCredentials(context.Background(), start.HandoffToken, server.URL, testRemoteUserID)
+	probe, err := ks.ProbeConnectionCredentials(context.Background(), start.ConnectToken, server.URL, testRemoteUserID)
 	require.NoError(t, err)
 	require.True(t, probe.Connected)
 	require.Equal(t, int32(1), badAttempts.Load())
@@ -1277,6 +1277,148 @@ func TestProbeConnectionCredentialsTriesStoredCredentialsUntilOneConnects(t *tes
 	require.True(t, status.RemoteMode)
 	require.Equal(t, server.URL, status.RemoteURL)
 	require.Equal(t, 3, status.RemoteVersion)
+}
+
+func TestHandleConnectionIgnoresOldCredentialCleanupFailure(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	localKey := []byte("0123456789abcdef0123456789abcdef")
+	remoteSecret, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteSecret, "wrapped DEK")
+	require.NoError(t, err)
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
+
+	const newCredentialID = "cred-2"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/vault":
+			require.Equal(t, "Bearer "+newCredentialID+":"+testEncodedRemoteAuthKey(t), r.Header.Get("Authorization"))
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				RemoteVersion: 4,
+				Credentials: []Credential{
+					{
+						Kind:         "secret",
+						CredentialID: testRemoteCredentialID,
+						WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+					},
+					{
+						Kind:         "secret",
+						CredentialID: newCredentialID,
+						WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+					},
+				},
+			}))
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/credentials/secret/"+testRemoteCredentialID:
+			http.Error(w, "old server does not support deletion", http.StatusNotFound)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	ks, err := New(dataDir, secretStore, WithHTTPClient(server.Client()))
+	require.NoError(t, err)
+	connectTestRemoteVault(t, ks, server.URL, 3, time.Unix(1234, 0).UTC())
+
+	start, err := ks.StartConnection(server.URL, true)
+	require.NoError(t, err)
+	require.NoError(t, ks.HandleConnection(ctx, start.ConnectToken, ConnectPayload{
+		RemoteURL:    server.URL,
+		UserID:       testRemoteUserID,
+		CredentialID: newCredentialID,
+		Credential:   testEncodedRemoteCredential(),
+	}))
+
+	status, err := ks.Status()
+	require.NoError(t, err)
+	require.True(t, status.RemoteMode)
+	require.Equal(t, 4, status.RemoteVersion)
+
+	remoteKey, err := remoteVaultKEKName(server.URL, testRemoteUserID)
+	require.NoError(t, err)
+	_, err = secretStore.Load(remoteKey, testRemoteCredentialID)
+	require.Error(t, err)
+
+	envelope, err := ks.store.LoadEnvelope()
+	require.NoError(t, err)
+	require.NotNil(t, envelope)
+	require.NotNil(t, envelope.Remote)
+	require.Equal(t, newCredentialID, envelope.Remote.CredentialID)
+	require.Len(t, envelope.Credentials, 1)
+	require.Equal(t, newCredentialID, envelope.Credentials[0].CredentialID)
+}
+
+func TestPollConnectionConsumesVaultConnectPayload(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	localKey := []byte("0123456789abcdef0123456789abcdef")
+	remoteSecret, err := base64.RawURLEncoding.DecodeString(testEncodedRemoteCredential())
+	require.NoError(t, err)
+	dek := []byte("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	wrappedDEK, err := encryptXChaCha20Payload(dek, remoteSecret, "wrapped DEK")
+	require.NoError(t, err)
+
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
+
+	var serverURL string
+	var encryptedVaultConnectPayload string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/vault-connect/"):
+			require.NotEmpty(t, encryptedVaultConnectPayload)
+			require.NoError(t, json.NewEncoder(w).Encode(vaultConnectResponse{
+				Found:   true,
+				Payload: encryptedVaultConnectPayload,
+			}))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/vault":
+			require.Equal(t, "Bearer "+testRemoteCredentialID+":"+testEncodedRemoteAuthKey(t), r.Header.Get("Authorization"))
+			require.NoError(t, json.NewEncoder(w).Encode(GetVaultResponse{
+				RemoteVersion: 11,
+				Credentials: []Credential{{
+					Kind:         "secret",
+					CredentialID: testRemoteCredentialID,
+					WrappedDEK:   base64.RawURLEncoding.EncodeToString(wrappedDEK),
+				}},
+			}))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	serverURL = server.URL
+
+	ks, err := New(dataDir, secretStore, WithHTTPClient(server.Client()), WithPollingConfig(time.Millisecond, time.Second))
+	require.NoError(t, err)
+	start, err := ks.StartConnection(serverURL, false)
+	require.NoError(t, err)
+
+	connectSecret, err := base64.RawURLEncoding.DecodeString(start.ConnectToken)
+	require.NoError(t, err)
+	connectPayloadJSON, err := json.Marshal(map[string]string{
+		"vaultUrl":     serverURL,
+		"userId":       testRemoteUserID,
+		"credentialId": testRemoteCredentialID,
+		"secret":       testEncodedRemoteCredential(),
+	})
+	require.NoError(t, err)
+	encryptedPayload, err := encryptXChaCha20Payload(connectPayloadJSON, connectSecret, "vault connect payload")
+	require.NoError(t, err)
+	encryptedVaultConnectPayload = base64.RawURLEncoding.EncodeToString(encryptedPayload)
+
+	require.NoError(t, ks.PollConnection(ctx, start.ConnectToken))
+
+	status, err := ks.Status()
+	require.NoError(t, err)
+	require.True(t, status.RemoteMode)
+	require.Equal(t, serverURL, status.RemoteURL)
+	require.Equal(t, 11, status.RemoteVersion)
 }
 
 func TestResolveRemoteDaemonEndpointURL(t *testing.T) {

@@ -261,6 +261,40 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/credentials/secret/:id': {
+      DELETE: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.id) {
+          return handleResponse({error: 'Missing id'}, ctx, 400)
+        }
+
+        const result = await svc.deleteSecretCredential({credentialId: req.params.id}, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/vault-connect': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.putVaultConnect(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
+    '/vault/api/vault-connect/:id': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.id) {
+          return handleResponse({error: 'Missing id'}, ctx, 400)
+        }
+
+        const result = await svc.getVaultConnect({connectId: req.params.id}, ctx)
+        return handleResponse(result, ctx, 200, {
+          'Cache-Control': 'no-store, private, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        })
+      },
+    },
     '/vault/api/credentials/passkey/start': {
       POST: async (req) => {
         const ctx = getRequestContext(req)

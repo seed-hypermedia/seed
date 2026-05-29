@@ -117,6 +117,7 @@ export function OnboardingDialog() {
 export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   // Get the global state
   const globalState = getOnboardingState()
+  const shouldConfigureVault = globalState.initialAccountIdCount === 0
   const navigate = useNavigate('replace')
   const [account, setAccount] = useState<UnpackedHypermediaId | undefined>(undefined)
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
@@ -224,13 +225,14 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('profile')
     } else if (currentStep === 'profile') {
-      console.log('Moving from profile to vault')
+      const nextStep = shouldConfigureVault ? 'vault' : 'recovery'
+      console.log(`Moving from profile to ${nextStep}`)
       if (modal) {
-        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
+        setLocalState((prev) => ({...prev, currentStep: nextStep}))
       } else {
-        setOnboardingStep('vault')
+        setOnboardingStep(nextStep)
       }
-      setCurrentStep('vault')
+      setCurrentStep(nextStep)
     } else if (currentStep === 'vault') {
       console.log('Moving from vault to create account')
       if (modal) {
@@ -273,7 +275,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [currentStep, modal, localState, completeOnboarding, globalState.initialAccountIdCount])
+  }, [currentStep, modal, localState, completeOnboarding, globalState.initialAccountIdCount, shouldConfigureVault])
 
   const handleRestoreFromRecoveryPhrase = useCallback(() => {
     if (modal) {
@@ -300,12 +302,13 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     console.log('Before - Store state:', beforeState)
 
     if (currentStep === 'recovery') {
+      const prevStep = shouldConfigureVault ? 'vault' : 'profile'
       if (modal) {
-        setLocalState((prev) => ({...prev, currentStep: 'vault'}))
+        setLocalState((prev) => ({...prev, currentStep: prevStep}))
       } else {
-        setOnboardingStep('vault')
+        setOnboardingStep(prevStep)
       }
-      setCurrentStep('vault')
+      setCurrentStep(prevStep)
     } else if (currentStep === 'vault') {
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
@@ -339,7 +342,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     const afterState = modal ? localState : getOnboardingState()
     console.log('After - Store state:', afterState)
     console.groupEnd()
-  }, [currentStep, modal, localState])
+  }, [currentStep, modal, localState, shouldConfigureVault])
 
   async function handleSubscription(id: UnpackedHypermediaId) {
     console.log('[Onboarding] Starting subscription for account:', {
@@ -427,7 +430,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         />
       )}
       {currentStep === 'ready' && <ReadyStep onComplete={handleNext} />}
-      <OnboardingProgress currentStep={currentStep} />
+      <OnboardingProgress currentStep={currentStep} showVaultStep={shouldConfigureVault} />
     </div>
   )
 }
@@ -721,13 +724,13 @@ function VaultStep({
     }
 
     try {
-      const handoff = await startVaultConnection.mutateAsync({
+      const vaultConnect = await startVaultConnection.mutateAsync({
         vaultUrl: normalizedVaultURL,
         force: connectionState === 'connected',
       })
-      const browserURL = buildVaultConnectionURL(handoff.vaultUrl, handoff.handoffToken, DAEMON_HTTP_URL)
+      const browserURL = buildVaultConnectionURL(vaultConnect.vaultUrl, vaultConnect.connectToken, DAEMON_HTTP_URL)
       openUrl(browserURL)
-      toast.success('Opened browser handoff. Complete sign-in, then return here.')
+      toast.success('Opened Vault Connect. Complete sign-in, then return here.')
     } catch (error) {
       toast.error('Failed to start vault connection: ' + (error instanceof Error ? error.message : String(error)))
     }
@@ -788,7 +791,7 @@ function VaultStep({
               />
             </div>
             <Text size="sm" className="text-muted-foreground">
-              Open the browser handoff to sign in and connect this device before continuing.
+              Open the Vault Connect to sign in and connect this device before continuing.
             </Text>
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={handleStartConnection} disabled={isPending || !remoteVaultURL.trim()}>
@@ -1347,14 +1350,14 @@ function StepWrapper({children, onPrev}: {children: React.ReactNode; onPrev?: ()
   )
 }
 
-function OnboardingProgress({currentStep}: {currentStep: OnboardingStep}) {
+function OnboardingProgress({currentStep, showVaultStep}: {currentStep: OnboardingStep; showVaultStep: boolean}) {
   const showExistingStep = currentStep === 'existing' || currentStep === 'import'
 
   return (
     <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 transform gap-2 pt-4">
       <OnboardingProgressStep active={currentStep === 'welcome'} />
       <OnboardingProgressStep active={currentStep === 'profile'} />
-      <OnboardingProgressStep active={currentStep === 'vault'} />
+      {showVaultStep ? <OnboardingProgressStep active={currentStep === 'vault'} /> : null}
       {showExistingStep ? (
         <OnboardingProgressStep active={currentStep === 'existing' || currentStep === 'import'} />
       ) : (

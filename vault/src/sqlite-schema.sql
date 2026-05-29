@@ -52,6 +52,17 @@ CREATE TABLE email_challenges (
 
 CREATE INDEX email_challenges_by_expire_time ON email_challenges (expire_time);
 
+-- Stores encrypted Vault Connect payloads,
+-- which is used as a back-channel for browser and desktop app to exchange the vault credentials.
+CREATE TABLE vault_connects (
+    id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    create_time INTEGER NOT NULL,
+    expire_time INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX vault_connects_by_expire_time ON vault_connects (expire_time);
+
 -- Stores various key-value pairs.
 -- E.g. hmac_secret for session cookies, schema_migration_version for DB versioning.
 CREATE TABLE server_config (

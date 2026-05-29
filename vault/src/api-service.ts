@@ -67,6 +67,7 @@ interface Challenge {
 
 interface VaultAccess {
   userId: string
+  credentialId?: string
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -171,6 +172,9 @@ const EMAIL_CODE_EXPIRY_MS = 15 * 60 * 1000
 const EMAIL_CODE_RESEND_COOLDOWN_MS = 60 * 1000
 const EMAIL_CODE_MAX_ATTEMPTS = 3
 const EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS = EMAIL_CODE_EXPIRY_MS / 1000
+const VAULT_CONNECT_TTL_MS = 2 * 60 * 1000
+const VAULT_CONNECT_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const VAULT_CONNECT_MAX_PAYLOAD_LENGTH = 4096
 
 const textEncoder = new TextEncoder()
 
@@ -211,6 +215,13 @@ export class Service implements api.ServerInterface {
    */
   cleanupExpiredChallenges(): void {
     this.db.run(`DELETE FROM email_challenges WHERE expire_time <= ?`, [Date.now()])
+  }
+
+  /**
+   * Remove all expired one-time Vault Connect payloads from the database.
+   */
+  cleanupExpiredVaultConnects(): void {
+    this.db.run(`DELETE FROM vault_connects WHERE expire_time <= ?`, [Date.now()])
   }
 
   /**
@@ -286,7 +297,7 @@ export class Service implements api.ServerInterface {
       throw new APIError('Invalid secret credential', 401)
     }
 
-    return {userId: credential.user_id}
+    return {userId: credential.user_id, credentialId: credential.id}
   }
 
   private requireSessionByID(sessionId: string | null | undefined): sess.Session {
@@ -710,6 +721,80 @@ export class Service implements api.ServerInterface {
       success: true,
       credentialId,
     }
+  }
+
+  async deleteSecretCredential(
+    req: api.DeleteSecretCredentialRequest,
+    ctx: api.ServerContext,
+  ): Promise<api.DeleteSecretCredentialResponse> {
+    if (!req.credentialId || typeof req.credentialId !== 'string') {
+      throw new APIError('Secret credential ID required', 400)
+    }
+    if (!ctx.bearerAuth) {
+      throw new APIError('Secret credential bearer auth required', 401)
+    }
+
+    const access = this.requireSecretCredentialAccess(ctx.bearerAuth)
+    if (access.credentialId !== req.credentialId) {
+      throw new APIError('Secret credential bearer auth must match the deleted credential', 403)
+    }
+
+    this.db.run(`DELETE FROM credentials WHERE id = ? AND user_id = ? AND type = ?`, [
+      req.credentialId,
+      access.userId,
+      'secret',
+    ])
+    return {success: true}
+  }
+
+  async putVaultConnect(req: api.PutVaultConnectRequest, ctx: api.ServerContext): Promise<api.PutVaultConnectResponse> {
+    this.requireCookieSession(ctx)
+
+    if (!req.connectId || typeof req.connectId !== 'string' || !VAULT_CONNECT_ID_PATTERN.test(req.connectId)) {
+      throw new APIError('Invalid vault connect ID', 400)
+    }
+    if (!req.payload || typeof req.payload !== 'string' || req.payload.length > VAULT_CONNECT_MAX_PAYLOAD_LENGTH) {
+      throw new APIError('Invalid vault connect payload', 400)
+    }
+    try {
+      base64.decode(req.payload)
+    } catch {
+      throw new APIError('Invalid vault connect payload', 400)
+    }
+
+    this.cleanupExpiredVaultConnects()
+
+    const now = Date.now()
+    const expireTime = now + VAULT_CONNECT_TTL_MS
+    this.db.run(`INSERT OR REPLACE INTO vault_connects (id, payload, create_time, expire_time) VALUES (?, ?, ?, ?)`, [
+      req.connectId,
+      req.payload,
+      now,
+      expireTime,
+    ])
+
+    return {success: true, expireTime}
+  }
+
+  async getVaultConnect(
+    req: api.GetVaultConnectRequest,
+    _ctx: api.ServerContext,
+  ): Promise<api.GetVaultConnectResponse> {
+    if (!req.connectId || typeof req.connectId !== 'string' || !VAULT_CONNECT_ID_PATTERN.test(req.connectId)) {
+      throw new APIError('Invalid vault connect ID', 400)
+    }
+
+    this.cleanupExpiredVaultConnects()
+
+    const row = this.db
+      .query<{payload: string}, [string, number]>(`SELECT payload FROM vault_connects WHERE id = ? AND expire_time > ?`)
+      .get(req.connectId, Date.now())
+    if (!row) {
+      return {found: false}
+    }
+
+    this.db.run(`DELETE FROM vault_connects WHERE id = ?`, [req.connectId])
+    return {found: true, payload: row.payload}
   }
 
   async login(req: api.LoginRequest, ctx: api.ServerContext): Promise<api.LoginResponse> {

@@ -98,6 +98,10 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/credentials/secret', {method: 'POST', body: JSON.stringify(req)})
   }
 
+  async deleteSecretCredential(req: api.DeleteSecretCredentialRequest): Promise<api.DeleteSecretCredentialResponse> {
+    return this.request(`/api/credentials/secret/${encodeURIComponent(req.credentialId)}`, {method: 'DELETE'})
+  }
+
   async addPasskeyStart(): Promise<api.AddPasskeyStartResponse> {
     return this.request('/api/credentials/passkey/start', {method: 'POST'})
   }
@@ -124,5 +128,13 @@ export class FetchClient implements api.ClientInterface {
 
   async changeEmailVerify(req: api.ChangeEmailVerifyRequest): Promise<api.ChangeEmailVerifyResponse> {
     return this.request('/api/email-change/verify', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async putVaultConnect(req: api.PutVaultConnectRequest): Promise<api.PutVaultConnectResponse> {
+    return this.request('/api/vault-connect', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async getVaultConnect(req: api.GetVaultConnectRequest): Promise<api.GetVaultConnectResponse> {
+    return this.request(`/api/vault-connect/${encodeURIComponent(req.connectId)}`, {method: 'GET'})
   }
 }

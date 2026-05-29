@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 
 const {
+  copyTextToClipboardMock,
   disconnectVaultMutateAsyncMock,
   forceVaultSyncMutateAsyncMock,
   openUrlMock,
@@ -12,6 +13,7 @@ const {
   toastMock,
 } = vi.hoisted(() => {
   return {
+    copyTextToClipboardMock: vi.fn(),
     startVaultConnectionMutateAsyncMock: vi.fn(),
     disconnectVaultMutateAsyncMock: vi.fn(),
     forceVaultSyncMutateAsyncMock: vi.fn(),
@@ -112,6 +114,10 @@ vi.mock('@shm/ui/toast', () => ({
   toast: toastMock,
 }))
 
+vi.mock('@shm/ui/copy-to-clipboard', () => ({
+  copyTextToClipboard: copyTextToClipboardMock,
+}))
+
 vi.mock('@shm/ui/form-fields', async () => {
   const React = await import('react')
 
@@ -126,16 +132,11 @@ vi.mock('@sentry/electron/main', () => ({}))
 vi.mock('@sentry/electron/renderer', () => ({}))
 vi.mock('@sentry/electron/preload', () => ({}))
 
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {VaultBackendSettings} from '../pages/settings'
 import {buildVaultConnectionURL} from '../utils/vault-connection'
 
-// Build the expected handoff URL from the resolved DAEMON_HTTP_URL so this test
-// is independent of the developer's local env (which may override the port via
-// DAEMON_HTTP_PORT / VITE_DESKTOP_HTTP_PORT).
-function expectedHandoffUrl(vaultUrl: string, token: string) {
-  const callback = encodeURIComponent(`${DAEMON_HTTP_URL}/vault-handoff`)
-  return `${vaultUrl}/connect#token=${token}&callback=${callback}`
+function expectedVaultConnectUrl(vaultUrl: string, token: string) {
+  return `${vaultUrl}/connect#token=${token}`
 }
 
 function renderComponent() {
@@ -187,6 +188,7 @@ describe('Vault backend settings', () => {
     startVaultConnectionMutateAsyncMock.mockReset()
     disconnectVaultMutateAsyncMock.mockReset()
     forceVaultSyncMutateAsyncMock.mockReset()
+    copyTextToClipboardMock.mockReset()
     openUrlMock.mockReset()
     toastMock.mockReset()
     toastMock.success.mockReset()
@@ -197,27 +199,27 @@ describe('Vault backend settings', () => {
     document.body.innerHTML = ''
   })
 
-  it('builds a browser handoff URL with daemon callback in fragment params', () => {
-    const url = buildVaultConnectionURL('https://example.com/vault', 'handoff-token', 'http://localhost:56001')
+  it('builds a Vault Connect URL with token fragment param', () => {
+    const url = buildVaultConnectionURL('https://example.com/vault', 'connect-token', 'http://localhost:56001')
     const parsed = new URL(url)
     const params = new URLSearchParams(parsed.hash.slice(1))
 
     expect(parsed.pathname).toBe('/vault/connect')
-    expect(params.get('token')).toBe('handoff-token')
-    expect(params.get('callback')).toBe('http://localhost:56001/vault-handoff')
+    expect(params.get('token')).toBe('connect-token')
+    expect(params.get('callback')).toBeNull()
   })
 
-  it('builds a browser handoff URL that preserves the vault path', () => {
-    const url = buildVaultConnectionURL('https://example.com/vault', 'handoff-token', 'http://localhost:56001')
+  it('builds a Vault Connect URL that preserves the vault path', () => {
+    const url = buildVaultConnectionURL('https://example.com/vault', 'connect-token', 'http://localhost:56001')
     const parsed = new URL(url)
     const params = new URLSearchParams(parsed.hash.slice(1))
 
     expect(parsed.pathname).toBe('/vault/connect')
-    expect(params.get('token')).toBe('handoff-token')
-    expect(params.get('callback')).toBe('http://localhost:56001/vault-handoff')
+    expect(params.get('token')).toBe('connect-token')
+    expect(params.get('callback')).toBeNull()
   })
 
-  it('starts remote vault handoff and opens the browser URL', async () => {
+  it('starts remote vault connect and opens the browser URL', async () => {
     mockState.vaultStatusData = {
       backendMode: VaultBackendMode.LOCAL,
       connectionStatus: VaultConnectionStatus.DISCONNECTED,
@@ -229,7 +231,7 @@ describe('Vault backend settings', () => {
     }
     startVaultConnectionMutateAsyncMock.mockResolvedValue({
       vaultUrl: 'https://example.com/vault',
-      handoffToken: 'token-123',
+      connectToken: 'token-123',
     })
 
     const {container, root} = renderComponent()
@@ -260,7 +262,20 @@ describe('Vault backend settings', () => {
       vaultUrl: 'https://example.com/vault',
       force: false,
     })
-    expect(openUrlMock).toHaveBeenCalledWith(expectedHandoffUrl('https://example.com/vault', 'token-123'))
+    expect(openUrlMock).toHaveBeenCalledWith(expectedVaultConnectUrl('https://example.com/vault', 'token-123'))
+    const connectURLInput = container.querySelector('#vault-connect-url') as HTMLInputElement
+    expect(connectURLInput?.value).toBe(expectedVaultConnectUrl('https://example.com/vault', 'token-123'))
+
+    await act(async () => {
+      container
+        .querySelector('button[aria-label="Copy Vault Connect URL"]')
+        ?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    expect(copyTextToClipboardMock).toHaveBeenCalledWith(
+      expectedVaultConnectUrl('https://example.com/vault', 'token-123'),
+    )
 
     cleanupRendered(root, container)
   })
@@ -277,7 +292,7 @@ describe('Vault backend settings', () => {
     }
     startVaultConnectionMutateAsyncMock.mockResolvedValue({
       vaultUrl: 'https://example.com/vault',
-      handoffToken: 'token-456',
+      connectToken: 'token-456',
     })
 
     const {container, root} = renderComponent()
@@ -308,7 +323,7 @@ describe('Vault backend settings', () => {
       vaultUrl: 'https://example.com/vault',
       force: false,
     })
-    expect(openUrlMock).toHaveBeenCalledWith(expectedHandoffUrl('https://example.com/vault', 'token-456'))
+    expect(openUrlMock).toHaveBeenCalledWith(expectedVaultConnectUrl('https://example.com/vault', 'token-456'))
 
     cleanupRendered(root, container)
   })

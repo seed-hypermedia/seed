@@ -201,8 +201,8 @@ func TestDaemonCORS(t *testing.T) {
 		require.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
 	})
 
-	t.Run("vault handoff preflight", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodOptions, baseURL+"/vault-handoff", nil)
+	t.Run("vault connect preflight", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, baseURL+"/vault-connect", nil)
 		require.NoError(t, err)
 		req.Header.Set("Origin", "https://example.com")
 		req.Header.Set("Access-Control-Request-Method", "POST")
@@ -217,8 +217,8 @@ func TestDaemonCORS(t *testing.T) {
 		requireCORSHeaders(t, resp.Header)
 	})
 
-	t.Run("vault handoff response", func(t *testing.T) {
-		resp, err := client.Post(baseURL+"/vault-handoff", "application/json", strings.NewReader(`{}`))
+	t.Run("vault connect response", func(t *testing.T) {
+		resp, err := client.Post(baseURL+"/vault-connect", "application/json", strings.NewReader(`{}`))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		_, _ = io.Copy(io.Discard, resp.Body)

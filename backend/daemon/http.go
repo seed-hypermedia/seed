@@ -103,7 +103,7 @@ func initHTTP(
 
 		router.HandleNav("GET /hm/api/config", p2pnet.HMAPIConfigHandler())
 		router.HandleNav("GET /debug/version", gitVersionHandler())
-		router.HandleFunc("/vault-handoff", apiServer.HandleVaultHandoff)
+		router.HandleFunc("/vault-connect", apiServer.HandleVaultConnect)
 
 		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(func(_ string) bool {
 			return true

@@ -174,7 +174,7 @@ message GetVaultStatusRequest {
   bool force_sync = 1;
 }
 
-// Request to start remote vault connection handoff.
+// Request to start remote vault connection.
 message StartVaultConnectionRequest {
   // Required. Remote vault base URL.
   string vault_url = 1;
@@ -183,15 +183,15 @@ message StartVaultConnectionRequest {
   bool force = 2;
 }
 
-// Response with daemon-issued handoff token metadata.
+// Response with daemon-issued connect token metadata.
 message StartVaultConnectionResponse {
   // Normalized remote vault base URL.
   string vault_url = 1;
 
-  // Ephemeral handoff token for browser-mediated daemon exchange.
-  string handoff_token = 2;
+  // Ephemeral connect token for browser-mediated daemon exchange.
+  string connect_token = 2;
 
-  // Handoff token expiration time.
+  // Connect token expiration time.
   google.protobuf.Timestamp expire_time = 3;
 }
 

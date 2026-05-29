@@ -64,9 +64,9 @@ type blobIndex interface {
 }
 
 const (
-	importKeyFileSuffix           = ".hmkey.json"
-	importKeyFileMaxSize          = 1 << 20 // 1 MiB.
-	vaultConnectionHandoffMaxBody = 4 << 10 // 4 KiB.
+	importKeyFileSuffix  = ".hmkey.json"
+	importKeyFileMaxSize = 1 << 20 // 1 MiB.
+	vaultConnectMaxBody  = 4 << 10 // 4 KiB.
 )
 
 type importedKeyFile struct {
@@ -122,7 +122,14 @@ type Server struct {
 	// Mainly to ensure there's only one registration request at a time.
 	mu sync.Mutex
 
+	vaultConnectionMu   sync.Mutex
+	vaultConnectionPoll *vaultConnectionPoll
+
 	taskMgr *taskmanager.TaskManager
+}
+
+type vaultConnectionPoll struct {
+	cancel context.CancelFunc
 }
 
 // NewServer creates a new Server.
@@ -649,11 +656,45 @@ func (srv *Server) StartVaultConnection(_ context.Context, in *daemon.StartVault
 		}
 	}
 
+	pollCtx, cancel := context.WithDeadline(context.Background(), start.ExpireTime)
+	poll := srv.replaceVaultConnectionPoll(cancel)
+
+	go func() {
+		defer srv.clearVaultConnectionPoll(poll)
+		if err := vlt.PollConnection(pollCtx, start.ConnectToken); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			srv.log.Warn("Vault connection polling stopped", zap.Error(err))
+		}
+	}()
+
 	return &daemon.StartVaultConnectionResponse{
 		VaultUrl:     start.RemoteURL,
-		HandoffToken: start.HandoffToken,
+		ConnectToken: start.ConnectToken,
 		ExpireTime:   timestamppb.New(start.ExpireTime),
 	}, nil
+}
+
+func (srv *Server) replaceVaultConnectionPoll(cancel context.CancelFunc) *vaultConnectionPoll {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	if srv.vaultConnectionPoll != nil {
+		srv.vaultConnectionPoll.cancel()
+	}
+	poll := &vaultConnectionPoll{cancel: cancel}
+	srv.vaultConnectionPoll = poll
+	return poll
+}
+
+func (srv *Server) clearVaultConnectionPoll(poll *vaultConnectionPoll) {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	if srv.vaultConnectionPoll == poll {
+		srv.vaultConnectionPoll = nil
+	}
 }
 
 // DisconnectVault implements the corresponding gRPC method.
@@ -670,8 +711,8 @@ func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultReque
 	return &emptypb.Empty{}, nil
 }
 
-// HandleVaultHandoff completes a browser-mediated remote vault handoff.
-func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
+// HandleVaultConnect completes a browser-mediated remote Vault Connect request.
+func (srv *Server) HandleVaultConnect(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -681,13 +722,13 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	var req struct {
-		HandoffToken string `json:"handoffToken"`
+		ConnectToken string `json:"connectToken"`
 		VaultURL     string `json:"vaultUrl"`
 		UserID       string `json:"userId"`
 		CredentialID string `json:"credentialId"`
 		Secret       string `json:"secret"` //nolint:gosec // This runtime payload carries the remote KEK to the local daemon; it is not a hardcoded secret.
 	}
-	body := io.LimitReader(r.Body, vaultConnectionHandoffMaxBody)
+	body := io.LimitReader(r.Body, vaultConnectMaxBody)
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
@@ -701,9 +742,9 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handoffToken := strings.TrimSpace(req.HandoffToken)
-	if handoffToken == "" {
-		http.Error(w, "handoffToken is required", http.StatusBadRequest)
+	connectToken := strings.TrimSpace(req.ConnectToken)
+	if connectToken == "" {
+		http.Error(w, "connectToken is required", http.StatusBadRequest)
 		return
 	}
 	vaultURL := strings.TrimSpace(req.VaultURL)
@@ -726,14 +767,14 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if credentialID == "" && secret == "" {
-		probe, err := vlt.ProbeConnectionCredentials(r.Context(), handoffToken, vaultURL, userID)
+		probe, err := vlt.ProbeConnectionCredentials(r.Context(), connectToken, vaultURL, userID)
 		switch {
 		case err == nil:
 		case errors.Is(err, vault.ErrConnectionTokenExpired):
-			http.Error(w, "handoff token expired", http.StatusUnauthorized)
+			http.Error(w, "connect token expired", http.StatusUnauthorized)
 			return
 		case errors.Is(err, vault.ErrConnectionTokenInvalid):
-			http.Error(w, "invalid handoff token", http.StatusUnauthorized)
+			http.Error(w, "invalid connect token", http.StatusUnauthorized)
 			return
 		case errors.Is(err, vault.ErrConnectionRemoteURLMismatch):
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -752,7 +793,7 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 			Connected: probe.Connected,
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			srv.log.Warn("Failed to encode vault handoff probe response", zap.Error(err))
+			srv.log.Warn("Failed to encode vault connect probe response", zap.Error(err))
 		}
 		return
 	}
@@ -761,7 +802,7 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = vlt.HandleConnection(r.Context(), handoffToken, vault.ConnectionHandoff{
+	err = vlt.HandleConnection(r.Context(), connectToken, vault.ConnectPayload{
 		RemoteURL:    vaultURL,
 		UserID:       userID,
 		CredentialID: credentialID,
@@ -770,10 +811,10 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 	case errors.Is(err, vault.ErrConnectionTokenExpired):
-		http.Error(w, "handoff token expired", http.StatusUnauthorized)
+		http.Error(w, "connect token expired", http.StatusUnauthorized)
 		return
 	case errors.Is(err, vault.ErrConnectionTokenInvalid):
-		http.Error(w, "invalid handoff token", http.StatusUnauthorized)
+		http.Error(w, "invalid connect token", http.StatusUnauthorized)
 		return
 	case errors.Is(err, vault.ErrConnectionRemoteURLMismatch):
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -793,7 +834,7 @@ func (srv *Server) HandleVaultHandoff(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		srv.log.Warn("Failed to encode vault handoff response", zap.Error(err))
+		srv.log.Warn("Failed to encode vault connect response", zap.Error(err))
 	}
 }
 
