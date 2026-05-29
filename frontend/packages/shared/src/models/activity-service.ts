@@ -460,8 +460,18 @@ export async function loadContactEvent(
     })
     const metadata = grpcContact.metadata?.toJson() as Record<string, unknown> | undefined
     const subscribe = metadata?.subscribe as HMContactSubscribe | undefined
+    const subjectUid = normalizeRequiredFeedValue(grpcContact.subject)
 
-    const subject = await cache.getAccount(grpcContact.subject)
+    if (!subjectUid) {
+      console.warn('Skipping contact event with missing subject', {
+        cid: event.newBlob.cid,
+        contactId,
+        author: event.newBlob.author,
+      })
+      return null
+    }
+
+    const subject = await cache.getAccount(subjectUid, currentAccount)
 
     const author = await cache.getAccount(event.newBlob.author, currentAccount)
 
