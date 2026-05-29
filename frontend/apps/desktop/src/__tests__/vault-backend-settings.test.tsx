@@ -260,7 +260,7 @@ describe('Vault backend settings', () => {
 
     expect(startVaultConnectionMutateAsyncMock).toHaveBeenCalledWith({
       vaultUrl: 'https://example.com/vault',
-      force: false,
+      force: true,
     })
     expect(openUrlMock).toHaveBeenCalledWith(expectedVaultConnectUrl('https://example.com/vault', 'token-123'))
     const connectURLInput = container.querySelector('#vault-connect-url') as HTMLInputElement
@@ -321,7 +321,7 @@ describe('Vault backend settings', () => {
 
     expect(startVaultConnectionMutateAsyncMock).toHaveBeenCalledWith({
       vaultUrl: 'https://example.com/vault',
-      force: false,
+      force: true,
     })
     expect(openUrlMock).toHaveBeenCalledWith(expectedVaultConnectUrl('https://example.com/vault', 'token-456'))
 
