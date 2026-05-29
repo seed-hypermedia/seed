@@ -452,7 +452,8 @@ export async function loadContactEvent(
       return null
     }
 
-    const contactId = `${event.newBlob.author}/${extraAttrs.tsid}`
+    const contactAuthorityUid = unpackHmId(event.newBlob.resource)?.uid || event.newBlob.author
+    const contactId = `${contactAuthorityUid}/${extraAttrs.tsid}`
 
     // Get contact from API
     const grpcContact = await grpcClient.documents.getContact({
