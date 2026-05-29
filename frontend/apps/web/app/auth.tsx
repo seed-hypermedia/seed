@@ -416,15 +416,15 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   return (
     <>
-      <DialogTitle className="flex gap-2 items-center max-sm:text-base" onClick={secretTap.tap}>
+      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={secretTap.tap}>
         {localAccountUnlocked ? (
           tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
             siteName: siteName || 'this site',
           })
         ) : (
           <>
-            <div className="flex justify-center items-center bg-emerald-600 rounded-full size-8">
-              <SeedLogo className="text-white size-4" />
+            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+              <SeedLogo className="size-4 text-white" />
             </div>
             {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
           </>
@@ -472,21 +472,21 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           </Button>
 
           {/* Divider */}
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
             <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
-            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
           </div>
 
           <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
             Already have a Hypermedia Identity?
           </Button>
 
-          <div className="text-sm text-center text-neutral-500 dark:text-neutral-400">
+          <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
             Do you have another identity domain?{' '}
             <button
               type="button"
-              className="font-medium text-emerald-600 underline cursor-pointer underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
               onClick={() => setShowCustomVaultInput(true)}
             >
               Sign in with it
@@ -494,7 +494,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
           </div>
 
           {showCustomVaultInput && (
-            <div className="flex flex-col gap-2 p-3 rounded-md border border-neutral-200 dark:border-neutral-700">
+            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
               <SizableText size="sm" className="font-medium">
                 Hypermedia Vault URL
               </SizableText>
@@ -511,7 +511,7 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
                   }
                 }}
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
                   Cancel
                 </Button>
@@ -544,7 +544,7 @@ function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'joi
 
   return (
     <>
-      <DialogTitle className="flex gap-2 items-center">
+      <DialogTitle className="flex items-center gap-2">
         You are in <span aria-hidden>🎉</span>
       </DialogTitle>
       {input.variant === 'comment' ? (
@@ -619,7 +619,7 @@ export function LogoutDialog({onClose}: {onClose: () => void}) {
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -832,7 +832,7 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
 
   if (!userKeyPair) return null
   return (
-    <div className="flex flex-wrap gap-2 justify-end max-w-full">
+    <div className="flex max-w-full flex-wrap justify-end gap-2">
       {logoutDialog.content}
       {editProfileDialog.content}
       {linkKeysDialog.content}
