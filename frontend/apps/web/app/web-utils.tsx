@@ -11,15 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
-import {Add} from '@shm/ui/icons'
 import {Bell, FilePlus2, Import as ImportIcon, Lock, LogOut, Search, User, UserCog} from 'lucide-react'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
@@ -148,6 +148,17 @@ export function useWebCreateDocumentMenuItem({
   }
 }
 
+function PlaceholderAvatar({onClick}: {onClick: () => void}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex justify-center items-center rounded-full border border-gray-400 border-dashed cursor-pointer size-8"
+    >
+      <User className="text-gray-400 size-4" />
+    </button>
+  )
+}
+
 /**
  * Site-header join button or avatar with notifications bell
  */
@@ -185,7 +196,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   if (!keyPair) {
     return (
       <>
-        <JoinButton onClick={() => createAccount()} />
+        <div className="flex gap-2 items-center">
+          <PlaceholderAvatar onClick={() => createAccount()} />
+          <JoinButton onClick={() => createAccount()} />
+        </div>
         {createAccountContent}
       </>
     )
@@ -213,7 +227,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const menuItems = (
     <>
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex gap-3 items-center px-4 py-3 w-full text-left hover:bg-accent"
         onClick={() => {
           if (accountId) {
             navigate({key: 'profile', id: hmId(accountId, {latest: true})})
@@ -224,9 +238,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <User className="size-5" />
         <span className="text-sm">My Profile</span>
       </button>
-      <div className="bg-border mx-4 h-px" />
+      <div className="mx-4 h-px bg-border" />
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
+        className="flex gap-3 items-center px-4 py-3 w-full text-left hover:bg-accent disabled:opacity-50"
         onClick={() => {
           if (vaultAccountSettingsUrl) {
             window.open(vaultAccountSettingsUrl, '_blank')
@@ -238,9 +252,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      <div className="bg-border mx-4 h-px" />
+      <div className="mx-4 h-px bg-border" />
       <button
-        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex gap-3 items-center px-4 py-3 w-full text-left text-destructive hover:bg-accent"
         onClick={() => {
           setMobileMenuOpen(false)
           logoutDialog.open({})
@@ -255,33 +269,33 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   return (
     <>
       {isMobile ? (
-        <div className="flex items-center gap-2">
-          <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
+        <div className="flex gap-2 items-center">
+          <button className="flex rounded-full shadow-lg cursor-pointer" onClick={() => setMobileMenuOpen(true)}>
             {avatarIcon}
           </button>
           {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
-            <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex gap-3 items-center px-4 py-4">
               {avatarIcon}
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+                <p className="text-sm font-medium truncate">{account?.metadata?.name || 'Account'}</p>
               </div>
             </div>
-            <div className="bg-border h-px" />
+            <div className="h-px bg-border" />
             {menuItems}
           </MobilePanelSheet>
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2 items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
+              <button className="flex rounded-full shadow-lg cursor-pointer">{avatarIcon}</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end" className="min-w-[200px]">
-              <div className="flex items-center gap-3 px-2 py-2">
+              <div className="flex gap-3 items-center px-2 py-2">
                 {avatarIcon}
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
+                  <p className="text-sm font-medium truncate">{account?.metadata?.name || 'Account'}</p>
                 </div>
               </div>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
@@ -360,7 +374,7 @@ function NotifsButton() {
 
   return (
     <ButtonLink
-      className="relative h-8 rounded-full border-1 border-transparent p-0"
+      className="relative p-0 h-8 rounded-full border-transparent border-1"
       variant="ghost"
       size="icon"
       {...linkProps}
