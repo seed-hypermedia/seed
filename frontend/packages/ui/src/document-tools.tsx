@@ -313,10 +313,10 @@ export function DocumentTools({
       )
     }
 
-    // No sidebars: center with mx-auto, no flex-1 (matching header pattern)
+    // No sidebars: keep the tab row aligned with the centered document header.
     return (
       <div className="flex w-full shrink-0">
-        <div style={wrapperProps.style} className="mx-auto flex w-full items-center">
+        <div style={wrapperProps.style} className="mx-auto flex w-full items-center justify-center">
           <div
             {...mainContentProps}
             ref={containerRef}

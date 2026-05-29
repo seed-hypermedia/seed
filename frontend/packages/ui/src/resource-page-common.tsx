@@ -1591,7 +1591,7 @@ function DocumentBody({
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
-        <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none')}>
+        <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none', !showSidebars && 'justify-center')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
