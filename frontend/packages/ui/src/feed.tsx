@@ -86,8 +86,13 @@ export function Feed({
     }
   }, [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  // Flatten all pages into a single array of events
-  const allEvents = data?.pages.flatMap((page) => page.events) || []
+  // Flatten all pages into a single array of events.
+  // Agent capability grants are implementation details for devices and should
+  // not appear in user-facing feeds (notably profile feeds).
+  const allEvents = (data?.pages.flatMap((page) => page.events) || []).filter((event) => {
+    if (event.type !== 'capability') return true
+    return event.capability.role?.toLowerCase() !== 'agent'
+  })
 
   // Extract unique account IDs from events and subscribe for discovery.
   // Includes authors, reply parents, contact subjects, and capability delegates
