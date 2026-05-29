@@ -1,13 +1,17 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {RenderResourceProvider} from '@shm/shared'
-import {useEffect, useMemo} from 'react'
+import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
+import {useCallback, useEffect, useMemo} from 'react'
 import {BlockNoteEditor, useBlockNote} from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockNoteView} from './blocknote/react/BlockNoteView'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 
-export function useEmbedEditor(blocks: HMBlockNode[]): BlockNoteEditor<HMBlockSchema> {
+export function useEmbedEditor(
+  blocks: HMBlockNode[],
+  linkExtensionOptions?: LinkExtensionOptions,
+): BlockNoteEditor<HMBlockSchema> {
   const initialContent = useMemo(() => {
     const editorBlocks = hmBlocksToEditorContent(blocks, {childrenType: 'Group'})
     return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
@@ -18,10 +22,11 @@ export function useEmbedEditor(blocks: HMBlockNode[]): BlockNoteEditor<HMBlockSc
       editable: false,
       renderType: 'embed',
       blockSchema: hmBlockSchema,
+      linkExtensionOptions,
       // @ts-expect-error - EditorBlock/PartialBlock type mismatch
       initialContent,
     },
-    [initialContent],
+    [initialContent, linkExtensionOptions],
   )
 }
 
@@ -72,7 +77,26 @@ function EmbedEditorInner({
   focusBlockId?: string
   blockRange?: BlockRange
 }) {
-  const editor = useEmbedEditor(blocks)
+  const openUrl = useOpenUrl()
+  const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
+  const renderHref = useCallback(
+    (url: string) =>
+      hypermediaUrlToHref(url, {
+        hmUrlHref,
+        origin,
+        originHomeId,
+      }) || url,
+    [hmUrlHref, origin, originHomeId],
+  )
+  const linkExtensionOptions = useMemo(
+    () => ({
+      openUrl,
+      renderHref,
+      handleModifiedClicks: !!openRouteNewWindow,
+    }),
+    [openUrl, renderHref, openRouteNewWindow],
+  )
+  const editor = useEmbedEditor(blocks, linkExtensionOptions)
 
   const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null
   const rangeEnd = blockRange && 'end' in blockRange ? blockRange.end : null

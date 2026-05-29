@@ -95,6 +95,23 @@ describe('useOpenUrl', () => {
     cleanupRendered(root, container)
   })
 
+  it('opens internal block-fragment URLs in a new app window when requested', () => {
+    const {container, root} = renderHarness()
+
+    act(() => {
+      mockState.latestOpenUrl?.('hm://uid1/docs/page#blk1[5:15]', true)
+    })
+
+    expect(mockState.spawnNavigate).toHaveBeenCalledWith({
+      key: 'document',
+      id: unpackHmId('hm://uid1/docs/page#blk1[5:15]'),
+    })
+    expect(mockState.pushNavigate).not.toHaveBeenCalled()
+    expect(mockState.externalOpen).not.toHaveBeenCalled()
+
+    cleanupRendered(root, container)
+  })
+
   it('routes inspect urls through in-app navigation', () => {
     const {container, root} = renderHarness()
 
