@@ -28,7 +28,7 @@
   --brand-11: #d0f1d1;
   --brand-12: #e4f6e5;
   --brand: var(--brand-5);
-  --highlight: lch(95.19% 10.86 145.56);
+  --highlight: hsl(123, 56%, 86%);
   --link: lch(44.196 70 286.91);
   --link-hover: lch(38 70 286.91);
   --background: oklch(0.98 0 0);
@@ -102,7 +102,7 @@
   --brand-11: hsl(180, 36%, 22%);
   --brand-12: hsl(180, 29%, 17%);
   --brand: var(--brand-8);
-  --highlight: hsl(180, 41%, 8%);
+  --highlight: hsl(180, 48%, 18%);
   --link: lch(59.472 70 288.421);
   --link-hover: lch(65 70 288.421);
   --background: oklch(0.2046 0 0);

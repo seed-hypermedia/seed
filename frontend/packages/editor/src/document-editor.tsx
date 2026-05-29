@@ -18,6 +18,7 @@ import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BlockHoverActionsPositioner,
+  BlockNoteEditor,
   BlockNoteView,
   FormattingToolbarPositioner,
   FullBlockSelectionObserver,
@@ -32,6 +33,7 @@ import {
   type FormattingToolbarProps,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
+import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
 import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
@@ -73,6 +75,7 @@ export function DocumentEditor({
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
+  onTextSelection,
   onEditorReady,
   onBlocksFullSelected,
   draftCursorPosition,
@@ -122,9 +125,17 @@ export function DocumentEditor({
     actorRef.send({type: 'edit.start'})
   }, [actorRef])
 
+  const onTextSelectionRef = useRef(onTextSelection)
+  onTextSelectionRef.current = onTextSelection
+
   // Suppress change events during programmatic content replacement
   // (e.g. when loading draft content on edit-mode entry).
   const suppressChangeRef = useRef(false)
+
+  // Ref to the BlockNote editor for use inside option callbacks that are
+  // created before the editor instance exists (e.g. the paste handler's
+  // block-fragment landing callback).
+  const docEditorRef = useRef<BlockNoteEditor<HMBlockSchema> | null>(null)
 
   // Freeze blocks once editing starts so document query refetches don't
   // recreate the editor and lose the user's edits (or loaded draft content).
@@ -146,7 +157,7 @@ export function DocumentEditor({
     const editorBlocks = isEditorFormat
       ? (effectiveBlocks as any[])
       : hmBlocksToEditorContent(effectiveBlocks, {childrenType: 'Group'})
-    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const, id: 'empty'}]
+    return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
   }, [effectiveBlocks])
 
   const editor = useBlockNote<HMBlockSchema>(
@@ -173,6 +184,21 @@ export function DocumentEditor({
         openUrl: linkExtensionOptions?.openUrl ?? openUrl,
         renderHref: linkExtensionOptions?.renderHref ?? renderHref,
         handleModifiedClicks: linkExtensionOptions?.handleModifiedClicks ?? !!openRouteNewWindow,
+        onPasteHypermediaBlockFragment:
+          linkExtensionOptions?.onPasteHypermediaBlockFragment ??
+          ((resolvedHmUrl: string) => {
+            const ed = docEditorRef.current
+            if (!ed) return false
+            insertOrUpdateBlock(
+              ed,
+              {
+                type: 'embed',
+                props: {url: resolvedHmUrl, view: 'Content'},
+              } as any,
+              true,
+            )
+            return true
+          }),
       },
       _tiptapOptions: {
         extensions: [
@@ -191,6 +217,36 @@ export function DocumentEditor({
                   return selectAllEditorContent(editor)
                 },
               }
+            },
+          }),
+          Extension.create({
+            name: 'document-text-selection-observer',
+            priority: 0,
+            addProseMirrorPlugins() {
+              const pluginKey = new PluginKey('documentTextSelectionObserver')
+              let lastSelectionKey: string | null = null
+
+              return [
+                new Plugin({
+                  key: pluginKey,
+                  view: () => ({
+                    update(view, prevState) {
+                      const selection = view.state.selection
+                      if (selection.eq(prevState.selection)) return
+
+                      if (!(selection instanceof TextSelection) || selection.empty) {
+                        lastSelectionKey = null
+                        return
+                      }
+
+                      const selectionKey = `${selection.from}:${selection.to}`
+                      if (selectionKey === lastSelectionKey) return
+                      lastSelectionKey = selectionKey
+                      onTextSelectionRef.current?.()
+                    },
+                  }),
+                }),
+              ]
             },
           }),
           Extension.create({
@@ -307,6 +363,10 @@ export function DocumentEditor({
     },
     [initialContent],
   )
+
+  // Keep the editor ref current so the paste-handler block-fragment landing
+  // callback can resolve to the same editor instance.
+  docEditorRef.current = editor
 
   // Expose the suppress ref on the editor so external consumers (e.g. auto-rebase)
   // can wrap programmatic `replaceBlocks` calls without triggering `change` events.

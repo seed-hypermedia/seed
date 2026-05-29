@@ -170,7 +170,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
           content,
           replyCommentVersion: intent.replyCommentVersion,
           rootReplyCommentVersion: intent.rootReplyCommentVersion,
-          quotingBlockId: intent.quotingBlockId,
+          quoting: intent.quotingBlockId ? {blockId: intent.quotingBlockId, range: intent.quotingRange} : undefined,
         },
         signer,
       )
@@ -191,7 +191,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
       // Clear the comment draft from localStorage
-      clearCommentDraft(docId.id, intent.replyCommentId, intent.quotingBlockId)
+      clearCommentDraft(docId.id, intent.replyCommentId, intent.quotingBlockId, intent.quotingRange)
 
       await clearPendingIntent()
 
@@ -213,10 +213,16 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
   return null
 }
 
-function clearCommentDraft(docId: string, replyCommentId?: string | null, quotingBlockId?: string) {
+function clearCommentDraft(
+  docId: string,
+  replyCommentId?: string | null,
+  quotingBlockId?: string,
+  quotingRange?: {start: number; end: number},
+) {
   const parts = ['comment-draft', docId]
   if (replyCommentId) parts.push(`reply-${replyCommentId}`)
   if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
+  if (quotingRange) parts.push(`range-${quotingRange.start}-${quotingRange.end}`)
   const key = parts.join('-')
   try {
     localStorage.removeItem(key)

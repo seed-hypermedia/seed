@@ -19,7 +19,13 @@ export type {
 export {createSeedClient} from './client'
 export type {PublishDocumentInput, SeedClient, SeedClientOptions} from './client'
 export {commentRecordIdFromBlob, createComment, deleteComment, updateComment} from './comment'
-export type {CommentAttachmentBlob, CreateCommentInput, DeleteCommentInput, UpdateCommentInput} from './comment'
+export type {
+  CommentAttachmentBlob,
+  CreateCommentInput,
+  DeleteCommentInput,
+  QuotingTarget,
+  UpdateCommentInput,
+} from './comment'
 export {contactRecordIdFromBlob, createContact, deleteContact, updateContact} from './contact'
 export type {CreateContactInput, CreateContactResult, DeleteContactInput, UpdateContactInput} from './contact'
 export {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'

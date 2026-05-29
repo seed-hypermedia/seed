@@ -391,6 +391,52 @@ describe('HMBlock to EditorBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('paragraph with inline embed consumes visible annotation text', () => {
+      const hmBlock: HMBlock = {
+        id: 'foo',
+        type: 'Paragraph',
+        text: 'Hello Seed document!',
+        annotations: [
+          {
+            type: 'Embed',
+            starts: [6],
+            attributes: {},
+            ends: [19],
+            link: 'hm://asdf1234/docs/seed-document',
+          },
+        ],
+        attributes: {},
+        revision: 'revision123',
+      }
+      const result: EditorBlock = {
+        id: 'foo',
+        type: 'paragraph',
+        children: [],
+        props: {
+          revision: 'revision123',
+        },
+        content: [
+          {
+            type: 'text',
+            text: 'Hello ',
+            styles: {},
+          },
+          {
+            type: 'inline-embed',
+            link: 'hm://asdf1234/docs/seed-document',
+            styles: {},
+          },
+          {
+            type: 'text',
+            text: '!',
+            styles: {},
+          },
+        ],
+      }
+      const val = hmBlockToEditorBlock(hmBlock)
+      expect(val).toEqual(result)
+    })
+
     test('heading', () => {
       const hmBlock: HMBlockHeading = {
         id: 'foo',

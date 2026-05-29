@@ -191,6 +191,28 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   }
 
   while (i < blockText.length) {
+    const inlineEmbed = findInlineEmbedStartingAt(pos)
+    if (inlineEmbed) {
+      if (leaf) {
+        finishLeaf(textStart, i)
+        leaf = null
+      }
+      if (inlineBlockContent) {
+        leaves.push(inlineBlockContent)
+        inlineBlockContent = null
+      }
+      leaves.push({
+        type: 'inline-embed',
+        styles: {},
+        link: inlineEmbed.link,
+      } as EditorInlineEmbed)
+      skipToCodepoint(inlineEmbed.end)
+      textStart = i
+      leafAnnotations.clear()
+      if (i >= blockText.length) return out
+      continue
+    }
+
     let ul = 1
 
     let annotationsChanged = trackPosAnnotations(pos)
@@ -474,6 +496,38 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     return annotationsChanged
+  }
+
+  function findInlineEmbedStartingAt(pos: number): {link: string; end: number} | null {
+    const blockAnnotations = (block as any).annotations as unknown[] | undefined
+    if (!blockAnnotations) return null
+
+    for (const annotation of blockAnnotations) {
+      const annotationData = annotation as unknown as {
+        type?: string
+        link?: string
+        starts?: number[]
+        ends?: number[]
+      }
+      if (annotationData.type !== 'Embed') continue
+
+      const spanIndex = annotationData.starts?.findIndex((start) => start === pos) ?? -1
+      if (spanIndex === -1) continue
+
+      const end = annotationData.ends?.[spanIndex]
+      if (typeof end !== 'number' || end <= pos) continue
+
+      return {link: annotationData.link || '', end}
+    }
+
+    return null
+  }
+
+  function skipToCodepoint(end: number) {
+    while (pos < end && i < blockText.length) {
+      i += isSurrogate(blockText, i) ? 2 : 1
+      pos++
+    }
   }
 }
 

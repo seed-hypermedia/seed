@@ -152,9 +152,9 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
   return (
     <button
       onClick={onClick}
-      className="flex justify-center items-center rounded-full border border-gray-400 border-dashed cursor-pointer size-8"
+      className="flex size-8 cursor-pointer items-center justify-center rounded-full border border-dashed border-gray-400"
     >
-      <User className="text-gray-400 size-4" />
+      <User className="size-4 text-gray-400" />
     </button>
   )
 }
@@ -196,7 +196,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   if (!keyPair) {
     return (
       <>
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2">
           <PlaceholderAvatar onClick={() => createAccount()} />
           <JoinButton onClick={() => createAccount()} />
         </div>
@@ -227,7 +227,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const menuItems = (
     <>
       <button
-        className="flex gap-3 items-center px-4 py-3 w-full text-left hover:bg-accent"
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
         onClick={() => {
           if (accountId) {
             navigate({key: 'profile', id: hmId(accountId, {latest: true})})
@@ -238,9 +238,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <User className="size-5" />
         <span className="text-sm">My Profile</span>
       </button>
-      <div className="mx-4 h-px bg-border" />
+      <div className="bg-border mx-4 h-px" />
       <button
-        className="flex gap-3 items-center px-4 py-3 w-full text-left hover:bg-accent disabled:opacity-50"
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
         onClick={() => {
           if (vaultAccountSettingsUrl) {
             window.open(vaultAccountSettingsUrl, '_blank')
@@ -252,9 +252,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      <div className="mx-4 h-px bg-border" />
+      <div className="bg-border mx-4 h-px" />
       <button
-        className="flex gap-3 items-center px-4 py-3 w-full text-left text-destructive hover:bg-accent"
+        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
         onClick={() => {
           setMobileMenuOpen(false)
           logoutDialog.open({})
@@ -269,33 +269,33 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   return (
     <>
       {isMobile ? (
-        <div className="flex gap-2 items-center">
-          <button className="flex rounded-full shadow-lg cursor-pointer" onClick={() => setMobileMenuOpen(true)}>
+        <div className="flex items-center gap-2">
+          <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
             {avatarIcon}
           </button>
           {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
-            <div className="flex gap-3 items-center px-4 py-4">
+            <div className="flex items-center gap-3 px-4 py-4">
               {avatarIcon}
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{account?.metadata?.name || 'Account'}</p>
+                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
               </div>
             </div>
-            <div className="h-px bg-border" />
+            <div className="bg-border h-px" />
             {menuItems}
           </MobilePanelSheet>
         </div>
       ) : (
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex rounded-full shadow-lg cursor-pointer">{avatarIcon}</button>
+              <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end" className="min-w-[200px]">
-              <div className="flex gap-3 items-center px-2 py-2">
+              <div className="flex items-center gap-3 px-2 py-2">
                 {avatarIcon}
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{account?.metadata?.name || 'Account'}</p>
+                  <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
                 </div>
               </div>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
@@ -374,7 +374,7 @@ function NotifsButton() {
 
   return (
     <ButtonLink
-      className="relative p-0 h-8 rounded-full border-transparent border-1"
+      className="relative h-8 rounded-full border-1 border-transparent p-0"
       variant="ghost"
       size="icon"
       {...linkProps}

@@ -52,6 +52,33 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('paragraph replaces reserved empty fallback id', () => {
+      const editorBlock: EditorBlock = {
+        id: 'empty',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [
+          {
+            type: 'text',
+            text: 'Hello world',
+            styles: {},
+          },
+        ],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val.id).not.toBe('empty')
+      expect(val.id).toHaveLength(8)
+      expect(val).toMatchObject({
+        type: 'Paragraph',
+        text: 'Hello world',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
     test('paragraph with styles formats', () => {
       const editorBlock: EditorBlock = {
         id: 'foo',

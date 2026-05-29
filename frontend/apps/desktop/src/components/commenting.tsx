@@ -55,6 +55,8 @@ function CommentBoxImpl(props: {
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
+  /** Codepoint range within the quoted block; absent ⇒ whole-block quote. */
+  quotingRange?: {start: number; end: number}
   commentId?: string
   isReplying?: boolean
   /** Focus the editor on mount (renamed from `autoFocus` to satisfy a11y rules). */
@@ -65,7 +67,11 @@ function CommentBoxImpl(props: {
   /** CID version of the thread root comment, passed from the route. */
   rootReplyCommentVersion?: string
 }) {
-  const {docId, quotingBlockId, commentId, isReplying, focusOnMount, context} = props
+  const {docId, quotingBlockId, quotingRange, commentId, isReplying, focusOnMount, context} = props
+  const quoting = useMemo(
+    () => (quotingBlockId ? {blockId: quotingBlockId, range: quotingRange} : undefined),
+    [quotingBlockId, quotingRange?.start, quotingRange?.end],
+  )
 
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
@@ -93,9 +99,10 @@ function CommentBoxImpl(props: {
   const finalRootVersion = props.rootReplyCommentVersion || resolvedReply?.rootReplyCommentVersion
 
   const draft = useCommentDraft(
-    quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
+    quotingBlockId ? {...docId, blockRef: quotingBlockId, blockRange: quotingRange ?? null} : docId,
     commentId,
     quotingBlockId,
+    quotingRange,
     context,
   )
 
@@ -105,7 +112,15 @@ function CommentBoxImpl(props: {
   const pendingBlocksRef = useRef<HMBlockNode[] | null>(null)
   const flushPendingDraftSaveRef = useRef<() => void>(() => {})
 
-  const commentDraftQueryKey = [queryKeys.COMMENT_DRAFT, docId.id, commentId, quotingBlockId, context]
+  const commentDraftQueryKey = [
+    queryKeys.COMMENT_DRAFT,
+    docId.id,
+    commentId,
+    quotingBlockId,
+    quotingRange?.start,
+    quotingRange?.end,
+    context,
+  ]
 
   // Draft write mutation
   const writeDraft = useMutation({
@@ -115,6 +130,7 @@ function CommentBoxImpl(props: {
         targetDocId: docId.id,
         replyCommentId: commentId,
         quotingBlockId: quotingBlockId,
+        quotingRange: quotingRange,
         context: context,
       }),
     onSuccess: () => {
@@ -130,6 +146,7 @@ function CommentBoxImpl(props: {
         targetDocId: docId.id,
         replyCommentId: commentId,
         quotingBlockId: quotingBlockId,
+        quotingRange: quotingRange,
         context: context,
       }),
     onMutate: async () => {
@@ -178,11 +195,11 @@ function CommentBoxImpl(props: {
         contentBlocks,
         replyParentId: commentId || undefined,
         threadRootVersion: finalRootVersion,
-        quotingBlockId,
+        quoting,
         visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
       })
 
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quotingBlockId)
+      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
       navigateToComment(navigate, route, optimisticComment.id)
     },
     onError: (err: {message: string}) => {
@@ -323,7 +340,7 @@ function CommentBoxImpl(props: {
             docVersion: targetVersion || docId.version || '',
             replyCommentVersion: finalReplyVersion,
             rootReplyCommentVersion: finalRootVersion,
-            quotingBlockId,
+            quoting,
             visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
           },
           signer,
@@ -356,6 +373,9 @@ function CommentBoxImpl(props: {
       finalReplyVersion,
       finalRootVersion,
       quotingBlockId,
+      quotingRange?.start,
+      quotingRange?.end,
+      quoting,
       writeRecentSigner,
     ],
   )

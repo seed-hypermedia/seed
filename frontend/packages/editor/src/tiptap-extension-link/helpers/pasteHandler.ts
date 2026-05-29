@@ -21,6 +21,11 @@ type PasteHandlerOptions = {
   linkOnPaste?: boolean
   gwUrl: StateStream<string>
   checkWebUrl: (url: string) => Promise<any>
+  /** When provided and a `hm://…#blockId[...]` URL is pasted into an empty
+   * selection, this callback receives the resolved hm URL (with the resolved
+   * version filled in when needed) so the host editor can insert an Embed
+   * block instead of falling back to a link mark. */
+  onPasteHypermediaBlockFragment?: (resolvedHmUrl: string) => void | boolean
 }
 
 export function pasteHandler(options: PasteHandlerOptions): Plugin {
@@ -251,6 +256,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     version: resolvedVersion,
                   }),
                 )
+                // Block-fragment links → host can land them as Embed blocks.
+                if (unpackedHmId.blockRef && options.onPasteHypermediaBlockFragment) {
+                  const handled = options.onPasteHypermediaBlockFragment(normalizedHmUrl)
+                  if (handled !== false) return
+                }
                 if (title) {
                   view.dispatch(
                     tr.insertText(title, pos).addMark(
@@ -304,6 +314,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               .catch((err) => {
                 // Fallback: use original URL without resolved version
                 const normalizedHmUrl = packHmId(hmId(unpackedHmId.uid, unpackedHmId))
+                if (unpackedHmId.blockRef && options.onPasteHypermediaBlockFragment) {
+                  const handled = options.onPasteHypermediaBlockFragment(normalizedHmUrl)
+                  if (handled !== false) return
+                }
                 view.dispatch(
                   tr.insertText(normalizedHmUrl, pos).addMark(
                     pos,

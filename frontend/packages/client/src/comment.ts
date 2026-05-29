@@ -48,13 +48,41 @@ type PrepareAttachments = (binaries: Uint8Array[]) => Promise<{
   resultCIDs: string[]
 }>
 
+/**
+ * Target of a quoted block fragment in a comment. The optional `range`
+ * holds zero-based Unicode codepoint offsets within the block's text.
+ * When `range` is omitted, the comment quotes the whole block.
+ */
+export type QuotingTarget = {
+  blockId: string
+  range?: {start: number; end: number}
+}
+
 type CreateCommentBaseInput = {
   docId: UnpackedHypermediaId
   docVersion: string
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
+  /** Structured quote target (preferred). */
+  quoting?: QuotingTarget
+  /** Deprecated: pass `quoting: {blockId}` instead. Still honored for back-compat. */
   quotingBlockId?: string
   visibility?: 'Private' | ''
+}
+
+/**
+ * Normalizes legacy `quotingBlockId` and the new `quoting` field into a
+ * single QuotingTarget shape (or undefined when no quote target is set).
+ */
+function resolveQuotingTarget(input: {quoting?: QuotingTarget; quotingBlockId?: string}): QuotingTarget | undefined {
+  if (input.quoting) {
+    if (input.quoting.range && input.quoting.range.start === input.quoting.range.end) {
+      return {blockId: input.quoting.blockId}
+    }
+    return input.quoting
+  }
+  if (input.quotingBlockId) return {blockId: input.quotingBlockId}
+  return undefined
 }
 
 export type CreateCommentInput =
@@ -367,7 +395,19 @@ function generateBlockId(length: number = 8): string {
 }
 
 function wrapQuotedContent(content: HMBlockNode[], input: CreateCommentBaseInput): HMBlockNode[] {
-  if (!input.quotingBlockId) return content
+  const quoting = resolveQuotingTarget(input)
+  if (!quoting) return content
+  // Pin to the exact captured version (no `latest` flag) so the embed always
+  // renders the document state the user actually selected from — otherwise
+  // later edits to the source doc would shift the codepoint range and the
+  // highlight would land on different text.
+  const link = packHmId({
+    ...input.docId,
+    blockRef: quoting.blockId,
+    blockRange: quoting.range ?? null,
+    version: input.docVersion,
+    latest: false,
+  })
   return [
     {
       block: {
@@ -379,11 +419,7 @@ function wrapQuotedContent(content: HMBlockNode[], input: CreateCommentBaseInput
           view: 'Content',
         },
         annotations: [],
-        link: packHmId({
-          ...input.docId,
-          blockRef: input.quotingBlockId,
-          version: input.docVersion,
-        }),
+        link,
       },
       children: content,
     } as HMBlockNode,

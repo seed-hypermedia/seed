@@ -32,6 +32,64 @@ type RangeSelectionEvents = {
 const SETTLE_DELAY_MS = 10
 
 /**
+ * Converts a ProseMirror document position into a zero-based Unicode
+ * codepoint offset relative to the start of a block content node.
+ *
+ * Text nodes count by Unicode codepoint, while non-text inline nodes (for
+ * example inline embeds) count as one codepoint. This mirrors fragment-link
+ * rendering so edit-mode toolbar actions and loaded/read-only selections
+ * produce identical block ranges.
+ */
+export function prosemirrorPosToBlockTextOffset(
+  doc: import('prosemirror-model').Node,
+  docPos: number,
+  blockContentBeforePos: number,
+): number {
+  const blockContentNode = doc.resolve(blockContentBeforePos + 1).parent
+
+  // docPos is an absolute position. The start of blockContent's first child
+  // sits at blockContentBeforePos + 1 (the opening token of blockContent).
+  const targetOffset = docPos - (blockContentBeforePos + 1)
+
+  let codepoints = 0
+  let done = false
+
+  // Walk each inline child of the blockContent node and accumulate
+  // codepoints until `targetOffset` (in UTF-16 units within the parent
+  // content) falls inside or just before the current child.
+  //
+  // `nodeOffset` is the cumulative UTF-16 offset of `node` within
+  // blockContent — it stays absolute, so we compare `targetOffset`
+  // against it directly instead of decrementing as we go. This keeps
+  // ranges stable when marks or inline embeds split the paragraph into
+  // multiple inline children.
+  blockContentNode.forEach((node, nodeOffset) => {
+    if (done) return
+    const nodeEnd = nodeOffset + node.nodeSize
+
+    if (node.isText && node.text) {
+      if (targetOffset >= nodeEnd) {
+        codepoints += Array.from(node.text).length
+      } else if (targetOffset > nodeOffset) {
+        const slice = node.text.slice(0, targetOffset - nodeOffset)
+        codepoints += Array.from(slice).length
+        done = true
+      } else {
+        done = true
+      }
+    } else {
+      if (targetOffset >= nodeEnd) {
+        codepoints += 1
+      } else {
+        done = true
+      }
+    }
+  })
+
+  return codepoints
+}
+
+/**
  * Internal ProseMirror PluginView that watches selection changes and emits
  * {@link RangeSelectionState} to React whenever there is a non-empty text
  * selection while the editor is read-only.
@@ -61,6 +119,10 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
   ) {
     this.pmView.dom.addEventListener('mousedown', this.onMouseDown)
     this.pmView.dom.addEventListener('mouseup', this.onMouseUp)
+    // Mobile / touch: mirror the pointer lifecycle so the bubble settles after
+    // the OS finishes adjusting the text selection handles.
+    this.pmView.dom.addEventListener('touchstart', this.onMouseDown, {passive: true})
+    this.pmView.dom.addEventListener('touchend', this.onMouseUp, {passive: true})
   }
 
   // ---------------------------------------------------------------------------
@@ -82,53 +144,6 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
         referenceRect: null,
       })
     }
-  }
-
-  /**
-   * Converts a ProseMirror document position into a zero-based Unicode
-   * codepoint offset relative to the start of the containing block's text
-   * content.
-   *
-   * The implementation walks through each inline node in the blockContent node
-   * and accumulates codepoint counts until the target offset is reached.  For
-   * non-text inline nodes (e.g. inline embeds) a single codepoint of width 1 is
-   * assumed per node.
-   */
-  private posToBlockTextOffset(docPos: number, blockContentBeforePos: number): number {
-    const state = this.pmView.state
-    const blockContentNode = state.doc.resolve(blockContentBeforePos + 1).parent
-
-    // docPos is an absolute position.  The start of blockContent's first child
-    // sits at blockContentBeforePos + 1 (the opening token of blockContent).
-    const offsetWithinContent = docPos - (blockContentBeforePos + 1)
-
-    let codepoints = 0
-    let remaining = offsetWithinContent
-
-    blockContentNode.forEach((node, nodeOffset) => {
-      if (remaining <= 0) return
-
-      if (node.isText && node.text) {
-        const nodeEnd = nodeOffset + node.nodeSize
-        if (nodeOffset < remaining && remaining <= nodeEnd) {
-          // Target position falls inside this text node.
-          const slice = node.text.slice(0, remaining - nodeOffset)
-          codepoints += Array.from(slice).length
-          remaining = 0
-        } else if (nodeOffset < remaining) {
-          codepoints += Array.from(node.text).length
-          remaining -= node.nodeSize
-        }
-      } else {
-        // Non-text inline node (atom): count as 1 codepoint.
-        if (nodeOffset < remaining) {
-          codepoints += 1
-          remaining -= node.nodeSize
-        }
-      }
-    })
-
-    return codepoints
   }
 
   // ---------------------------------------------------------------------------
@@ -192,8 +207,8 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
       }
     })
 
-    const rangeStart = this.posToBlockTextOffset(from, blockContentBeforePos)
-    const rangeEnd = this.posToBlockTextOffset(to, blockContentBeforePos)
+    const rangeStart = prosemirrorPosToBlockTextOffset(state.doc, from, blockContentBeforePos)
+    const rangeEnd = prosemirrorPosToBlockTextOffset(state.doc, to, blockContentBeforePos)
 
     const referenceRect = posToDOMRect(view, from, to)
 
@@ -212,6 +227,8 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
     }
     this.pmView.dom.removeEventListener('mousedown', this.onMouseDown)
     this.pmView.dom.removeEventListener('mouseup', this.onMouseUp)
+    this.pmView.dom.removeEventListener('touchstart', this.onMouseDown)
+    this.pmView.dom.removeEventListener('touchend', this.onMouseUp)
 
     if (this.currentState.show) {
       this.emitState({

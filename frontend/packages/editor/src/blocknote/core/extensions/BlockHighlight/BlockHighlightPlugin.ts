@@ -1,5 +1,5 @@
 import {Node as ProseMirrorNode} from 'prosemirror-model'
-import {Plugin, PluginKey} from 'prosemirror-state'
+import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {Decoration, DecorationSet} from 'prosemirror-view'
 
 import './block-highlight.css'
@@ -73,32 +73,56 @@ function findBlockContent(
 
 /**
  * Convert a codepoint offset within a `blockContent` node into a ProseMirror
- * document position. Inverse of `posToBlockTextOffset` used in the range
- * selection / formatting toolbar code paths.
+ * document position. The walker uses each inline child's absolute parent
+ * offset (`nodeOffset`) rather than a running counter, so it stays correct
+ * when paragraphs split into multiple text children (e.g. when a Bold /
+ * Range / Link mark splits the run).
  */
-function codepointOffsetToPos(content: ProseMirrorNode, contentBeforePos: number, codepointOffset: number): number {
+export function codepointOffsetToPos(
+  content: ProseMirrorNode,
+  contentBeforePos: number,
+  codepointOffset: number,
+): number {
   const contentStart = contentBeforePos + 1
   if (codepointOffset <= 0) return contentStart
 
-  let remaining = codepointOffset
+  let codepointsSeen = 0
   let pos = contentStart
+  let done = false
 
-  content.forEach((node) => {
-    if (remaining <= 0) return
+  content.forEach((node, nodeOffset) => {
+    if (done) return
+    // Absolute ProseMirror position of the start of this inline child.
+    const nodeAbsStart = contentStart + nodeOffset
+
     if (node.isText && node.text) {
       const codepoints = Array.from(node.text)
-      if (remaining >= codepoints.length) {
-        pos += node.nodeSize
-        remaining -= codepoints.length
-      } else {
-        // Convert codepoints back to UTF-16 length for ProseMirror's text offset.
+      const remaining = codepointOffset - codepointsSeen
+      if (remaining <= codepoints.length) {
+        // Target codepoint lands inside this text node — walk codepoints
+        // and translate back into a UTF-16 offset.
         const slice = codepoints.slice(0, remaining).join('')
-        pos += slice.length
-        remaining = 0
+        pos = nodeAbsStart + slice.length
+        codepointsSeen = codepointOffset
+        done = true
+      } else {
+        codepointsSeen += codepoints.length
+        pos = nodeAbsStart + node.nodeSize
       }
     } else {
-      pos += node.nodeSize
-      remaining -= 1
+      // Non-text inline node (atom, e.g. inline-embed): counts as 1 codepoint.
+      const remaining = codepointOffset - codepointsSeen
+      if (remaining <= 0) {
+        pos = nodeAbsStart
+        done = true
+      } else if (remaining <= 1) {
+        pos = nodeAbsStart + node.nodeSize
+        codepointsSeen = codepointOffset
+        done = true
+      } else {
+        codepointsSeen += 1
+        pos = nodeAbsStart + node.nodeSize
+      }
     }
   })
 
@@ -158,6 +182,10 @@ export function createBlockHighlightPlugin(): Plugin {
             case 'clear':
               return DecorationSet.empty
           }
+        }
+
+        if (tr.selectionSet && tr.selection instanceof TextSelection && !tr.selection.empty) {
+          return DecorationSet.empty
         }
 
         // Keep existing decorations mapped through any document changes.

@@ -17,8 +17,10 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {ChevronDown, FileText, Link, ListChecks, MessageSquare} from 'lucide-react'
+import {TextSelection} from 'prosemirror-state'
 import {useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
+import {prosemirrorPosToBlockTextOffset} from './blocknote/core/extensions/RangeSelection/RangeSelectionPlugin'
 import {getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {
@@ -114,45 +116,28 @@ function getSelectionFragment(editor: BlockNoteEditor<any>): {
     }
   })
 
-  const rangeStart = posToBlockTextOffset(state, from, blockContentBeforePos)
-  const rangeEnd = posToBlockTextOffset(state, to, blockContentBeforePos)
+  const rangeStart = prosemirrorPosToBlockTextOffset(state.doc, from, blockContentBeforePos)
+  const rangeEnd = prosemirrorPosToBlockTextOffset(state.doc, to, blockContentBeforePos)
 
   return {blockId, rangeStart, rangeEnd}
 }
 
-/** Converts a ProseMirror position to a codepoint offset within the block's text. */
-function posToBlockTextOffset(
-  state: import('prosemirror-state').EditorState,
-  docPos: number,
-  blockContentBeforePos: number,
-): number {
-  const blockContentNode = state.doc.resolve(blockContentBeforePos + 1).parent
-  const offsetWithinContent = docPos - (blockContentBeforePos + 1)
-
-  let codepoints = 0
-  let remaining = offsetWithinContent
-
-  blockContentNode.forEach((node, nodeOffset) => {
-    if (remaining <= 0) return
-    if (node.isText && node.text) {
-      const nodeEnd = nodeOffset + node.nodeSize
-      if (nodeOffset < remaining && remaining <= nodeEnd) {
-        const slice = node.text.slice(0, remaining - nodeOffset)
-        codepoints += Array.from(slice).length
-        remaining = 0
-      } else if (nodeOffset < remaining) {
-        codepoints += Array.from(node.text).length
-        remaining -= node.nodeSize
-      }
-    } else {
-      if (nodeOffset < remaining) {
-        codepoints += 1
-        remaining -= node.nodeSize
-      }
+/** Clears the visible browser/ProseMirror text selection after fragment actions. */
+function clearEditorTextSelection(editor: BlockNoteEditor<any>) {
+  const view = editor._tiptapEditor?.view
+  if (view && !view.isDestroyed) {
+    const {state} = view
+    const pos = Math.min(Math.max(state.selection.to, 0), state.doc.content.size)
+    try {
+      view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, pos)))
+    } catch {
+      // Ignore invalid positions; clearing the native selection below is still useful.
     }
-  })
+  }
 
-  return codepoints
+  if (typeof window !== 'undefined') {
+    window.getSelection()?.removeAllRanges()
+  }
 }
 
 const toggleStyles = [
@@ -433,7 +418,10 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                     className="rounded-md hover:bg-black/10 dark:hover:bg-white/10"
                     onClick={() => {
                       const frag = getSelectionFragment(props.editor)
-                      if (frag) fragmentActions.onComment(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                      if (frag) {
+                        fragmentActions.onComment(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                        clearEditorTextSelection(props.editor)
+                      }
                     }}
                   >
                     <MessageSquare className="size-4" />
@@ -447,7 +435,10 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
                     className="rounded-md hover:bg-black/10 dark:hover:bg-white/10"
                     onClick={() => {
                       const frag = getSelectionFragment(props.editor)
-                      if (frag) fragmentActions.onCopyFragmentLink(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                      if (frag) {
+                        fragmentActions.onCopyFragmentLink(frag.blockId, frag.rangeStart, frag.rangeEnd)
+                        clearEditorTextSelection(props.editor)
+                      }
                     }}
                   >
                     <Link className="size-4" />

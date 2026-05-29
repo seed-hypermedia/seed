@@ -110,13 +110,28 @@ function getCommentStoreId(
   targetDocId: string,
   replyCommentId?: string,
   quotingBlockId?: string,
+  quotingRange?: {start: number; end: number},
   context?: 'accessory' | 'feed' | 'document-content',
 ) {
   const parts = ['Comment', targetDocId]
   if (replyCommentId) parts.push(replyCommentId)
   if (quotingBlockId) parts.push(quotingBlockId)
+  if (quotingRange) parts.push(`${quotingRange.start}-${quotingRange.end}`)
   if (context) parts.push(context)
   return parts.join('-')
+}
+
+const quotingRangeInputSchema = z
+  .object({
+    start: z.number(),
+    end: z.number(),
+  })
+  .optional()
+
+function quotingRangeEquals(a?: {start: number; end: number}, b?: {start: number; end: number}): boolean {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return a.start === b.start && a.end === b.end
 }
 
 export const commentsApi = t.router({
@@ -129,11 +144,12 @@ export const commentsApi = t.router({
         targetDocId: z.string().or(z.undefined()).optional(),
         replyCommentId: z.string().optional(),
         quotingBlockId: z.string().optional(),
+        quotingRange: quotingRangeInputSchema,
         context: z.enum(['accessory', 'feed', 'document-content']).optional(),
       }),
     )
     .query(async ({input}) => {
-      const {targetDocId, replyCommentId, quotingBlockId, context} = input
+      const {targetDocId, replyCommentId, quotingBlockId, quotingRange, context} = input
       if (!targetDocId) return null
 
       // Find existing draft matching these parameters
@@ -143,6 +159,7 @@ export const commentsApi = t.router({
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
+          quotingRangeEquals(d.quotingRange, quotingRange) &&
           (context === undefined ? true : d.context === context),
       )
 
@@ -157,6 +174,7 @@ export const commentsApi = t.router({
           targetDocId,
           replyCommentId,
           quotingBlockId,
+          quotingRange,
           context,
           lastUpdateTime: existingDraft.lastUpdateTime,
         } as HMCommentDraft
@@ -174,12 +192,13 @@ export const commentsApi = t.router({
         targetDocId: z.string(),
         replyCommentId: z.string().optional(),
         quotingBlockId: z.string().optional(),
+        quotingRange: quotingRangeInputSchema,
         context: z.enum(['accessory', 'feed', 'document-content']).optional(),
         blocks: z.array(z.any()),
       }),
     )
     .mutation(async ({input}) => {
-      const {targetDocId, replyCommentId, quotingBlockId, context, blocks} = input
+      const {targetDocId, replyCommentId, quotingBlockId, quotingRange, context, blocks} = input
 
       if (!commentDraftIndex) {
         throw Error('[COMMENT DRAFT]: Comment Draft Index not initialized')
@@ -192,6 +211,7 @@ export const commentsApi = t.router({
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
+          quotingRangeEquals(d.quotingRange, quotingRange) &&
           (context === undefined ? true : d.context === context),
       )
 
@@ -206,6 +226,7 @@ export const commentsApi = t.router({
           targetDocId,
           replyCommentId,
           quotingBlockId,
+          quotingRange,
           context,
           lastUpdateTime: Date.now(),
         },
@@ -225,11 +246,12 @@ export const commentsApi = t.router({
         targetDocId: z.string(),
         replyCommentId: z.string().optional(),
         quotingBlockId: z.string().optional(),
+        quotingRange: quotingRangeInputSchema,
         context: z.enum(['accessory', 'feed', 'document-content']).optional(),
       }),
     )
     .mutation(async ({input}) => {
-      const {targetDocId, replyCommentId, quotingBlockId, context} = input
+      const {targetDocId, replyCommentId, quotingBlockId, quotingRange, context} = input
 
       // When context is undefined, match any draft regardless of stored context
       const existingDraft = commentDraftIndex?.find(
@@ -237,6 +259,7 @@ export const commentsApi = t.router({
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
+          quotingRangeEquals(d.quotingRange, quotingRange) &&
           (context === undefined ? true : d.context === context),
       )
 

@@ -112,13 +112,19 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
 
   const isViewer = opts.editor.renderType === 'viewer'
 
-  // Viewer + Document: read-only UI plugins (BlockHighlight, ImageGallery, Supernumbers)
+  // BlockHighlight is needed in all render types so embedded fragment
+  // previews can highlight the referenced codepoint range via the
+  // `rangeFocus` plugin meta. ImageGallery and Supernumbers stay scoped
+  // to viewer/document/comment surfaces.
+  ret.push(
+    Extension.create({
+      name: 'BlockHighlightExtension',
+      addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
+    }),
+  )
+
   if (!isEmbed) {
     ret.push(
-      Extension.create({
-        name: 'BlockHighlightExtension',
-        addProseMirrorPlugins: () => [createBlockHighlightPlugin()],
-      }),
       Extension.create({
         name: 'ImageGalleryExtension',
         addProseMirrorPlugins: () => [ImageGalleryPlugin],

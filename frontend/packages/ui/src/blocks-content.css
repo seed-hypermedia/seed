@@ -20,19 +20,3 @@
 .feed-item-container .embed-side-annotation {
   display: none !important;
 }
-
-/* Range-fragment embed: when an embed points at a sub-span of the
- * source block, show the fragment and elide the surrounding text. */
-.hm-embed-range-wrapper span:not(.hm-embed-range) {
-  display: none !important;
-}
-
-.hm-embed-range-wrapper span.hm-embed-range:before,
-.hm-embed-range-wrapper span.hm-embed-range:after {
-  content: '...';
-}
-
-.hm-embed-range-wrapper span.hm-embed-range {
-  font-weight: lighter !important;
-  font-style: italic !important;
-}

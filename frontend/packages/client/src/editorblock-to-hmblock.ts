@@ -49,7 +49,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (!blockType) throw new Error('Unsupported block type ' + editorBlock.type)
 
   let block: MutableBlock = {
-    id: editorBlock.id,
+    id: normalizeEditorBlockId(editorBlock.id),
     type: blockType,
     attributes: {},
     text: '',
@@ -335,5 +335,18 @@ function flattenLeaves(content: Array<HMInlineContent>): Array<HMInlineContent> 
     }
   }
 
+  return result
+}
+
+function normalizeEditorBlockId(id: string | undefined): string {
+  return id && id !== 'empty' ? id : generateBlockId()
+}
+
+function generateBlockId(length: number = 8): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
   return result
 }

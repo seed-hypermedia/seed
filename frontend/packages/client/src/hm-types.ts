@@ -937,12 +937,19 @@ export type HMExistingDraft = {
   metadata?: HMMetadata
 }
 
+/** Codepoint offsets within a quoted block. */
+export const QuotingRangeSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+})
+
 // Comment draft schemas
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),
   targetDocId: z.string().optional(),
   replyCommentId: z.string().optional(),
   quotingBlockId: z.string().optional(),
+  quotingRange: QuotingRangeSchema.optional(),
   context: z.enum(['accessory', 'feed', 'document-content']).optional(),
   lastUpdateTime: z.number().optional(),
 })
@@ -954,6 +961,7 @@ export const HMListedCommentDraftSchema = z.object({
   targetDocId: z.string(),
   replyCommentId: z.string().optional(),
   quotingBlockId: z.string().optional(),
+  quotingRange: QuotingRangeSchema.optional(),
   context: z.enum(['accessory', 'feed', 'document-content']).optional(),
   lastUpdateTime: z.number(),
 })

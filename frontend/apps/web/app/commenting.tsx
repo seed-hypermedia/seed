@@ -58,7 +58,12 @@ export type WebCommentingProps = {
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
+  /** Codepoint range within the quoted block when commenting on a text fragment. */
+  quotingRange?: {start: number; end: number}
   onSuccess?: (successData: {id: string; response: HMPublishBlobsOutput; commentPayload: PublishCommentInput}) => void
+  /** Focus the editor on mount. */
+  focusOnMount?: boolean
+  /** @deprecated Use focusOnMount. Kept for older callers. */
   autoFocus?: boolean
 }
 
@@ -70,9 +75,15 @@ export default function WebCommenting({
   rootReplyCommentVersion: rootReplyCommentVersionProp,
   replyCommentId: replyCommentIdProp,
   quotingBlockId,
+  quotingRange,
   onSuccess,
+  focusOnMount,
   autoFocus,
 }: WebCommentingProps) {
+  const quoting = useMemo(
+    () => (quotingBlockId ? {blockId: quotingBlockId, range: quotingRange} : undefined),
+    [quotingBlockId, quotingRange?.start, quotingRange?.end],
+  )
   const tx = useTxString()
   const universalClient = useUniversalClient()
   const {getSigner, publish} = universalClient
@@ -104,7 +115,7 @@ export default function WebCommenting({
     isLoading: isDraftLoading,
     saveDraft,
     removeDraft,
-  } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId)
+  } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId, quotingRange)
 
   // Track latest editor content for non-destructive reads (e.g. persisting intent to IDB)
   const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
@@ -121,8 +132,9 @@ export default function WebCommenting({
     const parts = ['comment-draft', docId.id]
     if (replyCommentId) parts.push(`reply-${replyCommentId}`)
     if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
+    if (quotingRange) parts.push(`range-${quotingRange.start}-${quotingRange.end}`)
     return parts.join('-')
-  }, [docId.id, replyCommentId, quotingBlockId])
+  }, [docId.id, replyCommentId, quotingBlockId, quotingRange?.start, quotingRange?.end])
 
   // Cleanup old draft media on mount
   useEffect(() => {
@@ -161,11 +173,11 @@ export default function WebCommenting({
         contentBlocks,
         replyParentId: replyCommentId || undefined,
         threadRootVersion: rootReplyCommentVersion || undefined,
-        quotingBlockId,
+        quoting,
         visibility: 'PUBLIC',
       })
 
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quotingBlockId)
+      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
       navigateToComment(navNavigate, route, optimisticComment.id)
     },
     onError: (_err) => {
@@ -275,6 +287,7 @@ export default function WebCommenting({
               replyCommentVersion: replyCommentVersion || undefined,
               rootReplyCommentVersion: rootReplyCommentVersion || undefined,
               quotingBlockId,
+              quotingRange,
             })
             console.log('[commenting] intent saved to IDB')
           }
@@ -304,7 +317,7 @@ export default function WebCommenting({
             docVersion,
             replyCommentVersion,
             rootReplyCommentVersion,
-            quotingBlockId,
+            quoting,
             prepareAttachments,
           },
           signer,
@@ -336,6 +349,9 @@ export default function WebCommenting({
       replyCommentVersion,
       rootReplyCommentVersion,
       quotingBlockId,
+      quotingRange?.start,
+      quotingRange?.end,
+      quoting,
       createAccount,
       postComment,
       clearDraft,
@@ -392,7 +408,7 @@ export default function WebCommenting({
     <div className="w-full">
       <CommentEditor
         key={`${draftId}-${editorGeneration}`}
-        focusOnMount={autoFocus}
+        focusOnMount={focusOnMount ?? autoFocus}
         isReplying={isReplyEditor}
         handleSubmit={handleSubmit}
         initialBlocks={initialBlocks}

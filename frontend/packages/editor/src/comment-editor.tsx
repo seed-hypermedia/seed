@@ -15,6 +15,7 @@ import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
+import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {FILE_DROP_INSERTED_EVENT} from './blocknote/core/extensions/DragMedia/DragExtension'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
@@ -82,6 +83,7 @@ export function useCommentEditor(
   onMobileMentionTriggerRef.current = onMobileMentionTrigger
   const onMobileSlashTriggerRef = useRef(onMobileSlashTrigger)
   onMobileSlashTriggerRef.current = onMobileSlashTrigger
+  const editorRef = useRef<BlockNoteEditor<typeof hmBlockSchema> | null>(null)
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -92,6 +94,19 @@ export function useCommentEditor(
       universalClient,
       gwUrl,
       domainResolver,
+      onPasteHypermediaBlockFragment: (resolvedHmUrl: string) => {
+        const ed = editorRef.current
+        if (!ed) return false
+        insertOrUpdateBlock(
+          ed,
+          {
+            type: 'embed',
+            props: {url: resolvedHmUrl, view: 'Content'},
+          } as any,
+          true,
+        )
+        return true
+      },
     },
 
     // onEditorReady: (e) => {
@@ -176,6 +191,8 @@ export function useCommentEditor(
       ],
     },
   })
+
+  editorRef.current = editor
 
   return {
     editor,
