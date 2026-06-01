@@ -73,7 +73,10 @@ export function WebDraftActionsProvider({
                 signingAccountId,
                 ...(capabilityCid ? {capabilityCid} : {}),
                 content: writeParams.content,
-                metadata: writeParams.metadata,
+                // Avoid persisting an empty `name` — it would emit a
+                // setAttribute(name, '') on publish. Only seed a name when the
+                // caller ("Turn into doc") supplied one.
+                metadata: options?.name ? {name: options.name} : {},
                 deps: writeParams.deps,
                 navigation: null,
                 locationUid: writeParams.locationUid,

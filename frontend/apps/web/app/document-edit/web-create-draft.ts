@@ -71,7 +71,10 @@ export async function createWebDocumentDraft({
     const writeParams = buildInlineDraftWrite({parentId: locationId, draftId, visibility})
     locationPath = writeParams.locationPath
     editPath = writeParams.editPath
-    writeMetadata = metadata ?? writeParams.metadata
+    // Don't seed an empty `name`: persisting `{name: ''}` makes the publish flow
+    // emit a setAttribute(name, '') change. Keep metadata empty unless provided,
+    // matching the original web behavior.
+    writeMetadata = metadata ?? {}
     writeContent = content ?? writeParams.content
   }
 

@@ -115,7 +115,11 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
     try {
       return await publishWebDocument(input, deps)
     } catch (err) {
-      console.error('[WebPublish] failed', err)
+      // SeedClientError carries the daemon's real gRPC message in `.body`; the
+      // `.message` only has the HTTP statusText. Surface both so publish
+      // failures show the actual cause instead of a bare "Internal Server Error".
+      const body = (err as {body?: string})?.body
+      console.error('[WebPublish] failed', err, body ? {serverError: body} : undefined)
       throw err
     }
   })
