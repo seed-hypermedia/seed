@@ -291,6 +291,10 @@ export async function updateProfile({
   )
 }
 
+type CreateAccountDialogInput = {
+  source?: 'join' | 'login'
+}
+
 export function useCreateAccount(options?: {onClose?: () => void}) {
   const userKeyPair = useLocalKeyPair()
   const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
@@ -310,7 +314,7 @@ export function useCreateAccount(options?: {onClose?: () => void}) {
   })
   return {
     canCreateAccount: !userKeyPair,
-    createAccount: () => createAccountDialog.open({}),
+    createAccount: (input?: CreateAccountDialogInput) => createAccountDialog.open({source: input?.source ?? 'login'}),
     content: createAccountDialog.content,
     createDefaultAccount: async () => {
       return await createAccount({
@@ -350,7 +354,7 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
-function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void}) {
+function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput; onClose: () => void}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
   const siteName = hostnameStripProtocol(origin)
@@ -381,13 +385,17 @@ function CreateAccountDialog({input, onClose}: {input: {}; onClose: () => void})
 
   const handleVaultSignIn = async (urlOverride?: string, email?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
-    await setAuthState(AUTH_STATE_DELEGATION_RETURN_URL, window.location.pathname)
+    const source = input.source ?? 'login'
+    await setAuthState(
+      AUTH_STATE_DELEGATION_RETURN_URL,
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    )
     await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, vaultUrl)
-    // If no pending comment intent was already saved, mark this as a join intent
     const existingIntent = await getPendingIntent()
     console.log('[handleVaultSignIn] existingIntent:', existingIntent)
     console.log('[handleVaultSignIn] originHomeId:', originHomeId)
-    if (!existingIntent && originHomeId?.uid) {
+    console.log('[handleVaultSignIn] source:', source)
+    if (source === 'join' && !existingIntent && originHomeId?.uid) {
       await setPendingIntent({type: 'join', subjectUid: originHomeId.uid})
     }
     try {
@@ -574,21 +582,34 @@ function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'joi
   )
 }
 
-/** Detects `?vault_success=comment|join` in the URL and shows a success dialog. */
+/** Detects `?vault_success=...` in the URL and shows the matching dialog or toast. */
 export function useVaultSuccessDialog() {
+  const {origin} = useUniversalAppContext()
   const dialog = useAppDialog(VaultSuccessDialog)
+  const siteName = hostnameStripProtocol(origin) || 'this site'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const url = new URL(window.location.href)
     const variant = url.searchParams.get('vault_success')
+    if (!variant) return
+
+    url.searchParams.delete('vault_success')
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+
     if (variant === 'comment' || variant === 'join') {
-      url.searchParams.delete('vault_success')
-      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
       dialog.open({variant})
+      return
+    }
+    if (variant === 'login') {
+      toast.success(`Welcome to ${siteName}`)
+      return
+    }
+    if (variant === 'welcome-back') {
+      toast.success(`Welcome back to ${siteName}`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [siteName])
 
   return dialog.content
 }

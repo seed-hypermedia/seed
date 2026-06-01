@@ -5,11 +5,11 @@ import {
   AUTH_STATE_DELEGATION_VAULT_URL,
   deleteAuthState,
   getAuthState,
-  getPendingIntent,
   writeLocalKeys,
 } from '@/local-db'
-import {processPendingIntent} from '@/pending-intent'
+import {getSiteMembershipStatus, processPendingIntent} from '@/pending-intent'
 import {webUniversalClient} from '@/universal-client'
+import {queryAPI} from '@/models'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
@@ -18,7 +18,6 @@ import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
 
@@ -49,6 +48,16 @@ export default function AuthCallbackRoute() {
         }
 
         // handleCallback already verified signatures, coherence, and built EncodedBlobs.
+
+        let hadExistingAccountAtOrigin = false
+        try {
+          const accountResult = await queryAPI<{type?: string}>(
+            `/api/Account?id=${encodeURIComponent(result.accountPrincipal)}`,
+          )
+          hadExistingAccountAtOrigin = accountResult?.type === 'account'
+        } catch {
+          hadExistingAccountAtOrigin = false
+        }
 
         // Build the session Signer for creating reverse blobs.
         const sessionSigner = new blobs.WebCryptoKeyPair(result.session.keyPair, result.session.publicKeyRaw)
@@ -125,17 +134,26 @@ export default function AuthCallbackRoute() {
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
 
-        // Snapshot intent type before processing clears it.
-        const intent = await getPendingIntent()
-        const intentType = intent?.type ?? 'join'
+        const intentResult = await processPendingIntent(originHomeId)
 
-        // Process any pending intent (comment or join) saved before vault redirect.
-        const commentUrl = await processPendingIntent(originHomeId)
+        let targetUrl = returnUrl
+        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' = 'login'
 
-        const targetUrl = commentUrl || returnUrl
-        const sep = targetUrl.includes('?') ? '&' : '?'
-        const successVariant = intentType === 'comment' ? 'comment' : 'join'
-        navigate(`${targetUrl}${sep}vault_success=${successVariant}`, {replace: true})
+        if (intentResult.type === 'comment') {
+          targetUrl = intentResult.commentUrl
+          successVariant = 'comment'
+        } else if (intentResult.type === 'join') {
+          successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
+        } else if (originHomeId?.uid) {
+          const membershipStatus = await getSiteMembershipStatus(originHomeId.uid)
+          successVariant = membershipStatus === 'not-member' && !hadExistingAccountAtOrigin ? 'login' : 'welcome-back'
+        } else if (hadExistingAccountAtOrigin) {
+          successVariant = 'welcome-back'
+        }
+
+        const nextUrl = new URL(targetUrl, window.location.origin)
+        nextUrl.searchParams.set('vault_success', successVariant)
+        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setError(message)

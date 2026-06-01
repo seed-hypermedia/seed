@@ -197,8 +197,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     return (
       <>
         <div className="flex items-center gap-2">
-          <PlaceholderAvatar onClick={() => createAccount()} />
-          <JoinButton onClick={() => createAccount()} />
+          <PlaceholderAvatar onClick={() => createAccount({source: 'login'})} />
+          <JoinButton onClick={() => createAccount({source: 'join'})} />
         </div>
         {createAccountContent}
       </>

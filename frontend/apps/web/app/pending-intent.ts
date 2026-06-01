@@ -8,11 +8,38 @@ import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 import {webUniversalClient} from './universal-client'
 
-let pendingIntentProcessingPromise: Promise<string | null> | null = null
+export type SiteMembershipStatus = 'not-member' | 'already-joined' | 'own-site'
+export type JoinSiteResult = SiteMembershipStatus | 'joined'
+export type PendingIntentResult =
+  | {type: 'none'}
+  | {type: 'join'; joinStatus: JoinSiteResult}
+  | {type: 'follow'}
+  | {type: 'comment'; commentUrl: string}
 
-async function joinSite(signer: HMSigner, siteUid: string) {
+let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
+
+export async function getSiteMembershipStatus(siteUid: string): Promise<SiteMembershipStatus> {
+  const accountUid = await getCurrentAccountUidWithDelegation()
+  if (!accountUid) {
+    throw new Error('No account UID available to check site membership')
+  }
+  if (accountUid === siteUid) {
+    return 'own-site'
+  }
+
+  const contacts = await webUniversalClient.request('AccountContacts', accountUid)
+  const existingContact = contacts.find((c) => c.subject === siteUid)
+  return existingContact?.subscribe?.site ? 'already-joined' : 'not-member'
+}
+
+async function joinSite(signer: HMSigner, siteUid: string): Promise<JoinSiteResult> {
   console.log('[joinSite] Joining site', {siteUid})
-  // check to see if we already have a contact for this site
+  const membershipStatus = await getSiteMembershipStatus(siteUid)
+  if (membershipStatus !== 'not-member') {
+    console.log('[joinSite] Site already joined or owned', {siteUid, membershipStatus})
+    return membershipStatus
+  }
+
   const accountUid = await getCurrentAccountUidWithDelegation()
   if (!accountUid) {
     throw new Error('No account UID available to join site')
@@ -20,12 +47,7 @@ async function joinSite(signer: HMSigner, siteUid: string) {
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
   console.log('[joinSite] Existing Contacts', contacts)
   const existingContact = contacts.find((c) => c.subject === siteUid)
-  if (existingContact?.subscribe?.site) {
-    console.log('[joinSite] Already have a site contact', {existingContact})
-    return
-  }
   if (existingContact) {
-    // Update existing contact to add site subscription instead of creating a duplicate
     console.log('[joinSite] Updating existing contact to add site subscription', {existingContact})
     const contactPayload = await updateContact(
       {
@@ -53,6 +75,7 @@ async function joinSite(signer: HMSigner, siteUid: string) {
 
   invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
   invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
+  return 'joined'
 }
 
 async function followProfile(signer: HMSigner, profileUid: string) {
@@ -64,14 +87,12 @@ async function followProfile(signer: HMSigner, profileUid: string) {
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
   const existingContact = contacts.find((c) => c.subject === profileUid)
 
-  // Already following if has explicit profile subscription or legacy (no subscribe field)
   if (existingContact && (existingContact.subscribe?.profile || !existingContact.subscribe)) {
     console.log('[followProfile] Already following profile', {existingContact})
     return
   }
 
   if (existingContact) {
-    // Update existing contact to add profile subscription instead of creating a duplicate
     console.log('[followProfile] Updating existing contact to add profile subscription', {existingContact})
     const contactPayload = await updateContact(
       {
@@ -102,9 +123,9 @@ async function followProfile(signer: HMSigner, profileUid: string) {
 
 /**
  * Process any pending intent saved before auth redirect.
- * Returns a relative URL path to navigate to (for comment intents), or null.
+ * Returns the processed intent result, including any comment navigation URL.
  */
-export async function processPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<string | null> {
+export async function processPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<PendingIntentResult> {
   if (pendingIntentProcessingPromise) {
     console.log('[processPendingIntent] Reusing in-flight pending intent processing')
     return pendingIntentProcessingPromise
@@ -117,38 +138,36 @@ export async function processPendingIntent(originHomeId?: UnpackedHypermediaId):
   return pendingIntentProcessingPromise
 }
 
-async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<string | null> {
+async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Promise<PendingIntentResult> {
   console.log('[processPendingIntent] START. originHomeId:', originHomeId)
   const intent = await getPendingIntent()
   console.log('[processPendingIntent] intent:', intent?.type ?? 'none')
-  if (!intent) return null
+  if (!intent) return {type: 'none'}
 
   const signer = await getCurrentSigner()
   if (!signer) {
     console.error('No signer available to process pending intent')
     await clearPendingIntent()
-    return null
+    return {type: 'none'}
   }
 
   if (intent.type === 'join') {
     console.log('[processPendingIntent] Join intent', intent)
-    await joinSite(signer, intent.subjectUid)
-
+    const joinStatus = await joinSite(signer, intent.subjectUid)
     await clearPendingIntent()
-    return null
+    return {type: 'join', joinStatus}
   }
 
   if (intent.type === 'follow') {
     console.log('[processPendingIntent] Follow intent', intent)
     await followProfile(signer, intent.profileUid)
     await clearPendingIntent()
-    return null
+    return {type: 'follow'}
   }
 
   if (intent.type === 'comment') {
     console.log('[processPendingIntent] Comment intent', intent)
     const targetSiteUid = intent.docId.uid
-    // console.log('[processPendingIntent] Target site UID', targetSiteUid)
     if (targetSiteUid) {
       await joinSite(signer, targetSiteUid)
     }
@@ -158,11 +177,10 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       if (!storedKeys) {
         console.warn('No key pair available to process pending comment intent')
         await clearPendingIntent()
-        return null
+        return {type: 'none'}
       }
 
       const {docId, content} = intent
-
       const commentPayload = await createComment(
         {
           docId,
@@ -175,7 +193,6 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         signer,
       )
 
-      // Compute the record ID (authority/tsid) from the comment blob before publishing
       const commentBlobData = commentPayload.blobs[0]?.data
       if (!commentBlobData) throw new Error('No comment blob data')
       const recordId = await commentRecordIdFromBlob(commentBlobData)
@@ -190,27 +207,28 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
-      // Clear the comment draft from localStorage
       clearCommentDraft(docId.id, intent.replyCommentId, intent.quotingBlockId, intent.quotingRange)
-
       await clearPendingIntent()
 
-      // Return relative URL path for navigation using the record ID (authority/tsid)
       const commentRoute: NavRoute = {
         key: 'comments',
         id: docId,
         openComment: recordId,
       }
+      const commentUrl = routeToUrl(commentRoute, {hostname: null, originHomeId})
+      if (!commentUrl) {
+        throw new Error('Failed to build comment URL')
+      }
       console.log('[processPendingIntent] END. commentRoute:', commentRoute)
-      return routeToUrl(commentRoute, {hostname: null, originHomeId})
+      return {type: 'comment', commentUrl}
     } catch (e) {
       console.error('Failed to process pending comment intent:', e)
       await clearPendingIntent()
-      return null
+      return {type: 'none'}
     }
   }
 
-  return null
+  return {type: 'none'}
 }
 
 function clearCommentDraft(

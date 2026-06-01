@@ -214,11 +214,11 @@ export default function WebCommenting({
     onClose: () => {
       console.log('[commenting] onClose fired, calling processPendingIntent')
       processPendingIntent(originHomeId)
-        .then((commentUrl) => {
-          console.log('[commenting] processPendingIntent result:', commentUrl)
-          if (commentUrl) {
+        .then((result) => {
+          console.log('[commenting] processPendingIntent result:', result)
+          if (result.type === 'comment') {
             clearDraft()
-            remixNavigate(commentUrl)
+            remixNavigate(result.commentUrl)
           }
         })
         .catch((e) => {
