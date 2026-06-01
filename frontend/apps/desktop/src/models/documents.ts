@@ -107,7 +107,6 @@ export function useChildDrafts(parentId?: UnpackedHypermediaId) {
   }, [drafts.data, parentId])
 }
 
-
 /** Preserve existing draft anchors when autosave rewrites a draft index entry. */
 export function resolveDraftWriteAnchors(
   existingDraft: Pick<HMDraft, 'locationUid' | 'locationPath' | 'editUid' | 'editPath'> | null | undefined,

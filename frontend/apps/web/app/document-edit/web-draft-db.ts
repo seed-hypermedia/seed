@@ -6,12 +6,7 @@
  * index on `docId` lets us look up the latest draft for a document on mount.
  */
 
-import type {
-  HMBlockNode,
-  HMMetadata,
-  HMNavigationItem,
-  HMResourceVisibility,
-} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMMetadata, HMNavigationItem, HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 
@@ -135,9 +130,7 @@ export async function listWebDocChildDrafts(
     const all = await reqToPromise<WebDocDraft[]>(store.getAll())
     return all
       .filter(
-        (draft) =>
-          draft.locationUid === parentLocationUid &&
-          pathEquals(draft.locationPath ?? [], parentLocationPath),
+        (draft) => draft.locationUid === parentLocationUid && pathEquals(draft.locationPath ?? [], parentLocationPath),
       )
       .sort((a, b) => b.updatedAt - a.updatedAt)
   } catch (err) {

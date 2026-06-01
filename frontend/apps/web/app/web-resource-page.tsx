@@ -355,32 +355,32 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
               lastCreatedDraftId={lastCreatedDraftId}
               setLastCreatedDraftId={setLastCreatedDraftId}
             >
-          <ResourcePage
-            docId={docId}
-            CommentEditor={CommentEditor}
-            pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
-            onEditProfile={onEditProfile}
-            profileHeaderButtons={profileHeaderButtons}
-            onFollowClick={onFollowClick}
-            rightActions={<WebHeaderActions siteUid={docId.uid} />}
-            extraMenuItems={extraMenuItems}
-            inlineInsert={inlineInsert}
-            DocumentContentComponent={DocumentContentComponent}
-            ssrContentHTML={ssrContentHTML}
-            perspectiveAccountUid={ownAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            canEdit={effectiveCanEdit}
-            machine={machine}
-            signingAccountId={signingAccountId ?? undefined}
-            publishAccountUid={signingAccountId ?? undefined}
-            onEditorReady={onEditorReady}
-            existingDraft={existingDraft}
-            existingDraftVisibility={draftData?.visibility}
-            existingDraftContent={existingDraftContent}
-            existingDraftCursorPosition={existingDraftCursorPosition}
-            editingFloatingActions={editingFloatingActions}
-            fileUpload={fileUpload}
-          />
+              <ResourcePage
+                docId={docId}
+                CommentEditor={CommentEditor}
+                pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+                onEditProfile={onEditProfile}
+                profileHeaderButtons={profileHeaderButtons}
+                onFollowClick={onFollowClick}
+                rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                extraMenuItems={extraMenuItems}
+                inlineInsert={inlineInsert}
+                DocumentContentComponent={DocumentContentComponent}
+                ssrContentHTML={ssrContentHTML}
+                perspectiveAccountUid={ownAccountUid}
+                linkExtensionOptions={linkExtensionOptions}
+                canEdit={effectiveCanEdit}
+                machine={machine}
+                signingAccountId={signingAccountId ?? undefined}
+                publishAccountUid={signingAccountId ?? undefined}
+                onEditorReady={onEditorReady}
+                existingDraft={existingDraft}
+                existingDraftVisibility={draftData?.visibility}
+                existingDraftContent={existingDraftContent}
+                existingDraftCursorPosition={existingDraftCursorPosition}
+                editingFloatingActions={editingFloatingActions}
+                fileUpload={fileUpload}
+              />
             </QueryBlockDraftsProvider>
           </WebDraftActionsProvider>
         </DocumentActionsProvider>

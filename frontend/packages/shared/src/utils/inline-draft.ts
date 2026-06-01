@@ -1,4 +1,9 @@
-import type {HMBlockNode, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMBlockNode,
+  HMMetadata,
+  HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 
 /** Options accepted by inline draft creation across platforms. Structural — keep
  * in sync with editor's `CreateInlineDraftOptions` (which is a superset). */

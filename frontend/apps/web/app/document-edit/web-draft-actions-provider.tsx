@@ -7,12 +7,7 @@ import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {useQuery} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useMemo, useState} from 'react'
-import {
-  deleteWebDocDraft,
-  getWebDocDraft,
-  putWebDocDraft,
-  webDraftToListedDraft,
-} from './web-draft-db'
+import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, webDraftToListedDraft} from './web-draft-db'
 
 /** Hook returning a reactive web draft, shaped as a HMListedDraftWithLocation
  * so it satisfies the shared `DraftActions.useInlineDraft` contract. */
@@ -125,13 +120,7 @@ export function WebDraftActionsProvider({
         setLastCreatedInlineDraftId((current) => (current === draftId ? null : current))
       },
     }),
-    [
-      canCreateInlineDraft,
-      signingAccountId,
-      capabilityCid,
-      navigate,
-      lastCreatedInlineDraftId,
-    ],
+    [canCreateInlineDraft, signingAccountId, capabilityCid, navigate, lastCreatedInlineDraftId],
   )
 
   return <DraftActionsContext.Provider value={value}>{children}</DraftActionsContext.Provider>
