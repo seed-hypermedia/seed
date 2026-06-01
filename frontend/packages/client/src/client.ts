@@ -104,6 +104,11 @@ export type SeedClientOptions = {
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>)
 }
 
+/** Options that control an individual Seed API request. */
+export type SeedClientRequestOptions = {
+  signal?: AbortSignal
+}
+
 type PublishBlobsRequest = Extract<HMRequest, {key: 'PublishBlobs'}>
 
 const QUERY_PARAM_SERIALIZERS = {
@@ -133,6 +138,7 @@ export type SeedClient = {
   request<K extends HMRequest['key']>(
     key: K,
     input: Extract<HMRequest, {key: K}>['input'],
+    options?: SeedClientRequestOptions,
   ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
@@ -146,7 +152,11 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
   const getDefaultHeaders = async () =>
     typeof options?.headers === 'function' ? await options.headers() : options?.headers ?? {}
 
-  async function request<Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']> {
+  async function request<Req extends HMRequest>(
+    key: Req['key'],
+    input: Req['input'],
+    options?: SeedClientRequestOptions,
+  ): Promise<Req['output']> {
     // Find matching schema from discriminated union
     const requestSchema = HMRequestSchema.options.find((schema) => schema.shape.key.value === key)
     if (!requestSchema) {
@@ -175,8 +185,10 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
             ...defaultHeaders,
           },
           body: new Uint8Array(cborEncode(stripUndefined(validatedInput))) as unknown as BodyInit,
+          signal: options?.signal,
         })
       } catch (err) {
+        if (isAbortError(err)) throw err
         throw new SeedNetworkError(
           `Network error fetching ${key}: ${err instanceof Error ? err.message : String(err)}`,
           {cause: err},
@@ -205,8 +217,10 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
             Accept: 'application/json',
             ...defaultHeaders,
           },
+          signal: options?.signal,
         })
       } catch (err) {
+        if (isAbortError(err)) throw err
         throw new SeedNetworkError(
           `Network error fetching ${key}: ${err instanceof Error ? err.message : String(err)}`,
           {cause: err},
@@ -314,6 +328,10 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
 }
 
 /** Remove undefined values from an object so CBOR encoding doesn't choke. */
+function isAbortError(err: unknown): boolean {
+  return typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError'
+}
+
 function stripUndefined(obj: unknown): unknown {
   if (obj === null || obj === undefined || typeof obj !== 'object') return obj
   if (ArrayBuffer.isView(obj) || obj instanceof ArrayBuffer) return obj

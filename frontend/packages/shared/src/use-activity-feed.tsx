@@ -17,6 +17,10 @@ type LoadedEventsResponse = {
  *
  * Returns resolved/loaded events ready for UI rendering
  */
+function isAbortError(error: unknown): boolean {
+  return typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError'
+}
+
 export function useActivityFeed({
   pageSize,
   filterAuthors,
@@ -33,7 +37,10 @@ export function useActivityFeed({
 
   return useInfiniteQuery({
     queryKey: [queryKeys.ACTIVITY_FEED, filterResource, filterAuthors, filterEventType, currentAccount],
-    queryFn: async ({pageParam}): Promise<LoadedEventsResponse> => {
+    queryFn: async ({
+      pageParam,
+      signal,
+    }: {pageParam?: unknown; signal?: AbortSignal} = {}): Promise<LoadedEventsResponse> => {
       try {
         const input: HMListEventsInput = {
           pageSize,
@@ -45,13 +52,14 @@ export function useActivityFeed({
         }
 
         // Fetch pre-resolved events from API
-        const response = await client.request('ListEvents', input)
+        const response = await client.request('ListEvents', input, {signal})
 
         return {
           events: response.events as LoadedEventWithNotifMeta[],
           nextPageToken: response.nextPageToken,
         }
       } catch (error) {
+        if (isAbortError(error)) throw error
         console.error('Activity feed query error:', error)
         // Return empty results instead of throwing to prevent error boundary activation
         return {events: [], nextPageToken: ''}

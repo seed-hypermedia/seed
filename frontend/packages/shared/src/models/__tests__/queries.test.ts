@@ -199,7 +199,7 @@ describe('queryQueryBlock', () => {
 
     expect(query.queryKey).toEqual([queryKeys.QUERY_BLOCK, input.query])
     await expect(query.queryFn!()).resolves.toEqual(payload)
-    expect(client.request).toHaveBeenCalledWith('QueryBlock', input)
+    expect(client.request).toHaveBeenCalledWith('QueryBlock', input, {signal: undefined})
   })
 })
 
@@ -219,7 +219,7 @@ describe('queryDomain', () => {
     const result = await query.queryFn!()
 
     expect(result).toEqual(domainInfo)
-    expect(client.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example'})
+    expect(client.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example'}, {signal: undefined})
   })
 
   test('passes forceCheck through to the client when requested', async () => {
@@ -227,7 +227,11 @@ describe('queryDomain', () => {
     const query = queryDomain(client, 'alice.example', true)
     await query.queryFn!()
 
-    expect(client.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example', forceCheck: true})
+    expect(client.request).toHaveBeenCalledWith(
+      'GetDomain',
+      {domain: 'alice.example', forceCheck: true},
+      {signal: undefined},
+    )
   })
 
   test('returns null when the domain lookup fails', async () => {
@@ -251,7 +255,7 @@ describe('comment query options', () => {
     expect(query.retry).toBe(1)
     expect(query.staleTime).toBe(30_000)
     await expect(query.queryFn()).resolves.toBe(output)
-    expect(client.request).toHaveBeenCalledWith('ListComments', {targetId: docA})
+    expect(client.request).toHaveBeenCalledWith('ListComments', {targetId: docA}, {signal: undefined})
   })
 
   test('queryDocumentDiscussions preserves the document discussion cache key', async () => {
@@ -263,10 +267,14 @@ describe('comment query options', () => {
     expect(query.retry).toBe(1)
     expect(query.staleTime).toBe(30_000)
     await expect(query.queryFn()).resolves.toBe(output)
-    expect(client.request).toHaveBeenCalledWith('ListDiscussions', {
-      targetId: docA,
-      commentId: 'author/comment',
-    })
+    expect(client.request).toHaveBeenCalledWith(
+      'ListDiscussions',
+      {
+        targetId: docA,
+        commentId: 'author/comment',
+      },
+      {signal: undefined},
+    )
   })
 
   test('queryBlockDiscussions preserves the block discussions cache key', async () => {
@@ -279,7 +287,7 @@ describe('comment query options', () => {
     expect(query.retry).toBe(1)
     expect(query.staleTime).toBe(30_000)
     await expect(query.queryFn()).resolves.toBe(output)
-    expect(client.request).toHaveBeenCalledWith('ListCommentsByReference', {targetId: blockTarget})
+    expect(client.request).toHaveBeenCalledWith('ListCommentsByReference', {targetId: blockTarget}, {signal: undefined})
   })
 
   test('queryCommentVersions preserves the comment versions cache key and disabled state', () => {
@@ -302,6 +310,6 @@ describe('comment query options', () => {
     expect(query.staleTime).toBe(60_000)
     expect(query.refetchOnWindowFocus).toBe(false)
     expect(query.queryFn()).toBe(output)
-    expect(client.request).toHaveBeenCalledWith('GetCommentReplyCount', {id: 'author/comment'})
+    expect(client.request).toHaveBeenCalledWith('GetCommentReplyCount', {id: 'author/comment'}, {signal: undefined})
   })
 })

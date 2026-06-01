@@ -290,11 +290,11 @@ export function useResolvedResource(
   return useQuery({
     enabled: options?.enabled ?? !!id,
     queryKey: [queryKeys.RESOLVED_ENTITY, id?.id, version],
-    queryFn: async (): Promise<HMResolvedResource | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResolvedResource | null> => {
       if (!id) return null
 
       async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
-        let resource = await client.request('Resource', id)
+        let resource = await client.request('Resource', id, {signal})
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
         }
@@ -605,8 +605,8 @@ export function useRootDocuments() {
   const client = useUniversalClient()
   return useQuery({
     queryKey: [queryKeys.ROOT_DOCUMENTS],
-    queryFn: async (): Promise<HMListAccountsOutput> => {
-      return await client.request('ListAccounts', undefined)
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListAccountsOutput> => {
+      return await client.request('ListAccounts', undefined, {signal})
     },
   })
 }
@@ -615,8 +615,8 @@ export function useCID(cid: string | undefined) {
   const client = useUniversalClient()
   return useQuery({
     queryKey: [queryKeys.CID, cid],
-    queryFn: async (): Promise<HMGetCIDOutput> => {
-      return await client.request('GetCID', {cid: cid!})
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMGetCIDOutput> => {
+      return await client.request('GetCID', {cid: cid!}, {signal})
     },
     enabled: !!cid,
   })
@@ -632,9 +632,9 @@ export function useAuthoredComments(id: UnpackedHypermediaId | null | undefined)
   const isRootAccount = !id?.path?.filter((p) => !!p).length
   return useQuery({
     queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
-    queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCommentsByAuthorOutput> => {
       if (!id) throw new Error('ID required')
-      return await client.request('ListCommentsByAuthor', {authorId: id})
+      return await client.request('ListCommentsByAuthor', {authorId: id}, {signal})
     },
     enabled: !!id && isRootAccount,
   })
@@ -711,11 +711,18 @@ export function useInfiniteFeed(pageSize: number = 10) {
   const client = useUniversalClient()
   return useInfiniteQuery({
     queryKey: [queryKeys.FEED, 'infinite', pageSize],
-    queryFn: async ({pageParam}): Promise<HMListEventsOutput> => {
-      return await client.request('ListEvents', {
-        pageSize,
-        pageToken: pageParam as string | undefined,
-      })
+    queryFn: async ({
+      pageParam,
+      signal,
+    }: {pageParam?: unknown; signal?: AbortSignal} = {}): Promise<HMListEventsOutput> => {
+      return await client.request(
+        'ListEvents',
+        {
+          pageSize,
+          pageToken: pageParam as string | undefined,
+        },
+        {signal},
+      )
     },
     getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
     refetchInterval: 30000,
@@ -726,10 +733,14 @@ export function useLatestEvent() {
   const client = useUniversalClient()
   return useQuery({
     queryKey: [queryKeys.FEED, 'latest'],
-    queryFn: async () => {
-      const result = await client.request('ListEvents', {
-        pageSize: 1,
-      })
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}) => {
+      const result = await client.request(
+        'ListEvents',
+        {
+          pageSize: 1,
+        },
+        {signal},
+      )
       return result.events[0] || null
     },
     refetchInterval: 10000,

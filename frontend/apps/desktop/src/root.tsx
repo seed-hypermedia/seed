@@ -189,8 +189,16 @@ onQueryInvalidation((queryKey: QueryKey) => {
 // RQ will refuse to run mutations if !isOnline
 onlineManager.setOnline(true)
 
+function isAbortError(error: unknown): boolean {
+  if (typeof DOMException === 'undefined') return false
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  const cause = error instanceof Error ? (error as Error & {cause?: unknown}).cause : undefined
+  return cause instanceof DOMException && cause.name === 'AbortError'
+}
+
 // toast when a query error happens. we set this up here because web doesn't have this feature yet
 onQueryCacheError((error, query) => {
+  if (isAbortError(error)) return
   const queryKey = query.queryKey as string[]
   const errorMessage = ((error as any)?.message || null) as string | null // todo: repent for my sins
   toast.error(`Failed to Load ${labelOfQueryKey(queryKey)}. Click to copy details`, {

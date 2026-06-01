@@ -139,7 +139,11 @@ describe('validated web links', () => {
     const link = container.querySelector('a')
     expect(link?.getAttribute('href')).toBe('/hm/alice/posts/:comments/comment123#blk1+')
     expect(link?.getAttribute('data-seed-link')).toBe('true')
-    expect(mocks.request).toHaveBeenCalledWith('GetDomain', {domain: 'alice.example', forceCheck: true})
+    expect(mocks.request).toHaveBeenCalledWith(
+      'GetDomain',
+      {domain: 'alice.example', forceCheck: true},
+      expect.anything(),
+    )
 
     cleanupRendered(root, container)
   })

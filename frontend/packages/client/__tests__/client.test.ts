@@ -135,6 +135,17 @@ describe('createSeedClient', () => {
     expect(calledOptions.headers).toEqual(expect.objectContaining({'X-Custom': 'value'}))
   })
 
+  it('passes request abort signals to fetch', async () => {
+    const fetchFn = mockFetchOk({type: 'account-not-found', uid: 'x'})
+    const client = createSeedClient('https://example.com', {fetch: fetchFn})
+    const controller = new AbortController()
+
+    await client.request('Account', 'x', {signal: controller.signal})
+
+    const calledOptions = fetchFn.mock.calls[0]![1] as RequestInit
+    expect(calledOptions.signal).toBe(controller.signal)
+  })
+
   it('throws SeedClientError on HTTP errors', async () => {
     const fetchFn = mockFetchError(404, 'Not Found', '{"error":"not found"}')
     const client = createSeedClient('https://example.com', {fetch: fetchFn})

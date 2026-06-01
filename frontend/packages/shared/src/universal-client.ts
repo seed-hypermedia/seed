@@ -21,6 +21,11 @@ export type PublishDocumentInput = {
   visibility?: number
 }
 
+/** Options that control an individual universal client request. */
+export type UniversalClientRequestOptions = {
+  signal?: AbortSignal
+}
+
 export type {RecentsResult}
 
 // Drafts service for querying drafts (desktop only)
@@ -45,6 +50,7 @@ export type UniversalClient = {
   request<K extends HMRequest['key']>(
     key: K,
     input: Extract<HMRequest, {key: K}>['input'],
+    options?: UniversalClientRequestOptions,
   ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish: (
     input: Extract<HMRequest, {key: 'PublishBlobs'}>['input'],

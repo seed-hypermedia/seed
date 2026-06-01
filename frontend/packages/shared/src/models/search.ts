@@ -60,18 +60,22 @@ export function useSearch(
       iriFilter || null,
       contentTypeFilter || null,
     ],
-    queryFn: async () => {
-      const out = await client.request('Search', {
-        query,
-        perspectiveAccountUid: perspectiveAccountUid || undefined,
-        accountUid: accountUid || undefined,
-        includeBody: includeBody || false,
-        contextSize: contextSize || 48,
-        searchType,
-        pageSize: pageSize || undefined,
-        iriFilter: iriFilter || undefined,
-        contentTypeFilter: contentTypeFilter && contentTypeFilter.length ? contentTypeFilter : undefined,
-      })
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}) => {
+      const out = await client.request(
+        'Search',
+        {
+          query,
+          perspectiveAccountUid: perspectiveAccountUid || undefined,
+          accountUid: accountUid || undefined,
+          includeBody: includeBody || false,
+          contextSize: contextSize || 48,
+          searchType,
+          pageSize: pageSize || undefined,
+          iriFilter: iriFilter || undefined,
+          contentTypeFilter: contentTypeFilter && contentTypeFilter.length ? contentTypeFilter : undefined,
+        },
+        {signal},
+      )
       const alreadySeenIds = new Set<string>()
       const entities: SearchResultItem[] = []
       const limit = query.length < 3 ? 30 : Number.MAX_SAFE_INTEGER

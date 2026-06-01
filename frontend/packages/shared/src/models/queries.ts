@@ -44,6 +44,10 @@ function parseTimestamp(ts?: string): {seconds: number; nanos: number} {
   return {seconds: Math.floor(ms / 1000), nanos: (ms % 1000) * 1_000_000}
 }
 
+function isAbortError(error: unknown): boolean {
+  return typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError'
+}
+
 function rawCapToHMCapability(raw: HMRawCapability): HMCapability | null {
   if (!raw.delegate || !raw.account) return null
   return {
@@ -66,17 +70,18 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
   const latest = id?.latest || false
   return {
     queryKey: [queryKeys.ENTITY, id?.id, version, latest] as const,
-    queryFn: async (): Promise<HMResource | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResource | null> => {
       if (!id) return null
       try {
-        let res = await client.request('Resource', id)
+        let res = await client.request('Resource', id, {signal})
         // Follow redirects automatically so consumers never see {type: 'redirect'}
         let maxRedirects = 5
         while (res?.type === 'redirect' && maxRedirects-- > 0) {
-          res = await client.request('Resource', res.redirectTarget)
+          res = await client.request('Resource', res.redirectTarget, {signal})
         }
         return HMResourceSchema.parse(res)
       } catch (e) {
+        if (isAbortError(e)) throw e
         const message = e instanceof Error ? e.message : 'Unknown error'
         return {type: 'error', id, message}
       }
@@ -92,9 +97,9 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
 export function queryAccount(client: UniversalClient, uid: string | null | undefined) {
   return {
     queryKey: [queryKeys.ACCOUNT, uid] as const,
-    queryFn: async (): Promise<HMMetadataPayload | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMMetadataPayload | null> => {
       if (!uid) return null
-      const result = await client.request('Account', uid)
+      const result = await client.request('Account', uid, {signal})
       if (result.type === 'account-not-found') return null
       return result
     },
@@ -109,11 +114,12 @@ export function queryAccount(client: UniversalClient, uid: string | null | undef
 export function queryDomain(client: UniversalClient, domain: string | null | undefined, forceCheck = false) {
   return {
     queryKey: [queryKeys.DOMAIN, domain, forceCheck] as const,
-    queryFn: async (): Promise<HMDomainInfo | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMDomainInfo | null> => {
       if (!domain) return null
       try {
-        return await client.request('GetDomain', forceCheck ? {domain, forceCheck: true} : {domain})
-      } catch {
+        return await client.request('GetDomain', forceCheck ? {domain, forceCheck: true} : {domain}, {signal})
+      } catch (error) {
+        if (isAbortError(error)) throw error
         return null
       }
     },
@@ -131,17 +137,21 @@ export function queryDirectory(
 ) {
   return {
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode] as const,
-    queryFn: async (): Promise<HMDocumentInfo[]> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMDocumentInfo[]> => {
       if (!id) return []
-      const result = await client.request('Query', {
-        includes: [
-          {
-            space: id.uid,
-            mode,
-            path: hmIdPathToEntityQueryPath(id.path),
-          },
-        ],
-      })
+      const result = await client.request(
+        'Query',
+        {
+          includes: [
+            {
+              space: id.uid,
+              mode,
+              path: hmIdPathToEntityQueryPath(id.path),
+            },
+          ],
+        },
+        {signal},
+      )
       if (!result) return []
       return HMQueryResultSchema.parse(result).results
     },
@@ -155,9 +165,9 @@ export function queryDirectory(
 export function queryQueryBlock(client: UniversalClient, input: HMQueryBlockInput | null | undefined) {
   return {
     queryKey: [queryKeys.QUERY_BLOCK, input?.query ?? null] as const,
-    queryFn: async (): Promise<HMQueryBlockPayload | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMQueryBlockPayload | null> => {
       if (!input) return null
-      const result = await client.request('QueryBlock', input)
+      const result = await client.request('QueryBlock', input, {signal})
       if (!result) return null
       return HMQueryBlockPayloadSchema.parse(result)
     },
@@ -171,11 +181,15 @@ export function queryQueryBlock(client: UniversalClient, input: HMQueryBlockInpu
 export function queryComments(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.COMMENTS, targetId?.id] as const,
-    queryFn: async (): Promise<HMListCommentsOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCommentsOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request('ListComments', {
-        targetId,
-      })
+      return await client.request(
+        'ListComments',
+        {
+          targetId,
+        },
+        {signal},
+      )
     },
     enabled: !!targetId,
   }
@@ -187,9 +201,9 @@ export function queryComments(client: UniversalClient, targetId: UnpackedHyperme
 export function queryDocumentComments(client: UniversalClient, targetId: UnpackedHypermediaId) {
   return {
     queryKey: [queryKeys.DOCUMENT_COMMENTS, targetId] as const,
-    queryFn: async (): Promise<HMListCommentsOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request('ListComments', {targetId})
+        return await client.request('ListComments', {targetId}, {signal})
       } catch (error) {
         console.error('Error fetching comments:', error)
         throw error
@@ -206,9 +220,9 @@ export function queryDocumentComments(client: UniversalClient, targetId: Unpacke
 export function queryDocumentDiscussions(client: UniversalClient, targetId: UnpackedHypermediaId, commentId?: string) {
   return {
     queryKey: [queryKeys.DOCUMENT_DISCUSSION, targetId, commentId] as const,
-    queryFn: async (): Promise<HMListDiscussionsOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListDiscussionsOutput> => {
       try {
-        return await client.request('ListDiscussions', {targetId, commentId})
+        return await client.request('ListDiscussions', {targetId, commentId}, {signal})
       } catch (error) {
         console.error('Error fetching discussions:', error)
         throw error
@@ -225,9 +239,9 @@ export function queryDocumentDiscussions(client: UniversalClient, targetId: Unpa
 export function queryBlockDiscussions(client: UniversalClient, targetId: UnpackedHypermediaId) {
   return {
     queryKey: [queryKeys.BLOCK_DISCUSSIONS, targetId] as const,
-    queryFn: async (): Promise<HMListCommentsOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCommentsOutput> => {
       try {
-        return await client.request('ListCommentsByReference', {targetId})
+        return await client.request('ListCommentsByReference', {targetId}, {signal})
       } catch (error) {
         console.error('Error fetching block discussions:', error)
         throw error
@@ -244,8 +258,8 @@ export function queryBlockDiscussions(client: UniversalClient, targetId: Unpacke
 export function queryCommentVersions(client: UniversalClient, commentId: string | null | undefined) {
   return {
     queryKey: [queryKeys.COMMENT_VERSIONS, commentId] as const,
-    queryFn: async (): Promise<HMListCommentVersionsOutput> => {
-      return await client.request('ListCommentVersions', {id: commentId!})
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCommentVersionsOutput> => {
+      return await client.request('ListCommentVersions', {id: commentId!}, {signal})
     },
     enabled: !!commentId,
     useErrorBoundary: false,
@@ -259,10 +273,14 @@ export function queryCommentVersions(client: UniversalClient, commentId: string 
 export function queryCommentReplyCount(client: UniversalClient, id: string) {
   return {
     queryKey: [queryKeys.COMMENT_REPLY_COUNT, id] as const,
-    queryFn: () =>
-      client.request('GetCommentReplyCount', {
-        id,
-      }),
+    queryFn: ({signal}: {signal?: AbortSignal} = {}) =>
+      client.request(
+        'GetCommentReplyCount',
+        {
+          id,
+        },
+        {signal},
+      ),
     retry: 1,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -275,11 +293,15 @@ export function queryCommentReplyCount(client: UniversalClient, id: string) {
 export function queryCitations(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CITATIONS, targetId?.id] as const,
-    queryFn: async (): Promise<HMListCitationsOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListCitationsOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request('ListCitations', {
-        targetId,
-      })
+      return await client.request(
+        'ListCitations',
+        {
+          targetId,
+        },
+        {signal},
+      )
     },
     enabled: !!targetId,
   }
@@ -291,11 +313,15 @@ export function queryCitations(client: UniversalClient, targetId: UnpackedHyperm
 export function queryChanges(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CHANGES, targetId?.id] as const,
-    queryFn: async (): Promise<HMListChangesOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListChangesOutput> => {
       if (!targetId) throw new Error('ID required')
-      return await client.request('ListChanges', {
-        targetId,
-      })
+      return await client.request(
+        'ListChanges',
+        {
+          targetId,
+        },
+        {signal},
+      )
     },
     enabled: !!targetId,
   }
@@ -308,9 +334,9 @@ export function queryChanges(client: UniversalClient, targetId: UnpackedHypermed
 export function queryCapabilities(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.CAPABILITIES, targetId?.uid, ...(targetId?.path || [])] as const,
-    queryFn: async (): Promise<HMCapability[]> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMCapability[]> => {
       if (!targetId) throw new Error('ID required')
-      const result = await client.request('ListCapabilities', {targetId})
+      const result = await client.request('ListCapabilities', {targetId}, {signal})
       const visitedCaps = new Set<string>()
       const caps: HMCapability[] = []
       for (const raw of result.capabilities) {
@@ -340,9 +366,9 @@ export function queryCapabilities(client: UniversalClient, targetId: UnpackedHyp
 export function queryDocumentCollaborators(client: UniversalClient, targetId: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.DOCUMENT_COLLABORATORS, targetId?.uid, ...(targetId?.path || [])] as const,
-    queryFn: async (): Promise<HMListDocumentCollaboratorsOutput | null> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMListDocumentCollaboratorsOutput | null> => {
       if (!targetId) return null
-      return await client.request('ListDocumentCollaborators', {targetId})
+      return await client.request('ListDocumentCollaborators', {targetId}, {signal})
     },
     enabled: !!targetId,
   }
@@ -354,7 +380,7 @@ export function queryDocumentCollaborators(client: UniversalClient, targetId: Un
 export function queryInteractionSummary(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
   return {
     queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id?.id] as const,
-    queryFn: async (): Promise<HMInteractionSummaryOutput> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMInteractionSummaryOutput> => {
       if (!id) {
         return {
           citations: 0,
@@ -365,7 +391,7 @@ export function queryInteractionSummary(client: UniversalClient, id: UnpackedHyp
           blocks: {},
         }
       }
-      return await client.request('InteractionSummary', {id})
+      return await client.request('InteractionSummary', {id}, {signal})
     },
     enabled: !!id,
   }
@@ -377,9 +403,9 @@ export function queryInteractionSummary(client: UniversalClient, id: UnpackedHyp
 export function queryContactsOfSubject(client: UniversalClient, uid: string | undefined) {
   return {
     queryKey: [queryKeys.CONTACTS_SUBJECT, uid] as const,
-    queryFn: async (): Promise<HMContactRecord[]> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMContactRecord[]> => {
       if (!uid) return []
-      return client.request('SubjectContacts', uid)
+      return client.request('SubjectContacts', uid, {signal})
     },
     enabled: !!uid,
   }
@@ -391,9 +417,9 @@ export function queryContactsOfSubject(client: UniversalClient, uid: string | un
 export function queryContactsOfAccount(client: UniversalClient, uid: string | null | undefined) {
   return {
     queryKey: [queryKeys.CONTACTS_ACCOUNT, uid] as const,
-    queryFn: async (): Promise<HMContactRecord[]> => {
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMContactRecord[]> => {
       if (!uid) return []
-      return client.request('AccountContacts', uid)
+      return client.request('AccountContacts', uid, {signal})
     },
     enabled: !!uid,
   }
