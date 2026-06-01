@@ -33,7 +33,7 @@ import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Fragment, Node as PMNode} from '@tiptap/pm/model'
+import {Fragment} from '@tiptap/pm/model'
 import {
   BetweenHorizontalStart,
   Bookmark,
@@ -46,7 +46,6 @@ import {
   SquarePen,
   Trash2,
 } from 'lucide-react'
-import {NodeSelection} from 'prosemirror-state'
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -410,37 +409,15 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 }
 
 const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
-  const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
+  const {canEdit, isEditing} = useEditorGate()
   const isSelected = useIsBlockSelected(editor, block)
   const isCardView = block.props.view === 'Card'
   const isLinkView = block.props.view === 'Link'
   // Card and Link views share the same floating action bar.
   const isAtomicEmbedView = isCardView || isLinkView
   const showActions = canEdit && (isCardView || isLinkView) && !!block.props.url
-  const selectCardBlock = useCallback(() => {
-    if (!canEdit || !(block.props.view === 'Card' || block.props.view === 'Link')) return
-    beginEditIfNeeded()
-    const view = editor._tiptapEditor?.view
-    if (!view) return
-    let found = false
-    view.state.doc.descendants((node: PMNode, pos: number) => {
-      if (!found && node.type.name === 'blockNode' && node.attrs?.id === block.id) {
-        view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos + 1)).scrollIntoView())
-        view.focus()
-        found = true
-        return false
-      }
-      return true
-    })
-  }, [beginEditIfNeeded, block.id, block.props.view, canEdit, editor])
   const content = (
-    <MediaContainer
-      editor={editor}
-      block={block}
-      mediaType="embed"
-      assign={assign}
-      onPress={canEdit && isAtomicEmbedView ? selectCardBlock : undefined}
-    >
+    <MediaContainer editor={editor} block={block} mediaType="embed" assign={assign}>
       {block.props.url && (
         <EditorEmbedContent
           openOnClick={!canEdit || !isEditing}

@@ -22,6 +22,14 @@ vi.mock('@shm/shared/models/search', () => ({
   useSearch: () => ({data: {entities: []}}),
 }))
 
+vi.mock('@shm/shared/models/interaction-summary', () => ({
+  useInteractionSummary: () => ({data: {comments: 0}}),
+}))
+
+vi.mock('@shm/shared/utils/navigation', () => ({
+  useNavigate: () => vi.fn(),
+}))
+
 vi.mock('@shm/shared/gateway-url', () => ({
   useGatewayUrlStream: () => ({get: () => ''}),
 }))
@@ -40,6 +48,7 @@ vi.mock('./draft-actions-context', () => ({
 
 vi.mock('./block-selection-wrapper', () => ({
   BlockSelectionWrapper: ({children}: any) => <div contentEditable={false}>{children}</div>,
+  useIsBlockSelected: () => false,
 }))
 
 vi.mock('./embed-editor', () => ({
@@ -210,7 +219,7 @@ describe('EmbedBlock card navigation mode', () => {
     expect(card?.dataset.titleLinkOnly).toBe('true')
     expect(card?.dataset.openOnClick).toBe('true')
     expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
-      'true',
+      'false',
     )
   })
 
@@ -226,16 +235,12 @@ describe('EmbedBlock card navigation mode', () => {
     )
   })
 
-  it('enters edit mode when an editable card embed body is clicked', () => {
-    const beginEditIfNeeded = vi.fn()
-    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card', beginEditIfNeeded})
-    const mediaContainer = container.querySelector('[data-testid="media-container"]') as HTMLElement
+  it('does not attach a custom click handler for editable card embeds', () => {
+    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card'})
 
-    act(() => {
-      mediaContainer.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
-    })
-
-    expect(beginEditIfNeeded).toHaveBeenCalledOnce()
+    expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
+      'false',
+    )
   })
 })
 

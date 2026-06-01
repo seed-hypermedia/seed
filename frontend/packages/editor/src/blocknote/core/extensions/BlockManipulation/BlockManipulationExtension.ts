@@ -4,12 +4,57 @@ import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
-import {getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
+import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 
 export const selectableNodeTypes = ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query']
 
-export const BlockManipulationExtension = Extension.create({
+function getClickedCardEmbed(node: Node, nodePos: number, view: EditorView): {url: string; blockId: string} | null {
+  if (node.type.name === 'embed' && node.attrs.view === 'Card' && node.attrs.url) {
+    const blockInfo = getBlockInfoFromPos(view.state, nodePos)
+    return {
+      url: node.attrs.url,
+      blockId: blockInfo.block.node.attrs.id,
+    }
+  }
+
+  if (
+    node.type.name === 'blockNode' &&
+    node.firstChild?.type.name === 'embed' &&
+    node.firstChild.attrs.view === 'Card' &&
+    node.firstChild.attrs.url &&
+    node.attrs.id
+  ) {
+    return {
+      url: node.firstChild.attrs.url,
+      blockId: node.attrs.id,
+    }
+  }
+
+  return null
+}
+
+/** Returns true when the current click should open a card embed instead of selecting it. */
+function shouldOpenSelectedCardEmbed(node: Node, nodePos: number, view: EditorView, event: MouseEvent) {
+  const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
+  if (!clickedCardEmbed) return false
+
+  if (event.detail > 1) return true
+  if (!(view.state.selection instanceof NodeSelection)) return false
+
+  const selectedBlock = getBlockInfoFromSelection(view.state)
+  return selectedBlock.block.node.attrs.id === clickedCardEmbed.blockId
+}
+
+export const BlockManipulationExtension = Extension.create<{
+  openUrl?: (url: string, newWindow?: boolean) => void
+}>({
   name: 'BlockManupulation',
+
+  addOptions() {
+    return {
+      openUrl: undefined,
+    }
+  },
 
   addKeyboardShortcuts() {
     return {
@@ -48,10 +93,21 @@ export const BlockManipulationExtension = Extension.create({
   },
 
   addProseMirrorPlugins() {
+    const openUrl = this.options.openUrl
+
     return [
       new Plugin({
         key: new PluginKey('CursorSelectPlugin'),
         props: {
+          handleDoubleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
+            if (!view.editable) return false
+
+            const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
+            if (!clickedCardEmbed || !openUrl) return false
+
+            openUrl(clickedCardEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
+            return true
+          },
           handleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
             if (!view.editable) return false
             if (
@@ -60,6 +116,14 @@ export const BlockManipulationExtension = Extension.create({
                 event.target?.nodeName === 'IMG') ||
               ['file', 'embed', 'video', 'web-embed', 'math', 'button', 'query'].includes(node.type.name)
             ) {
+              const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
+              const shouldOpen = shouldOpenSelectedCardEmbed(node, nodePos, view, event)
+
+              if (shouldOpen && openUrl && clickedCardEmbed) {
+                openUrl(clickedCardEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
+                return true
+              }
+
               let tr = view.state.tr
               const selection = NodeSelection.create(view.state.doc, nodePos)
               tr = tr.setSelection(selection)

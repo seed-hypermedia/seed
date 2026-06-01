@@ -155,7 +155,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       createMarkdownExtension(opts.editor),
 
       // block manipulations:
-      BlockManipulationExtension,
+      BlockManipulationExtension.configure({
+        openUrl: opts.linkExtensionOptions?.openUrl,
+      }),
       KeyboardShortcutsExtension.configure({editor: opts.editor}),
 
       LocalMediaPastePlugin.configure({
