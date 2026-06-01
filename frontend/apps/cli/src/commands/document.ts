@@ -410,21 +410,14 @@ export function registerDocumentCommands(program: Command) {
         ops.push(...input.ops)
 
         const signer = createSignerFromKey(key)
-        const genesisBlock = await createGenesisChange(signer)
-
-        const {unsignedBytes, ts} = createChangeOps({
-          ops,
-          genesisCid: genesisBlock.cid,
-          deps: [genesisBlock.cid],
-          depth: 1,
-        })
+        const {unsignedBytes, ts} = createChangeOps({ops})
         const changeBlock = await createChange(unsignedBytes, signer)
         const generation = Number(ts)
         const refInput = await createVersionRef(
           {
             space: account,
             path,
-            genesis: genesisBlock.cid.toString(),
+            genesis: changeBlock.cid.toString(),
             version: changeBlock.cid.toString(),
             generation,
             capability,
@@ -434,7 +427,6 @@ export function registerDocumentCommands(program: Command) {
 
         await client.publish({
           blobs: [
-            {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
             {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
             ...refInput.blobs,
             ...input.fileBlobs.map((b) => ({data: b.data, cid: b.cid})),

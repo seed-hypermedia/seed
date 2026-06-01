@@ -206,6 +206,23 @@ describe('CLI Full Integration Tests', () => {
       }
     }, TEST_TIMEOUT)
 
+    test(
+      'home document keeps a separate deterministic genesis change',
+      async () => {
+        const getResult = await runCli(['document', 'get', writeAccountHmId, '--json'], {server: ctx.webServerUrl})
+        expect(getResult.exitCode).toBe(0)
+
+        const data = JSON.parse(getResult.stdout)
+        expect(data.type).toBe('document')
+        expect(data.document.path).toBe('')
+        expect(data.document.genesis).toBeTruthy()
+        expect(data.document.version).toBeTruthy()
+        expect(data.document.genesis).not.toBe(data.document.version)
+        expect(data.document.generationInfo.genesis).toBe(data.document.genesis)
+      },
+      TEST_TIMEOUT,
+    )
+
     // --- Document Update Tests ---
 
     test(
@@ -573,6 +590,12 @@ describe('CLI Full Integration Tests', () => {
         const data = JSON.parse(getResult.stdout)
         expect(data.type).toBe('document')
         expect(data.document.metadata.name).toBe('CLI Test Document')
+        const createTime = data.document.createTime
+        const createTimeMs =
+          typeof createTime === 'string'
+            ? Date.parse(createTime)
+            : Number(createTime?.seconds ?? 0) * 1000 + Number(createTime?.nanos ?? 0) / 1_000_000
+        expect(createTimeMs).toBeGreaterThan(Date.UTC(2020, 0, 1))
       },
       TEST_TIMEOUT,
     )
