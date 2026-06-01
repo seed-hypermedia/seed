@@ -5,6 +5,7 @@ import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
@@ -35,6 +36,8 @@ import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
+import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
+import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
 import {
   cleanupOldWebDocDrafts,
   deleteWebDocDraft,
@@ -331,6 +334,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     replaceRoute,
   })
 
+  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const canCreateInlineDraft = !placeholderDraftId
+
   return (
     <WebSitePageShell siteUid={docId.uid}>
       <CommentsProvider
@@ -339,6 +345,16 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         renderInlineEditor={renderWebInlineEditor}
       >
         <DocumentActionsProvider onCopyLink={() => {}}>
+          <WebDraftActionsProvider
+            canCreateInlineDraft={canCreateInlineDraft}
+            signingAccountId={signingAccountId ?? undefined}
+            capabilityCid={effectiveCapabilityCid}
+          >
+            <QueryBlockDraftsProvider
+              DraftSlot={WebQueryBlockDraftSlot}
+              lastCreatedDraftId={lastCreatedDraftId}
+              setLastCreatedDraftId={setLastCreatedDraftId}
+            >
           <ResourcePage
             docId={docId}
             CommentEditor={CommentEditor}
@@ -365,6 +381,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             editingFloatingActions={editingFloatingActions}
             fileUpload={fileUpload}
           />
+            </QueryBlockDraftsProvider>
+          </WebDraftActionsProvider>
         </DocumentActionsProvider>
       </CommentsProvider>
       {editProfileDialog.content}

@@ -75,6 +75,11 @@ export function useWebCreateDocumentMenuItem({
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility) => {
       if (!signingAccountId) return
+      console.log('[web-create-doc] menu createDraft', {
+        locationId: locationId.id,
+        visibility,
+        signingAccountId,
+      })
       void createWebDocumentDraft({
         locationId,
         signingAccountId,

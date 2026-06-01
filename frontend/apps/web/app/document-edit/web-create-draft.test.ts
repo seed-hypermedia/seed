@@ -43,7 +43,7 @@ describe('createWebDocumentDraft', () => {
 
   it('creates a public child draft at a placeholder path and navigates to it', async () => {
     const navigate = vi.fn()
-    const routeId = await createWebDocumentDraft({
+    const {routeId} = await createWebDocumentDraft({
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
@@ -71,7 +71,7 @@ describe('createWebDocumentDraft', () => {
 
   it('creates a private draft at a generated private path', async () => {
     const navigate = vi.fn()
-    const routeId = await createWebDocumentDraft({
+    const {routeId} = await createWebDocumentDraft({
       locationId: makeDocId('site', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
@@ -93,7 +93,7 @@ describe('createWebDocumentDraft', () => {
 
   it('stores imported content and metadata when provided', async () => {
     const navigate = vi.fn()
-    const routeId = await createWebDocumentDraft({
+    const {routeId} = await createWebDocumentDraft({
       locationId: makeDocId('site', []),
       signingAccountId: 'author',
       metadata: {name: 'Imported Title'},
@@ -110,7 +110,7 @@ describe('createWebDocumentDraft', () => {
 
   it('imports a Markdown file into a named draft', async () => {
     const navigate = vi.fn()
-    const routeId = await createWebDocumentDraftFromMarkdownFile({
+    const {routeId} = await createWebDocumentDraftFromMarkdownFile({
       file: new File(['# Imported Title\n\nHello import'], 'fallback.md', {type: 'text/markdown'}),
       locationId: makeDocId('site', []),
       signingAccountId: 'author',
@@ -124,7 +124,7 @@ describe('createWebDocumentDraft', () => {
   })
 
   it('preserves Markdown frontmatter metadata on import', async () => {
-    const routeId = await createWebDocumentDraftFromMarkdownFile({
+    const {routeId} = await createWebDocumentDraftFromMarkdownFile({
       file: new File(['---\ntitle: Frontmatter Title\nsummary: Imported summary\n---\n\nBody text'], 'fallback.md', {
         type: 'text/markdown',
       }),
