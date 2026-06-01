@@ -142,14 +142,14 @@ export function DocumentCardGrid({
       {hasPrependItems || hasItems ? (
         <div className="-mx-3 mt-2 flex flex-wrap justify-center">
           {prependItems?.map((item, i) => (
-            <div className={cn(columnClasses, 'flex p-3')} key={`prepend-${i}`}>
+            <div className={cn(columnClasses, 'flex min-w-0 p-3')} key={`prepend-${i}`}>
               {item}
             </div>
           ))}
           {items.map((item) => {
             if (!item) return null
             return (
-              <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
+              <div className={cn(columnClasses, 'flex min-w-0 p-3')} key={item.id.id}>
                 <DocumentCard
                   docId={item.id}
                   entity={null}

@@ -296,7 +296,7 @@ export function DocumentCard({
     <>
       <div
         className={cn(
-          'flex max-w-full flex-1 flex-col @md:flex-row',
+          'flex max-w-full min-w-0 flex-1 flex-col @md:flex-row',
           navigateProp && 'cursor-pointer',
           // Stack items vertically in narrow containers like grid items.
           // Wwitch to horizontal once the card has room.
@@ -305,15 +305,13 @@ export function DocumentCard({
         )}
       >
         {coverImage ? (
-          // Cover image is inset with margin and rounded corners so it sits
-          // "framed" inside the card. In wide single-card layouts, the cover takes
-          // a slice of the left side and stretches vertically to match the row height.
-          // Banner cards get a larger cover. Regular row cards get a small
-          // thumbnail strip so the title and summary keep most of the row.
+          // Cover image. Banner cards keep a half width cover.
+          // Regular row cards get a rectanglethat stretches
+          // vertically to fill the card's row height.
           <div
             className={cn(
               'relative m-3 h-24 shrink-0 overflow-hidden rounded-md @md:m-3 @md:h-auto',
-              banner ? '@md:w-1/2' : '@md:w-44',
+              banner ? '@md:w-1/2' : '@md:w-32',
             )}
           >
             <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
@@ -330,7 +328,7 @@ export function DocumentCard({
             <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
           </div>
         )}
-        <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
+        <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col justify-between')}>
           <div className="p-3">
             {titleLinkOnly && linkAttributes.href ? (
               <a
@@ -342,7 +340,7 @@ export function DocumentCard({
                   e.stopPropagation()
                   routeOnClick?.(e)
                 }}
-                className={cn(titleClassName, 'inline-block cursor-pointer no-underline hover:underline')}
+                className={cn(titleClassName, 'inline-block max-w-full cursor-pointer no-underline hover:underline')}
               >
                 {title}
               </a>

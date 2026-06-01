@@ -671,7 +671,10 @@ function SelectedEmbedActions({
       contentEditable={false}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className="border-border bg-background absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md border px-1 py-0.5 shadow-sm"
+      className={cn(
+        'absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md',
+        isSelected && 'border-border bg-background border px-1 py-0.5 shadow-sm',
+      )}
     >
       <Button
         variant="ghost"
