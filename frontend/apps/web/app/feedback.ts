@@ -13,11 +13,9 @@ import {nanoid} from 'nanoid'
 /** Route path for the web feedback form. */
 export const FEEDBACK_ROUTE_PATH = '/feedback'
 
-/** Static configuration for the feedback route and generated feedback documents. */
+/** Static configuration for the feedback route shell. */
 export const FEEDBACK_CONFIG = {
-  pageTitle: 'Feedback on delibera.ethosfera.org',
-  testedPageLabel: 'delibera.ethosfera.org',
-  testedPageUrl: 'https://delibera.ethosfera.org',
+  pageTitle: 'Feedback',
 } as const
 
 /** Structured values captured by the `/feedback` form. */
@@ -37,6 +35,8 @@ type FeedbackDocumentContext = {
   submittedAt: string
   publishedUnderLabel: string
   publishedUnderAccountUid: string
+  testedPageLabel: string
+  testedPageUrl: string
 }
 
 type FeedbackPublishContext = {
@@ -44,6 +44,8 @@ type FeedbackPublishContext = {
   signingAccountUid: string
   publishedUnderLabel: string
   publishedUnderAccountUid: string
+  testedPageLabel: string
+  testedPageUrl: string
   capabilityCid?: string
 }
 
@@ -101,8 +103,8 @@ export function formatFeedbackTimestamp(date: Date): string {
 }
 
 /** Build the generic private feedback document title. */
-export function buildFeedbackDocumentTitle(submittedAt: string): string {
-  return `Feedback on ${FEEDBACK_CONFIG.testedPageLabel} — ${submittedAt}`
+export function buildFeedbackDocumentTitle(submittedAt: string, testedPageLabel: string): string {
+  return `Feedback on ${testedPageLabel} — ${submittedAt}`
 }
 
 /** Build the markdown body that will be published into the private feedback document. */
@@ -114,8 +116,8 @@ export function buildFeedbackDocumentMarkdown(values: FeedbackFormValues, contex
     '- Tipo: Feedback',
     `- Formulario: ${FEEDBACK_ROUTE_PATH}`,
     '- Origen: Formulario web',
-    `- Página evaluada: ${FEEDBACK_CONFIG.testedPageLabel}`,
-    `- URL: ${FEEDBACK_CONFIG.testedPageUrl}`,
+    `- Página evaluada: ${context.testedPageLabel}`,
+    `- URL: ${context.testedPageUrl}`,
     `- Fecha de envío: ${context.submittedAt}`,
     `- Sitio participante: ${context.publishedUnderLabel}`,
     `- Cuenta de destino: ${context.publishedUnderAccountUid}`,
@@ -157,11 +159,13 @@ export async function publishFeedbackDocument(
 
   const submittedAtDate = deps.now?.() ?? new Date()
   const submittedAt = formatFeedbackTimestamp(submittedAtDate)
-  const title = buildFeedbackDocumentTitle(submittedAt)
+  const title = buildFeedbackDocumentTitle(submittedAt, context.testedPageLabel)
   const markdown = buildFeedbackDocumentMarkdown(values, {
     submittedAt,
     publishedUnderLabel: context.publishedUnderLabel,
     publishedUnderAccountUid: context.publishedUnderAccountUid,
+    testedPageLabel: context.testedPageLabel,
+    testedPageUrl: context.testedPageUrl,
   })
   const editorBlocks = feedbackMarkdownToEditorBlocks(markdown)
   const {changes} = compareBlocksWithMap({}, editorBlocks, '')
