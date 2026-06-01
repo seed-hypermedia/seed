@@ -283,6 +283,7 @@ export function addSubscribedEntity(sub: EntitySubscription) {
       {
         id: sub.id,
         recursive: sub.recursive,
+        scope: sub.scope,
       },
       {
         onData: () => {

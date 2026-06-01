@@ -242,24 +242,44 @@ describe('activity event processing', () => {
   })
 
   describe('activity monitor startup', () => {
+    it('uses profile discovery ids for profile-scoped subscriptions', async () => {
+      vi.useFakeTimers()
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+      const grpcClient = await getGrpcClientMock()
+      grpcClient.activityFeed.listEvents.mockReturnValue(new Promise(() => {}))
+      grpcClient.entities.discoverEntity.mockResolvedValue({version: 'v1'})
+      grpcClient.resources.getResource.mockRejectedValue(new Error('not found'))
+
+      const {subscribe} = await loadModule()
+      const unsubscribe = subscribe({
+        id: {id: 'hm://z6MkProfileUser', uid: 'z6MkProfileUser', path: null},
+        scope: 'profile',
+      } as any)
+
+      await vi.advanceTimersByTimeAsync(200)
+
+      expect(grpcClient.entities.discoverEntity).toHaveBeenCalledWith(
+        expect.objectContaining({id: 'hm://z6MkProfileUser/:profile'}),
+      )
+
+      unsubscribe()
+      randomSpy.mockRestore()
+      vi.useRealTimers()
+    })
+
     it('starts the monitor only once when subscriptions are created before the first poll resolves', async () => {
       const grpcClient = await getGrpcClientMock()
       grpcClient.activityFeed.listEvents.mockReturnValue(new Promise(() => {}))
 
-      const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {})
       const {subscribe} = await loadModule()
 
       const unsubscribeA = subscribe({id: {id: 'hm://z6MkOwner/doc-a', uid: 'z6MkOwner', path: ['doc-a']}} as any)
       const unsubscribeB = subscribe({id: {id: 'hm://z6MkOwner/doc-b', uid: 'z6MkOwner', path: ['doc-b']}} as any)
 
-      const starts = consoleLog.mock.calls.filter((call) =>
-        String(call[0]).includes('[Sync] Starting activity monitor'),
-      )
-      expect(starts).toHaveLength(1)
+      expect(grpcClient.activityFeed.listEvents).toHaveBeenCalledTimes(1)
 
       unsubscribeA()
       unsubscribeB()
-      consoleLog.mockRestore()
     })
   })
 })

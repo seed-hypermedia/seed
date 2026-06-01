@@ -93,6 +93,7 @@ const MAX_KNOWN_VERSIONS = 500
 export type ResourceSubscription = {
   id: UnpackedHypermediaId
   recursive?: boolean
+  scope?: DiscoveryScope
 }
 
 type SubscriptionState = {
@@ -701,7 +702,7 @@ type DiscoveryResult = {
 }
 
 async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult | null> {
-  const {id, recursive} = sub
+  const {id, recursive, scope} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
   // Use effective recursive value - if any recursive subscription exists, report as recursive
@@ -711,20 +712,27 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
   let discoveryResult: {version: string} | null = null
   let blobsDownloaded = 0
   try {
-    discoveryResult = await discoverDocument(id.uid, id.path, undefined, recursive, (progress) => {
-      blobsDownloaded = progress.blobsDownloaded
-      // Don't overwrite settled state (not-found/tombstone) with discovering
-      const currentState = discoveryStream.stream.get()
-      if (currentState?.isNotFound || currentState?.isTombstone) return
+    discoveryResult = await discoverDocument(
+      id.uid,
+      id.path,
+      undefined,
+      recursive,
+      (progress) => {
+        blobsDownloaded = progress.blobsDownloaded
+        // Don't overwrite settled state (not-found/tombstone) with discovering
+        const currentState = discoveryStream.stream.get()
+        if (currentState?.isNotFound || currentState?.isTombstone) return
 
-      discoveryStream.write({
-        isDiscovering: true,
-        startedAt: Date.now(),
-        entityId: id.id,
-        recursive: getEffectiveRecursive(),
-        progress,
-      })
-    })
+        discoveryStream.write({
+          isDiscovering: true,
+          startedAt: Date.now(),
+          entityId: id.id,
+          recursive: getEffectiveRecursive(),
+          progress,
+        })
+      },
+      scope,
+    )
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
     // Check resource status anyway - data may have been synced
@@ -784,7 +792,8 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
 // ============ Resource Subscriptions ============
 
 function getSubscriptionKey(sub: ResourceSubscription): string {
-  return sub.id.id + (sub.recursive ? '/*' : '')
+  const scopeKey = sub.scope === 'profile' ? ':profile' : ''
+  return sub.id.id + (sub.recursive ? '/*' : '') + scopeKey
 }
 
 // Check if there's a recursive subscription for this entity (used for stream writes)
@@ -984,6 +993,7 @@ export const syncApi = t.router({
       z.object({
         id: unpackedHmIdSchema,
         recursive: z.boolean().optional(),
+        scope: z.enum(['all', 'profile']).optional(),
       }),
     )
     .subscription(({input}) => {
@@ -991,6 +1001,7 @@ export const syncApi = t.router({
         const unsubscribe = subscribe({
           id: input.id as UnpackedHypermediaId,
           recursive: input.recursive,
+          scope: input.scope,
         })
 
         emit.next({status: 'subscribed'})
