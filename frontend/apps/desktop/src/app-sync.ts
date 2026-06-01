@@ -525,9 +525,9 @@ async function fetchNewEvents(): Promise<Event[]> {
     if (firstEvent) {
       state.lastBlobId = getBlobId(firstEvent)
     }
-    console.log('[Sync] Activity monitor watermark initialized', {
-      watermarkBlobId: state.lastBlobId.toString(),
-    })
+    // console.log('[Sync] Activity monitor watermark initialized', {
+    //   watermarkBlobId: state.lastBlobId.toString(),
+    // })
     return []
   }
 
@@ -562,7 +562,6 @@ async function fetchNewEvents(): Promise<Event[]> {
 
 const startTime = Date.now()
 async function pollActivity() {
-  console.log('[Sync] Polling activity', {sinceStartMs: Date.now() - startTime})
   if (state.isPolling) return
   state.isPolling = true
 
@@ -571,11 +570,11 @@ async function pollActivity() {
       const newEvents = await fetchNewEvents()
       if (newEvents.length > 0) {
         const highestBlobId = getBlobId(newEvents[0]!)
-        console.log('[Sync] Activity poll found new events', {
-          eventCount: newEvents.length,
-          previousWatermarkBlobId: state.lastBlobId.toString(),
-          nextWatermarkBlobId: highestBlobId.toString(),
-        })
+        // console.log('[Sync] Activity poll found new events', {
+        //   eventCount: newEvents.length,
+        //   previousWatermarkBlobId: state.lastBlobId.toString(),
+        //   nextWatermarkBlobId: highestBlobId.toString(),
+        // })
         if (PROFILE_ENABLED) {
           profileLog(`pollActivity: ${newEvents.length} new events`)
         }
@@ -609,11 +608,11 @@ function ensureActivityPolling() {
   // in the same tick cannot double-start the monitor.
   state.activityPollTimer = setTimeout(() => {}, 0)
   ensureFocusListener()
-  console.log('[Sync] Starting activity monitor', {
-    filterEventType: ACTIVITY_BLOB_TYPES,
-    pageSize: ACTIVITY_PAGE_SIZE,
-    intervalMs: getAdaptiveInterval(ACTIVITY_POLL_INTERVAL_MS),
-  })
+  // console.log('[Sync] Starting activity monitor', {
+  //   filterEventType: ACTIVITY_BLOB_TYPES,
+  //   pageSize: ACTIVITY_PAGE_SIZE,
+  //   intervalMs: getAdaptiveInterval(ACTIVITY_POLL_INTERVAL_MS),
+  // })
   pollActivity().finally(() => {
     if (state.activityPollTimer !== null || state.subscriptions.size > 0) {
       scheduleNextActivityPoll()
