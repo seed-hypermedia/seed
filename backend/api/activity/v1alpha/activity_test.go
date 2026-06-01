@@ -4,6 +4,7 @@ import (
 	context "context"
 	"encoding/json"
 	"fmt"
+	"seed/backend/api/entities/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -13,11 +14,15 @@ import (
 	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/multiformats/go-multihash"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestListEvents(t *testing.T) {
@@ -385,6 +390,329 @@ func insertActivityProfileEvent(conn *sqlite.Conn, blobID int64, resourceID int6
 		return err
 	}
 	return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Profile', ?, 1, ?, ?, '{}');`, nil, blobID, eventTimestampMillis, blobID, resourceID)
+}
+
+func mkBlobEvent(resource, blobType, author string, evtMillis int64, blobID int64) (*activity.Event, feedCursor) {
+	return &activity.Event{
+			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
+				Cid:      strconv.FormatInt(blobID, 10),
+				BlobType: blobType,
+				Author:   author,
+				Resource: resource,
+				BlobId:   blobID,
+			}},
+			Account:   author,
+			EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
+		}, feedCursor{
+			cursorValue: evtMillis,
+			blobID:      blobID,
+			kind:        feedCursorKindBlob,
+			key:         strconv.FormatInt(blobID, 10),
+		}
+}
+
+func mkMentionEvent(target, source, sourceType, author string, evtMillis, blobID int64) (*activity.Event, feedCursor) {
+	return &activity.Event{
+			Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+				Source:     source,
+				SourceType: sourceType,
+				Target:     target,
+			}},
+			Account:   author,
+			EventTime: timestamppb.New(time.UnixMilli(evtMillis)),
+		}, feedCursor{
+			cursorValue: evtMillis,
+			blobID:      blobID,
+			kind:        feedCursorKindMention,
+			key:         target + "|" + source,
+		}
+}
+
+func TestFilterDeletedAndDedupEvents_EmptyInputs(t *testing.T) {
+	out, cursors := filterDeletedAndDedupEvents(nil, nil, nil, nil, false)
+	require.Empty(t, out)
+	require.Empty(t, cursors)
+}
+
+func TestFilterDeletedAndDedupEvents_FiltersExactDeletedTargets(t *testing.T) {
+	e1, c1 := mkBlobEvent("hm://acc/keep", "Ref", "alice", 200, 1)
+	e2, c2 := mkBlobEvent("hm://acc/drop", "Ref", "alice", 100, 2)
+	out, cursors := filterDeletedAndDedupEvents(
+		[]*activity.Event{e1, e2},
+		[]feedCursor{c1, c2},
+		[]string{"hm://acc/drop"},
+		nil,
+		false,
+	)
+	require.Len(t, out, 1)
+	require.Equal(t, "hm://acc/keep", out[0].GetNewBlob().GetResource())
+	require.Len(t, cursors, 1)
+}
+
+func TestFilterDeletedAndDedupEvents_SubstringMatchOnMovedResources(t *testing.T) {
+	// A blob whose IRI contains the OldIri of a deleted moved resource is dropped;
+	// a moved resource that's not flagged deleted is ignored.
+	e1, c1 := mkBlobEvent("hm://acc/keep", "Ref", "alice", 300, 1)
+	e2, c2 := mkBlobEvent("hm://acc/old-path/child", "Ref", "alice", 200, 2)
+	moved := []entities.MovedResource{
+		{OldIri: "hm://acc/old-path", NewIri: "hm://acc/new-path", IsDeleted: true},
+		{OldIri: "hm://acc/other-old", NewIri: "hm://acc/other-new", IsDeleted: false},
+	}
+	out, _ := filterDeletedAndDedupEvents(
+		[]*activity.Event{e1, e2},
+		[]feedCursor{c1, c2},
+		nil,
+		moved,
+		false,
+	)
+	require.Len(t, out, 1)
+	require.Equal(t, "hm://acc/keep", out[0].GetNewBlob().GetResource())
+}
+
+func TestFilterDeletedAndDedupEvents_DedupesBlobsByKey(t *testing.T) {
+	// Same (Resource, BlobType, Account, EventTime) collapses; different event time survives.
+	e1, c1 := mkBlobEvent("hm://acc/r", "Ref", "alice", 100, 1)
+	e2, c2 := mkBlobEvent("hm://acc/r", "Ref", "alice", 100, 2)
+	e3, c3 := mkBlobEvent("hm://acc/r", "Ref", "alice", 200, 3)
+	out, cursors := filterDeletedAndDedupEvents(
+		[]*activity.Event{e1, e2, e3},
+		[]feedCursor{c1, c2, c3},
+		nil,
+		nil,
+		false,
+	)
+	require.Len(t, out, 2)
+	require.Len(t, cursors, 2)
+}
+
+func TestFilterDeletedAndDedupEvents_DedupesMentionsByGroupKey(t *testing.T) {
+	// Two mentions identical on (Target, TargetVersion, TargetFragment, Source)
+	// collapse via the seenMentionGroup path even when Account / EventTime differ.
+	share := func() *activity.Event {
+		return &activity.Event{
+			Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+				Target:         "hm://acc/target",
+				TargetVersion:  "v1",
+				TargetFragment: "f",
+				Source:         "hm://acc/source",
+				SourceType:     "doc/link",
+			}},
+			Account:   "alice",
+			EventTime: timestamppb.New(time.UnixMilli(100)),
+		}
+	}
+	e1 := share()
+	e2 := share()
+	e2.Account = "bob"
+	e2.EventTime = timestamppb.New(time.UnixMilli(200))
+	c1 := feedCursor{cursorValue: 200, blobID: 1, kind: feedCursorKindMention}
+	c2 := feedCursor{cursorValue: 100, blobID: 2, kind: feedCursorKindMention}
+	out, _ := filterDeletedAndDedupEvents(
+		[]*activity.Event{e1, e2},
+		[]feedCursor{c1, c2},
+		nil,
+		nil,
+		true,
+	)
+	require.Len(t, out, 1)
+}
+
+func TestFilterDeletedAndDedupEvents_PreservesUnknownEventTypes(t *testing.T) {
+	bare := &activity.Event{Account: "carol", EventTime: timestamppb.New(time.UnixMilli(50))}
+	c := feedCursor{cursorValue: 50, blobID: 99, kind: feedCursorKindBlob}
+	out, _ := filterDeletedAndDedupEvents(
+		[]*activity.Event{bare},
+		[]feedCursor{c},
+		[]string{"hm://acc/something"},
+		nil,
+		false,
+	)
+	require.Len(t, out, 1)
+	require.Same(t, bare, out[0])
+}
+
+// filterDeletedAndDedupEventsLegacy is the pre-refactor algorithm preserved
+// here for benchmark comparison only. Do not call from production code.
+//
+//nolint:gocyclo // mirrors the old inline code; complexity is intentional.
+func filterDeletedAndDedupEventsLegacy(
+	events []*activity.Event,
+	cursors []feedCursor,
+	deletedList []string,
+	movedResources []entities.MovedResource,
+	orderByObserved bool,
+) ([]*activity.Event, []feedCursor) {
+	for _, movedResource := range movedResources {
+		for _, e := range events {
+			if _, ok := e.Data.(*activity.Event_NewMention); ok {
+				if strings.Contains(e.Data.(*activity.Event_NewMention).NewMention.Source, movedResource.OldIri) {
+					if movedResource.IsDeleted {
+						deletedList = append(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source)
+					}
+				}
+				continue
+			}
+			if _, ok := e.Data.(*activity.Event_NewBlob); !ok {
+				continue
+			}
+			if strings.Contains(e.Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri) {
+				if movedResource.IsDeleted {
+					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
+				}
+			}
+		}
+	}
+
+	nonDeleted := make([]*activity.Event, 0, len(events))
+	nonDeletedCursors := make([]feedCursor, 0, len(cursors))
+	for i, e := range events {
+		if _, ok := e.Data.(*activity.Event_NewMention); ok {
+			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
+				nonDeleted = append(nonDeleted, e)
+				nonDeletedCursors = append(nonDeletedCursors, cursors[i])
+			}
+			continue
+		}
+		if _, ok := e.Data.(*activity.Event_NewBlob); !ok {
+			nonDeleted = append(nonDeleted, e)
+			nonDeletedCursors = append(nonDeletedCursors, cursors[i])
+			continue
+		}
+		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
+			nonDeleted = append(nonDeleted, e)
+			nonDeletedCursors = append(nonDeletedCursors, cursors[i])
+		}
+	}
+
+	sortFeedEvents(nonDeleted, nonDeletedCursors, orderByObserved)
+
+	seen := make(map[string]struct{})
+	seenMentionGroup := make(map[string]struct{})
+	for i := 0; i < len(nonDeleted); i++ {
+		e := nonDeleted[i]
+		if _, ok := e.Data.(*activity.Event_NewMention); ok {
+			m := e.Data.(*activity.Event_NewMention).NewMention
+			groupKey := m.Target + "\x00" + m.TargetVersion + "\x00" + m.TargetFragment + "\x00" + m.Source
+			if _, ok := seenMentionGroup[groupKey]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
+				i--
+				continue
+			}
+			seenMentionGroup[groupKey] = struct{}{}
+			key := fmt.Sprintf("%s:%s:%s:%d", m.Target, m.SourceType, e.Account, e.EventTime.AsTime().UnixNano())
+			if _, ok := seen[key]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
+				i--
+			} else {
+				seen[key] = struct{}{}
+			}
+			continue
+		}
+		if _, ok := e.Data.(*activity.Event_NewBlob); ok {
+			key := fmt.Sprintf("%s:%s:%s:%d",
+				e.Data.(*activity.Event_NewBlob).NewBlob.Resource,
+				e.Data.(*activity.Event_NewBlob).NewBlob.BlobType,
+				e.Account,
+				e.EventTime.AsTime().UnixNano())
+			if _, ok := seen[key]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
+				i--
+			} else {
+				seen[key] = struct{}{}
+			}
+			continue
+		}
+	}
+	return nonDeleted, nonDeletedCursors
+}
+
+func BenchmarkFilterDeletedAndDedupEventsLegacy(b *testing.B) {
+	events, cursors, deletedTargets, moved := bench_filterDedupFixtures()
+	b.ReportAllocs()
+	for b.Loop() {
+		eventsCopy := make([]*activity.Event, len(events))
+		copy(eventsCopy, events)
+		cursorsCopy := make([]feedCursor, len(cursors))
+		copy(cursorsCopy, cursors)
+		filterDeletedAndDedupEventsLegacy(eventsCopy, cursorsCopy, deletedTargets, moved, false)
+	}
+}
+
+func bench_filterDedupFixtures() ([]*activity.Event, []feedCursor, []string, []entities.MovedResource) {
+	const (
+		nEvents         = 500
+		duplicateStride = 4
+		nDeletedTargets = 10
+		nMovedResources = 4
+	)
+	events := make([]*activity.Event, nEvents)
+	cursors := make([]feedCursor, nEvents)
+	for i := range nEvents {
+		evtMillis := int64(1_000_000 + (i / duplicateStride))
+		resource := "hm://acc/res-" + strconv.Itoa(i%(nEvents/duplicateStride))
+		if i%2 == 0 {
+			events[i], cursors[i] = mkBlobEvent(resource, "Ref", "alice", evtMillis, int64(i+1))
+		} else {
+			events[i], cursors[i] = mkMentionEvent(resource, resource+"#src", "doc/link", "alice", evtMillis, int64(i+1))
+		}
+	}
+	deletedTargets := make([]string, nDeletedTargets)
+	for i := range deletedTargets {
+		deletedTargets[i] = "hm://acc/res-" + strconv.Itoa(i)
+	}
+	moved := make([]entities.MovedResource, nMovedResources)
+	for i := range moved {
+		moved[i] = entities.MovedResource{
+			OldIri:    "hm://acc/moved-" + strconv.Itoa(i),
+			NewIri:    "hm://acc/moved-new-" + strconv.Itoa(i),
+			IsDeleted: i%2 == 0,
+		}
+	}
+	return events, cursors, deletedTargets, moved
+}
+
+func BenchmarkFilterDeletedAndDedupEvents(b *testing.B) {
+	const (
+		nEvents         = 500
+		duplicateStride = 4
+		nDeletedTargets = 10
+		nMovedResources = 4
+	)
+	events := make([]*activity.Event, nEvents)
+	cursors := make([]feedCursor, nEvents)
+	for i := range nEvents {
+		evtMillis := int64(1_000_000 + (i / duplicateStride))
+		resource := "hm://acc/res-" + strconv.Itoa(i%(nEvents/duplicateStride))
+		if i%2 == 0 {
+			events[i], cursors[i] = mkBlobEvent(resource, "Ref", "alice", evtMillis, int64(i+1))
+		} else {
+			events[i], cursors[i] = mkMentionEvent(resource, resource+"#src", "doc/link", "alice", evtMillis, int64(i+1))
+		}
+	}
+	deletedTargets := make([]string, nDeletedTargets)
+	for i := range deletedTargets {
+		deletedTargets[i] = "hm://acc/res-" + strconv.Itoa(i)
+	}
+	moved := make([]entities.MovedResource, nMovedResources)
+	for i := range moved {
+		moved[i] = entities.MovedResource{
+			OldIri:    "hm://acc/moved-" + strconv.Itoa(i),
+			NewIri:    "hm://acc/moved-new-" + strconv.Itoa(i),
+			IsDeleted: i%2 == 0,
+		}
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		eventsCopy := make([]*activity.Event, len(events))
+		copy(eventsCopy, events)
+		cursorsCopy := make([]feedCursor, len(cursors))
+		copy(cursorsCopy, cursors)
+		filterDeletedAndDedupEvents(eventsCopy, cursorsCopy, deletedTargets, moved, false)
+	}
 }
 
 func insertActivityProfileEventForResource(conn *sqlite.Conn, blobID int64, resourceID int64, eventTimestampMillis int64) error {

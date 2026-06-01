@@ -572,111 +572,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if err != nil {
 		return nil, err
 	}
-	for _, movedResource := range movedResources {
-		for _, e := range events {
-			// switch on event type
-			// for mentions
-			if _, ok := e.Data.(*activity.Event_NewMention); ok {
-				if strings.Contains(e.Data.(*activity.Event_NewMention).NewMention.Source, movedResource.OldIri) {
-					if movedResource.IsDeleted {
-						deletedList = append(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source)
-					} /* else {
-						events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = strings.ReplaceAll(events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri, movedResource.NewIri)
-					}*/
-				}
-				continue
-			}
-			// for new blobs
-			if strings.Contains(e.Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri) {
-				if movedResource.IsDeleted {
-					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
-				} /* else {
-					events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = strings.ReplaceAll(events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri, movedResource.NewIri)
-				}*/
-			}
-		}
-	}
-
-	nonDeleted := make([]*activity.Event, 0, len(events))
-	nonDeletedCursors := make([]feedCursor, 0, len(eventCursors))
-	for i, e := range events {
-		// switch on event type
-		// for mentions
-		if _, ok := e.Data.(*activity.Event_NewMention); ok {
-			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
-				nonDeleted = append(nonDeleted, e)
-				nonDeletedCursors = append(nonDeletedCursors, eventCursors[i])
-			}
-			continue
-		}
-		// for new blobs
-		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
-			nonDeleted = append(nonDeleted, e)
-			nonDeletedCursors = append(nonDeletedCursors, eventCursors[i])
-		}
-	}
-
-	//TODO: remove duplicates based on resource, type, author, eventtime
-
-	seen := make(map[string]struct{})
-	// seenMentionGroup replaces the SQL GROUP BY that used to live in
-	// listMentionsCore. The SQL collapsed rows by
-	// (resources.iri, target_version, target_fragment, source_iri); we
-	// mirror it here so dropping the GROUP BY doesn't surface duplicate
-	// mention rows that only differ in non-grouped columns (rl.id,
-	// is_pinned, anchor, etc.). Run before the (Target, SourceType,
-	// Account, EventTime) dedup so the first matching row wins from a
-	// deterministic same-blob order, without depending on SQLite's
-	// arbitrary row choice.
-	sortFeedEvents(nonDeleted, nonDeletedCursors, orderByObserved)
-
-	seenMentionGroup := make(map[string]struct{})
-	for i := 0; i < len(nonDeleted); i++ {
-		e := nonDeleted[i]
-		// switch on event type
-		if _, ok := e.Data.(*activity.Event_NewMention); ok {
-			m := e.Data.(*activity.Event_NewMention).NewMention
-			groupKey := m.Target + "\x00" + m.TargetVersion + "\x00" + m.TargetFragment + "\x00" + m.Source
-			if _, ok := seenMentionGroup[groupKey]; ok {
-				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
-				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
-				i--
-				continue
-			}
-			seenMentionGroup[groupKey] = struct{}{}
-			key := fmt.Sprintf("%s:%s:%s:%d",
-				m.Target,
-				m.SourceType,
-				e.Account,
-				e.EventTime.AsTime().UnixNano())
-			if _, ok := seen[key]; ok {
-				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
-				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
-				i--
-			} else {
-				seen[key] = struct{}{}
-			}
-			continue
-		}
-		if _, ok := e.Data.(*activity.Event_NewBlob); ok {
-			key := fmt.Sprintf("%s:%s:%s:%d",
-				e.Data.(*activity.Event_NewBlob).NewBlob.Resource,
-				e.Data.(*activity.Event_NewBlob).NewBlob.BlobType,
-				e.Account,
-				e.EventTime.AsTime().UnixNano())
-			if _, ok := seen[key]; ok {
-				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
-				nonDeletedCursors = append(nonDeletedCursors[:i], nonDeletedCursors[i+1:]...)
-				i--
-			} else {
-				seen[key] = struct{}{}
-			}
-			continue
-		}
-	}
-
-	events = nonDeleted
-	eventCursors = nonDeletedCursors
+	events, eventCursors = filterDeletedAndDedupEvents(events, eventCursors, deletedList, movedResources, orderByObserved)
 
 	// Apply page size to both arrays.
 	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
@@ -730,6 +626,127 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		Events:        events,
 		NextPageToken: nextPageToken,
 	}, err
+}
+
+// filterDeletedAndDedupEvents removes events whose IRI is either in
+// deletedTargets or substring-matches the OldIri of a deleted entry in
+// movedResources, then sorts the survivors and dedups them.
+//
+// Dedup semantics mirror the previous inline implementation:
+//   - seenMentionGroup replaces the SQL GROUP BY that used to live in
+//     listMentionsCore (collapsing by target / target_version /
+//     target_fragment / source so unrelated columns like rl.id, is_pinned,
+//     anchor don't surface duplicate mention rows).
+//   - seen collapses on (target-or-resource, source-type-or-blob-type,
+//     account, event-time-nanoseconds); the same map is shared between
+//     mentions and blobs to preserve cross-type dedup behavior.
+//
+// The function returns parallel slices of the survivors. It always allocates
+// fresh output slices; callers can rebind their own variables to the result.
+func filterDeletedAndDedupEvents(
+	events []*activity.Event,
+	cursors []feedCursor,
+	deletedTargets []string,
+	movedResources []entities.MovedResource,
+	orderByObserved bool,
+) ([]*activity.Event, []feedCursor) {
+	if len(events) == 0 {
+		return events, cursors
+	}
+
+	// Set of IRIs to drop. Seeded from the explicit deletedTargets list
+	// (rows the mentions query already flagged isDeleted=1), then enriched
+	// below from movedResources.
+	deletedIRIs := make(map[string]struct{}, len(deletedTargets)+len(movedResources))
+	for _, t := range deletedTargets {
+		deletedIRIs[t] = struct{}{}
+	}
+
+	var deletedOldIRIs []string
+	for _, mr := range movedResources {
+		if mr.IsDeleted {
+			deletedOldIRIs = append(deletedOldIRIs, mr.OldIri)
+		}
+	}
+
+	// Extract each event's relevant IRI once. Empty string means the event
+	// type is neither NewMention nor NewBlob; those events pass through
+	// without being eligible for IRI-based deletion.
+	eventIRIs := make([]string, len(events))
+	for i, e := range events {
+		switch d := e.Data.(type) {
+		case *activity.Event_NewMention:
+			eventIRIs[i] = d.NewMention.Source
+		case *activity.Event_NewBlob:
+			eventIRIs[i] = d.NewBlob.Resource
+		}
+	}
+
+	// Substring-match against deleted moved-resource OldIris. Typically
+	// len(deletedOldIRIs) is 0 or 1, so this stays cheap.
+	if len(deletedOldIRIs) > 0 {
+		for _, iri := range eventIRIs {
+			if iri == "" {
+				continue
+			}
+			if _, already := deletedIRIs[iri]; already {
+				continue
+			}
+			for _, old := range deletedOldIRIs {
+				if strings.Contains(iri, old) {
+					deletedIRIs[iri] = struct{}{}
+					break
+				}
+			}
+		}
+	}
+
+	// Single-pass filter via map lookup.
+	nonDeleted := make([]*activity.Event, 0, len(events))
+	nonDeletedCursors := make([]feedCursor, 0, len(cursors))
+	for i, e := range events {
+		if iri := eventIRIs[i]; iri != "" {
+			if _, ok := deletedIRIs[iri]; ok {
+				continue
+			}
+		}
+		nonDeleted = append(nonDeleted, e)
+		nonDeletedCursors = append(nonDeletedCursors, cursors[i])
+	}
+
+	// Sort before dedup so first-match-wins is deterministic.
+	sortFeedEvents(nonDeleted, nonDeletedCursors, orderByObserved)
+
+	seen := make(map[string]struct{}, len(nonDeleted))
+	seenMentionGroup := make(map[string]struct{}, len(nonDeleted))
+	out := make([]*activity.Event, 0, len(nonDeleted))
+	outCursors := make([]feedCursor, 0, len(nonDeleted))
+	for i, e := range nonDeleted {
+		switch d := e.Data.(type) {
+		case *activity.Event_NewMention:
+			nm := d.NewMention
+			groupKey := nm.Target + "\x00" + nm.TargetVersion + "\x00" + nm.TargetFragment + "\x00" + nm.Source
+			if _, ok := seenMentionGroup[groupKey]; ok {
+				continue
+			}
+			seenMentionGroup[groupKey] = struct{}{}
+			key := nm.Target + "\x00" + nm.SourceType + "\x00" + e.Account + "\x00" + strconv.FormatInt(e.EventTime.AsTime().UnixNano(), 10)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+		case *activity.Event_NewBlob:
+			nb := d.NewBlob
+			key := nb.Resource + "\x00" + nb.BlobType + "\x00" + e.Account + "\x00" + strconv.FormatInt(e.EventTime.AsTime().UnixNano(), 10)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+		}
+		out = append(out, e)
+		outCursors = append(outCursors, nonDeletedCursors[i])
+	}
+	return out, outCursors
 }
 
 func sortFeedEvents(events []*activity.Event, cursors []feedCursor, orderByObserved bool) {
