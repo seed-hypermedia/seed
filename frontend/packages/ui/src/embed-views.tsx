@@ -748,6 +748,10 @@ function BlockEmbedContentDocument(props: {
   } = props
   const navigate = useNavigate()
 
+  const blockRangeStart = props.blockRange && 'start' in props.blockRange ? props.blockRange.start : null
+  const blockRangeEnd = props.blockRange && 'end' in props.blockRange ? props.blockRange.end : null
+  const blockRangeExpanded = props.blockRange && 'expanded' in props.blockRange ? props.blockRange.expanded : false
+
   const embedData = useMemo(() => {
     const selectedBlock =
       props.blockRef && document?.content ? getBlockNodeById(document.content, props.blockRef) : null
@@ -757,10 +761,7 @@ function BlockEmbedContentDocument(props: {
         ? [
             {
               ...selectedBlock,
-              children:
-                props.blockRange && 'expanded' in props.blockRange && props.blockRange.expanded
-                  ? [...(selectedBlock.children || [])]
-                  : [],
+              children: blockRangeExpanded ? [...(selectedBlock.children || [])] : [],
             },
           ]
         : null
@@ -771,17 +772,17 @@ function BlockEmbedContentDocument(props: {
         document,
         embedBlocks,
         blockRange:
-          props.blockRange && 'start' in props.blockRange && selectedBlock
+          blockRangeStart != null && blockRangeEnd != null && selectedBlock
             ? {
                 blockId: props.blockRef,
-                start: props.blockRange.start,
-                end: props.blockRange.end,
+                start: blockRangeStart,
+                end: blockRangeEnd,
               }
             : null,
       },
     }
     return res
-  }, [props.blockRef, props.blockRange, document])
+  }, [props.blockRef, blockRangeStart, blockRangeEnd, blockRangeExpanded, document?.version])
 
   const embedOnBlockSelect = useCallback(
     (blockId: string, opts?: BlockRange & {copyToClipboard?: boolean}): boolean => {
