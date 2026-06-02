@@ -5,6 +5,7 @@ import {DraftActions, DraftActionsContext} from '@shm/editor/draft-actions-conte
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useMemo, useState} from 'react'
 
@@ -26,24 +27,16 @@ export function DesktopDraftActionsProvider({
       // execute runs imperatively outside React, so it consumes a plain async function.
       onCreateInlineDraft: canCreateInlineDraft
         ? async (parentId, options) => {
-            const draftId = nanoid(10)
-            const parentPath = parentId.path || []
-            const draftPath = [...parentPath, `-${draftId}`]
-            await client.drafts.write.mutate({
-              id: draftId,
-              locationUid: parentId.uid,
-              locationPath: parentPath,
-              editUid: parentId.uid,
-              editPath: draftPath,
-              metadata: {name: options?.name ?? ''},
-              content: options?.initialContent ?? [],
-              deps: [],
-              visibility: 'PUBLIC',
+            const writeParams = buildInlineDraftWrite({
+              parentId,
+              draftId: nanoid(10),
+              options,
             })
+            await client.drafts.write.mutate(writeParams)
             invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId.uid])
             invalidateQueries([queryKeys.DRAFTS_LIST])
-            setLastCreatedInlineDraftId(draftId)
-            return {draftId, draftPath}
+            setLastCreatedInlineDraftId(writeParams.id)
+            return {draftId: writeParams.id, draftPath: writeParams.editPath}
           }
         : undefined,
       useInlineDraft: useDraft,

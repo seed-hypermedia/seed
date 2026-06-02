@@ -10,19 +10,35 @@ import {
   parseMarkdown,
 } from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmId} from '@shm/shared'
+import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
 import {putWebDocDraft} from './web-draft-db'
 
 /** Route emitted after a local web document draft is created. */
 export type WebDocumentDraftRoute = {key: 'document'; id: UnpackedHypermediaId}
 
-/** Create a local web document draft and navigate to its document route. */
+/** Result returned by {@link createWebDocumentDraft}. */
+export type CreateWebDocumentDraftResult = {
+  /** Route id (uid + edit path) of the new draft. */
+  routeId: UnpackedHypermediaId
+  /** Persistent draft id (used as `embed.draftId` on inline embed inserts). */
+  draftId: string
+  /** Edit path of the new draft under its parent. */
+  draftPath: string[]
+}
+
+/**
+ * Create a local web document draft and optionally navigate to its document
+ * route. When `navigate` is omitted (slash menu / query block "+"), the draft
+ * is persisted but the route does not change — callers receive the new draft
+ * id so they can insert an inline embed without leaving the current document.
+ */
 export async function createWebDocumentDraft({
   locationId,
   signingAccountId,
   visibility = 'PUBLIC',
-  content = [],
-  metadata = {},
+  content,
+  metadata,
   navigate,
   generateDraftId = () => nanoid(10),
   generatePath = () => nanoid(21),
@@ -34,14 +50,34 @@ export async function createWebDocumentDraft({
   content?: HMBlockNode[]
   metadata?: HMMetadata
   capabilityCid?: string
-  navigate: (route: WebDocumentDraftRoute) => void
+  navigate?: (route: WebDocumentDraftRoute) => void
   generateDraftId?: () => string
   generatePath?: () => string
-}): Promise<UnpackedHypermediaId> {
+}): Promise<CreateWebDocumentDraftResult> {
   const draftId = generateDraftId()
   const isPrivate = visibility === 'PRIVATE'
-  const locationPath = isPrivate ? [generatePath()] : locationId.path || []
-  const editPath = isPrivate ? locationPath : [...locationPath, `-${draftId}`]
+
+  let locationPath: string[]
+  let editPath: string[]
+  let writeMetadata: HMMetadata
+  let writeContent: HMBlockNode[]
+
+  if (isPrivate) {
+    locationPath = [generatePath()]
+    editPath = locationPath
+    writeMetadata = metadata ?? {}
+    writeContent = content ?? []
+  } else {
+    const writeParams = buildInlineDraftWrite({parentId: locationId, draftId, visibility})
+    locationPath = writeParams.locationPath
+    editPath = writeParams.editPath
+    // Don't seed an empty `name`: persisting `{name: ''}` makes the publish flow
+    // emit a setAttribute(name, '') change. Keep metadata empty unless provided,
+    // matching the original web behavior.
+    writeMetadata = metadata ?? {}
+    writeContent = content ?? writeParams.content
+  }
+
   const routeId = hmId(locationId.uid, {path: editPath})
 
   await putWebDocDraft({
@@ -49,8 +85,8 @@ export async function createWebDocumentDraft({
     docId: routeId.id,
     signingAccountId,
     ...(capabilityCid ? {capabilityCid} : {}),
-    content,
-    metadata,
+    content: writeContent,
+    metadata: writeMetadata,
     deps: [],
     navigation: null,
     locationUid: locationId.uid,
@@ -61,8 +97,16 @@ export async function createWebDocumentDraft({
     visibility,
   })
 
-  navigate({key: 'document', id: routeId})
-  return routeId
+  console.log('[web-create-doc] createWebDocumentDraft', {
+    locationId: locationId.id,
+    draftId,
+    draftPath: editPath,
+    visibility,
+    willNavigate: !!navigate,
+  })
+
+  if (navigate) navigate({key: 'document', id: routeId})
+  return {routeId, draftId, draftPath: editPath}
 }
 
 function parseMarkdownImport(markdown: string, fileName: string): {metadata: HMMetadata; markdown: string} {
@@ -101,7 +145,7 @@ export async function createWebDocumentDraftFromMarkdownFile({
   signingAccountId: string
   capabilityCid?: string
   navigate: (route: WebDocumentDraftRoute) => void
-}): Promise<UnpackedHypermediaId> {
+}): Promise<CreateWebDocumentDraftResult> {
   const text = await file.text()
   const {metadata, markdown} = parseMarkdownImport(text, file.name)
 

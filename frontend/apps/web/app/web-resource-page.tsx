@@ -5,6 +5,7 @@ import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
@@ -35,6 +36,8 @@ import {processPendingIntent} from './pending-intent'
 import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
+import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
+import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
 import {
   cleanupOldWebDocDrafts,
   deleteWebDocDraft,
@@ -331,6 +334,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     replaceRoute,
   })
 
+  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const canCreateInlineDraft = !placeholderDraftId
+
   return (
     <WebSitePageShell siteUid={docId.uid}>
       <CommentsProvider
@@ -339,32 +345,44 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         renderInlineEditor={renderWebInlineEditor}
       >
         <DocumentActionsProvider onCopyLink={() => {}}>
-          <ResourcePage
-            docId={docId}
-            CommentEditor={CommentEditor}
-            pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
-            onEditProfile={onEditProfile}
-            profileHeaderButtons={profileHeaderButtons}
-            onFollowClick={onFollowClick}
-            rightActions={<WebHeaderActions siteUid={docId.uid} />}
-            extraMenuItems={extraMenuItems}
-            inlineInsert={inlineInsert}
-            DocumentContentComponent={DocumentContentComponent}
-            ssrContentHTML={ssrContentHTML}
-            perspectiveAccountUid={ownAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            canEdit={effectiveCanEdit}
-            machine={machine}
+          <WebDraftActionsProvider
+            canCreateInlineDraft={canCreateInlineDraft}
             signingAccountId={signingAccountId ?? undefined}
-            publishAccountUid={signingAccountId ?? undefined}
-            onEditorReady={onEditorReady}
-            existingDraft={existingDraft}
-            existingDraftVisibility={draftData?.visibility}
-            existingDraftContent={existingDraftContent}
-            existingDraftCursorPosition={existingDraftCursorPosition}
-            editingFloatingActions={editingFloatingActions}
-            fileUpload={fileUpload}
-          />
+            capabilityCid={effectiveCapabilityCid}
+          >
+            <QueryBlockDraftsProvider
+              DraftSlot={WebQueryBlockDraftSlot}
+              lastCreatedDraftId={lastCreatedDraftId}
+              setLastCreatedDraftId={setLastCreatedDraftId}
+            >
+              <ResourcePage
+                docId={docId}
+                CommentEditor={CommentEditor}
+                pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+                onEditProfile={onEditProfile}
+                profileHeaderButtons={profileHeaderButtons}
+                onFollowClick={onFollowClick}
+                rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                extraMenuItems={extraMenuItems}
+                inlineInsert={inlineInsert}
+                DocumentContentComponent={DocumentContentComponent}
+                ssrContentHTML={ssrContentHTML}
+                perspectiveAccountUid={ownAccountUid}
+                linkExtensionOptions={linkExtensionOptions}
+                canEdit={effectiveCanEdit}
+                machine={machine}
+                signingAccountId={signingAccountId ?? undefined}
+                publishAccountUid={signingAccountId ?? undefined}
+                onEditorReady={onEditorReady}
+                existingDraft={existingDraft}
+                existingDraftVisibility={draftData?.visibility}
+                existingDraftContent={existingDraftContent}
+                existingDraftCursorPosition={existingDraftCursorPosition}
+                editingFloatingActions={editingFloatingActions}
+                fileUpload={fileUpload}
+              />
+            </QueryBlockDraftsProvider>
+          </WebDraftActionsProvider>
         </DocumentActionsProvider>
       </CommentsProvider>
       {editProfileDialog.content}

@@ -7,6 +7,8 @@
  */
 
 import type {HMBlockNode, HMMetadata, HMNavigationItem, HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import type {HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 
 export interface WebDocDraft {
   /** Primary key — stable id assigned on first save. */
@@ -111,6 +113,64 @@ export async function deleteWebDocDraft(draftId: string): Promise<void> {
   if (!isBrowser()) return
   const store = await tx('readwrite')
   await reqToPromise(store.delete(draftId))
+}
+
+/**
+ * Return all drafts located under `parentLocationUid` + `parentLocationPath`,
+ * newest first. Used by the query-block draft slot to render inline child
+ * draft cards under the query target.
+ */
+export async function listWebDocChildDrafts(
+  parentLocationUid: string,
+  parentLocationPath: string[],
+): Promise<WebDocDraft[]> {
+  if (!isBrowser()) return []
+  try {
+    const store = await tx('readonly')
+    const all = await reqToPromise<WebDocDraft[]>(store.getAll())
+    return all
+      .filter(
+        (draft) => draft.locationUid === parentLocationUid && pathEquals(draft.locationPath ?? [], parentLocationPath),
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+  } catch (err) {
+    console.warn('listWebDocChildDrafts failed', err)
+    return []
+  }
+}
+
+function pathEquals(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/**
+ * Adapt the stored web draft record to the shared `HMListedDraftWithLocation`
+ * shape so providers can hand drafts to shared editor + query-block UIs that
+ * already speak the desktop draft list shape.
+ */
+export function webDraftToListedDraft(draft: WebDocDraft): HMListedDraftWithLocation {
+  const locationUid = draft.locationUid ?? undefined
+  const editUid = draft.editUid ?? undefined
+  const locationPath = draft.locationPath ?? undefined
+  const editPath = draft.editPath ?? undefined
+  return {
+    id: draft.draftId,
+    locationUid,
+    locationPath,
+    editUid,
+    editPath,
+    metadata: (draft.metadata ?? {}) as HMMetadata,
+    visibility: draft.visibility ?? 'PUBLIC',
+    deps: draft.deps,
+    navigation: draft.navigation ?? undefined,
+    lastUpdateTime: draft.updatedAt,
+    locationId: locationUid ? hmId(locationUid, {path: locationPath ?? []}) : undefined,
+    editId: editUid ? hmId(editUid, {path: editPath ?? []}) : undefined,
+  } as HMListedDraftWithLocation
 }
 
 /** Return all drafts for a given docId, newest first. */

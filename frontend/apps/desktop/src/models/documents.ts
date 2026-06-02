@@ -41,6 +41,9 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
+import {filterChildDrafts} from '@shm/shared/utils/draft-children'
+import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
+export {filterChildDrafts}
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {DocNavigationItem} from '@shm/ui/navigation'
@@ -104,16 +107,6 @@ export function useChildDrafts(parentId?: UnpackedHypermediaId) {
   }, [drafts.data, parentId])
 }
 
-/** Return drafts that are located under parentId, excluding drafts editing parentId itself. */
-export function filterChildDrafts(drafts: HMListedDraft[], parentId: UnpackedHypermediaId): HMListedDraft[] {
-  return drafts.filter((draft) => {
-    const locationId = (draft as HMListedDraftWithLocation).locationId
-    if (!locationId || locationId.id !== parentId.id) return false
-    const editId = (draft as HMListedDraftWithLocation).editId
-    return editId?.id !== parentId.id
-  })
-}
-
 /** Preserve existing draft anchors when autosave rewrites a draft index entry. */
 export function resolveDraftWriteAnchors(
   existingDraft: Pick<HMDraft, 'locationUid' | 'locationPath' | 'editUid' | 'editPath'> | null | undefined,
@@ -144,27 +137,13 @@ export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined)
   return useMutation({
     mutationFn: async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
       if (!parentId) throw new Error('No parent ID')
-      const draftId = nanoid(10)
-      // The draft lives at parent + `-${draftId}` so it has a stable, unique
-      // path before publish. We set BOTH locationUid/Path (so useChildDrafts
-      // — which filters by parent location — keeps listing it under the
-      // parent) AND editUid/Path (so useExistingDraft can find it when the
-      // unified editor mounts at the new doc's route URL).
-      const parentPath = parentId.path || []
-      const draftPath = [...parentPath, `-${draftId}`]
-      const writeParams = {
-        id: draftId,
-        locationUid: parentId.uid,
-        locationPath: parentPath,
-        editUid: parentId.uid,
-        editPath: draftPath,
-        metadata: {name: ''},
-        content: [],
-        deps: [],
+      const writeParams = buildInlineDraftWrite({
+        parentId,
+        draftId: nanoid(10),
         visibility: visibility ?? 'PUBLIC',
-      }
+      })
       await client.drafts.write.mutate(writeParams)
-      return {draftId, draftPath}
+      return {draftId: writeParams.id, draftPath: writeParams.editPath}
     },
     onSuccess: () => {
       invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId?.uid])
