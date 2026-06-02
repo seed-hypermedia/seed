@@ -305,18 +305,68 @@ def main():
 
     @cmd(cmds, "run-web", "Run Web app for development.")
     def run_web(args):
-        run("./scripts/cleanup-web.sh")
-        run("pnpm install")
+        import atexit
+        import socket
+
         run("plz build //:pnpm")
-        return run(
-            "pnpm web",
-            args=args,
-        )
+
+        backend = None
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            web_daemon_ports = [58000, 58001, 58002]
+            busy_ports = []
+            for port in web_daemon_ports:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    if sock.connect_ex(("127.0.0.1", port)) == 0:
+                        busy_ports.append(port)
+
+            if busy_ports:
+                print(
+                    "⚠️  Not starting web backend because port(s) already in use: "
+                    + ", ".join(str(port) for port in busy_ports),
+                    flush=True,
+                )
+            else:
+                run("plz build //backend:seed-daemon")
+
+                data_dir = os.path.abspath(".dev-data/web")
+                os.makedirs(data_dir, exist_ok=True)
+
+                backend_env = os.environ.copy()
+                backend_env["LLAMA_LOG"] = "error"
+                backend = subprocess.Popen(
+                    [
+                        "plz",
+                        "run",
+                        "//backend:seed-daemon",
+                        "--",
+                        "-p2p.port=58000",
+                        "-http.port=58001",
+                        "-grpc.port=58002",
+                        f"-data-dir={data_dir}",
+                    ],
+                    env=backend_env,
+                    start_new_session=True,
+                )
+
+        def stop_backend():
+            if backend is not None and backend.poll() is None:
+                print(f"🛑 Stopping web backend (pid {backend.pid})…", flush=True)
+                try:
+                    os.killpg(os.getpgid(backend.pid), 15)
+                except ProcessLookupError:
+                    pass
+
+        atexit.register(stop_backend)
+
+        try:
+            return run("pnpm web", args=args)
+        finally:
+            stop_backend()
 
     @cmd(cmds, "build-web", "Build web app for production.")
     def build_web(args):
         run("./scripts/cleanup-frontend.sh")
-        run("./scripts/cleanup-web.sh")
+        run("./scripts/cleanup-site.sh")
         run("pnpm install")
         run("plz build //:pnpm")
         return run(
