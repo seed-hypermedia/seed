@@ -419,7 +419,8 @@ export function SearchResultItem({
       {...selectProps}
       data-testid={`search-result-${item.title}`}
       className={cn(
-        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start gap-3 rounded-none py-2', // added gap-3
+        // dark:hover:bg-brand-12 overrides the ghost variant's dark:hover:bg-muted
+        'hover:bg-brand-12 dark:hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start gap-3 rounded-none py-2',
         selected && 'bg-brand-12',
         className,
       )}
@@ -488,10 +489,14 @@ export function RecentSearchResultItem({
   item,
   selected,
   siteHomeId,
+  ...props
 }: {
   item: SearchResultItem
   selected: boolean
   siteHomeId?: UnpackedHypermediaId | null
+  onFocus?: (e: React.FocusEvent) => void
+  onMouseEnter?: (e: React.MouseEvent) => void
+  onMouseDown?: (e: React.MouseEvent) => void
 }) {
   let path = normalizePath(item.path.slice(0, -1))
   const homeUnpacked = item.id ? unpackHmId(`hm://${item.id.uid}`) : null
@@ -507,6 +512,7 @@ export function RecentSearchResultItem({
 
   return (
     <SearchResultItem
+      {...props}
       item={{
         ...item,
       }}

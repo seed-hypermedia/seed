@@ -1,8 +1,8 @@
 import {Button} from '@shm/ui/button'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
-import mermaid from 'mermaid'
 import {Check, ChevronDown, Eye, EyeOff} from 'lucide-react'
+import mermaid from 'mermaid'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 

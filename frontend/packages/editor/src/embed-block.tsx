@@ -49,6 +49,7 @@ import {
 import {
   type FormEvent,
   type KeyboardEvent,
+  Fragment as ReactFragment,
   type SyntheticEvent,
   useCallback,
   useEffect,
@@ -56,6 +57,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import {createPortal} from 'react-dom'
 import {BlockSelectionWrapper, useIsBlockSelected} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
@@ -812,56 +814,87 @@ export const EmbedLauncherInput = ({
   const activeItems: SearchResultItem[] = isDisplayingRecents ? recentItems : searchItems
 
   const [focusedIndex, setFocusedIndex] = useState(0)
+  // Portal the dropdown to document.body so it escapes the .blockNode's
+  // stacking context. Otherwise the dropdown is confined to its block and
+  // sibling blocks render on top regardless of z-index.
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [inputRect, setInputRect] = useState<{top: number; left: number; width: number} | null>(null)
 
   useEffect(() => {
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
   }, [focusedIndex, activeItems])
 
-  let content = (
-    <div
-      className={cn(
-        focused ? 'flex' : 'hidden',
-        'absolute top-full left-0 z-40 max-h-[400px] w-full overflow-auto overflow-x-hidden',
-        'flex-col px-3 py-3 opacity-100',
-        'bg-muted',
-        'rounded-br-md rounded-bl-md',
-        'scrollbar-none shadow-sm',
-      )}
-      style={{
-        scrollbarWidth: 'none',
-      }}
-    >
-      {isDisplayingRecents && (
-        <SizableText color="muted" family="default" className="mx-4 text-red-500">
-          Recent Resources
-        </SizableText>
-      )}
-      {activeItems.map((item, itemIndex) => {
-        const isSelected = focusedIndex === itemIndex
-        const sharedProps = {
-          selected: isSelected,
-          onFocus: () => setFocusedIndex(itemIndex),
-          onMouseEnter: () => setFocusedIndex(itemIndex),
-        }
+  useEffect(() => {
+    if (!focused || !inputRef.current) return
+    const update = () => {
+      if (!inputRef.current) return
+      const rect = inputRef.current.getBoundingClientRect()
+      setInputRect({top: rect.bottom, left: rect.left, width: rect.width})
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [focused])
 
-        return (
-          <>
-            {isDisplayingRecents ? (
-              <RecentSearchResultItem item={{...item, id: item.id}} {...sharedProps} />
-            ) : (
-              <SearchResultItem item={item} {...sharedProps} />
+  let content =
+    focused && inputRect
+      ? createPortal(
+          <div
+            className={cn(
+              'fixed z-[9999] flex max-h-[400px] flex-col overflow-auto overflow-x-hidden px-3 py-3 opacity-100',
+              'bg-muted',
+              'rounded-br-md rounded-bl-md',
+              'scrollbar-none shadow-sm',
             )}
+            style={{
+              scrollbarWidth: 'none',
+              top: inputRect.top,
+              left: inputRect.left,
+              width: inputRect.width,
+            }}
+            // Keep focus on the input when clicking inside the dropdown
+            // background.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {isDisplayingRecents && (
+              <SizableText color="muted" family="default" className="mx-4 text-red-500">
+                Recent Resources
+              </SizableText>
+            )}
+            {activeItems.map((item, itemIndex) => {
+              const isSelected = focusedIndex === itemIndex
+              const sharedProps = {
+                selected: isSelected,
+                onFocus: () => setFocusedIndex(itemIndex),
+                onMouseEnter: () => setFocusedIndex(itemIndex),
+                onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
+              }
 
-            {itemIndex !== activeItems.length - 1 ? <Separator className="bg-black/10 dark:bg-white/10" /> : null}
-          </>
+              return (
+                <ReactFragment key={item.key}>
+                  {isDisplayingRecents ? (
+                    <RecentSearchResultItem item={{...item, id: item.id}} {...sharedProps} />
+                  ) : (
+                    <SearchResultItem item={item} {...sharedProps} />
+                  )}
+
+                  {itemIndex !== activeItems.length - 1 ? <Separator className="bg-black/10 dark:bg-white/10" /> : null}
+                </ReactFragment>
+              )
+            })}
+          </div>,
+          document.body,
         )
-      })}
-    </div>
-  )
+      : null
 
   return (
     <div className="relative flex flex-1 flex-col">
       <Input
+        ref={inputRef}
         value={search}
         onChange={(e) => {
           const text = e.target.value
