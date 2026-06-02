@@ -314,7 +314,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'read',
     label: 'Read',
     description:
-      'Read Seed Hypermedia content by URL.Accepts hm:// URLs, gateway URLs, http(s) Seed site web URLs, and document view suffixes for comments, directories, version history, citations, and collaborators. Automatically resolves http(s) URLs before reading.',
+      'Read Seed Hypermedia content by URL. Accepts hm:// URLs, gateway URLs, http(s) Seed site web URLs, exact block fragments such as #BLOCK_ID, and document view suffixes for comments, directories, version history, citations, and collaborators. Automatically resolves http(s) URLs before reading. Use this before returning block-level links so you can copy exact <!-- id:BLOCK_ID --> values; never invent heading-slug fragments.',
     inputSchema: readHypermediaInputSchema,
     render: {
       kind: 'read',
@@ -341,7 +341,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'write',
     label: 'Write',
     description:
-      'Create, update, and publish Seed Hypermedia documents, drafts, comments, capabilities, contacts, and profiles. Structured equivalent of seed-cli write commands. Use selected signer profileName or publicKey. For document.create and draft.create, always set the visible Seed document title as input.name (or title) / frontmatter name; the first markdown heading is body content and is not enough by itself. For comment.create replies, always pass input.replyCommentId with the exact parent comment id (for trigger-created sessions, use activity.comment.id or activity.commentId.id) so the comment is threaded instead of orphaned.',
+      'Create, update, and publish Seed Hypermedia documents, drafts, comments, capabilities, contacts, and profiles. Structured equivalent of seed-cli write commands. Use selected signer profileName or publicKey. For document.create and draft.create, always set the visible Seed document title as input.name (or title) / frontmatter name; the first markdown heading is body content and is not enough by itself. After creating, forking, copying, or editing a document, use read on the resulting document before returning block-level links because block IDs may have changed. For comment.create replies, always pass input.replyCommentId with the exact parent comment id (for trigger-created sessions, use activity.comment.id or activity.commentId.id) so the comment is threaded instead of orphaned.',
     inputSchema: writeHypermediaInputSchema,
     render: {
       kind: 'write',

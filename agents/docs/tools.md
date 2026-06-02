@@ -159,8 +159,15 @@ Accepted IDs/URLs:
 - `hm:...`
 - `https://...`
 - `http://...`
+- exact block fragments such as `hm://.../path#BLOCK_ID`
 - comment view URLs such as `hm://doc/path/:comments/UID/TSID`, `https://site/doc/:comments/UID/TSID`, and
   `?panel=comments/UID/TSID`
+
+Model-facing block-link rule: before returning a block-level link, the model should call `read` for the target
+resource/version and copy the exact `<!-- id:BLOCK_ID -->` marker from the markdown result. Seed document fragments are
+not HTML heading anchors; models must not invent heading slugs, title slugs, or URL-safe text fragments. After `write`
+creates, forks, copies, or edits a document, read the resulting document before returning links to changed blocks
+because block IDs may differ from the source document.
 
 ## Shared URL and domain resolution
 
