@@ -10,7 +10,11 @@ import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelecti
 import './blockSelection.css'
 import {HMBlockSchema} from './schema'
 
-function computeSelected(editor: BlockNoteEditor<HMBlockSchema>, block: Block<HMBlockSchema>): boolean {
+/**
+ * Returns true when the current editor selection should show selected-block
+ * media chrome for the given block.
+ */
+export function computeSelected(editor: BlockNoteEditor<HMBlockSchema>, block: Block<HMBlockSchema>): boolean {
   const {view} = editor._tiptapEditor
   const {selection} = view.state
 
@@ -26,6 +30,8 @@ function computeSelected(editor: BlockNoteEditor<HMBlockSchema>, block: Block<HM
       if (node.attrs && node.attrs.id === block.id) return true
     }
   } else if (selection instanceof TextSelection) {
+    if (selection.empty) return false
+
     const {from, to} = selection
     let found = false
     view.state.doc.descendants((node: PMNode, pos: number) => {
