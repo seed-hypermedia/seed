@@ -38,15 +38,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@shm/ui/components/popover'
-import { HMIcon } from '@shm/ui/hm-icon'
-import { Back, Forward, UploadCloud } from '@shm/ui/icons'
-import { Spinner } from '@shm/ui/spinner'
-import { TitlebarSection } from '@shm/ui/titlebar'
-import { toast } from '@shm/ui/toast'
-import { Tooltip } from '@shm/ui/tooltip'
-import { cn } from '@shm/ui/utils'
-import { useQuery } from '@tanstack/react-query'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Back, Forward, UploadCloud} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
+import {TitlebarSection} from '@shm/ui/titlebar'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
+import {useQuery} from '@tanstack/react-query'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
@@ -63,13 +63,13 @@ import {
   User,
   UserCog,
 } from 'lucide-react'
-import { ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { BookmarkButton } from './bookmarking'
-import { CopyReferenceButton } from './copy-reference-button'
-import { dispatchOnboardingDialog } from './onboarding'
-import { usePublishSite } from './publish-site'
-import { SearchInput, SearchInputHandle } from './search-input'
-import { TitleBarProps } from './titlebar'
+import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
+import {BookmarkButton} from './bookmarking'
+import {CopyReferenceButton} from './copy-reference-button'
+import {dispatchOnboardingDialog} from './onboarding'
+import {usePublishSite} from './publish-site'
+import {SearchInput, SearchInputHandle} from './search-input'
+import {TitleBarProps} from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
 const DOC_OPTIONS_ROUTE_KEYS = [
@@ -95,12 +95,12 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
-function isDocOptionsRoute(route: NavRoute): route is NavRoute & { key: DocOptionsRouteKey; id: UnpackedHypermediaId } {
+function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
   return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
 }
 
 export function DocOptionsButton(_props: {
-  onPublishSite: (input: { id: UnpackedHypermediaId; step?: 'seed-host-custom-domain' }) => void
+  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
 }) {
   return null
 }
@@ -144,9 +144,9 @@ function NotificationButton() {
           isActive
             ? undefined
             : () => {
-              const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
-              navigate({ key: 'notifications', view })
-            }
+                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
+                navigate({key: 'notifications', view})
+              }
         }
       >
         <Bell className="size-4" />
@@ -164,12 +164,12 @@ export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
-  const { selectedIdentity, setSelectedIdentity } = useUniversalAppContext()
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
   const vaultStatus = useVaultStatus()
-  const { isPending: isForceVaultSyncPending, mutate: forceVaultSync } = useForceVaultSync()
+  const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -202,12 +202,12 @@ export function AccountProfileButton() {
   const vaultSyncLabel = isForceVaultSyncPending
     ? 'Checking remote vault…'
     : vaultStatus.data?.syncStatus?.lastSyncError
-      ? 'Remote vault sync needs attention'
-      : remoteVaultConnected
-        ? vaultStatus.data?.syncStatus?.lastSyncTime
-          ? `Remote vault synced ${formattedDate(vaultStatus.data.syncStatus.lastSyncTime, { onlyRelative: true })}`
-          : 'Remote vault connected'
-        : 'Vault stored locally'
+    ? 'Remote vault sync needs attention'
+    : remoteVaultConnected
+    ? vaultStatus.data?.syncStatus?.lastSyncTime
+      ? `Remote vault synced ${formattedDate(vaultStatus.data.syncStatus.lastSyncTime, {onlyRelative: true})}`
+      : 'Remote vault connected'
+    : 'Vault stored locally'
 
   return (
     <DropdownMenu
@@ -321,7 +321,7 @@ export function AccountProfileButton() {
         {accountUid && (
           <DropdownMenuItem
             onClick={() => {
-              navigate({ key: 'profile', id: hmId(accountUid) })
+              navigate({key: 'profile', id: hmId(accountUid)})
             }}
           >
             <User className="size-4" />
@@ -336,7 +336,7 @@ export function AccountProfileButton() {
           <Monitor className="size-4" />
           Site settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
+        <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
           <Settings className="size-4" />
           App settings
         </DropdownMenuItem>
@@ -361,8 +361,8 @@ export function PageActionButtons(props: TitleBarProps) {
   )
 }
 
-function DocumentTitlebarButtons({ route }: { route: DocumentRoute | FeedRoute }) {
-  const { id } = route
+function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
+  const {id} = route
 
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
@@ -374,7 +374,7 @@ function DocumentTitlebarButtons({ route }: { route: DocumentRoute | FeedRoute }
   return (
     <TitlebarSection>
       {showPublishSiteButton ? (
-        <Button variant="default" onClick={() => publishSite.open({ id })} size="sm">
+        <Button variant="default" onClick={() => publishSite.open({id})} size="sm">
           Publish to Web Domain
           <UploadCloud className="size-4" />
         </Button>
@@ -391,7 +391,7 @@ export function NavigationButtons() {
     <div className="no-window-drag flex">
       <Button
         size="icon"
-        onClick={() => dispatch({ type: 'pop' })}
+        onClick={() => dispatch({type: 'pop'})}
         variant="ghost"
         disabled={state.routeIndex <= 0}
         className="rounded-tl-0 rounded-bl-0"
@@ -401,7 +401,7 @@ export function NavigationButtons() {
 
       <Button
         size="icon"
-        onClick={() => dispatch({ type: 'forward' })}
+        onClick={() => dispatch({type: 'forward'})}
         disabled={state.routeIndex >= state.routes.length - 1}
         className="rounded-tr-0 rounded-br-0"
       >
@@ -411,7 +411,7 @@ export function NavigationButtons() {
   )
 }
 
-export function NavMenuButton({ left }: { left?: ReactNode }) {
+export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
   const isHoverVisible = useStream(ctx?.isHoverVisible)
@@ -702,7 +702,17 @@ function useCurrentRouteUrl(): {
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, validatedSiteUrl, gwUrl, draftTitle, draft, isLocationOnlyDraft, hasPublishedResource, agentSession.data])
+  }, [
+    routeId,
+    route,
+    validatedSiteUrl,
+    gwUrl,
+    draftTitle,
+    draft,
+    isLocationOnlyDraft,
+    hasPublishedResource,
+    agentSession.data,
+  ])
 }
 
 /**
@@ -824,7 +834,7 @@ function useOmnibarState(currentUrl: string | null) {
 export function Omnibar() {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const { displayUrl, copyableUrl } = useCurrentRouteUrl()
+  const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const publishSite = usePublishSite()
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
@@ -837,7 +847,7 @@ export function Omnibar() {
 
   // Pass null to the omnibar state when the URL isn't shareable so the focused
   // input doesn't prefill with it.
-  const { mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange } = useOmnibarState(
+  const {mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange} = useOmnibarState(
     isUnsharable ? null : copyableUrl,
   )
 
@@ -858,7 +868,7 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url, { domainResolver })
+      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
       if (route) {
         navigate(route)
         return true
@@ -963,13 +973,13 @@ export function Omnibar() {
               // Drafts that haven't been published yet have no shareable URL
               isUnsharable && 'select-none',
             )}
-            style={isUnsharable ? { userSelect: 'none', WebkitUserSelect: 'none' } : undefined}
+            style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
             onCopy={
               isUnsharable
                 ? (e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                }
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }
                 : undefined
             }
           >
@@ -1066,7 +1076,7 @@ export function Omnibar() {
             onExternalSearchChange={handleInputChange}
             hideInput={true}
             onLoadingChange={setIsSearchLoading}
-            onSelect={({ id, route: selectedRoute }) => {
+            onSelect={({id, route: selectedRoute}) => {
               if (selectedRoute) {
                 navigate(selectedRoute)
               } else if (id) {

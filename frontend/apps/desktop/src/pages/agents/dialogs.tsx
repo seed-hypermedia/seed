@@ -56,7 +56,10 @@ export function ModelProvidersDialog({
       </div>
       <div className="grid gap-3">
         {providers.data?.map((provider) => (
-          <div key={provider.id} className="border-border flex items-center justify-between gap-3 rounded-lg border p-3">
+          <div
+            key={provider.id}
+            className="border-border flex items-center justify-between gap-3 rounded-lg border p-3"
+          >
             <div>
               <SizableText weight="bold">{provider.name}</SizableText>
               <SizableText size="sm" color="muted">

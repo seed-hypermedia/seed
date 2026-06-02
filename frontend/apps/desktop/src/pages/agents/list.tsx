@@ -168,7 +168,9 @@ function AgentsListPage() {
               {agentError instanceof Error ? agentError.message : 'Could not load agents'}
             </SizableText>
           ) : null}
-          {selectedAccountId && !isLoadingAgents && !agents.length ? <SizableText color="muted">No agents yet.</SizableText> : null}
+          {selectedAccountId && !isLoadingAgents && !agents.length ? (
+            <SizableText color="muted">No agents yet.</SizableText>
+          ) : null}
           <div className="flex flex-col gap-2">
             {agents.map((agent) => {
               const statusIndicator = getAgentStatusIndicator(agent.status)

@@ -680,7 +680,7 @@ function AgentRichMessageComposer({
 
   return (
     <div className="border-border flex items-end gap-2 border-t px-3 py-2">
-      <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:!text-sm [&_.ProseMirror]:font-sans [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:!text-sm [&_.comment-editor]:font-sans [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
+      <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans [&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans [&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
         <CommentEditor
           focusOnMount
           hideAvatar
