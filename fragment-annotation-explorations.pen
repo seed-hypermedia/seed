@@ -1,0 +1,1976 @@
+{
+  "version": "2.10",
+  "children": [
+    {
+      "type": "frame",
+      "id": "azNdzR",
+      "x": 0,
+      "y": 0,
+      "name": "Fragment Annotation Explorations",
+      "width": 1640,
+      "height": 1320,
+      "fill": "$bg",
+      "clip": false,
+      "children": [
+        {
+          "type": "text",
+          "id": "txSPBa",
+          "name": "title",
+          "fill": "$fg-primary",
+          "content": "Fragment annotation rendering explorations",
+          "fontFamily": "Inter",
+          "fontSize": 34,
+          "fontWeight": "800",
+          "textGrowth": "fixed-width",
+          "width": 760,
+          "layoutPosition": "absolute",
+          "x": 64,
+          "y": 48
+        },
+        {
+          "type": "text",
+          "id": "tSCI0Z",
+          "name": "subtitle",
+          "fill": "$fg-secondary",
+          "content": "Four compact patterns for showing only the selected text while making provenance and hidden paragraph context obvious.",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "normal",
+          "textGrowth": "fixed-width",
+          "width": 860,
+          "lineHeight": 22,
+          "layoutPosition": "absolute",
+          "x": 64,
+          "y": 94
+        },
+        {
+          "type": "frame",
+          "id": "fpv2KA",
+          "name": "baseline label",
+          "width": 200,
+          "height": 30,
+          "clip": false,
+          "fill": "$quote-soft",
+          "cornerRadius": 999,
+          "children": [
+            {
+              "type": "text",
+              "id": "tmKmC3",
+              "name": "baseline label text",
+              "fill": "$quote-rail",
+              "content": "Same quote, same composer",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "800",
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 8
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 64,
+          "y": 148
+        },
+        {
+          "type": "frame",
+          "id": "f1PCDL",
+          "name": "A. Quote chip",
+          "width": 360,
+          "height": 780,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "f32vNR",
+              "name": "variant rail",
+              "width": 5,
+              "height": 64,
+              "clip": false,
+              "fill": "$quote-rail",
+              "cornerRadius": 8,
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tNTibi",
+              "name": "variant title",
+              "fill": "$fg-primary",
+              "content": "A. Quote chip",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "t93eFi",
+              "name": "variant subtitle",
+              "fill": "$fg-muted",
+              "content": "Most compact: fragment-only with ellipses and an explicit context action.",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "lineHeight": 17,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 28
+            },
+            {
+              "type": "frame",
+              "id": "fXHN5y",
+              "name": "source chip",
+              "width": 320,
+              "height": 48,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 12,
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "iwWGeQ",
+                  "name": "file icon",
+                  "width": 17,
+                  "height": 17,
+                  "iconFontName": "file-text",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg-secondary",
+                  "layoutPosition": "absolute",
+                  "x": 14,
+                  "y": 15
+                },
+                {
+                  "type": "text",
+                  "id": "tC2JtD",
+                  "name": "source title",
+                  "fill": "$fg-primary",
+                  "content": "Design notes",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "700",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 10
+                },
+                {
+                  "type": "text",
+                  "id": "t1fuPA",
+                  "name": "source meta",
+                  "fill": "$fg-muted",
+                  "content": "Paragraph fragment \u00b7 block #intro",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 27
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 92
+            },
+            {
+              "type": "frame",
+              "id": "fHNRyc",
+              "name": "quote preview",
+              "width": 320,
+              "height": 190,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 18,
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "i5jael",
+                  "name": "quote icon",
+                  "width": 18,
+                  "height": 18,
+                  "iconFontName": "quote",
+                  "iconFontFamily": "lucide",
+                  "fill": "$quote-rail",
+                  "layoutPosition": "absolute",
+                  "x": 24,
+                  "y": 26
+                },
+                {
+                  "type": "frame",
+                  "id": "fOC6Y0",
+                  "name": "fragment chip",
+                  "width": 218,
+                  "height": 66,
+                  "clip": false,
+                  "fill": "$quote-soft",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$quote-mark"
+                  },
+                  "cornerRadius": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tTCl69",
+                      "name": "chip fragment",
+                      "fill": "$fg-primary",
+                      "content": "\u2026 highlights only the selected phrase \u2026",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "800",
+                      "textGrowth": "fixed-width",
+                      "width": 190,
+                      "lineHeight": 20,
+                      "layoutPosition": "absolute",
+                      "x": 14,
+                      "y": 15
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 24
+                },
+                {
+                  "type": "frame",
+                  "id": "fqMcnQ",
+                  "name": "context action",
+                  "width": 150,
+                  "height": 28,
+                  "clip": false,
+                  "fill": "$panel",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$border-soft"
+                  },
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tnQT6T",
+                      "name": "context action label",
+                      "fill": "$quote-rail",
+                      "content": "View full paragraph",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "800",
+                      "layoutPosition": "absolute",
+                      "x": 16,
+                      "y": 8
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 108
+                },
+                {
+                  "type": "text",
+                  "id": "txq4bD",
+                  "name": "provenance",
+                  "fill": "$fg-muted",
+                  "content": "Quoted from paragraph text",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 190,
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 150
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 170
+            },
+            {
+              "type": "frame",
+              "id": "fyB1cK",
+              "name": "comment composer",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "f6BUiN",
+                  "name": "avatar",
+                  "width": 26,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "iADDkq",
+                      "name": "user icon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "user",
+                      "iconFontFamily": "lucide",
+                      "fill": "$ink-inverse",
+                      "layoutPosition": "absolute",
+                      "x": 6,
+                      "y": 6
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 16
+                },
+                {
+                  "type": "text",
+                  "id": "thDsWc",
+                  "name": "composer placeholder",
+                  "fill": "$fg-muted",
+                  "content": "Comment on this fragment\u2026",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 242,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "fwgrKB",
+                  "name": "input hairline",
+                  "width": 242,
+                  "height": 1,
+                  "clip": false,
+                  "fill": "$border-soft",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 52
+                },
+                {
+                  "type": "frame",
+                  "id": "f1NuVI",
+                  "name": "comment button",
+                  "width": 82,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tKCnxZ",
+                      "name": "comment label",
+                      "fill": "$ink-inverse",
+                      "content": "Comment",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "layoutPosition": "absolute",
+                      "x": 17,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 216,
+                  "y": 76
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 388
+            },
+            {
+              "type": "frame",
+              "id": "fmsrKB",
+              "name": "evaluation notes",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tyB3EO",
+                  "name": "notes title",
+                  "fill": "$fg-primary",
+                  "content": "Why it works",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "800",
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 14
+                },
+                {
+                  "type": "text",
+                  "id": "tvYGqw",
+                  "name": "notes text",
+                  "fill": "$fg-secondary",
+                  "content": "Space saving: 5/5\nClarity: 4/5\nBest when the selected phrase is self-contained. Needs an obvious expand action.",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 288,
+                  "lineHeight": 16,
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 36
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 604
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 64,
+          "y": 212
+        },
+        {
+          "type": "frame",
+          "id": "fjxJVq",
+          "name": "B. Cropped window",
+          "width": 360,
+          "height": 780,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "fIkEir",
+              "name": "variant rail",
+              "width": 5,
+              "height": 64,
+              "clip": false,
+              "fill": "$blue-rail",
+              "cornerRadius": 8,
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tZvSdU",
+              "name": "variant title",
+              "fill": "$fg-primary",
+              "content": "B. Cropped window",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tCV83c",
+              "name": "variant subtitle",
+              "fill": "$fg-muted",
+              "content": "A one-block viewport: small before/after context plus inline highlight.",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "lineHeight": 17,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 28
+            },
+            {
+              "type": "frame",
+              "id": "fFXlRA",
+              "name": "source chip",
+              "width": 320,
+              "height": 48,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 12,
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "ilsnM4",
+                  "name": "file icon",
+                  "width": 17,
+                  "height": 17,
+                  "iconFontName": "file-text",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg-secondary",
+                  "layoutPosition": "absolute",
+                  "x": 14,
+                  "y": 15
+                },
+                {
+                  "type": "text",
+                  "id": "tUWA9i",
+                  "name": "source title",
+                  "fill": "$fg-primary",
+                  "content": "Design notes",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "700",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 10
+                },
+                {
+                  "type": "text",
+                  "id": "tlcASl",
+                  "name": "source meta",
+                  "fill": "$fg-muted",
+                  "content": "Paragraph fragment \u00b7 block #intro",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 27
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 92
+            },
+            {
+              "type": "frame",
+              "id": "fBZHHz",
+              "name": "quote preview",
+              "width": 320,
+              "height": 190,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 18,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fUKzQG",
+                  "name": "left quote rail",
+                  "width": 4,
+                  "height": 122,
+                  "clip": false,
+                  "fill": "$blue-rail",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 22,
+                  "y": 26
+                },
+                {
+                  "type": "text",
+                  "id": "tmHwfc",
+                  "name": "context before",
+                  "fill": "$fg-muted",
+                  "content": "\u2026 entire paragraph and",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 218,
+                  "layoutPosition": "absolute",
+                  "x": 44,
+                  "y": 26
+                },
+                {
+                  "type": "frame",
+                  "id": "fR7WJV",
+                  "name": "selection band",
+                  "width": 228,
+                  "height": 36,
+                  "clip": false,
+                  "fill": "$quote-soft",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$quote-mark"
+                  },
+                  "cornerRadius": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tnW7Pd",
+                      "name": "selected text",
+                      "fill": "$fg-primary",
+                      "content": "highlights only the selected phrase",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "800",
+                      "textGrowth": "fixed-width",
+                      "width": 204,
+                      "layoutPosition": "absolute",
+                      "x": 12,
+                      "y": 10
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 44,
+                  "y": 56
+                },
+                {
+                  "type": "text",
+                  "id": "tgalUS",
+                  "name": "context after",
+                  "fill": "$fg-secondary",
+                  "content": "which is clear, but creates vertical noise \u2026",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 218,
+                  "lineHeight": 17,
+                  "layoutPosition": "absolute",
+                  "x": 44,
+                  "y": 108
+                },
+                {
+                  "type": "frame",
+                  "id": "ffilYb",
+                  "name": "small badge",
+                  "width": 132,
+                  "height": 24,
+                  "clip": false,
+                  "fill": "$blue-soft",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tDP10I",
+                      "name": "badge text",
+                      "fill": "$blue-rail",
+                      "content": "Cropped context",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "800",
+                      "layoutPosition": "absolute",
+                      "x": 14,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 44,
+                  "y": 146
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 170
+            },
+            {
+              "type": "frame",
+              "id": "f1Ri1i",
+              "name": "comment composer",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fblgU7",
+                  "name": "avatar",
+                  "width": 26,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "ikqM2I",
+                      "name": "user icon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "user",
+                      "iconFontFamily": "lucide",
+                      "fill": "$ink-inverse",
+                      "layoutPosition": "absolute",
+                      "x": 6,
+                      "y": 6
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 16
+                },
+                {
+                  "type": "text",
+                  "id": "tmDEwc",
+                  "name": "composer placeholder",
+                  "fill": "$fg-muted",
+                  "content": "Comment on this fragment\u2026",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 242,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "fMgZNh",
+                  "name": "input hairline",
+                  "width": 242,
+                  "height": 1,
+                  "clip": false,
+                  "fill": "$border-soft",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 52
+                },
+                {
+                  "type": "frame",
+                  "id": "fIdfgZ",
+                  "name": "comment button",
+                  "width": 82,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "thnyNc",
+                      "name": "comment label",
+                      "fill": "$ink-inverse",
+                      "content": "Comment",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "layoutPosition": "absolute",
+                      "x": 17,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 216,
+                  "y": 76
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 388
+            },
+            {
+              "type": "frame",
+              "id": "fYhbXW",
+              "name": "evaluation notes",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "t7xhgE",
+                  "name": "notes title",
+                  "fill": "$fg-primary",
+                  "content": "Why it works",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "800",
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 14
+                },
+                {
+                  "type": "text",
+                  "id": "tvcLsI",
+                  "name": "notes text",
+                  "fill": "$fg-secondary",
+                  "content": "Space saving: 4/5\nClarity: 5/5\nBest default candidate because it keeps the current mental model but trims height.",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 288,
+                  "lineHeight": 16,
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 36
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 604
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 448,
+          "y": 212
+        },
+        {
+          "type": "frame",
+          "id": "fQmOlL",
+          "name": "C. Annotation card",
+          "width": 360,
+          "height": 780,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "fA7GB2",
+              "name": "variant rail",
+              "width": 5,
+              "height": 64,
+              "clip": false,
+              "fill": "$green-rail",
+              "cornerRadius": 8,
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tT5TTQ",
+              "name": "variant title",
+              "fill": "$fg-primary",
+              "content": "C. Annotation card",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tOPtTo",
+              "name": "variant subtitle",
+              "fill": "$fg-muted",
+              "content": "Promotes the selected fragment into a readable card with source metadata.",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "lineHeight": 17,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 28
+            },
+            {
+              "type": "frame",
+              "id": "fBpfnP",
+              "name": "source chip",
+              "width": 320,
+              "height": 48,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 12,
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "iDMuOv",
+                  "name": "file icon",
+                  "width": 17,
+                  "height": 17,
+                  "iconFontName": "file-text",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg-secondary",
+                  "layoutPosition": "absolute",
+                  "x": 14,
+                  "y": 15
+                },
+                {
+                  "type": "text",
+                  "id": "tnBhi5",
+                  "name": "source title",
+                  "fill": "$fg-primary",
+                  "content": "Design notes",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "700",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 10
+                },
+                {
+                  "type": "text",
+                  "id": "tTb0wg",
+                  "name": "source meta",
+                  "fill": "$fg-muted",
+                  "content": "Paragraph fragment \u00b7 block #intro",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 27
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 92
+            },
+            {
+              "type": "frame",
+              "id": "fd6hMA",
+              "name": "quote preview",
+              "width": 320,
+              "height": 190,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 18,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fwYujZ",
+                  "name": "top accent",
+                  "width": 320,
+                  "height": 5,
+                  "clip": false,
+                  "fill": "$green-rail",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "type": "text",
+                  "id": "t0oMlc",
+                  "name": "opening quote",
+                  "fill": "$green-rail",
+                  "content": "\u201c",
+                  "fontFamily": "Inter",
+                  "fontSize": 36,
+                  "fontWeight": "800",
+                  "layoutPosition": "absolute",
+                  "x": 22,
+                  "y": 24
+                },
+                {
+                  "type": "text",
+                  "id": "t4xr4i",
+                  "name": "fragment as body",
+                  "fill": "$fg-primary",
+                  "content": "highlights only the selected phrase",
+                  "fontFamily": "Inter",
+                  "fontSize": 19,
+                  "fontWeight": "800",
+                  "textGrowth": "fixed-width",
+                  "width": 214,
+                  "lineHeight": 25,
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 34
+                },
+                {
+                  "type": "text",
+                  "id": "tHwcUL",
+                  "name": "source caption",
+                  "fill": "$fg-secondary",
+                  "content": "Commenting on a paragraph fragment",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700",
+                  "textGrowth": "fixed-width",
+                  "width": 210,
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 106
+                },
+                {
+                  "type": "frame",
+                  "id": "fQOaOO",
+                  "name": "show context",
+                  "width": 108,
+                  "height": 28,
+                  "clip": false,
+                  "fill": "$green-soft",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "t2Dthw",
+                      "name": "show context label",
+                      "fill": "$green-rail",
+                      "content": "Show context",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "800",
+                      "layoutPosition": "absolute",
+                      "x": 15,
+                      "y": 8
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 136
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 170
+            },
+            {
+              "type": "frame",
+              "id": "feDydF",
+              "name": "comment composer",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fPOTqm",
+                  "name": "avatar",
+                  "width": 26,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "iVQJcZ",
+                      "name": "user icon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "user",
+                      "iconFontFamily": "lucide",
+                      "fill": "$ink-inverse",
+                      "layoutPosition": "absolute",
+                      "x": 6,
+                      "y": 6
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 16
+                },
+                {
+                  "type": "text",
+                  "id": "tPVXZ6",
+                  "name": "composer placeholder",
+                  "fill": "$fg-muted",
+                  "content": "Comment on this fragment\u2026",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 242,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "foKoop",
+                  "name": "input hairline",
+                  "width": 242,
+                  "height": 1,
+                  "clip": false,
+                  "fill": "$border-soft",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 52
+                },
+                {
+                  "type": "frame",
+                  "id": "fB92BD",
+                  "name": "comment button",
+                  "width": 82,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tFz9cZ",
+                      "name": "comment label",
+                      "fill": "$ink-inverse",
+                      "content": "Comment",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "layoutPosition": "absolute",
+                      "x": 17,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 216,
+                  "y": 76
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 388
+            },
+            {
+              "type": "frame",
+              "id": "fsZBt5",
+              "name": "evaluation notes",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tbaf3W",
+                  "name": "notes title",
+                  "fill": "$fg-primary",
+                  "content": "Why it works",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "800",
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 14
+                },
+                {
+                  "type": "text",
+                  "id": "trKK6c",
+                  "name": "notes text",
+                  "fill": "$fg-secondary",
+                  "content": "Space saving: 4/5\nClarity: 4/5\nGood for focused comment views. Risks feeling like standalone text if metadata is subtle.",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 288,
+                  "lineHeight": 16,
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 36
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 604
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 832,
+          "y": 212
+        },
+        {
+          "type": "frame",
+          "id": "fN5TnA",
+          "name": "D. Provenance ribbon",
+          "width": 360,
+          "height": 780,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "frame",
+              "id": "fgt0iy",
+              "name": "variant rail",
+              "width": 5,
+              "height": 64,
+              "clip": false,
+              "fill": "$quote-rail",
+              "cornerRadius": 8,
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tVUxhj",
+              "name": "variant title",
+              "fill": "$fg-primary",
+              "content": "D. Provenance ribbon",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 0
+            },
+            {
+              "type": "text",
+              "id": "tvgJj9",
+              "name": "variant subtitle",
+              "fill": "$fg-muted",
+              "content": "A visible anchor rail connects the quote fragment to the composer/thread.",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 284,
+              "lineHeight": 17,
+              "layoutPosition": "absolute",
+              "x": 18,
+              "y": 28
+            },
+            {
+              "type": "frame",
+              "id": "f9NOtg",
+              "name": "source chip",
+              "width": 320,
+              "height": 48,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 12,
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "il643M",
+                  "name": "file icon",
+                  "width": 17,
+                  "height": 17,
+                  "iconFontName": "file-text",
+                  "iconFontFamily": "lucide",
+                  "fill": "$fg-secondary",
+                  "layoutPosition": "absolute",
+                  "x": 14,
+                  "y": 15
+                },
+                {
+                  "type": "text",
+                  "id": "tHZFEg",
+                  "name": "source title",
+                  "fill": "$fg-primary",
+                  "content": "Design notes",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "700",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 10
+                },
+                {
+                  "type": "text",
+                  "id": "t8rw3t",
+                  "name": "source meta",
+                  "fill": "$fg-muted",
+                  "content": "Paragraph fragment \u00b7 block #intro",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal",
+                  "layoutPosition": "absolute",
+                  "x": 42,
+                  "y": 27
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 92
+            },
+            {
+              "type": "frame",
+              "id": "fvoRMl",
+              "name": "quote preview",
+              "width": 320,
+              "height": 190,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 18,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "f4p5Ng",
+                  "name": "thread line top",
+                  "width": 2,
+                  "height": 150,
+                  "clip": false,
+                  "fill": "$border",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 32,
+                  "y": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "fgGJTW",
+                  "name": "anchor dot",
+                  "width": 18,
+                  "height": 18,
+                  "clip": false,
+                  "fill": "$quote-rail",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 24,
+                  "y": 22
+                },
+                {
+                  "type": "frame",
+                  "id": "fNOAHa",
+                  "name": "quote ribbon",
+                  "width": 222,
+                  "height": 88,
+                  "clip": false,
+                  "fill": "$quote-soft",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$quote-mark"
+                  },
+                  "cornerRadius": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tcYJdV",
+                      "name": "quote mark",
+                      "fill": "$quote-rail",
+                      "content": "\u201c",
+                      "fontFamily": "Inter",
+                      "fontSize": 24,
+                      "fontWeight": "800",
+                      "layoutPosition": "absolute",
+                      "x": 16,
+                      "y": 8
+                    },
+                    {
+                      "type": "text",
+                      "id": "t30inZ",
+                      "name": "ribbon fragment",
+                      "fill": "$fg-primary",
+                      "content": "highlights only the selected phrase",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "800",
+                      "textGrowth": "fixed-width",
+                      "width": 156,
+                      "lineHeight": 20,
+                      "layoutPosition": "absolute",
+                      "x": 42,
+                      "y": 22
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 22
+                },
+                {
+                  "type": "text",
+                  "id": "thGaUa",
+                  "name": "anchor label",
+                  "fill": "$fg-secondary",
+                  "content": "Anchored to paragraph \u00b7 Expand",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "700",
+                  "textGrowth": "fixed-width",
+                  "width": 210,
+                  "layoutPosition": "absolute",
+                  "x": 58,
+                  "y": 130
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 170
+            },
+            {
+              "type": "frame",
+              "id": "fowwQW",
+              "name": "comment composer",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fwL8WR",
+                  "name": "avatar",
+                  "width": 26,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 999,
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "irivQh",
+                      "name": "user icon",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "user",
+                      "iconFontFamily": "lucide",
+                      "fill": "$ink-inverse",
+                      "layoutPosition": "absolute",
+                      "x": 6,
+                      "y": 6
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 16
+                },
+                {
+                  "type": "text",
+                  "id": "tPGDTd",
+                  "name": "composer placeholder",
+                  "fill": "$fg-muted",
+                  "content": "Comment on this fragment\u2026",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 242,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 18
+                },
+                {
+                  "type": "frame",
+                  "id": "fLBdtQ",
+                  "name": "input hairline",
+                  "width": 242,
+                  "height": 1,
+                  "clip": false,
+                  "fill": "$border-soft",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 54,
+                  "y": 52
+                },
+                {
+                  "type": "frame",
+                  "id": "fGWNct",
+                  "name": "comment button",
+                  "width": 82,
+                  "height": 26,
+                  "clip": false,
+                  "fill": "$button",
+                  "cornerRadius": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "t0BNgj",
+                      "name": "comment label",
+                      "fill": "$ink-inverse",
+                      "content": "Comment",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "layoutPosition": "absolute",
+                      "x": 17,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 216,
+                  "y": 76
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 388
+            },
+            {
+              "type": "frame",
+              "id": "ffkbjG",
+              "name": "evaluation notes",
+              "width": 320,
+              "height": 116,
+              "clip": false,
+              "fill": "$muted-surface",
+              "cornerRadius": 14,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "tEO7Qp",
+                  "name": "notes title",
+                  "fill": "$fg-primary",
+                  "content": "Why it works",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "800",
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 14
+                },
+                {
+                  "type": "text",
+                  "id": "tvJH0L",
+                  "name": "notes text",
+                  "fill": "$fg-secondary",
+                  "content": "Space saving: 3/5\nClarity: 5/5\nGood when anchoring matters. Strong relationship between quoted fragment and reply box.",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 288,
+                  "lineHeight": 16,
+                  "layoutPosition": "absolute",
+                  "x": 16,
+                  "y": 36
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 604
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 1216,
+          "y": 212
+        },
+        {
+          "type": "frame",
+          "id": "fj20Rt",
+          "name": "baseline mini",
+          "width": 704,
+          "height": 240,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "tm2aPq",
+              "name": "baseline title",
+              "fill": "$fg-primary",
+              "content": "Current baseline / expanded state",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "layoutPosition": "absolute",
+              "x": 24,
+              "y": 22
+            },
+            {
+              "type": "text",
+              "id": "tjwIN8",
+              "name": "baseline desc",
+              "fill": "$fg-muted",
+              "content": "Keep this full-paragraph treatment as the expanded fallback, not the collapsed default.",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 460,
+              "layoutPosition": "absolute",
+              "x": 24,
+              "y": 50
+            },
+            {
+              "type": "frame",
+              "id": "fzPPNC",
+              "name": "baseline quote preview",
+              "width": 320,
+              "height": 128,
+              "clip": false,
+              "fill": "$panel",
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$border-soft"
+              },
+              "cornerRadius": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fuskgh",
+                  "name": "left quote rail",
+                  "width": 4,
+                  "height": 140,
+                  "clip": false,
+                  "fill": "$quote-rail",
+                  "cornerRadius": 999,
+                  "layoutPosition": "absolute",
+                  "x": 20,
+                  "y": 22
+                },
+                {
+                  "type": "icon_font",
+                  "id": "iG5EEK",
+                  "name": "quote icon",
+                  "width": 18,
+                  "height": 18,
+                  "iconFontName": "quote",
+                  "iconFontFamily": "lucide",
+                  "fill": "$quote-rail",
+                  "layoutPosition": "absolute",
+                  "x": 36,
+                  "y": 22
+                },
+                {
+                  "type": "text",
+                  "id": "tbjHyB",
+                  "name": "paragraph before",
+                  "fill": "$fg-secondary",
+                  "content": "The current implementation renders the entire paragraph and",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 218,
+                  "lineHeight": 18,
+                  "layoutPosition": "absolute",
+                  "x": 64,
+                  "y": 22
+                },
+                {
+                  "type": "frame",
+                  "id": "f4oxRL",
+                  "name": "selected highlight",
+                  "width": 205,
+                  "height": 27,
+                  "clip": false,
+                  "fill": "$quote-soft",
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$quote-mark"
+                  },
+                  "cornerRadius": 8,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tngJXY",
+                      "name": "selected text",
+                      "fill": "$fg-primary",
+                      "content": "highlights only the selected phrase",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "700",
+                      "textGrowth": "fixed-width",
+                      "width": 186,
+                      "layoutPosition": "absolute",
+                      "x": 10,
+                      "y": 7
+                    }
+                  ],
+                  "layoutPosition": "absolute",
+                  "x": 64,
+                  "y": 70
+                },
+                {
+                  "type": "text",
+                  "id": "t2AK5s",
+                  "name": "paragraph after",
+                  "fill": "$fg-secondary",
+                  "content": "which is clear, but it creates a lot of vertical noise in narrow discussion panels.",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "textGrowth": "fixed-width",
+                  "width": 218,
+                  "lineHeight": 18,
+                  "layoutPosition": "absolute",
+                  "x": 64,
+                  "y": 112
+                }
+              ],
+              "layoutPosition": "absolute",
+              "x": 24,
+              "y": 88
+            },
+            {
+              "type": "text",
+              "id": "tJYH2Y",
+              "name": "baseline notes",
+              "fill": "$fg-secondary",
+              "content": "Recommendation: implement B as the default compact preview, then allow expanding into this full paragraph rendering when users need more context.",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "700",
+              "textGrowth": "fixed-width",
+              "width": 270,
+              "lineHeight": 21,
+              "layoutPosition": "absolute",
+              "x": 382,
+              "y": 96
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 64,
+          "y": 1030
+        },
+        {
+          "type": "frame",
+          "id": "fQy2GN",
+          "name": "recommendation",
+          "width": 752,
+          "height": 240,
+          "clip": false,
+          "fill": "$card",
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$border"
+          },
+          "cornerRadius": 22,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#00000014",
+            "offset": {
+              "x": 0,
+              "y": 10
+            },
+            "blur": 30
+          },
+          "children": [
+            {
+              "type": "text",
+              "id": "tYUof0",
+              "name": "recommendation title",
+              "fill": "$fg-primary",
+              "content": "Recommendation",
+              "fontFamily": "Inter",
+              "fontSize": 18,
+              "fontWeight": "800",
+              "layoutPosition": "absolute",
+              "x": 24,
+              "y": 22
+            },
+            {
+              "type": "text",
+              "id": "tA6KGz",
+              "name": "recommendation body",
+              "fill": "$fg-secondary",
+              "content": "Default to B. Cropped window. It preserves the current \u201cthis is text inside a paragraph\u201d model, but reduces the quoted area to a compact viewport. Add a \u201cShow full paragraph\u201d control that swaps to the existing full Viewer rendering. Use A. Quote chip as an extra-compact option in embeds or dense lists.",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal",
+              "textGrowth": "fixed-width",
+              "width": 688,
+              "lineHeight": 22,
+              "layoutPosition": "absolute",
+              "x": 24,
+              "y": 58
+            }
+          ],
+          "layoutPosition": "absolute",
+          "x": 824,
+          "y": 1030
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "bg": {
+      "type": "color",
+      "value": "#f6f1e8"
+    },
+    "card": {
+      "type": "color",
+      "value": "#fffdf8"
+    },
+    "panel": {
+      "type": "color",
+      "value": "#ffffff"
+    },
+    "fg-primary": {
+      "type": "color",
+      "value": "#211f1b"
+    },
+    "fg-secondary": {
+      "type": "color",
+      "value": "#625d52"
+    },
+    "fg-muted": {
+      "type": "color",
+      "value": "#8b8476"
+    },
+    "border": {
+      "type": "color",
+      "value": "#ddd5c7"
+    },
+    "border-soft": {
+      "type": "color",
+      "value": "#eee6d8"
+    },
+    "quote-rail": {
+      "type": "color",
+      "value": "#b86b2b"
+    },
+    "quote-soft": {
+      "type": "color",
+      "value": "#fff4d7"
+    },
+    "quote-mark": {
+      "type": "color",
+      "value": "#f6d784"
+    },
+    "blue-rail": {
+      "type": "color",
+      "value": "#3b6f8f"
+    },
+    "blue-soft": {
+      "type": "color",
+      "value": "#eaf4f8"
+    },
+    "green-rail": {
+      "type": "color",
+      "value": "#487a52"
+    },
+    "green-soft": {
+      "type": "color",
+      "value": "#edf7ee"
+    },
+    "ink-inverse": {
+      "type": "color",
+      "value": "#fffdf8"
+    },
+    "button": {
+      "type": "color",
+      "value": "#211f1b"
+    },
+    "muted-surface": {
+      "type": "color",
+      "value": "#f7f2e9"
+    },
+    "rounded-sm": {
+      "type": "number",
+      "value": 6
+    },
+    "rounded-md": {
+      "type": "number",
+      "value": 10
+    },
+    "rounded-lg": {
+      "type": "number",
+      "value": 14
+    },
+    "rounded-xl": {
+      "type": "number",
+      "value": 18
+    }
+  },
+  "imports": []
+}
