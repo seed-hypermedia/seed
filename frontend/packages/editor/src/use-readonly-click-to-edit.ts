@@ -67,6 +67,8 @@ export function useReadOnlyClickToEdit({
 
       if (target.closest?.('.link, a[href]')) return
 
+      if (target.closest?.('[data-citation-fragment="true"]')) return
+
       const hadSelection = mousedownHadSelectionRef.current
       mousedownHadSelectionRef.current = false
       if (hadSelection) {
