@@ -1,0 +1,23 @@
+.bn-citation-fragment-highlight {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--muted-foreground) / 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.bn-citation-fragment-overlap-1 {
+  background-color: hsl(var(--warning, 45 100% 65%) / 0.28);
+}
+
+.bn-citation-fragment-overlap-2 {
+  background-color: hsl(var(--warning, 45 100% 60%) / 0.42);
+}
+
+.bn-citation-fragment-overlap-3 {
+  background-color: hsl(var(--warning, 45 100% 55%) / 0.56);
+}
+
+.bn-citation-fragment-overlap-4 {
+  background-color: hsl(var(--warning, 45 100% 50%) / 0.7);
+}

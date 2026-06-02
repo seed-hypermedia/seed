@@ -33,6 +33,10 @@ import {
   type FormattingToolbarProps,
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
+import {
+  citationFragmentHighlightPluginKey,
+  createCitationFragmentHighlightPlugin,
+} from './blocknote/core/extensions/CitationFragmentHighlight/CitationFragmentHighlightPlugin'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
 import {useDraftActions} from './draft-actions-context'
@@ -71,6 +75,8 @@ export function DocumentEditor({
   resourceId,
   focusBlockId,
   focusBlockRange,
+  citationFragmentHighlights,
+  onCitationFragmentClick,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -108,6 +114,8 @@ export function DocumentEditor({
 
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
+  const citationFragmentClickRef = useRef(onCitationFragmentClick)
+  citationFragmentClickRef.current = onCitationFragmentClick
 
   // Stores the ProseMirror position of the pending click so that when the
   // machine transitions to editing we can place the cursor there.
@@ -206,6 +214,12 @@ export function DocumentEditor({
             name: 'hypermedia-link',
             addProseMirrorPlugins() {
               return [createHypermediaDocLinkPlugin({domainResolver: linkExtensionOptions?.domainResolver}).plugin]
+            },
+          }),
+          Extension.create({
+            name: 'citation-fragment-highlight',
+            addProseMirrorPlugins() {
+              return [createCitationFragmentHighlightPlugin(citationFragmentClickRef)]
             },
           }),
           Extension.create({
@@ -578,6 +592,20 @@ export function DocumentEditor({
       view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
     }
   }, [editor, focusBlockId, rangeStart, rangeEnd])
+
+  useEffect(() => {
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    const tr = view.state.tr
+      .setMeta(citationFragmentHighlightPluginKey, {
+        type: citationFragmentHighlights?.length ? 'set' : 'clear',
+        citations: citationFragmentHighlights ?? [],
+      })
+      .setMeta('addToHistory', false)
+
+    view.dispatch(tr)
+  }, [editor, citationFragmentHighlights])
 
   // Attach DOM click listener for click-to-edit. Using a DOM listener (rather
   // than a ProseMirror plugin) gives us reliable access to the raw event target

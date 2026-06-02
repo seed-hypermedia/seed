@@ -4,8 +4,10 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
+  HMRawMention,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {useQuery} from '@tanstack/react-query'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -28,6 +30,8 @@ import {
 import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {
   BlockRangeSelectOptions,
+  CitationFragmentClick,
+  CitationFragmentHighlight,
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
@@ -35,6 +39,7 @@ import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from 
 import {
   useAccount,
   useAccountsMetadata,
+  useCitations,
   useDirectory,
   useIsLatest,
   useResource,
@@ -73,9 +78,10 @@ import {
   getCommentTargetId,
   hmIdToURL,
   parseFragment,
+  routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {FilePen, Layers, Link2, Search} from 'lucide-react'
+import {FilePen, Layers, Link2, Quote, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
@@ -89,6 +95,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
+import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
@@ -118,6 +125,7 @@ import {PanelLayout} from './panel-layout'
 import {GotoLatestBanner, SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
+import {HMIcon} from './hm-icon'
 import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
@@ -213,6 +221,194 @@ export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] 
       },
     ],
     [navigate, docId, isMobile, onCopyReference, onPushReference, origin],
+  )
+}
+
+function sourceTypeKind(sourceType?: string): CitationFragmentHighlight['sourceType'] {
+  const normalized = sourceType?.toLowerCase() ?? ''
+  if (normalized.startsWith('doc/') || normalized === 'ref') return 'document'
+  if (normalized.startsWith('comment/') || normalized === 'comment') return 'comment'
+  return 'unknown'
+}
+
+function sourceCommentId(source?: string): string | null {
+  if (!source) return null
+  if (source.startsWith('hm://')) return source.slice('hm://'.length)
+  const unpacked = unpackHmId(source)
+  if (!unpacked) return source || null
+  return [unpacked.uid, ...(unpacked.path ?? [])].join('/')
+}
+
+function normalizeCitationFragmentHighlights(citations: HMRawMention[] | undefined): CitationFragmentHighlight[] {
+  return (citations ?? []).flatMap((citation, index) => {
+    const fragment = parseFragment(citation.targetFragment ?? null)
+    if (!fragment?.blockId || fragment.start == null || fragment.end == null || fragment.end <= fragment.start) {
+      return []
+    }
+
+    const kind = sourceTypeKind(citation.sourceType)
+    const sourceId = unpackHmId(citation.source) ?? null
+    const sourceDocumentId =
+      kind === 'comment' ? unpackHmId(citation.sourceDocument || citation.source) ?? sourceId : sourceId
+    const sourceBlockId = citation.sourceContext?.trim() || null
+
+    return [
+      {
+        id: `${citation.source || 'unknown'}:${citation.targetFragment || ''}:${citation.sourceContext || ''}:${index}`,
+        targetBlockId: fragment.blockId,
+        targetRange: {start: fragment.start, end: fragment.end},
+        sourceType: kind,
+        sourceId:
+          kind === 'document' && sourceId
+            ? {
+                ...sourceId,
+                version: citation.sourceBlob?.cid || sourceId.version || null,
+                blockRef: sourceBlockId,
+                blockRange: sourceBlockId ? {expanded: true} : null,
+              }
+            : sourceId,
+        sourceDocumentId,
+        sourceBlockId,
+        sourceCommentId: kind === 'comment' ? sourceCommentId(citation.source) : null,
+        sourceAuthorUid: citation.sourceBlob?.author || sourceId?.uid || null,
+        raw: citation,
+      },
+    ]
+  })
+}
+
+function blockNodeText(node: HMBlockNode): string {
+  const ownText = node.block ? getBlockText(node.block) : ''
+  const childText = (node.children ?? []).map(blockNodeText).join(' ')
+  return `${ownText} ${childText}`.trim()
+}
+
+function commentPreviewText(comment: HMComment | undefined): string {
+  if (!comment) return 'Loading comment…'
+  const text = comment.content.map(blockNodeText).join(' ').replace(/\s+/g, ' ').trim()
+  if (!text) return 'Comment'
+  if (text.length <= 50) return text
+  return `${text.slice(0, 50).trimEnd()}…`
+}
+
+function documentCitationTitle(citation: CitationFragmentHighlight, resource?: ReturnType<typeof useResource>['data']) {
+  if (resource?.type === 'document')
+    return resource.document?.metadata?.name || citation.sourceId?.path?.join('/') || 'Untitled document'
+  return citation.sourceId?.path?.join('/') || citation.sourceId?.uid || 'Document citation'
+}
+
+function CitationFragmentPopover({
+  click,
+  onClose,
+  onCitationSelect,
+}: {
+  click: CitationFragmentClick
+  onClose: () => void
+  onCitationSelect: (citation: CitationFragmentHighlight) => void
+}) {
+  const {universalClient} = useUniversalAppContext()
+  const documentCitations = click.citations.filter(
+    (citation) => citation.sourceType === 'document' && citation.sourceId,
+  )
+  const documentResources = useResources(
+    documentCitations.map((citation) => citation.sourceId),
+    {enabled: documentCitations.length > 0},
+  )
+  const sourceDocumentIds = Array.from(
+    new Map(
+      click.citations
+        .filter((citation) => citation.sourceType === 'comment' && citation.sourceDocumentId)
+        .map((citation) => [citation.sourceDocumentId!.id, citation.sourceDocumentId!]),
+    ).values(),
+  )
+  const commentsQuery = useQuery({
+    queryKey: ['citation-fragment-comment-previews', sourceDocumentIds.map((id) => id.id).join('|')],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        sourceDocumentIds.map(async (id) => {
+          const result = await universalClient.request('ListComments', {targetId: id})
+          return [id.id, result] as const
+        }),
+      )
+      return Object.fromEntries(entries)
+    },
+    enabled: sourceDocumentIds.length > 0,
+  })
+  const accountMetadata = useAccountsMetadata(
+    Array.from(
+      new Set(click.citations.map((citation) => citation.sourceAuthorUid).filter((uid): uid is string => !!uid)),
+    ),
+  )
+  const documentResourceByCitation = new Map(
+    documentCitations.map((citation, index) => [citation.id, documentResources[index]?.data]),
+  )
+
+  return (
+    <Popover open onOpenChange={(open) => !open && onClose()}>
+      <PopoverAnchor asChild>
+        <span
+          className="pointer-events-none fixed z-50 size-px"
+          style={{left: click.clientX, top: click.clientY}}
+          aria-hidden="true"
+        />
+      </PopoverAnchor>
+      <PopoverContent align="start" side="bottom" className="w-80 p-2">
+        <div className="flex flex-col gap-1">
+          <div className="text-muted-foreground px-2 py-1 text-xs font-medium">
+            Cited {click.citations.length === 1 ? 'here' : `${click.citations.length} times here`}
+          </div>
+          {click.citations.map((citation) => {
+            const commentData = citation.sourceDocumentId
+              ? commentsQuery.data?.[citation.sourceDocumentId.id]
+              : undefined
+            const comment = commentData?.comments?.find((item: HMComment) => item.id === citation.sourceCommentId)
+            const authorUid = comment?.author || citation.sourceAuthorUid || undefined
+            const author = authorUid ? commentData?.authors?.[authorUid] || accountMetadata.data[authorUid] : null
+            return (
+              <button
+                key={citation.id}
+                type="button"
+                className="hover:bg-accent flex w-full items-start gap-2 rounded-md px-2 py-2 text-left"
+                onClick={() => onCitationSelect(citation)}
+              >
+                {citation.sourceType === 'comment' ? (
+                  <>
+                    {authorUid ? (
+                      <HMIcon
+                        id={hmId(authorUid)}
+                        name={author?.metadata?.name}
+                        icon={author?.metadata?.icon}
+                        size={24}
+                      />
+                    ) : (
+                      <div className="bg-muted size-6 shrink-0 rounded-full" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-muted-foreground truncate text-xs">
+                        {author?.metadata?.name || authorUid || 'Comment'}
+                      </div>
+                      <div className="line-clamp-2 text-sm">{commentPreviewText(comment)}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Quote className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">
+                        {documentCitationTitle(citation, documentResourceByCitation.get(citation.id))}
+                      </div>
+                      {citation.sourceBlockId ? (
+                        <div className="text-muted-foreground truncate text-xs">Block {citation.sourceBlockId}</div>
+                      ) : null}
+                    </div>
+                  </>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -1234,6 +1430,8 @@ function DocumentBody({
   const siteMembers = useSiteMembers(siteId)
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
+  const citationsDocId = useMemo(() => ({...docId, blockRef: null, blockRange: null}), [docId])
+  const citations = useCitations(citationsDocId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
@@ -1438,10 +1636,64 @@ function DocumentBody({
 
   // Block tools handlers
   const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
+  const [showCitationFragments, setShowCitationFragments] = useState(true)
+  const [citationFragmentClick, setCitationFragmentClick] = useState<CitationFragmentClick | null>(null)
+  const citationFragmentHighlights = useMemo(
+    () => (showCitationFragments ? normalizeCitationFragmentHighlights(citations.data?.citations) : []),
+    [showCitationFragments, citations.data?.citations],
+  )
   const copyHmLink = useCopyHmLink()
   // Current origin for gateway-format links (web: site's own URL; desktop: the
   // configured gateway). Used as a fallback when the document has no site URL.
-  const {origin: appOrigin, experiments} = useUniversalAppContext()
+  const {origin: appOrigin, originHomeId, experiments, openRouteNewWindow, openUrl} = useUniversalAppContext()
+
+  const handleCitationFragmentSelect = useCallback(
+    (citation: CitationFragmentHighlight) => {
+      setCitationFragmentClick(null)
+      if (citation.sourceType === 'comment' && citation.sourceDocumentId && citation.sourceCommentId) {
+        if (route.key !== 'document' && route.key !== 'feed') return
+        navigate({
+          ...route,
+          panel: {
+            key: 'comments',
+            id: citation.sourceDocumentId,
+            openComment: citation.sourceCommentId,
+          } as any,
+        })
+        return
+      }
+
+      if (citation.sourceType === 'document' && citation.sourceId) {
+        const sourceRoute: NavRoute = {
+          key: 'document',
+          id: {
+            ...citation.sourceId,
+            blockRef: citation.sourceBlockId,
+            blockRange: citation.sourceBlockId ? {expanded: true} : null,
+          },
+        }
+        if (openRouteNewWindow) {
+          openRouteNewWindow(sourceRoute)
+        } else {
+          const href = routeToUrl(sourceRoute, {hostname: appOrigin, originHomeId}) || hmIdToURL(sourceRoute.id)
+          openUrl(href, true)
+        }
+      }
+    },
+    [appOrigin, navigate, openRouteNewWindow, openUrl, originHomeId, route],
+  )
+
+  const handleCitationFragmentClick = useCallback(
+    (click: CitationFragmentClick) => {
+      const [singleCitation] = click.citations
+      if (singleCitation && click.citations.length === 1) {
+        handleCitationFragmentSelect(singleCitation)
+        return
+      }
+      setCitationFragmentClick(click)
+    },
+    [handleCitationFragmentSelect],
+  )
 
   const handleBlockCitationClick = useCallback(
     (blockId?: string | null) => {
@@ -1606,9 +1858,21 @@ function DocumentBody({
       },
     }
   }, [canEdit, panelKey, route, replaceRoute])
+  const citationFragmentToggleMenuItem = useMemo<MenuItemType>(
+    () => ({
+      key: 'citation-fragments-toggle',
+      label: showCitationFragments ? 'Hide fragment citations' : 'Show fragment citations',
+      icon: <Quote className="size-4" />,
+      onClick: () => {
+        setShowCitationFragments((value) => !value)
+        setCitationFragmentClick(null)
+      },
+    }),
+    [showCitationFragments],
+  )
 
   const allMenuItems = useMemo(() => {
-    let unorderedItems: MenuItemType[] = [...commonMenuItems, ...(extraMenuItems || [])]
+    let unorderedItems: MenuItemType[] = [...commonMenuItems, citationFragmentToggleMenuItem, ...(extraMenuItems || [])]
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     // Drop share/copy-link entries while the doc is an unpublished draft —
@@ -1637,7 +1901,14 @@ function DocumentBody({
       if (item.variant === 'destructive') orderedItems.push(item)
     }
     return orderedItems
-  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
+  }, [
+    extraMenuItems,
+    commonMenuItems,
+    citationFragmentToggleMenuItem,
+    inspectMenuItem,
+    documentOptionsMenuItem,
+    isUnpublishedDraft,
+  ])
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
@@ -1841,6 +2112,8 @@ function DocumentBody({
           activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
           onActivityFilterChange={handleMainActivityFilterChange}
           blockCitations={blockCitations}
+          citationFragmentHighlights={citationFragmentHighlights}
+          onCitationFragmentClick={handleCitationFragmentClick}
           onBlockCitationClick={handleBlockCitationClick}
           onBlockCommentClick={handleBlockCommentClick}
           onBlockSelect={handleBlockSelect}
@@ -1861,6 +2134,13 @@ function DocumentBody({
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
         />
+        {citationFragmentClick ? (
+          <CitationFragmentPopover
+            click={citationFragmentClick}
+            onClose={() => setCitationFragmentClick(null)}
+            onCitationSelect={handleCitationFragmentSelect}
+          />
+        ) : null}
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
     </div>
@@ -1899,7 +2179,7 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
             <DiscussionsPageContent
-              docId={docId}
+              docId={panelRoute?.key === 'comments' ? panelRoute.id : docId}
               showTitle={false}
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
@@ -1920,7 +2200,7 @@ function DocumentBody({
                           })
                         : undefined
                     }
-                    docId={docId}
+                    docId={panelRoute?.key === 'comments' ? panelRoute.id : docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
                     quotingRange={
                       panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
@@ -2244,7 +2524,7 @@ function PanelContentRenderer({
     case 'comments':
       return (
         <CommentsPanelContent
-          docId={docId}
+          docId={panelRoute.id ?? docId}
           panelRoute={panelRoute}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
@@ -2395,6 +2675,8 @@ function MainContent({
   activityFilterEventType,
   onActivityFilterChange,
   blockCitations,
+  citationFragmentHighlights,
+  onCitationFragmentClick,
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
@@ -2439,6 +2721,8 @@ function MainContent({
   activityFilterEventType?: string[]
   onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
   blockCitations?: Record<string, {citations: number; comments: number}> | null
+  citationFragmentHighlights?: CitationFragmentHighlight[]
+  onCitationFragmentClick?: (event: CitationFragmentClick) => void
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (
     blockId?: string | null,
@@ -2536,6 +2820,8 @@ function MainContent({
           showSidebars={showSidebars}
           showCollapsed={showCollapsed}
           blockCitations={blockCitations}
+          citationFragmentHighlights={citationFragmentHighlights}
+          onCitationFragmentClick={onCitationFragmentClick}
           onBlockCitationClick={onBlockCitationClick}
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
@@ -2568,6 +2854,8 @@ function ContentViewWithOutline({
   showSidebars,
   showCollapsed,
   blockCitations,
+  citationFragmentHighlights,
+  onCitationFragmentClick,
   onBlockCitationClick,
   onBlockCommentClick,
   onBlockSelect,
@@ -2595,6 +2883,8 @@ function ContentViewWithOutline({
   showSidebars: boolean
   showCollapsed: boolean
   blockCitations?: Record<string, {citations: number; comments: number}> | null
+  citationFragmentHighlights?: CitationFragmentHighlight[]
+  onCitationFragmentClick?: (event: CitationFragmentClick) => void
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (
     blockId?: string | null,
@@ -2665,6 +2955,8 @@ function ContentViewWithOutline({
             resourceId={resourceId}
             focusBlockId={resourceId.blockRef ?? undefined}
             focusBlockRange={resourceId.blockRange ?? undefined}
+            citationFragmentHighlights={citationFragmentHighlights}
+            onCitationFragmentClick={onCitationFragmentClick}
             blockCitations={blockCitations}
             onBlockCitationClick={onBlockCitationClick}
             onBlockCommentClick={onBlockCommentClick}

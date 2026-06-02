@@ -1475,8 +1475,20 @@ export type HMListCommentsByAuthorRequest = z.infer<typeof HMListCommentsByAutho
 export const HMRawMentionSchema = z.object({
   source: z.string(),
   sourceType: z.string().optional(),
+  sourceContext: z.string().optional(),
+  sourceBlob: z
+    .object({
+      cid: z.string().optional(),
+      author: z.string().optional(),
+      createTime: HMTimestampSchema.optional(),
+    })
+    .optional(),
   sourceDocument: z.string().optional(),
+  target: z.string().optional(),
+  targetVersion: z.string().optional(),
   targetFragment: z.string().optional(),
+  mentionType: z.string().optional(),
+  isExactVersion: z.boolean().optional(),
   isExact: z.boolean().optional(),
 })
 export type HMRawMention = z.infer<typeof HMRawMentionSchema>
