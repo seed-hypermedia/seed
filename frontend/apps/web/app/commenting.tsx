@@ -103,7 +103,7 @@ export default function WebCommenting({
     }
   }, [replyCommentIdProp, commentId, commentsService.data?.comments])
 
-  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
+  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId || (replyCommentVersionProp ? commentId : null)
   const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
   const isReplyEditor = isReplying || !!replyCommentId || !!commentId
