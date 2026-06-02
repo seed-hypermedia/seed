@@ -425,12 +425,17 @@ export function BlockEmbedContent({
 }) {
   const [showReferenced, setShowReferenced] = useState(false)
   const renderResourceStack = useRenderResourceStack()
-  const rawId = unpackHmId(block.link)
-  // When the link targets a specific codepoint range we MUST resolve against
-  // the pinned version, otherwise later edits to the source doc shift the
-  // range and the highlight lands on different text. Force `latest:false`
-  // whenever blockRange is present, even on legacy links that still carry `&l`.
-  const id = rawId && rawId.blockRange && rawId.version ? {...rawId, latest: false} : rawId
+  // Memoize on `block.link` so `id` (and `id.blockRange`) keep a stable reference
+  // across re-renders — otherwise every render hands `BlockEmbedContentDocument`
+  // a fresh `blockRange` prop, re-rendering it needlessly.
+  const id = useMemo(() => {
+    const rawId = unpackHmId(block.link)
+    // When the link targets a specific codepoint range we MUST resolve against
+    // the pinned version, otherwise later edits to the source doc shift the
+    // range and the highlight lands on different text. Force `latest:false`
+    // whenever blockRange is present, even on legacy links that still carry `&l`.
+    return rawId && rawId.blockRange && rawId.version ? {...rawId, latest: false} : rawId
+  }, [block.link])
 
   const resource = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.

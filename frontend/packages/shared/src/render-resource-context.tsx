@@ -22,7 +22,22 @@ export function RenderResourceProvider({
   children: React.ReactNode
 }) {
   const parentStack = useContext(RenderResourceStackContext)
-  const value = useMemo(() => (resource?.id ? [...parentStack, resource] : parentStack), [parentStack, resource])
+  // Memoize on a primitive identity key, NOT the `resource` object reference.
+  // Call sites pass an inline `resource={{kind, id}}` literal, so a reference-keyed
+  // memo recomputes every render — producing a new stack array that re-renders
+  // every descendant embed on any ancestor render (scroll, query invalidation, …).
+  // Keying on the resource's stable fields keeps the array referentially stable
+  // until the resource actually changes.
+  const resourceKey = resource?.id
+    ? `${resource.kind}|${resource.id.id}|${resource.id.version ?? ''}|${resource.id.latest ? 1 : 0}|${
+        resource.id.blockRef ?? ''
+      }`
+    : ''
+  const value = useMemo(
+    () => (resource?.id ? [...parentStack, resource] : parentStack),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parentStack, resourceKey],
+  )
   return <RenderResourceStackContext.Provider value={value}>{children}</RenderResourceStackContext.Provider>
 }
 
