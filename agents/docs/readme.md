@@ -125,6 +125,12 @@ Run agents server:
 direnv exec . bash -lc 'cd agents && bun src/main.ts'
 ```
 
+Build the agents deployment image:
+
+```bash
+docker build -t seedhypermedia/agents:dev . -f ./agents/Dockerfile
+```
+
 Run desktop:
 
 ```bash
@@ -135,6 +141,8 @@ Validate agents service:
 
 ```bash
 direnv exec . bash -lc 'cd agents && bun check && bun test'
+direnv exec . bash -lc 'cd agents && bun run test:build'
+direnv exec . bash -lc 'cd agents && bun run test:docker'
 ```
 
 Validate frontend:

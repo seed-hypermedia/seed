@@ -398,8 +398,8 @@ function StatusPill(props: {status: string}) {
     props.status === 'streaming' || props.status === 'running'
       ? 'bg-green-500/15 text-green-700 dark:text-green-300'
       : props.status === 'error'
-      ? 'bg-red-500/15 text-red-700 dark:text-red-300'
-      : 'bg-muted text-muted-foreground'
+        ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+        : 'bg-muted text-muted-foreground'
   return <span className={`${color} rounded-full px-2.5 py-1 text-[0.65rem] font-black uppercase`}>{props.status}</span>
 }
 

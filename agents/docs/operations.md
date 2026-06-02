@@ -17,12 +17,26 @@ Validation:
 
 ```bash
 direnv exec . bash -lc 'cd agents && bun check && bun test'
+direnv exec . bash -lc 'cd agents && bun run test:build'
+direnv exec . bash -lc 'cd agents && bun run test:docker'
 ```
 
 Desktop:
 
 ```bash
 direnv exec . bash -lc './dev run-desktop'
+```
+
+Build the deployment image from the repo root:
+
+```bash
+docker build -t seedhypermedia/agents:dev . -f ./agents/Dockerfile
+```
+
+Run the image with persistent state mounted at `/data`:
+
+```bash
+docker run --rm -p 3050:3050 -v seed-agents-data:/data seedhypermedia/agents:dev
 ```
 
 ## Configuration
