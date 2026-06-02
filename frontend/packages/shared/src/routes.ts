@@ -238,7 +238,13 @@ export const draftsSchema = z.object({
 })
 export type DraftsRoute = z.infer<typeof draftsSchema>
 
-export const settingsRouteSchema = z.object({key: z.literal('settings')})
+export const settingsTabSchema = z.enum(['general', 'sync', 'app-info', 'agent-servers', 'advanced'])
+export type SettingsTab = z.infer<typeof settingsTabSchema>
+
+export const settingsRouteSchema = z.object({
+  key: z.literal('settings'),
+  tab: settingsTabSchema.optional(),
+})
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
 export const notificationsRouteSchema = z.object({
@@ -251,6 +257,42 @@ export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
 export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
+
+/** Route schema for the desktop Agents page. */
+export const agentsRouteSchema = z.object({
+  key: z.literal('agents'),
+})
+/** Navigation route for the desktop Agents page. */
+export type AgentsRoute = z.infer<typeof agentsRouteSchema>
+
+/** Route schema for one configured agents server. */
+export const agentServerRouteSchema = z.object({
+  key: z.literal('agent-server'),
+  serverUrl: z.string(),
+})
+/** Navigation route for one configured agents server. */
+export type AgentServerRoute = z.infer<typeof agentServerRouteSchema>
+
+/** Route schema for one server-hosted agent. */
+export const agentRouteSchema = z.object({
+  key: z.literal('agent'),
+  agentId: z.string(),
+  serverUrl: z.string().optional(),
+  tab: z.enum(['sessions', 'triggers', 'tools', 'prompt', 'settings']).optional(),
+  triggerId: z.string().optional(),
+})
+/** Navigation route for one server-hosted agent. */
+export type AgentRoute = z.infer<typeof agentRouteSchema>
+
+/** Route schema for one server-hosted agent session. */
+export const agentSessionRouteSchema = z.object({
+  key: z.literal('agent-session'),
+  sessionId: z.string(),
+  serverUrl: z.string().optional(),
+  agentId: z.string().optional(),
+})
+/** Navigation route for one server-hosted agent session. */
+export type AgentSessionRoute = z.infer<typeof agentSessionRouteSchema>
 
 /** Route schema for the desktop API inspector. */
 export const apiInspectorRouteSchema = z.object({
@@ -288,6 +330,10 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,
+  agentsRouteSchema,
+  agentServerRouteSchema,
+  agentRouteSchema,
+  agentSessionRouteSchema,
   apiInspectorRouteSchema,
   feedRouteSchema,
   inspectRouteSchema,

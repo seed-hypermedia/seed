@@ -62,6 +62,7 @@
     "@manuscripts/prosemirror-recreate-steps": "0.1.4",
     "@radix-ui/colors": "0.1.9",
     "@radix-ui/react-dropdown-menu": "2.0.5",
+    "@seed-hypermedia/agents-protocol": "file:../../../agents/protocol",
     "@seed-hypermedia/client": "workspace:*",
     "@sentry/electron": "^7.12.0",
     "@sentry/vite-plugin": "^5.2.1",

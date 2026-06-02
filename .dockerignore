@@ -8,5 +8,6 @@ target
 .pnpm-store
 dist
 **/dist
+agents/data
 .vite
 **/.vite

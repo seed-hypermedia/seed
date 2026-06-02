@@ -1,7 +1,9 @@
 import {createAnthropic} from '@ai-sdk/anthropic'
 import {createGoogleGenerativeAI} from '@ai-sdk/google'
 import {createOpenAI} from '@ai-sdk/openai'
-import {HMBlockNode, HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
+import {commentToResolvedMarkdown, documentToResolvedMarkdown} from '@seed-hypermedia/client'
+import {seedToolRegistry} from '../../../../agents/protocol/src/tool-registry'
+import {HMComment, HMCommentSchema} from '@seed-hypermedia/client/hm-types'
 import {extractViewTermFromUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {jsonSchema, stepCountIs, streamText, type ModelMessage} from 'ai'
@@ -34,6 +36,10 @@ import {domainResolver} from './app-grpc'
 import {resolveOmnibarUrlToHypermediaUrl} from './omnibar-url'
 
 const chatDir = path.join(userDataPath, 'chat-sessions')
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 /** A persisted chat message within a local assistant session. */
 export type ChatMessage = {
@@ -190,7 +196,7 @@ function createProviderModel(provider: AgentProvider) {
       return ollama.chat(provider.model)
     }
     default:
-      throw new Error(`Unsupported provider type: ${(provider as any).type}`)
+      throw new Error(`Unsupported provider type: ${provider.type}`)
   }
 }
 
@@ -213,73 +219,8 @@ function parseDocumentUrl(url: string) {
   }
 }
 
-// Helper: convert HMBlockNode[] to markdown
-function blockNodesToMarkdown(nodes: HMBlockNode[], depth = 0, listType?: string): string {
-  const parts: string[] = []
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]
-    if (!node.block) continue
-    const block = node.block as any
-    const text = block.text || ''
-    const attrs = block.attributes || {}
-    const childrenType: string | undefined =
-      typeof attrs?.toJson === 'function'
-        ? attrs.toJson({emitDefaultValues: true, enumAsInteger: false})?.childrenType
-        : attrs?.childrenType
-
-    let blockMd = ''
-    switch (block.type) {
-      case 'Heading': {
-        const level = '#'.repeat(Math.min((block.attributes?.level || depth) + 1, 6))
-        blockMd = `${level} ${text}`
-        break
-      }
-      case 'Code': {
-        const lang = block.attributes?.language || ''
-        blockMd = '```' + lang + '\n' + text + '\n```'
-        break
-      }
-      case 'Math':
-        blockMd = '$$\n' + text + '\n$$'
-        break
-      case 'Image':
-        blockMd = `![${text || ''}](${block.link || block.ref || ''})`
-        break
-      case 'Video':
-        blockMd = `[Video: ${text || block.link || ''}]`
-        break
-      case 'File':
-        blockMd = `[File: ${text || block.link || ''}]`
-        break
-      case 'Embed':
-        blockMd = `[Embed: ${block.link || ''}]`
-        break
-      case 'Button':
-        blockMd = `[${text || 'Button'}](${block.link || ''})`
-        break
-      case 'WebEmbed':
-        blockMd = `[Web: ${block.link || text || ''}]`
-        break
-      default:
-        if (text) {
-          if (listType === 'Unordered') {
-            blockMd = `${'  '.repeat(Math.max(depth - 1, 0))}- ${text}`
-          } else if (listType === 'Ordered') {
-            blockMd = `${'  '.repeat(Math.max(depth - 1, 0))}${i + 1}. ${text}`
-          } else if (listType === 'Blockquote') {
-            blockMd = `> ${text}`
-          } else {
-            blockMd = text
-          }
-        }
-    }
-
-    if (blockMd) parts.push(blockMd)
-    if (node.children?.length) {
-      parts.push(blockNodesToMarkdown(node.children, depth + 1, childrenType))
-    }
-  }
-  return parts.join('\n\n')
+const desktopSeedClient = {
+  request: (key: string, input: unknown) => desktopRequest(key as never, input as never) as never,
 }
 
 // Helper: parse a comment from gRPC response
@@ -433,10 +374,10 @@ async function readDocument(id: ReturnType<typeof unpackHmId>) {
   }
   const doc = resource.document
   const title = doc.metadata?.name || 'Untitled'
-  const content = doc.content?.length ? blockNodesToMarkdown(doc.content) : '(empty document)'
+  const content = await documentToResolvedMarkdown(doc, {client: desktopSeedClient})
   return {
     title,
-    markdown: `# ${title}\n\n${content}`,
+    markdown: doc.content?.length ? content : `${content}\n(empty document)`,
   }
 }
 
@@ -457,7 +398,7 @@ async function readComments(id: ReturnType<typeof unpackHmId>, commentId?: strin
   const names = await resolveAccountNames(authorUids)
   const comments: string[] = []
   for (const c of selectedComments) {
-    const content = c.content ? blockNodesToMarkdown(c.content as HMBlockNode[]) : ''
+    const content = c.content ? await commentToResolvedMarkdown(c, {client: desktopSeedClient}) : ''
     const replyInfo = c.replyParent ? ` (reply to ${c.replyParent})` : ''
     comments.push(`**${displayName(names, c.author)}**${replyInfo}:\n${content}`)
   }
@@ -566,54 +507,13 @@ async function readCollaborators(id: ReturnType<typeof unpackHmId>) {
 // Typed as Record<string, any> to avoid excessive type instantiation depth with Zod + AI SDK.
 const chatTools: Record<string, any> = {
   search: {
-    description:
-      'Search Hypermedia documents and contacts when you do not know the exact hm:// URL yet. Supports the full client search request fields: query, accountUid, includeBody, contextSize, perspectiveAccountUid, searchType, and pageSize. Use this before read or navigate when the user asks about a title, topic, or person rather than a specific URL.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          minLength: 1,
-          description: 'The search query. Supports phrases and wildcards.',
-        },
-        accountUid: {
-          type: 'string',
-          description: 'Optional account UID to scope search to a single account.',
-        },
-        includeBody: {
-          type: 'boolean',
-          description: 'Set true to search document bodies and comments in addition to titles and contacts.',
-        },
-        contextSize: {
-          type: 'integer',
-          minimum: 0,
-          description: 'Optional match context size in runes. Defaults to 48.',
-        },
-        perspectiveAccountUid: {
-          type: 'string',
-          description: 'Optional logged-in account UID used when filtering contact visibility.',
-        },
-        searchType: {
-          type: 'string',
-          enum: ['keyword', 'semantic', 'hybrid'],
-          description:
-            'Search strategy. Use hybrid for general discovery, keyword for exact text, semantic for concept matches.',
-        },
-        pageSize: {
-          type: 'integer',
-          minimum: 1,
-          description: 'Maximum number of results to return.',
-        },
-      },
-      required: ['query'],
-      additionalProperties: false,
-    }),
+    description: seedToolRegistry.search.description,
+    inputSchema: jsonSchema(seedToolRegistry.search.inputSchema),
     execute: async (input: {
       query: string
       accountUid?: string
       includeBody?: boolean
       contextSize?: number
-      perspectiveAccountUid?: string
       searchType?: 'keyword' | 'semantic' | 'hybrid'
       pageSize?: number
     }) => {
@@ -625,24 +525,24 @@ const chatTools: Record<string, any> = {
     },
   },
   read: {
-    description:
-      'Read a Hypermedia document, its comments, directory listing, version history, citations, or collaborators.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The hm:// URL to read',
-        },
-      },
-      required: ['url'],
-      additionalProperties: false,
-    }),
-    execute: async ({url}: {url: string}) => {
+    description: seedToolRegistry.read.description,
+    inputSchema: jsonSchema(seedToolRegistry.read.inputSchema),
+    execute: async (input: {id: string; server?: string; dev?: boolean; format?: 'markdown' | 'json'}) => {
+      const requestedUrl = input.id
       try {
+        const url = /^https?:\/\//i.test(requestedUrl)
+          ? await resolveOmnibarUrlToHypermediaUrl(requestedUrl, {domainResolver})
+          : requestedUrl
+        if (!url) {
+          return createToolErrorOutput(`Error: Could not resolve "${requestedUrl}" to a Hypermedia URL.`, {
+            resourceUrl: requestedUrl,
+          })
+        }
         const parsed = parseDocumentUrl(url)
         if (!parsed) {
-          return createToolErrorOutput(`Error: Could not parse URL "${url}". Use an hm:// URL.`, {resourceUrl: url})
+          return createToolErrorOutput(`Error: Could not parse URL "${requestedUrl}". Use an hm:// or Seed web URL.`, {
+            resourceUrl: requestedUrl,
+          })
         }
         const {id, viewTerm, viewArg} = parsed
         const [resourceTitle, siteName] = await Promise.all([readResourceTitle(id), readSiteName(id.uid)])
@@ -721,55 +621,36 @@ const chatTools: Record<string, any> = {
           }
         }
       } catch (e) {
-        return createToolErrorOutput(`Error: ${(e as Error).message}`, {resourceUrl: url})
+        return createToolErrorOutput(`Error: ${(e as Error).message}`, {resourceUrl: requestedUrl})
       }
     },
   },
-  resolveUrl: {
-    description:
-      'Use when the user provides a Web https URL. Once you have a hm:// URL, resolution is not needed. Use this before reading or navigating to a http(s) URL. Once you have resolved to a HM URL, skip this tool. that format (hm:// paths are consistent with web).',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The URL to resolve. Accepts http(s) URLs. Returns the matching hm:// URL.',
-        },
-      },
-      required: ['url'],
-      additionalProperties: false,
-    }),
-    execute: async ({url}: {url: string}) => {
-      const resolved = await resolveOmnibarUrlToHypermediaUrl(url, {domainResolver})
-      if (!resolved) {
-        return createToolErrorOutput(`Error: Could not resolve "${url}" to a Hypermedia URL.`, {inputUrl: url})
-      }
-      return {
-        summary: `Resolved the URL to ${resolved}.`,
-        inputUrl: url,
-        resourceUrl: resolved,
-        resolvedUrl: resolved,
+  list_activity_feed: {
+    description: seedToolRegistry.list_activity_feed.description,
+    inputSchema: jsonSchema(seedToolRegistry.list_activity_feed.inputSchema),
+    execute: async (input: {
+      pageSize?: number
+      pageToken?: string
+      trustedOnly?: boolean
+      filterAuthors?: string[]
+      filterEventType?: string[]
+      filterResource?: string
+    }) => {
+      try {
+        const output = await desktopRequest('ListEvents', input)
+        return {
+          summary: `Loaded ${output.events.length} activity feed event${output.events.length === 1 ? '' : 's'}.`,
+          ...output,
+          filters: input,
+        }
+      } catch (e) {
+        return createToolErrorOutput(`Error: ${(e as Error).message}`, input)
       }
     },
   },
   navigate: {
-    description:
-      'Use when the user asks for navigation, opening, showing, or if the intent is strongly implied. Opens a Hypermedia resource in the app. Accepts parseable hm:// URLs, including view suffixes like /:comments, /:collaborators, /:activity/citations, and block fragments like #block or #block[5:15].',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'The hm:// URL to open',
-        },
-        newWindow: {
-          type: 'boolean',
-          description: 'True to open in a new window instead of the current window.',
-        },
-      },
-      required: ['url'],
-      additionalProperties: false,
-    }),
+    description: seedToolRegistry.navigate.description,
+    inputSchema: jsonSchema(seedToolRegistry.navigate.inputSchema),
     execute: async ({url, newWindow = false}: {url: string; newWindow?: boolean}) => {
       const summary = navigateDesktopUrl(url, {newWindow})
       return {
@@ -1009,10 +890,11 @@ export const chatApi = t.router({
               case 'tool-call': {
                 if (allToolCalls.some((existing) => existing.id === chunk.toolCallId)) break
 
+                const toolArgs = isRecord(chunk.input) ? chunk.input : {}
                 const mappedCall: ChatToolCall = {
                   id: chunk.toolCallId,
                   name: chunk.toolName,
-                  args: ((chunk as any).input ?? (chunk as any).args ?? {}) as Record<string, unknown>,
+                  args: toolArgs,
                 }
 
                 orderedParts = appendChatToolCalls(orderedParts, [mappedCall])

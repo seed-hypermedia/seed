@@ -50,6 +50,18 @@ auditConfig:
     - CVE-2026-34771
     - CVE-2026-34770
     - CVE-2026-34769
+  ignoreGhsas:
+    # vitest@<4.1.0 — Vitest UI arbitrary file read/execute. Vitest is only
+    # used as a local/CI dev test runner here; upgrading 0.x/1.x/3.x to 4.x
+    # needs dedicated test-runner migration work.
+    - GHSA-5xrq-8626-4rwp
+    # js-cookie@<=3.0.5 — reaches us through mjml/js-beautify for email
+    # rendering, not browser cookie handling. Ignore until mjml/js-beautify
+    # updates its dependency.
+    - GHSA-qjx8-664m-686j
+    # tmp@<0.2.6 — reaches us through developer tooling (jscodeshift and
+    # Electron Forge prompts/installers). Ignore until those tools update.
+    - GHSA-ph9p-34f9-6g65
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources

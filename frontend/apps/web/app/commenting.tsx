@@ -1,7 +1,7 @@
 import {useCreateAccount} from '@/auth'
 import {reportError} from '@/report-error'
 import {useNavigate as useRemixNavigate} from '@remix-run/react'
-import {createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
+import {commentRecordIdFromBlob, createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
   HMMetadataPayload,
@@ -153,9 +153,10 @@ export default function WebCommenting({
 
   const postComment = useMutation({
     mutationFn: async ({commentPayload}: PostCommentVars) => {
+      const commentBlobData = commentPayload.blobs[0]?.data
+      if (!commentBlobData) throw new Error('No comment blob data')
+      const commentId = await commentRecordIdFromBlob(commentBlobData)
       const response = await publish(commentPayload)
-      const commentId = response.cids[0]
-      if (!commentId) throw new Error('Failed to publish comment blob')
       return {response, commentId, commentPayload}
     },
     onMutate: async ({commentPayload, contentBlocks}: PostCommentVars) => {

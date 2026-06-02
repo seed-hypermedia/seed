@@ -1,11 +1,18 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {DEFAULT_AGENT_SERVER_URL, useAgentSession} from '@/models/agents'
 import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {resolveOmnibarUrlToRoute, selectValidatedOmnibarSiteUrl} from '@/omnibar-url'
+import {
+  agentSessionUrl,
+  agentTriggerUrl,
+  agentUrl,
+  resolveOmnibarUrlToRoute,
+  selectValidatedOmnibarSiteUrl,
+} from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {client} from '@/trpc'
@@ -492,6 +499,8 @@ function getRouteLabel(route: NavRoute): string | null {
   switch (route.key) {
     case 'library':
       return 'Library'
+    case 'agents':
+      return 'Agents'
     case 'drafts':
       return 'Drafts'
     case 'contacts':
@@ -522,6 +531,12 @@ function useCurrentRouteUrl(): {
 } {
   const route = useNavRoute()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const accountUid = useSelectedAccountId()
+  const agentSession = useAgentSession(
+    route.key === 'agent-session' ? route.serverUrl || DEFAULT_AGENT_SERVER_URL : undefined,
+    accountUid,
+    route.key === 'agent-session' ? route.sessionId : undefined,
+  )
 
   // Get account entity to check for siteUrl
   const routeId = getRouteId(route)
@@ -610,6 +625,51 @@ function useCurrentRouteUrl(): {
   ])
 
   return useMemo(() => {
+    if (route.key === 'draft') {
+      const hostname = validatedSiteUrl || gwUrl
+      if (route.editUid) {
+        const url = createWebHMUrl(route.editUid, {
+          path: route.editPath,
+          hostname,
+          originHomeId: validatedSiteUrl ? hmId(route.editUid) : undefined,
+        })
+        return {displayUrl: url, copyableUrl: url}
+      }
+      if (route.locationUid) {
+        const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : route.id
+        const newPath = [...(route.locationPath || []), pathSegment]
+        const url = createWebHMUrl(route.locationUid, {
+          path: newPath,
+          hostname,
+          originHomeId: validatedSiteUrl ? hmId(route.locationUid) : undefined,
+        })
+        return {displayUrl: url, copyableUrl: null}
+      }
+      return {displayUrl: null, copyableUrl: null}
+    }
+
+    if (route.key === 'agent-server') {
+      const url = `${route.serverUrl}/agents`
+      return {displayUrl: url, copyableUrl: url}
+    }
+
+    if (route.key === 'agent') {
+      const url =
+        route.tab === 'triggers' && route.triggerId
+          ? agentTriggerUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.triggerId)
+          : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId)
+      return {displayUrl: url, copyableUrl: url}
+    }
+
+    if (route.key === 'agent-session') {
+      const agentId = route.agentId || agentSession.data?.session.agentId
+      if (agentId) {
+        const url = agentSessionUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, agentId, route.sessionId)
+        return {displayUrl: url, copyableUrl: url}
+      }
+      return {displayUrl: null, copyableUrl: null}
+    }
+
     if (routeId) {
       // Unpublished new doc with a location-only draft attached — show
       // slugified preview URL, never copyable.
@@ -642,7 +702,17 @@ function useCurrentRouteUrl(): {
     }
 
     return {displayUrl: null, copyableUrl: null}
-  }, [routeId, route, validatedSiteUrl, gwUrl, draftTitle, draft, isLocationOnlyDraft, hasPublishedResource])
+  }, [
+    routeId,
+    route,
+    validatedSiteUrl,
+    gwUrl,
+    draftTitle,
+    draft,
+    isLocationOnlyDraft,
+    hasPublishedResource,
+    agentSession.data,
+  ])
 }
 
 /**

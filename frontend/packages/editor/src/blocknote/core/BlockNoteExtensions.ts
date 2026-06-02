@@ -171,7 +171,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
 
       // This needs to be at the bottom of this list, because Key events (such as enter, when selecting a /command),
       // should be handled before Enter handlers in other components like splitListItem
-      TrailingNode,
+      ...(opts.editor.disableTrailingNode ? [] : [TrailingNode]),
       debugPlugin,
       History,
     )

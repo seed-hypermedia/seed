@@ -5,7 +5,8 @@ import {useResource} from '@shm/shared/models/entity'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import React from 'react'
 import ReactMarkdown, {defaultUrlTransform, type Components, type ExtraProps} from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+// remark-gfm is intentionally not used here: the current desktop dependency graph bundles an
+// incompatible mdast-util-from-markdown context, which crashes on inline code (`this.getData is not a function`).
 
 function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) {
   const openUrl = useOpenUrl()
@@ -45,7 +46,7 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
 }
 
 /** Renders assistant markdown with in-app handling for Hypermedia links. */
-export function Markdown({children}: {children: string}) {
+export function Markdown({children}: {children: string; enableGfm?: boolean}) {
   const components: Components = {
     h1: ({children}) => <h1 className="mt-3 mb-2 text-base font-bold first:mt-0">{children}</h1>,
     h2: ({children}) => <h2 className="mt-3 mb-2 text-sm font-bold first:mt-0">{children}</h2>,
@@ -81,7 +82,7 @@ export function Markdown({children}: {children: string}) {
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[]}
       components={components}
       urlTransform={(value) => (value.startsWith('hm://') ? value : defaultUrlTransform(value))}
     >

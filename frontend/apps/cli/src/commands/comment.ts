@@ -4,7 +4,7 @@
 
 import type {Command} from 'commander'
 import {readFileSync} from 'fs'
-import {createComment, deleteComment, updateComment} from '@seed-hypermedia/client'
+import {commentRecordIdFromBlob, createComment, deleteComment, updateComment} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
@@ -136,29 +136,26 @@ export function registerCommentCommands(program: Command) {
 
         const signer = createSignerFromKey(key)
 
-        const result = await client.publish(
-          await createComment(
-            {
-              content: body,
-              docId: {
-                ...unpacked,
-                blockRef: null,
-                version: null,
-              } as UnpackedHypermediaId,
-              docVersion: doc.version,
-              blobs: [],
-              replyCommentVersion: replyParent || undefined,
-              rootReplyCommentVersion: threadRoot || undefined,
-              visibility: doc.visibility === 'PRIVATE' ? 'Private' : '',
-            },
-            signer,
-          ),
+        const commentPayload = await createComment(
+          {
+            content: body,
+            docId: {
+              ...unpacked,
+              blockRef: null,
+              version: null,
+            } as UnpackedHypermediaId,
+            docVersion: doc.version,
+            blobs: [],
+            replyCommentVersion: replyParent || undefined,
+            rootReplyCommentVersion: threadRoot || undefined,
+            visibility: doc.visibility === 'PRIVATE' ? 'Private' : '',
+          },
+          signer,
         )
-
-        const commentId = result.cids[0]
-        if (!commentId) {
-          throw new Error('Failed to publish comment blob')
-        }
+        const commentBlobData = commentPayload.blobs[0]?.data
+        if (!commentBlobData) throw new Error('No comment blob data')
+        const commentId = await commentRecordIdFromBlob(commentBlobData)
+        await client.publish(commentPayload)
 
         if (!globalOpts.quiet) printSuccess(`Comment published: ${commentId}`)
       } catch (error) {

@@ -59,6 +59,8 @@ export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 
 export {resolveHypermediaUrl, resolveId} from './hm-resolver'
 export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'
+export {resolveIdWithClient} from './resource-read'
+export type {ResolveIdWithClientOptions, ResolvedIdWithClient} from './resource-read'
 
 export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
 export type {CollectedBlob} from './file-to-ipfs'
@@ -71,7 +73,17 @@ export {
   markdownBlockNodesToHMBlockNodes,
 } from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
-export {blocksToMarkdown, emitFrontmatter, slugify, draftFilename, parseDraftFilename} from './blocks-to-markdown'
+export {
+  blocksToMarkdown,
+  emitFrontmatter,
+  slugify,
+  draftFilename,
+  parseDraftFilename,
+  documentToResolvedMarkdown,
+  commentToResolvedMarkdown,
+  contentToResolvedMarkdown,
+} from './blocks-to-markdown'
+export type {ResolvedMarkdownOptions} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
 export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'

@@ -54,6 +54,10 @@ var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
+var Agents = lazy(() => import('./agents'))
+var AgentServer = lazy(() => import('./agents/server'))
+var AgentDetail = lazy(() => import('./agents/detail'))
+var AgentSession = lazy(() => import('./agents/session'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
@@ -388,6 +392,26 @@ function getPageComponent(navRoute: NavRoute) {
     case 'api-inspector':
       return {
         PageComponent: ApiInspector,
+        Fallback: BaseLoading,
+      }
+    case 'agents':
+      return {
+        PageComponent: Agents,
+        Fallback: BaseLoading,
+      }
+    case 'agent-server':
+      return {
+        PageComponent: AgentServer,
+        Fallback: BaseLoading,
+      }
+    case 'agent':
+      return {
+        PageComponent: AgentDetail,
+        Fallback: BaseLoading,
+      }
+    case 'agent-session':
+      return {
+        PageComponent: AgentSession,
         Fallback: BaseLoading,
       }
     case 'drafts':

@@ -6,23 +6,9 @@
  * API client.
  */
 
-import {createSeedClient, resolveId, unpackHmId} from '@seed-hypermedia/client'
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client'
-import type {SeedClient} from '@seed-hypermedia/client'
+import {resolveIdWithClient as resolveIdWithClientFromSDK} from '@seed-hypermedia/client'
 import {getClient} from '../index'
 
-export async function resolveIdWithClient(
-  rawId: string,
-  globalOpts: Record<string, unknown>,
-): Promise<{id: UnpackedHypermediaId; client: SeedClient}> {
-  // Fast path: if it parses synchronously, use the configured server
-  const parsed = unpackHmId(rawId)
-  if (parsed) {
-    return {id: parsed, client: getClient(globalOpts)}
-  }
-
-  // Slow path: resolve via OPTIONS request, infer server from URL origin
-  const id = await resolveId(rawId)
-  const origin = new URL(rawId).origin
-  return {id, client: createSeedClient(origin)}
+export async function resolveIdWithClient(rawId: string, globalOpts: Record<string, unknown>) {
+  return resolveIdWithClientFromSDK(rawId, {client: getClient(globalOpts)})
 }

@@ -275,6 +275,9 @@ importers:
       '@radix-ui/react-dropdown-menu':
         specifier: 2.0.5
         version: 2.0.5(@types/react-dom@18.2.21)(@types/react@18.2.64)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@seed-hypermedia/agents-protocol':
+        specifier: file:../../../agents/protocol
+        version: file:agents/protocol
       '@seed-hypermedia/client':
         specifier: workspace:*
         version: link:../../packages/client
@@ -7038,6 +7041,9 @@ packages:
 
   '@scure/bip39@1.2.1':
     resolution: {integrity: sha512-Z3/Fsz1yr904dduJD0NpiyRHhRYHdcnyh73FZWiV+/qhWi83wNJ3NWolYqCEN+ZWsUz2TWwajJggcRE9r1zUYg==}
+
+  '@seed-hypermedia/agents-protocol@file:agents/protocol':
+    resolution: {directory: agents/protocol, type: directory}
 
   '@sentry-internal/browser-utils@10.49.0':
     resolution: {integrity: sha512-n0QRx0Ysx6mPfIydTkz7VP0FmwM+/EqMZiRqdsU3aTYsngE9GmEDV0OL1bAy6a8N/C1xf9vntkuAtj6N/8Z51w==}
@@ -23853,6 +23859,8 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.3.1
       '@scure/base': 1.1.1
+
+  '@seed-hypermedia/agents-protocol@file:agents/protocol': {}
 
   '@sentry-internal/browser-utils@10.49.0':
     dependencies:

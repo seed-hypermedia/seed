@@ -116,6 +116,18 @@ export function MainAppSidebar() {
                 bold
               />
             </SidebarMenuItem>
+            {/* Enable Agents in the sidebar once the feature is ready for general use.
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'agents'}
+                onClick={() => {
+                  navigate({key: 'agents'})
+                }}
+                icon={<Bot className="size-4" />}
+                title="Agents"
+                bold
+              />
+            </SidebarMenuItem> */}
           </SidebarMenu>
         </SidebarFooterLayout>
       )}
