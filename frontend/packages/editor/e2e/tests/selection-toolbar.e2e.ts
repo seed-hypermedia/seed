@@ -249,6 +249,10 @@ test.describe('Formatting Toolbar', () => {
       // Verify bold mark is applied
       const hasBoldAfterApply = await editorHelpers.hasMarkType('bold')
       expect(hasBoldAfterApply).toBe(true)
+      const renderedBold = page.locator('[data-testid="editor-container"] strong').first()
+      await expect(renderedBold).toHaveText('Bold text')
+      const renderedBoldWeight = await renderedBold.evaluate((element) => getComputedStyle(element).fontWeight)
+      expect(renderedBoldWeight).toBe('700')
 
       // Remove bold formatting with toolbar button
       await editorHelpers.selectAll()

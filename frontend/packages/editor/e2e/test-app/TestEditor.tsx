@@ -1,5 +1,6 @@
 import '@/blocknote/core/style.css'
 import '@/editor.css'
+import '@shm/ui/hm-prose.css'
 import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
 import {HypermediaLinkPreview} from '@shm/editor/hm-link-preview'
 import {SearchResultItem, UniversalAppProvider, writeableStateStream} from '@shm/shared'
