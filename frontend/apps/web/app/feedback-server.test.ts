@@ -51,10 +51,11 @@ describe('feedback server endpoint', () => {
     })
 
     const response = await action({request, params: {}, context: {}})
-    const body = (await response.json()) as {destinationLabel: string}
+    const body = (await response.json()) as {destinationLabel: string; documentId: string}
 
     expect(response.status).toBe(200)
     expect(body.destinationLabel).toBe('seed-surveys.hyper.media')
+    expect(body.documentId).toContain('hm://seed-surveys-uid/')
     expect(mocks.request).toHaveBeenCalledWith(
       'PrepareDocumentChange',
       expect.objectContaining({
