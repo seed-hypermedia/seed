@@ -17,7 +17,7 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {HistoryIcon, Lock} from 'lucide-react'
+import {Activity, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {useHighlighter} from './highlight-context'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
@@ -320,7 +320,7 @@ function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId
     <SmallListItem
       bold
       title="Feed"
-      icon={<HistoryIcon className="size-4" />}
+      icon={<Activity className="size-4" />}
       {...feedLinkProps}
       onClick={(e) => {
         feedLinkProps.onClick?.(e)
@@ -548,7 +548,7 @@ export function SiteHeaderMenu({
           }}
           {...feedLinkProps}
         >
-          <HistoryIcon
+          <Activity
             className={cn(
               'size-4 flex-none shrink-0',
               isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
