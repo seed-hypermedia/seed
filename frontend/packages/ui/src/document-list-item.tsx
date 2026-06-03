@@ -21,7 +21,7 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
+import {Bookmark, ChevronRight, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
 import {Fragment, useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
@@ -54,6 +54,11 @@ interface DocumentListItemProps {
   indent?: boolean
   onClick?: (id: UnpackedHypermediaId) => void
   className?: string
+  expandable?: {
+    expanded: boolean
+    onToggle: () => void
+    isLoading?: boolean
+  }
 }
 
 export function DocumentListItem({
@@ -69,6 +74,7 @@ export function DocumentListItem({
   isRead,
   indent = false,
   onClick,
+  expandable,
 }: DocumentListItemProps) {
   const id = item.id
   const actions = useDocumentActions()
@@ -107,6 +113,11 @@ export function DocumentListItem({
   const summaryId = useMemo(() => hmId(id.uid, {path: id.path}), [id.uid, id.path])
   const interactionSummaryData = useInteractionSummary(summaryId, {enabled: !interactionSummary})
   const commentCount = interactionSummary?.comments ?? interactionSummaryData.data?.comments ?? 0
+  const childCount =
+    (interactionSummary && 'children' in interactionSummary ? interactionSummary.children : undefined) ??
+    interactionSummaryData.data?.children ??
+    0
+  const canExpand = !!expandable && (childCount > 0 || expandable.expanded || expandable.isLoading)
 
   const bookmarked = actions.isBookmarked?.(id) ?? false
   const isOwner = actions.selectedAccountUid === id.uid
@@ -268,6 +279,27 @@ export function DocumentListItem({
     >
       <a data-resourceid={id.id} {...linkProps} onClick={handleClick}>
         {indent && <div className="size-8 shrink-0" />}
+        {expandable && (
+          <button
+            type="button"
+            aria-label={expandable.expanded ? 'Collapse children' : 'Expand children'}
+            aria-expanded={expandable.expanded}
+            disabled={!canExpand}
+            className={cn(
+              'no-window-drag text-muted-foreground hover:bg-muted/70 -ml-2 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors',
+              !canExpand && 'pointer-events-none invisible',
+            )}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              expandable.onToggle()
+            }}
+          >
+            <ChevronRight
+              className={cn('size-4 transition-transform duration-150', expandable.expanded && 'rotate-90')}
+            />
+          </button>
+        )}
         <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
         <div className="flex flex-1 flex-col overflow-hidden">
           {itemBreadcrumbs && itemBreadcrumbs.length > 1 && (
