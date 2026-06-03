@@ -3,6 +3,15 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 const mocks = vi.hoisted(() => ({
   request: vi.fn(async (_key: string, _input: unknown) => ({unsignedChange: new Uint8Array([1, 2, 3])})),
   publish: vi.fn(async (_input: unknown) => ({cids: []})),
+  pushResourcesToPeer: vi.fn(async function* (_input: unknown) {
+    yield {
+      blobsAnnounced: 2,
+      blobsKnown: 0,
+      blobsWanted: 2,
+      blobsProcessed: 2,
+      blobsFailed: 0,
+    }
+  }),
   config: {
     registeredAccountUid: 'nodos-aprendizaje-uid',
     feedbackDestinationAccountUid: 'seed-surveys-uid',
@@ -10,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     feedbackSignerAccountUid: 'nodos-conocimiento-uid',
     feedbackDestinationCapabilityCid: 'cap-seed-surveys-writer',
     feedbackDocumentVisibility: undefined as 'private' | 'public' | undefined,
+    feedbackDestinationPeerAddrs: ['/dns4/seed-surveys.example/tcp/56001/p2p/seed-surveys-peer'],
   },
 }))
 
@@ -38,6 +48,14 @@ vi.mock('./server-universal-client', () => ({
   },
 }))
 
+vi.mock('./client.server', () => ({
+  grpcClient: {
+    resources: {
+      pushResourcesToPeer: mocks.pushResourcesToPeer,
+    },
+  },
+}))
+
 vi.mock('./report-error', () => ({
   reportError: vi.fn(),
 }))
@@ -48,6 +66,16 @@ describe('feedback server endpoint', () => {
   beforeEach(() => {
     mocks.request.mockClear()
     mocks.publish.mockClear()
+    mocks.pushResourcesToPeer.mockClear()
+    mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
+      yield {
+        blobsAnnounced: 2,
+        blobsKnown: 0,
+        blobsWanted: 2,
+        blobsProcessed: 2,
+        blobsFailed: 0,
+      }
+    })
     mocks.config.feedbackDocumentVisibility = undefined
   })
 
@@ -82,6 +110,11 @@ describe('feedback server endpoint', () => {
       }),
     )
     expect(mocks.publish).toHaveBeenCalledTimes(1)
+    expect(mocks.pushResourcesToPeer).toHaveBeenCalledWith({
+      resources: [body.documentId],
+      addrs: ['/dns4/seed-surveys.example/tcp/56001/p2p/seed-surveys-peer'],
+      recursive: false,
+    })
   })
 
   it('can publish public feedback when configured for debugging', async () => {
@@ -104,6 +137,30 @@ describe('feedback server endpoint', () => {
         visibility: 0,
       }),
     )
+    expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns an error when destination push fails', async () => {
+    mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
+      yield {
+        blobsAnnounced: 2,
+        blobsKnown: 0,
+        blobsWanted: 2,
+        blobsProcessed: 2,
+        blobsFailed: 1,
+      }
+    })
+    const request = new Request('https://nodosdeaprendizaje.es/hm/api/feedback', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({firstImpression: 'Push should fail.'}),
+    })
+
+    const response = await action({request, params: {}, context: {}})
+
+    expect(response.status).toBe(500)
+    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
   it('rejects empty feedback server-side', async () => {
