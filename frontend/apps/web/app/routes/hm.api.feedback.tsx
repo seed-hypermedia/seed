@@ -64,7 +64,7 @@ export async function action({request}: ActionFunctionArgs) {
     const destinationLabel = config.feedbackDestinationLabel?.trim() || destinationAccountUid
     const reviewedSiteLabel = new URL(parsedRequest.origin).host
     const isPublic = config.feedbackDocumentVisibility === 'public'
-    const visibility = isPublic ? ResourceVisibility.UNSPECIFIED : ResourceVisibility.PRIVATE
+    const visibility = isPublic ? ResourceVisibility.PUBLIC : ResourceVisibility.PRIVATE
     const visibilityLabel = isPublic ? 'Público' : 'Privado'
 
     const result = await publishFeedbackDocument(
@@ -128,6 +128,10 @@ async function pushFeedbackDocumentToPeer(documentId: string, addrs: string[]): 
     recursive: false,
   })) {
     latestProgress = formatPushProgress(progress)
+  }
+
+  if (!latestProgress || latestProgress.blobsAnnounced === 0) {
+    throw new Error('Feedback push did not find any blobs to announce')
   }
 
   if (latestProgress?.blobsFailed) {
