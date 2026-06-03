@@ -1,5 +1,5 @@
-import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
+import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -12,20 +12,23 @@ import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {InlineDraftCard} from '@shm/ui/inline-draft-card'
 import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
+import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {NewDocumentCard} from '@shm/ui/new-document-card'
 import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
-import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
-import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
+import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
-import {FocusEvent, Profiler, ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
+import {Node as PMNode} from 'prosemirror-model'
+import {NodeSelection} from 'prosemirror-state'
+import {FocusEvent, Profiler, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
-import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
@@ -311,6 +314,66 @@ function QuerySettings({
   // @ts-expect-error
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
   const [limit, setLimit] = useState(!!block.props.queryLimit)
+  // Portal the popover to document.body so it escapes the .blockNode's
+  // stacking context, otherwise siblings rendered later in the document
+  // render above it regardless of z-index.
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [popoverRect, setPopoverRect] = useState<{top: number; right: number} | null>(null)
+
+  useEffect(() => {
+    if (!popoverState.open || !triggerRef.current) return
+    const update = () => {
+      if (!triggerRef.current) return
+      const rect = triggerRef.current.getBoundingClientRect()
+      // Pin top to just below the trigger and right to the trigger's right
+      // edge so the popover hangs off the right side.
+      setPopoverRect({top: rect.bottom + 4, right: window.innerWidth - rect.right})
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [popoverState.open])
+
+  // Click-outside dismissal. Using a document-level mousedown listener
+  // instead of a `fixed inset-0` overlay because the overlay would cover
+  // the editor's scroll container and silently block wheel events, leaving
+  // scrolling visibly frozen while the popover is open.
+  useEffect(() => {
+    if (!popoverState.open) return
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      if (triggerRef.current?.contains(target)) return
+      if (popoverRef.current?.contains(target)) return
+      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      popoverState.onOpenChange(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [popoverState.open, popoverState.onOpenChange])
+
+  // When the popover opens, put a NodeSelection on the query block so
+  // ProseMirror keeps it as the active selection..
+  useEffect(() => {
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+    if (popoverState.open) {
+      view.state.doc.descendants((node: PMNode, pos: number) => {
+        if (node.type.name === 'blockNode' && node.attrs?.id === block.id) {
+          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos + 1)))
+          return false
+        }
+        return true
+      })
+    } else {
+      view.focus()
+    }
+  }, [popoverState.open, editor, block.id])
 
   useEffect(() => {
     // @ts-expect-error
@@ -331,6 +394,7 @@ function QuerySettings({
       <div className="relative flex justify-end py-1">
         <Tooltip content="Edit Query">
           <Button
+            ref={triggerRef}
             size="icon"
             variant="ghost"
             className={`hover:bg-background bg-white transition-opacity dark:bg-black ${
@@ -342,216 +406,219 @@ function QuerySettings({
           </Button>
         </Tooltip>
 
-        {popoverState.open && (
-          <div
-            className="bg-background absolute top-full right-0 z-30 mt-1 flex w-full max-w-[350px] flex-col gap-4 rounded-lg p-4 shadow-lg"
-            // Prevent ProseMirror from intercepting focus-stealing events when
-            // the editor is still read-only. Without this the search input
-            // below cannot be focused until the doc is in edit mode.
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <QuerySearch
-              selectedDocName={queryDocName}
-              beginEditIfNeeded={beginEditIfNeeded}
-              onSelect={({id}) => {
-                if (id) {
-                  const newVal: HMQueryBlockIncludes = [
+        {popoverState.open &&
+          popoverRect &&
+          createPortal(
+            <div
+              ref={popoverRef}
+              className="bg-background fixed z-40 flex w-[350px] max-w-[90vw] flex-col gap-4 rounded-lg p-4 shadow-lg"
+              style={{top: popoverRect.top, right: popoverRect.right}}
+              // Prevent ProseMirror from intercepting focus-stealing events when
+              // the editor is still read-only. Without this the search input
+              // below cannot be focused until the doc is in edit mode.
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <QuerySearch
+                selectedDocName={queryDocName}
+                beginEditIfNeeded={beginEditIfNeeded}
+                onSelect={({id}) => {
+                  if (id) {
+                    const newVal: HMQueryBlockIncludes = [
+                      {
+                        ...queryIncludes[0],
+                        space: id.uid,
+                        path: id.path && id.path.length ? id.path.join('/') : '',
+                        mode: queryIncludes[0]?.mode ? queryIncludes[0]?.mode : 'AllDescendants',
+                      },
+                    ]
+                    onValuesChange({
+                      id,
+                      props: {
+                        ...block.props,
+                        queryIncludes: JSON.stringify(newVal),
+                      },
+                    })
+                  }
+                }}
+              />
+
+              <SelectField
+                value={queryIncludes[0]?.mode ?? 'Children'}
+                onValue={(value) => {
+                  let newVal = [
                     {
                       ...queryIncludes[0],
-                      space: id.uid,
-                      path: id.path && id.path.length ? id.path.join('/') : '',
-                      mode: queryIncludes[0]?.mode ? queryIncludes[0]?.mode : 'AllDescendants',
+                      mode: value,
                     },
                   ]
                   onValuesChange({
-                    id,
+                    id: null,
                     props: {
                       ...block.props,
                       queryIncludes: JSON.stringify(newVal),
                     },
                   })
-                }
-              }}
-            />
+                }}
+                id="showChildren"
+                options={[
+                  {label: 'Show only Direct Children', value: 'Children'},
+                  {label: 'Show all Descendants', value: 'AllDescendants'},
+                ]}
+              />
 
-            <SelectField
-              value={queryIncludes[0]?.mode ?? 'Children'}
-              onValue={(value) => {
-                let newVal = [
-                  {
-                    ...queryIncludes[0],
-                    mode: value,
-                  },
-                ]
-                onValuesChange({
-                  id: null,
-                  props: {
-                    ...block.props,
-                    queryIncludes: JSON.stringify(newVal),
-                  },
-                })
-              }}
-              id="showChildren"
-              options={[
-                {label: 'Show only Direct Children', value: 'Children'},
-                {label: 'Show all Descendants', value: 'AllDescendants'},
-              ]}
-            />
-
-            <SelectField
-              value={block.props.style}
-              onValue={(value) => {
-                onValuesChange({
-                  id: null,
-                  props: {...block.props, style: value as 'Card' | 'List'},
-                })
-              }}
-              label="View"
-              id="view"
-              options={[
-                {label: 'Card', value: 'Card'},
-                {label: 'List', value: 'List'},
-              ]}
-            />
-            <SelectField
-              // @ts-ignore
-              value={querySort[0].term}
-              onValue={(value) => {
-                let newVal = [
-                  {
-                    ...querySort[0],
-                    term: value,
-                  },
-                ]
-                onValuesChange({
-                  id: null,
-                  props: {
-                    ...block.props,
-                    querySort: JSON.stringify(newVal),
-                  },
-                })
-              }}
-              label="Sort by"
-              id="sort"
-              options={[
-                {label: 'Update time', value: 'UpdateTime'},
-                {label: 'Create time', value: 'CreateTime'},
-                {label: 'Display time', value: 'DisplayTime'},
-                {label: 'Latest activity', value: 'ActivityTime'},
-                {label: 'By Title', value: 'Title'},
-              ]}
-            />
-            {block.props.style == 'Card' ? (
-              <>
-                <SelectField
-                  value={block.props.columnCount || '3'}
-                  onValue={(value) => {
-                    onValuesChange({
-                      id: null,
-                      props: {
-                        ...block.props,
-                        columnCount: value as '1' | '2' | '3',
-                      },
-                    })
-                  }}
-                  label="Columns"
-                  id="columns"
-                  options={[
-                    {label: '1', value: '1'},
-                    {label: '2', value: '2'},
-                    {label: '3', value: '3'},
-                  ]}
-                />
-                <SwitchField
-                  label="Show Banner"
-                  id="banner"
-                  defaultChecked={banner}
-                  // @ts-expect-error
-                  opacity={banner ? 1 : 0.4}
-                  onCheckedChange={(value) => {
-                    onValuesChange({
-                      id: null,
-                      props: {
-                        ...block.props,
-                        banner: value ? 'true' : 'false',
-                      },
-                    })
-                  }}
-                />
-              </>
-            ) : null}
-
-            <SwitchField
-              label="Reverse"
-              // @ts-ignore
-              defaultChecked={querySort[0].reverse}
-              id="sort-reverse"
-              onCheckedChange={(value) => {
-                let newVal = [
-                  {
-                    ...querySort[0],
-                    reverse: value,
-                  },
-                ]
-                onValuesChange({
-                  id: null,
-                  props: {
-                    ...block.props,
-                    querySort: JSON.stringify(newVal),
-                  },
-                })
-              }}
-            />
-            <SwitchField
-              label="Limit Result Count"
-              id="limit"
-              defaultChecked={limit}
-              onCheckedChange={(value) => {
-                setLimit(value)
-                onValuesChange({
-                  id: null,
-                  props: {
-                    ...block.props,
-                    queryLimit: value ? block.props.queryLimit || '10' : '',
-                  },
-                })
-              }}
-            />
-            {limit ? (
-              <Input
-                type="number"
-                value={block.props.queryLimit}
-                onChangeText={(value) => {
+              <SelectField
+                value={block.props.style}
+                onValue={(value) => {
+                  onValuesChange({
+                    id: null,
+                    props: {...block.props, style: value as 'Card' | 'List'},
+                  })
+                }}
+                label="View"
+                id="view"
+                options={[
+                  {label: 'Card', value: 'Card'},
+                  {label: 'List', value: 'List'},
+                ]}
+              />
+              <SelectField
+                // @ts-ignore
+                value={querySort[0].term}
+                onValue={(value) => {
+                  let newVal = [
+                    {
+                      ...querySort[0],
+                      term: value,
+                    },
+                  ]
                   onValuesChange({
                     id: null,
                     props: {
                       ...block.props,
-                      queryLimit: value,
+                      querySort: JSON.stringify(newVal),
                     },
                   })
                 }}
-                placeholder="Item Count"
+                label="Sort by"
+                id="sort"
+                options={[
+                  {label: 'Update time', value: 'UpdateTime'},
+                  {label: 'Create time', value: 'CreateTime'},
+                  {label: 'Display time', value: 'DisplayTime'},
+                  {label: 'Latest activity', value: 'ActivityTime'},
+                  {label: 'By Title', value: 'Title'},
+                ]}
               />
-            ) : null}
-            <div className="border-border -mt-1 flex flex-col gap-2 border-t">
-              <div className="flex justify-end">
-                <Button
-                  size="icon"
-                  onClick={() => {
-                    beginEditIfNeeded()
-                    editor.removeBlocks([block.id])
-                  }}
-                >
-                  <Trash className="size-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+              {block.props.style == 'Card' ? (
+                <>
+                  <SelectField
+                    value={block.props.columnCount || '3'}
+                    onValue={(value) => {
+                      onValuesChange({
+                        id: null,
+                        props: {
+                          ...block.props,
+                          columnCount: value as '1' | '2' | '3',
+                        },
+                      })
+                    }}
+                    label="Columns"
+                    id="columns"
+                    options={[
+                      {label: '1', value: '1'},
+                      {label: '2', value: '2'},
+                      {label: '3', value: '3'},
+                    ]}
+                  />
+                  <SwitchField
+                    label="Show Banner"
+                    id="banner"
+                    defaultChecked={banner}
+                    // @ts-expect-error
+                    opacity={banner ? 1 : 0.4}
+                    onCheckedChange={(value) => {
+                      onValuesChange({
+                        id: null,
+                        props: {
+                          ...block.props,
+                          banner: value ? 'true' : 'false',
+                        },
+                      })
+                    }}
+                  />
+                </>
+              ) : null}
 
-      {popoverState.open && <div className="fixed inset-0 z-10" onClick={() => popoverState.onOpenChange(false)} />}
+              <SwitchField
+                label="Reverse"
+                // @ts-ignore
+                defaultChecked={querySort[0].reverse}
+                id="sort-reverse"
+                onCheckedChange={(value) => {
+                  let newVal = [
+                    {
+                      ...querySort[0],
+                      reverse: value,
+                    },
+                  ]
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      querySort: JSON.stringify(newVal),
+                    },
+                  })
+                }}
+              />
+              <SwitchField
+                label="Limit Result Count"
+                id="limit"
+                defaultChecked={limit}
+                onCheckedChange={(value) => {
+                  setLimit(value)
+                  onValuesChange({
+                    id: null,
+                    props: {
+                      ...block.props,
+                      queryLimit: value ? block.props.queryLimit || '10' : '',
+                    },
+                  })
+                }}
+              />
+              {limit ? (
+                <Input
+                  type="number"
+                  value={block.props.queryLimit}
+                  onChangeText={(value) => {
+                    onValuesChange({
+                      id: null,
+                      props: {
+                        ...block.props,
+                        queryLimit: value,
+                      },
+                    })
+                  }}
+                  placeholder="Item Count"
+                />
+              ) : null}
+              <div className="border-border -mt-1 flex flex-col gap-2 border-t">
+                <div className="flex justify-end">
+                  <Button
+                    size="icon"
+                    onClick={() => {
+                      beginEditIfNeeded()
+                      editor.removeBlocks([block.id])
+                    }}
+                  >
+                    <Trash className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
+      </div>
     </>
   )
 }
