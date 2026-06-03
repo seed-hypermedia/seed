@@ -3,6 +3,7 @@ import {BrowserWindow} from 'electron'
 const QUERY_INVALIDATION_CHANNEL = 'query_invalidation'
 
 const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
+const INVALIDATION_LOG_ENABLED = PROFILE_ENABLED || process.env.SEED_INVALIDATION_LOG === '1'
 
 let broadcastCount = 0
 let broadcastWindowStart = Date.now()
@@ -15,14 +16,14 @@ export function getInvalidationTargetWindowCount(): number {
 }
 
 export function appInvalidateQueries(queryKey: any) {
-  if (PROFILE_ENABLED) {
+  if (INVALIDATION_LOG_ENABLED) {
     broadcastCount++
     const now = Date.now()
     if (now - broadcastWindowStart >= BROADCAST_LOG_WINDOW_MS) {
       const elapsedSec = (now - broadcastWindowStart) / 1000
       const rate = (broadcastCount / elapsedSec).toFixed(2)
       console.log(
-        `[SyncProfile] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(
+        `[SyncInvalidation] invalidations: ${broadcastCount} in ${elapsedSec.toFixed(
           1,
         )}s (${rate}/s) windows=${getInvalidationTargetWindowCount()}`,
       )
@@ -30,7 +31,10 @@ export function appInvalidateQueries(queryKey: any) {
       broadcastWindowStart = now
     }
     const keyPrefix = Array.isArray(queryKey) ? String(queryKey[0]) : String(queryKey)
-    console.log(`[SyncProfile] invalidate key=${keyPrefix} windows=${getInvalidationTargetWindowCount()}`)
+    const serializedKey = JSON.stringify(queryKey)
+    console.log(
+      `[SyncInvalidation] send key=${keyPrefix} queryKey=${serializedKey} windows=${getInvalidationTargetWindowCount()}`,
+    )
   }
   BrowserWindow.getAllWindows().forEach((window) => {
     if (window.isDestroyed()) return

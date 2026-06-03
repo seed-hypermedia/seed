@@ -163,28 +163,65 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS])
     })
 
-    it('invalidates listing and feed caches for Ref events', async () => {
+    it('targets site-library invalidation for child Ref events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner/doc?v=abc')])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
     })
 
-    it('invalidates all comment-related caches for Comment events', async () => {
+    it('invalidates root-document caches for root Ref events', async () => {
       const {processEvents} = await loadModule()
-      processEvents([makeBlobEvent('Comment', 'hm://z6MkOwner/doc')])
+      processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner?v=abc')])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
+    })
+
+    it('falls back to broad listing invalidations for malformed Ref resources', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([makeBlobEvent('Ref', 'not-an-hm-url')])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
+    })
+
+    it('targets string-keyed comment caches for Comment events when target and author are known', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([
+        makeBlobEvent(
+          'Comment',
+          'hm://z6MkCommentAuthor/comment-tsid',
+          'z6MkCommentAuthor',
+          JSON.stringify({target: 'hm://z6MkOwner/doc'}),
+        ),
+      ])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COMMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_DISCUSSION])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.BLOCK_DISCUSSIONS])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.COMMENTS])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.AUTHORED_COMMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.COMMENTS, 'hm://z6MkOwner/doc'])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.COMMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.AUTHORED_COMMENTS, 'hm://z6MkCommentAuthor'])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.AUTHORED_COMMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([
+        queryKeys.DOCUMENT_INTERACTION_SUMMARY,
+        'hm://z6MkOwner/doc',
+      ])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.COMMENT_VERSIONS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
+    })
+
+    it('falls back to broad comment index invalidations when Comment target data is missing', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([makeBlobEvent('Comment', 'hm://z6MkOwner/doc', '', '')])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.COMMENTS])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.AUTHORED_COMMENTS])
     })
 
     it('batches invalidations for mixed event types', async () => {
@@ -200,7 +237,7 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS])
       // Ref → listing caches
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
       // Comment → comment caches
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COMMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_DISCUSSION])

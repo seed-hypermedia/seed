@@ -34,6 +34,7 @@ import {t} from './app-trpc'
 // ============ Profile instrumentation ============
 
 const PROFILE_ENABLED = process.env.SEED_SYNC_PROFILE === '1'
+const INVALIDATION_LOG_ENABLED = PROFILE_ENABLED || process.env.SEED_INVALIDATION_LOG === '1'
 const PROFILE_FRAME_THRESHOLD_MS = 16
 
 function profileLog(msg: string) {
@@ -341,8 +342,11 @@ function processEventsInner(events: Event[]) {
   // ── First pass: collect event data for batched invalidation ──
   const seenBlobTypes = new Set<string>()
   const commentTargetIRIs: string[] = []
+  const commentTargetIds = new Set<string>()
+  const commentAuthorRootIds = new Set<string>()
   const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
   const contactData: {author: string; extraAttrs: string}[] = []
+  const refIds: UnpackedHypermediaId[] = []
 
   for (const event of events) {
     if (event.data.case !== 'newBlob') continue
@@ -356,9 +360,15 @@ function processEventsInner(events: Event[]) {
     if (blobType) seenBlobTypes.add(blobType)
 
     if (blobType === 'comment') {
+      const author = event.data.value.author
+      if (author) commentAuthorRootIds.add(hmId(author).id)
       try {
         const attrs = JSON.parse(event.data.value.extraAttrs) as {target?: string}
-        if (attrs.target) commentTargetIRIs.push(attrs.target)
+        if (attrs.target) {
+          commentTargetIRIs.push(attrs.target)
+          const targetId = unpackHmId(attrs.target.split('?')[0] || '')
+          if (targetId) commentTargetIds.add(targetId.id)
+        }
       } catch {
         // extraAttrs missing or unparseable
       }
@@ -372,10 +382,28 @@ function processEventsInner(events: Event[]) {
       }
     }
 
+    if (blobType === 'ref' && resource) {
+      const id = unpackHmId(resource)
+      if (id) refIds.push(id)
+    }
+
     if (blobType === 'contact') {
       const author = event.data.value.author
       if (author) contactData.push({author, extraAttrs: event.data.value.extraAttrs})
     }
+  }
+
+  if (INVALIDATION_LOG_ENABLED && events.length > 0) {
+    const typeCounts = Array.from(seenBlobTypes).map((blobType) => [
+      blobType,
+      events.filter((event) => event.data.case === 'newBlob' && event.data.value.blobType?.toLowerCase() === blobType)
+        .length,
+    ])
+    console.log(
+      `[SyncInvalidation] processEvents events=${events.length} types=${JSON.stringify(
+        Object.fromEntries(typeCounts),
+      )} subscribedPending=${state.pendingInvalidations.size} commentTargets=${commentTargetIRIs.length}`,
+    )
   }
 
   // ── Second pass: batched invalidations by event type ──
@@ -398,22 +426,26 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
   }
 
-  // Comment changes: invalidate all comment-related caches once (not per-event)
+  // Comment changes: keep object-shaped comment view keys broad, but target
+  // string-keyed comment indexes when the activity event carries enough data.
   if (seenBlobTypes.has('comment')) {
     appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
     appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
     appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-    appInvalidateQueries([queryKeys.COMMENTS])
-    appInvalidateQueries([queryKeys.AUTHORED_COMMENTS])
+    if (commentTargetIds.size > 0) {
+      commentTargetIds.forEach((id) => appInvalidateQueries([queryKeys.COMMENTS, id]))
+    } else {
+      appInvalidateQueries([queryKeys.COMMENTS])
+    }
+    if (commentAuthorRootIds.size > 0) {
+      commentAuthorRootIds.forEach((id) => appInvalidateQueries([queryKeys.AUTHORED_COMMENTS, id]))
+    } else {
+      appInvalidateQueries([queryKeys.AUTHORED_COMMENTS])
+    }
     appInvalidateQueries([queryKeys.COMMENT_VERSIONS])
 
     // Targeted DOCUMENT_INTERACTION_SUMMARY invalidation using `target` from extraAttrs.
-    const targetIds = new Set<string>()
-    for (const iri of commentTargetIRIs) {
-      const id = unpackHmId(iri.split('?')[0] || '')
-      if (id) targetIds.add(id.id)
-    }
-    targetIds.forEach((id) => {
+    commentTargetIds.forEach((id) => {
       appInvalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id])
     })
   }
@@ -483,12 +515,29 @@ function processEventsInner(events: Event[]) {
     }
   }
 
-  // Document update changes: invalidate listing/library caches
+  // Document update changes: invalidate listing/library caches. Global library has
+  // no account argument, but site-library and root-document caches can be targeted
+  // from the Ref resource safely.
   if (seenBlobTypes.has('ref')) {
     appInvalidateQueries([queryKeys.LIBRARY])
-    appInvalidateQueries([queryKeys.SITE_LIBRARY])
-    appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-    appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
+
+    const siteUids = new Set<string>()
+    let hasRootRef = false
+    for (const id of refIds) {
+      siteUids.add(id.uid)
+      if ((id.path || []).length === 0) hasRootRef = true
+    }
+    if (siteUids.size > 0) {
+      siteUids.forEach((uid) => appInvalidateQueries([queryKeys.SITE_LIBRARY, uid]))
+    } else {
+      appInvalidateQueries([queryKeys.SITE_LIBRARY])
+      hasRootRef = true
+    }
+
+    if (hasRootRef) {
+      appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
+      appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
+    }
   }
 
   // Citation invalidation: comments and refs can introduce new mentions/citations

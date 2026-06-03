@@ -5,6 +5,7 @@ import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_contr
 import {BIG_INT} from '@shm/shared/constants'
 import {roleCanWrite} from '@shm/shared/models/capabilities'
 import {useCapabilities, useResources} from '@shm/shared/models/entity'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQueries} from '@tanstack/react-query'
@@ -36,7 +37,7 @@ function roleToHMRole(role: Role): HMRole {
 function useAccountsCapabilities(accountIds: string[]) {
   const capabilities = useQueries({
     queries: accountIds.map((accountId) => ({
-      queryKey: ['ACCOUNT_CAPABILITIES', accountId],
+      queryKey: [queryKeys.ACCOUNT_CAPABILITIES, accountId],
       queryFn: async () => {
         const result = await grpcClient.accessControl.listCapabilitiesForDelegate({
           delegate: accountId,
