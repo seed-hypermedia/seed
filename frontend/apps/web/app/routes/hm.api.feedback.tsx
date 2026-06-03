@@ -11,6 +11,7 @@ import {serverUniversalClient} from '@/server-universal-client'
 import {getConfig} from '@/site-config.server'
 import type {ActionFunctionArgs} from '@remix-run/node'
 import {json} from '@remix-run/node'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'name',
@@ -53,6 +54,9 @@ export async function action({request}: ActionFunctionArgs) {
     const signer = await getServerSigner(signingAccountUid)
     const destinationLabel = config.feedbackDestinationLabel?.trim() || destinationAccountUid
     const reviewedSiteLabel = new URL(parsedRequest.origin).host
+    const isPublic = config.feedbackDocumentVisibility === 'public'
+    const visibility = isPublic ? ResourceVisibility.UNSPECIFIED : ResourceVisibility.PRIVATE
+    const visibilityLabel = isPublic ? 'Público' : 'Privado'
 
     const result = await publishFeedbackDocument(
       {
@@ -69,6 +73,8 @@ export async function action({request}: ActionFunctionArgs) {
         publishedUnderAccountUid: destinationAccountUid,
         testedPageLabel: reviewedSiteLabel,
         testedPageUrl: parsedRequest.origin,
+        visibility,
+        visibilityLabel,
       },
     )
 
@@ -80,6 +86,7 @@ export async function action({request}: ActionFunctionArgs) {
       signingAccountUid,
       capabilityCid,
       destinationLabel,
+      visibility: config.feedbackDocumentVisibility || 'private',
       submittedAt: result.submittedAt,
     })
 
@@ -89,6 +96,7 @@ export async function action({request}: ActionFunctionArgs) {
       documentId: result.documentId.id,
       documentVersion: result.documentId.version,
       documentPath: result.documentId.path,
+      visibility: config.feedbackDocumentVisibility || 'private',
     })
   } catch (error) {
     reportError(error, {feature: 'feedback', operation: 'server-publish-feedback'})

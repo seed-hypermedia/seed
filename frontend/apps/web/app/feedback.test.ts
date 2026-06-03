@@ -74,6 +74,7 @@ describe('feedback helpers', () => {
         publishedUnderAccountUid: 'z6MkSite',
         testedPageLabel: 'nodosdeconocimiento.es',
         testedPageUrl: 'https://nodosdeconocimiento.es',
+        visibilityLabel: 'Privado',
       },
     )
 
