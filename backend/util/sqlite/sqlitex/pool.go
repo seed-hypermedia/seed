@@ -282,10 +282,15 @@ func (p *Pool) Close() (err error) {
 	for closed := 0; closed < len(p.all); closed++ {
 		select {
 		case conn := <-p.free:
-			err2 := conn.Close()
-			if err == nil {
-				err = err2
-			}
+			// Because we've interrupted each connection when we canceled their context above,
+			// those connections are marked as interrupted internally by SQLite, and it prevents the WAL file
+			// from being checkpointed, which is the usual behavior in SQLite when the database is closed.
+			//
+			// So what we do here is clear the interrupt flag, and execute a dummy statement to make sure the flag is cleared in C,
+			// which should let SQLite to checkpoint the WAL file.
+			conn.SetInterrupt(nil)
+			err = errors.Join(err, Exec(conn, "SELECT 1", nil))
+			err = errors.Join(err, conn.Close())
 		case <-timeout:
 			panic("not all connections returned to Pool before timeout")
 		}

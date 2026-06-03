@@ -151,6 +151,29 @@ func TestPoolWithTxAfterClose(t *testing.T) {
 	require.ErrorIs(t, err, sqlitex.ErrPoolClosed)
 }
 
+func TestPoolCloseRemovesWALFile(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "wal-close.db")
+	wal := db + "-wal"
+
+	pool, err := sqlitex.Open(db, 0, 4)
+	require.NoError(t, err)
+
+	require.NoError(t, pool.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, `
+			CREATE TABLE wal_cleanup (value TEXT);
+			INSERT INTO wal_cleanup (value) VALUES ('hello');
+		`)
+	}))
+
+	_, err = os.Stat(wal)
+	require.NoError(t, err, "write in WAL mode should create %s before the pool closes", wal)
+
+	require.NoError(t, pool.Close())
+
+	_, err = os.Stat(wal)
+	require.ErrorIs(t, err, os.ErrNotExist, "SQLite should remove the WAL file when the pool closes its last connection")
+}
+
 func TestSharedCacheLock(t *testing.T) {
 	dir, err := ioutil.TempDir("", "sqlite-test-")
 	if err != nil {
