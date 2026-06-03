@@ -72,9 +72,19 @@ export async function action({request}: ActionFunctionArgs) {
       },
     )
 
+    console.log('[feedback] published', {
+      documentId: result.documentId.id,
+      destinationAccountUid,
+      signingAccountUid,
+      capabilityCid,
+      destinationLabel,
+      submittedAt: result.submittedAt,
+    })
+
     return json({
       destinationLabel,
       submittedAt: result.submittedAt,
+      documentId: result.documentId.id,
     })
   } catch (error) {
     reportError(error, {feature: 'feedback', operation: 'server-publish-feedback'})
