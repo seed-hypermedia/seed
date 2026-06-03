@@ -264,11 +264,64 @@ export function DirectoryListViewWithActivity({
     <div className="flex flex-col gap-1">
       {items.map((item) =>
         item.isPublished ? (
-          <DocumentListItem key={item.id.id} item={item} draftId={item.draftId} accountsMetadata={accountsMetadata} />
+          <DirectoryDocumentTreeItem
+            key={item.id.id}
+            item={item}
+            draftId={item.draftId}
+            accountsMetadata={accountsMetadata}
+          />
         ) : (
           <DraftListItem key={item.draftId} draftId={item.draftId} metadata={item.metadata} />
         ),
       )}
+    </div>
+  )
+}
+
+function DirectoryDocumentTreeItem({
+  item,
+  draftId,
+  accountsMetadata,
+}: {
+  item: HMDocumentInfo & {draftId?: string; isPublished: true}
+  draftId?: string
+  accountsMetadata?: HMAccountsMetadata
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="flex flex-col gap-1">
+      <DocumentListItem
+        item={item}
+        draftId={draftId}
+        accountsMetadata={accountsMetadata}
+        expandable={{
+          expanded,
+          onToggle: () => setExpanded((value) => !value),
+        }}
+      />
+      {expanded && <DirectoryDocumentChildren docId={item.id} />}
+    </div>
+  )
+}
+
+function DirectoryDocumentChildren({docId}: {docId: UnpackedHypermediaId}) {
+  const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
+
+  if (isInitialLoading) {
+    return (
+      <div className="border-border/70 text-muted-foreground ml-5 flex items-center gap-2 border-l py-2 pl-5 text-xs">
+        <Spinner className="size-3.5" />
+        Loading children…
+      </div>
+    )
+  }
+
+  if (!items.length) return null
+
+  return (
+    <div className="border-border/70 ml-5 border-l pl-5">
+      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
     </div>
   )
 }
