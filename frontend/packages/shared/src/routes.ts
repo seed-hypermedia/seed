@@ -391,6 +391,59 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   return panel as NavRoute
 }
 
+function replacePanelDocumentId(
+  panel: DocumentPanelRoute | undefined | null,
+  targetId: UnpackedHypermediaId,
+): DocumentPanelRoute | undefined | null {
+  if (!panel) return panel
+
+  const nextPanel = 'panel' in panel ? replacePanelDocumentId(panel.panel as DocumentPanelRoute | null, targetId) : null
+
+  if ('id' in panel) {
+    return {
+      ...panel,
+      id: targetId,
+      ...('panel' in panel ? {panel: nextPanel} : {}),
+    } as DocumentPanelRoute
+  }
+
+  if ('panel' in panel) {
+    return {
+      ...panel,
+      panel: nextPanel,
+    } as DocumentPanelRoute
+  }
+
+  return panel
+}
+
+/**
+ * Rewrites a document-style navigation route so it points at a new document ID.
+ * Preserves the current view/panel state while updating all embedded document IDs.
+ */
+export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHypermediaId): NavRoute {
+  switch (route.key) {
+    case 'document':
+    case 'feed':
+    case 'directory':
+    case 'collaborators':
+    case 'activity':
+    case 'comments':
+      return {
+        ...route,
+        id: targetId,
+        panel: replacePanelDocumentId(route.panel as DocumentPanelRoute | null, targetId) as any,
+      }
+    case 'site-profile':
+      return {
+        ...route,
+        id: targetId,
+      }
+    default:
+      return route
+  }
+}
+
 /**
  * Create a DocumentPanelRoute from a panel param string
  * Supports extended formats:

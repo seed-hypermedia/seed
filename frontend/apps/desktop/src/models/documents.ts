@@ -1124,11 +1124,16 @@ function getMovedChildPath(childPath: string[], fromPath: string[], toPath: stri
   return [...toPath, ...childPath.slice(fromPath.length)]
 }
 
-const MOVE_DOCUMENT_LOG_PREFIX = '[move-document]'
+type PlannedMove = {
+  from: UnpackedHypermediaId
+  to: UnpackedHypermediaId
+  isSubdocumentMove: boolean
+}
 
 type MoveRefBundle = {
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
+  isSubdocumentMove: boolean
   versionRefOperation: Record<string, unknown>
   versionRefInput: HMPublishBlobsInput
   redirectRefOperation: Record<string, unknown>
@@ -1139,50 +1144,67 @@ function movePathLabel(id: UnpackedHypermediaId) {
   return id.path?.join('/') || '/'
 }
 
+function moveScopeLabel(isSubdocumentMove: boolean) {
+  return isSubdocumentMove ? 'subdocument' : 'document'
+}
+
 function logMoveRefBlob({
   kind,
   sourceId,
   targetId,
+  isSubdocumentMove,
   refInput,
   publishInput,
 }: {
   kind: 'version' | 'redirect'
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
+  isSubdocumentMove: boolean
   refInput: Record<string, unknown>
   publishInput: HMPublishBlobsInput
 }) {
-  console.groupCollapsed(
-    `${MOVE_DOCUMENT_LOG_PREFIX} created ${kind} ref blob: ${movePathLabel(sourceId)} -> ${movePathLabel(targetId)}`,
-  )
-  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} sourceId`, sourceId)
-  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} targetId`, targetId)
-  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} ref operation`, refInput)
-  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publish input`, publishInput)
-  console.log(
-    `${MOVE_DOCUMENT_LOG_PREFIX} ref blob bytes`,
-    publishInput.blobs.map((blob, index) => ({
-      index,
-      cid: blob.cid,
-      data: blob.data,
-      bytes: Array.from(blob.data),
-    })),
-  )
-  console.groupEnd()
+  // const moveScope = moveScopeLabel(isSubdocumentMove)
+  // console.groupCollapsed(
+  //   `[move-document] created ${kind} ref blob for ${moveScope}: ${movePathLabel(sourceId)} -> ${movePathLabel(
+  //     targetId,
+  //   )}`,
+  // )
+  // console.log(`[move-document] move scope`, moveScope)
+  // console.log(`[move-document] sourceId`, sourceId)
+  // console.log(`[move-document] targetId`, targetId)
+  // console.log(`[move-document] ref operation`, refInput)
+  // console.log(`[move-document] publish input`, publishInput)
+  // console.log(
+  //   `[move-document] ref blob bytes`,
+  //   publishInput.blobs.map((blob, index) => ({
+  //     index,
+  //     cid: blob.cid,
+  //     data: blob.data,
+  //     bytes: Array.from(blob.data),
+  //   })),
+  // )
+  // console.groupEnd()
 }
 
 async function createDocumentMoveRefs({
   sourceId,
   targetId,
+  isSubdocumentMove,
   doc,
   signer,
 }: {
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
+  isSubdocumentMove: boolean
   doc: HMDocument
   signer: HMSigner
 }): Promise<MoveRefBundle> {
-  console.log(`${MOVE_DOCUMENT_LOG_PREFIX} creating move refs`, {sourceId, targetId, doc})
+  // console.log(`[move-document] creating move refs`, {
+  //   moveScope: moveScopeLabel(isSubdocumentMove),
+  //   sourceId,
+  //   targetId,
+  //   doc,
+  // })
   if (!doc.generationInfo) throw new Error('No generation info for document')
   const generation = Number(doc.generationInfo.generation)
 
@@ -1198,6 +1220,7 @@ async function createDocumentMoveRefs({
     kind: 'version',
     sourceId,
     targetId,
+    isSubdocumentMove,
     refInput: versionRefOperation,
     publishInput: versionRefInput,
   })
@@ -1215,6 +1238,7 @@ async function createDocumentMoveRefs({
     kind: 'redirect',
     sourceId,
     targetId,
+    isSubdocumentMove,
     refInput: redirectRefOperation,
     publishInput: redirectRefInput,
   })
@@ -1222,6 +1246,7 @@ async function createDocumentMoveRefs({
   return {
     sourceId,
     targetId,
+    isSubdocumentMove,
     versionRefOperation,
     versionRefInput,
     redirectRefOperation,
@@ -1250,74 +1275,95 @@ export function useMoveDocument() {
         account: from.uid,
         pageSize: BIG_INT,
       })
-      const childMoves = listedDocs.documents
+      const childMoves: PlannedMove[] = listedDocs.documents
         .map((item) => prepareHMDocumentInfo(item).path)
         .filter((path) => isChildDocumentPath(path, fromPath))
         .sort((a, b) => a.length - b.length)
         .map((path) => ({
           from: hmId(from.uid, {path}),
           to: hmId(to.uid, {path: getMovedChildPath(path, fromPath, toPath)}),
+          isSubdocumentMove: true,
         }))
-      const moves = [{from, to}, ...childMoves]
-      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} recursive move plan`, {from, to, childMoves, moves})
-      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loading source documents`, {count: moves.length, moves})
+      const moves: PlannedMove[] = [{from, to, isSubdocumentMove: false}, ...childMoves]
+      // console.log(`[move-document] planned subdocument moves`, {count: childMoves.length, childMoves})
+      // console.log(`[move-document] recursive move plan`, {from, to, childMoves, moves})
+      // console.log(`[move-document] loading source documents`, {count: moves.length, moves})
       const moveResources = await Promise.all(
-        moves.map(async ({from: sourceId, to: targetId}) => {
-          console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loading source document`, {sourceId, targetId})
+        moves.map(async ({from: sourceId, to: targetId, isSubdocumentMove}) => {
+          // console.log(`[move-document] loading source document`, {
+          //   moveScope: moveScopeLabel(isSubdocumentMove),
+          //   sourceId,
+          //   targetId,
+          // })
           const resource = await universalClient.request('Resource', sourceId)
           if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
           const doc = resource.document
           if (!doc.generationInfo) throw new Error('No generation info for document')
-          console.log(`${MOVE_DOCUMENT_LOG_PREFIX} loaded source document`, {
-            sourceId,
-            targetId,
-            version: doc.version,
-            generationInfo: doc.generationInfo,
-          })
-          return {from: sourceId, to: targetId, doc}
+          // console.log(`[move-document] loaded source document`, {
+          //   moveScope: moveScopeLabel(isSubdocumentMove),
+          //   sourceId,
+          //   targetId,
+          //   version: doc.version,
+          //   generationInfo: doc.generationInfo,
+          // })
+          return {from: sourceId, to: targetId, isSubdocumentMove, doc}
         }),
       )
 
-      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} creating ref bundles`, {count: moveResources.length})
+      // console.log(`[move-document] creating ref bundles`, {count: moveResources.length})
       const moveRefBundles = []
-      for (const {from: sourceId, to: targetId, doc} of moveResources) {
-        const moveRefs = await createDocumentMoveRefs({sourceId, targetId, doc, signer})
+      for (const {from: sourceId, to: targetId, isSubdocumentMove, doc} of moveResources) {
+        const moveRefs = await createDocumentMoveRefs({sourceId, targetId, isSubdocumentMove, doc, signer})
         moveRefBundles.push(moveRefs)
       }
 
-      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing move ref bundles`, {
-        count: moveRefBundles.length,
-        moveRefBundles,
-      })
+      // console.log(`[move-document] publishing move ref bundles`, {
+      //   count: moveRefBundles.length,
+      //   moveRefBundles,
+      // })
       for (const moveRefs of moveRefBundles) {
-        console.groupCollapsed(
-          `${MOVE_DOCUMENT_LOG_PREFIX} publishing move: ${movePathLabel(moveRefs.sourceId)} -> ${movePathLabel(
-            moveRefs.targetId,
-          )}`,
-        )
-        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing version ref`, moveRefs.versionRefInput)
+        // const moveScope = moveScopeLabel(moveRefs.isSubdocumentMove)
+        // console.groupCollapsed(
+        //   `[move-document] publishing ${moveScope} move: ${movePathLabel(moveRefs.sourceId)} -> ${movePathLabel(
+        //     moveRefs.targetId,
+        //   )}`,
+        // )
+        // console.log(`[move-document] publishing version ref`, {
+        //   moveScope,
+        //   sourceId: moveRefs.sourceId,
+        //   targetId: moveRefs.targetId,
+        //   publishInput: moveRefs.versionRefInput,
+        // })
         await universalClient.publish(moveRefs.versionRefInput)
-        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} published version ref`, {
-          sourceId: moveRefs.sourceId,
-          targetId: moveRefs.targetId,
-          versionRefOperation: moveRefs.versionRefOperation,
-        })
-        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} publishing redirect ref`, moveRefs.redirectRefInput)
+        // console.log(`[move-document] published version ref`, {
+        //   moveScope,
+        //   sourceId: moveRefs.sourceId,
+        //   targetId: moveRefs.targetId,
+        //   versionRefOperation: moveRefs.versionRefOperation,
+        // })
+        // console.log(`[move-document] publishing redirect ref`, {
+        //   moveScope,
+        //   sourceId: moveRefs.sourceId,
+        //   targetId: moveRefs.targetId,
+        //   publishInput: moveRefs.redirectRefInput,
+        // })
         await universalClient.publish(moveRefs.redirectRefInput)
-        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} published redirect ref`, {
-          sourceId: moveRefs.sourceId,
-          targetId: moveRefs.targetId,
-          redirectRefOperation: moveRefs.redirectRefOperation,
-        })
-        console.log(`${MOVE_DOCUMENT_LOG_PREFIX} pushing moved source and target`, {
-          sourceId: moveRefs.sourceId,
-          targetId: moveRefs.targetId,
-        })
+        // console.log(`[move-document] published redirect ref`, {
+        //   moveScope,
+        //   sourceId: moveRefs.sourceId,
+        //   targetId: moveRefs.targetId,
+        //   redirectRefOperation: moveRefs.redirectRefOperation,
+        // })
+        // console.log(`[move-document] pushing moved source and target`, {
+        //   moveScope,
+        //   sourceId: moveRefs.sourceId,
+        //   targetId: moveRefs.targetId,
+        // })
         push(moveRefs.sourceId)
         push(moveRefs.targetId)
-        console.groupEnd()
+        // console.groupEnd()
       }
-      console.log(`${MOVE_DOCUMENT_LOG_PREFIX} recursive move complete`, {moves})
+      // console.log(`[move-document] recursive move complete`, {moves})
 
       return moves
     },

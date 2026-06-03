@@ -6,6 +6,7 @@ import {
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
   navRouteSchema,
+  replaceRouteDocumentId,
   type NavRoute,
 } from '../routes'
 import {routeToHref} from '../routing'
@@ -27,6 +28,45 @@ describe('settingsRouteSchema', () => {
       key: 'settings',
       tab: 'agent-servers',
     })
+  })
+})
+
+describe('replaceRouteDocumentId', () => {
+  test('replaces the main document id and nested panel ids', () => {
+    const sourceId = hmId('source', {path: ['old']})
+    const targetId = hmId('target', {path: ['new']})
+    const route: NavRoute = {
+      key: 'document',
+      id: sourceId,
+      panel: {
+        key: 'activity',
+        id: sourceId,
+        panel: {
+          key: 'comments',
+          id: sourceId,
+          openComment: 'comment-2',
+        },
+      },
+    }
+
+    expect(replaceRouteDocumentId(route, targetId)).toEqual({
+      key: 'document',
+      id: targetId,
+      panel: {
+        key: 'activity',
+        id: targetId,
+        panel: {
+          key: 'comments',
+          id: targetId,
+          openComment: 'comment-2',
+        },
+      },
+    })
+  })
+
+  test('leaves non-document routes unchanged', () => {
+    const route: NavRoute = {key: 'library'}
+    expect(replaceRouteDocumentId(route, hmId('target'))).toEqual(route)
   })
 })
 

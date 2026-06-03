@@ -14,6 +14,7 @@ import {
   getDraftNodesOutline,
   hmId,
   NavRoute,
+  replaceRouteDocumentId,
   ProfileTab,
   unpackHmId,
   useUniversalAppContext,
@@ -485,11 +486,22 @@ export function ResourcePage({
   editNavPane,
 }: ResourcePageProps) {
   const route = useNavRoute()
+  const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
+
+  const handleResourceRedirect = useCallback(
+    ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
+      if (isDeleted || !redirectTarget) return
+      replaceRoute(replaceRouteDocumentId(route, redirectTarget))
+      toast('This document has been redirected to a new location.')
+    },
+    [replaceRoute, route],
+  )
 
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
+    onRedirectOrDeleted: handleResourceRedirect,
   })
 
   // Once a real document has been seen, keep DocumentMachineProvider mounted across any
