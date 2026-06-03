@@ -1,3 +1,5 @@
+import type {HMSigner} from '@seed-hypermedia/client/hm-types'
+import {base58btc} from 'multiformats/bases/base58'
 import {grpcClient} from './client.server'
 
 async function listSortedServerKeys() {
@@ -55,4 +57,24 @@ export async function getOrCreateServerSignerAccountUid(): Promise<string> {
   }
 
   return pendingServerSignerAccountUid
+}
+
+/** Returns a daemon-backed signer for an existing server key account UID. */
+export async function getServerSigner(accountUid: string): Promise<HMSigner> {
+  const keys = await listSortedServerKeys()
+  const key = keys.find((candidate) => candidate.accountId === accountUid)
+  if (!key) {
+    throw new Error(`Server signing key not found for account ${accountUid}`)
+  }
+
+  return {
+    getPublicKey: async () => base58btc.decode(key.accountId),
+    sign: async (data: Uint8Array) => {
+      const result = await grpcClient.daemon.signData({
+        signingKeyName: key.name,
+        data,
+      })
+      return result.signature
+    },
+  }
 }
