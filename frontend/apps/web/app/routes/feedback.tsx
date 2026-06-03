@@ -31,11 +31,13 @@ import {useState} from 'react'
 
 type FeedbackPagePayload = SiteHeaderPayload & {
   feedbackDestinationLabel: string | null
+  feedbackDocumentVisibility: 'private' | 'public'
 }
 
 type PublishSuccessState = {
   destinationLabel: string
   submittedAt: string
+  visibility: 'private' | 'public'
 }
 
 const FONT_PRECONNECTS = [
@@ -70,6 +72,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
     return wrapJSON({
       ...headerData,
       feedbackDestinationLabel: config?.feedbackDestinationLabel?.trim() || null,
+      feedbackDocumentVisibility: config?.feedbackDocumentVisibility === 'public' ? 'public' : 'private',
     } satisfies FeedbackPagePayload)
   })
 }
@@ -101,8 +104,15 @@ export const meta: MetaFunction<typeof loader> = ({data}) => {
 }
 
 export default function FeedbackRoute() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState, feedbackDestinationLabel} =
-    unwrap<FeedbackPagePayload>(useLoaderData())
+  const {
+    originHomeId,
+    siteHost,
+    origin,
+    homeMetadata,
+    dehydratedState,
+    feedbackDestinationLabel,
+    feedbackDocumentVisibility,
+  } = unwrap<FeedbackPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
@@ -123,6 +133,7 @@ export default function FeedbackRoute() {
             homeMetadata={homeMetadata}
             siteOrigin={origin}
             feedbackDestinationLabel={feedbackDestinationLabel}
+            feedbackDocumentVisibility={feedbackDocumentVisibility}
           />
         </NavigationLoadingContent>
         <PageFooter className="w-full" hideDeviceLinkToast />
@@ -136,11 +147,13 @@ function FeedbackPageBody({
   homeMetadata,
   siteOrigin,
   feedbackDestinationLabel,
+  feedbackDocumentVisibility,
 }: {
   originHomeId: NonNullable<FeedbackPagePayload['originHomeId']>
   homeMetadata: FeedbackPagePayload['homeMetadata']
   siteOrigin: string
   feedbackDestinationLabel: string | null
+  feedbackDocumentVisibility: 'private' | 'public'
 }) {
   const [values, setValues] = useState<FeedbackFormValues>(INITIAL_VALUES)
   const [formError, setFormError] = useState<string | null>(null)
@@ -149,6 +162,7 @@ function FeedbackPageBody({
   const siteName = homeMetadata?.name?.trim() || new URL(siteOrigin).host
   const testedPageLabel = new URL(siteOrigin).host
   const testedPageUrl = siteOrigin
+  const visibilityCopy = feedbackDocumentVisibility === 'public' ? 'público' : 'privado'
   const logoCid = homeMetadata?.icon ? extractIpfsUrlCid(homeMetadata.icon) : null
   const logoSrc = logoCid ? getOptimizedImageUrl(logoCid, 'M') : null
 
@@ -162,12 +176,17 @@ function FeedbackPageBody({
       if (!response.ok) {
         throw new Error(`Feedback submit failed with status ${response.status}`)
       }
-      return (await response.json()) as {destinationLabel: string; submittedAt: string}
+      return (await response.json()) as {
+        destinationLabel: string
+        submittedAt: string
+        visibility: 'private' | 'public'
+      }
     },
     onSuccess: (result) => {
       setSuccess({
         destinationLabel: result.destinationLabel,
         submittedAt: result.submittedAt,
+        visibility: result.visibility,
       })
       setFormError(null)
     },
@@ -214,7 +233,9 @@ function FeedbackPageBody({
 
         <div className="relative z-10 flex flex-col gap-8">
           <header className="max-w-2xl">
-            <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-[#888780] uppercase">Feedback privado</p>
+            <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-[#888780] uppercase">
+              Feedback {visibilityCopy}
+            </p>
             <h1
               className="text-[2.35rem] leading-[1.08] text-[#1a1a18] sm:text-[2.8rem]"
               style={{fontFamily: '"Libre Baskerville", serif'}}
@@ -253,7 +274,7 @@ function FeedbackPageBody({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <InfoNote>
-              Tu feedback se enviará al equipo y se guardará como un documento <strong>privado</strong> en{' '}
+              Tu feedback se enviará al equipo y se guardará como un documento <strong>{visibilityCopy}</strong> en{' '}
               <strong>{feedbackDestinationLabel || 'Seed Surveys'}</strong>.
             </InfoNote>
             <InfoNote>
@@ -266,7 +287,9 @@ function FeedbackPageBody({
             <StateCard
               icon={<Check className="size-5 text-[#1d9e75]" />}
               title="Gracias."
-              body={`Tu feedback se ha guardado como documento privado en ${success.destinationLabel}.`}
+              body={`Tu feedback se ha guardado como documento ${
+                success.visibility === 'public' ? 'público' : 'privado'
+              } en ${success.destinationLabel}.`}
             >
               <p className="text-sm leading-7 text-[#5f5e5a]">Fecha de envío: {success.submittedAt}</p>
             </StateCard>
@@ -405,7 +428,7 @@ function FeedbackPageBody({
                 {formError ? <ErrorBanner>{formError}</ErrorBanner> : null}
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="max-w-xl text-sm leading-7 text-[#5f5e5a]">
-                    Al enviar, el servidor guardará tu feedback privado en{' '}
+                    Al enviar, el servidor guardará tu feedback {visibilityCopy} en{' '}
                     <strong>{feedbackDestinationLabel || 'Seed Surveys'}</strong>.
                   </p>
                   <Button
