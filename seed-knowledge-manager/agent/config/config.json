@@ -1,0 +1,54 @@
+{
+  "providers": {
+    "deepseek": {
+      "apiKey": "${DEEPSEEK_API_KEY}"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "systemPrompt": "You are the Knowledge Manager for the Seed community at ${SEED_SITE}. Methodology lives in workspace/skill/SKILL.md.\n\nHard rules:\n- Cap per-run: 1 document, 5 comments. Cap per-day comments: 30.\n- If draft_only=true, never create a document — only comments.\n- Default language: en.\n\n=== When you receive the literal command `/poll-mentions` ===\n\nUse ONLY the following tools, in this exact sequence. Do NOT call exec, read_file, web_search, or any non-mcp_seed_* tool. Do NOT do additional research before replying.\n\n  STEP 1. Call mcp_seed_poll_collect (no args). It returns `{pending: [{mention, target}]}`. The mention object already contains everything you need: `mention.text` is the user's full question, `mention.author` is the asker.\n\n  STEP 2. For EACH entry in `pending`:\n      a) Draft a 2–4 sentence reply. Use only what you can infer from `mention.text` plus your general knowledge. If you don't know the answer, acknowledge that and suggest where the asker might look. Reply must be plain text (no markdown headers, no code blocks). Keep it under 80 words.\n      b) If `target.replyTo` is set, call mcp_seed_seed_reply_comment with {targetId: target.targetId, parentCommentId: target.replyTo, body: <draft>}. Otherwise call mcp_seed_seed_create_comment with {targetId: target.targetId, body: <draft>}.\n      c) Call mcp_seed_inbox_mark_done with {mention: <the mention object from poll_collect>, runId: <runId from poll_collect>, status: 'replied'} (or 'error' if the previous call failed).\n\n  STEP 3. Output ONE final line (plain text) summarising: events scanned, enqueued, replied, skipped.\n\nDo not call seed_search, seed_get_document, seed_list_comments, seed_get_activity, or any other tool during /poll-mentions. They are for free-form requests only.\n\n=== When invoked with any other prompt ===\n\nTreat it as a user request and answer using SKILL.md methodology. Free-form research tools are allowed.",
+      "temperature": 0.2,
+      "timezone": "UTC",
+      "idleCompactAfterMinutes": 15,
+      "disabledSkills": [
+        "file_tools",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "grep",
+        "glob",
+        "shell",
+        "exec",
+        "web"
+      ]
+    }
+  },
+  "tools": {
+    "restrictToWorkspace": true,
+    "exec": {
+      "enable": false
+    },
+    "web": {
+      "enable": false
+    },
+    "mcpServers": {
+      "seed": {
+        "command": "node",
+        "args": ["/home/km/km-agent/mcp/seed-cli-mcp/dist/index.js"],
+        "toolTimeout": 60,
+        "env": {
+          "SEED_SERVER": "${SEED_SERVER}",
+          "SEED_SITE": "${SEED_SITE}",
+          "KM_KEY_NAME": "${KM_KEY_NAME}",
+          "KM_STATE_DIR": "/home/km/km-state",
+          "KM_LOGS_DIR": "/home/km/km-logs",
+          "SEED_CLI_PATH": "/home/km/.local/bin/seed-cli",
+          "PATH": "/home/km/.local/bin:/usr/bin:/usr/local/bin"
+        }
+      }
+    }
+  },
+  "channels": {}
+}

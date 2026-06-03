@@ -1,0 +1,22 @@
+{
+  "name": "@km/observability-center",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/main.ts serve",
+    "start": "NODE_ENV=production bun src/main.ts serve",
+    "import": "bun src/main.ts import",
+    "build": "bun build src/main.ts --target bun --outdir dist --minify --sourcemap=linked",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
+    "test": "bun test src",
+    "check": "bun typecheck && bun test && bun build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.0"
+  }
+}

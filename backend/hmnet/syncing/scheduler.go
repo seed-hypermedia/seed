@@ -612,8 +612,19 @@ func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate
 	switch {
 	case forceImmediate || task.runCount == 0:
 		task.nextRunTime = now
+		if task.subscription && s.cfg.SubscriptionHotTier {
+			task.hotDeadline = now.Add(s.hotTTL)
+		}
 	case task.subscription:
 		task.nextRunTime = now.Add(s.cfg.Interval)
+		// When SubscriptionHotTier is enabled, keep the heartbeat alive past
+		// the next due time so dispatchReadyTasks' lazy migration promotes
+		// this task into the hot tier when it becomes due. Capability/comment
+		// blobs for subscribed sites then propagate ahead of cold ephemeral
+		// tasks instead of competing with them.
+		if s.cfg.SubscriptionHotTier {
+			task.hotDeadline = task.nextRunTime.Add(s.hotTTL)
+		}
 	case task.IsHot(now):
 		task.nextRunTime = now.Add(defaultHotCooldown)
 	default:

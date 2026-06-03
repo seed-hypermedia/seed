@@ -1717,6 +1717,74 @@ export const HMPrepareDocumentChangeOutputSchema = z.object({
 })
 export type HMPrepareDocumentChangeOutput = z.infer<typeof HMPrepareDocumentChangeOutputSchema>
 
+// Subscribe / Unsubscribe / ListSubscriptions / ForceSync schemas
+
+export const HMSubscribeInputSchema = z.object({
+  account: z.string(),
+  path: z.string().default(''),
+  recursive: z.boolean().optional(),
+  async: z.boolean().optional(),
+})
+export type HMSubscribeInput = z.infer<typeof HMSubscribeInputSchema>
+export const HMSubscribeOutputSchema = z.object({})
+export type HMSubscribeOutput = z.infer<typeof HMSubscribeOutputSchema>
+export const HMSubscribeRequestSchema = z.object({
+  key: z.literal('Subscribe'),
+  input: HMSubscribeInputSchema,
+  output: HMSubscribeOutputSchema,
+})
+export type HMSubscribeRequest = z.infer<typeof HMSubscribeRequestSchema>
+
+export const HMUnsubscribeInputSchema = z.object({
+  account: z.string(),
+  path: z.string().default(''),
+})
+export type HMUnsubscribeInput = z.infer<typeof HMUnsubscribeInputSchema>
+export const HMUnsubscribeOutputSchema = z.object({})
+export type HMUnsubscribeOutput = z.infer<typeof HMUnsubscribeOutputSchema>
+export const HMUnsubscribeRequestSchema = z.object({
+  key: z.literal('Unsubscribe'),
+  input: HMUnsubscribeInputSchema,
+  output: HMUnsubscribeOutputSchema,
+})
+export type HMUnsubscribeRequest = z.infer<typeof HMUnsubscribeRequestSchema>
+
+export const HMSubscriptionSchema = z.object({
+  account: z.string(),
+  path: z.string(),
+  recursive: z.boolean(),
+  since: z.string().optional(),
+})
+export type HMSubscription = z.infer<typeof HMSubscriptionSchema>
+
+export const HMListSubscriptionsInputSchema = z.object({
+  pageSize: z.number().int().optional(),
+  pageToken: z.string().optional(),
+})
+export type HMListSubscriptionsInput = z.infer<typeof HMListSubscriptionsInputSchema>
+export const HMListSubscriptionsOutputSchema = z.object({
+  subscriptions: z.array(HMSubscriptionSchema),
+  nextPageToken: z.string().optional(),
+})
+export type HMListSubscriptionsOutput = z.infer<typeof HMListSubscriptionsOutputSchema>
+export const HMListSubscriptionsRequestSchema = z.object({
+  key: z.literal('ListSubscriptions'),
+  input: HMListSubscriptionsInputSchema,
+  output: HMListSubscriptionsOutputSchema,
+})
+export type HMListSubscriptionsRequest = z.infer<typeof HMListSubscriptionsRequestSchema>
+
+export const HMForceSyncInputSchema = z.object({})
+export type HMForceSyncInput = z.infer<typeof HMForceSyncInputSchema>
+export const HMForceSyncOutputSchema = z.object({})
+export type HMForceSyncOutput = z.infer<typeof HMForceSyncOutputSchema>
+export const HMForceSyncRequestSchema = z.object({
+  key: z.literal('ForceSync'),
+  input: HMForceSyncInputSchema,
+  output: HMForceSyncOutputSchema,
+})
+export type HMForceSyncRequest = z.infer<typeof HMForceSyncRequestSchema>
+
 export const HMPrepareDocumentChangeRequestSchema = z.object({
   key: z.literal('PrepareDocumentChange'),
   input: HMPrepareDocumentChangeInputSchema,
@@ -1811,6 +1879,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListCommentVersionsRequestSchema,
   HMGetDomainRequestSchema,
   HMListDomainsRequestSchema,
+  HMListSubscriptionsRequestSchema,
 ])
 export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 
@@ -1818,6 +1887,9 @@ export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 export const HMActionSchema = z.discriminatedUnion('key', [
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
+  HMSubscribeRequestSchema,
+  HMUnsubscribeRequestSchema,
+  HMForceSyncRequestSchema,
 ])
 export type HMAction = z.infer<typeof HMActionSchema>
 
@@ -1850,6 +1922,10 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListDomainsRequestSchema,
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
+  HMSubscribeRequestSchema,
+  HMUnsubscribeRequestSchema,
+  HMForceSyncRequestSchema,
+  HMListSubscriptionsRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>
