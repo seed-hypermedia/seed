@@ -9,6 +9,10 @@
   cursor: pointer;
 }
 
+.bn-citation-fragment-highlight-interactive:hover {
+  text-decoration-color: hsl(var(--foreground) / 0.55);
+}
+
 .bn-citation-fragment-overlap-1 {
   background-color: hsl(var(--warning, 45 100% 65%) / 0.28);
 }
