@@ -11,7 +11,9 @@ export type CitationFragmentClickHandlerRef = {
   current?: ((event: CitationFragmentClick) => void) | null
 }
 
-type CitationFragmentHighlightAction = {type: 'set'; citations: CitationFragmentHighlight[]} | {type: 'clear'}
+type CitationFragmentHighlightAction =
+  | {type: 'set'; citations: CitationFragmentHighlight[]; interactive?: boolean}
+  | {type: 'clear'}
 
 type CitationDecorationRange = {
   from: number
@@ -22,6 +24,7 @@ type CitationDecorationRange = {
 type CitationFragmentHighlightState = {
   decorations: DecorationSet
   ranges: CitationDecorationRange[]
+  interactive: boolean
 }
 
 /** Plugin key used to dispatch citation fragment highlight actions. */
@@ -30,7 +33,7 @@ export const citationFragmentHighlightPluginKey = new PluginKey<CitationFragment
 )
 
 function emptyState(): CitationFragmentHighlightState {
-  return {decorations: DecorationSet.empty, ranges: []}
+  return {decorations: DecorationSet.empty, ranges: [], interactive: true}
 }
 
 function findBlockContent(
@@ -61,6 +64,7 @@ function findBlockContent(
 function buildCitationDecorations(
   doc: ProseMirrorNode,
   citations: CitationFragmentHighlight[],
+  interactive = true,
 ): CitationFragmentHighlightState {
   const decorations: Decoration[] = []
   const ranges: CitationDecorationRange[] = []
@@ -97,9 +101,10 @@ function buildCitationDecorations(
       if (to <= from) continue
 
       const overlap = Math.min(covering.length, 4)
+      const interactiveClass = interactive ? ' bn-citation-fragment-highlight-interactive' : ''
       decorations.push(
         Decoration.inline(from, to, {
-          class: `bn-range-highlight-focus bn-citation-fragment-highlight bn-citation-fragment-overlap-${overlap}`,
+          class: `bn-range-highlight-focus bn-citation-fragment-highlight${interactiveClass} bn-citation-fragment-overlap-${overlap}`,
           'data-citation-fragment': 'true',
           'data-citation-ids': covering.map((citation) => citation.id).join(','),
         }),
@@ -108,7 +113,7 @@ function buildCitationDecorations(
     }
   }
 
-  return {decorations: DecorationSet.create(doc, decorations), ranges}
+  return {decorations: DecorationSet.create(doc, decorations), ranges, interactive}
 }
 
 function mapRanges(
@@ -142,7 +147,7 @@ export function createCitationFragmentHighlightPlugin(handlerRef: CitationFragme
         const action: CitationFragmentHighlightAction | undefined = tr.getMeta(citationFragmentHighlightPluginKey)
 
         if (action?.type === 'set') {
-          return buildCitationDecorations(tr.doc, action.citations)
+          return buildCitationDecorations(tr.doc, action.citations, action.interactive ?? true)
         }
 
         if (action?.type === 'clear') {
@@ -154,6 +159,7 @@ export function createCitationFragmentHighlightPlugin(handlerRef: CitationFragme
         return {
           decorations: oldState.decorations.map(tr.mapping, tr.doc),
           ranges: mapRanges(oldState.ranges, tr),
+          interactive: oldState.interactive,
         }
       },
     },
@@ -165,16 +171,20 @@ export function createCitationFragmentHighlightPlugin(handlerRef: CitationFragme
 
       handleClick(view, pos, event) {
         const pluginState = citationFragmentHighlightPluginKey.getState(view.state)
+        if (!pluginState?.interactive) return false
+
         const ranges = pluginState?.ranges ?? []
         const citations = ranges
           .filter((range) => range.from <= pos && pos <= range.to)
           .flatMap((range) => range.citations)
 
         if (!citations.length) return false
+        const handler = handlerRef.current
+        if (!handler) return false
 
         const unique = new Map<string, CitationFragmentHighlight>()
         for (const citation of citations) unique.set(citation.id, citation)
-        handlerRef.current?.({
+        handler({
           citations: Array.from(unique.values()),
           clientX: event.clientX,
           clientY: event.clientY,

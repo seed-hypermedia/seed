@@ -601,11 +601,12 @@ export function DocumentEditor({
       .setMeta(citationFragmentHighlightPluginKey, {
         type: citationFragmentHighlights?.length ? 'set' : 'clear',
         citations: citationFragmentHighlights ?? [],
+        interactive: !isEditing,
       })
       .setMeta('addToHistory', false)
 
     view.dispatch(tr)
-  }, [editor, citationFragmentHighlights])
+  }, [editor, citationFragmentHighlights, isEditing])
 
   // Attach DOM click listener for click-to-edit. Using a DOM listener (rather
   // than a ProseMirror plugin) gives us reliable access to the raw event target
@@ -643,6 +644,11 @@ export function DocumentEditor({
       // If the click landed on a link, let the link plugin handle navigation.
       // Do not enter edit mode and do not preventDefault.
       if (target.closest?.('.link, a[href]')) return
+
+      // If the click landed on an interactive citation fragment highlight, let
+      // the citation highlight plugin open the source document/comment instead
+      // of entering edit mode.
+      if (target.closest?.('[data-citation-fragment="true"]')) return
 
       // If a non-empty ProseMirror selection existed at mousedown, treat the
       // click as "dismiss my selection" rather than "enter edit mode".

@@ -105,4 +105,31 @@ describe('CitationFragmentHighlightPlugin', () => {
     expect(payload.citations.map((item) => item.id).sort()).toEqual(['a', 'b'])
     view.destroy()
   })
+
+  it('keeps highlights visible but ignores clicks when interactivity is disabled', () => {
+    const onClick = vi.fn()
+    const {view, plugin} = createView(onClick)
+
+    view.dispatch(
+      view.state.tr
+        .setMeta(citationFragmentHighlightPluginKey, {
+          type: 'set',
+          citations: [citation('a', 0, 5)],
+          interactive: false,
+        })
+        .setMeta('addToHistory', false),
+    )
+
+    const pluginState = citationFragmentHighlightPluginKey.getState(view.state)
+    const decorations = pluginState?.decorations.find() ?? []
+    expect(decorations).toHaveLength(1)
+    expect(decorations[0]?.type.attrs.class).toContain('bn-citation-fragment-highlight')
+    expect(decorations[0]?.type.attrs.class).not.toContain('bn-citation-fragment-highlight-interactive')
+
+    const handled = plugin.props.handleClick?.call(plugin, view, 4, new MouseEvent('click', {clientX: 10, clientY: 20}))
+
+    expect(handled).toBe(false)
+    expect(onClick).not.toHaveBeenCalled()
+    view.destroy()
+  })
 })
