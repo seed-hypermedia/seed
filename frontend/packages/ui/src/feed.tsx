@@ -1,21 +1,34 @@
-import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useDeleteComment, useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {HMListEventsParams, LoadedCommentEvent, LoadedEvent} from '@shm/shared/models/activity-service'
+import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useDocumentSend} from '@shm/shared/models/use-document-machine'
+import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink, useUniversalAppContext} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
-import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
+import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
-import {CircleAlert, FilePen, Link, Merge, Trash2, X} from 'lucide-react'
-import {Fragment, useEffect, useMemo, useRef} from 'react'
+import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
+import {Fragment, useEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
-import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
-import {useCopyHmLink} from './use-copy-hm-link'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './components/alert-dialog'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -25,9 +38,8 @@ import {ResourceToken} from './resource-token'
 import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
+import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
-import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
-import {useDocumentSend} from '@shm/shared/models/use-document-machine'
 
 export type DraftVersionEntry = {
   docId: UnpackedHypermediaId
@@ -316,10 +328,16 @@ function EventHeaderContent({
   const tx = useTxString()
   const currentRoute = useNavRoute()
   const currentAccount = useSelectedAccountId()
+  const documentActions = useDocumentActions()
+  const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
+  const latestResource = useResource(latestDocId)
+  const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null
   const deleteCommentMutation = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const copyHmLink = useCopyHmLink()
   const {origin: appOrigin, onPushReference} = useUniversalAppContext()
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (event.comment && currentAccount && currentAccount == event.comment.author) {
@@ -431,6 +449,63 @@ function EventHeaderContent({
 
   if (event.type == 'doc-update') {
     const docUpdateHeadCount = getVersionHeads(event.document.version).length
+    const isLatestVersion = latestDocument?.version === event.document.version
+    const canRestore = !!(
+      isSingleResource &&
+      currentAccount &&
+      latestDocument &&
+      documentActions.onRestoreDocumentVersion &&
+      !isLatestVersion
+    )
+    const restoreButton = canRestore ? (
+      <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <AlertDialogTrigger asChild>
+          <Button
+            size="xs"
+            variant="ghost"
+            className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            <RotateCcw className="size-3" />
+            Restore
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this version?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a new latest version using this version’s content and metadata. Any current draft for
+              this document will be removed after the restore succeeds.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isRestoring}
+              onClick={async (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!documentActions.onRestoreDocumentVersion) return
+                setIsRestoring(true)
+                try {
+                  await documentActions.onRestoreDocumentVersion(event.docId, event.document)
+                  setRestoreDialogOpen(false)
+                } catch {
+                  // The platform restore action owns user-facing error toasts.
+                } finally {
+                  setIsRestoring(false)
+                }
+              }}
+            >
+              {isRestoring ? 'Restoring…' : 'Restore'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    ) : null
+
     return (
       <div className="flex w-full items-start justify-between gap-2">
         <InlineDescriptor>
@@ -461,35 +536,38 @@ function EventHeaderContent({
             </Tooltip>
           ) : null}
         </InlineDescriptor>
-        <Tooltip content={tx('Copy Link to Version')}>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              if (!event.docId?.uid) return
-              const routeLatest =
-                currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
-                  ? currentRoute.id.latest
-                  : undefined
-              const versionedId = hmId(event.docId.uid, {
-                path: event.docId.path,
-                version: event.document.version,
-                latest: routeLatest ?? false,
-                hostname: targetDomain ?? null,
-              })
-              copyHmLink({
-                id: versionedId,
-                gatewayUrl: appOrigin ?? undefined,
-              })
-              onPushReference?.(versionedId)
-            }}
-          >
-            <Link className="size-3" />
-          </Button>
-        </Tooltip>
+        <div className="flex items-center gap-1">
+          {restoreButton}
+          <Tooltip content={tx('Copy Link to Version')}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!event.docId?.uid) return
+                const routeLatest =
+                  currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
+                    ? currentRoute.id.latest
+                    : undefined
+                const versionedId = hmId(event.docId.uid, {
+                  path: event.docId.path,
+                  version: event.document.version,
+                  latest: routeLatest ?? false,
+                  hostname: targetDomain ?? null,
+                })
+                copyHmLink({
+                  id: versionedId,
+                  gatewayUrl: appOrigin ?? undefined,
+                })
+                onPushReference?.(versionedId)
+              }}
+            >
+              <Link className="size-3" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     )
   }
