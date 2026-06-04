@@ -48,6 +48,12 @@ async function getOrCreateServerSignerAccountUidUncached(): Promise<string> {
 
 let pendingServerSignerAccountUid: Promise<string> | null = null
 
+/** Server key name and signer for a daemon-managed account UID. */
+export type ServerSigningKey = {
+  name: string
+  signer: HMSigner
+}
+
 /** Ensures the web server daemon has at least one signing key and returns its account UID. */
 export async function getOrCreateServerSignerAccountUid(): Promise<string> {
   if (!pendingServerSignerAccountUid) {
@@ -59,15 +65,15 @@ export async function getOrCreateServerSignerAccountUid(): Promise<string> {
   return pendingServerSignerAccountUid
 }
 
-/** Returns a daemon-backed signer for an existing server key account UID. */
-export async function getServerSigner(accountUid: string): Promise<HMSigner> {
+/** Returns the daemon key name and signer for an existing server key account UID. */
+export async function getServerSigningKey(accountUid: string): Promise<ServerSigningKey> {
   const keys = await listSortedServerKeys()
   const key = keys.find((candidate) => candidate.accountId === accountUid)
   if (!key) {
     throw new Error(`Server signing key not found for account ${accountUid}`)
   }
 
-  return {
+  const signer = {
     getPublicKey: async () => base58btc.decode(key.accountId),
     sign: async (data: Uint8Array) => {
       const result = await grpcClient.daemon.signData({
@@ -77,4 +83,12 @@ export async function getServerSigner(accountUid: string): Promise<HMSigner> {
       return result.signature
     },
   }
+
+  return {name: key.name, signer}
+}
+
+/** Returns a daemon-backed signer for an existing server key account UID. */
+export async function getServerSigner(accountUid: string): Promise<HMSigner> {
+  const key = await getServerSigningKey(accountUid)
+  return key.signer
 }

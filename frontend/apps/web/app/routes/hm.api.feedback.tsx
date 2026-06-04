@@ -1,19 +1,19 @@
 import {
+  buildFeedbackDocumentPublishPayload,
   hasMeaningfulFeedback,
-  publishFeedbackDocument,
   type FeedbackFormValues,
   normalizeFeedbackFormValues,
 } from '@/feedback'
 import {parseRequest} from '@/request'
 import {reportError} from '@/report-error'
-import {getServerSigner} from '@/server-signing'
-import {serverUniversalClient} from '@/server-universal-client'
+import {getServerSigningKey} from '@/server-signing'
 import {getConfig} from '@/site-config.server'
 import {grpcClient} from '@/client.server'
 import type {ActionFunctionArgs} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 
 const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'name',
@@ -60,58 +60,63 @@ export async function action({request}: ActionFunctionArgs) {
       return json({message: 'Feedback destination capability is not configured'}, {status: 500})
     }
 
-    const signer = await getServerSigner(signingAccountUid)
+    const signingKey = await getServerSigningKey(signingAccountUid)
     const destinationLabel = config.feedbackDestinationLabel?.trim() || destinationAccountUid
     const reviewedSiteLabel = new URL(parsedRequest.origin).host
     const isPublic = config.feedbackDocumentVisibility === 'public'
     const visibility = isPublic ? ResourceVisibility.PUBLIC : ResourceVisibility.PRIVATE
     const visibilityLabel = isPublic ? 'Público' : 'Privado'
+    const payload = buildFeedbackDocumentPublishPayload(values, {
+      publishedUnderLabel: destinationLabel,
+      publishedUnderAccountUid: destinationAccountUid,
+      testedPageLabel: reviewedSiteLabel,
+      testedPageUrl: parsedRequest.origin,
+      visibility,
+      visibilityLabel,
+    })
+    const document = await grpcClient.documents.createDocumentChange({
+      account: destinationAccountUid,
+      path: payload.path,
+      baseVersion: '',
+      changes: payload.changes,
+      signingKeyName: signingKey.name,
+      capability: capabilityCid,
+      visibility: payload.visibility,
+    })
+    if (!document.version) {
+      throw new Error('Feedback document publish returned no version')
+    }
 
-    const result = await publishFeedbackDocument(
-      {
-        request: serverUniversalClient.request,
-        publish: serverUniversalClient.publish,
-        getSigner: () => signer,
-      },
-      values,
-      {
-        publishAccountUid: destinationAccountUid,
-        signingAccountUid,
-        capabilityCid,
-        publishedUnderLabel: destinationLabel,
-        publishedUnderAccountUid: destinationAccountUid,
-        testedPageLabel: reviewedSiteLabel,
-        testedPageUrl: parsedRequest.origin,
-        visibility,
-        visibilityLabel,
-      },
-    )
+    const documentId = hmId(destinationAccountUid, {
+      path: [payload.pathSegment],
+      version: document.version,
+    })
     const pushPeerAddrs =
       config.feedbackDestinationPeerAddrs || DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS[destinationAccountUid] || []
     if (!pushPeerAddrs.length) {
       throw new Error('Feedback destination peer addrs are not configured')
     }
-    const pushProgress = await pushFeedbackDocumentToPeer(result.documentId.id, pushPeerAddrs)
+    const pushProgress = await pushFeedbackDocumentToPeer(documentId.id, pushPeerAddrs)
 
     console.log('[feedback] published', {
-      documentId: result.documentId.id,
-      documentVersion: result.documentId.version,
-      documentPath: result.documentId.path,
+      documentId: documentId.id,
+      documentVersion: documentId.version,
+      documentPath: documentId.path,
       destinationAccountUid,
       signingAccountUid,
       capabilityCid,
       destinationLabel,
       visibility: config.feedbackDocumentVisibility || 'private',
       pushProgress,
-      submittedAt: result.submittedAt,
+      submittedAt: payload.submittedAt,
     })
 
     return json({
       destinationLabel,
-      submittedAt: result.submittedAt,
-      documentId: result.documentId.id,
-      documentVersion: result.documentId.version,
-      documentPath: result.documentId.path,
+      submittedAt: payload.submittedAt,
+      documentId: documentId.id,
+      documentVersion: documentId.version,
+      documentPath: documentId.path,
       visibility: config.feedbackDocumentVisibility || 'private',
     })
   } catch (error) {
