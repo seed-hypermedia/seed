@@ -270,14 +270,15 @@ export function routeToHref(
     return `${basePath}/ipfs/${route.ipfsPath}`
   }
 
-  // Handle view routes (activity, comments, directory, collaborators, feed)
+  // Handle view routes (activity, comments, directory, collaborators, feed, all-documents)
   if (
     typeof route !== 'string' &&
     (route.key === 'activity' ||
       route.key === 'comments' ||
       route.key === 'directory' ||
       route.key === 'collaborators' ||
-      route.key === 'feed')
+      route.key === 'feed' ||
+      route.key === 'all-documents')
   ) {
     const docId = route.id
     // Build path with view term

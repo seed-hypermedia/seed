@@ -18,7 +18,7 @@ function renderWebInlineEditor(props: InlineEditCommentProps) {
 
 /** Web-specific wrapper for the site feed page, including host-site context UI. */
 export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
-  const menuItems = useWebMenuItems()
+  const menuItems = useWebMenuItems(docId)
 
   return (
     <WebSitePageShell siteUid={docId.uid}>

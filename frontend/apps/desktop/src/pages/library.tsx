@@ -27,11 +27,22 @@ import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {MergedBadge} from '@shm/ui/merged-badge'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Tooltip} from '@shm/ui/tooltip'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Check, CheckCheck, ChevronDown, ChevronRight, FileOutput, ListFilter, MessageSquare, X} from 'lucide-react'
+import {
+  Check,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+  FileOutput,
+  LayoutList,
+  ListFilter,
+  MessageSquare,
+  X,
+} from 'lucide-react'
 import {createContext, useContext, useState} from 'react'
 
 export default function LibraryPage() {
@@ -324,7 +335,7 @@ function LibrarySiteItem({site, accountsMetadata}: {site: LibrarySite; accountsM
         data-resourceid={id.id}
         variant="ghost"
         className={cn(
-          'h-auto! items-center gap-2 border-none bg-transparent px-4 py-2',
+          'group h-auto! items-center gap-2 border-none bg-transparent px-4 py-2',
           // isRead && 'bg-muted',
         )}
         onClick={() => {
@@ -355,6 +366,28 @@ function LibrarySiteItem({site, accountsMetadata}: {site: LibrarySite; accountsM
                 {getMetadataName(metadata)}
               </SizableText>
             </div>
+            {!isSelecting ? (
+              <Tooltip content="All Documents">
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted flex size-6 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    navigate({key: 'all-documents', id: hmId(site.id)})
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return
+                    e.stopPropagation()
+                    e.preventDefault()
+                    navigate({key: 'all-documents', id: hmId(site.id)})
+                  }}
+                >
+                  <LayoutList className="size-3.5" />
+                </span>
+              </Tooltip>
+            ) : null}
             {siteDisplayActivitySummary && (
               <LibraryEntryCommentCount activitySummary={siteDisplayActivitySummary as HMActivitySummary} />
             )}

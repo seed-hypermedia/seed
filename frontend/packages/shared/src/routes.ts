@@ -48,6 +48,7 @@ const INSPECT_TARGET_VIEW_KEYS = [
   'collaborators',
   'directory',
   'feed',
+  'all-documents',
   ...SITE_PROFILE_TABS,
 ] as const
 const inspectTargetViewSchema = z.enum(INSPECT_TARGET_VIEW_KEYS).optional()
@@ -104,6 +105,12 @@ export const directoryRouteSchema = z.object({
   panel: directoryPagePanelSchema.nullable().optional(),
 })
 export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
+
+export const allDocumentsRouteSchema = z.object({
+  key: z.literal('all-documents'),
+  id: unpackedHmIdSchema,
+})
+export type AllDocumentsRoute = z.infer<typeof allDocumentsRouteSchema>
 
 /** Route schema for the document inspector view. */
 export const inspectRouteSchema = z.object({
@@ -336,6 +343,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentSessionRouteSchema,
   apiInspectorRouteSchema,
   feedRouteSchema,
+  allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
   directoryRouteSchema,
@@ -433,6 +441,11 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
         ...route,
         id: targetId,
         panel: replacePanelDocumentId(route.panel as DocumentPanelRoute | null, targetId) as any,
+      }
+    case 'all-documents':
+      return {
+        ...route,
+        id: targetId,
       }
     case 'site-profile':
       return {
@@ -546,6 +559,8 @@ export function createDocumentNavRoute(
       return {key: 'collaborators', id: docId, panel}
     case 'feed':
       return {key: 'feed', id: docId, panel}
+    case 'all-documents':
+      return {key: 'all-documents', id: docId}
     default: {
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}

@@ -364,6 +364,7 @@ function getPageComponent(navRoute: NavRoute) {
         Fallback: BaseLoading,
       }
     case 'document':
+    case 'all-documents':
       return {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,

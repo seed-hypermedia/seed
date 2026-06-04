@@ -48,12 +48,20 @@ export const VIEW_TERMS = [
   ':collaborators',
   ':directory',
   ':feed',
+  ':all-documents',
   ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
-export type ViewRouteKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed' | SiteProfileTab
+export type ViewRouteKey =
+  | 'activity'
+  | 'comments'
+  | 'collaborators'
+  | 'directory'
+  | 'feed'
+  | 'all-documents'
+  | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
@@ -155,6 +163,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':collaborators': 'collaborators',
     ':directory': 'directory',
     ':feed': 'feed',
+    ':all-documents': 'all-documents',
     ':profile': 'profile',
     ':membership': 'membership',
     ':followers': 'followers',
@@ -552,7 +561,8 @@ export function routeToUrl(
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'all-documents'
   ) {
     // View-term routes use /:viewTerm in the path
     let viewTermPath = `:${route.key}`
@@ -567,12 +577,9 @@ export function routeToUrl(
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
     }
-    let effectivePanelParam = panelParam
-    // View-term URLs need uid + path + blockRef for fragment
+    const effectivePanelParam = route.key === 'all-documents' ? null : panelParam
     return createWebHMUrl(route.id.uid, {
-      path: route.id.path,
-      blockRef: route.id.blockRef,
-      blockRange: route.id.blockRange,
+      ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
@@ -629,7 +636,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'all-documents'
   ) {
     let viewTermPath = `:${route.key}`
     if (route.key === 'activity') {
@@ -681,7 +689,8 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'comments'
+    route.key === 'comments' ||
+    route.key === 'all-documents'
   ) {
     return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
   }
