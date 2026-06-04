@@ -826,6 +826,8 @@ describe('EditorBlock to HMBlock', () => {
           banner: 'true',
           queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
           querySort: '[{"term": "UpdateTime", "reverse": false}]',
+          queryFilters:
+            '[{"type": "Author", "uid": "author-a"}, {"type": "PublishDate", "from": "2024-01-01", "to": "2024-12-31"}]',
           queryLimit: '10',
           style: 'Card',
           columnCount: '1',
@@ -844,6 +846,10 @@ describe('EditorBlock to HMBlock', () => {
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
             sort: [{term: 'UpdateTime', reverse: false}],
+            filters: [
+              {type: 'Author', uid: 'author-a'},
+              {type: 'PublishDate', from: '2024-01-01', to: '2024-12-31'},
+            ],
             limit: 10,
           },
         },

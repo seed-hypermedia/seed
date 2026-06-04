@@ -13,7 +13,7 @@ import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {SelectField, SwitchField} from '@shm/ui/form-fields'
+import {Field, SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
 import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
@@ -26,9 +26,11 @@ import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useState} from 'react'
 import {HMBlockSchema} from './schema'
+import {QueryAccountFilterInput} from '@shm/editor/query-account-filter-input'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
+const defaultQueryFilters = '[]'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -49,6 +51,9 @@ export const QueryBlock = createReactBlockSpec({
     },
     querySort: {
       default: defaultQuerySort,
+    },
+    queryFilters: {
+      default: defaultQueryFilters,
     },
     banner: {
       default: 'false',
@@ -88,6 +93,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
 
+  const queryFilters: HMQueryBlockFilters = useMemo(() => {
+    return JSON.parse(block.props.queryFilters || defaultQueryFilters)
+  }, [block.props.queryFilters])
+
   const banner = useMemo(() => {
     return Boolean(block.props.banner == 'true')
   }, [block.props.banner])
@@ -103,9 +112,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         includes: queryIncludes,
         sort: querySort,
         limit: queryLimit,
+        filters: queryFilters,
       },
     }
-  }, [queryIncludes, querySort, queryLimit])
+  }, [queryIncludes, querySort, queryLimit, queryFilters])
   const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
   const sortedItems = queryBlock.data?.results ?? []
 
@@ -184,7 +194,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         queryDocName={queryBlock.data?.queryTargetName || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
-        style={block.props.style as 'Card' | 'List'}
+        queryFilters={queryFilters}
         banner={banner}
         // @ts-expect-error
         block={block}
@@ -242,6 +252,7 @@ function BlankQueryBlockMessage({message}: {message: string}) {
 
 type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
 type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
+type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
 
 function QuerySettings({
   queryDocName = '',
@@ -249,6 +260,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
+  queryFilters,
   editor,
   banner,
 }: {
@@ -256,6 +268,7 @@ function QuerySettings({
   block: EditorQueryBlock
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
+  queryFilters: HMQueryBlockFilters
   banner: boolean
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
@@ -267,16 +280,47 @@ function QuerySettings({
   useEffect(() => {
     // @ts-expect-error
     if (block.props.defaultOpen === 'true') {
-      editor.updateBlock(block.id, {
-        ...block,
-        // @ts-expect-error
-        props: {...block.props, defaultOpen: 'false'},
+      queueMicrotask(() => {
+        editor.updateBlock(block.id, {
+          ...block,
+          // @ts-expect-error
+          props: {...block.props, defaultOpen: 'false'},
+        })
       })
     }
     {
     }
     // @ts-expect-error
   }, [block.props.defaultOpen])
+
+  const authorFilters = queryFilters.filter((filter) => filter.type === 'Author')
+  const publishDateFilter = queryFilters.find((filter) => filter.type === 'PublishDate')
+
+  const saveFilters = (filters: HMQueryBlockFilters) => {
+    onValuesChange({
+      id: null,
+      props: {
+        ...block.props,
+        queryFilters: JSON.stringify(filters),
+      },
+    })
+  }
+
+  const updateAuthorFilters = (uids: string[]) => {
+    const otherFilters = queryFilters.filter((filter) => filter.type !== 'Author')
+    saveFilters([...otherFilters, ...uids.map((uid) => ({type: 'Author' as const, uid}))] as HMQueryBlockFilters)
+  }
+
+  const updatePublishDateFilter = (dates: {from?: string; to?: string}) => {
+    const otherFilters = queryFilters.filter((filter) => filter.type !== 'PublishDate')
+    const nextFilter = {
+      type: 'PublishDate' as const,
+      from: dates.from ?? publishDateFilter?.from,
+      to: dates.to ?? publishDateFilter?.to,
+    }
+    const hasDate = !!nextFilter.from?.trim() || !!nextFilter.to?.trim()
+    saveFilters((hasDate ? [...otherFilters, nextFilter] : otherFilters) as HMQueryBlockFilters)
+  }
 
   return (
     <>
@@ -367,6 +411,28 @@ function QuerySettings({
                   },
                 ]}
               />
+
+              <QueryAccountFilterInput
+                selectedUids={authorFilters.map((filter) => filter.uid)}
+                onSelectedUidsChange={updateAuthorFilters}
+              />
+
+              <div className="flex gap-2">
+                <Field id={`query-publish-from-${block.id}`} label="Publish from">
+                  <Input
+                    type="date"
+                    value={publishDateFilter?.from ?? ''}
+                    onChangeText={(from) => updatePublishDateFilter({from})}
+                  />
+                </Field>
+                <Field id={`query-publish-to-${block.id}`} label="Publish to">
+                  <Input
+                    type="date"
+                    value={publishDateFilter?.to ?? ''}
+                    onChangeText={(to) => updatePublishDateFilter({to})}
+                  />
+                </Field>
+              </div>
 
               <SelectField
                 value={block.props.style}

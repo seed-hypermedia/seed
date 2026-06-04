@@ -144,6 +144,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryLimit?: string
     queryIncludes?: string
     querySort?: string
+    queryFilters?: string
     banner?: 'true' | 'false'
   }
   content: Array<HMInlineContent>

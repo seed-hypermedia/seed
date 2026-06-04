@@ -1,42 +1,22 @@
-import * as Ariakit from '@ariakit/react'
-import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
-import {
-  HMCapability,
-  HMMetadata,
-  HMMetadataPayload,
-  HMSiteMember,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
+import {HMCapability, HMMetadataPayload, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
-import {
-  useAccount,
-  useCapabilities,
-  useCollaborators,
-  useResource,
-  useSelectedAccountId,
-  useSiteMembers,
-} from '@shm/shared/models/entity'
+import {useCapabilities, useCollaborators, useSelectedAccountId, useSiteMembers} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Users} from 'lucide-react'
-import {forwardRef, useCallback, useEffect, useId, useMemo, useRef, useState} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 import {Button} from './button'
-import './combobox.css'
-import {HMIcon, LoadedHMIcon} from './hm-icon'
-import {ArrowRight, X} from './icons'
+import {AccountSearchResult, AccountTagInput, AccountTagInputItem} from './account-tag-input'
+import {HMIcon} from './hm-icon'
+import {ArrowRight} from './icons'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {toast} from './toast'
 
-type SearchResult = {
-  id: UnpackedHypermediaId
-  label: string
-  unresolved?: boolean
-  metadata?: HMMetadata
-}
+type SearchResult = AccountSearchResult
 
 function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
@@ -115,7 +95,7 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
     <div className="flex flex-col gap-2 px-4 pt-4">
       <div className="border-border flex overflow-hidden rounded-md border-1">
         <div className="flex flex-1">
-          <TagInput
+          <AccountTagInput
             label="Members"
             value={search}
             onChange={handleSearchChange}
@@ -128,19 +108,19 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
             {matches.map(
               (result) =>
                 result && (
-                  <TagInputItem
+                  <AccountTagInputItem
                     key={result.id.id}
                     onClick={() => {
                       setSelectedCollaborators((vals) => [...vals, result])
                     }}
-                    member={result}
+                    account={result}
                   >
                     Add &quot;{result?.label}&quot;
-                  </TagInputItem>
+                  </AccountTagInputItem>
                 ),
             )}
             {search && matches.length == 0 ? (
-              <TagInputItem
+              <AccountTagInputItem
                 onClick={async () => {
                   // Try resolving bare domains (e.g. "gabo.es")
                   if (search.includes('.')) {
@@ -160,9 +140,9 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
                 }}
               >
                 Add &quot;{search}&quot;
-              </TagInputItem>
+              </AccountTagInputItem>
             ) : null}
-          </TagInput>
+          </AccountTagInput>
         </div>
         {selectedCollaborators.length ? (
           <Button
@@ -438,197 +418,3 @@ function DocumentCollaborators({
     </div>
   )
 }
-
-interface TagInputProps extends Omit<Ariakit.ComboboxProps, 'onChange'> {
-  label: string
-  value?: string
-  onChange?: (value: string) => void
-  defaultValue?: string
-  values?: Array<SearchResult>
-  onValuesChange?: (values: Array<SearchResult>) => void
-  defaultValues?: Array<SearchResult>
-}
-
-const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(props, ref) {
-  const {label, defaultValue, value, onChange, defaultValues, values, onValuesChange, children, ...comboboxProps} =
-    props
-
-  const comboboxRef = useRef<HTMLInputElement>(null)
-  const defaultComboboxId = useId()
-  const comboboxId = comboboxProps.id || defaultComboboxId
-
-  const combobox = Ariakit.useComboboxStore({
-    value,
-    defaultValue,
-    setValue: onChange,
-    resetValueOnHide: true,
-  })
-
-  // @ts-expect-error
-  const select = Ariakit.useSelectStore<SearchResult>({
-    combobox,
-    value: values,
-    defaultValue: defaultValues,
-    setValue: onValuesChange,
-  })
-
-  const composite = Ariakit.useCompositeStore({
-    defaultActiveId: comboboxId,
-  })
-
-  const selectedValues = select.useState('value')
-
-  // Reset the combobox value whenever an item is checked or unchecked.
-  useEffect(() => combobox.setValue(''), [selectedValues, combobox])
-
-  const toggleValueFromSelectedValues = (value: SearchResult) => {
-    // @ts-expect-error
-    select.setValue((prevSelectedValues: Array<SearchResult>) => {
-      const index = prevSelectedValues.indexOf(value)
-      if (index !== -1) {
-        return prevSelectedValues.filter((v: SearchResult) => v.id.id != value.id.id)
-      }
-      return [...prevSelectedValues, value]
-    })
-  }
-
-  const onItemClick = (value: SearchResult) => () => {
-    toggleValueFromSelectedValues(value)
-  }
-
-  const onItemKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Backspace' || event.key === 'Delete') {
-      event.currentTarget.click()
-    }
-  }
-
-  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Backspace') return
-    const {selectionStart, selectionEnd} = event.currentTarget
-    const isCaretAtTheBeginning = selectionStart === 0 && selectionEnd === 0
-    if (!isCaretAtTheBeginning) return
-    // @ts-expect-error
-    select.setValue((values: Array<SearchResult>) => {
-      if (!values.length) return values
-      return values.slice(0, values.length - 1)
-    })
-    combobox.hide()
-  }
-
-  return (
-    <Ariakit.Composite
-      store={composite}
-      role="grid"
-      aria-label={label}
-      className="tag-grid"
-      onClick={() => comboboxRef.current?.focus()}
-      render={<div className="flex flex-1 rounded-md p-1" />}
-    >
-      <Ariakit.CompositeRow role="row" render={<div className="flex w-full flex-wrap gap-1" />}>
-        {/* @ts-expect-error */}
-        {selectedValues.map((value: SearchResult) => {
-          // TODO: (horacio): Should I cleanup the list from the `unresolved` value?
-          return (
-            <Ariakit.CompositeItem
-              key={value.id.id}
-              role="gridcell"
-              onClick={onItemClick(value)}
-              onKeyDown={onItemKeyDown}
-              onFocus={combobox.hide}
-              render={
-                <div className="bg-background border-border flex min-h-6 items-center gap-1 rounded-md border p-1 px-2 hover:bg-black/10 dark:hover:bg-white/10" />
-              }
-            >
-              {'unresolved' in value && value.unresolved ? (
-                <UnresolvedItem value={value} />
-              ) : (
-                <>
-                  <LoadedHMIcon id={value.id} size={20} />
-                  <SizableText>{value.label}</SizableText>
-                </>
-              )}
-              <X size={12} />
-            </Ariakit.CompositeItem>
-          )
-        })}
-        <div role="cell" className="flex flex-1 flex-col">
-          <Ariakit.CompositeItem
-            id={comboboxId}
-            render={
-              <CompositeInput
-                ref={comboboxRef}
-                onKeyDown={onInputKeyDown}
-                render={<Ariakit.Combobox ref={ref} store={combobox} className="combobox" {...comboboxProps} />}
-              />
-            }
-          />
-        </div>
-        <Ariakit.ComboboxPopover
-          store={combobox}
-          portal
-          sameWidth
-          gutter={8}
-          render={
-            <Ariakit.SelectList
-              // @ts-expect-error
-              store={select}
-              render={<div className="z-100 rounded-sm bg-white dark:bg-black" />}
-            />
-          }
-        >
-          {children}
-        </Ariakit.ComboboxPopover>
-      </Ariakit.CompositeRow>
-    </Ariakit.Composite>
-  )
-})
-
-function UnresolvedItem({value}: {value: SearchResult}) {
-  const account = useAccount(value.id.uid, {subscribe: true})
-  const metadata = account.data?.metadata
-  const label = metadata?.name || abbreviateUid(value.id.uid)
-  return (
-    <>
-      <HMIcon id={value.id} name={metadata?.name} icon={metadata?.icon} size={20} />
-      <SizableText>{label}</SizableText>
-    </>
-  )
-}
-
-interface TagInputItemProps extends Ariakit.SelectItemProps {
-  children?: React.ReactNode
-  member?: SearchResult
-}
-
-const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(function TagInputItem(props, ref) {
-  const resource = useResource(props.member?.id)
-  const metadata = resource.data?.type === 'document' ? resource.data.document?.metadata : undefined
-  return (
-    <Ariakit.SelectItem
-      ref={ref}
-      {...props}
-      render={<Ariakit.ComboboxItem render={<TagInputItemContent className="combobox-item" render={props.render} />} />}
-    >
-      <div className="flex flex-1 justify-start gap-2">
-        {metadata && props.member?.id ? (
-          <HMIcon size={16} name={metadata?.name} icon={metadata?.icon} id={props.member?.id} />
-        ) : null}
-        <div className="flex flex-1">
-          <SizableText size="sm" className="text-currentColor">
-            {props.children || props.member?.label}
-          </SizableText>
-        </div>
-      </div>
-    </Ariakit.SelectItem>
-  )
-})
-
-const TagInputItemContent = forwardRef<any, any>(function TagInputItemContent(props, ref) {
-  let {render, children, ...restProps} = props
-
-  return (
-    <div ref={ref} {...restProps} className="combobox-item data-[active-item]:bg-accent flex flex-1 gap-2 p-3">
-      {render ? render : children}
-    </div>
-  )
-})
