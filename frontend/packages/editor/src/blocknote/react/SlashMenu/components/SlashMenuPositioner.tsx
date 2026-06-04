@@ -49,7 +49,37 @@ export const SlashMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSc
         return undefined
       }
 
-      const boundingRect = referencePos.current!
+      let boundingRect = referencePos.current!
+
+      // When the menu is activated from the inline plus button, the suggestion
+      // plugin decorates the whole block and Tippy ends up anchoring the menu
+      // to the block's left edge. Detect that case and replace it with a zero
+      // width rect at the cursor so the menu appears next to the cursor.
+      if (boundingRect.width > 32) {
+        const view = (props.editor as any)?._tiptapEditor?.view as
+          | {
+              state: {selection: {from: number}}
+              coordsAtPos: (pos: number) => DOMRect | {top: number; left: number; bottom: number; right: number}
+            }
+          | undefined
+        if (view) {
+          try {
+            const coords = view.coordsAtPos(view.state.selection.from)
+            boundingRect = {
+              top: coords.top,
+              bottom: coords.bottom,
+              left: coords.left,
+              right: coords.left,
+              width: 0,
+              height: coords.bottom - coords.top,
+            } as DOMRect
+          } catch {
+            // posAtCoords can throw on stale positions. Fall back to the
+            // original block rect rather than crash.
+          }
+        }
+      }
+
       const newRect = {
         top: boundingRect.top,
         right: boundingRect.right,

@@ -165,12 +165,8 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
           e.stopPropagation()
           const view = editor._tiptapEditor.view
           view.focus()
-          view.dispatch(
-            view.state.tr
-              .insertText('/')
-              .scrollIntoView()
-              .setMeta(slashMenuPluginKey, {activate: true, triggerCharacter: '/'}),
-          )
+          // Open the slash menu programmatically without inserting the trigger character.
+          view.dispatch(view.state.tr.scrollIntoView().setMeta(slashMenuPluginKey, {activate: true}))
         }}
       />
     </div>,
