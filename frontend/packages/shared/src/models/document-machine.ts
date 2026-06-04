@@ -1,5 +1,6 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
+  HMBlockChildrenType,
   HMBlockNode,
   HMDocument,
   HMDraft,
@@ -142,6 +143,7 @@ export type DocumentMachineEvent =
   | {type: 'edit.start'}
   | {type: 'edit.cancel'}
   | {type: 'change'; metadata?: HMDraft['metadata']}
+  | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
   | {
@@ -286,6 +288,9 @@ export const documentMachine = setup({
       metadata: ({context, event}) => {
         if (event.type === 'change' && event.metadata) {
           return {...context.metadata, ...event.metadata}
+        }
+        if (event.type === 'rootChildrenType.change') {
+          return {...context.metadata, childrenType: event.childrenType}
         }
         return context.metadata
       },
@@ -932,6 +937,10 @@ export const documentMachine = setup({
                   target: 'changed',
                   actions: ['setMetadata'],
                 },
+                'rootChildrenType.change': {
+                  target: 'changed',
+                  actions: ['setMetadata'],
+                },
                 'reset.content': {
                   target: 'changed',
                 },
@@ -952,6 +961,11 @@ export const documentMachine = setup({
             changed: {
               on: {
                 change: {
+                  target: 'changed',
+                  actions: ['setMetadata'],
+                  reenter: true,
+                },
+                'rootChildrenType.change': {
                   target: 'changed',
                   actions: ['setMetadata'],
                   reenter: true,
@@ -991,6 +1005,9 @@ export const documentMachine = setup({
               entry: ['resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
                 change: {
+                  actions: ['setHasChangedWhileSaving', 'setMetadata'],
+                },
+                'rootChildrenType.change': {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
                 },
                 'reset.content': {
@@ -1058,6 +1075,9 @@ export const documentMachine = setup({
               entry: ['resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
                 change: {
+                  actions: ['setHasChangedWhileSaving', 'setMetadata'],
+                },
+                'rootChildrenType.change': {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
                 },
                 'reset.content': {

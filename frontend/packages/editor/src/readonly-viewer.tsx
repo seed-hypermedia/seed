@@ -1,5 +1,5 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   hypermediaUrlToHref,
   RenderResourceProvider,
@@ -20,6 +20,7 @@ export interface ReadOnlyViewerProps {
   blocks: HMBlockNode[]
   resourceId?: UnpackedHypermediaId
   resourceKind?: RenderResourceKind
+  rootChildrenType?: HMBlockChildrenType
   textUnit?: number
   layoutUnit?: number
   className?: string
@@ -38,6 +39,7 @@ export function ReadOnlyViewer({
   blocks,
   resourceId,
   resourceKind = 'document',
+  rootChildrenType,
   textUnit,
   layoutUnit,
   className,
@@ -77,8 +79,9 @@ export function ReadOnlyViewer({
       } as any,
       // @ts-expect-error - EditorBlock/PartialBlock type mismatch
       initialContent,
+      rootChildrenType: rootChildrenType || 'Group',
     },
-    [initialContent, openUrl, renderHref],
+    [initialContent, openUrl, renderHref, rootChildrenType],
   )
 
   const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null

@@ -41,6 +41,9 @@ export function getDocAttributeChanges(metadata: HMMetadata) {
   if (metadata.contentWidth !== undefined) {
     changes.push(docAttributeChangeString(['contentWidth'], metadata.contentWidth))
   }
+  if (metadata.childrenType !== undefined) {
+    changes.push(docAttributeChangeString(['childrenType'], metadata.childrenType || ''))
+  }
   if (metadata.showActivity !== undefined) {
     changes.push(docAttributeChangeBool(['showActivity'], metadata.showActivity))
   }

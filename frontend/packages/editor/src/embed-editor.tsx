@@ -1,5 +1,5 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {useCallback, useEffect, useMemo} from 'react'
@@ -11,6 +11,7 @@ import {hmBlockSchema, HMBlockSchema} from './schema'
 export function useEmbedEditor(
   blocks: HMBlockNode[],
   linkExtensionOptions?: LinkExtensionOptions,
+  rootChildrenType?: HMBlockChildrenType,
 ): BlockNoteEditor<HMBlockSchema> {
   const initialContent = useMemo(() => {
     const editorBlocks = hmBlocksToEditorContent(blocks, {childrenType: 'Group'})
@@ -25,8 +26,9 @@ export function useEmbedEditor(
       linkExtensionOptions,
       // @ts-expect-error - EditorBlock/PartialBlock type mismatch
       initialContent,
+      rootChildrenType: rootChildrenType || 'Group',
     },
-    [initialContent, linkExtensionOptions],
+    [initialContent, linkExtensionOptions, rootChildrenType],
   )
 }
 
@@ -38,10 +40,12 @@ export function EmbedEditorView({
   depth = 1,
   focusBlockId,
   blockRange,
+  rootChildrenType,
 }: {
   blocks: HMBlockNode[]
   id: UnpackedHypermediaId
   depth?: number
+  rootChildrenType?: HMBlockChildrenType
   /** Block id within the embedded content to focus-highlight. */
   focusBlockId?: string
   /** Codepoint range within `focusBlockId` to highlight instead of the whole block. */
@@ -62,7 +66,12 @@ export function EmbedEditorView({
           e.preventDefault()
         }}
       >
-        <EmbedEditorInner blocks={blocks} focusBlockId={focusBlockId} blockRange={blockRange ?? undefined} />
+        <EmbedEditorInner
+          blocks={blocks}
+          focusBlockId={focusBlockId}
+          blockRange={blockRange ?? undefined}
+          rootChildrenType={rootChildrenType}
+        />
       </div>
     </RenderResourceProvider>
   )
@@ -72,10 +81,12 @@ function EmbedEditorInner({
   blocks,
   focusBlockId,
   blockRange,
+  rootChildrenType,
 }: {
   blocks: HMBlockNode[]
   focusBlockId?: string
   blockRange?: BlockRange
+  rootChildrenType?: HMBlockChildrenType
 }) {
   const openUrl = useOpenUrl()
   const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
@@ -96,7 +107,7 @@ function EmbedEditorInner({
     }),
     [openUrl, renderHref, openRouteNewWindow],
   )
-  const editor = useEmbedEditor(blocks, linkExtensionOptions)
+  const editor = useEmbedEditor(blocks, linkExtensionOptions, rootChildrenType)
 
   const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null
   const rangeEnd = blockRange && 'end' in blockRange ? blockRange.end : null

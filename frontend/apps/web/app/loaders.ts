@@ -390,6 +390,7 @@ async function loadResourcePayload(
     ? renderDocumentToHTML(document.content, {
         cacheKey,
         embeds,
+        rootChildrenType: document.metadata?.childrenType,
         renderHref: (url) =>
           hypermediaUrlToHref(url, {
             origin,

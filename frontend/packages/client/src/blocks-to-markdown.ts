@@ -48,6 +48,7 @@ const FM_STRING_KEYS: (keyof HMMetadata)[] = [
   'seedExperimentalLogo',
   'seedExperimentalHomeOrder',
   'contentWidth',
+  'childrenType',
   'importCategories',
   'importTags',
 ]

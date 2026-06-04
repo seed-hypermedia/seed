@@ -1,5 +1,5 @@
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import type {BlockRange, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from './universal-client'
 import type {StateStream} from './utils/stream'
 
@@ -44,6 +44,8 @@ export type LinkExtensionOptions = {
 export type DocumentContentProps = {
   blocks: HMBlockNode[]
   resourceId: UnpackedHypermediaId
+  /** Children type for the document root group; missing/null renders as a normal group. */
+  rootChildrenType?: HMBlockChildrenType
   focusBlockId?: string
   /** Optional codepoint range within `focusBlockId` to highlight instead of the whole block. */
   focusBlockRange?: BlockRange | null

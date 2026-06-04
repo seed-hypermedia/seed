@@ -53,9 +53,23 @@ export const updateGroupCommand = (
       return true
     }
 
-    // If block is first block in the document do nothing
-    if ($pos.node(depth - 1).type.name === 'doc' && container && group.firstChild?.attrs.id === container.attrs.id)
+    // The root blockChildren is persisted on document metadata, not on a parent block.
+    if ($pos.node(depth - 1).type.name === 'doc' && container && group.firstChild?.attrs.id === container.attrs.id) {
+      if ((listType === 'Unordered' || listType === 'Ordered') && dispatch) {
+        const tr = state.tr
+        tr.setNodeMarkup($pos.before(depth), null, {
+          ...group.attrs,
+          listType,
+          listLevel: '1',
+        })
+        dispatch(tr)
+        ;(
+          editor as unknown as {_onRootChildrenTypeChange?: (listType: HMBlockChildrenType) => void}
+        )._onRootChildrenTypeChange?.(listType)
+        return true
+      }
       return false
+    }
 
     // If block is not the first in its' group, sink list item and then update group
     if (

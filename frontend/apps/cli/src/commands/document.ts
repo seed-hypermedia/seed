@@ -312,6 +312,7 @@ export function registerDocumentCommands(program: Command) {
     .option('--show-activity', 'Show document activity')
     .option('--no-show-activity', 'Hide document activity')
     .option('--content-width <value>', 'Content width (S, M, L)')
+    .option('--children-type <value>', 'Root children type (Group, Unordered, Ordered)')
     .option('--seed-experimental-logo <value>', 'Experimental logo (ipfs:// or file:// URL)')
     .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
     .option('--import-categories <value>', 'Import categories (comma-separated)')
@@ -478,6 +479,7 @@ export function registerDocumentCommands(program: Command) {
     .option('--show-activity', 'Show document activity')
     .option('--no-show-activity', 'Hide document activity')
     .option('--content-width <value>', 'Content width (S, M, L)')
+    .option('--children-type <value>', 'Root children type (Group, Unordered, Ordered)')
     .option('--seed-experimental-logo <value>', 'Experimental logo (ipfs:// or file:// URL)')
     .option('--seed-experimental-home-order <value>', 'Home ordering (UpdatedFirst, CreatedFirst)')
     .option('--import-categories <value>', 'Import categories (comma-separated)')
@@ -905,6 +907,7 @@ const METADATA_KEYS: (keyof HMMetadata)[] = [
   'showOutline',
   'showActivity',
   'contentWidth',
+  'childrenType',
   'seedExperimentalLogo',
   'seedExperimentalHomeOrder',
   'importCategories',

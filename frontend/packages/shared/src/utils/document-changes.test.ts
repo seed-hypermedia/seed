@@ -1,7 +1,7 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {compareBlocksWithMap, createBlocksMap, deduplicateBlockIds} from './document-changes'
+import {compareBlocksWithMap, createBlocksMap, deduplicateBlockIds, getDocAttributeChanges} from './document-changes'
 
 function para(id: string, children: EditorBlock[] = []): EditorBlock {
   return {
@@ -35,6 +35,20 @@ function publishedNode(id: string, text = '', children: HMBlockNode[] = []): HMB
     children,
   }
 }
+
+describe('getDocAttributeChanges', () => {
+  it('emits document childrenType metadata changes', () => {
+    const changes = getDocAttributeChanges({childrenType: 'Ordered'})
+
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.op.case).toBe('setAttribute')
+    if (changes[0]!.op.case !== 'setAttribute') throw new Error('expected setAttribute')
+    expect(changes[0]!.op.value.blockId).toBe('')
+    expect(changes[0]!.op.value.key).toEqual(['childrenType'])
+    expect(changes[0]!.op.value.value.case).toBe('stringValue')
+    expect(changes[0]!.op.value.value.value).toBe('Ordered')
+  })
+})
 
 describe('deduplicateBlockIds', () => {
   it('returns blocks unchanged when no duplicates', () => {
