@@ -27,6 +27,7 @@ import {Selection} from './extensions/Blocks/api/selectionTypes'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from './extensions/Blocks/helpers/getBlockInfoFromPos'
 
 import type {DomainResolverFn} from '@seed-hypermedia/client'
+import type {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {Transaction} from 'prosemirror-state'
 import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
@@ -166,6 +167,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   handleFileAttachment?: HandleFileAttachmentFunction
   commentEditor?: boolean
   getResourceUrl?: (blockId?: string | null) => string | undefined
+  rootChildrenType?: HMBlockChildrenType
 }
 
 export type ImportWebFileResult =
@@ -364,7 +366,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
         const ic = initialContent.map((block) => blockToNode(block, schema))
 
-        const root = schema.node('doc', undefined, schema.node('blockChildren', {listType: 'Group'}, ic))
+        const rootChildrenType = newOptions.rootChildrenType || 'Group'
+        const root = schema.node('doc', undefined, schema.node('blockChildren', {listType: rootChildrenType}, ic))
         // override the initialcontent
         editor.editor.options.content = root.toJSON()
       },

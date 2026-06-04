@@ -2617,6 +2617,8 @@ function ContentViewWithOutline({
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
 }) {
+  const ctx = useDocumentSelector(selectContext)
+  const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
   const publishedOutline = useNodesOutline(document, docId)
   const draftOutline = useMemo(
     () => (existingDraftContent ? getDraftNodesOutline(existingDraftContent, docId) : null),
@@ -2663,6 +2665,7 @@ function ContentViewWithOutline({
           <DocumentContentComponent
             blocks={existingDraftContent ?? document.content}
             resourceId={resourceId}
+            rootChildrenType={rootChildrenType}
             focusBlockId={resourceId.blockRef ?? undefined}
             focusBlockRange={resourceId.blockRange ?? undefined}
             blockCitations={blockCitations}

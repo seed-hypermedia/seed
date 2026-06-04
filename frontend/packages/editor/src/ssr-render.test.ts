@@ -3,6 +3,22 @@ import {describe, expect, it} from 'vitest'
 import {renderDocumentToHTML} from './ssr-render'
 
 describe('renderDocumentToHTML', () => {
+  it('renders the document root as an unordered list when rootChildrenType is Unordered', () => {
+    const html = renderDocumentToHTML(
+      [
+        {
+          block: {id: 'item-1', type: 'Paragraph', text: 'First', annotations: []},
+          children: [],
+        },
+      ] as HMBlockNode[],
+      {rootChildrenType: 'Unordered'},
+    )
+
+    expect(html).toContain('<ul class="blockChildren"')
+    expect(html).toContain('data-list-type="Unordered"')
+    expect(html).toContain('<li class="blockNode" data-node-type="blockNode" data-id="item-1"')
+  })
+
   it('uses renderHref for annotated links', () => {
     const html = renderDocumentToHTML(
       [

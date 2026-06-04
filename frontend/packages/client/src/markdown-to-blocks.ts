@@ -583,7 +583,7 @@ const METADATA_STRING_KEYS = [
 const METADATA_BOOLEAN_KEYS = ['showOutline', 'showActivity'] as const
 
 /** Enum-typed metadata keys (stored as strings). */
-const METADATA_ENUM_KEYS = ['seedExperimentalHomeOrder', 'contentWidth'] as const
+const METADATA_ENUM_KEYS = ['seedExperimentalHomeOrder', 'contentWidth', 'childrenType'] as const
 
 /**
  * Strip YAML frontmatter (--- delimited) from markdown content.

@@ -1,4 +1,4 @@
-import type {HMAnnotation, HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMAnnotation, HMBlockChildrenType, HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {annotationContains} from '@seed-hypermedia/client/hmblock-to-editorblock'
 
 /** Version-keyed cache: document versions are immutable so entries never go stale. */
@@ -21,6 +21,8 @@ export type SSRRenderOpts = {
   embeds?: Record<string, SSREmbedData>
   /** Converts raw document links into the href value emitted in SSR HTML. */
   renderHref?: (url: string) => string | null | undefined
+  /** Children type for the document root group; missing/null renders as a normal group. */
+  rootChildrenType?: HMBlockChildrenType
 }
 
 /**
@@ -43,7 +45,15 @@ export function renderDocumentToHTML(blocks: HMBlockNode[], opts?: SSRRenderOpts
     // Wrap in a blockChildren container at depth 1 (matching editor's root group).
     // `nestingDepth` tracks blockNode-ancestor count so headings can render
     // the right h-tag without trusting the stored level prop.
-    const inner = renderBlockChildren(blocks, 'Group', 1, null, embeds, renderHref, 0)
+    const inner = renderBlockChildren(
+      blocks,
+      normalizeChildrenType(opts?.rootChildrenType),
+      1,
+      null,
+      embeds,
+      renderHref,
+      0,
+    )
     if (!inner) return null
     const result = `<div class="ssr-content-placeholder hm-prose">${inner}</div>`
 

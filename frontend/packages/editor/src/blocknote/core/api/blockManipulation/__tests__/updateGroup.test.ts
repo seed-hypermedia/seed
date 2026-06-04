@@ -52,6 +52,22 @@ describe('updateGroup command', () => {
     return editor.state
   }
 
+  it('updates the root group and notifies metadata when the first root block becomes a list', () => {
+    const doc = buildDoc(schema, [{id: 'item-1', text: '- '}])
+    const state = EditorState.create({doc, schema})
+    const editor = createMockEditor(state)
+    const onRootChildrenTypeChange = vi.fn()
+    editor._onRootChildrenTypeChange = onRootChildrenTypeChange
+
+    const pos = findPosInBlock(doc, 'item-1')
+    const command = updateGroupCommand(pos, 'Unordered', false)
+    const newState = runCommand(state, editor, command)!
+
+    expect(newState.doc.firstChild!.attrs.listType).toBe('Unordered')
+    expect(newState.doc.firstChild!.attrs.listLevel).toBe('1')
+    expect(onRootChildrenTypeChange).toHaveBeenCalledWith('Unordered')
+  })
+
   // Test 1: Toggle blockChildren from Group to Unordered
   //
   // BEFORE:                                    AFTER:

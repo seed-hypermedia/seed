@@ -728,6 +728,17 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('rootChildrenType.change updates metadata and marks the draft changed', () => {
+    const actor = createTestActor()
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'rootChildrenType.change', childrenType: 'Unordered'})
+    expect(actor.getSnapshot().context.metadata).toEqual({childrenType: 'Unordered'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'changed', saveIndicator: 'hidden', rebase: 'idle'}})
+    actor.stop()
+  })
+
   // -- capability.changed tests --
 
   it('capability.changed in loaded → updates canEdit', () => {

@@ -2,6 +2,7 @@ import type {HMResource} from '@seed-hypermedia/client/hm-types'
 import {
   BlockRange,
   HMBlock,
+  HMBlockChildrenType,
   HMBlockEmbed,
   HMBlockNode,
   HMComment,
@@ -417,6 +418,7 @@ export function BlockEmbedContent({
     embedBlocks: HMBlockNode[]
     document: HMDocument | null | undefined
     id: UnpackedHypermediaId
+    rootChildrenType?: HMBlockChildrenType
     /** Block id within the embedded document to scroll-anchor / focus-highlight. */
     blockRef?: string | null
     /** Codepoint range within `blockRef` to highlight when the link targets a fragment. */
@@ -735,6 +737,7 @@ function BlockEmbedContentDocument(props: {
     embedBlocks: HMBlockNode[]
     document: HMDocument | null | undefined
     id: UnpackedHypermediaId
+    rootChildrenType?: HMBlockChildrenType
     blockRef?: string | null
     blockRange?: BlockRange | null
   }) => React.ReactNode
@@ -819,6 +822,7 @@ function BlockEmbedContentDocument(props: {
             embedBlocks: embedData.data.embedBlocks as HMBlockNode[],
             document,
             id,
+            rootChildrenType: props.blockRef ? 'Group' : document?.metadata?.childrenType,
             blockRef: props.blockRef,
             blockRange: props.blockRange ?? null,
           })}

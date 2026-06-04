@@ -729,12 +729,13 @@ function EditorEmbedContent({
       block={block}
       parentBlockId={parentBlockId}
       openOnClick={openOnClick}
-      renderDocumentContent={({embedBlocks, id, blockRef, blockRange}) => (
+      renderDocumentContent={({embedBlocks, id, blockRef, blockRange, rootChildrenType}) => (
         <EmbedEditorView
           blocks={embedBlocks}
           id={id}
           focusBlockId={blockRef ?? undefined}
           blockRange={blockRange ?? undefined}
+          rootChildrenType={rootChildrenType}
         />
       )}
     />

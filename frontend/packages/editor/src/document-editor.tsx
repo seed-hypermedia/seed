@@ -52,6 +52,26 @@ export type {DocumentContentProps}
 /** Block types (data-content-type values) that trigger edit mode on click. */
 const TEXT_BLOCK_TYPES = new Set(['paragraph', 'heading', 'code-block'])
 
+function setEditorRootChildrenType(
+  editor: BlockNoteEditor<HMBlockSchema>,
+  childrenType: DocumentContentProps['rootChildrenType'],
+) {
+  const view = editor._tiptapEditor?.view
+  const rootGroup = view?.state.doc.firstChild
+  if (!view || rootGroup?.type.name !== 'blockChildren') return
+
+  const listType = childrenType || 'Group'
+  if (rootGroup.attrs.listType === listType) return
+
+  view.dispatch(
+    view.state.tr.setNodeMarkup(0, null, {
+      ...rootGroup.attrs,
+      listType,
+      listLevel: '1',
+    }),
+  )
+}
+
 /**
  * Walk up from `el` in the DOM looking for a `data-content-type` attribute.
  * Returns the value when found, or null if we reach `root` without finding one.
@@ -71,6 +91,7 @@ export function DocumentEditor({
   resourceId,
   focusBlockId,
   focusBlockRange,
+  rootChildrenType,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -175,6 +196,7 @@ export function DocumentEditor({
         actorRef.send({type: 'change'})
       },
       initialContent,
+      rootChildrenType: rootChildrenType || 'Group',
       // Caller-provided options (universalClient, domainResolver, gwUrl,
       // checkWebUrl, queryClient, etc.) are required by pasteHandler to
       // (a) convert pasted web URLs to hm:// and (b) apply a link mark to
@@ -367,6 +389,34 @@ export function DocumentEditor({
   // Keep the editor ref current so the paste-handler block-fragment landing
   // callback can resolve to the same editor instance.
   docEditorRef.current = editor
+
+  useEffect(() => {
+    ;(
+      editor as unknown as {
+        _onRootChildrenTypeChange?: (childrenType: DocumentContentProps['rootChildrenType']) => void
+      }
+    )._onRootChildrenTypeChange = (childrenType) => {
+      if (childrenType === 'Unordered' || childrenType === 'Ordered') {
+        actorRef.send({type: 'rootChildrenType.change', childrenType})
+      }
+    }
+    return () => {
+      delete (
+        editor as unknown as {
+          _onRootChildrenTypeChange?: (childrenType: DocumentContentProps['rootChildrenType']) => void
+        }
+      )._onRootChildrenTypeChange
+    }
+  }, [actorRef, editor])
+
+  useEffect(() => {
+    suppressChangeRef.current = true
+    try {
+      setEditorRootChildrenType(editor, rootChildrenType)
+    } finally {
+      suppressChangeRef.current = false
+    }
+  }, [editor, rootChildrenType])
 
   // Expose the suppress ref on the editor so external consumers (e.g. auto-rebase)
   // can wrap programmatic `replaceBlocks` calls without triggering `change` events.
