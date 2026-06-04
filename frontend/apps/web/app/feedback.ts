@@ -1,8 +1,12 @@
-import {signDocumentChange} from '@seed-hypermedia/client'
+import {signDocumentChange, type DocumentOperation} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client/markdown-to-blocks'
+import {
+  flattenToOperations,
+  markdownBlockNodesToHMBlockNodes,
+  parseMarkdown,
+} from '@seed-hypermedia/client/markdown-to-blocks'
 import {DocumentChange, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -63,6 +67,7 @@ export type FeedbackDocumentPublishPayload = {
   pathSegment: string
   path: string
   changes: DocumentChange[]
+  operations: DocumentOperation[]
   title: string
   submittedAt: string
   submittedAtDate: Date
@@ -180,15 +185,22 @@ export function buildFeedbackDocumentPublishPayload(
     testedPageUrl: context.testedPageUrl,
     visibilityLabel,
   })
-  const editorBlocks = feedbackMarkdownToEditorBlocks(markdown)
+  const {tree} = parseMarkdown(markdown)
+  const content = markdownBlockNodesToHMBlockNodes(tree)
+  const editorBlocks = hmBlocksToEditorContent(content, {childrenType: 'Group'}) as EditorBlock[]
   const {changes} = compareBlocksWithMap({}, editorBlocks, '')
   const metadataChanges = getDocAttributeChanges({name: title} as HMMetadata)
   const pathSegment = options.generatePath?.() ?? nanoid(21)
+  const operations: DocumentOperation[] = [
+    {type: 'SetAttributes', attrs: [{key: ['name'], value: title}]},
+    ...flattenToOperations(tree),
+  ]
 
   return {
     pathSegment,
     path: hmIdPathToEntityQueryPath([pathSegment]),
     changes: [...metadataChanges, ...changes],
+    operations,
     title,
     submittedAt,
     submittedAtDate,
