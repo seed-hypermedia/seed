@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Project Document"
+  short_description: "Draft project docs with clear scope"
+  default_prompt: "Use $write-project-document to draft a markdown project document for this idea."
