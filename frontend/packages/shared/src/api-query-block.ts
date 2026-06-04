@@ -235,6 +235,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
             includes: input.query.includes.map(({space, path, mode}) => ({space, path, mode})),
             limit: input.query.limit ?? null,
             sortCount: input.query.sort?.length ?? 0,
+            filterCount: input.query.filters?.length ?? 0,
           },
           resolvedItemCount: perf.resolvedItemCount,
           returnedItemCount: perf.returnedItemCount,

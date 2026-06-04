@@ -742,6 +742,19 @@ export const HMQuerySortSchema = z.object({
 })
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
+export const HMQueryFilterSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('Author'),
+    uid: z.string(),
+  }),
+  z.object({
+    type: z.literal('PublishDate'),
+    from: z.string().optional(),
+    to: z.string().optional(),
+  }),
+])
+export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
+
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
@@ -749,6 +762,7 @@ export const HMQuerySchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
+  filters: z.array(HMQueryFilterSchema).optional(),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
 
