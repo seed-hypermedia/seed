@@ -1,6 +1,7 @@
 import type {CitationFragmentClick, CitationFragmentHighlight} from '@shm/shared/document-content-props'
 import {Node as ProseMirrorNode} from 'prosemirror-model'
 import {Plugin, PluginKey} from 'prosemirror-state'
+import type {StepMap} from 'prosemirror-transform'
 import {Decoration, DecorationSet} from 'prosemirror-view'
 import {codepointOffsetToPos} from '../BlockHighlight/BlockHighlightPlugin'
 
@@ -66,7 +67,6 @@ function buildCitationDecorations(
   citations: CitationFragmentHighlight[],
   interactive = true,
 ): CitationFragmentHighlightState {
-  const decorations: Decoration[] = []
   const ranges: CitationDecorationRange[] = []
   const byBlock = new Map<string, CitationFragmentHighlight[]>()
 
@@ -100,33 +100,83 @@ function buildCitationDecorations(
       const to = codepointOffsetToPos(found.content, found.contentBeforePos, end)
       if (to <= from) continue
 
-      const overlap = Math.min(covering.length, 4)
-      const interactiveClass = interactive ? ' bn-citation-fragment-highlight-interactive' : ''
-      decorations.push(
-        Decoration.inline(from, to, {
-          class: `bn-range-highlight-focus bn-citation-fragment-highlight${interactiveClass} bn-citation-fragment-overlap-${overlap}`,
-          'data-citation-fragment': 'true',
-          'data-citation-ids': covering.map((citation) => citation.id).join(','),
-        }),
-      )
       ranges.push({from, to, citations: covering})
     }
   }
 
-  return {decorations: DecorationSet.create(doc, decorations), ranges, interactive}
+  return {decorations: createDecorationSetFromRanges(doc, ranges, interactive), ranges, interactive}
+}
+
+function createDecorationSetFromRanges(doc: ProseMirrorNode, ranges: CitationDecorationRange[], interactive: boolean) {
+  return DecorationSet.create(
+    doc,
+    ranges.map((range) => {
+      const overlap = Math.min(range.citations.length, 4)
+      const interactiveClass = interactive ? ' bn-citation-fragment-highlight-interactive' : ''
+      return Decoration.inline(range.from, range.to, {
+        class: `bn-range-highlight-focus bn-citation-fragment-highlight${interactiveClass} bn-citation-fragment-overlap-${overlap}`,
+        'data-citation-fragment': 'true',
+        'data-citation-ids': range.citations.map((citation) => citation.id).join(','),
+      })
+    }),
+  )
+}
+
+function mapRangeThroughStep(range: CitationDecorationRange, stepMap: StepMap): CitationDecorationRange[] {
+  const changedRanges: {oldStart: number; oldEnd: number}[] = []
+  stepMap.forEach((oldStart: number, oldEnd: number) => {
+    changedRanges.push({oldStart, oldEnd})
+  })
+
+  const mapPiece = (from: number, to: number, fromAssoc: -1 | 1, toAssoc: -1 | 1) => {
+    if (to <= from) return null
+    const mappedFrom = stepMap.map(from, fromAssoc)
+    const mappedTo = stepMap.map(to, toAssoc)
+    if (mappedTo <= mappedFrom) return null
+    return {...range, from: mappedFrom, to: mappedTo}
+  }
+
+  if (!changedRanges.length) {
+    const mapped = mapPiece(range.from, range.to, 1, -1)
+    return mapped ? [mapped] : []
+  }
+
+  const mappedRanges: CitationDecorationRange[] = []
+  let cursor = range.from
+  let cursorAssoc: -1 | 1 = 1
+
+  for (const {oldStart, oldEnd} of changedRanges) {
+    if (oldStart >= range.to) break
+    if (oldEnd <= cursor) continue
+    if (oldEnd <= range.from) continue
+
+    const splitStart = Math.max(oldStart, range.from)
+    if (splitStart > cursor) {
+      const mapped = mapPiece(cursor, Math.min(splitStart, range.to), cursorAssoc, -1)
+      if (mapped) mappedRanges.push(mapped)
+    }
+
+    cursor = oldEnd > oldStart ? Math.max(cursor, oldEnd) : Math.max(cursor, oldStart)
+    cursorAssoc = 1
+  }
+
+  if (cursor < range.to) {
+    const mapped = mapPiece(cursor, range.to, cursorAssoc, -1)
+    if (mapped) mappedRanges.push(mapped)
+  }
+
+  return mappedRanges
 }
 
 function mapRanges(
   ranges: CitationDecorationRange[],
   tr: Parameters<NonNullable<Plugin['spec']['state']>['apply']>[0],
 ) {
-  return ranges
-    .map((range) => ({
-      ...range,
-      from: tr.mapping.map(range.from, 1),
-      to: tr.mapping.map(range.to, -1),
-    }))
-    .filter((range) => range.to > range.from)
+  let mappedRanges = ranges
+  for (const stepMap of tr.mapping.maps) {
+    mappedRanges = mappedRanges.flatMap((range) => mapRangeThroughStep(range, stepMap))
+  }
+  return mappedRanges
 }
 
 /**
@@ -156,9 +206,10 @@ export function createCitationFragmentHighlightPlugin(handlerRef: CitationFragme
 
         if (!tr.docChanged) return oldState
 
+        const ranges = mapRanges(oldState.ranges, tr)
         return {
-          decorations: oldState.decorations.map(tr.mapping, tr.doc),
-          ranges: mapRanges(oldState.ranges, tr),
+          decorations: createDecorationSetFromRanges(tr.doc, ranges, oldState.interactive),
+          ranges,
           interactive: oldState.interactive,
         }
       },

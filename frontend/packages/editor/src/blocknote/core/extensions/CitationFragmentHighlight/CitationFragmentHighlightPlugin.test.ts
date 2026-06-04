@@ -132,4 +132,46 @@ describe('CitationFragmentHighlightPlugin', () => {
     expect(onClick).not.toHaveBeenCalled()
     view.destroy()
   })
+
+  it('splits a highlight instead of expanding it when text is inserted inside', () => {
+    const onClick = vi.fn()
+    const {view, plugin} = createView(onClick)
+
+    view.dispatch(
+      view.state.tr
+        .setMeta(citationFragmentHighlightPluginKey, {
+          type: 'set',
+          citations: [citation('a', 0, 5)],
+        })
+        .setMeta('addToHistory', false),
+    )
+
+    const initialRange = citationFragmentHighlightPluginKey.getState(view.state)?.ranges[0]
+    expect(initialRange).toBeDefined()
+
+    const insertPos = initialRange!.from + 2
+    const initialTo = initialRange!.to
+    view.dispatch(view.state.tr.insertText('NEW', insertPos))
+
+    const pluginState = citationFragmentHighlightPluginKey.getState(view.state)
+    const ranges = pluginState?.ranges ?? []
+    const decorations = pluginState?.decorations.find() ?? []
+
+    expect(ranges).toEqual([
+      expect.objectContaining({from: initialRange!.from, to: insertPos}),
+      expect.objectContaining({from: insertPos + 3, to: initialTo + 3}),
+    ])
+    expect(decorations).toHaveLength(2)
+
+    const insertedTextHandled = plugin.props.handleClick?.call(
+      plugin,
+      view,
+      insertPos + 1,
+      new MouseEvent('click', {clientX: 10, clientY: 20}),
+    )
+
+    expect(insertedTextHandled).toBe(false)
+    expect(onClick).not.toHaveBeenCalled()
+    view.destroy()
+  })
 })
