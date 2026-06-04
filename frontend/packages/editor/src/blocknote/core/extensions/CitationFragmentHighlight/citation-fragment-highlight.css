@@ -1,3 +1,10 @@
+.bn-citation-fragment-highlight {
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--muted-foreground) / 0.35);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 .bn-citation-fragment-highlight-interactive {
   cursor: pointer;
 }
