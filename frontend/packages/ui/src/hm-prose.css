@@ -52,8 +52,13 @@
   --hm-breakout: 60px;
 }
 
+/* The trailing two selectors cover a nested `.hm-prose` (a Mantine internal
+ * wrapper inside the desktop comment editor) that would otherwise
+ * win the inheritance by being closer to the rendered text. */
 .hm-prose.is-comment,
-.hm-prose .is-comment {
+.hm-prose .is-comment,
+.hm-prose.is-comment .hm-prose,
+.hm-prose .is-comment .hm-prose {
   font-family:
     ui-sans-serif,
     system-ui,
