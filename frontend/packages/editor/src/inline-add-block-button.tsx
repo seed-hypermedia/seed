@@ -82,7 +82,7 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       }
     }
 
-    const update = () => {
+    const measurePos = () => {
       const next = computePos()
       const last = lastRef.current
       const same = !!next && !!last && next.top === last.top && next.left === last.left
@@ -92,16 +92,57 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       setPos(next)
     }
 
-    update()
-    ttEditor.on('selectionUpdate', update)
-    ttEditor.on('update', update)
-    window.addEventListener('scroll', update, true)
-    window.addEventListener('resize', update)
+    // Multi-trigger approach to reliably catch when the block type changes.
+    let pendingFrame: number | null = null
+    const scheduleUpdate = () => {
+      if (pendingFrame != null) return
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = null
+        measurePos()
+      })
+    }
+
+    const resizeObserver = new ResizeObserver(measurePos)
+    resizeObserver.observe(ttEditor.view.dom)
+
+    const mutationObserver = new MutationObserver(measurePos)
+    mutationObserver.observe(ttEditor.view.dom, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-content-type'],
+    })
+
+    // After any content event, also schedule a delayed measure so
+    // even a late React commit gets picked up.
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleDelayedUpdate = () => {
+      if (pendingTimer != null) clearTimeout(pendingTimer)
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null
+        measurePos()
+      }, 80)
+    }
+
+    const onPmEvent = () => {
+      scheduleUpdate()
+      scheduleDelayedUpdate()
+    }
+
+    scheduleUpdate()
+    ttEditor.on('selectionUpdate', onPmEvent)
+    ttEditor.on('update', onPmEvent)
+    window.addEventListener('scroll', scheduleUpdate, true)
+    window.addEventListener('resize', scheduleUpdate)
     return () => {
-      ttEditor.off('selectionUpdate', update)
-      ttEditor.off('update', update)
-      window.removeEventListener('scroll', update, true)
-      window.removeEventListener('resize', update)
+      if (pendingFrame != null) cancelAnimationFrame(pendingFrame)
+      if (pendingTimer != null) clearTimeout(pendingTimer)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+      ttEditor.off('selectionUpdate', onPmEvent)
+      ttEditor.off('update', onPmEvent)
+      window.removeEventListener('scroll', scheduleUpdate, true)
+      window.removeEventListener('resize', scheduleUpdate)
     }
   }, [editor])
 
