@@ -72,6 +72,35 @@ export function useIsGatewayConnected() {
 
 export type HMPeerInfo = PlainMessage<PeerInfo>
 
+/** Returns tracked domains grouped by the peer ID they resolve to. */
+export function useDomainsByPeerId(options: UseQueryOptions<Map<string, string[]>, ConnectError> = {}) {
+  return useQuery<Map<string, string[]>, ConnectError>({
+    queryKey: [queryKeys.DOMAINS_LIST],
+    queryFn: async () => {
+      try {
+        const listed = await grpcClient.daemon.listDomains({})
+        const byPeerId = new Map<string, string[]>()
+        listed.domains.forEach((info) => {
+          const peerId = info.peerId.trim()
+          const domain = info.domain.trim()
+          if (!peerId || !domain) return
+          const domains = byPeerId.get(peerId)
+          if (domains) domains.push(domain)
+          else byPeerId.set(peerId, [domain])
+        })
+        byPeerId.forEach((domains, peerId) => {
+          byPeerId.set(peerId, Array.from(new Set(domains)).sort())
+        })
+        return byPeerId
+      } catch {
+        return new Map()
+      }
+    },
+    enabled: true,
+    ...options,
+  })
+}
+
 export function usePeers(filterConnected: boolean, options: UseQueryOptions<HMPeerInfo[] | null, ConnectError> = {}) {
   return useQuery<HMPeerInfo[] | null, ConnectError>({
     queryKey: [queryKeys.PEERS, filterConnected],

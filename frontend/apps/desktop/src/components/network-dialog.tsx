@@ -16,8 +16,10 @@ import {cn} from '@shm/ui/utils'
 import {Route} from 'lucide-react'
 import React from 'react'
 import {ColorValue} from 'react-native'
-import {HMPeerInfo, usePeers} from '../models/networking'
+import {HMPeerInfo, useDomainsByPeerId, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
+
+const EMPTY_DOMAINS: string[] = []
 
 export function useNetworkDialog() {
   return useAppDialog<true>(NetworkDialog)
@@ -26,6 +28,9 @@ export function useNetworkDialog() {
 export function NetworkDialog() {
   const peers = usePeers(false, {
     refetchInterval: 5_000,
+  })
+  const domainsByPeerId = useDomainsByPeerId({
+    refetchInterval: 30_000,
   })
   const {data: deviceInfo} = useDaemonInfo()
   const connectDialog = useAppDialog(AddConnectionDialog)
@@ -42,7 +47,14 @@ export function NetworkDialog() {
       <div className="h-[500px] overflow-hidden">
         <ScrollArea>
           {peers.data && peers.data.length ? (
-            peers.data.map((peer) => <PeerRow key={peer.id} peer={peer} myProtocol={deviceInfo?.protocolId || ''} />)
+            peers.data.map((peer) => (
+              <PeerRow
+                key={peer.id}
+                peer={peer}
+                myProtocol={deviceInfo?.protocolId || ''}
+                domains={domainsByPeerId.data?.get(peer.id) || EMPTY_DOMAINS}
+              />
+            ))
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
               <NoConnection className="text-muted-foreground size-25" />
@@ -65,8 +77,18 @@ function getProtocolMessage(peer: HMPeerInfo, myProtocol: string) {
   return ` (Protocol: ${peer.protocol})`
 }
 
-const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInfo; myProtocol: string}) {
+const PeerRow = React.memo(function PeerRow({
+  peer,
+  myProtocol,
+  domains,
+}: {
+  peer: HMPeerInfo
+  myProtocol: string
+  domains: string[]
+}) {
   const {id, connectionStatus, protocol} = peer
+  const visibleDomains = domains.slice(0, 2)
+  const hiddenDomainCount = domains.length - visibleDomains.length
   // const isSite =
   //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
   // const label = isSite
@@ -87,15 +109,33 @@ const PeerRow = React.memo(function PeerRow({peer, myProtocol}: {peer: HMPeerInf
   const isConnected = connectionStatus === ConnectionStatus.CONNECTED && protocol === myProtocol
   return (
     <div className="group flex min-h-8 flex-1 items-center justify-between p-2">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <Tooltip content={getPeerStatus(connectionStatus) + getProtocolMessage(peer, myProtocol)}>
           <div className={cn('size-3 rounded-md', getPeerStatusIndicator(peer, myProtocol))} />
         </Tooltip>
-        <Tooltip content="Copy Peer ID">
-          <SizableText onClick={handleCopyPeerId}>{id.substring(id.length - 10)}</SizableText>
-        </Tooltip>
+        <div className="flex min-w-0 items-center gap-2">
+          <Tooltip content="Copy Peer ID">
+            <SizableText onClick={handleCopyPeerId}>{id.substring(id.length - 10)}</SizableText>
+          </Tooltip>
+          {domains.length ? (
+            <Tooltip content={domains.join(', ')}>
+              <div className="flex min-w-0 items-center gap-1">
+                {visibleDomains.map((domain) => (
+                  <SizableText key={domain} size="xs" color="muted" className="max-w-32 truncate">
+                    {domain}
+                  </SizableText>
+                ))}
+                {hiddenDomainCount > 0 ? (
+                  <SizableText size="xs" color="muted">
+                    +{hiddenDomainCount}
+                  </SizableText>
+                ) : null}
+              </div>
+            </Tooltip>
+          ) : null}
+        </div>
       </div>
-      <div className="group mx-3 flex gap-3">
+      <div className="group mx-3 flex shrink-0 gap-3">
         {/* <XStack gap="$2">
           {account && !isSite ? (
             <UIAvatar
