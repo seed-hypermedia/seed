@@ -27,6 +27,7 @@ import {
 } from '@shm/shared/models/document-machine'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, refetchQueriesByKey} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {
   compareBlocksWithMap,
@@ -128,6 +129,9 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
 function makeDiscardDraftActor() {
   return fromPromise<void, DiscardDraftInput>(async ({input}) => {
     await discardWebDocDraft(input.draftId, input.deletedChildDraftIds)
+    invalidateQueries([queryKeys.DRAFT, input.draftId])
+    invalidateQueries([queryKeys.DRAFTS_LIST])
+    invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
   })
 }
 
@@ -171,7 +175,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
 
   const latestVersion = editDocument?.version ?? ''
-  const baseVersion = latestVersion || (draft.deps.length ? draft.deps.join('.') : '')
+  const baseVersion = draft.deps.length ? draft.deps.join('.') : latestVersion
   const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
   const currentPath = deps.docId.path ?? []
   const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)

@@ -159,7 +159,6 @@ export type DocumentMachineEvent =
   | {type: 'childDraftRefs.changed'; draftIds: string[]}
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
-  | {type: 'edit.confirm'}
   | {type: 'version.changed'; isLatest: boolean}
   | {type: 'draft.existing'; draftId: string}
   | {
@@ -168,6 +167,7 @@ export type DocumentMachineEvent =
       content: HMBlockNode[] | null
       cursorPosition: number | null
       metadata?: HMMetadata | null
+      deps?: string[] | null
       /** Block IDs the user previously touched in this draft (persisted across reloads). */
       mineTouchedIds?: string[] | null
       /** Three-way merge base captured when the draft was first started or last rebased. */
@@ -304,7 +304,10 @@ export const documentMachine = setup({
       },
     }),
     setDepsFromPublished: assign({
-      deps: ({context}) => (context.publishedVersion ? [context.publishedVersion] : context.deps),
+      deps: ({context}) => {
+        if (context.draftId && context.deps.length) return context.deps
+        return context.publishedVersion ? [context.publishedVersion] : context.deps
+      },
     }),
     setPendingRemoteVersion: assign({
       pendingRemoteVersion: ({event}) => {
@@ -485,6 +488,11 @@ export const documentMachine = setup({
     clearPendingRebase: assign({
       pendingRebase: null,
     }),
+    clearPendingRemoteUpdate: assign({
+      pendingRemoteVersion: null,
+      pendingRemoteDocument: null,
+      pendingRebase: null,
+    }),
     setPathOverrideFromEvent: assign({
       pendingPathOverride: ({context, event}) => {
         if (event.type !== 'publish.start') return context.pendingPathOverride
@@ -549,6 +557,10 @@ export const documentMachine = setup({
       metadata: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.metadata) return event.metadata
         return context.metadata
+      },
+      deps: ({event, context}) => {
+        if (event.type === 'draft.resolved' && event.deps && event.deps.length) return event.deps
+        return context.deps
       },
       mineTouchedIds: ({event, context}) => {
         if (event.type === 'draft.resolved' && event.mineTouchedIds && event.mineTouchedIds.length) {
@@ -638,18 +650,8 @@ export const documentMachine = setup({
   },
   guards: {
     canTransitionToEditing: ({context}) => {
-      const result = context.canEdit
+      const result = context.canEdit && (context.isLatestVersion || !!context.draftId)
       // console.log('[DocMachine] guard canTransitionToEditing', {
-      //   canEdit: context.canEdit,
-      //   isLatestVersion: context.isLatestVersion,
-      //   draftId: context.draftId,
-      //   result,
-      // })
-      return result
-    },
-    canEditOldVersion: ({context}) => {
-      const result = context.canEdit && !context.isLatestVersion && context.draftId === null
-      // console.log('[DocMachine] guard canEditOldVersion', {
       //   canEdit: context.canEdit,
       //   isLatestVersion: context.isLatestVersion,
       //   draftId: context.draftId,
@@ -785,17 +787,11 @@ export const documentMachine = setup({
 
     loaded: {
       on: {
-        'edit.start': [
-          {
-            target: 'confirmingOldVersionEdit',
-            guard: 'canEditOldVersion',
-          },
-          {
-            target: 'editing',
-            guard: 'canTransitionToEditing',
-            actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
-          },
-        ],
+        'edit.start': {
+          target: 'editing',
+          guard: 'canTransitionToEditing',
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
+        },
         'edit.discard': [
           {
             target: 'discarding',
@@ -826,36 +822,9 @@ export const documentMachine = setup({
       },
       always: {
         target: 'editing',
-        guard: ({context}) => context.shouldAutoEdit && context.isLatestVersion,
+        guard: ({context}) =>
+          context.shouldAutoEdit && context.canEdit && (context.isLatestVersion || !!context.draftId),
         actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
-      },
-    },
-
-    confirmingOldVersionEdit: {
-      entry: () => console.log('[DocMachine] enter confirmingOldVersionEdit'),
-      exit: () => console.log('[DocMachine] exit confirmingOldVersionEdit'),
-      on: {
-        'edit.confirm': {
-          target: 'editing',
-          actions: [
-            () => console.log('[DocMachine] edit.confirm received → editing'),
-            'setDepsFromPublished',
-            'snapshotBaseBlocks',
-          ],
-        },
-        'edit.cancel': {
-          target: 'loaded',
-          actions: [() => console.log('[DocMachine] edit.cancel received in confirmingOldVersionEdit → loaded')],
-        },
-        'capability.changed': {
-          actions: ['setCanEdit'],
-        },
-        'account.changed': {
-          actions: ['setAccountIds'],
-        },
-        'version.changed': {
-          actions: ['setIsLatestVersion'],
-        },
       },
     },
 
@@ -1175,8 +1144,7 @@ export const documentMachine = setup({
               },
               on: {
                 'rebase.detectConflict': {
-                  target: 'conflict',
-                  actions: ['setRebaseConflict'],
+                  actions: ['clearPendingRemoteUpdate'],
                 },
                 // Auto-merge applied from idle stays in idle; the action
                 // updates context (document/deps/baseBlocks) and clears
@@ -1197,7 +1165,7 @@ export const documentMachine = setup({
                 },
                 'rebase.dismiss': {
                   target: 'idle',
-                  actions: ['clearPendingRebase'],
+                  actions: ['clearPendingRemoteUpdate'],
                 },
               },
             },

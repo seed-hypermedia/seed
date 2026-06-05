@@ -46,14 +46,12 @@ import {
   documentMachine,
   DocumentMachineProvider,
   selectContext,
-  selectIsConfirmingOldVersionEdit,
   selectIsEditing,
   selectIsUnpublishedDraft,
   selectPublishedVersion,
   useAccountSync,
   useAutoRebase,
   useCapabilitySync,
-  useDocumentMachineRef,
   useDocumentNavigationOptional,
   useDocumentSelector,
   useDocumentSend,
@@ -63,7 +61,7 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
-import type {TransientResourceError} from '@shm/shared/models/document-machine'
+import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
@@ -74,23 +72,13 @@ import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMem
 import {AllDocumentsPage} from './all-documents-page'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
-import {Feed} from './feed'
+import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
@@ -215,6 +203,21 @@ export function shouldSuppressMainCommentEditor({
   )
 }
 
+export function shouldUseDraftForRenderedDocument({
+  docId,
+  existingDraft,
+}: {
+  docId: UnpackedHypermediaId
+  existingDraft?: HMExistingDraft | false
+}) {
+  if (!existingDraft) return false
+  // Version-pinned routes are immutable snapshots. Even when a draft exists for
+  // the same path, the snapshot must render exactly the selected version and
+  // must not inherit draft content or draft actions.
+  if (docId.version) return false
+  return true
+}
+
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -298,6 +301,10 @@ export interface ResourcePageProps {
   existingDraftMineTouchedIds?: string[]
   /** Three-way merge base captured at draft start or last rebase, persisted across reloads. */
   existingDraftBaseBlocks?: HMBlockNode[]
+  /** Base deps captured for the draft. Used by platform wrappers and tests. */
+  existingDraftDeps?: string[]
+  /** Platform-specific confirm workflow for discarding the synthetic versions-panel draft row. */
+  draftVersionOnDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void) => void
   /** Pre-rendered document content HTML for SSR (avoids blank flash before editor loads) */
   ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
@@ -379,6 +386,8 @@ export function ResourcePage({
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
+  existingDraftDeps,
+  draftVersionOnDiscardConfirm,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -663,17 +672,37 @@ export function ResourcePage({
     )
   }
 
+  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId, existingDraft})
+  const effectiveCanEdit = canEdit && !docId.version
+  const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
+  const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
+  const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
+  const effectiveExistingDraftCursorPosition = shouldUseDraft ? existingDraftCursorPosition : undefined
+  const effectiveExistingDraftMineTouchedIds = shouldUseDraft ? existingDraftMineTouchedIds : undefined
+  const effectiveExistingDraftBaseBlocks = shouldUseDraft ? existingDraftBaseBlocks : undefined
+  const effectiveExistingDraftDeps = shouldUseDraft ? existingDraftDeps : undefined
+  const draftVersionEntry = existingDraft
+    ? {
+        docId,
+        draftId: existingDraft.id,
+        deps: existingDraftDeps,
+        metadata: existingDraft.metadata,
+        onDiscardConfirm: draftVersionOnDiscardConfirm,
+      }
+    : undefined
+
   return (
     <DocumentMachineProvider
       // Key on the route id so the machine actor is recreated when the URL
       // path changes (e.g. after first publish from `-${draftId}` → real slug).
       // Without this, useActorRef keeps the original actor instance and its
       // context still references the old documentId/editPath.
-      key={docId.id}
+      key={`${docId.id}@${docId.version ?? 'latest'}`}
       input={{
         documentId: docId,
-        canEdit,
+        canEdit: effectiveCanEdit,
         isLatest,
+        deps: effectiveExistingDraftDeps,
         editUid: docId.uid,
         editPath: docId.path ?? undefined,
         signingAccountId,
@@ -700,19 +729,21 @@ export function ResourcePage({
           CommentEditor={CommentEditor}
           optionsMenuItems={optionsMenuItems}
           extraMenuItems={extraMenuItems}
-          existingDraft={existingDraft}
-          existingDraftVisibility={existingDraftVisibility}
-          existingDraftContent={existingDraftContent}
-          existingDraftCursorPosition={existingDraftCursorPosition}
-          existingDraftMineTouchedIds={existingDraftMineTouchedIds}
-          existingDraftBaseBlocks={existingDraftBaseBlocks}
+          existingDraft={effectiveExistingDraft}
+          existingDraftVisibility={effectiveExistingDraftVisibility}
+          existingDraftContent={effectiveExistingDraftContent}
+          existingDraftCursorPosition={effectiveExistingDraftCursorPosition}
+          existingDraftMineTouchedIds={effectiveExistingDraftMineTouchedIds}
+          existingDraftBaseBlocks={effectiveExistingDraftBaseBlocks}
+          existingDraftDeps={effectiveExistingDraftDeps}
+          draftVersionEntry={draftVersionEntry}
           floatingButtons={floatingButtons}
           pageFooter={pageFooter}
           inlineCards={inlineCards}
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={onEditorReady}
-          canEdit={canEdit}
+          canEdit={effectiveCanEdit}
           editingFloatingActions={editingFloatingActions}
           draftActions={draftActions}
           signingAccountId={signingAccountId}
@@ -909,6 +940,8 @@ function DocumentBody({
   existingDraftCursorPosition,
   existingDraftMineTouchedIds,
   existingDraftBaseBlocks,
+  existingDraftDeps,
+  draftVersionEntry,
   floatingButtons,
   pageFooter,
   inlineCards,
@@ -942,6 +975,8 @@ function DocumentBody({
   existingDraftCursorPosition?: number
   existingDraftMineTouchedIds?: string[]
   existingDraftBaseBlocks?: HMBlockNode[]
+  existingDraftDeps?: string[]
+  draftVersionEntry?: DraftVersionEntry
   floatingButtons?: ReactNode
   pageFooter?: ReactNode
   inlineCards?: ReactNode
@@ -994,6 +1029,7 @@ function DocumentBody({
           content: HMBlockNode[] | null
           cursorPosition: number | null
           metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
+          deps?: string[] | null
           mineTouchedIds?: string[] | null
           baseBlocks?: HMBlockNode[] | null
         }
@@ -1008,6 +1044,7 @@ function DocumentBody({
         content: existingDraftContent,
         cursorPosition: existingDraftCursorPosition ?? null,
         metadata: existingDraft.metadata ?? null,
+        deps: existingDraftDeps ?? null,
         mineTouchedIds: existingDraftMineTouchedIds ?? null,
         baseBlocks: existingDraftBaseBlocks ?? null,
       }
@@ -1019,6 +1056,7 @@ function DocumentBody({
     existingDraft,
     existingDraftContent,
     existingDraftCursorPosition,
+    existingDraftDeps,
     existingDraftMineTouchedIds,
     existingDraftBaseBlocks,
   ])
@@ -1027,7 +1065,6 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
-
   // Set of block ids present in the currently published version of the document.
   const publishedBlockIds = useMemo(() => {
     const ids = new Set<string>()
@@ -1809,6 +1846,7 @@ function DocumentBody({
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
+          draftVersionEntry={draftVersionEntry}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1832,14 +1870,10 @@ function DocumentBody({
     }
   }
 
-  // Dialog for confirming edits on older document versions
-  const oldVersionEditDialog = <OldVersionEditDialog />
-
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
       <>
-        {oldVersionEditDialog}
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
@@ -1903,13 +1937,13 @@ function DocumentBody({
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
         fileUpload={fileUpload}
+        draftVersionEntry={draftVersionEntry}
       />
     </ScrollArea>
   ) : null
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
-      {oldVersionEditDialog}
       <PanelLayout
         panelKey={panelKey}
         panelContent={panelContent}
@@ -2108,59 +2142,6 @@ function EditableDocumentHeader({
   )
 }
 
-function OldVersionEditDialog() {
-  const isConfirming = useDocumentSelector(selectIsConfirmingOldVersionEdit)
-  const actorRef = useDocumentMachineRef()
-  const send = useDocumentSend()
-  return (
-    <AlertDialog
-      open={isConfirming}
-      onOpenChange={(open) => {
-        // Only send edit.cancel when the dialog closes while we're still
-        // waiting for confirmation (overlay click / Escape). Clicking "Edit
-        // Anyway" sends edit.confirm first, transitioning out of
-        // confirmingOldVersionEdit; Radix then closes the dialog and fires
-        // onOpenChange(false) — we must not send edit.cancel in that case
-        // because it would bounce us back to `loaded` and re-prompt on the
-        // next click. Read the machine's *current* snapshot (not the
-        // React-rendered value) because onOpenChange fires synchronously
-        // inside the same event handler as edit.confirm.
-        if (!open && actorRef.getSnapshot().matches('confirmingOldVersionEdit')) {
-          send({type: 'edit.cancel'})
-        }
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Edit older version?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You are viewing an older version of this document. Editing it will create a new branch in the document
-            history, separate from the latest version.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel
-            onClick={() => {
-              console.log('[OldVersionEditDialog] Cancel clicked')
-              send({type: 'edit.cancel'})
-            }}
-          >
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              console.log('[OldVersionEditDialog] Edit Anyway clicked')
-              send({type: 'edit.confirm'})
-            }}
-          >
-            Edit Anyway
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
-
 /** Auto-resize a textarea to fit its content. */
 function applyTitleResize(el: HTMLTextAreaElement) {
   el.style.height = 'auto'
@@ -2175,6 +2156,7 @@ function PanelContentRenderer({
   CommentEditor,
   siteUrl,
   fileUpload,
+  draftVersionEntry,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
@@ -2182,13 +2164,20 @@ function PanelContentRenderer({
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
   fileUpload?: (file: File) => Promise<string>
+  draftVersionEntry?: DraftVersionEntry
 }) {
   switch (panelRoute.key) {
     case 'options':
       return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'activity':
       return (
-        <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
+        <Feed
+          size="sm"
+          filterResource={docId.id}
+          filterEventType={panelRoute.filterEventType}
+          targetDomain={siteUrl}
+          draftVersionEntry={draftVersionEntry}
+        />
       )
     case 'comments':
       return (
@@ -2363,6 +2352,7 @@ function MainContent({
   perspectiveAccountUid,
   linkExtensionOptions,
   fileUpload,
+  draftVersionEntry,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2411,6 +2401,7 @@ function MainContent({
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
+  draftVersionEntry?: DraftVersionEntry
 }) {
   const {originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
@@ -2447,6 +2438,7 @@ function MainContent({
             filterResource={docId.id}
             filterEventType={activityFilterEventType || []}
             targetDomain={siteUrl}
+            draftVersionEntry={draftVersionEntry}
           />
         </PageLayout>
       )

@@ -254,7 +254,7 @@ export function useVersionLatestSync(isLatest: boolean) {
  * Sends `draft.resolved` once the draft query has fully settled:
  * - `undefined` = still loading (document or draft content not yet available)
  * - `{draftId: null, content: null}` = no draft exists
- * - `{draftId: string, content: HMBlockNode[]}` = draft exists and content is loaded
+ * - `{draftId: string, content: HMBlockNode[], deps: string[]}` = draft exists and content/base are loaded
  *
  * The machine's `loading` state waits for both `document.loaded` and
  * `draft.resolved` before transitioning to `loaded`, eliminating the
@@ -267,6 +267,7 @@ export function useDraftResolutionSync(
         content: HMBlockNode[] | null
         cursorPosition: number | null
         metadata?: HMMetadata | null
+        deps?: string[] | null
         mineTouchedIds?: string[] | null
         baseBlocks?: HMBlockNode[] | null
       }
@@ -284,6 +285,7 @@ export function useDraftResolutionSync(
         content: resolved.content,
         cursorPosition: resolved.cursorPosition,
         metadata: resolved.metadata ?? null,
+        deps: resolved.deps ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
       })
@@ -367,11 +369,6 @@ export function selectIsPublishing(snapshot: DocumentMachineSnapshot): boolean {
 /** Whether the machine is in the `error` state. */
 export function selectIsError(snapshot: DocumentMachineSnapshot): boolean {
   return snapshot.matches('error')
-}
-
-/** Whether the machine is in the `confirmingOldVersionEdit` state (waiting for user confirmation). */
-export function selectIsConfirmingOldVersionEdit(snapshot: DocumentMachineSnapshot): boolean {
-  return snapshot.matches('confirmingOldVersionEdit')
 }
 
 /** Whether the current user can edit this document. */
@@ -832,18 +829,25 @@ export function useAutoRebase({
           structuralTheirsAdds: Array.from(theirsMap.keys()).filter((id) => !baseMap.has(id)),
           conflictDetail,
         })
+
+        // For now conflicts are non-blocking and must not mutate the user's
+        // in-progress editor state. Keep local content as-is, clear the
+        // pending remote update in the machine, and let publish continue from
+        // the draft's current base. We should only advance deps to a remote
+        // head after a real merge has been applied.
+        actorRef.send({
+          type: 'rebase.detectConflict',
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+        onConflictDetected?.({
+          conflictedBlockIds: classification.conflictedBlockIds,
+          author: authorName,
+        })
+        return
       }
 
-      // Default conflict picks to "mine wins" so the user's in-progress edits
-      // are preserved while non-conflicting blocks fold in from theirs. The
-      // conflict UI (Phase B) can later let the user opt into theirs per block.
-      const conflictPicks: Record<string, 'mine' | 'theirs'> = {}
-      if (!classification.autoMergeable) {
-        for (const id of classification.conflictedBlockIds) {
-          conflictPicks[id] = 'mine'
-        }
-      }
-      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan, conflictPicks)
+      const merged = applyRebasePlan(mineNodes, remoteDoc.content ?? [], classification.plan, {})
       console.log('[Rebase hook] applying merge', {
         mergedBlockIds: merged.map((n) => n.block?.id),
         author: authorName,
@@ -1015,17 +1019,6 @@ export function useAutoRebase({
       // Kick the autosave pipeline so the merged blocks hit the draft file on disk.
       // Without this, a reload before the user's next keystroke reverts the merge.
       actorRef.send({type: 'change'})
-      // If the rebase carried unresolved conflicts, re-record them in machine
-      // context so the UI can surface a "conflicts kept your version" indicator.
-      // Mine-wins picks were already baked into the merged blocks above; this
-      // event is purely informational and does NOT block publish.
-      if (!classification.autoMergeable) {
-        actorRef.send({
-          type: 'rebase.detectConflict',
-          conflictedBlockIds: classification.conflictedBlockIds,
-          author: authorName,
-        })
-      }
       const postSnap = actorRef.getSnapshot()
       console.log('[Rebase hook] post-apply state', {
         stateValue: postSnap.value,
@@ -1035,14 +1028,7 @@ export function useAutoRebase({
         pendingRemoteDocument: !!postSnap.context.pendingRemoteDocument,
         pendingRebase: postSnap.context.pendingRebase,
       })
-      if (!classification.autoMergeable) {
-        onConflictDetected?.({
-          conflictedBlockIds: classification.conflictedBlockIds,
-          author: authorName,
-        })
-      } else {
-        onAutoMerged?.(authorName)
-      }
+      onAutoMerged?.(authorName)
     }, idleDebounceMs)
     return () => clearTimeout(timer)
   }, [

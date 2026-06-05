@@ -5,6 +5,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {selectDraftId, useDocumentSelector} from '@shm/shared/models/use-document-machine'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {
@@ -13,6 +14,7 @@ import {
   EditingDocToolsRight as SharedEditingDocToolsRight,
 } from '@shm/ui/editing-toolbar'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {toast} from '@shm/ui/toast'
 import {useCallback, useMemo} from 'react'
 import {useDeleteDraftDialog} from './delete-draft-dialog'
 
@@ -64,12 +66,13 @@ function useUnpublishedChildCount(): number {
 }
 
 /** Build all desktop-specific callbacks for the shared toolbar. */
-function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
+export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
   callbacks: EditingToolbarCallbacks
   deleteDraftDialog: ReturnType<typeof useDeleteDraftDialog>
 } {
   const deleteDraftDialog = useDeleteDraftDialog()
   const navigate = useNavigate('replace')
+  const route = useNavRoute()
   const getDocumentUrl = useDocumentUrlWithSite(docId.uid)
 
   const callbacks: EditingToolbarCallbacks = useMemo(
@@ -78,7 +81,14 @@ function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
       onDiscardConfirm: (discardDraftId: string, send) => {
         deleteDraftDialog.open({
           draftId: discardDraftId,
-          onConfirm: () => send({type: 'edit.discard'}),
+          onConfirm: () => {
+            send({type: 'edit.discard'})
+            navigate({
+              ...(route.key === 'document' ? route : {key: 'document'}),
+              id: {...docId, version: null},
+            } as any)
+            toast.success('Draft changes discarded')
+          },
         })
       },
       slugify: pathNameify,
@@ -91,7 +101,7 @@ function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
         } as any)
       },
     }),
-    [getDocumentUrl, deleteDraftDialog, navigate],
+    [getDocumentUrl, deleteDraftDialog, navigate, docId, route],
   )
 
   return {callbacks, deleteDraftDialog}

@@ -290,6 +290,31 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('loaded → edit.start (isLatest=false) → stays loaded', () => {
+    const actor = createTestActor({isLatest: false})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    actor.stop()
+  })
+
+  it('draft.resolved preserves stored draft deps when auto-entering editing', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'b1', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}],
+      cursorPosition: null,
+      deps: ['older-base'],
+    })
+    actor.send({type: 'document.loaded', document: mockDocument})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(actor.getSnapshot().context.deps).toEqual(['older-base'])
+    actor.stop()
+  })
+
   it('editing.idle → change → editing.changed', () => {
     const actor = createTestActor()
     actor.start()
@@ -787,6 +812,7 @@ describe('DocumentLifecycle machine', () => {
     // existingDraftId sets draftReady: true, so only document.loaded is needed
     const actor = createTestActor({canEdit: false, existingDraftId: 'draft-1'})
     actor.start()
+    actor.send({type: 'capability.changed', canEdit: true})
     actor.send({type: 'document.loaded', document: mockDocument})
     // shouldAutoEdit is true (from existingDraftId), draftReady is true,
     // documentReady is now true → transitions to loaded → always to editing
@@ -976,35 +1002,12 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('edit.start on old version → confirmingOldVersionEdit', () => {
+  it('edit.start on old version → stays loaded', () => {
     const actor = createTestActor({isLatest: false})
     actor.start()
     loadDocument(actor)
     expect(actor.getSnapshot().context.isLatestVersion).toBe(false)
     actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
-    actor.stop()
-  })
-
-  it('confirmingOldVersionEdit → edit.confirm → editing with deps set', () => {
-    const actor = createTestActor({isLatest: false})
-    actor.start()
-    loadDocument(actor)
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
-    actor.send({type: 'edit.confirm'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
-    expect(actor.getSnapshot().context.deps).toEqual(['bafyabc.bafydef'])
-    actor.stop()
-  })
-
-  it('confirmingOldVersionEdit → edit.cancel → back to loaded', () => {
-    const actor = createTestActor({isLatest: false})
-    actor.start()
-    loadDocument(actor)
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
-    actor.send({type: 'edit.cancel'})
     expect(actor.getSnapshot().value).toBe('loaded')
     actor.stop()
   })
@@ -1018,9 +1021,7 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('edit.start on old version with existing draft → skips dialog, goes to editing', () => {
-    // A draft already exists for this document, meaning the user previously
-    // confirmed "Edit Anyway". They should not be prompted again.
+  it('edit.start with stale existing draft → enters editing', () => {
     const actor = createTestActor({isLatest: false})
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
@@ -1030,46 +1031,12 @@ describe('DocumentLifecycle machine', () => {
       content: [],
       cursorPosition: null,
     })
-    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     expect(actor.getSnapshot().context.draftId).toBe('existing-draft')
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
   })
 
-  it('confirm → write draft → cancel → edit.start again → no dialog', async () => {
-    // Once the first autosave creates a draft, subsequent edit.start clicks
-    // must bypass the confirmation dialog.
-    const machine = documentMachine.provide({
-      actors: {
-        writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-new'})),
-        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
-        discardDraft: fromPromise<void, any>(async () => {}),
-      },
-      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
-    })
-    const actor = createActor(machine, {
-      input: {documentId: mockDocumentId, canEdit: true, isLatest: false},
-    })
-    actor.start()
-    actor.send({type: 'document.loaded', document: mockDocument})
-    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
-    actor.send({type: 'edit.confirm'})
-    actor.send({type: 'change'})
-    await new Promise((r) => setTimeout(r, 80))
-    expect(actor.getSnapshot().context.draftId).toBe('draft-new')
-    actor.send({type: 'edit.cancel'})
-    expect(actor.getSnapshot().value).toBe('loaded')
-    expect(actor.getSnapshot().context.draftId).toBe('draft-new')
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
-    actor.stop()
-  })
-
-  it('confirm → discard → edit.start again → dialog re-appears', async () => {
-    // edit.discard clears the draft, so the user must confirm again.
+  it('old version cannot create a draft through edit.start/change', async () => {
     const machine = documentMachine.provide({
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-disc'})),
@@ -1085,16 +1052,10 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'document.loaded', document: mockDocument})
     actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
     actor.send({type: 'edit.start'})
-    actor.send({type: 'edit.confirm'})
     actor.send({type: 'change'})
     await new Promise((r) => setTimeout(r, 80))
-    expect(actor.getSnapshot().context.draftId).toBe('draft-disc')
-    actor.send({type: 'edit.discard'})
-    await new Promise((r) => setTimeout(r, 0))
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBeNull()
-    actor.send({type: 'edit.start'})
-    expect(actor.getSnapshot().value).toBe('confirmingOldVersionEdit')
     actor.stop()
   })
 
@@ -1118,7 +1079,7 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('auto-edit with draft on old version → stays loaded (no auto-edit)', () => {
+  it('auto-edit with stale draft → enters editing', () => {
     const actor = createTestActor({isLatest: false})
     actor.start()
     actor.send({
@@ -1128,9 +1089,8 @@ describe('DocumentLifecycle machine', () => {
       cursorPosition: null,
     })
     actor.send({type: 'document.loaded', document: mockDocument})
-    // Should NOT auto-transition to editing because isLatestVersion is false
-    expect(actor.getSnapshot().value).toBe('loaded')
-    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(true) // still set, but guard blocks it
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(actor.getSnapshot().context.shouldAutoEdit).toBe(false)
     actor.stop()
   })
 

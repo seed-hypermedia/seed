@@ -18,6 +18,7 @@ import {InspectorPage} from '@shm/ui/inspector-page'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
+import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -38,12 +39,7 @@ import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
 import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
-import {
-  cleanupOldWebDocDrafts,
-  deleteWebDocDraft,
-  getLatestWebDocDraftForDoc,
-  getWebDocDraft,
-} from './document-edit/web-draft-db'
+import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 import {getWebDraftPlaceholderId} from './document-edit/web-draft-path'
 
@@ -165,23 +161,16 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     enabled: typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId),
     staleTime: 60_000,
   })
-  // Detect and auto-delete stale IDB drafts whose base version doesn't match
-  // the current published version. Happens when published from desktop/another session.
+  // Keep local drafts even when their base is no longer latest. Remote updates
+  // are handled by the document machine's queued rebase flow; deleting here can
+  // destroy a valid in-progress draft when the user is merely viewing a pinned
+  // historical version.
   const draftData = draftQuery.data
-  const isDraftStale = useMemo(() => {
-    if (!draftData || !docId.version) return false
-    return !draftData.deps.includes(docId.version)
-  }, [draftData, docId.version])
-
-  useEffect(() => {
-    if (isDraftStale && draftData) {
-      deleteWebDocDraft(draftData.draftId).catch(() => {})
-    }
-  }, [isDraftStale, draftData])
+  const isDraftStale = false
 
   const canEditLocalPlaceholderDraft =
     !!placeholderDraftId && !!draftData && !!signingAccountId && draftData.signingAccountId === signingAccountId
-  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft
+  const effectiveCanEdit = (canEdit || canEditLocalPlaceholderDraft) && !docId.version
   const effectiveCapabilityCid = capability && capability.id !== '_owner' ? capability.id : draftData?.capabilityCid
 
   // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
@@ -278,6 +267,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       onDiscardConfirm: (draftId: string, send) => {
         if (window.confirm('Discard draft changes?')) {
           send({type: 'edit.discard'})
+          replaceRouteRef.current({
+            ...(route.key === 'document' ? route : {key: 'document'}),
+            id: {...docId, version: null},
+          } as any)
+          toast.success('Draft changes discarded')
         }
       },
       slugify: pathNameify,
@@ -290,7 +284,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         } as any)
       },
     }),
-    [origin, originHomeId, navigate],
+    [origin, originHomeId, navigate, docId, route],
   )
 
   const showPublishToolbar = route.key === 'document'
@@ -382,6 +376,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                 existingDraftVisibility={draftData?.visibility}
                 existingDraftContent={existingDraftContent}
                 existingDraftCursorPosition={existingDraftCursorPosition}
+                existingDraftDeps={draftData?.deps}
+                draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                 editingFloatingActions={editingFloatingActions}
                 fileUpload={fileUpload}
               />

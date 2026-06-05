@@ -272,7 +272,7 @@ export function usePublishResource(
             // Probe whether a doc already exists at the original destination.
             // The result drives two things:
             //  1. Whether to apply the inline-first-publish slug rename below.
-            //  2. `latestHeads` for the shallow rebase against the live doc.
+            //  2. Fallback base version for legacy drafts that have no deps.
             // Skipped for legacy first-publishes (no `editId` outer arg) because
             // there is no doc to fetch yet.
             let existingDocVersion: string | null = null
@@ -350,55 +350,25 @@ export function usePublishResource(
 
             const docPath = hmIdPathToEntityQueryPath(resolvedDestinationId.path || [])
 
-            // Bump the draft to the current latest heads before publishing. Until the
-            // rebase flow lands, this is a shallow "rebase": baseVersion = latest, and
-            // the minimal block diff is applied on top. Blocks the user didn't touch keep
-            // the latest's content; blocks the user edited overwrite (last-writer-wins).
-            // The draft's persisted `deps` is also updated so a retry after failure (or a
-            // subsequent publish from the same draft) starts from the new base.
-            let latestHeads: string[] = []
+            // Publish from the draft's persisted base deps. Remote updates are
+            // handled by the document-machine rebase flow; do not silently bump
+            // deps to the newest head here, especially after a conflict was
+            // ignored to keep the user's local editor content stable.
             let latestVersion = ''
             if (existingDocVersion) {
               latestVersion = existingDocVersion
-              latestHeads = existingDocVersion.split('.')
               // console.log('[publish] using existing latest heads', {
               //   account: resolvedDestinationId.uid,
               //   path: docPath,
               //   latestVersion,
-              //   latestHeads,
               // })
             }
             const draftDeps = draft.deps ?? []
-            const baseVersion = latestVersion || draftDeps.join('.')
-
-            const depsChanged =
-              latestHeads.length > 0 &&
-              (latestHeads.length !== draftDeps.length || latestHeads.some((h) => !draftDeps.includes(h)))
-            if (depsChanged) {
-              // console.log('[publish] persisting rebased deps to draft', {
-              //   draftId: draft.id,
-              //   from: draftDeps,
-              //   to: latestHeads,
-              // })
-              await client.drafts.write.mutate({
-                id: draft.id,
-                locationUid: draft.locationUid,
-                locationPath: draft.locationPath,
-                editUid: draft.editUid,
-                editPath: draft.editPath,
-                metadata: draft.metadata,
-                content: draft.content,
-                deps: latestHeads,
-                navigation: draft.navigation,
-                visibility: draft.visibility,
-              })
-            }
+            const baseVersion = draftDeps.length ? draftDeps.join('.') : latestVersion
 
             // console.log('[publish] computed baseVersion', {
             //   draftDeps,
-            //   latestHeads,
             //   baseVersion,
-            //   depsChanged,
             // })
 
             const publishInput = {
@@ -424,7 +394,7 @@ export function usePublishResource(
             //   resultVersion: updatedDoc.version,
             // })
 
-            // Inspect the Change blob the server produced to verify deps = latestHeads.
+            // Inspect the Change blob the server produced to verify deps.
             try {
               const changesResp = await grpcClient.documents.listDocumentChanges({
                 account: resolvedDestinationId.uid,
@@ -437,10 +407,7 @@ export function usePublishResource(
               //   newChangeId: newChange?.id,
               //   deps: newChange?.deps,
               //   author: newChange?.author,
-              //   expectedDeps: latestHeads,
-              //   depsMatch:
-              //     newChange?.deps?.length === latestHeads.length &&
-              //     (newChange?.deps ?? []).every((d) => latestHeads.includes(d)),
+              //   expectedDeps: draftDeps,
               //   allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
               // })
             } catch (err) {
