@@ -27,8 +27,18 @@ interface AccountTagInputProps extends Omit<Ariakit.ComboboxProps, 'onChange'> {
 }
 
 export const AccountTagInput = forwardRef<HTMLInputElement, AccountTagInputProps>(function AccountTagInput(props, ref) {
-  const {label, defaultValue, value, onChange, defaultValues, values, onValuesChange, children, ...comboboxProps} =
-    props
+  const {
+    label,
+    defaultValue,
+    value,
+    onChange,
+    defaultValues,
+    values,
+    onValuesChange,
+    children,
+    className,
+    ...comboboxProps
+  } = props
 
   const comboboxRef = useRef<HTMLInputElement>(null)
   const defaultComboboxId = useId()
@@ -123,14 +133,22 @@ export const AccountTagInput = forwardRef<HTMLInputElement, AccountTagInputProps
             </Ariakit.CompositeItem>
           )
         })}
-        <div role="cell" className="flex flex-1 flex-col">
+        <div role="cell" className="flex min-w-0 flex-1 flex-col">
           <Ariakit.CompositeItem
             id={comboboxId}
             render={
               <CompositeInput
                 ref={comboboxRef}
                 onKeyDown={onInputKeyDown}
-                render={<Ariakit.Combobox ref={ref} store={combobox} className="combobox" {...comboboxProps} />}
+                render={
+                  <Ariakit.Combobox
+                    ref={ref}
+                    store={combobox}
+                    size={1}
+                    className={`combobox w-full min-w-0 ${className ?? ''}`}
+                    {...comboboxProps}
+                  />
+                }
               />
             }
           />
@@ -194,13 +212,23 @@ interface AccountTagInputItemProps extends Ariakit.SelectItemProps {
 
 export const AccountTagInputItem = forwardRef<HTMLDivElement, AccountTagInputItemProps>(
   function AccountTagInputItem(props, ref) {
+    const {onMouseDown, onClick, ...itemProps} = props
     const resource = useResource(props.account?.id)
     const metadata =
       props.account?.metadata ?? (resource.data?.type === 'document' ? resource.data.document?.metadata : undefined)
     return (
       <Ariakit.SelectItem
         ref={ref}
-        {...props}
+        {...itemProps}
+        onMouseDown={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onMouseDown?.(event)
+        }}
+        onClick={(event) => {
+          event.stopPropagation()
+          onClick?.(event)
+        }}
         render={
           <Ariakit.ComboboxItem
             render={<AccountTagInputItemContent className="combobox-item" render={props.render} />}

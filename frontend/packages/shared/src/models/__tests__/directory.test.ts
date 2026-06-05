@@ -117,39 +117,30 @@ describe('createQueryResolver', () => {
     expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Alice'])
   })
 
-  it('combines author OR filters with publish date range filters', async () => {
-    const inRangeAlice = makeEntry({
-      id: hmId('alice', {path: ['projects', 'in-range-alice']}),
-      path: ['projects', 'in-range-alice'],
-      name: 'In Range Alice',
+  it('matches any selected author filter before sorting', async () => {
+    const parent = makeEntry({id: hmId('alice', {path: ['projects']}), path: ['projects'], name: 'Projects'})
+    const authoredByAlice = makeEntry({
+      id: hmId('alice', {path: ['projects', 'alice']}),
+      path: ['projects', 'alice'],
+      name: 'Alice',
       authors: ['alice-author'],
-      displayPublishTime: '2024-02-15',
     })
-    const inRangeBob = makeEntry({
-      id: hmId('alice', {path: ['projects', 'in-range-bob']}),
-      path: ['projects', 'in-range-bob'],
-      name: 'In Range Bob',
+    const authoredByBob = makeEntry({
+      id: hmId('alice', {path: ['projects', 'bob']}),
+      path: ['projects', 'bob'],
+      name: 'Bob',
       authors: ['bob-author'],
-      displayPublishTime: '2024-02-20',
     })
-    const outOfRangeAlice = makeEntry({
-      id: hmId('alice', {path: ['projects', 'out-of-range-alice']}),
-      path: ['projects', 'out-of-range-alice'],
-      name: 'Out Of Range Alice',
-      authors: ['alice-author'],
-      displayPublishTime: '2023-12-31',
-    })
-    const wrongAuthor = makeEntry({
-      id: hmId('alice', {path: ['projects', 'wrong-author']}),
-      path: ['projects', 'wrong-author'],
-      name: 'Wrong Author',
+    const authoredByCarol = makeEntry({
+      id: hmId('alice', {path: ['projects', 'carol']}),
+      path: ['projects', 'carol'],
+      name: 'Carol',
       authors: ['carol-author'],
-      displayPublishTime: '2024-02-15',
     })
 
-    const listDirectory = vi.fn().mockResolvedValue({
-      documents: [wrongAuthor, outOfRangeAlice, inRangeBob, inRangeAlice],
-    })
+    const listDirectory = vi
+      .fn()
+      .mockResolvedValue({documents: [parent, authoredByCarol, authoredByBob, authoredByAlice]})
     const resolver = createQueryResolver({documents: {listDirectory}} as any)
 
     const result = await resolver({
@@ -158,11 +149,10 @@ describe('createQueryResolver', () => {
       filters: [
         {type: 'Author', uid: 'alice-author'},
         {type: 'Author', uid: 'bob-author'},
-        {type: 'PublishDate', from: '2024-01-01', to: '2024-12-31'},
       ],
     })
 
-    expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['In Range Alice', 'In Range Bob'])
+    expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Alice', 'Bob'])
   })
 
   it('still uses listDirectory for unsupported server sorts and applies client-side sorting', async () => {

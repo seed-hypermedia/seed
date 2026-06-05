@@ -13,71 +13,13 @@ import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {prepareHMDocumentInfo} from './entity'
 
-function dateValueMs(value: unknown): number | null {
-  if (typeof value === 'string') {
-    const ms = Date.parse(value)
-    return Number.isNaN(ms) ? null : ms
-  }
-  if (value instanceof Date) return value.getTime()
-  if (value && typeof value === 'object' && 'seconds' in value) {
-    const seconds = Number((value as {seconds: unknown}).seconds)
-    const nanos = Number((value as {nanos?: unknown}).nanos ?? 0)
-    if (!Number.isFinite(seconds)) return null
-    return seconds * 1000 + Math.floor(nanos / 1_000_000)
-  }
-  return null
-}
-
-function publishDateMs(entry: HMDocumentInfo): number | null {
-  const displayPublishTime = entry.metadata.displayPublishTime
-  if (displayPublishTime) {
-    const ms = Date.parse(displayPublishTime)
-    if (!Number.isNaN(ms)) return ms
-  }
-  return dateValueMs(entry.updateTime)
-}
-
-function startDateMs(value: string | undefined): number | null {
-  if (!value?.trim()) return null
-  const ms = Date.parse(value)
-  return Number.isNaN(ms) ? null : ms
-}
-
-function endDateMs(value: string | undefined): number | null {
-  if (!value?.trim()) return null
-  const ms = Date.parse(value)
-  if (Number.isNaN(ms)) return null
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return ms + 24 * 60 * 60 * 1000 - 1
-  return ms
-}
-
 function filterQueryResults(entries: HMDocumentInfo[], filters: HMQueryFilter[] | undefined): HMDocumentInfo[] {
   if (!filters?.length) return entries
 
-  const authorUids = filters
-    .filter((filter): filter is Extract<HMQueryFilter, {type: 'Author'}> => filter.type === 'Author')
-    .map((filter) => filter.uid)
-    .filter(Boolean)
-  const publishDateFilters = filters.filter(
-    (filter): filter is Extract<HMQueryFilter, {type: 'PublishDate'}> => filter.type === 'PublishDate',
-  )
+  const authorUids = filters.map((filter) => filter.uid).filter(Boolean)
+  if (!authorUids.length) return entries
 
-  return entries.filter((entry) => {
-    if (authorUids.length && !authorUids.some((uid) => entry.authors.includes(uid))) return false
-
-    for (const filter of publishDateFilters) {
-      const from = startDateMs(filter.from)
-      const to = endDateMs(filter.to)
-      if (from == null && to == null) continue
-
-      const publishDate = publishDateMs(entry)
-      if (publishDate == null) return false
-      if (from != null && publishDate < from) return false
-      if (to != null && publishDate > to) return false
-    }
-
-    return true
-  })
+  return entries.filter((entry) => authorUids.some((uid) => entry.authors.includes(uid)))
 }
 
 function createDirectoryResolver(client: GRPCClient) {

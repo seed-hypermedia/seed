@@ -620,14 +620,14 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
       | {
           includes?: Array<{space: string; path?: string; mode?: string}>
           sort?: Array<{term: SortTerm; reverse?: boolean}>
-          filters?: Array<{type: 'Author'; uid: string} | {type: 'PublishDate'; from?: string; to?: string}>
+          filters?: Array<{type: 'Author'; uid: string}>
           limit?: number
         }
       | undefined
 
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
     let sort: Array<{term: SortTerm; reverse: boolean}> | undefined
-    let filters: Array<{type: 'Author'; uid: string} | {type: 'PublishDate'; from?: string; to?: string}> | undefined
+    let filters: Array<{type: 'Author'; uid: string}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
