@@ -50,6 +50,14 @@ function makeDoc(path: string[], name: string): HMDocumentInfo {
     sortTime: new Date('2024-01-01T00:00:00Z'),
     genesis: 'genesis',
     version: 'version-1',
+    breadcrumbs: [],
+    activitySummary: {
+      commentCount: 0,
+      latestCommentId: '',
+      latestChangeTime: '2024-01-01T00:00:00Z',
+      isUnread: false,
+    },
+    generationInfo: {genesis: 'genesis', generation: 1n},
     metadata: {name},
     visibility: 'PUBLIC',
   } as HMDocumentInfo
