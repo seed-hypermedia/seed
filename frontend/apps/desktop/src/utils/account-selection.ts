@@ -16,6 +16,40 @@ export type WindowNavState = {
 }
 
 /**
+ * Picks the account a window should start with, without mutating other windows.
+ * Explicit input is assumed to be the opener's focused-window selection; if it
+ * is missing we inherit focused state before falling back to persisted state.
+ */
+export function resolveSelectedIdentityForWindow(input: {
+  availableAccountIds?: readonly string[] | null
+  inputSelectedIdentity?: string | null
+  focusedSelectedIdentity?: string | null
+  persistedSelectedIdentity?: string | null
+}): string | null {
+  const availableAccountIds = input.availableAccountIds
+  const canValidate = Array.isArray(availableAccountIds)
+  const availableSet = canValidate ? new Set(availableAccountIds) : null
+
+  function validAccount(accountId: string | null | undefined) {
+    if (!accountId) return null
+    if (!availableSet) return accountId
+    return availableSet.has(accountId) ? accountId : null
+  }
+
+  const candidates =
+    input.inputSelectedIdentity !== undefined
+      ? [input.inputSelectedIdentity, input.persistedSelectedIdentity, input.focusedSelectedIdentity]
+      : [input.focusedSelectedIdentity, input.persistedSelectedIdentity]
+
+  for (const candidate of candidates) {
+    const selected = validAccount(candidate)
+    if (selected) return selected
+  }
+
+  return availableAccountIds?.[0] ?? null
+}
+
+/**
  * Pure function to get selected identity from window nav state.
  * Returns the selected identity for a given window ID, or null if not found.
  */

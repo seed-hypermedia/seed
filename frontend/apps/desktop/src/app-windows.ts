@@ -15,7 +15,7 @@ import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 
 const quietNodeLogs = isQuietNodeLogsEnabled()
 import {logWindowOpen, logWindowClose} from './memory-profiler-window'
-import {mergeWindowNavState, type WindowNavState} from './utils/account-selection'
+import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
 
 let windowIdCount = 1
 
@@ -155,14 +155,47 @@ const appWindowSchema = z.object({
 export type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
+const LAST_SELECTED_IDENTITY_STORAGE_KEY = 'LastSelectedIdentity-v001'
 
 const initalizedWindows = new Set<string>()
 
 let windowsState =
   (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) || ({} as Record<string, AppWindow>)
+let lastSelectedIdentity =
+  typeof appStore.get(LAST_SELECTED_IDENTITY_STORAGE_KEY) === 'string'
+    ? (appStore.get(LAST_SELECTED_IDENTITY_STORAGE_KEY) as string)
+    : null
+let availableAccountIds: string[] | null = null
 
 export function getWindowsState() {
   return windowsState || {}
+}
+
+/** Returns the globally persisted last account selected by a user. */
+export function getLastSelectedIdentity() {
+  return lastSelectedIdentity
+}
+
+/** Persists the last account selected by a user without changing any window state. */
+export function setLastSelectedIdentity(accountId: string) {
+  lastSelectedIdentity = accountId
+  appStore.set(LAST_SELECTED_IDENTITY_STORAGE_KEY, accountId)
+  if (!availableAccountIds) {
+    availableAccountIds = [accountId]
+  } else if (!availableAccountIds.includes(accountId)) {
+    availableAccountIds = [...availableAccountIds, accountId]
+  }
+}
+
+/** Clears the globally persisted last selected account. */
+export function clearLastSelectedIdentity() {
+  lastSelectedIdentity = null
+  appStore.delete(LAST_SELECTED_IDENTITY_STORAGE_KEY)
+}
+
+/** Updates the main-process cache of account IDs available on this device. */
+export function setAvailableAccountIds(accountIds: string[]) {
+  availableAccountIds = accountIds
 }
 
 function getAWindow() {
@@ -508,8 +541,13 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     childWindow.close()
   })
 
-  const selectedIdentity =
-    input.selectedIdentity || (lastFocusedWindowId && windowNavState[lastFocusedWindowId]?.selectedIdentity) || null
+  const focusedSelectedIdentity = lastFocusedWindowId ? windowNavState[lastFocusedWindowId]?.selectedIdentity : null
+  const selectedIdentity = resolveSelectedIdentityForWindow({
+    availableAccountIds,
+    inputSelectedIdentity: input.selectedIdentity,
+    focusedSelectedIdentity,
+    persistedSelectedIdentity: lastSelectedIdentity,
+  })
 
   const initNavState: WindowNavState = {
     routes: initRoutes,
@@ -591,6 +629,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     })
+    if (selectedIdentity) setLastSelectedIdentity(selectedIdentity)
     updateWindowState(windowId, (window) => ({
       ...window,
       routes,

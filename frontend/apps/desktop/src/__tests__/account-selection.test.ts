@@ -1,5 +1,76 @@
 import {describe, expect, it} from 'vitest'
-import {getSelectedIdentityFromWindowState, mergeWindowNavState, type WindowNavState} from '../utils/account-selection'
+import {
+  getSelectedIdentityFromWindowState,
+  mergeWindowNavState,
+  resolveSelectedIdentityForWindow,
+  type WindowNavState,
+} from '../utils/account-selection'
+
+describe('resolveSelectedIdentityForWindow', () => {
+  it('uses a valid input selection before persisted or focused fallbacks', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: ['account-1', 'account-2', 'account-3'],
+        inputSelectedIdentity: 'account-1',
+        persistedSelectedIdentity: 'account-2',
+        focusedSelectedIdentity: 'account-3',
+      }),
+    ).toBe('account-1')
+  })
+
+  it('falls back to persisted selection when provided input is invalid', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: ['account-2', 'account-3'],
+        inputSelectedIdentity: 'deleted-account',
+        persistedSelectedIdentity: 'account-2',
+        focusedSelectedIdentity: 'account-3',
+      }),
+    ).toBe('account-2')
+  })
+
+  it('inherits focused selection when no explicit input is provided', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: ['account-1', 'account-2'],
+        focusedSelectedIdentity: 'account-1',
+        persistedSelectedIdentity: 'account-2',
+      }),
+    ).toBe('account-1')
+  })
+
+  it('uses persisted selection when focused fallback is invalid', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: ['account-2'],
+        focusedSelectedIdentity: 'deleted-account',
+        persistedSelectedIdentity: 'account-2',
+      }),
+    ).toBe('account-2')
+  })
+
+  it('uses the first available account instead of returning null when accounts exist', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: ['account-1'],
+        inputSelectedIdentity: 'deleted-account',
+        persistedSelectedIdentity: 'also-deleted',
+        focusedSelectedIdentity: null,
+      }),
+    ).toBe('account-1')
+  })
+
+  it('returns null only when no accounts are available', () => {
+    expect(
+      resolveSelectedIdentityForWindow({
+        availableAccountIds: [],
+        inputSelectedIdentity: 'deleted-account',
+        persistedSelectedIdentity: null,
+        focusedSelectedIdentity: null,
+      }),
+    ).toBe(null)
+  })
+})
 
 describe('getSelectedIdentityFromWindowState', () => {
   it('returns null when windowId is null', () => {

@@ -1,5 +1,13 @@
 import {grpcClient} from './app-grpc'
-import {getAllWindows, getWindowsState, updateWindowState} from './app-windows'
+import {
+  clearLastSelectedIdentity,
+  getAllWindows,
+  getLastSelectedIdentity,
+  getWindowsState,
+  setAvailableAccountIds,
+  setLastSelectedIdentity,
+  updateWindowState,
+} from './app-windows'
 import * as log from './logger'
 
 export async function deleteAccount(accountId: string) {
@@ -21,7 +29,8 @@ export async function deleteAccount(accountId: string) {
       keyName: keyToDelete.name,
       accountId: keyToDelete.accountId,
     })
-    const deletedAccountId = keyToDelete.accountId || keyToDelete.publicKey
+    const deletedAccountId = keyToDelete.publicKey
+    const deletedAccountIds = new Set([keyToDelete.publicKey, keyToDelete.accountId].filter(Boolean))
 
     // Delete the key from daemon
     const deletedKey = await grpcClient.daemon.deleteKey({
@@ -36,7 +45,17 @@ export async function deleteAccount(accountId: string) {
 
     // Get remaining available keys after deletion
     const updatedKeysResponse = await grpcClient.daemon.listKeys({})
-    const availableKeys = updatedKeysResponse.keys.map((key) => key.accountId)
+    const availableKeys = updatedKeysResponse.keys.map((key) => key.publicKey).filter(Boolean)
+    setAvailableAccountIds(availableKeys)
+
+    const lastSelectedIdentity = getLastSelectedIdentity()
+    if (lastSelectedIdentity && deletedAccountIds.has(lastSelectedIdentity)) {
+      if (availableKeys.length > 0) {
+        setLastSelectedIdentity(availableKeys[0])
+      } else {
+        clearLastSelectedIdentity()
+      }
+    }
 
     log.info('Handling account deletion', {
       deletedAccountId,
@@ -47,7 +66,7 @@ export async function deleteAccount(accountId: string) {
     const windowsState = getWindowsState()
 
     for (const [windowId, windowState] of Object.entries(windowsState)) {
-      if (windowState?.selectedIdentity === deletedAccountId) {
+      if (windowState?.selectedIdentity && deletedAccountIds.has(windowState.selectedIdentity)) {
         let newSelectedIdentity: string | null = null
 
         if (availableKeys.length > 0) {
