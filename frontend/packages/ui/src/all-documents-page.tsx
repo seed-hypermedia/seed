@@ -30,6 +30,10 @@ function titleOf(doc: HMDocumentInfo) {
   return getMetadataName(doc.metadata) || doc.path?.at(-1) || 'Untitled'
 }
 
+function pathLabelOf(doc: HMDocumentInfo) {
+  return doc.path?.length ? `/${doc.path.join('/')}` : null
+}
+
 function dateValue(doc: HMDocumentInfo) {
   const updateTime = doc.updateTime
   if (typeof updateTime === 'string') return new Date(updateTime).getTime() / 1000
@@ -183,6 +187,7 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
         cell: ({row}) => {
           const item = row.original
           const nested = item.depth > 0
+          const pathLabel = pathLabelOf(item.doc)
           return (
             <div
               className={cn('flex min-w-0 items-center gap-1', nested && 'border-muted-foreground/20 border-l-2')}
@@ -204,13 +209,16 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
               ) : (
                 <span className="size-6 shrink-0" />
               )}
-              <button
-                type="button"
-                className="min-w-0 truncate text-left font-medium hover:underline"
-                onClick={() => onNavigateToDocument(item.doc.id)}
-              >
-                {titleOf(item.doc)}
-              </button>
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className="block min-w-0 truncate text-left font-medium hover:underline"
+                  onClick={() => onNavigateToDocument(item.doc.id)}
+                >
+                  {titleOf(item.doc)}
+                </button>
+                {pathLabel ? <p className="text-muted-foreground truncate text-xs">{pathLabel}</p> : null}
+              </div>
             </div>
           )
         },
