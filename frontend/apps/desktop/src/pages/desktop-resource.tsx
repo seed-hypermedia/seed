@@ -10,7 +10,7 @@ import {DesktopQueryBlockDraftSlot} from '@/components/desktop-query-block-draft
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {EditingDocToolsRight} from '@/components/editing-toolbar'
+import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/editing-toolbar'
 // import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
@@ -121,7 +121,7 @@ export default function DesktopResourcePage() {
   const documentResourceId = hasLocationOnlyDraft || isDraftRouteLookupPending ? null : docId
 
   const capability = useSelectedAccountCapability(docId)
-  const canEdit = roleCanWrite(capability?.role)
+  const canEdit = roleCanWrite(capability?.role) && !docId.version
   const myAccountIds = useMyAccountIds()
 
   // Fetch draft content early so the editor can be initialized with draft blocks
@@ -414,6 +414,9 @@ export default function DesktopResourcePage() {
       fromPromise<void, DiscardDraftInput>(async ({input}) => {
         await deleteDraftsForCleanup(input.draftId, input.deletedChildDraftIds)
         await client.drafts.delete.mutate(input.draftId)
+        invalidateQueries([queryKeys.DRAFT, input.draftId])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
       }),
     [],
   )
@@ -775,6 +778,8 @@ export default function DesktopResourcePage() {
           />
         )
       : undefined
+  const {callbacks: draftVersionToolbarCallbacks, deleteDraftDialog: draftVersionDeleteDraftDialog} =
+    useDesktopToolbarCallbacks(docId)
 
   const onAfterReply = useCallback(
     (_docId: UnpackedHypermediaId, comment: HMComment) => {
@@ -823,6 +828,8 @@ export default function DesktopResourcePage() {
                     existingDraftCursorPosition={draftQuery.data?.cursorPosition}
                     existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
                     existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
+                    existingDraftDeps={draftQuery.data?.deps}
+                    draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
                     rightActions={<JoinButton siteUid={docId.uid} />}
                     onEditProfile={onEditProfile}
                     inspect={inspect}
@@ -841,6 +848,7 @@ export default function DesktopResourcePage() {
                       canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
                     }
                   />
+                  {draftVersionDeleteDraftDialog.content}
                 </QuerySearchInputProvider>
               </QueryBlockDraftsProvider>
             </DesktopDraftBreadcrumbProvider>

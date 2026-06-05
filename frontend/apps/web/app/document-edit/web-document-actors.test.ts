@@ -209,7 +209,7 @@ describe('publishWebDocument', () => {
     const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
     const args = prepareCall[1]
     expect(args.account).toBe(OWNER)
-    expect(args.baseVersion).toBe('baseline-version')
+    expect(args.baseVersion).toBe('old-head')
     expect(args.capability).toBe('')
 
     const opCases = (args.changes as any[]).map((c) => c.op?.case)

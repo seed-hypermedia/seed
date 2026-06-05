@@ -1,6 +1,10 @@
 import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
-import {getCommentReplyPanelRoute, shouldSuppressMainCommentEditor} from '../resource-page-common'
+import {
+  getCommentReplyPanelRoute,
+  shouldSuppressMainCommentEditor,
+  shouldUseDraftForRenderedDocument,
+} from '../resource-page-common'
 
 describe('shouldSuppressMainCommentEditor', () => {
   const docId = hmId('alice', {path: ['doc']})
@@ -104,5 +108,34 @@ describe('getCommentReplyPanelRoute', () => {
       openComment: 'alice/other-comment-tsid',
     })
     expect(panelRoute.id.path).toEqual(['other-doc'])
+  })
+})
+
+describe('shouldUseDraftForRenderedDocument', () => {
+  it('uses a draft on the unpinned latest route', () => {
+    expect(
+      shouldUseDraftForRenderedDocument({
+        docId: hmId('alice', {path: ['doc']}),
+        existingDraft: {id: 'draft-1', metadata: {name: 'Draft'}} as any,
+      }),
+    ).toBe(true)
+  })
+
+  it('ignores a draft on a version-pinned snapshot route', () => {
+    expect(
+      shouldUseDraftForRenderedDocument({
+        docId: hmId('alice', {path: ['doc'], version: 'old-version'}),
+        existingDraft: {id: 'draft-1', metadata: {name: 'Draft'}} as any,
+      }),
+    ).toBe(false)
+  })
+
+  it('does not use a draft when no draft exists', () => {
+    expect(
+      shouldUseDraftForRenderedDocument({
+        docId: hmId('alice', {path: ['doc']}),
+        existingDraft: false,
+      }),
+    ).toBe(false)
   })
 })

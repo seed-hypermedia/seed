@@ -435,6 +435,23 @@ export function DocumentEditor({
   initialContentRef.current = initialContent
   const draftCursorPositionRef = useRef(draftCursorPosition)
   draftCursorPositionRef.current = draftCursorPosition
+  const lastReadOnlyContentKeyRef = useRef('')
+
+  useEffect(() => {
+    if (isEditing) return
+    const contentKey = JSON.stringify(initialContent)
+    if (contentKey === lastReadOnlyContentKeyRef.current) return
+    lastReadOnlyContentKeyRef.current = contentKey
+
+    suppressChangeRef.current = true
+    try {
+      editor.replaceBlocks(editor.topLevelBlocks, initialContent)
+    } finally {
+      suppressChangeRef.current = false
+    }
+    actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
+    actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
+  }, [actorRef, editor, initialContent, isEditing])
 
   const handlersRef = useEditorHandlersRef()
 
@@ -499,12 +516,8 @@ export function DocumentEditor({
           view.focus()
         }
 
-        // Apply immediately, but also re-apply on the next frame to survive
-        // Radix's focus restoration when entering editing from the
-        // confirmingOldVersionEdit dialog. Radix moves focus back to the
-        // previously focused element after the dialog unmounts, which can
-        // steal focus from the editor — reapplying after the Radix cleanup
-        // lets our cursor placement win.
+        // Apply immediately, but also re-apply on the next frame so focus
+        // restoration from surrounding UI cannot steal focus from the editor.
         applySelection()
         requestAnimationFrame(() => {
           if (view.isDestroyed) return

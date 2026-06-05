@@ -9,8 +9,8 @@ import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {commentIdToHmId, getCommentTargetId, getVersionHeads, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
-import {CircleAlert, Link, Merge, Trash2} from 'lucide-react'
-import {useEffect, useMemo, useRef} from 'react'
+import {CircleAlert, FilePen, Link, Merge, Trash2, X} from 'lucide-react'
+import {Fragment, useEffect, useMemo, useRef} from 'react'
 import {SelectionContent} from './accessories'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {Button} from './button'
@@ -26,6 +26,30 @@ import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
+import {useDocumentSend} from '@shm/shared/models/use-document-machine'
+
+export type DraftVersionEntry = {
+  docId: UnpackedHypermediaId
+  draftId: string
+  deps?: string[]
+  metadata?: {name?: string}
+  onDiscardConfirm?: (draftId: string, send: (event: DocumentMachineEvent) => void) => void
+}
+
+export function shouldShowDraftVersionEntry(
+  filterEventType: HMListEventsParams['filterEventType'] | undefined,
+  draftVersionEntry: DraftVersionEntry | undefined,
+) {
+  return !!draftVersionEntry && !!filterEventType?.includes('Ref')
+}
+
+export function getDraftVersionInsertIndex(events: LoadedEvent[], draft: DraftVersionEntry | undefined) {
+  if (!draft?.deps?.length) return 0
+  const baseVersions = new Set(draft.deps)
+  const baseIndex = events.findIndex((event) => event.type === 'doc-update' && baseVersions.has(event.document.version))
+  return baseIndex === -1 ? 0 : baseIndex
+}
 
 export function Feed({
   filterResource,
@@ -33,12 +57,14 @@ export function Feed({
   filterEventType,
   targetDomain,
   size = 'md',
+  draftVersionEntry,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
   filterAuthors?: HMListEventsParams['filterAuthors']
   filterEventType?: HMListEventsParams['filterEventType']
   targetDomain?: string
+  draftVersionEntry?: DraftVersionEntry
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -124,6 +150,8 @@ export function Feed({
   useHackyAuthorsSubscriptions(authorIds)
 
   const isSingleResource = filterResource && !filterResource.endsWith('*') ? true : false
+  const shouldRenderDraftVersion = shouldShowDraftVersionEntry(filterEventType, draftVersionEntry)
+  const draftInsertIndex = shouldRenderDraftVersion ? getDraftVersionInsertIndex(allEvents, draftVersionEntry) : -1
 
   if (error) {
     return (
@@ -155,13 +183,36 @@ export function Feed({
   return (
     <SelectionContent>
       <div>
-        {allEvents.map((e) => {
+        {allEvents.map((e, index) => {
           const route = getEventRoute(e)
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
-              <div key={`${e.type}-${e.id}-${e.time}`}>
-                <EventCommentWithReply
+              <Fragment key={`row-${e.type}-${e.id}-${e.time}`}>
+                {index === draftInsertIndex && draftVersionEntry ? (
+                  <DraftVersionItem draft={draftVersionEntry} hasNewerPublishedVersion={draftInsertIndex > 0} />
+                ) : null}
+                <div>
+                  <EventCommentWithReply
+                    isSingleResource={isSingleResource}
+                    event={e}
+                    route={route}
+                    targetDomain={targetDomain}
+                    size={size}
+                  />
+                  <Separator />
+                </div>
+              </Fragment>
+            )
+          }
+
+          return (
+            <Fragment key={`row-${e.type}-${e.id}-${e.time}`}>
+              {index === draftInsertIndex && draftVersionEntry ? (
+                <DraftVersionItem draft={draftVersionEntry} hasNewerPublishedVersion={draftInsertIndex > 0} />
+              ) : null}
+              <div>
+                <EventItem
                   isSingleResource={isSingleResource}
                   event={e}
                   route={route}
@@ -170,22 +221,12 @@ export function Feed({
                 />
                 <Separator />
               </div>
-            )
-          }
-
-          return (
-            <div key={`${e.type}-${e.id}-${e.time}`}>
-              <EventItem
-                isSingleResource={isSingleResource}
-                event={e}
-                route={route}
-                targetDomain={targetDomain}
-                size={size}
-              />
-              <Separator />
-            </div>
+            </Fragment>
           )
         })}
+        {draftInsertIndex === allEvents.length && draftVersionEntry ? (
+          <DraftVersionItem draft={draftVersionEntry} hasNewerPublishedVersion={draftInsertIndex > 0} />
+        ) : null}
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
       {isFetchingNextPage && <div className="text-muted-foreground py-3 text-center">Loading more…</div>}
@@ -193,6 +234,71 @@ export function Feed({
         <div className="text-muted-foreground py-3 text-center">No more events</div>
       )}
     </SelectionContent>
+  )
+}
+
+function DraftVersionItem({
+  draft,
+  hasNewerPublishedVersion,
+}: {
+  draft: DraftVersionEntry
+  hasNewerPublishedVersion: boolean
+}) {
+  const currentRoute = useNavRoute()
+  const send = useDocumentSend()
+  const draftRoute = {
+    key: 'document' as const,
+    id: hmId(draft.docId.uid, {
+      path: draft.docId.path,
+    }),
+  }
+  const draftLinkProps = useRouteLink(merge({}, currentRoute, draftRoute))
+  const isCurrentDraftRoute =
+    currentRoute.key === 'document' &&
+    currentRoute.id.uid === draft.docId.uid &&
+    currentRoute.id.version === null &&
+    JSON.stringify(currentRoute.id.path ?? []) === JSON.stringify(draft.docId.path ?? [])
+
+  return (
+    <div
+      className={cn(
+        'bg-accent hover:bg-accent group dark:hover:bg-accent flex items-start gap-2 px-4 py-4 transition-colors',
+        isCurrentDraftRoute && 'ring-border ring-1 ring-inset',
+      )}
+      {...draftLinkProps}
+    >
+      <div className="bg-muted flex size-[24px] shrink-0 items-center justify-center rounded-full">
+        <FilePen className="text-muted-foreground size-3.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-foreground text-sm font-medium">Unpublished Changes</span>
+          {hasNewerPublishedVersion ? (
+            <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+              Newer version above
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <Tooltip content="Discard changes">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="text-muted-foreground hover:text-destructive -m-1 size-7 shrink-0 opacity-70 hover:opacity-100"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (draft.onDiscardConfirm) {
+              draft.onDiscardConfirm(draft.draftId, send)
+            } else if (window.confirm('Discard draft changes?')) {
+              send({type: 'edit.discard'})
+            }
+          }}
+        >
+          <X className="size-3.5" />
+        </Button>
+      </Tooltip>
+    </div>
   )
 }
 
