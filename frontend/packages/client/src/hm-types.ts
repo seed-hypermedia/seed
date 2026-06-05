@@ -746,13 +746,19 @@ export const HMQueryFilterSchema = z.discriminatedUnion('type', [
     type: z.literal('Author'),
     uid: z.string(),
   }),
-  z.object({
-    type: z.literal('PublishDate'),
-    from: z.string().optional(),
-    to: z.string().optional(),
-  }),
 ])
 export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
+
+function removeUnsupportedQueryFilters(val: unknown) {
+  if (!Array.isArray(val)) return val
+  return val.filter(
+    (filter) =>
+      filter &&
+      typeof filter === 'object' &&
+      (filter as {type?: unknown}).type === 'Author' &&
+      typeof (filter as {uid?: unknown}).uid === 'string',
+  )
+}
 
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
@@ -761,7 +767,7 @@ export const HMQuerySchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
-  filters: z.array(HMQueryFilterSchema).optional(),
+  filters: z.preprocess(removeUnsupportedQueryFilters, z.array(HMQueryFilterSchema).optional()),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
 

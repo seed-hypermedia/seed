@@ -255,7 +255,15 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
     if (editorBlock.props.queryIncludes) query.includes = JSON.parse(editorBlock.props.queryIncludes)
     if (editorBlock.props.querySort) query.sort = JSON.parse(editorBlock.props.querySort)
-    if (editorBlock.props.queryFilters) query.filters = JSON.parse(editorBlock.props.queryFilters)
+    if (editorBlock.props.queryFilters) {
+      query.filters = JSON.parse(editorBlock.props.queryFilters).filter(
+        (filter: unknown) =>
+          filter &&
+          typeof filter === 'object' &&
+          (filter as {type?: unknown}).type === 'Author' &&
+          typeof (filter as {uid?: unknown}).uid === 'string',
+      )
+    }
     if (editorBlock.props.queryLimit) query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'

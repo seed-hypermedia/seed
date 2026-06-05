@@ -8,7 +8,7 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {Field, SelectField, SwitchField} from '@shm/ui/form-fields'
+import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {InlineDraftCard} from '@shm/ui/inline-draft-card'
 import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
@@ -89,6 +89,16 @@ type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
 type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
 type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
 
+function parseQueryFilters(rawFilters: string | undefined): HMQueryBlockFilters {
+  return JSON.parse(rawFilters || defaultQueryFilters).filter(
+    (filter: unknown) =>
+      filter &&
+      typeof filter === 'object' &&
+      (filter as {type?: unknown}).type === 'Author' &&
+      typeof (filter as {uid?: unknown}).uid === 'string',
+  )
+}
+
 function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
   const client = useUniversalClient()
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
@@ -100,7 +110,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [block.props.querySort])
 
   const queryFilters: HMQueryBlockFilters = useMemo(() => {
-    return JSON.parse(block.props.queryFilters || defaultQueryFilters)
+    return parseQueryFilters(block.props.queryFilters)
   }, [block.props.queryFilters])
 
   const banner = block.props.banner === 'true'
@@ -405,32 +415,21 @@ function QuerySettings({
   }, [block.props.defaultOpen])
 
   const authorFilters = queryFilters.filter((filter) => filter.type === 'Author')
-  const publishDateFilter = queryFilters.find((filter) => filter.type === 'PublishDate')
 
   const saveFilters = (filters: HMQueryBlockFilters) => {
-    onValuesChange({
-      id: null,
-      props: {
-        ...block.props,
-        queryFilters: JSON.stringify(filters),
-      },
+    const queryFilters = JSON.stringify(filters)
+    queueMicrotask(() => {
+      onValuesChange({
+        id: null,
+        props: {
+          queryFilters,
+        } as EditorQueryBlock['props'],
+      })
     })
   }
 
   const updateAuthorFilters = (uids: string[]) => {
-    const otherFilters = queryFilters.filter((filter) => filter.type !== 'Author')
-    saveFilters([...otherFilters, ...uids.map((uid) => ({type: 'Author' as const, uid}))] as HMQueryBlockFilters)
-  }
-
-  const updatePublishDateFilter = (dates: {from?: string; to?: string}) => {
-    const otherFilters = queryFilters.filter((filter) => filter.type !== 'PublishDate')
-    const nextFilter = {
-      type: 'PublishDate' as const,
-      from: dates.from ?? publishDateFilter?.from,
-      to: dates.to ?? publishDateFilter?.to,
-    }
-    const hasDate = !!nextFilter.from?.trim() || !!nextFilter.to?.trim()
-    saveFilters((hasDate ? [...otherFilters, nextFilter] : otherFilters) as HMQueryBlockFilters)
+    saveFilters(uids.map((uid) => ({type: 'Author' as const, uid})))
   }
 
   return (
@@ -515,23 +514,6 @@ function QuerySettings({
                 selectedUids={authorFilters.map((filter) => filter.uid)}
                 onSelectedUidsChange={updateAuthorFilters}
               />
-
-              <div className="flex gap-2">
-                <Field id={`query-publish-from-${block.id}`} label="Publish from">
-                  <Input
-                    type="date"
-                    value={publishDateFilter?.from ?? ''}
-                    onChangeText={(from) => updatePublishDateFilter({from})}
-                  />
-                </Field>
-                <Field id={`query-publish-to-${block.id}`} label="Publish to">
-                  <Input
-                    type="date"
-                    value={publishDateFilter?.to ?? ''}
-                    onChangeText={(to) => updatePublishDateFilter({to})}
-                  />
-                </Field>
-              </div>
 
               <SelectField
                 value={block.props.style}
