@@ -1,6 +1,6 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {buildRestoreMetadataChanges, buildRestoreVersionChanges} from './restore-document-version'
+import {buildRestoreVersionChanges} from './restore-document-version'
 
 function node(id: string, text: string): HMBlockNode {
   return {
@@ -43,14 +43,44 @@ describe('buildRestoreVersionChanges', () => {
     expect(changes[1]?.op.case === 'deleteBlock' ? changes[1].op.value : null).toBe('b')
   })
 
-  it('restores metadata values and removes fields missing from selected version', () => {
-    const changes = buildRestoreMetadataChanges(
-      {name: 'Latest', summary: 'remove me', showOutline: true, theme: {headerLayout: 'Center'}},
-      {name: 'Old', showOutline: false},
+  it('restores arbitrary metadata values and removes fields missing from selected version', () => {
+    const changes = buildRestoreVersionChanges(
+      doc({
+        metadata: {
+          name: 'Latest',
+          summary: 'remove me',
+          showOutline: true,
+          theme: {headerLayout: 'Center'},
+          custom: {count: 2, stale: 'yes'},
+        } as any,
+      }),
+      doc({
+        metadata: {
+          name: 'Old',
+          showOutline: false,
+          custom: {count: 3, label: 'restored'},
+        } as any,
+      }),
     )
 
     const attrs = changes.map((change) => (change.op.case === 'setAttribute' ? change.op.value : null))
-    expect(attrs.map((attr) => attr?.key.join('.'))).toEqual(['name', 'summary', 'showOutline', 'theme.headerLayout'])
-    expect(attrs.map((attr) => attr?.value.case)).toEqual(['stringValue', 'nullValue', 'boolValue', 'nullValue'])
+    expect(attrs.map((attr) => attr?.key.join('.'))).toEqual([
+      'name',
+      'summary',
+      'showOutline',
+      'theme.headerLayout',
+      'custom.count',
+      'custom.stale',
+      'custom.label',
+    ])
+    expect(attrs.map((attr) => attr?.value.case)).toEqual([
+      'stringValue',
+      'nullValue',
+      'boolValue',
+      'nullValue',
+      'intValue',
+      'nullValue',
+      'stringValue',
+    ])
   })
 })
