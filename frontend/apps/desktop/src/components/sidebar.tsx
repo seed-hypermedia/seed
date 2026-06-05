@@ -19,7 +19,7 @@ import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
-import {createDocumentNavRoute, ProfileTab} from '@shm/shared/routes'
+import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
 import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
@@ -69,6 +69,7 @@ import {
 import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
+import {isSiteDocumentsActiveRoute} from './sidebar-active'
 import {GenericSidebarContainer} from './sidebar-base'
 
 export const AppSidebar = memo(MainAppSidebar)
@@ -407,7 +408,7 @@ function SubscriptionsSection() {
                 id={id}
                 contact={contact}
                 metadata={metadata}
-                active={(route.key === 'document' || route.key === 'all-documents') && route.id.id === id.id}
+                active={isSiteDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
                 activitySummary={activitySummary}
                 latestComment={latestComment}
@@ -452,7 +453,15 @@ function JoinedSiteListItem({
   const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
   return (
     <>
-      <SidebarMenuButton isActive={active} className="min-h-10 items-start pr-8" onClick={linkProps.onClick}>
+      <SidebarMenuButton
+        isActive={active}
+        className={cn(
+          'min-h-10 items-start pr-8',
+          active &&
+            'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground data-[active=true]:hover:bg-accent/90 data-[active=true]:hover:text-accent-foreground',
+        )}
+        onClick={linkProps.onClick}
+      >
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <span className={cn('truncate text-left text-sm select-none', isUnread && 'font-bold')}>
@@ -632,9 +641,12 @@ function FollowingListItem({
 }
 
 function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
-  const resource = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
+  const siteId = selectedAccountId ? hmId(selectedAccountId) : undefined
+  const resource = useResource(siteId)
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
+  const route = useNavRoute()
+  const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
 
   if (!selectedAccountId) return null
 
@@ -644,7 +656,10 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
     return (
       <SidebarSection title="My Site">
         <div
-          className="border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2"
+          className={cn(
+            'border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2',
+            active && 'border-accent bg-accent text-accent-foreground hover:bg-accent/90',
+          )}
           onClick={() => navigate({key: 'document', id: hmId(selectedAccountId)})}
         >
           <UIAvatar
