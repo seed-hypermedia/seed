@@ -47,9 +47,10 @@ export function useDocumentCardMenuItems(
   doc?: HMResourceFetchResult['document'] | null,
 ): MenuItemType[] {
   const actions = useDocumentActions()
+  const draft = actions.getDraft?.(docId)
   const navigate = useNavigate()
   const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
-  const draftId = actions.getDraftId?.(docId)
+  const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const isOwner = actions.selectedAccountUid === docId.uid
   const isLoggedIn = !!actions.myAccountIds?.length
   const hasPath = !!docId.path?.length
@@ -252,12 +253,14 @@ export function DocumentCard({
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const actions = useDocumentActions()
+  const draft = actions.getDraft?.(docId)
 
   const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
   const interactionSummary = useInteractionSummary(summaryId, {enabled: !interactionSummaryProp})
   const commentCount = interactionSummaryProp?.comments ?? interactionSummary.data?.comments ?? 0
 
-  const resolvedMetadata = metadata ?? entity?.document?.metadata
+  const baseMetadata = metadata ?? entity?.document?.metadata
+  const resolvedMetadata = draft?.metadata ? {...baseMetadata, ...draft.metadata} : baseMetadata
   const textContent = useMemo(() => {
     if (!showSummary) return null
     if (resolvedMetadata?.summary) {
@@ -274,7 +277,7 @@ export function DocumentCard({
   const headCount = getVersionHeads(version ?? doc?.version).length
 
   // Context-driven state for the inline row (badges, bookmark button).
-  const draftId = actions.getDraftId?.(docId)
+  const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const bookmarked = actions.isBookmarked?.(docId) ?? false
 
   const menuItems = useDocumentCardMenuItems(docId, doc)

@@ -1386,3 +1386,22 @@ describe('buildCopyLinkUrl', () => {
     expect(unpacked?.blockRange).toEqual({start: 3, end: 7})
   })
 })
+
+describe('all documents view urls', () => {
+  test('extracts all-documents view term', () => {
+    expect(extractViewTermFromUrl('https://example.com/:all-documents')).toMatchObject({
+      url: 'https://example.com',
+      viewTerm: ':all-documents',
+    })
+  })
+
+  test('serializes all-documents route to site and gateway urls', () => {
+    expect(
+      routeToUrl(
+        {key: 'all-documents', id: hmId('site')},
+        {hostname: 'https://example.com', originHomeId: hmId('site')},
+      ),
+    ).toBe('https://example.com/:all-documents')
+    expect(routeToUrl({key: 'all-documents', id: hmId('abc')})).toBe(`${DEFAULT_GATEWAY_URL}/hm/abc/:all-documents`)
+  })
+})

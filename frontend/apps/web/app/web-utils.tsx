@@ -1,9 +1,18 @@
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {createInspectNavRouteFromRoute, hmId, useJoinSite, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {
+  createInspectNavRouteFromRoute,
+  hmId,
+  routeToUrl,
+  useJoinSite,
+  useRouteLink,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,23 +29,73 @@ import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
-import {Bell, FilePlus2, Import as ImportIcon, Lock, LogOut, Search, User, UserCog} from 'lucide-react'
+import {
+  Bell,
+  FilePlus2,
+  Folder,
+  History,
+  Import as ImportIcon,
+  LayoutList,
+  Link,
+  Lock,
+  LogOut,
+  Search,
+  User,
+  UserCog,
+} from 'lucide-react'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
-export function useWebMenuItems(): MenuItemType[] {
+export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeInspect?: boolean}): MenuItemType[] {
   const route = useNavRoute()
   const navigate = useNavigate()
+  const {originHomeId} = useUniversalAppContext()
+  const includeInspect = options?.includeInspect !== false
   const inspectRoute = useMemo(() => {
+    if (!includeInspect) return null
     const wrappedRoute = createInspectNavRouteFromRoute(route)
     return wrappedRoute?.key === 'inspect' ? wrappedRoute : null
-  }, [route])
+  }, [includeInspect, route])
+  const allDocumentsId = originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
 
   return useMemo(
     () => [
+      {
+        key: 'link',
+        label: 'Copy Gateway Link',
+        icon: <Link className="size-4" />,
+        onClick: () => {
+          const url = routeToUrl(route, {hostname: DEFAULT_GATEWAY_URL})
+          if (url) copyUrlToClipboardWithFeedback(url, 'Gateway')
+        },
+      },
+      {
+        key: 'versions',
+        label: 'Document Versions',
+        icon: <History className="size-4" />,
+        onClick: () => {
+          navigate({
+            key: 'document',
+            id: docId,
+            panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+          })
+        },
+      },
+      {
+        key: 'directory',
+        label: 'Directory',
+        icon: <Folder className="size-4" />,
+        onClick: () => navigate({key: 'directory', id: docId}),
+      },
+      {
+        key: 'all-documents',
+        label: 'All Documents',
+        icon: <LayoutList className="size-4" />,
+        onClick: () => navigate({key: 'all-documents', id: allDocumentsId}),
+      },
       ...(inspectRoute
         ? [
             {
@@ -50,7 +109,7 @@ export function useWebMenuItems(): MenuItemType[] {
           ]
         : []),
     ],
-    [inspectRoute, navigate],
+    [allDocumentsId, docId, inspectRoute, navigate, route],
   )
 }
 

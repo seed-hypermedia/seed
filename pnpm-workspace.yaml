@@ -62,6 +62,15 @@ auditConfig:
     # tmp@<0.2.6 — reaches us through developer tooling (jscodeshift and
     # Electron Forge prompts/installers). Ignore until those tools update.
     - GHSA-ph9p-34f9-6g65
+    # vite@<=5.4.8 — reaches us through legacy vitest@0.34.x in desktop,
+    # shared, and ui unit-test tooling. Upgrading these Vitest suites to a
+    # newer major should be handled separately from this feature PR.
+    - GHSA-c27g-q93r-2cwf
+    # turbo-stream@<3.0.0 — remaining path is @remix-run/dev ->
+    # @remix-run/server-runtime in notify dev tooling after upgrading Remix to
+    # the latest 2.17.x patch. Ignore until Remix publishes a compatible
+    # turbo-stream 3 update.
+    - GHSA-rxv8-25v2-qmq8
 
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources

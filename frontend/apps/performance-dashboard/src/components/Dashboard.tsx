@@ -86,7 +86,7 @@ const Dashboard = () => {
     const memoryUsages = reports.map((r) => {
       const metrics = Object.values(r.metrics || {}).find(
         (m: any) => m.jsHeapUsedSize
-      );
+      ) as any;
       return metrics?.jsHeapUsedSize || 0;
     });
     return memoryUsages.reduce((a, b) => a + b, 0) / memoryUsages.length;
@@ -97,7 +97,7 @@ const Dashboard = () => {
     const cpuUsages = reports.map((r) => {
       const metrics = Object.values(r.metrics || {}).find(
         (m: any) => m.cpuUsage
-      );
+      ) as any;
       return metrics?.cpuUsage?.percentCPUUsage || 0;
     });
     return cpuUsages.reduce((a, b) => a + b, 0) / cpuUsages.length;

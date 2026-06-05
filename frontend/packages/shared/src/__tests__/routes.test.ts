@@ -71,6 +71,23 @@ describe('replaceRouteDocumentId', () => {
 })
 
 describe('createDocumentNavRoute', () => {
+  describe('all documents view', () => {
+    test('creates all-documents route from view term', () => {
+      expect(createDocumentNavRoute(testDocId, 'all-documents')).toEqual({key: 'all-documents', id: testDocId})
+    })
+
+    test('accepts all-documents in nav route schema', () => {
+      expect(navRouteSchema.parse({key: 'all-documents', id: testDocId})).toEqual({key: 'all-documents', id: testDocId})
+    })
+
+    test('creates all-documents hrefs for site and gateway contexts', () => {
+      expect(routeToHref({key: 'all-documents', id: testDocId}, {originHomeId: testDocId})).toBe('/:all-documents')
+      expect(routeToHref({key: 'all-documents', id: testDocId}, {originHomeId: hmId('home')})).toBe(
+        '/hm/testuid123/:all-documents',
+      )
+    })
+  })
+
   describe('no panel param', () => {
     test('returns document route without panel', () => {
       const route = createDocumentNavRoute(testDocId)

@@ -33,7 +33,7 @@ import {preloadCommenting} from './client-lazy'
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
-import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem} from './web-utils'
+import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
@@ -309,7 +309,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     canCreate: effectiveCanEdit && !!signingAccountId,
     capabilityCid: effectiveCapabilityCid,
   })
-  const extraMenuItems = useMemo(() => (newMenuItem ? [newMenuItem] : []), [newMenuItem])
+  const webMenuItems = useWebMenuItems(docId, {includeInspect: false})
+  const optionsMenuItems = useMemo(
+    () => (newMenuItem ? [newMenuItem, ...webMenuItems] : webMenuItems),
+    [newMenuItem, webMenuItems],
+  )
 
   // Inline subscribe box for non-members
   const {isJoined} = useJoinSite({siteUid})
@@ -363,7 +367,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                 profileHeaderButtons={profileHeaderButtons}
                 onFollowClick={onFollowClick}
                 rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                extraMenuItems={extraMenuItems}
+                optionsMenuItems={optionsMenuItems}
                 inlineInsert={inlineInsert}
                 DocumentContentComponent={DocumentContentComponent}
                 ssrContentHTML={ssrContentHTML}

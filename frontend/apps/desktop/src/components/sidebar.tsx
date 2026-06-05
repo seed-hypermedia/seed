@@ -58,6 +58,7 @@ import {
   File,
   Folder,
   History,
+  LayoutList,
   Library,
   Lock,
   MessageSquare,
@@ -406,7 +407,7 @@ function SubscriptionsSection() {
                 id={id}
                 contact={contact}
                 metadata={metadata}
-                active={route.key === 'document' && route.id.id === id.id}
+                active={(route.key === 'document' || route.key === 'all-documents') && route.id.id === id.id}
                 isUnread={isUnread}
                 activitySummary={activitySummary}
                 latestComment={latestComment}
@@ -447,6 +448,7 @@ function JoinedSiteListItem({
   accountsMetadata?: HMAccountsMetadata
 }) {
   const linkProps = useRouteLink({key: 'document', id})
+  const navigate = useNavigate()
   const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
   return (
     <>
@@ -475,6 +477,16 @@ function JoinedSiteListItem({
           </DropdownMenuTrigger>
         </SidebarMenuAction>
         <DropdownMenuContent side="right" align="start">
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate({key: 'all-documents', id})
+            }}
+          >
+            <LayoutList className="size-4" />
+            All Documents
+          </DropdownMenuItem>
+          <SidebarSeparator />
           <DropdownMenuItem
             variant="destructive"
             disabled={isPending}

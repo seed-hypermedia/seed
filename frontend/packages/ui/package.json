@@ -42,6 +42,7 @@
     "@shm/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.8",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jdenticon": "^3.3.0",

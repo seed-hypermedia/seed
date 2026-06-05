@@ -1,5 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCreateDocumentMenuItem} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
@@ -61,6 +62,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
@@ -71,7 +73,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, Split} from 'lucide-react'
+import {Copy, FileInput, Folder, History, LayoutList, Link, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -93,7 +95,15 @@ export default function DesktopResourcePage() {
   const replace = useNavigate('replace')
 
   // Only handle document-related routes
-  const supportedKeys = ['document', 'directory', 'collaborators', 'activity', 'comments', 'site-profile']
+  const supportedKeys = [
+    'document',
+    'directory',
+    'collaborators',
+    'activity',
+    'comments',
+    'site-profile',
+    'all-documents',
+  ]
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
   }
@@ -450,6 +460,11 @@ export default function DesktopResourcePage() {
   const removeSiteDialog = useRemoveSiteDialog()
   const publishSite = usePublishSite()
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === docId.uid)
+  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
+  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+    siteUrl || gwUrl,
+    siteUrl ? hmId(docId.uid) : undefined,
+  )
 
   // Hooks for options dropdown
   const resource = useResource(documentResourceId)
@@ -524,6 +539,21 @@ export default function DesktopResourcePage() {
   const moveDialog = useAppDialog(MoveDialog)
 
   const menuItems: MenuItemType[] = []
+
+  if (siteUrl) {
+    menuItems.push({
+      key: 'link-site',
+      label: `Copy ${displayHostname(siteUrl)} Link`,
+      icon: <Link className="size-4" />,
+      onClick: () => onCopySiteUrl(route),
+    })
+  }
+  menuItems.push({
+    key: 'link',
+    label: `Copy ${displayHostname(gwUrl)} Link`,
+    icon: <Link className="size-4" />,
+    onClick: () => onCopyGateway(route),
+  })
 
   if (newMenuItem) {
     menuItems.push(newMenuItem)
@@ -627,6 +657,33 @@ export default function DesktopResourcePage() {
       onClick: () => branchDialog.open(docId),
     })
   }
+
+  menuItems.push({
+    key: 'versions',
+    label: 'Document Versions',
+    icon: <History className="size-4" />,
+    onClick: () => {
+      replace({
+        key: 'document',
+        id: docId,
+        panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+      })
+    },
+  })
+
+  menuItems.push({
+    key: 'directory',
+    label: 'Directory',
+    icon: <Folder className="size-4" />,
+    onClick: () => navigate({key: 'directory', id: docId}),
+  })
+
+  menuItems.push({
+    key: 'all-documents',
+    label: 'All Documents',
+    icon: <LayoutList className="size-4" />,
+    onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
+  })
 
   // Publish / Unpublish site options (only for home documents)
   if (!docId.path?.length && canEdit) {
@@ -759,7 +816,7 @@ export default function DesktopResourcePage() {
                     docId={docId}
                     canEdit={canEdit}
                     CommentEditor={CommentBox}
-                    extraMenuItems={menuItems}
+                    optionsMenuItems={menuItems}
                     existingDraft={existingDraft}
                     existingDraftVisibility={draftQuery.data?.visibility}
                     existingDraftContent={existingDraftContent}
@@ -790,6 +847,8 @@ export default function DesktopResourcePage() {
           </DesktopDraftActionsProvider>
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
+      {copyGatewayContent}
+      {copySiteUrlContent}
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}

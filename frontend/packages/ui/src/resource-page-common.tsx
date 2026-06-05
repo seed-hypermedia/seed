@@ -25,7 +25,7 @@ import {
   useCommentsServiceContext,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
-import {DEFAULT_GATEWAY_URL, IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {
   BlockRangeSelectOptions,
   DocumentContentProps,
@@ -67,16 +67,11 @@ import type {TransientResourceError} from '@shm/shared/models/document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
-import {
-  activityFilterToSlug,
-  createWebHMUrl,
-  getCommentTargetId,
-  hmIdToURL,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
+import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {FilePen, Layers, Link2, Search} from 'lucide-react'
+import {FilePen, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {AllDocumentsPage} from './all-documents-page'
 import {AccountPage} from './account-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {
@@ -90,7 +85,6 @@ import {
   AlertDialogTitle,
 } from './components/alert-dialog'
 import {ScrollArea} from './components/scroll-area'
-import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
@@ -98,7 +92,6 @@ import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './doc
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
-import {Globe, HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
@@ -128,101 +121,20 @@ const LazyDocumentMachineDebugDrawer = lazy(() =>
   import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
 )
 
-/** Common menu items generated internally for all document views */
-export function useCommonMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
-  const navigate = useNavigate()
-  const media = useMedia()
-  const isMobile = media.xs
-  const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
-
-  return useMemo(
-    () => [
-      {
-        key: 'copy-link',
-        label: 'Copy Link',
-        icon: <Link className="size-4" />,
-        children: [
-          {
-            key: 'copy-canonical',
-            label: 'Copy Canonical URL',
-            icon: <Globe className="size-4" />,
-            onClick: () => {
-              if (onCopyReference) {
-                onCopyReference(docId)
-              } else if (typeof window !== 'undefined') {
-                copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-              }
-            },
-          },
-          {
-            key: 'copy-gateway',
-            label: 'Copy Gateway URL',
-            icon: <Link className="size-4" />,
-            onClick: async () => {
-              const gwUrl = origin ?? DEFAULT_GATEWAY_URL
-              const url = createWebHMUrl(docId.uid, {
-                path: docId.path,
-                version: docId.version,
-                latest: docId.latest,
-                blockRef: docId.blockRef,
-                blockRange: docId.blockRange,
-                hostname: gwUrl,
-              })
-              await copyUrlToClipboardWithFeedback(url, 'Gateway')
-              onPushReference?.(docId)
-            },
-          },
-          {
-            key: 'copy-hm',
-            label: 'Copy Hypermedia URL',
-            icon: <Link2 className="size-4" />,
-            onClick: async () => {
-              const url = hmIdToURL(docId)
-              await copyUrlToClipboardWithFeedback(url, 'Hypermedia')
-            },
-          },
-        ],
-      },
-      {
-        key: 'versions',
-        label: 'Versions history',
-        icon: <HistoryIcon className="size-4" />,
-        onClick: () => {
-          if (isMobile) {
-            navigate({
-              key: 'activity',
-              id: docId,
-              filterEventType: ['Ref'],
-            })
-          } else {
-            navigate({
-              key: 'document',
-              id: docId,
-              panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
-            })
-          }
-        },
-      },
-      {
-        key: 'directory',
-        label: 'Subdocuments',
-        icon: <Layers className="size-4" />,
-        onClick: () => {
-          navigate({key: 'directory', id: docId})
-        },
-      },
-    ],
-    [navigate, docId, isMobile, onCopyReference, onPushReference, origin],
-  )
-}
-
 /** Extract panel route from a view route, stripping top-level-only fields */
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   const {panel, width, ...params} = route as any
   return params as DocumentPanelRoute
 }
 
-export type ActiveView = 'content' | 'activity' | 'comments' | 'directory' | 'collaborators' | 'site-profile'
+export type ActiveView =
+  | 'content'
+  | 'activity'
+  | 'comments'
+  | 'directory'
+  | 'collaborators'
+  | 'site-profile'
+  | 'all-documents'
 
 type CommentDraftTarget = {
   docId: string
@@ -342,6 +254,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'directory'
     case 'collaborators':
       return 'collaborators'
+    case 'all-documents':
+      return 'all-documents'
     case 'site-profile':
       return 'site-profile'
     default:
@@ -368,7 +282,9 @@ export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  /** Additional platform-specific menu items for the options dropdown */
+  /** Complete platform-specific menu items for the options dropdown */
+  optionsMenuItems?: MenuItemType[]
+  /** @deprecated use optionsMenuItems */
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
@@ -443,6 +359,8 @@ function getPanelTitle(panelKey: string | null): string {
       return 'Directory'
     case 'collaborators':
       return 'Collaborators'
+    case 'all-documents':
+      return 'All Documents'
     case 'options':
       return 'Document Options'
     default:
@@ -453,6 +371,7 @@ function getPanelTitle(panelKey: string | null): string {
 export function ResourcePage({
   docId,
   CommentEditor,
+  optionsMenuItems,
   extraMenuItems,
   existingDraft,
   existingDraftVisibility,
@@ -779,6 +698,7 @@ export function ResourcePage({
           isLatest={isLatest}
           siteUrl={siteHomeDocument?.metadata?.siteUrl}
           CommentEditor={CommentEditor}
+          optionsMenuItems={optionsMenuItems}
           extraMenuItems={extraMenuItems}
           existingDraft={existingDraft}
           existingDraftVisibility={existingDraftVisibility}
@@ -981,6 +901,7 @@ function DocumentBody({
   isLatest = true,
   siteUrl,
   CommentEditor,
+  optionsMenuItems,
   extraMenuItems,
   existingDraft,
   existingDraftVisibility,
@@ -1013,6 +934,7 @@ function DocumentBody({
   isLatest?: boolean
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  optionsMenuItems?: MenuItemType[]
   extraMenuItems?: MenuItemType[]
   existingDraft?: HMExistingDraft | false
   existingDraftVisibility?: HMDocument['visibility']
@@ -1348,6 +1270,7 @@ function DocumentBody({
       collaborators: 'People',
       directory: 'Directory',
       activity: 'Activity',
+      'all-documents': 'All Documents',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
       items.push({label: panelLabels[activeView]})
@@ -1579,8 +1502,7 @@ function DocumentBody({
     }
   }
 
-  // Options dropdown: common items + platform extras
-  const commonMenuItems = useCommonMenuItems(docId)
+  // Options dropdown: fully controlled by platform wrappers.
   const inspectMenuItem = useMemo<MenuItemType | null>(() => {
     if (!experiments?.developerTools) return null
     if (route.key === 'inspect') return null
@@ -1608,7 +1530,7 @@ function DocumentBody({
   }, [canEdit, panelKey, route, replaceRoute])
 
   const allMenuItems = useMemo(() => {
-    let unorderedItems: MenuItemType[] = [...commonMenuItems, ...(extraMenuItems || [])]
+    let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     // Drop share/copy-link entries while the doc is an unpublished draft —
@@ -1618,7 +1540,20 @@ function DocumentBody({
       unorderedItems = unorderedItems.filter((item) => !drop(item.key))
     }
     // Contextual menu items ordering
-    const itemOrder = ['new', 'versions', 'options', 'copy-link', 'move', 'duplicate', 'branch', 'export', 'directory']
+    const itemOrder = [
+      'new',
+      'versions',
+      'options',
+      'copy-link',
+      'link-site',
+      'link',
+      'move',
+      'duplicate',
+      'branch',
+      'export',
+      'directory',
+      'all-documents',
+    ]
     const byKey = new Map(unorderedItems.map((i) => [i.key, i]))
     const orderedItems: MenuItemType[] = []
     const consumed = new Set<string>()
@@ -1637,7 +1572,7 @@ function DocumentBody({
       if (item.variant === 'destructive') orderedItems.push(item)
     }
     return orderedItems
-  }, [extraMenuItems, commonMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
+  }, [optionsMenuItems, extraMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
@@ -1658,12 +1593,15 @@ function DocumentBody({
         <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none', !showSidebars && 'justify-center')}>
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
-            {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
-            {isHomeDoc && !showActivity && (
+            {isHomeDoc &&
+              activeView !== 'all-documents' &&
+              !siteMembers.isInitialLoading &&
+              siteMembers.members.length > 0 && (
+                <div className="pt-4">
+                  <MembersFacepile members={siteMembers.members} siteId={siteId} />
+                </div>
+              )}
+            {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
               <div className="mt-4 px-6">
                 <Breadcrumbs
                   breadcrumbs={[
@@ -1678,6 +1616,7 @@ function DocumentBody({
                                   collaborators: 'People',
                                   activity: 'Activity',
                                   directory: 'Directory',
+                                  'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
                                 } as Record<string, string>
                               )[activeView] || '',
@@ -1715,12 +1654,15 @@ function DocumentBody({
         </div>
       ) : (
         <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
-          {isHomeDoc && !siteMembers.isInitialLoading && siteMembers.members.length > 0 && (
-            <div className="pt-4">
-              <MembersFacepile members={siteMembers.members} siteId={siteId} />
-            </div>
-          )}
-          {isHomeDoc && !showActivity && (
+          {isHomeDoc &&
+            activeView !== 'all-documents' &&
+            !siteMembers.isInitialLoading &&
+            siteMembers.members.length > 0 && (
+              <div className="pt-4">
+                <MembersFacepile members={siteMembers.members} siteId={siteId} />
+              </div>
+            )}
+          {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
             <div className="mt-4 px-6">
               <Breadcrumbs
                 breadcrumbs={[
@@ -1735,6 +1677,7 @@ function DocumentBody({
                                 collaborators: 'People',
                                 activity: 'Activity',
                                 directory: 'Directory',
+                                'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
                               } as Record<string, string>
                             )[activeView] || '',
@@ -1789,7 +1732,10 @@ function DocumentBody({
               activeView === 'activity' &&
               activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                 ? 'citations'
-                : activeView === 'activity' || activeView === 'directory' || activeView === 'site-profile'
+                : activeView === 'activity' ||
+                  activeView === 'directory' ||
+                  activeView === 'site-profile' ||
+                  activeView === 'all-documents'
                 ? undefined
                 : activeView
             }
@@ -1808,13 +1754,16 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' ? (
+              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
-                      : {key: activeView as Exclude<ActiveView, 'content' | 'site-profile'>, id: docId}
+                      : {
+                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          id: docId,
+                        }
                   }
                 />
               ) : null
@@ -1895,7 +1844,7 @@ function DocumentBody({
           <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
         </div>
-        {floatingButtons}
+        {activeView === 'content' ? floatingButtons : null}
         {mobilePanelOpen && (
           <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
             <DiscussionsPageContent
@@ -1972,7 +1921,7 @@ function DocumentBody({
         {/* Floating action buttons — when editing, show editing toolbar;
             when a draft exists but not editing, show draft toolbar (publish + menu);
             otherwise show the options menu */}
-        {isEditing && editingFloatingActions ? (
+        {activeView === 'content' && isEditing && editingFloatingActions ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
@@ -1980,7 +1929,7 @@ function DocumentBody({
           >
             {editingFloatingActions({menuItems: allMenuItems})}
           </div>
-        ) : !isEditing && ctx.draftId !== null && draftActions ? (
+        ) : activeView === 'content' && !isEditing && ctx.draftId !== null && draftActions ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
@@ -1988,7 +1937,7 @@ function DocumentBody({
           >
             {draftActions({menuItems: allMenuItems})}
           </div>
-        ) : actionButtons ? (
+        ) : activeView === 'content' && actionButtons ? (
           <div
             className={cn(
               'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
@@ -2463,7 +2412,20 @@ function MainContent({
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
 }) {
+  const {originHomeId} = useUniversalAppContext()
+  const navigate = useNavigate()
+  const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
+
   switch (activeView) {
+    case 'all-documents':
+      return (
+        <AllDocumentsPage
+          siteId={allDocumentsSiteId}
+          scopeId={allDocumentsSiteId}
+          onNavigateToDocument={(id) => navigate({key: 'document', id})}
+        />
+      )
+
     case 'directory':
       return <DirectoryPageContent docId={docId} showTitle contentMaxWidth={contentMaxWidth} />
 
