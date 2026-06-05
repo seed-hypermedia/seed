@@ -157,6 +157,17 @@ describe('feedback server endpoint', () => {
         {cid: 'bafy-feedback-ref', data: expect.any(Uint8Array)},
       ],
     })
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      'https://seed-surveys.hyper.media/api/PublishBlobs',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Accept: 'application/json',
+          'Content-Type': 'application/cbor',
+        }),
+        body: expect.any(Uint8Array),
+      }),
+    )
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledWith({
       resources: [body.documentId],
       addrs: ['/dns4/seed-surveys.example/tcp/56001/p2p/seed-surveys-peer'],
@@ -208,6 +219,26 @@ describe('feedback server endpoint', () => {
     expect(response.status).toBe(200)
     expect(mocks.publish).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails when direct destination publish fails', async () => {
+    mocks.fetch.mockImplementation(async (input: unknown) => {
+      if (String(input).endsWith('/api/PublishBlobs')) {
+        return new Response('destination unavailable', {status: 503})
+      }
+      return new Response(new Uint8Array([10, 11, 12]))
+    })
+    const request = new Request('https://nodosdeaprendizaje.es/hm/api/feedback', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({firstImpression: 'Destination should fail.'}),
+    })
+
+    const response = await action({request, params: {}, context: {}})
+
+    expect(response.status).toBe(500)
+    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    expect(mocks.pushResourcesToPeer).not.toHaveBeenCalled()
   })
 
   it('returns success when destination push fails after local publish', async () => {
