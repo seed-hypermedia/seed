@@ -16,6 +16,7 @@ import {createChange, createChangeOps, createVersionRef} from '@seed-hypermedia/
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {encode as cborEncode} from '@ipld/dag-cbor'
 
 const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'name',
@@ -101,14 +102,20 @@ export async function action({request}: ActionFunctionArgs) {
     const capabilityBlob = capabilityCid
       ? await fetchFeedbackCapabilityBlob(destinationAccountUid, destinationLabel, capabilityCid)
       : null
+    const publishBlobs = [
+      ...(capabilityBlob ? [capabilityBlob] : []),
+      {data: new Uint8Array(changeBlock.bytes), cid: changeCid},
+      ...refInput.blobs,
+    ]
 
     await serverUniversalClient.publish({
-      blobs: [
-        ...(capabilityBlob ? [capabilityBlob] : []),
-        {data: new Uint8Array(changeBlock.bytes), cid: changeCid},
-        ...refInput.blobs,
-      ],
+      blobs: publishBlobs,
     })
+
+    const destinationPublish = await publishFeedbackBlobsToDestination(
+      resolveFeedbackDestinationBlobOrigin(destinationAccountUid, destinationLabel),
+      publishBlobs,
+    )
 
     const documentId = hmId(destinationAccountUid, {
       path: [payload.pathSegment],
@@ -139,7 +146,8 @@ export async function action({request}: ActionFunctionArgs) {
       capabilityCid,
       destinationLabel,
       visibility: config.feedbackDocumentVisibility || 'private',
-      publishedBlobs: 1 + refInput.blobs.length + (capabilityBlob ? 1 : 0),
+      publishedBlobs: publishBlobs.length,
+      destinationPublish,
       pushProgress,
       submittedAt: payload.submittedAt,
     })
@@ -181,6 +189,30 @@ async function pushFeedbackDocumentToPeer(documentId: string, addrs: string[]): 
   }
 
   return latestProgress
+}
+
+async function publishFeedbackBlobsToDestination(
+  origin: string | null,
+  blobs: Array<{cid?: string; data: Uint8Array}>,
+): Promise<{origin: string}> {
+  if (!origin) {
+    throw new Error('Feedback destination publish origin is not configured')
+  }
+
+  const response = await fetch(`${origin}/api/PublishBlobs`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/cbor',
+    },
+    body: new Uint8Array(cborEncode({blobs})) as unknown as BodyInit,
+  })
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Failed to publish feedback blobs to destination ${origin}: ${response.status} ${body}`)
+  }
+
+  return {origin}
 }
 
 type FeedbackPushProgress = {
