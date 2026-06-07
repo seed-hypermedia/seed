@@ -22,7 +22,6 @@ export const siteConfigSchema = z.object({
   feedbackDestinationLabel: z.string().optional(),
   feedbackSignerAccountUid: z.string().optional(),
   feedbackDestinationCapabilityCid: z.string().optional(),
-  feedbackDocumentVisibility: z.enum(['private', 'public']).optional(),
 })
 export type SiteConfig = z.infer<typeof siteConfigSchema>
 

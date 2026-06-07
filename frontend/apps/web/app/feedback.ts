@@ -37,7 +37,6 @@ type FeedbackDocumentContext = {
   publishedUnderAccountUid: string
   testedPageLabel: string
   testedPageUrl: string
-  visibilityLabel: string
 }
 
 type FeedbackPublishContext = {
@@ -47,8 +46,6 @@ type FeedbackPublishContext = {
   publishedUnderAccountUid: string
   testedPageLabel: string
   testedPageUrl: string
-  visibility?: ResourceVisibility
-  visibilityLabel?: string
   capabilityCid?: string
 }
 
@@ -124,7 +121,7 @@ export function buildFeedbackDocumentMarkdown(values: FeedbackFormValues, contex
     `- Fecha de envío: ${context.submittedAt}`,
     `- Sitio participante: ${context.publishedUnderLabel}`,
     `- Cuenta de destino: ${context.publishedUnderAccountUid}`,
-    `- Visibilidad: ${context.visibilityLabel}`,
+    '- Visibilidad: Privado',
   ]
 
   if (values.name) {
@@ -162,8 +159,6 @@ export async function publishFeedbackDocument(
 
   const submittedAtDate = deps.now?.() ?? new Date()
   const submittedAt = formatFeedbackTimestamp(submittedAtDate)
-  const visibility = context.visibility ?? ResourceVisibility.PRIVATE
-  const visibilityLabel = context.visibilityLabel ?? 'Privado'
   const title = buildFeedbackDocumentTitle(submittedAt, context.testedPageLabel)
   const markdown = buildFeedbackDocumentMarkdown(values, {
     submittedAt,
@@ -171,7 +166,6 @@ export async function publishFeedbackDocument(
     publishedUnderAccountUid: context.publishedUnderAccountUid,
     testedPageLabel: context.testedPageLabel,
     testedPageUrl: context.testedPageUrl,
-    visibilityLabel,
   })
   const editorBlocks = feedbackMarkdownToEditorBlocks(markdown)
   const {changes} = compareBlocksWithMap({}, editorBlocks, '')
@@ -187,7 +181,7 @@ export async function publishFeedbackDocument(
     baseVersion: '',
     changes: allChanges as any,
     capability: context.capabilityCid ?? '',
-    visibility,
+    visibility: ResourceVisibility.PRIVATE,
   })) as {unsignedChange: Uint8Array}
 
   const {changeCid, publishInput} = await signDocumentChange(
@@ -197,7 +191,7 @@ export async function publishFeedbackDocument(
       unsignedChange: prepareResult.unsignedChange,
       generation: submittedAtDate.getTime(),
       capability: context.capabilityCid ?? '',
-      visibility,
+      visibility: ResourceVisibility.PRIVATE,
     },
     signer,
   )
