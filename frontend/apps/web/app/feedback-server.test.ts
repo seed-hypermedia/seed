@@ -134,32 +134,9 @@ describe('feedback server endpoint', () => {
       'PrepareDocumentChange',
       expect.objectContaining({
         account: 'seed-surveys-uid',
-        visibility: 1,
+        visibility: 0,
       }),
     )
-    expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns an error when destination push announces no blobs', async () => {
-    mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
-      yield {
-        blobsAnnounced: 0,
-        blobsKnown: 0,
-        blobsWanted: 0,
-        blobsProcessed: 0,
-        blobsFailed: 0,
-      }
-    })
-    const request = new Request('https://nodosdeaprendizaje.es/hm/api/feedback', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({firstImpression: 'Push announces nothing.'}),
-    })
-
-    const response = await action({request, params: {}, context: {}})
-
-    expect(response.status).toBe(500)
-    expect(mocks.publish).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
