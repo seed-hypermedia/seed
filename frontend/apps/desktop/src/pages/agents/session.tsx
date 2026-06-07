@@ -24,6 +24,7 @@ import {
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
+import {client} from '@/trpc'
 import {type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
@@ -666,6 +667,7 @@ function AgentRichMessageComposer({
 }) {
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
+  const importWebFile = useCallback((url: string) => client.webImporting.importWebFile.mutate(url), [])
 
   async function submitRichMessage(getContent: CommentEditorGetContent, reset: () => void) {
     const {blockNodes} = await getContent(async () => ({blobs: [], resultCIDs: []}))
@@ -691,6 +693,7 @@ function AgentRichMessageComposer({
           initialBlocks={[]}
           onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
           handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
+          importWebFile={importWebFile}
           submitButton={() => <></>}
         />
       </div>

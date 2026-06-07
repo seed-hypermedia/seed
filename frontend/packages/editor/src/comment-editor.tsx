@@ -15,6 +15,7 @@ import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {type MutableRefObject, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
+import type {HandleFileAttachmentFunction, ImportWebFileFunction} from './blocknote/core/BlockNoteEditor'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {FILE_DROP_INSERTED_EVENT} from './blocknote/core/extensions/DragMedia/DragExtension'
 import {HyperMediaEditorView} from './editor-view'
@@ -52,23 +53,8 @@ export function useCommentEditor(
   onSubmit?: () => void,
   onMobileMentionTrigger?: () => void,
   onMobileSlashTrigger?: () => void,
-  importWebFile?: (url: string) => Promise<{
-    displaySrc: string
-    fileBinary?: Uint8Array
-    type: string
-    size: number
-  }>,
-  handleFileAttachment?: (file: File) => Promise<{
-    displaySrc: string
-    fileBinary?: Uint8Array
-    mediaRef?: {
-      draftId: string
-      mediaId: string
-      name: string
-      mime: string
-      size: number
-    }
-  }>,
+  importWebFile?: ImportWebFileFunction,
+  handleFileAttachment?: HandleFileAttachmentFunction,
   universalClient?: UniversalClient,
   // Resolver that maps a hostname (e.g. eric.vicenti.net) to its Seed account UID.
   // Required so URLs pasted into embed/link inputs inside a comment can be
@@ -323,23 +309,8 @@ export function CommentEditor({
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
   onAvatarPress?: () => void
-  importWebFile?: (url: string) => Promise<{
-    displaySrc: string
-    fileBinary?: Uint8Array
-    type: string
-    size: number
-  }>
-  handleFileAttachment?: (file: File) => Promise<{
-    displaySrc: string
-    fileBinary?: Uint8Array
-    mediaRef?: {
-      draftId: string
-      mediaId: string
-      name: string
-      mime: string
-      size: number
-    }
-  }>
+  importWebFile?: ImportWebFileFunction
+  handleFileAttachment?: HandleFileAttachmentFunction
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
   /** Hide the leading avatar */
   hideAvatar?: boolean

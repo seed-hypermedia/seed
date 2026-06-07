@@ -79,6 +79,7 @@ function CommentBoxImpl(props: {
   const pushAfterAction = usePushAfterAction()
   const universalClient = useUniversalClient()
   const {getSigner, publish} = universalClient
+  const importWebFile = useCallback((url: string) => client.webImporting.importWebFile.mutate(url), [])
   const route = useNavRoute()
   const navigate = useNavigate('replace')
 
@@ -410,6 +411,7 @@ function CommentBoxImpl(props: {
       handleSubmit={handleSubmit}
       initialBlocks={draft.data?.blocks}
       onContentChange={handleContentChange}
+      importWebFile={importWebFile}
       handleFileAttachment={handleFileAttachment}
       universalClient={universalClient}
       domainResolver={domainResolver}
@@ -456,6 +458,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
   const universalClient = useUniversalClient()
+  const importWebFile = useCallback((url: string) => client.webImporting.importWebFile.mutate(url), [])
   const contentRef = useRef<HMBlockNode[]>(comment.content)
 
   const handleFileAttachment = useCallback(async (file: File) => {
@@ -488,6 +491,7 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         isReplying={false}
         handleSubmit={handleSubmit}
         initialBlocks={comment.content}
+        importWebFile={importWebFile}
         handleFileAttachment={handleFileAttachment}
         universalClient={universalClient}
         domainResolver={domainResolver}
