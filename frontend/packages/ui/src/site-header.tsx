@@ -319,7 +319,7 @@ function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId
   return (
     <SmallListItem
       bold
-      title="Feed"
+      title="Activity Feed"
       icon={<Activity className="size-4" />}
       {...feedLinkProps}
       onClick={(e) => {
@@ -535,7 +535,7 @@ export function SiteHeaderMenu({
           </DropdownMenu>
         </Tooltip>
       )}
-      <Tooltip content="Site Feed">
+      <Tooltip content="Activity Feed">
         <a
           ref={feedLinkButtonRef}
           className={cn(
@@ -554,16 +554,6 @@ export function SiteHeaderMenu({
               isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
             )}
           />
-
-          {/* Hide text on smaller screens via CSS to avoid hydration flash */}
-          <span
-            className={cn(
-              'hidden lg:inline',
-              isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
-            )}
-          >
-            Feed
-          </span>
         </a>
       </Tooltip>
     </div>

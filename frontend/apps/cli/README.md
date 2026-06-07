@@ -583,6 +583,40 @@ seed-cli account contacts z6Mk... -q
 
 ---
 
+### account profile set
+
+Publish a signed Profile blob for an account. This is the current standard location for account display information such
+as name, icon/avatar, and description.
+
+```
+seed-cli account profile set --name <name> [options]
+```
+
+| Option                  | Description                                      |
+| ----------------------- | ------------------------------------------------ |
+| `--name <value>`        | **Required.** Profile display name               |
+| `--icon <value>`        | Profile icon/avatar URI (`ipfs://...`)           |
+| `--avatar <value>`      | Alias for `--icon`                               |
+| `--description <value>` | Short profile description (less than 512 bytes)  |
+| `-a, --account <uid>`   | Target account UID (defaults to the signing key) |
+| `-k, --key <name>`      | Signing key name or account ID                   |
+| `-q, --quiet`           | Output CID only                                  |
+
+```bash
+# Set the signing key's own profile
+seed-cli account profile set --name "Publishing Bot" --description "Automated publisher" --key bot
+
+# Set an account profile using an agent key with an AGENT capability
+seed-cli account profile set --account z6Mk... --name "Team Account" --key agent
+
+# Script-friendly output
+seed-cli account profile set --name "Publishing Bot" --key bot --quiet
+```
+
+With `--json`/`--yaml`, output includes the published profile blob CID, target account, and submitted profile fields.
+
+---
+
 ### account capabilities
 
 List access control capabilities for a resource.

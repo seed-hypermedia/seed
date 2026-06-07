@@ -1,12 +1,13 @@
 import {useLocalKeyPair} from '@/auth'
 import {
   useWebAccountUid,
-  useWebNotificationInbox,
-  useWebNotificationReadState,
+  useWebMarkAllNotificationsRead,
   useWebMarkNotificationEventRead,
   useWebMarkNotificationEventUnread,
-  useWebMarkAllNotificationsRead,
+  useWebNotificationInbox,
+  useWebNotificationReadState,
 } from '@/web-notifications'
+import {useNavigate as useRemixNavigate, useSearchParams} from '@remix-run/react'
 import {routeToHref, useUniversalAppContext} from '@shm/shared'
 import {markNotificationReadAndNavigate} from '@shm/shared/models/notification-helpers'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
@@ -14,8 +15,7 @@ import type {NavRoute} from '@shm/shared/routes'
 import {Button} from '@shm/ui/button'
 import {NotificationListItem} from '@shm/ui/notification-list-item'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {useNavigate as useRemixNavigate, useSearchParams} from '@remix-run/react'
+import {SizableText, Text} from '@shm/ui/text'
 import {Bell} from 'lucide-react'
 import {useCallback, useEffect, useMemo} from 'react'
 
@@ -30,7 +30,9 @@ export function WebNotificationsPage() {
         <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
           <Bell size={50} className="text-muted-foreground" />
         </div>
-        <SizableText size="xl">Notifications</SizableText>
+        <Text weight="bold" size="2xl">
+          Notifications
+        </Text>
         <p className="text-muted-foreground max-w-lg text-center">Sign in to view your notifications.</p>
       </div>
     )
@@ -42,7 +44,9 @@ export function WebNotificationsPage() {
         <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
           <Bell size={50} className="text-muted-foreground" />
         </div>
-        <SizableText size="xl">Notifications unavailable</SizableText>
+        <Text weight="bold" size="2xl">
+          Notifications unavailable
+        </Text>
         <p className="text-muted-foreground max-w-lg text-center">
           Log out and log back in again to use notifications.
         </p>
@@ -115,7 +119,9 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
     <div className="flex flex-col gap-4 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <SizableText size="xl">Notifications</SizableText>
+          <Text weight="bold" size="2xl">
+            Notifications
+          </Text>
           {inbox.isLoading ? <Spinner /> : null}
         </div>
         <Button

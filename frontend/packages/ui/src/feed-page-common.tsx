@@ -97,7 +97,7 @@ function FeedBody({
       <div className="flex flex-col gap-4 pt-8">
         <div className="flex items-center justify-between px-4">
           <Text weight="bold" size="3xl">
-            What's New
+            Activity Feed
           </Text>
           {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />}
         </div>

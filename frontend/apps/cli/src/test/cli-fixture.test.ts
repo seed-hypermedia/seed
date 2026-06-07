@@ -207,6 +207,56 @@ describe('CLI Full Integration Tests', () => {
     }, TEST_TIMEOUT)
 
     test(
+      'account profile set publishes a Profile blob that account get returns',
+      async () => {
+        const profileName = `CLI Profile ${Date.now()}`
+        const profileDescription = 'Set by cli-fixture profile integration test'
+        const publishResult = await runCli(
+          [
+            'account',
+            'profile',
+            'set',
+            '--name',
+            profileName,
+            '--description',
+            profileDescription,
+            '--key',
+            TEST_KEY_NAME,
+            '--json',
+          ],
+          {server: ctx.webServerUrl},
+        )
+        if (publishResult.exitCode !== 0) {
+          console.log('[test] account profile set stderr:', publishResult.stderr)
+          console.log('[test] account profile set stdout:', publishResult.stdout)
+        }
+        expect(publishResult.exitCode).toBe(0)
+        const publishData = JSON.parse(publishResult.stdout)
+        expect(publishData.account).toBe(writeAccount.accountId)
+        expect(publishData.profile.name).toBe(profileName)
+        expect(publishData.profile.description).toBe(profileDescription)
+        expect(publishData.cid).toMatch(/^b/)
+
+        let accountData: any
+        const deadline = Date.now() + 15000
+        while (Date.now() < deadline) {
+          const getResult = await runCli(['account', 'get', writeAccount.accountId, '--json'], {
+            server: ctx.webServerUrl,
+          })
+          expect(getResult.exitCode).toBe(0)
+          accountData = JSON.parse(getResult.stdout)
+          if (accountData.metadata?.name === profileName) break
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+
+        expect(accountData.type).toBe('account')
+        expect(accountData.metadata?.name).toBe(profileName)
+        expect(accountData.metadata?.summary).toBe(profileDescription)
+      },
+      TEST_TIMEOUT,
+    )
+
+    test(
       'home document keeps a separate deterministic genesis change',
       async () => {
         const getResult = await runCli(['document', 'get', writeAccountHmId, '--json'], {server: ctx.webServerUrl})
