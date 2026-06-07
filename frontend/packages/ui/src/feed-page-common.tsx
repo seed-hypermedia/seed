@@ -91,15 +91,16 @@ function FeedBody({
   const isMobile = media.xs && !IS_DESKTOP
 
   const menuItems = extraMenuItems || []
+  const actionButtons =
+    menuItems.length > 0 ? <OptionsDropdown menuItems={menuItems} align="end" side="bottom" /> : null
 
   const feedContent = (
     <PageLayout contentMaxWidth={contentMaxWidth}>
       <div className="flex flex-col gap-4 pt-8">
-        <div className="flex items-center justify-between px-4">
+        <div className="px-4">
           <Text weight="bold" size="3xl">
             Activity Feed
           </Text>
-          {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />}
         </div>
         <Separator />
         <Feed
@@ -113,11 +114,25 @@ function FeedBody({
   )
 
   if (isMobile) {
-    return <div className="flex flex-1 flex-col pb-16">{feedContent}</div>
+    return (
+      <div className="relative flex flex-1 flex-col pb-16">
+        {actionButtons ? (
+          <div className="absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
+            {actionButtons}
+          </div>
+        ) : null}
+        {feedContent}
+      </div>
+    )
   }
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
+      {actionButtons ? (
+        <div className="absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
+          {actionButtons}
+        </div>
+      ) : null}
       <ScrollArea className="h-full">{feedContent}</ScrollArea>
     </div>
   )
