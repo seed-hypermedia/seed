@@ -1,9 +1,10 @@
-import {useLocalKeyPair} from '@/auth'
-import type {HMCapability, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useUniversalAppContext} from '@shm/shared'
-import {roleCanWrite} from '@shm/shared/models/capabilities'
-import {useCapabilities} from '@shm/shared/models/entity'
-import {useMemo} from 'react'
+import { useLocalKeyPair } from '@/auth'
+import type { HMCapability, UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
+import { useUniversalAppContext } from '@shm/shared'
+import { WEB_IS_GATEWAY } from '@shm/shared/constants'
+import { roleCanWrite } from '@shm/shared/models/capabilities'
+import { useCapabilities } from '@shm/shared/models/entity'
+import { useMemo } from 'react'
 
 /**
  * Result of resolving whether the current web user can edit a document.
@@ -27,6 +28,7 @@ export function resolveWebCanEdit(args: {
   originHomeId: UnpackedHypermediaId | null | undefined
   capabilities: HMCapability[] | null | undefined
   isBrowser: boolean
+  isGateway?: boolean
 }): WebCanEditResult {
   if (!args.isBrowser) return {canEdit: false, signingAccountId: null, capability: null}
   if (!args.docId) return {canEdit: false, signingAccountId: null, capability: null}
@@ -55,8 +57,9 @@ export function resolveWebCanEdit(args: {
 
   if (!capability) return {canEdit: false, signingAccountId, capability: null}
 
-  const isCustomDomain = !!args.origin && !!args.originHomeId && args.originHomeId.uid !== args.docId.uid
-  if (isCustomDomain) return {canEdit: false, signingAccountId, capability}
+  const isExternalSite =
+    !args.isGateway && !!args.origin && !!args.originHomeId && args.originHomeId.uid !== args.docId.uid
+  if (isExternalSite) return {canEdit: false, signingAccountId, capability}
 
   return {canEdit: true, signingAccountId, capability}
 }
@@ -70,7 +73,7 @@ export function resolveWebCanEdit(args: {
  *  - Vault-delegated user is the doc owner -> canEdit (synthetic owner capability).
  *  - Vault-delegated user holds a WRITER/OWNER capability whose `accountUid` matches -> canEdit.
  *  - Site-scope filter: on a custom-domain site (`originHomeId.uid !== docId.uid`), edits are blocked.
- *    On the gateway (no custom origin) any authorized doc is editable.
+ *    On the gateway (`WEB_IS_GATEWAY`) any authorized doc is editable.
  *
  * The check runs entirely in the browser. The capability lookup is cached via the existing
  * `useCapabilities` hook (React Query), keyed on `(docId.uid, ...path)`.
@@ -89,6 +92,7 @@ export function useWebCanEdit(docId: UnpackedHypermediaId | null | undefined): W
         originHomeId: originHomeId ?? null,
         capabilities: capabilities.data,
         isBrowser: typeof window !== 'undefined',
+        isGateway: WEB_IS_GATEWAY,
       }),
     [docId, userKeyPair?.delegatedAccountUid, capabilities.data, origin, originHomeId],
   )

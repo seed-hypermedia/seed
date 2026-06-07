@@ -60,6 +60,7 @@ export default defineConfig(({isSsrBuild}) => {
           'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
           'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
           'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
+          'process.env.SEED_IS_GATEWAY': JSON.stringify(process.env.SEED_IS_GATEWAY),
           'process.env.SITE_SENTRY_DSN': JSON.stringify(process.env.SITE_SENTRY_DSN),
           'process.env.SITE_SENTRY_RELEASE': JSON.stringify(
             process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || '',

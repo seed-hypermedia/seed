@@ -136,6 +136,20 @@ describe('resolveWebCanEdit', () => {
     expect(result.capability).toBe(null)
   })
 
+  it('gateway deployment can edit off-site doc when authorized', () => {
+    const result = resolveWebCanEdit({
+      docId: makeDocId(OWNER_UID),
+      delegatedAccountUid: ALICE_UID,
+      origin: 'https://hyper.media',
+      originHomeId: makeDocId(SITE_UID),
+      capabilities: [ownerCap(OWNER_UID), writerCap(ALICE_UID)],
+      isBrowser: true,
+      isGateway: true,
+    })
+    expect(result.canEdit).toBe(true)
+    expect(result.capability?.role).toBe('writer')
+  })
+
   it('owner on custom-domain (own home) can edit', () => {
     const result = resolveWebCanEdit({
       docId: makeDocId(SITE_UID),
