@@ -1243,7 +1243,9 @@ export function useMoveDocument() {
         pageSize: BIG_INT,
       })
       const childMoves: PlannedMove[] = listedDocs.documents
-        .map((item) => prepareHMDocumentInfo(item).path)
+        .map((item) => prepareHMDocumentInfo(item))
+        .filter((doc) => !doc.redirectInfo)
+        .map((doc) => doc.path)
         .filter((path) => isChildDocumentPath(path, fromPath))
         .sort((a, b) => a.length - b.length)
         .map((path) => ({

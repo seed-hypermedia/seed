@@ -12,7 +12,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {LocationPicker} from './location-picker'
 export function MoveDialog({
   onClose,
@@ -25,27 +25,31 @@ export function MoveDialog({
 }) {
   const {data: resource} = useResource(input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
+  const sourceId = resource?.type === 'document' ? resource.id : input.id
   const moveDoc = useMoveDocument()
-  const list = useListSite(input.id)
+  const list = useListSite(sourceId)
   const navigate = useNavigate()
   const selectedAccount = useSelectedAccount()
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(input.id)
+  const [location, setLocation] = useState<UnpackedHypermediaId | null>(sourceId)
   const isAvailable = useRef(true)
   const pathInvalid = useMemo(
     () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
     [location?.path],
   )
+  useEffect(() => {
+    setLocation((current) => (current?.id === input.id.id && sourceId.id !== input.id.id ? sourceId : current))
+  }, [input.id.id, sourceId])
   const childDocs = useMemo(() => {
-    const parentPath = input.id.path || []
+    const parentPath = sourceId.path || []
     return (
       list.data?.filter((item) => {
-        if (!item.path?.length) return false
+        if (!item.path?.length || item.redirectInfo) return false
         return (
           item.path.length > parentPath.length && parentPath.every((segment, index) => item.path[index] === segment)
         )
       }) || []
     )
-  }, [list.data, input.id.path])
+  }, [list.data, sourceId.path])
   if (!selectedAccount) {
     return <div>No account selected</div>
   }
@@ -98,7 +102,7 @@ export function MoveDialog({
                   }
                   moveDoc
                     .mutateAsync({
-                      from: input.id,
+                      from: sourceId,
                       to: location,
                       signingAccountId: selectedAccount.id.uid,
                     })
