@@ -187,7 +187,7 @@ describe('feedback server endpoint', () => {
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
-  it('returns success when destination push announces no blobs after local publish', async () => {
+  it('returns an error when destination push announces no blobs', async () => {
     mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
       yield {
         blobsAnnounced: 0,
@@ -205,12 +205,12 @@ describe('feedback server endpoint', () => {
 
     const response = await action({request, params: {}, context: {}})
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(500)
     expect(mocks.publish).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
-  it('returns success when destination push fails after local publish', async () => {
+  it('returns an error when destination push fails', async () => {
     mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
       yield {
         blobsAnnounced: 2,
@@ -228,7 +228,7 @@ describe('feedback server endpoint', () => {
 
     const response = await action({request, params: {}, context: {}})
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(500)
     expect(mocks.publish).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })

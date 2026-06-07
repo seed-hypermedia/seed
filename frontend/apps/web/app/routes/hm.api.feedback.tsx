@@ -116,19 +116,10 @@ export async function action({request}: ActionFunctionArgs) {
     })
     const pushPeerAddrs =
       config.feedbackDestinationPeerAddrs || DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS[destinationAccountUid] || []
-    let pushProgress: FeedbackPushProgress | null = null
-    if (pushPeerAddrs.length) {
-      try {
-        pushProgress = await pushFeedbackDocumentToPeer(documentId.id, pushPeerAddrs)
-      } catch (error) {
-        reportError(error, {feature: 'feedback', operation: 'server-push-feedback'})
-      }
-    } else {
-      console.warn('[feedback] destination peer addrs are not configured', {
-        documentId: documentId.id,
-        destinationAccountUid,
-      })
+    if (!pushPeerAddrs.length) {
+      throw new Error('Feedback destination peer addrs are not configured')
     }
+    const pushProgress = await pushFeedbackDocumentToPeer(documentId.id, pushPeerAddrs)
 
     console.log('[feedback] published', {
       documentId: documentId.id,
@@ -168,12 +159,8 @@ async function pushFeedbackDocumentToPeer(documentId: string, addrs: string[]): 
     latestProgress = formatPushProgress(progress)
   }
 
-  if (!latestProgress) {
-    throw new Error('Feedback push returned no progress')
-  }
-
-  if (latestProgress.blobsAnnounced === 0) {
-    console.warn('[feedback] push did not find any blobs to announce', {documentId, pushProgress: latestProgress})
+  if (!latestProgress || latestProgress.blobsAnnounced === 0) {
+    throw new Error('Feedback push did not find any blobs to announce')
   }
 
   if (latestProgress?.blobsFailed) {
