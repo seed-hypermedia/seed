@@ -7,12 +7,10 @@ import {
 import {parseRequest} from '@/request'
 import {reportError} from '@/report-error'
 import {getServerSigningKey} from '@/server-signing'
-import {serverUniversalClient} from '@/server-universal-client'
 import {getConfig} from '@/site-config.server'
 import {grpcClient} from '@/client.server'
 import type {ActionFunctionArgs} from '@remix-run/node'
 import {json} from '@remix-run/node'
-import {createChange, createChangeOps, createVersionRef} from '@seed-hypermedia/client'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -34,10 +32,6 @@ const DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS: Record<string, string[]> = {
     '/dns4/hyper.media/tcp/56001/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ',
     '/dns4/hyper.media/udp/56001/quic-v1/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ',
   ],
-}
-
-const DEFAULT_FEEDBACK_DESTINATION_BLOB_ORIGINS: Record<string, string> = {
-  z6MkkeXDXo4p5y483NqxnMjZKbE4VAv8GPXp3kQ5JGYbTTsR: 'https://seed-surveys.hyper.media',
 }
 
 /** Accept feedback form submissions and publish them server-side into the configured destination account. */
@@ -80,39 +74,22 @@ export async function action({request}: ActionFunctionArgs) {
       visibility,
       visibilityLabel,
     })
-    const {unsignedBytes, ts} = createChangeOps({
-      ops: payload.operations,
-      ts: BigInt(payload.submittedAtDate.getTime()),
+    const document = await grpcClient.documents.createDocumentChange({
+      account: destinationAccountUid,
+      path: payload.path,
+      baseVersion: '',
+      changes: payload.changes,
+      signingKeyName: signingKey.name,
+      capability: capabilityCid,
+      visibility: payload.visibility,
     })
-    const changeBlock = await createChange(unsignedBytes, signingKey.signer)
-    const changeCid = changeBlock.cid.toString()
-    const refInput = await createVersionRef(
-      {
-        space: destinationAccountUid,
-        path: payload.path,
-        genesis: changeCid,
-        version: changeCid,
-        generation: Number(ts),
-        capability: capabilityCid || undefined,
-        visibility: payload.visibility === ResourceVisibility.PRIVATE ? 'Private' : undefined,
-      },
-      signingKey.signer,
-    )
-    const capabilityBlob = capabilityCid
-      ? await fetchFeedbackCapabilityBlob(destinationAccountUid, destinationLabel, capabilityCid)
-      : null
-
-    await serverUniversalClient.publish({
-      blobs: [
-        ...(capabilityBlob ? [capabilityBlob] : []),
-        {data: new Uint8Array(changeBlock.bytes), cid: changeCid},
-        ...refInput.blobs,
-      ],
-    })
+    if (!document.version) {
+      throw new Error('Feedback document publish returned no version')
+    }
 
     const documentId = hmId(destinationAccountUid, {
       path: [payload.pathSegment],
-      version: changeCid,
+      version: document.version,
     })
     const pushPeerAddrs =
       config.feedbackDestinationPeerAddrs || DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS[destinationAccountUid] || []
@@ -130,7 +107,6 @@ export async function action({request}: ActionFunctionArgs) {
       capabilityCid,
       destinationLabel,
       visibility: config.feedbackDocumentVisibility || 'private',
-      publishedBlobs: 1 + refInput.blobs.length + (capabilityBlob ? 1 : 0),
       pushProgress,
       submittedAt: payload.submittedAt,
     })
@@ -186,41 +162,6 @@ function formatPushProgress(progress: AnnounceBlobsProgress): FeedbackPushProgre
     blobsProcessed: progress.blobsProcessed,
     blobsFailed: progress.blobsFailed,
   }
-}
-
-async function fetchFeedbackCapabilityBlob(
-  destinationAccountUid: string,
-  destinationLabel: string,
-  capabilityCid: string,
-): Promise<{cid: string; data: Uint8Array}> {
-  const origin = resolveFeedbackDestinationBlobOrigin(destinationAccountUid, destinationLabel)
-  if (!origin) {
-    throw new Error('Feedback destination capability source is not configured')
-  }
-
-  const response = await fetch(`${origin}/ipfs/${capabilityCid}`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch feedback destination capability ${capabilityCid}: ${response.status}`)
-  }
-
-  return {
-    cid: capabilityCid,
-    data: new Uint8Array(await response.arrayBuffer()),
-  }
-}
-
-function resolveFeedbackDestinationBlobOrigin(destinationAccountUid: string, destinationLabel: string): string | null {
-  const defaultOrigin = DEFAULT_FEEDBACK_DESTINATION_BLOB_ORIGINS[destinationAccountUid]
-  if (defaultOrigin) return defaultOrigin
-
-  const label = destinationLabel.trim()
-  if (label.startsWith('http://') || label.startsWith('https://')) {
-    return label.replace(/\/+$/, '')
-  }
-  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(label)) {
-    return `https://${label}`
-  }
-  return null
 }
 
 function readFeedbackValues(input: unknown): FeedbackFormValues {

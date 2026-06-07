@@ -1,19 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  createChangeOps: vi.fn((_input: unknown) => ({
-    unsignedBytes: new Uint8Array([1, 2, 3]),
-    ts: BigInt(123),
-  })),
-  createChange: vi.fn(async (_input: unknown, _signer: unknown) => ({
-    bytes: new Uint8Array([4, 5, 6]),
-    cid: {toString: () => 'bafy-feedback-version'},
-  })),
-  createVersionRef: vi.fn(async (_input: unknown, _signer: unknown) => ({
-    blobs: [{cid: 'bafy-feedback-ref', data: new Uint8Array([7, 8, 9])}],
-  })),
-  publish: vi.fn(async (_input: unknown) => ({cids: []})),
-  fetch: vi.fn(async (_input: unknown) => new Response(new Uint8Array([10, 11, 12]))),
+  createDocumentChange: vi.fn(async (_input: unknown) => ({version: 'bafy-feedback-version'})),
   pushResourcesToPeer: vi.fn(async function* (_input: unknown) {
     yield {
       blobsAnnounced: 2,
@@ -34,13 +22,6 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@seed-hypermedia/client', () => ({
-  createChangeOps: mocks.createChangeOps,
-  createChange: mocks.createChange,
-  createVersionRef: mocks.createVersionRef,
-  signDocumentChange: vi.fn(),
-}))
-
 vi.mock('./site-config.server', () => ({
   getConfig: vi.fn(async () => mocks.config),
 }))
@@ -57,15 +38,12 @@ vi.mock('./server-signing', () => ({
 
 vi.mock('./client.server', () => ({
   grpcClient: {
+    documents: {
+      createDocumentChange: mocks.createDocumentChange,
+    },
     resources: {
       pushResourcesToPeer: mocks.pushResourcesToPeer,
     },
-  },
-}))
-
-vi.mock('./server-universal-client', () => ({
-  serverUniversalClient: {
-    publish: mocks.publish,
   },
 }))
 
@@ -77,25 +55,8 @@ import {action} from './routes/hm.api.feedback'
 
 describe('feedback server endpoint', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', mocks.fetch)
-    mocks.createChangeOps.mockClear()
-    mocks.createChangeOps.mockReturnValue({
-      unsignedBytes: new Uint8Array([1, 2, 3]),
-      ts: BigInt(123),
-    })
-    mocks.createChange.mockClear()
-    mocks.createChange.mockResolvedValue({
-      bytes: new Uint8Array([4, 5, 6]),
-      cid: {toString: () => 'bafy-feedback-version'},
-    })
-    mocks.createVersionRef.mockClear()
-    mocks.createVersionRef.mockResolvedValue({
-      blobs: [{cid: 'bafy-feedback-ref', data: new Uint8Array([7, 8, 9])}],
-    })
-    mocks.publish.mockClear()
-    mocks.publish.mockResolvedValue({cids: []})
-    mocks.fetch.mockClear()
-    mocks.fetch.mockResolvedValue(new Response(new Uint8Array([10, 11, 12])))
+    mocks.createDocumentChange.mockClear()
+    mocks.createDocumentChange.mockResolvedValue({version: 'bafy-feedback-version'})
     mocks.pushResourcesToPeer.mockClear()
     mocks.pushResourcesToPeer.mockImplementation(async function* (_input: unknown) {
       yield {
@@ -131,32 +92,16 @@ describe('feedback server endpoint', () => {
     expect(body.documentId).toContain('hm://seed-surveys-uid/')
     expect(body.documentVersion).toBe('bafy-feedback-version')
     expect(body.documentPath).toHaveLength(1)
-    expect(mocks.createChangeOps).toHaveBeenCalledWith(
+    expect(mocks.createDocumentChange).toHaveBeenCalledWith(
       expect.objectContaining({
-        ops: expect.arrayContaining([expect.objectContaining({type: 'SetAttributes'})]),
-        ts: expect.any(BigInt),
-      }),
-    )
-    expect(mocks.createVersionRef).toHaveBeenCalledWith(
-      expect.objectContaining({
-        space: 'seed-surveys-uid',
+        account: 'seed-surveys-uid',
         path: expect.stringMatching(/^\/.+/),
-        genesis: 'bafy-feedback-version',
-        version: 'bafy-feedback-version',
-        generation: 123,
+        baseVersion: '',
+        signingKeyName: 'server-key-name',
         capability: 'cap-seed-surveys-writer',
-        visibility: 'Private',
+        visibility: 2,
       }),
-      expect.any(Object),
     )
-    expect(mocks.fetch).toHaveBeenCalledWith('https://seed-surveys.hyper.media/ipfs/cap-seed-surveys-writer')
-    expect(mocks.publish).toHaveBeenCalledWith({
-      blobs: [
-        {cid: 'cap-seed-surveys-writer', data: expect.any(Uint8Array)},
-        {cid: 'bafy-feedback-version', data: expect.any(Uint8Array)},
-        {cid: 'bafy-feedback-ref', data: expect.any(Uint8Array)},
-      ],
-    })
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledWith({
       resources: [body.documentId],
       addrs: ['/dns4/seed-surveys.example/tcp/56001/p2p/seed-surveys-peer'],
@@ -177,12 +122,11 @@ describe('feedback server endpoint', () => {
 
     expect(response.status).toBe(200)
     expect(body.visibility).toBe('public')
-    expect(mocks.createVersionRef).toHaveBeenCalledWith(
+    expect(mocks.createDocumentChange).toHaveBeenCalledWith(
       expect.objectContaining({
-        space: 'seed-surveys-uid',
-        visibility: undefined,
+        account: 'seed-surveys-uid',
+        visibility: 1,
       }),
-      expect.any(Object),
     )
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
@@ -206,7 +150,7 @@ describe('feedback server endpoint', () => {
     const response = await action({request, params: {}, context: {}})
 
     expect(response.status).toBe(500)
-    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    expect(mocks.createDocumentChange).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
@@ -229,7 +173,7 @@ describe('feedback server endpoint', () => {
     const response = await action({request, params: {}, context: {}})
 
     expect(response.status).toBe(500)
-    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    expect(mocks.createDocumentChange).toHaveBeenCalledTimes(1)
     expect(mocks.pushResourcesToPeer).toHaveBeenCalledTimes(1)
   })
 
