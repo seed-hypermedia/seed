@@ -74,8 +74,6 @@ export async function action({request}: ActionFunctionArgs) {
 
     console.log('[feedback] published', {
       documentId: result.documentId.id,
-      documentVersion: result.documentId.version,
-      documentPath: result.documentId.path,
       destinationAccountUid,
       signingAccountUid,
       capabilityCid,
@@ -87,8 +85,6 @@ export async function action({request}: ActionFunctionArgs) {
       destinationLabel,
       submittedAt: result.submittedAt,
       documentId: result.documentId.id,
-      documentVersion: result.documentId.version,
-      documentPath: result.documentId.path,
     })
   } catch (error) {
     reportError(error, {feature: 'feedback', operation: 'server-publish-feedback'})
