@@ -8,6 +8,7 @@ vi.mock('@seed-hypermedia/client', () => ({
 }))
 
 import {
+  FEEDBACK_CONFIG,
   buildFeedbackDocumentMarkdown,
   buildFeedbackDocumentTitle,
   formatFeedbackTimestamp,
@@ -57,8 +58,8 @@ describe('feedback helpers', () => {
   it('formats timestamps and titles consistently', () => {
     const submittedAt = formatFeedbackTimestamp(new Date(2026, 4, 28, 14, 32))
     expect(submittedAt).toBe('2026-05-28 14:32')
-    expect(buildFeedbackDocumentTitle(submittedAt, 'nodosdeconocimiento.es')).toBe(
-      'Feedback on nodosdeconocimiento.es — 2026-05-28 14:32',
+    expect(buildFeedbackDocumentTitle(submittedAt)).toBe(
+      `Feedback on ${FEEDBACK_CONFIG.testedPageLabel} — 2026-05-28 14:32`,
     )
   })
 
@@ -72,15 +73,13 @@ describe('feedback helpers', () => {
         submittedAt: '2026-05-28 14:32',
         publishedUnderLabel: 'Ethosfera',
         publishedUnderAccountUid: 'z6MkSite',
-        testedPageLabel: 'nodosdeconocimiento.es',
-        testedPageUrl: 'https://nodosdeconocimiento.es',
       },
     )
 
     expect(markdown).toContain('Feedback enviado mediante formulario web.')
     expect(markdown).toContain('- Formulario: /feedback')
-    expect(markdown).toContain('- Página evaluada: nodosdeconocimiento.es')
-    expect(markdown).toContain('- URL: https://nodosdeconocimiento.es')
+    expect(markdown).toContain(`- Página evaluada: ${FEEDBACK_CONFIG.testedPageLabel}`)
+    expect(markdown).toContain(`- URL: ${FEEDBACK_CONFIG.testedPageUrl}`)
     expect(markdown).toContain('- Sitio participante: Ethosfera')
     expect(markdown).toContain('- Cuenta de destino: z6MkSite')
     expect(markdown).toContain('## Primera impresión')
@@ -112,8 +111,6 @@ describe('feedback helpers', () => {
         capabilityCid: 'cap-123',
         publishedUnderLabel: 'Ethosfera',
         publishedUnderAccountUid: 'site-uid',
-        testedPageLabel: 'nodosdeconocimiento.es',
-        testedPageUrl: 'https://nodosdeconocimiento.es',
       },
     )
 
@@ -129,6 +126,6 @@ describe('feedback helpers', () => {
     expect(result.documentId.uid).toBe('site-uid')
     expect(result.documentId.path).toEqual(['private-feedback-path'])
     expect(result.documentId.version).toBe('bafy-feedback-version')
-    expect(result.title).toContain('Feedback on nodosdeconocimiento.es')
+    expect(result.title).toContain('Feedback on delibera.ethosfera.org')
   })
 })

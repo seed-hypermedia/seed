@@ -82,18 +82,17 @@ export const links: LinksFunction = () => [
 
 /** Set a site-specific browser title and icon for the feedback page. */
 export const meta: MetaFunction<typeof loader> = ({data}) => {
-  const {homeMetadata, siteHost} = unwrap<FeedbackPagePayload>(data)
+  const {homeMetadata} = unwrap<FeedbackPagePayload>(data)
   const meta: MetaDescriptor[] = []
   const homeIconCid = homeMetadata?.icon ? extractIpfsUrlCid(homeMetadata.icon) : null
   const homeIcon = homeIconCid ? getOptimizedImageUrl(homeIconCid, 'S') : null
-  const pageLabel = homeMetadata?.name?.trim() || new URL(siteHost).host
   meta.push({
     tagName: 'link',
     rel: 'icon',
     href: homeIcon || defaultSiteIcon,
     type: 'image/png',
   })
-  meta.push({title: `${FEEDBACK_CONFIG.pageTitle} on ${pageLabel}`})
+  meta.push({title: FEEDBACK_CONFIG.pageTitle})
   return meta
 }
 
@@ -114,7 +113,7 @@ export default function FeedbackRoute() {
           origin={origin}
         />
         <NavigationLoadingContent className="flex w-full max-w-5xl flex-1 flex-col px-4 pt-[var(--site-header-h)] pb-16 sm:pt-0">
-          <FeedbackPageBody originHomeId={originHomeId} homeMetadata={homeMetadata} siteOrigin={origin} />
+          <FeedbackPageBody originHomeId={originHomeId} homeMetadata={homeMetadata} />
         </NavigationLoadingContent>
         <PageFooter className="w-full" hideDeviceLinkToast />
       </div>
@@ -125,11 +124,9 @@ export default function FeedbackRoute() {
 function FeedbackPageBody({
   originHomeId,
   homeMetadata,
-  siteOrigin,
 }: {
   originHomeId: NonNullable<FeedbackPagePayload['originHomeId']>
   homeMetadata: FeedbackPagePayload['homeMetadata']
-  siteOrigin: string
 }) {
   const client = useUniversalClient()
   const authDialog = useCreateAccount({})
@@ -140,9 +137,7 @@ function FeedbackPageBody({
   const [formError, setFormError] = useState<string | null>(null)
   const [success, setSuccess] = useState<PublishSuccessState | null>(null)
 
-  const siteName = homeMetadata?.name?.trim() || new URL(siteOrigin).host
-  const testedPageLabel = new URL(siteOrigin).host
-  const testedPageUrl = siteOrigin
+  const siteName = homeMetadata?.name?.trim() || FEEDBACK_CONFIG.testedPageLabel
   const targetAccountLabel = `${siteName} (${originHomeId.uid})`
   const logoCid = homeMetadata?.icon ? extractIpfsUrlCid(homeMetadata.icon) : null
   const logoSrc = logoCid ? getOptimizedImageUrl(logoCid, 'M') : null
@@ -182,8 +177,6 @@ function FeedbackPageBody({
           capabilityCid: access.capability?.id === '_owner' ? '' : access.capability?.id,
           publishedUnderLabel: siteName,
           publishedUnderAccountUid: originHomeId.uid,
-          testedPageLabel,
-          testedPageUrl,
         },
       )
     },
@@ -272,19 +265,19 @@ function FeedbackPageBody({
               Tu tarea
             </span>
             <p className="mb-3 text-sm leading-7 text-[#2c2c2a]">
-              Vuelve a la portada del sitio, echa un vistazo a lo que ves durante un par de minutos y lee lo que te
-              llame la atención. A continuación responde a las preguntas.
+              Abre el enlace, echa un vistazo a lo que ves durante un par de minutos y lee lo que te llame la atención.
+              A continuación responde a las preguntas.
             </p>
             <p className="mb-4 text-sm leading-7 text-[#2c2c2a]">
               No te preocupes por hacerlo “bien” — tu confusión es el feedback más valioso que podemos recibir.
             </p>
             <a
-              href={testedPageUrl}
+              href={FEEDBACK_CONFIG.testedPageUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-2 text-sm text-[#1d9e75] underline underline-offset-4"
             >
-              ↗ Abrir {testedPageLabel}
+              ↗ Abrir {FEEDBACK_CONFIG.testedPageLabel}
             </a>
           </div>
 
