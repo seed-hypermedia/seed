@@ -4,9 +4,12 @@ import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
+import {Node as PMNode} from 'prosemirror-model'
+import {NodeSelection} from 'prosemirror-state'
 import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {useFragmentActions} from './fragment-actions-context'
 import {markBlockUploaded, MediaType} from './media-render'
@@ -168,6 +171,39 @@ export const MediaContainer = ({
   // The editor accepts authoring when the user has edit permission
   // or when the editor instance itself is editable
   const canAuthor = editor.renderType !== 'viewer' && (canEdit || editor.isEditable)
+  const selectBlock = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    const target = e.target as Element | null
+    if (
+      target?.closest?.(
+        'a[href], .link, button, input, textarea, select, [role="button"], [data-media-container-ignore-select]',
+      )
+    ) {
+      return
+    }
+
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    let blockContentPos: number | null = null
+    view.state.doc.descendants((node: PMNode, pos: number) => {
+      if (node.type.name !== 'blockNode' || node.attrs?.id !== block.id) return true
+      try {
+        blockContentPos = getBlockInfoWithManualOffset(node, pos).blockContent.beforePos
+      } catch {
+        blockContentPos = pos
+      }
+      return false
+    })
+
+    if (blockContentPos == null) return
+
+    e.preventDefault()
+    e.stopPropagation()
+    beginEditIfNeeded()
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, blockContentPos)).scrollIntoView())
+    view.focus()
+  }
+
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
@@ -209,6 +245,8 @@ export const MediaContainer = ({
               // @ts-expect-error
               onPress(e)
             }
+          : canAuthor
+          ? selectBlock
           : undefined
       }
     >
