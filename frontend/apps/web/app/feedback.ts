@@ -42,8 +42,6 @@ type FeedbackDocumentContext = {
 type FeedbackPublishContext = {
   publishAccountUid: string
   signingAccountUid: string
-  publishedUnderLabel: string
-  publishedUnderAccountUid: string
   capabilityCid?: string
 }
 
@@ -106,7 +104,10 @@ export function buildFeedbackDocumentTitle(submittedAt: string): string {
 }
 
 /** Build the markdown body that will be published into the private feedback document. */
-export function buildFeedbackDocumentMarkdown(values: FeedbackFormValues, context: FeedbackDocumentContext): string {
+export function buildFeedbackDocumentMarkdown(
+  values: FeedbackFormValues,
+  context: FeedbackDocumentContext,
+): string {
   const sections: string[] = [
     'Feedback enviado mediante formulario web.',
     '',

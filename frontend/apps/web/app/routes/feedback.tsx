@@ -112,7 +112,7 @@ export default function FeedbackRoute() {
           docId={null}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex w-full max-w-5xl flex-1 flex-col px-4 pt-[var(--site-header-h)] pb-16 sm:pt-0">
+        <NavigationLoadingContent className="flex w-full max-w-5xl flex-1 flex-col px-4 pb-16 pt-[var(--site-header-h)] sm:pt-0">
           <FeedbackPageBody originHomeId={originHomeId} homeMetadata={homeMetadata} />
         </NavigationLoadingContent>
         <PageFooter className="w-full" hideDeviceLinkToast />
@@ -237,36 +237,36 @@ function FeedbackPageBody({
       <div className="relative overflow-hidden rounded-[28px] border border-[#d3d1c7] bg-[#f0ede4] px-6 py-8 shadow-[0_24px_80px_rgba(46,46,35,0.08)] sm:px-10 sm:py-12">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.65),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(29,158,117,0.08),transparent_32%)]" />
         {logoSrc ? (
-          <div className="absolute top-6 right-6 z-10 size-11 overflow-hidden rounded-full border border-white/60 shadow-sm">
+          <div className="absolute right-6 top-6 z-10 size-11 overflow-hidden rounded-full border border-white/60 shadow-sm">
             <img src={logoSrc} alt={siteName} className="size-full object-cover" />
           </div>
         ) : null}
 
         <div className="relative z-10 flex flex-col gap-8">
           <header className="max-w-2xl">
-            <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-[#888780] uppercase">Feedback privado</p>
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.18em] text-[#888780]">Feedback privado</p>
             <h1
               className="text-[2.35rem] leading-[1.08] text-[#1a1a18] sm:text-[2.8rem]"
               style={{fontFamily: '"Libre Baskerville", serif'}}
             >
               Ayúdanos a mejorar
               <br />
-              <span className="text-[#1d9e75] italic">compartiendo tu feedback</span>
+              <span className="italic text-[#1d9e75]">compartiendo tu feedback</span>
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-7 text-[#5f5e5a]">
-              Estamos construyendo un lugar para crear conocimiento, leer, comentar y conectar — sin un servidor central
-              que lo controle.
+              Estamos construyendo un lugar para crear conocimiento, leer, comentar y conectar — sin un servidor
+              central que lo controle.
               <span className="mt-2 block">Este test dura unos 8–10 minutos, muchas gracias por tu tiempo.</span>
             </p>
           </header>
 
-          <div className="rounded-2xl border border-l-[3px] border-[#d3d1c7] border-l-[#1d9e75] bg-white px-5 py-5 shadow-[0_10px_30px_rgba(49,47,38,0.03)]">
-            <span className="mb-3 block text-[13px] font-medium tracking-[0.08em] text-[#1d9e75] uppercase">
+          <div className="rounded-2xl border border-[#d3d1c7] border-l-[3px] border-l-[#1d9e75] bg-white px-5 py-5 shadow-[0_10px_30px_rgba(49,47,38,0.03)]">
+            <span className="mb-3 block text-[13px] font-medium uppercase tracking-[0.08em] text-[#1d9e75]">
               Tu tarea
             </span>
             <p className="mb-3 text-sm leading-7 text-[#2c2c2a]">
-              Abre el enlace, echa un vistazo a lo que ves durante un par de minutos y lee lo que te llame la atención.
-              A continuación responde a las preguntas.
+              Abre el enlace, echa un vistazo a lo que ves durante un par de minutos y lee lo que te llame la
+              atención. A continuación responde a las preguntas.
             </p>
             <p className="mb-4 text-sm leading-7 text-[#2c2c2a]">
               No te preocupes por hacerlo “bien” — tu confusión es el feedback más valioso que podemos recibir.
@@ -436,10 +436,7 @@ function FeedbackPageBody({
               </QuestionBlock>
 
               <div className="border-t border-[#c5c3ba] pt-8">
-                <span
-                  className="mb-3 block text-[1.35rem] font-bold text-[#1a1a18]"
-                  style={{fontFamily: '"Libre Baskerville", serif'}}
-                >
+                <span className="mb-3 block text-[1.35rem] font-bold text-[#1a1a18]" style={{fontFamily: '"Libre Baskerville", serif'}}>
                   Ya estamos, muchísimas gracias por tu ayuda 🙌
                 </span>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -492,7 +489,7 @@ function FeedbackPageBody({
 
 function SectionLabel({children}: {children: ReactNode}) {
   return (
-    <div className="flex items-center gap-3 text-[10px] font-medium tracking-[0.16em] text-[#888780] uppercase">
+    <div className="flex items-center gap-3 text-[10px] font-medium uppercase tracking-[0.16em] text-[#888780]">
       <span>{children}</span>
       <span className="h-px flex-1 bg-[#c5c3ba]" />
     </div>
@@ -547,7 +544,7 @@ function ChoicePill({
       />
       <span
         className={cn(
-          'flex h-11 items-center justify-center rounded-2xl border border-[#c5c3ba] bg-[#faf9f5] px-4 text-sm text-[#5f5e5a] transition-all peer-checked:border-[#1d9e75] peer-checked:bg-[#1d9e75] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[#1d9e75]/40',
+          'flex h-11 items-center justify-center rounded-2xl border border-[#c5c3ba] bg-[#faf9f5] px-4 text-sm text-[#5f5e5a] transition-all peer-focus-visible:ring-2 peer-focus-visible:ring-[#1d9e75]/40 peer-checked:border-[#1d9e75] peer-checked:bg-[#1d9e75] peer-checked:text-white',
           wide ? 'w-full' : 'min-w-11',
         )}
       >
@@ -567,9 +564,7 @@ function InfoNote({children}: {children: ReactNode}) {
 
 function ErrorBanner({children}: {children: ReactNode}) {
   return (
-    <div className="mt-5 rounded-2xl border border-[#e4b7b7] bg-[#fff6f6] px-4 py-3 text-sm text-[#8f3838]">
-      {children}
-    </div>
+    <div className="mt-5 rounded-2xl border border-[#e4b7b7] bg-[#fff6f6] px-4 py-3 text-sm text-[#8f3838]">{children}</div>
   )
 }
 
@@ -594,10 +589,7 @@ function StateCard({
       )}
     >
       <div
-        className={cn(
-          'flex size-12 items-center justify-center rounded-full',
-          tone === 'error' ? 'bg-[#fdeaea]' : 'bg-[#e1f5ee]',
-        )}
+        className={cn('flex size-12 items-center justify-center rounded-full', tone === 'error' ? 'bg-[#fdeaea]' : 'bg-[#e1f5ee]')}
       >
         {icon}
       </div>
