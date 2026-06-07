@@ -3,7 +3,7 @@ import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client/markdown-to-blocks'
-import {DocumentChange, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {compareBlocksWithMap, getDocAttributeChanges} from '@shm/shared/utils/document-changes'
@@ -56,17 +56,6 @@ type FeedbackPublishDeps = Pick<UniversalClient, 'publish' | 'request'> & {
   getSigner?: (accountUid: string) => HMSigner
   generatePath?: () => string
   now?: () => Date
-}
-
-/** Payload needed to publish a feedback document through either JS signing or the daemon. */
-export type FeedbackDocumentPublishPayload = {
-  pathSegment: string
-  path: string
-  changes: DocumentChange[]
-  title: string
-  submittedAt: string
-  submittedAtDate: Date
-  visibility: ResourceVisibility
 }
 
 /** Result of publishing a feedback document. */
@@ -161,13 +150,17 @@ export function feedbackMarkdownToEditorBlocks(markdown: string): EditorBlock[] 
   return hmBlocksToEditorContent(content, {childrenType: 'Group'}) as EditorBlock[]
 }
 
-/** Build the change payload for a new feedback document. */
-export function buildFeedbackDocumentPublishPayload(
+/** Publish a new private feedback document and return its concrete document id. */
+export async function publishFeedbackDocument(
+  deps: FeedbackPublishDeps,
   values: FeedbackFormValues,
-  context: Omit<FeedbackPublishContext, 'publishAccountUid' | 'signingAccountUid' | 'capabilityCid'>,
-  options: Pick<FeedbackPublishDeps, 'generatePath' | 'now'> = {},
-): FeedbackDocumentPublishPayload {
-  const submittedAtDate = options.now?.() ?? new Date()
+  context: FeedbackPublishContext,
+): Promise<PublishedFeedbackDocument> {
+  if (!deps.getSigner) {
+    throw new Error('Feedback publish requires a browser signer')
+  }
+
+  const submittedAtDate = deps.now?.() ?? new Date()
   const submittedAt = formatFeedbackTimestamp(submittedAtDate)
   const visibility = context.visibility ?? ResourceVisibility.PRIVATE
   const visibilityLabel = context.visibilityLabel ?? 'Privado'
@@ -183,60 +176,28 @@ export function buildFeedbackDocumentPublishPayload(
   const editorBlocks = feedbackMarkdownToEditorBlocks(markdown)
   const {changes} = compareBlocksWithMap({}, editorBlocks, '')
   const metadataChanges = getDocAttributeChanges({name: title} as HMMetadata)
-  const pathSegment = options.generatePath?.() ?? nanoid(21)
-
-  return {
-    pathSegment,
-    path: hmIdPathToEntityQueryPath([pathSegment]),
-    changes: [...metadataChanges, ...changes],
-    title,
-    submittedAt,
-    submittedAtDate,
-    visibility,
-  }
-}
-
-/** Publish a new feedback document with the JS signing path and return its concrete document id. */
-export async function publishFeedbackDocument(
-  deps: FeedbackPublishDeps,
-  values: FeedbackFormValues,
-  context: FeedbackPublishContext,
-): Promise<PublishedFeedbackDocument> {
-  if (!deps.getSigner) {
-    throw new Error('Feedback publish requires a browser signer')
-  }
-
-  const payload = buildFeedbackDocumentPublishPayload(
-    values,
-    {
-      publishedUnderLabel: context.publishedUnderLabel,
-      publishedUnderAccountUid: context.publishedUnderAccountUid,
-      testedPageLabel: context.testedPageLabel,
-      testedPageUrl: context.testedPageUrl,
-      visibility: context.visibility,
-      visibilityLabel: context.visibilityLabel,
-    },
-    deps,
-  )
+  const allChanges = [...metadataChanges, ...changes]
+  const pathSegment = deps.generatePath?.() ?? nanoid(21)
+  const path = hmIdPathToEntityQueryPath([pathSegment])
   const signer = deps.getSigner(context.signingAccountUid)
 
   const prepareResult = (await deps.request('PrepareDocumentChange', {
     account: context.publishAccountUid,
-    path: payload.path,
+    path,
     baseVersion: '',
-    changes: payload.changes as any,
+    changes: allChanges as any,
     capability: context.capabilityCid ?? '',
-    visibility: payload.visibility,
+    visibility,
   })) as {unsignedChange: Uint8Array}
 
   const {changeCid, publishInput} = await signDocumentChange(
     {
       account: context.publishAccountUid,
-      path: payload.path,
+      path,
       unsignedChange: prepareResult.unsignedChange,
-      generation: payload.submittedAtDate.getTime(),
+      generation: submittedAtDate.getTime(),
       capability: context.capabilityCid ?? '',
-      visibility: payload.visibility,
+      visibility,
     },
     signer,
   )
@@ -244,8 +205,8 @@ export async function publishFeedbackDocument(
   await deps.publish(publishInput)
 
   return {
-    documentId: hmId(context.publishAccountUid, {path: [payload.pathSegment], version: changeCid.toString()}),
-    title: payload.title,
-    submittedAt: payload.submittedAt,
+    documentId: hmId(context.publishAccountUid, {path: [pathSegment], version: changeCid.toString()}),
+    title,
+    submittedAt,
   }
 }
