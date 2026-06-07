@@ -12,6 +12,7 @@ import {MetaDescriptor, useLoaderData} from '@remix-run/react'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {ClientOnly} from '@/client-lazy'
 import {WebNotificationsPage} from '@/notifications-page-content'
+import {WebHeaderActions} from '@/web-utils'
 import {Suspense} from 'react'
 import {Spinner} from '@shm/ui/spinner'
 
@@ -56,6 +57,7 @@ export default function NotificationsRoute() {
           siteHomeId={originHomeId}
           docId={null}
           origin={origin}
+          rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
         />
         <NavigationLoadingContent className="flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pt-[var(--site-header-h)] sm:pt-0">
           <ClientOnly>

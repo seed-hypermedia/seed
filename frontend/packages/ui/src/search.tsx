@@ -252,11 +252,20 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
           popoverState.onOpenChange(open)
         }}
       >
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <Search className="size-4" />
-          </Button>
-        </PopoverTrigger>
+        <Tooltip content="Search">
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-8 rounded-full border-1 border-transparent p-0',
+                popoverState.open && 'dark:bg-muted bg-black/5',
+              )}
+            >
+              <Search className="size-4" />
+            </Button>
+          </PopoverTrigger>
+        </Tooltip>
         <PopoverContent align="end" side="bottom" className="p-0">
           <div className="flex h-[calc(100vh-100px)] max-h-[600px] flex-col">
             <div className="relative flex items-center gap-2 self-stretch p-2">

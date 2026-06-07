@@ -28,6 +28,7 @@ export type WebSiteHeaderProps = {
   origin?: string
   isLatest?: boolean
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
+  rightActions?: React.ReactNode
 }
 
 export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSiteHeaderProps>) {
@@ -92,6 +93,7 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         isMainFeedVisible={false}
         wrapperClassName="fixed sm:static"
         notifyServiceHost={NOTIFY_SERVICE_HOST}
+        rightActions={props.rightActions}
       />
     </>
   )

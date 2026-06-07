@@ -464,7 +464,7 @@ export function SiteHeaderMenu({
       ref={containerRef}
       className={cn(
         'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
-        'md:flex md:p-2',
+        'md:flex md:py-2 md:pr-0 md:pl-2',
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
@@ -536,25 +536,25 @@ export function SiteHeaderMenu({
         </Tooltip>
       )}
       <Tooltip content="Activity Feed">
-        <a
-          ref={feedLinkButtonRef}
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
           className={cn(
-            'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
-            isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
-            'hover:text-foreground',
+            'h-8 rounded-full border-1 border-transparent p-0',
+            isMainFeedVisible && 'dark:bg-muted bg-black/5',
           )}
-          onMouseEnter={() => {
-            import('./feed').catch(() => {})
-          }}
-          {...feedLinkProps}
         >
-          <Activity
-            className={cn(
-              'size-4 flex-none shrink-0',
-              isMainFeedVisible ? 'text-foreground text-bold' : 'text-muted-foreground',
-            )}
-          />
-        </a>
+          <a
+            ref={feedLinkButtonRef}
+            onMouseEnter={() => {
+              import('./feed').catch(() => {})
+            }}
+            {...feedLinkProps}
+          >
+            <Activity className="size-4" />
+          </a>
+        </Button>
       </Tooltip>
     </div>
   )

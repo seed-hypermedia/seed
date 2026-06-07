@@ -27,8 +27,10 @@ import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
+import {cn} from '@shm/ui/utils'
 import {
   Bell,
   FilePlus2,
@@ -334,10 +336,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     <>
       {isMobile ? (
         <div className="flex items-center gap-2">
+          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
             {avatarIcon}
           </button>
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
             <div className="flex items-center gap-3 px-4 py-4">
               {avatarIcon}
@@ -351,6 +353,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         </div>
       ) : (
         <div className="flex items-center gap-2">
+          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex cursor-pointer rounded-full shadow-lg">{avatarIcon}</button>
@@ -391,7 +394,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
         </div>
       )}
       {logoutDialog.content}
@@ -418,6 +420,8 @@ export function WebSitePageShell({children, siteUid}: {children?: ReactNode; sit
 function NotifsButton() {
   const storedView = typeof window !== 'undefined' ? localStorage.getItem('seed-notifications-view') : null
   const linkProps = useRouteLink({key: 'notifications', view: storedView === 'unread' ? 'unread' : undefined})
+  const route = useNavRoute()
+  const isActive = route.key === 'notifications'
   const {originHomeId} = useUniversalAppContext()
   const siteUid = originHomeId?.uid
   const inbox = useWebNotificationInbox(siteUid)
@@ -437,18 +441,24 @@ function NotifsButton() {
   }, [inbox.data, readState.data])
 
   return (
-    <ButtonLink
-      className="relative h-8 rounded-full border-1 border-transparent p-0"
-      variant="ghost"
-      size="icon"
-      {...linkProps}
-    >
-      <Bell className="size-4" />
-      {unreadCount > 0 ? (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-lg bg-red-500 px-1 text-[12px] font-bold text-white">
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
-      ) : null}
-    </ButtonLink>
+    <Tooltip content="Notifications" asChild>
+      <ButtonLink
+        className={cn(
+          'relative h-8 rounded-full border-1 border-transparent p-0',
+          isActive && 'dark:bg-muted bg-black/5',
+        )}
+        variant="ghost"
+        size="icon"
+        aria-current={isActive ? 'page' : undefined}
+        {...linkProps}
+      >
+        <Bell className="size-4" />
+        {unreadCount > 0 ? (
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-lg bg-red-500 px-1 text-[12px] font-bold text-white">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        ) : null}
+      </ButtonLink>
+    </Tooltip>
   )
 }
