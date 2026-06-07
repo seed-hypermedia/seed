@@ -9,11 +9,9 @@ import {reportError} from '@/report-error'
 import {getServerSigner} from '@/server-signing'
 import {serverUniversalClient} from '@/server-universal-client'
 import {getConfig} from '@/site-config.server'
-import {grpcClient} from '@/client.server'
 import type {ActionFunctionArgs} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import type {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 
 const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'name',
@@ -26,13 +24,6 @@ const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'foundCommentButton',
   'oneChange',
 ]
-
-const DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS: Record<string, string[]> = {
-  z6MkkeXDXo4p5y483NqxnMjZKbE4VAv8GPXp3kQ5JGYbTTsR: [
-    '/dns4/hyper.media/tcp/56001/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ',
-    '/dns4/hyper.media/udp/56001/quic-v1/p2p/12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ',
-  ],
-}
 
 /** Accept feedback form submissions and publish them server-side into the configured destination account. */
 export async function action({request}: ActionFunctionArgs) {
@@ -86,12 +77,6 @@ export async function action({request}: ActionFunctionArgs) {
         visibilityLabel,
       },
     )
-    const pushPeerAddrs =
-      config.feedbackDestinationPeerAddrs || DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS[destinationAccountUid] || []
-    if (!pushPeerAddrs.length) {
-      throw new Error('Feedback destination peer addrs are not configured')
-    }
-    const pushProgress = await pushFeedbackDocumentToPeer(result.documentId.id, pushPeerAddrs)
 
     console.log('[feedback] published', {
       documentId: result.documentId.id,
@@ -102,7 +87,6 @@ export async function action({request}: ActionFunctionArgs) {
       capabilityCid,
       destinationLabel,
       visibility: config.feedbackDocumentVisibility || 'private',
-      pushProgress,
       submittedAt: result.submittedAt,
     })
 
@@ -117,41 +101,6 @@ export async function action({request}: ActionFunctionArgs) {
   } catch (error) {
     reportError(error, {feature: 'feedback', operation: 'server-publish-feedback'})
     return json({message: 'Failed to save feedback'}, {status: 500})
-  }
-}
-
-async function pushFeedbackDocumentToPeer(documentId: string, addrs: string[]): Promise<FeedbackPushProgress | null> {
-  let latestProgress: FeedbackPushProgress | null = null
-  for await (const progress of grpcClient.resources.pushResourcesToPeer({
-    resources: [documentId],
-    addrs,
-    recursive: false,
-  })) {
-    latestProgress = formatPushProgress(progress)
-  }
-
-  if (latestProgress?.blobsFailed) {
-    throw new Error(`Failed to push ${latestProgress.blobsFailed} feedback blob(s) to destination peer`)
-  }
-
-  return latestProgress
-}
-
-type FeedbackPushProgress = {
-  blobsAnnounced: number
-  blobsKnown: number
-  blobsWanted: number
-  blobsProcessed: number
-  blobsFailed: number
-}
-
-function formatPushProgress(progress: AnnounceBlobsProgress): FeedbackPushProgress {
-  return {
-    blobsAnnounced: progress.blobsAnnounced,
-    blobsKnown: progress.blobsKnown,
-    blobsWanted: progress.blobsWanted,
-    blobsProcessed: progress.blobsProcessed,
-    blobsFailed: progress.blobsFailed,
   }
 }
 
