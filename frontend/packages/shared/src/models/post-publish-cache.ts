@@ -20,4 +20,5 @@ export function invalidateAfterPublish(docId: UnpackedHypermediaId, newDocument:
   invalidateQueries([queryKeys.ENTITY, docId.id])
   invalidateQueries([queryKeys.ACCOUNT, docId.uid])
   invalidateQueries([queryKeys.RESOLVED_ENTITY, docId.id])
+  invalidateQueries([queryKeys.ACTIVITY_FEED])
 }

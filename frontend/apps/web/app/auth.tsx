@@ -1,28 +1,28 @@
-import { useNavigate } from '@remix-run/react'
-import { createSeedClient } from '@seed-hypermedia/client'
-import { HMDocument, HMPrepareDocumentChangeInput, HMSigner } from '@seed-hypermedia/client/hm-types'
-import { hmId, hostnameStripProtocol, postAccountCreateAction, queryKeys, useUniversalAppContext } from '@shm/shared'
-import { WEB_IDENTITY_ORIGIN } from '@shm/shared/constants'
-import { useAccount, useResource } from '@shm/shared/models/entity'
-import { invalidateQueries } from '@shm/shared/models/query-client'
-import { useTx, useTxString } from '@shm/shared/translation'
-import { Button } from '@shm/ui/button'
-import { DialogDescription, DialogFooter, DialogTitle } from '@shm/ui/components/dialog'
-import { EditProfileForm, SiteMetaFields } from '@shm/ui/edit-profile-form'
-import { SeedLogo } from '@shm/ui/seed-logo'
-import { Spinner } from '@shm/ui/spinner'
-import { SizableText } from '@shm/ui/text'
-import { toast } from '@shm/ui/toast'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { useMutation } from '@tanstack/react-query'
-import { LogOut, Monitor, Settings, Smartphone } from 'lucide-react'
-import { base58btc } from 'multiformats/bases/base58'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { SubmitHandler } from 'react-hook-form'
-import { encodeBlock, rawCodec } from './api'
+import {useNavigate} from '@remix-run/react'
+import {createSeedClient} from '@seed-hypermedia/client'
+import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
+import {hmId, hostnameStripProtocol, postAccountCreateAction, queryKeys, useUniversalAppContext} from '@shm/shared'
+import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {useTx, useTxString} from '@shm/shared/translation'
+import {Button} from '@shm/ui/button'
+import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
+import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {SeedLogo} from '@shm/ui/seed-logo'
+import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMutation} from '@tanstack/react-query'
+import {LogOut, Monitor, Settings, Smartphone} from 'lucide-react'
+import {base58btc} from 'multiformats/bases/base58'
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
+import {SubmitHandler} from 'react-hook-form'
+import {encodeBlock, rawCodec} from './api'
 import * as authSession from './auth-session'
-import { preparePublicKey, signWithKeyPair } from './auth-utils'
-import { createDefaultAccountName } from './default-account-name'
+import {preparePublicKey, signWithKeyPair} from './auth-utils'
+import {createDefaultAccountName} from './default-account-name'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
@@ -35,10 +35,10 @@ import {
   setPendingIntent,
   writeLocalKeys,
 } from './local-db'
-import { queryAPI } from './models'
-import { reportError } from './report-error'
-import { createSecretTapUnlock } from './secret-tap-unlock'
-import { getVaultAccountSettingsUrl } from './vault-links'
+import {queryAPI} from './models'
+import {reportError} from './report-error'
+import {createSecretTapUnlock} from './secret-tap-unlock'
+import {getVaultAccountSettingsUrl} from './vault-links'
 
 const seedClient = createSeedClient('')
 
@@ -120,7 +120,7 @@ function updateKeyPair() {
     .then(syncKeyPair)
     .catch((err) => {
       console.error(err)
-      reportError(err, { feature: 'auth', operation: 'load-local-identity' })
+      reportError(err, {feature: 'auth', operation: 'load-local-identity'})
     })
 }
 
@@ -132,9 +132,9 @@ export function logout() {
     setHasPromptedEmailNotifications(false),
     vaultUrl ? authSession.clearSession(vaultUrl) : Promise.resolve(),
     clearAllAuthState(),
-    fetch('/hm/api/auth', { method: 'DELETE', credentials: 'include' }).catch((e) => {
+    fetch('/hm/api/auth', {method: 'DELETE', credentials: 'include'}).catch((e) => {
       console.error('Failed to clear daemon auth cookie', e)
-      reportError(e, { feature: 'auth', operation: 'logout-clear-daemon-cookie' })
+      reportError(e, {feature: 'auth', operation: 'logout-clear-daemon-cookie'})
     }),
   ])
     .then(() => {
@@ -142,7 +142,7 @@ export function logout() {
     })
     .catch((e) => {
       console.error('Failed to log out', e)
-      reportError(e, { feature: 'auth', operation: 'logout' })
+      reportError(e, {feature: 'auth', operation: 'logout'})
     })
 }
 
@@ -189,7 +189,7 @@ export async function createAccount({
     const uid = base58btc.encode(id)
 
     try {
-      const accountResult = await queryAPI<{ type?: string }>(`/api/Account?id=${encodeURIComponent(uid)}`)
+      const accountResult = await queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(uid)}`)
       if (accountResult?.type === 'account') {
         const webIdentity = {
           ...keyPair,
@@ -200,7 +200,7 @@ export async function createAccount({
       }
     } catch (err) {
       console.warn('Failed to verify existing local account, proceeding with account creation', err)
-      reportError(err, { feature: 'auth', operation: 'verify-existing-account', uid })
+      reportError(err, {feature: 'auth', operation: 'verify-existing-account', uid})
     }
   } else {
     keyPair = await generateAndStoreKeyPair()
@@ -213,21 +213,21 @@ export async function createAccount({
   const uid = base58btc.encode(await preparePublicKey(keyPair.publicKey))
 
   const changes: HMPrepareDocumentChangeInput['changes'] = [
-    { op: { case: 'setMetadata', value: { key: 'name', value: name } } },
+    {op: {case: 'setMetadata', value: {key: 'name', value: name}}},
   ]
 
   // Publish icon blob first if provided
   if (icon) {
     const iconBlock = await encodeBlock(await icon.arrayBuffer(), rawCodec)
     await seedClient.publish({
-      blobs: [{ data: iconBlock.bytes, cid: iconBlock.cid.toString() }],
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
     })
-    changes.push({ op: { case: 'setMetadata', value: { key: 'icon', value: iconBlock.cid.toString() } } })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
 
-  await seedClient.publishDocument({ account: uid, changes }, signer)
+  await seedClient.publishDocument({account: uid, changes}, signer)
 
-  const createdIdentity = { ...keyPair, id: uid }
+  const createdIdentity = {...keyPair, id: uid}
   keyPairStore.set(createdIdentity)
   await postAccountCreateAction(
     {
@@ -270,14 +270,14 @@ export async function updateProfile({
   const signer = createSignerFromKeyPair(keyPair)
   const changes: HMPrepareDocumentChangeInput['changes'] = []
   if (updates.name && updates.name !== document.metadata.name) {
-    changes.push({ op: { case: 'setMetadata', value: { key: 'name', value: updates.name } } })
+    changes.push({op: {case: 'setMetadata', value: {key: 'name', value: updates.name}}})
   }
   if (updates.icon && typeof updates.icon !== 'string') {
     const iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
     await seedClient.publish({
-      blobs: [{ data: iconBlock.bytes, cid: iconBlock.cid.toString() }],
+      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
     })
-    changes.push({ op: { case: 'setMetadata', value: { key: 'icon', value: iconBlock.cid.toString() } } })
+    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
   }
   await seedClient.publishDocument(
     {
@@ -295,7 +295,7 @@ type CreateAccountDialogInput = {
   source?: 'join' | 'login'
 }
 
-export function useCreateAccount(options?: { onClose?: () => void }) {
+export function useCreateAccount(options?: {onClose?: () => void}) {
   const userKeyPair = useLocalKeyPair()
   const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
 
@@ -314,7 +314,7 @@ export function useCreateAccount(options?: { onClose?: () => void }) {
   })
   return {
     canCreateAccount: !userKeyPair,
-    createAccount: (input?: CreateAccountDialogInput) => createAccountDialog.open({ source: input?.source ?? 'login' }),
+    createAccount: (input?: CreateAccountDialogInput) => createAccountDialog.open({source: input?.source ?? 'login'}),
     content: createAccountDialog.content,
     createDefaultAccount: async () => {
       return await createAccount({
@@ -354,8 +354,8 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
-function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInput; onClose: () => void }) {
-  const { origin, originHomeId } = useUniversalAppContext()
+function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput; onClose: () => void}) {
+  const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
   const siteName = hostnameStripProtocol(origin)
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
@@ -396,7 +396,7 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
     console.log('[handleVaultSignIn] originHomeId:', originHomeId)
     console.log('[handleVaultSignIn] source:', source)
     if (source === 'join' && !existingIntent && originHomeId?.uid) {
-      await setPendingIntent({ type: 'join', subjectUid: originHomeId.uid })
+      await setPendingIntent({type: 'join', subjectUid: originHomeId.uid})
     }
     try {
       const authUrl = await authSession.startAuth({
@@ -413,7 +413,7 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
 
   const onSubmit: SubmitHandler<SiteMetaFields> = async (data) => {
     try {
-      await createAccount({ name: data.name, icon: data.icon })
+      await createAccount({name: data.name, icon: data.icon})
       // onClose triggers processPendingIntent() which publishes the comment
       // from IDB and navigates to it.
       onClose()
@@ -424,15 +424,15 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
 
   return (
     <>
-      <DialogTitle className="flex gap-2 items-center max-sm:text-base" onClick={secretTap.tap}>
+      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={secretTap.tap}>
         {localAccountUnlocked ? (
-          tx('create_account_title', ({ siteName }: { siteName: string }) => `Create Account on ${siteName}`, {
+          tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
             siteName: siteName || 'this site',
           })
         ) : (
           <>
-            <div className="flex justify-center items-center bg-emerald-600 rounded-full size-8">
-              <SeedLogo className="text-white size-4" />
+            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+              <SeedLogo className="size-4 text-white" />
             </div>
             {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
           </>
@@ -451,7 +451,7 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
             onSubmit={(values) => {
               onSubmit(values)
             }}
-            submitLabel={tx('create_account_submit', ({ siteName }: { siteName: string }) => `Create ${siteName} Account`, {
+            submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
               siteName,
             })}
             processImage={optimizeImage}
@@ -480,21 +480,21 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
           </Button>
 
           {/* Divider */}
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
             <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
-            <div className="flex-1 h-px bg-neutral-200 dark:bg-neutral-700" />
+            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
           </div>
 
           <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
             Already have a Hypermedia Identity?
           </Button>
 
-          <div className="text-sm text-center text-neutral-500 dark:text-neutral-400">
+          <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
             Do you have another identity domain?{' '}
             <button
               type="button"
-              className="font-medium text-emerald-600 underline cursor-pointer underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
               onClick={() => setShowCustomVaultInput(true)}
             >
               Sign in with it
@@ -502,7 +502,7 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
           </div>
 
           {showCustomVaultInput && (
-            <div className="flex flex-col gap-2 p-3 rounded-md border border-neutral-200 dark:border-neutral-700">
+            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
               <SizableText size="sm" className="font-medium">
                 Identity Domain
               </SizableText>
@@ -519,7 +519,7 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
                   }
                 }}
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
                   Cancel
                 </Button>
@@ -540,8 +540,8 @@ function CreateAccountDialog({ input, onClose }: { input: CreateAccountDialogInp
   )
 }
 
-function VaultSuccessDialog({ input, onClose }: { input: { variant: 'comment' | 'join' }; onClose: () => void }) {
-  const { origin } = useUniversalAppContext()
+function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
+  const {origin} = useUniversalAppContext()
   const siteName = hostnameStripProtocol(origin)
 
   useEffect(() => {
@@ -552,7 +552,7 @@ function VaultSuccessDialog({ input, onClose }: { input: { variant: 'comment' | 
 
   return (
     <>
-      <DialogTitle className="flex gap-2 items-center">
+      <DialogTitle className="flex items-center gap-2">
         You are in <span aria-hidden>🎉</span>
       </DialogTitle>
       {input.variant === 'comment' ? (
@@ -584,7 +584,7 @@ function VaultSuccessDialog({ input, onClose }: { input: { variant: 'comment' | 
 
 /** Detects `?vault_success=...` in the URL and shows the matching dialog or toast. */
 export function useVaultSuccessDialog() {
-  const { origin } = useUniversalAppContext()
+  const {origin} = useUniversalAppContext()
   const dialog = useAppDialog(VaultSuccessDialog)
   const siteName = hostnameStripProtocol(origin) || 'this site'
 
@@ -598,7 +598,7 @@ export function useVaultSuccessDialog() {
     window.history.replaceState(null, '', url.pathname + url.search + url.hash)
 
     if (variant === 'comment' || variant === 'join') {
-      dialog.open({ variant })
+      dialog.open({variant})
       return
     }
     if (variant === 'login') {
@@ -629,10 +629,10 @@ async function optimizeImage(file: File): Promise<Blob> {
   }
   const contentType = response.headers.get('content-type') || 'image/png'
   const responseBlob = await response.blob()
-  return new Blob([responseBlob], { type: contentType })
+  return new Blob([responseBlob], {type: contentType})
 }
 
-export function LogoutDialog({ onClose }: { onClose: () => void }) {
+export function LogoutDialog({onClose}: {onClose: () => void}) {
   const keyPair = useLocalKeyPair()
   const account = useAccount(keyPair?.id)
   const navigate = useNavigate()
@@ -640,7 +640,7 @@ export function LogoutDialog({ onClose }: { onClose: () => void }) {
   if (!keyPair) return <DialogTitle>No session found</DialogTitle>
   if (account.isLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -652,16 +652,16 @@ export function LogoutDialog({ onClose }: { onClose: () => void }) {
         {isAccountAliased
           ? tx('logout_account_saved', 'This account will remain accessible on other devices.')
           : tx(
-            'logout_account_not_saved',
-            'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
-          )}
+              'logout_account_not_saved',
+              'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
+            )}
       </DialogDescription>
       <Button
         variant="destructive"
         onClick={() => {
           logout()
           onClose()
-          navigate('/', { replace: true })
+          navigate('/', {replace: true})
         }}
       >
         {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
@@ -670,7 +670,7 @@ export function LogoutDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function EditProfileDialog({ onClose, input }: { onClose: () => void; input: { accountUid: string } }) {
+export function EditProfileDialog({onClose, input}: {onClose: () => void; input: {accountUid: string}}) {
   const keyPair = useLocalKeyPair()
   const id = hmId(input.accountUid)
   const tx = useTx()
@@ -796,7 +796,7 @@ export function LogoutButton() {
   )
 }
 
-export function AccountFooterActions(props: { hideDeviceLinkToast?: boolean }) {
+export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
@@ -853,7 +853,7 @@ export function AccountFooterActions(props: { hideDeviceLinkToast?: boolean }) {
 
   if (!userKeyPair) return null
   return (
-    <div className="flex flex-wrap gap-2 justify-end max-w-full">
+    <div className="flex max-w-full flex-wrap justify-end gap-2">
       {logoutDialog.content}
       {editProfileDialog.content}
       {linkKeysDialog.content}

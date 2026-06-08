@@ -126,8 +126,19 @@ describe('shouldUseDraftForRenderedDocument', () => {
       shouldUseDraftForRenderedDocument({
         docId: hmId('alice', {path: ['doc'], version: 'old-version'}),
         existingDraft: {id: 'draft-1', metadata: {name: 'Draft'}} as any,
+        isLatest: false,
       }),
     ).toBe(false)
+  })
+
+  it('uses a draft on a versioned latest route', () => {
+    expect(
+      shouldUseDraftForRenderedDocument({
+        docId: hmId('alice', {path: ['doc'], version: 'latest-version'}),
+        existingDraft: {id: 'draft-1', metadata: {name: 'Draft'}} as any,
+        isLatest: true,
+      }),
+    ).toBe(true)
   })
 
   it('does not use a draft when no draft exists', () => {
