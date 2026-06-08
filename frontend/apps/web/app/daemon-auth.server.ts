@@ -1,16 +1,28 @@
-import {createCookie} from '@remix-run/node'
 import {AsyncLocalStorage} from 'node:async_hooks'
 
 const DAEMON_AUTH_COOKIE = process.env.NODE_ENV === 'production' ? '__Host-HM-Auth-Token' : 'HM-Auth-Token'
 
 const authTokenStorage = new AsyncLocalStorage<string | null>()
 
-export const daemonAuthCookie = createCookie(DAEMON_AUTH_COOKIE, {
-  httpOnly: true,
-  sameSite: 'lax',
-  secure: process.env.NODE_ENV === 'production' ? true : undefined,
-  path: '/',
-})
+export const daemonAuthCookie = {
+  async parse(cookieHeader: string | null): Promise<string | null> {
+    if (!cookieHeader) return null
+    const cookies = cookieHeader.split(';')
+    for (const cookie of cookies) {
+      const [rawName, ...rawValue] = cookie.trim().split('=')
+      if (rawName === DAEMON_AUTH_COOKIE) {
+        return decodeURIComponent(rawValue.join('='))
+      }
+    }
+    return null
+  },
+  async serialize(value: string, options?: {expires?: Date}): Promise<string> {
+    const parts = [`${DAEMON_AUTH_COOKIE}=${encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax']
+    if (process.env.NODE_ENV === 'production') parts.push('Secure')
+    if (options?.expires) parts.push(`Expires=${options.expires.toUTCString()}`)
+    return parts.join('; ')
+  },
+}
 
 export async function getDaemonAuthToken(request: Request): Promise<string | null> {
   const value = await daemonAuthCookie.parse(request.headers.get('Cookie'))

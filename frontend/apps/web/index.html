@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" suppressHydrationWarning>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Seed Hypermedia</title>
+    <script>
+      ;(function () {
+        try {
+          if (matchMedia('(prefers-color-scheme:dark)').matches) document.documentElement.classList.add('dark')
+        } catch (e) {}
+      })()
+    </script>
+    <script>
+      window.ENV = {}
+    </script>
+  </head>
+  <body class="bg-muted min-h-screen font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/app/main.tsx"></script>
+  </body>
+</html>

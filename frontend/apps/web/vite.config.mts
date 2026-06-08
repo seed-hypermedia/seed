@@ -1,4 +1,4 @@
-import {vitePlugin as remix} from '@remix-run/dev'
+import react from '@vitejs/plugin-react'
 // @ts-ignore
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
@@ -11,38 +11,23 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 // @ts-ignore
 import {envOnlyMacros} from 'vite-env-only'
 
-export default defineConfig(({isSsrBuild}) => {
+export default defineConfig(() => {
   return {
     server: {
       port: 3000,
       cors: false,
     },
     clearScreen: false,
-    // css: {
-    //   preprocessorOptions: {
-    //     css: {
-    //       // Include node_modules as part of the CSS processing
-    //       includePaths: ["./node_modules", "../../../node_modules"],
-    //     },
-    //   },
-    // },
-    // ssr: {
-    //   noExternal: ["react-tweet"],
-    // },
     build: {minify: true, sourcemap: true},
     ssr: {
-      // Bundle all workspace packages and common dependencies for proper SSR with pnpm
       noExternal: [
         'react-icons',
         '@shm/editor',
         '@shm/shared',
         '@shm/ui',
         '@yudiel/react-qr-scanner',
-        // Match all @radix-ui packages
         /^@radix-ui\//,
-        // Match all @atlaskit packages (pragmatic-drag-and-drop uses directory-based subpaths)
         /^@atlaskit\//,
-        // Other packages that may have ESM/SSR issues
         'sonner',
         'class-variance-authority',
         'clsx',
@@ -51,46 +36,29 @@ export default defineConfig(({isSsrBuild}) => {
         'vaul',
       ],
     },
-    define: isSsrBuild
-      ? {}
-      : {
-          // Define individual keys instead of replacing the entire `process.env` object.
-          // Replacing the whole object breaks SSR modules in dev mode that read env vars
-          // not listed here (e.g. SEED_IDENTITY_DEFAULT_ORIGIN) via process.env at runtime.
-          'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-          'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
-          'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
-          'process.env.SEED_IS_GATEWAY': JSON.stringify(process.env.SEED_IS_GATEWAY),
-          'process.env.SITE_SENTRY_DSN': JSON.stringify(process.env.SITE_SENTRY_DSN),
-          'process.env.SITE_SENTRY_RELEASE': JSON.stringify(
-            process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || '',
-          ),
-          'process.env.SITE_SENTRY_ENVIRONMENT': JSON.stringify(
-            process.env.SITE_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
-          ),
-          'process.env.SENTRY_RELEASE': JSON.stringify(process.env.SENTRY_RELEASE || ''),
-          'process.env.SENTRY_ENVIRONMENT': JSON.stringify(process.env.SENTRY_ENVIRONMENT || ''),
-        },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+      'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
+      'process.env.SEED_ENABLE_STATISTICS': JSON.stringify(process.env.SEED_ENABLE_STATISTICS),
+      'process.env.SEED_IS_GATEWAY': JSON.stringify(process.env.SEED_IS_GATEWAY),
+      'process.env.SITE_SENTRY_DSN': JSON.stringify(process.env.SITE_SENTRY_DSN),
+      'process.env.SITE_SENTRY_RELEASE': JSON.stringify(
+        process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || '',
+      ),
+      'process.env.SITE_SENTRY_ENVIRONMENT': JSON.stringify(
+        process.env.SITE_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'production',
+      ),
+      'process.env.SENTRY_RELEASE': JSON.stringify(process.env.SENTRY_RELEASE || ''),
+      'process.env.SENTRY_ENVIRONMENT': JSON.stringify(process.env.SENTRY_ENVIRONMENT || ''),
+    },
     optimizeDeps: {
       exclude:
         process.env.NODE_ENV === 'production'
           ? []
-          : ['expo-linear-gradient', 'react-icons', '@shm/editor', '@shm/shared', '@remix-run/react'],
+          : ['expo-linear-gradient', 'react-icons', '@shm/editor', '@shm/shared'],
     },
     plugins: [
-      remix({
-        // Keep colocated test files out of the route table — otherwise Remix
-        // turns e.g. `app/routes/hm.api.auth.test.ts` into a route, bundles it
-        // into the server build, and its `vitest` import crashes every page.
-        ignoredRouteFiles: ['**/*.test.*', '**/*.spec.*'],
-        future: {
-          v3_fetcherPersist: true,
-          v3_relativeSplatPath: true,
-          v3_throwAbortReason: true,
-          v3_singleFetch: true,
-          v3_lazyRouteDiscovery: true,
-        },
-      }),
+      react(),
       envOnlyMacros(),
       tsconfigPaths({root: path.resolve(__dirname, '../..')}),
       commonjs({
@@ -100,19 +68,41 @@ export default defineConfig(({isSsrBuild}) => {
           }
         },
       }),
-      // analyzer({
-      //   analyzerMode: "static",
-      //   fileName: "report",
-      // }),
-      // {
-      //   name: "log-files",
-      //   transform(code, id) {
-      //     console.log("--- Processing file:", id);
-      //     return code;
-      //   },
-      // },
+      {
+        name: 'seed-web-api-dev-server',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            const host = req.headers.host || 'localhost:3000'
+            const requestUrl = new URL(req.url || '/', `http://${host}`)
+            if (!requestUrl.pathname.startsWith('/api/') && !requestUrl.pathname.startsWith('/hm/api/')) {
+              next()
+              return
+            }
+            try {
+              const chunks: Buffer[] = []
+              for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+              const request = new Request(requestUrl, {
+                method: req.method,
+                headers: req.headers as HeadersInit,
+                body: chunks.length ? Buffer.concat(chunks) : undefined,
+              })
+              const {handleWebApiRequest} = await server.ssrLoadModule('/app/http-handlers.server.ts')
+              const response = (await handleWebApiRequest(request)) as Response | null
+              if (!response) {
+                next()
+                return
+              }
+              res.statusCode = response.status
+              response.headers.forEach((value, key) => res.setHeader(key, value))
+              const body = response.body ? Buffer.from(await response.arrayBuffer()) : null
+              res.end(body)
+            } catch (error) {
+              next(error)
+            }
+          })
+        },
+      },
       tailwindcss(),
-      // Add Sentry plugin for production builds
       process.env.NODE_ENV === 'production' &&
         process.env.SENTRY_AUTH_TOKEN &&
         sentryVitePlugin({
@@ -127,9 +117,7 @@ export default defineConfig(({isSsrBuild}) => {
             deploy: {env: process.env.SITE_SENTRY_ENVIRONMENT || 'production'},
           },
           sourcemaps: {
-            // Strip uploaded .map files from the deployed bundle so we don't
-            // serve them publicly.
-            filesToDeleteAfterUpload: ['./build/client/**/*.map', './build/server/**/*.map'],
+            filesToDeleteAfterUpload: ['./dist/**/*.map'],
           },
         }),
     ].filter(Boolean),
@@ -146,10 +134,13 @@ export default defineConfig(({isSsrBuild}) => {
         'react-dom',
       ],
       alias: {
+        '@/editor.css': path.resolve(__dirname, '../../packages/editor/src/editor.css'),
+        '@/blocknote': path.resolve(__dirname, '../../packages/editor/src/blocknote'),
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
         '@seed-hypermedia/client': path.resolve(__dirname, '../../packages/client/src'),
+        '@': path.resolve(__dirname, './app'),
       },
     },
   }

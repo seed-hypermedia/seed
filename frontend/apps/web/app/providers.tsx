@@ -1,4 +1,4 @@
-import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
+import {useLocation, useNavigate, useRouterState} from '@tanstack/react-router'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client'
 import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
@@ -120,8 +120,8 @@ export const Providers = (props: {children: any}) => {
 }
 
 function useNavigationLoading() {
-  const navigation = useNavigation()
-  const isNavigating = navigation.state === 'loading'
+  const routerStatus = useRouterState({select: (state) => state.status})
+  const isNavigating = routerStatus === 'pending'
   const [showLoading, setShowLoading] = useState(false)
 
   useEffect(() => {
@@ -312,7 +312,7 @@ export function WebSiteProvider(props: {
             } else {
               isInternalNav.current = true
               navigation.dispatch({type: 'push', route})
-              navigate(href)
+              navigate({to: href})
             }
             return
           }
@@ -351,9 +351,7 @@ export function WebSiteProvider(props: {
             window.location.assign('https://seed.hyper.media')
           } else {
             isInternalNav.current = true
-            navigate(href, {
-              replace,
-            })
+            navigate({to: href, replace})
           }
         } else {
           toast.error('Failed to open route')
