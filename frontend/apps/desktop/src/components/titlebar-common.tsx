@@ -66,7 +66,7 @@ import {
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
 import {CopyReferenceButton} from './copy-reference-button'
-import {dispatchOnboardingDialog} from './onboarding'
+import {useCreateAccount} from './create-account'
 import {usePublishSite} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
@@ -175,6 +175,7 @@ export function AccountProfileButton() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
+  const {createAccount, isCreating} = useCreateAccount()
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -307,13 +308,14 @@ export function AccountProfileButton() {
                 )}
               </div>
               <button
-                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-                onClick={() => dispatchOnboardingDialog(true)}
+                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2 disabled:opacity-60"
+                disabled={isCreating}
+                onClick={() => createAccount()}
               >
                 <div className="bg-muted flex size-8 items-center justify-center rounded-full">
                   <Plus className="size-4" />
                 </div>
-                <p className="text-sm">Create account</p>
+                <p className="text-sm">{isCreating ? 'Creating…' : 'Create account'}</p>
               </button>
             </>
           )}

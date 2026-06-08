@@ -1,4 +1,3 @@
-import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
@@ -266,172 +265,172 @@ export function usePublishResource(
       const navigationChanges = getNavigationChanges(draft.navigation, editDocument?.detachedBlocks?.navigation)
 
       if (accts.data?.length == 0) {
-        dispatchOnboardingDialog(true)
-      } else {
-        try {
-          if (accountId && draft.id) {
-            // Probe whether a doc already exists at the original destination.
-            // The result drives two things:
-            //  1. Whether to apply the inline-first-publish slug rename below.
-            //  2. Fallback base version for legacy drafts that have no deps.
-            // Skipped for legacy first-publishes (no `editId` outer arg) because
-            // there is no doc to fetch yet.
-            let existingDocVersion: string | null = null
-            if (editId) {
-              try {
-                const latestDoc = await grpcClient.documents.getDocument({
-                  account: destinationId.uid,
-                  path: hmIdPathToEntityQueryPath(destinationId.path || []),
-                })
-                if (latestDoc?.version) {
-                  existingDocVersion = latestDoc.version
-                }
-              } catch (err) {
-                // Doc doesn't exist yet (first publish) — leave existingDoc null.
-                console.log('[publish] getDocument(latest) failed — treating as first publish', err)
-              }
-            }
+        throw new Error('Create an account before publishing')
+      }
 
-            // Resolve the actual destination (slug rename for inline
-            // first-publish, plus any explicit pathOverride from the publish
-            // popover). See `resolvePublishPath` for the precedence rules.
-            const resolvedPath = resolvePublishPath({
-              currentPath: destinationId.path ?? [],
-              draftId: draft.id,
-              draftName: draft.metadata?.name || '',
-              isPrivate: draft.visibility === 'PRIVATE',
-              existsAtDestination: !!existingDocVersion,
+      try {
+        if (accountId && draft.id) {
+          // Probe whether a doc already exists at the original destination.
+          // The result drives two things:
+          //  1. Whether to apply the inline-first-publish slug rename below.
+          //  2. Fallback base version for legacy drafts that have no deps.
+          // Skipped for legacy first-publishes (no `editId` outer arg) because
+          // there is no doc to fetch yet.
+          let existingDocVersion: string | null = null
+          if (editId) {
+            try {
+              const latestDoc = await grpcClient.documents.getDocument({
+                account: destinationId.uid,
+                path: hmIdPathToEntityQueryPath(destinationId.path || []),
+              })
+              if (latestDoc?.version) {
+                existingDocVersion = latestDoc.version
+              }
+            } catch (err) {
+              // Doc doesn't exist yet (first publish) — leave existingDoc null.
+              console.log('[publish] getDocument(latest) failed — treating as first publish', err)
+            }
+          }
+
+          // Resolve the actual destination (slug rename for inline
+          // first-publish, plus any explicit pathOverride from the publish
+          // popover). See `resolvePublishPath` for the precedence rules.
+          const resolvedPath = resolvePublishPath({
+            currentPath: destinationId.path ?? [],
+            draftId: draft.id,
+            draftName: draft.metadata?.name || '',
+            isPrivate: draft.visibility === 'PRIVATE',
+            existsAtDestination: !!existingDocVersion,
+            pathOverride,
+          })
+          const resolvedDestinationId =
+            resolvedPath === destinationId.path ? destinationId : hmId(destinationId.uid, {path: resolvedPath})
+          if (resolvedDestinationId !== destinationId) {
+            console.log('[publish] resolved destination path', {
+              from: destinationId.path,
+              to: resolvedDestinationId.path,
+              name: draft.metadata?.name,
               pathOverride,
             })
-            const resolvedDestinationId =
-              resolvedPath === destinationId.path ? destinationId : hmId(destinationId.uid, {path: resolvedPath})
-            if (resolvedDestinationId !== destinationId) {
-              console.log('[publish] resolved destination path', {
-                from: destinationId.path,
-                to: resolvedDestinationId.path,
-                name: draft.metadata?.name,
-                pathOverride,
-              })
-            }
+          }
 
-            const allChanges = [
-              ...navigationChanges,
-              ...getDocAttributeChanges(draft.metadata),
-              ...changes.changes,
-              ...deleteChanges,
-            ]
+          const allChanges = [
+            ...navigationChanges,
+            ...getDocAttributeChanges(draft.metadata),
+            ...changes.changes,
+            ...deleteChanges,
+          ]
 
-            let capabilityId = ''
-            if (accountId !== resolvedDestinationId.uid) {
-              const capabilities = await grpcClient.accessControl.listCapabilities({
-                account: resolvedDestinationId.uid,
-                path: hmIdPathToEntityQueryPath(resolvedDestinationId.path || []),
-              })
-
-              const capability = capabilities.capabilities.find((cap) => cap.delegate === accountId)
-              if (!capability) throw new Error('Could not find capability for this draft signing account')
-              capabilityId = capability.id
-            }
-            writeRecentSigner.mutateAsync(accountId).then(() => {
-              invalidateQueries([queryKeys.RECENT_SIGNERS])
+          let capabilityId = ''
+          if (accountId !== resolvedDestinationId.uid) {
+            const capabilities = await grpcClient.accessControl.listCapabilities({
+              account: resolvedDestinationId.uid,
+              path: hmIdPathToEntityQueryPath(resolvedDestinationId.path || []),
             })
 
-            let visibility = ResourceVisibility.UNSPECIFIED
+            const capability = capabilities.capabilities.find((cap) => cap.delegate === accountId)
+            if (!capability) throw new Error('Could not find capability for this draft signing account')
+            capabilityId = capability.id
+          }
+          writeRecentSigner.mutateAsync(accountId).then(() => {
+            invalidateQueries([queryKeys.RECENT_SIGNERS])
+          })
 
-            // We only care to set the visibility if it's private.
-            if (draft.visibility === 'PRIVATE') {
-              visibility = ResourceVisibility.PRIVATE
-            }
+          let visibility = ResourceVisibility.UNSPECIFIED
 
-            // We must only specify the visibility if this is a first publish.
-            // For subsequent publishes we set it to unspecified, to let the server decide.
-            if (draft.deps?.length > 0) {
-              visibility = ResourceVisibility.UNSPECIFIED
-            }
+          // We only care to set the visibility if it's private.
+          if (draft.visibility === 'PRIVATE') {
+            visibility = ResourceVisibility.PRIVATE
+          }
 
-            const docPath = hmIdPathToEntityQueryPath(resolvedDestinationId.path || [])
+          // We must only specify the visibility if this is a first publish.
+          // For subsequent publishes we set it to unspecified, to let the server decide.
+          if (draft.deps?.length > 0) {
+            visibility = ResourceVisibility.UNSPECIFIED
+          }
 
-            // Publish from the draft's persisted base deps. Remote updates are
-            // handled by the document-machine rebase flow; do not silently bump
-            // deps to the newest head here, especially after a conflict was
-            // ignored to keep the user's local editor content stable.
-            let latestVersion = ''
-            if (existingDocVersion) {
-              latestVersion = existingDocVersion
-              // console.log('[publish] using existing latest heads', {
-              //   account: resolvedDestinationId.uid,
-              //   path: docPath,
-              //   latestVersion,
-              // })
-            }
-            const draftDeps = draft.deps ?? []
-            const baseVersion = draftDeps.length ? draftDeps.join('.') : latestVersion
+          const docPath = hmIdPathToEntityQueryPath(resolvedDestinationId.path || [])
 
-            // console.log('[publish] computed baseVersion', {
-            //   draftDeps,
-            //   baseVersion,
+          // Publish from the draft's persisted base deps. Remote updates are
+          // handled by the document-machine rebase flow; do not silently bump
+          // deps to the newest head here, especially after a conflict was
+          // ignored to keep the user's local editor content stable.
+          let latestVersion = ''
+          if (existingDocVersion) {
+            latestVersion = existingDocVersion
+            // console.log('[publish] using existing latest heads', {
+            //   account: resolvedDestinationId.uid,
+            //   path: docPath,
+            //   latestVersion,
             // })
+          }
+          const draftDeps = draft.deps ?? []
+          const baseVersion = draftDeps.length ? draftDeps.join('.') : latestVersion
 
-            const publishInput = {
-              signerAccountUid: accountId,
-              account: resolvedDestinationId.uid,
-              baseVersion,
-              path: docPath,
-              // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
-              changes: allChanges as any,
-              capability: capabilityId,
-              visibility,
-              genesis: editDocument?.genesis,
-              generation: editDocument?.generationInfo?.generation,
-            }
-            await desktopUniversalClient.publishDocument!(publishInput)
+          // console.log('[publish] computed baseVersion', {
+          //   draftDeps,
+          //   baseVersion,
+          // })
 
-            const updatedDoc = await grpcClient.documents.getDocument({
+          const publishInput = {
+            signerAccountUid: accountId,
+            account: resolvedDestinationId.uid,
+            baseVersion,
+            path: docPath,
+            // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
+            changes: allChanges as any,
+            capability: capabilityId,
+            visibility,
+            genesis: editDocument?.genesis,
+            generation: editDocument?.generationInfo?.generation,
+          }
+          await desktopUniversalClient.publishDocument!(publishInput)
+
+          const updatedDoc = await grpcClient.documents.getDocument({
+            account: resolvedDestinationId.uid,
+            path: docPath,
+          })
+          // console.log('[publish] result', {
+          //   requestedBaseVersion: baseVersion,
+          //   resultVersion: updatedDoc.version,
+          // })
+
+          // Inspect the Change blob the server produced to verify deps.
+          try {
+            const changesResp = await grpcClient.documents.listDocumentChanges({
               account: resolvedDestinationId.uid,
               path: docPath,
+              version: updatedDoc.version,
+              pageSize: 10,
             })
-            // console.log('[publish] result', {
-            //   requestedBaseVersion: baseVersion,
-            //   resultVersion: updatedDoc.version,
+            const newChange = changesResp.changes.find((c) => c.id === updatedDoc.version)
+            // console.log('[publish] new change deps', {
+            //   newChangeId: newChange?.id,
+            //   deps: newChange?.deps,
+            //   author: newChange?.author,
+            //   expectedDeps: draftDeps,
+            //   allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
             // })
-
-            // Inspect the Change blob the server produced to verify deps.
-            try {
-              const changesResp = await grpcClient.documents.listDocumentChanges({
-                account: resolvedDestinationId.uid,
-                path: docPath,
-                version: updatedDoc.version,
-                pageSize: 10,
-              })
-              const newChange = changesResp.changes.find((c) => c.id === updatedDoc.version)
-              // console.log('[publish] new change deps', {
-              //   newChangeId: newChange?.id,
-              //   deps: newChange?.deps,
-              //   author: newChange?.author,
-              //   expectedDeps: draftDeps,
-              //   allChanges: changesResp.changes.map((c) => ({id: c.id, deps: c.deps})),
-              // })
-            } catch (err) {
-              console.log('[publish] listDocumentChanges failed', err)
-            }
-            const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
-            return resultDoc
-          } else {
-            throw Error('PUBLISH ERROR: Please select an account to sign first')
+          } catch (err) {
+            console.log('[publish] listDocumentChanges failed', err)
           }
-        } catch (error) {
-          const connectErr = ConnectError.from(error)
-          const msg = connectErr.rawMessage.toLowerCase()
-          const isDuplicatePath =
-            (connectErr.code === Code.FailedPrecondition && msg.includes('path already exists')) ||
-            msg.includes('preparedocumentchange')
-          if (isDuplicatePath) {
-            throw new Error(
-              'A document already exists at this path. Please choose a different path name before publishing.',
-            )
-          }
-          throw new Error(`Failed to publish: ${connectErr.rawMessage}`)
+          const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
+          return resultDoc
+        } else {
+          throw Error('PUBLISH ERROR: Please select an account to sign first')
         }
+      } catch (error) {
+        const connectErr = ConnectError.from(error)
+        const msg = connectErr.rawMessage.toLowerCase()
+        const isDuplicatePath =
+          (connectErr.code === Code.FailedPrecondition && msg.includes('path already exists')) ||
+          msg.includes('preparedocumentchange')
+        if (isDuplicatePath) {
+          throw new Error(
+            'A document already exists at this path. Please choose a different path name before publishing.',
+          )
+        }
+        throw new Error(`Failed to publish: ${connectErr.rawMessage}`)
       }
       throw new Error('Unhandled publish')
     },

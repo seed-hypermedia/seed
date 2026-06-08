@@ -15,7 +15,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare, Plus, Settings} from 'lucide-react'
 import {useEffect, useState} from 'react'
-import {dispatchOnboardingDialog} from './onboarding'
+import {useCreateAccount} from './create-account'
 
 export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: boolean}) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
@@ -154,16 +154,19 @@ function LinkKeyButton() {
 }
 
 function CreateAccountButton({className}: {className?: string}) {
+  const {createAccount, isCreating} = useCreateAccount()
+
   return (
     <Button
       variant="default"
       className={cn('flex-1 border-none', className)}
+      disabled={isCreating}
       onClick={() => {
-        dispatchOnboardingDialog(true)
+        createAccount()
       }}
     >
       <Plus className="size-4" />
-      Create Account
+      {isCreating ? 'Creating…' : 'Create Account'}
     </Button>
   )
 }

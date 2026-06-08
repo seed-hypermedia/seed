@@ -118,6 +118,10 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), legacyKey.Principal())
 
+	complete, err := legacyMigrationComplete(secretStore)
+	require.NoError(t, err)
+	require.True(t, complete)
+
 	start, err := ks.StartConnection("https://vault.example.com", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://vault.example.com", start.RemoteURL)
@@ -175,6 +179,36 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	gotLegacy, err := legacy.GetKey(ctx, "legacy")
 	require.NoError(t, err)
 	require.Equal(t, legacyKey.Principal(), gotLegacy.Principal())
+
+	complete, err := legacyMigrationComplete(secretStore)
+	require.NoError(t, err)
+	require.True(t, complete)
+}
+
+func TestNewProductionDoesNotResurrectLegacyKeysAfterLocalVaultRemoval(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+
+	legacy := newStubKeyStore()
+	legacyKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x44}, 64)))
+	require.NoError(t, err)
+	require.NoError(t, legacy.StoreKey(ctx, "legacy", legacyKey))
+
+	first, err := openProduction(dataDir, legacy, secretStore)
+	require.NoError(t, err)
+	gotLegacy, err := first.GetKey(ctx, "legacy")
+	require.NoError(t, err)
+	require.Equal(t, legacyKey.Principal(), gotLegacy.Principal())
+
+	require.NoError(t, os.Remove(filepath.Join(dataDir, fileName)))
+
+	second, err := openProduction(dataDir, legacy, secretStore)
+	require.NoError(t, err)
+	keys, err := second.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Empty(t, keys)
 }
 
 func TestMigrateLegacyKeySnapshotDoesNotWritePartialVaultFile(t *testing.T) {

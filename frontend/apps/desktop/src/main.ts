@@ -57,7 +57,7 @@ import {initDerivedSubscriptions} from './derived-subscriptions'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
 import {getStoredEmbeddingEnabled} from './app-experiments'
-import {getOnboardingState, setInitialAccountIdCount, setupOnboardingHandlers} from './app-onboarding-store'
+import {setupOnboardingHandlers} from './app-onboarding-store'
 import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
 import {
@@ -339,18 +339,11 @@ app.whenReady().then(async () => {
         })
 
       grpcClient.daemon.listKeys({}).then(async (response) => {
-        const onboardingState = getOnboardingState()
-        setInitialAccountIdCount(response.keys.length)
-
         // Close loading window right before opening main windows
         closeLoadingWindow()
         logger.debug('[MAIN]: Loading window closed, opening main windows')
 
-        if (
-          response.keys.length === 0 &&
-          !onboardingState.hasCompletedOnboarding &&
-          !onboardingState.hasSkippedOnboarding
-        ) {
+        if (response.keys.length === 0) {
           deleteWindowsState().then(() => {
             trpc.createAppWindow({routes: [defaultRoute]})
             isStartingUp = false
@@ -444,13 +437,7 @@ function initializeIpcHandlers() {
           })
 
         grpcClient.daemon.listKeys({}).then(async (response) => {
-          const onboardingState = getOnboardingState()
-          setInitialAccountIdCount(response.keys.length)
-          if (
-            response.keys.length === 0 &&
-            !onboardingState.hasCompletedOnboarding &&
-            !onboardingState.hasSkippedOnboarding
-          ) {
+          if (response.keys.length === 0) {
             deleteWindowsState().then(() => {
               trpc.createAppWindow({routes: [defaultRoute]})
               isStartingUp = false

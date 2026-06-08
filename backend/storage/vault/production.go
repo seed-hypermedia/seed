@@ -13,7 +13,11 @@ import (
 
 	"seed/backend/core"
 	"seed/backend/core/keystore"
+
+	"github.com/zalando/go-keyring"
 )
+
+const legacyMigrationCompleteName = "legacy-migration-complete"
 
 var (
 	errProductionVaultAlreadyInitialized = errors.New("production vault already initialized in this process")
@@ -40,7 +44,7 @@ func NewProduction(dataDir, environment string, opts ...RemoteOption) (*Vault, e
 }
 
 func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStore, opts ...RemoteOption) (*Vault, error) {
-	needsLegacyMigration, err := productionVaultNeedsLegacyMigration(dataDir)
+	localVaultExists, err := productionVaultExists(dataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -50,27 +54,61 @@ func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStor
 		return nil, err
 	}
 
+	legacyMigrationIsComplete, err := legacyMigrationComplete(secretStore)
+	if err != nil {
+		return nil, err
+	}
+	needsLegacyMigration := !localVaultExists && !legacyMigrationIsComplete
+
 	if legacy == nil || !needsLegacyMigration {
+		if err := markLegacyMigrationComplete(secretStore); err != nil {
+			return nil, err
+		}
 		return local, nil
 	}
 
 	if err := local.migrateLegacyKeys(context.Background(), legacy); err != nil {
 		return nil, err
 	}
+	if err := markLegacyMigrationComplete(secretStore); err != nil {
+		return nil, err
+	}
 
 	return local, nil
 }
 
-func productionVaultNeedsLegacyMigration(dataDir string) (bool, error) {
+func productionVaultExists(dataDir string) (bool, error) {
 	_, err := os.Stat(filepath.Join(dataDir, fileName))
 	if err == nil {
-		return false, nil
+		return true, nil
 	}
 	if os.IsNotExist(err) {
-		return true, nil
+		return false, nil
 	}
 
 	return false, fmt.Errorf("failed checking local vault file: %w", err)
+}
+
+func legacyMigrationComplete(secretStore SecretStore) (bool, error) {
+	_, err := secretStore.Load(legacyMigrationCompleteName, "")
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, keyring.ErrNotFound) {
+		return false, nil
+	}
+	return false, err
+}
+
+func markLegacyMigrationComplete(secretStore SecretStore) error {
+	complete, err := legacyMigrationComplete(secretStore)
+	if err != nil {
+		return err
+	}
+	if complete {
+		return nil
+	}
+	return secretStore.Store(legacyMigrationCompleteName, "", bytes.Repeat([]byte{0x01}, vaultSecretSize))
 }
 
 func (v *Vault) migrateLegacyKeys(ctx context.Context, legacy core.KeyStore) error {
