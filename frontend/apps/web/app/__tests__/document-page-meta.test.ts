@@ -10,6 +10,15 @@ vi.mock('@shm/editor/comment-editor', () => ({
   CommentEditor: () => null,
 }))
 
+vi.mock('@/loaders', () => ({
+  loadSiteResource: vi.fn(),
+  loadWebDraftPlaceholderResource: vi.fn(),
+}))
+
+vi.mock('@/site-config.server', () => ({
+  getConfig: vi.fn(),
+}))
+
 import {documentPageMeta} from '../routes/$'
 
 describe('documentPageMeta', () => {
