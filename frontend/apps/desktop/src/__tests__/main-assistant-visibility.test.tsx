@@ -9,6 +9,9 @@ const mockState = vi.hoisted(() => ({
   ipcSend: vi.fn(),
   providers: undefined as undefined | Array<{id: string; label?: string; model?: string}>,
   providersStatus: 'success' as 'pending' | 'success',
+  currentRoute: {key: 'missing'} as any,
+  documentMounts: 0,
+  documentUnmounts: 0,
 }))
 
 vi.mock('@/app-context', () => ({
@@ -114,8 +117,13 @@ vi.mock('@shm/shared/use-stream', () => ({
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
-  getRouteKey: () => 'missing',
-  useNavRoute: () => ({key: 'missing'}),
+  getRouteKey: (route: any) => {
+    if (route?.key === 'document') {
+      return `document:${route.id.uid}:${route.id.path?.join(':') || ''}`
+    }
+    return route?.key || 'missing'
+  },
+  useNavRoute: () => mockState.currentRoute,
 }))
 
 vi.mock('@shm/ui/container', () => ({
@@ -245,6 +253,23 @@ vi.mock('../pages/document-placeholder', async () => {
   }
 })
 
+vi.mock('../pages/desktop-resource', async () => {
+  const React = await import('react')
+
+  return {
+    default: function DesktopResourceMock() {
+      React.useEffect(() => {
+        mockState.documentMounts += 1
+        return () => {
+          mockState.documentUnmounts += 1
+        }
+      }, [])
+
+      return React.createElement('div', {'data-testid': 'desktop-resource'})
+    },
+  }
+})
+
 vi.mock('../pages/polyfills', () => ({}))
 
 import Main from '../pages/main'
@@ -290,6 +315,9 @@ describe('Main assistant visibility', () => {
     mockState.ipcSend.mockReset()
     mockState.providers = []
     mockState.providersStatus = 'success'
+    mockState.currentRoute = {key: 'missing'}
+    mockState.documentMounts = 0
+    mockState.documentUnmounts = 0
     ;(window as any).initNavState = {
       assistantOpen: true,
       assistantSessionId: 'session-1',
@@ -390,5 +418,38 @@ describe('Main assistant visibility', () => {
     expect(mockState.assistantPanelProps?.initialSessionId).toBe('session-1')
 
     cleanupRendered(root, container)
+  })
+
+  it('keeps the document page mounted while navigating between document routes', async () => {
+    mockState.currentRoute = {
+      key: 'document',
+      id: {uid: 'site-1', path: ['page-a']},
+    }
+
+    const {container, root} = renderMain()
+
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="desktop-resource"]')).not.toBeNull()
+    expect(mockState.documentMounts).toBe(1)
+    expect(mockState.documentUnmounts).toBe(0)
+
+    mockState.currentRoute = {
+      key: 'document',
+      id: {uid: 'site-1', path: ['page-b']},
+    }
+
+    act(() => {
+      root.render(renderMainTree())
+    })
+
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="desktop-resource"]')).not.toBeNull()
+    expect(mockState.documentMounts).toBe(1)
+    expect(mockState.documentUnmounts).toBe(0)
+
+    cleanupRendered(root, container)
+    expect(mockState.documentUnmounts).toBe(1)
   })
 })

@@ -159,6 +159,9 @@ export default function Main({className}: {className?: string}) {
 
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
+  // Reset route-scoped crashes on navigation without forcing the entire page tree
+  // to unmount. Document routes share a single page component and rely on staying
+  // mounted so the site header and editor state do not flash between navigations.
   const routeKey = useMemo(() => getRouteKey(navR), [navR])
   useListen<NavRoute>(
     'open_route',
@@ -186,7 +189,7 @@ export default function Main({className}: {className?: string}) {
     return (
       <div className={cn(windowContainerStyles, 'p-0', className)}>
         <ErrorBoundary
-          key={routeKey}
+          resetKeys={[routeKey]}
           FallbackComponent={AppErrorPage}
           onReset={() => {
             window.location.reload()
@@ -219,7 +222,7 @@ export default function Main({className}: {className?: string}) {
                 {sidebar}
                 <Panel id="page" order={2} className="pl-1">
                   <ErrorBoundary
-                    key={routeKey}
+                    resetKeys={[routeKey]}
                     FallbackComponent={RootAppError}
                     onReset={() => {
                       window.location.reload()
