@@ -1,6 +1,7 @@
 import {
   buildFeedbackDocumentPublishPayload,
   hasMeaningfulFeedback,
+  resolveFeedbackTaskConfig,
   type FeedbackFormValues,
   normalizeFeedbackFormValues,
 } from '@/feedback'
@@ -28,6 +29,7 @@ const FEEDBACK_KEYS: Array<keyof FeedbackFormValues> = [
   'clarity',
   'foundCommentButton',
   'oneChange',
+  'readingPreference',
 ]
 
 const DEFAULT_FEEDBACK_DESTINATION_PEER_ADDRS: Record<string, string[]> = {
@@ -69,7 +71,8 @@ export async function action({request}: ActionFunctionArgs) {
 
     const signingKey = await getServerSigningKey(signingAccountUid)
     const destinationLabel = config.feedbackDestinationLabel?.trim() || destinationAccountUid
-    const reviewedSiteLabel = new URL(parsedRequest.origin).host
+    const task = resolveFeedbackTaskConfig(config)
+    const reviewedSiteLabel = task.label
     const isPublic = config.feedbackDocumentVisibility === 'public'
     const visibility = isPublic ? ResourceVisibility.PUBLIC : ResourceVisibility.PRIVATE
     const visibilityLabel = isPublic ? 'Público' : 'Privado'
@@ -77,7 +80,7 @@ export async function action({request}: ActionFunctionArgs) {
       publishedUnderLabel: destinationLabel,
       publishedUnderAccountUid: destinationAccountUid,
       testedPageLabel: reviewedSiteLabel,
-      testedPageUrl: parsedRequest.origin,
+      testedPageUrl: task.url,
       visibility,
       visibilityLabel,
     })

@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
     feedbackDestinationCapabilityCid: 'cap-seed-surveys-writer',
     feedbackDocumentVisibility: undefined as 'private' | 'public' | undefined,
     feedbackDestinationPeerAddrs: ['/dns4/seed-surveys.example/tcp/56001/p2p/seed-surveys-peer'],
+    feedbackTaskUrl: 'https://configured-task.example',
+    feedbackTaskLabel: 'Configured Task',
   },
 }))
 
@@ -137,6 +139,9 @@ describe('feedback server endpoint', () => {
         ts: expect.any(BigInt),
       }),
     )
+    const operationsText = JSON.stringify((mocks.createChangeOps.mock.calls[0]?.[0] as {ops?: unknown[]})?.ops)
+    expect(operationsText).toContain('Configured Task')
+    expect(operationsText).toContain('https://configured-task.example')
     expect(mocks.createVersionRef).toHaveBeenCalledWith(
       expect.objectContaining({
         space: 'seed-surveys-uid',

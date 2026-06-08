@@ -20,7 +20,16 @@ export const FEEDBACK_ROUTE_PATH = '/feedback'
 /** Static configuration for the feedback route shell. */
 export const FEEDBACK_CONFIG = {
   pageTitle: 'Feedback',
+  productLabel: 'Seed Hypermedia',
+  taskUrl: 'https://seedsurveys.com',
+  taskLabel: 'seedsurveys.com',
 } as const
+
+/** Configurable task target shown and recorded by the feedback form. */
+export type FeedbackTaskConfig = {
+  feedbackTaskUrl?: string
+  feedbackTaskLabel?: string
+}
 
 /** Structured values captured by the `/feedback` form. */
 export type FeedbackFormValues = {
@@ -33,6 +42,7 @@ export type FeedbackFormValues = {
   clarity: string
   foundCommentButton: string
   oneChange: string
+  readingPreference: string
 }
 
 type FeedbackDocumentContext = {
@@ -81,14 +91,30 @@ export type PublishedFeedbackDocument = {
   submittedAt: string
 }
 
+/** Resolve the task URL/label from site config, falling back to the default Nodos task. */
+export function resolveFeedbackTaskConfig(config?: FeedbackTaskConfig | null): {url: string; label: string} {
+  const url = config?.feedbackTaskUrl?.trim() || FEEDBACK_CONFIG.taskUrl
+  const label = config?.feedbackTaskLabel?.trim() || getFeedbackTaskLabelFromUrl(url) || FEEDBACK_CONFIG.taskLabel
+  return {url, label}
+}
+
+function getFeedbackTaskLabelFromUrl(url: string): string | null {
+  try {
+    return new URL(url).host
+  } catch {
+    return url.trim() || null
+  }
+}
+
 const FEEDBACK_PROMPTS: Array<{key: keyof FeedbackFormValues; title: string}> = [
   {key: 'firstImpression', title: 'Primera impresión'},
-  {key: 'possibleActions', title: 'Qué pensó que podía hacer'},
-  {key: 'howToComment', title: 'Cómo comentaría'},
-  {key: 'howToShare', title: 'Cómo compartiría un párrafo'},
+  {key: 'possibleActions', title: 'Qué pensó que podía hacer y cómo participar'},
+  {key: 'howToComment', title: 'Cómo empezaría o participaría en una conversación'},
+  {key: 'howToShare', title: 'Cómo compartiría un párrafo de interés'},
   {key: 'clarity', title: 'Qué tan claro quedó para qué sirve'},
-  {key: 'foundCommentButton', title: 'Encontró el botón de comentar'},
+  {key: 'foundCommentButton', title: 'Encontró cómo participar en una conversación'},
   {key: 'oneChange', title: 'Una cosa que cambiaría'},
+  {key: 'readingPreference', title: 'Cómo preferiría leer o explorar el contenido'},
 ]
 
 /** Trim and normalize form values at submit time. */
@@ -103,6 +129,7 @@ export function normalizeFeedbackFormValues(values: FeedbackFormValues): Feedbac
     clarity: values.clarity.trim(),
     foundCommentButton: values.foundCommentButton.trim(),
     oneChange: values.oneChange.trim(),
+    readingPreference: values.readingPreference.trim(),
   }
 }
 
