@@ -121,7 +121,7 @@ export default function DesktopResourcePage() {
   const documentResourceId = hasLocationOnlyDraft || isDraftRouteLookupPending ? null : docId
 
   const capability = useSelectedAccountCapability(docId)
-  const canEdit = roleCanWrite(capability?.role) && !docId.version
+  const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
 
   // Fetch draft content early so the editor can be initialized with draft blocks
@@ -404,6 +404,9 @@ export default function DesktopResourcePage() {
 
         await deleteDraftsForCleanup(input.draftId, input.deletedChildDraftIds)
         await client.drafts.delete.mutate(input.draftId)
+        invalidateQueries([queryKeys.DRAFT, input.draftId])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         return result
       }),
     [],

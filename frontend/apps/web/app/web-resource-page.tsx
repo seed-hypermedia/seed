@@ -170,7 +170,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   const canEditLocalPlaceholderDraft =
     !!placeholderDraftId && !!draftData && !!signingAccountId && draftData.signingAccountId === signingAccountId
-  const effectiveCanEdit = (canEdit || canEditLocalPlaceholderDraft) && !docId.version
+  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft
   const effectiveCapabilityCid = capability && capability.id !== '_owner' ? capability.id : draftData?.capabilityCid
 
   // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).

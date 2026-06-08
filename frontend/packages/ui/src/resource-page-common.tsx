@@ -206,15 +206,17 @@ export function shouldSuppressMainCommentEditor({
 export function shouldUseDraftForRenderedDocument({
   docId,
   existingDraft,
+  isLatest,
 }: {
   docId: UnpackedHypermediaId
   existingDraft?: HMExistingDraft | false
+  isLatest?: boolean
 }) {
   if (!existingDraft) return false
-  // Version-pinned routes are immutable snapshots. Even when a draft exists for
-  // the same path, the snapshot must render exactly the selected version and
-  // must not inherit draft content or draft actions.
-  if (docId.version) return false
+  // True old-version snapshots are immutable. If a link includes the latest
+  // version CID, treat it like the normal latest route so writers keep access
+  // to their draft and edit affordances.
+  if (docId.version && !isLatest) return false
   return true
 }
 
@@ -672,8 +674,8 @@ export function ResourcePage({
     )
   }
 
-  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId, existingDraft})
-  const effectiveCanEdit = canEdit && !docId.version
+  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId, existingDraft, isLatest})
+  const effectiveCanEdit = canEdit && (!docId.version || isLatest || shouldUseDraft)
   const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
   const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
   const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
