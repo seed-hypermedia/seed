@@ -175,7 +175,9 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
   if (!siteDocument?.document) {
-    return siteDocument ? [{title: 'Not Found'}] : []
+    return siteDocument
+      ? [{title: siteDocument.daemonError?.code === Code.PermissionDenied ? 'Private Document' : 'Not Found'}]
+      : []
   }
   const metadata = createResourceMetadata({
     id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.id,
@@ -403,6 +405,7 @@ export default function UnifiedDocumentPage() {
   if (
     siteData.daemonError &&
     siteData.daemonError.code !== Code.NotFound &&
+    siteData.daemonError.code !== Code.PermissionDenied &&
     !['profile', 'membership', 'followers', 'following'].includes(siteData.viewTerm || '')
   ) {
     return <DaemonErrorPage message={siteData.daemonError.message} code={siteData.daemonError.code} />
