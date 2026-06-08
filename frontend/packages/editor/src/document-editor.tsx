@@ -409,15 +409,6 @@ export function DocumentEditor({
     }
   }, [actorRef, editor])
 
-  useEffect(() => {
-    suppressChangeRef.current = true
-    try {
-      setEditorRootChildrenType(editor, rootChildrenType)
-    } finally {
-      suppressChangeRef.current = false
-    }
-  }, [editor, rootChildrenType])
-
   // Expose the suppress ref on the editor so external consumers (e.g. auto-rebase)
   // can wrap programmatic `replaceBlocks` calls without triggering `change` events.
   useEffect(() => {
@@ -436,21 +427,44 @@ export function DocumentEditor({
   const draftCursorPositionRef = useRef(draftCursorPosition)
   draftCursorPositionRef.current = draftCursorPosition
   const lastReadOnlyContentKeyRef = useRef('')
-  const scheduledContentReplaceIdRef = useRef(0)
+  const editorTaskGenerationRef = useRef(0)
+  const queuedEditorTaskRef = useRef(Promise.resolve())
+
+  const enqueueEditorTask = useCallback(
+    (task: () => void) => {
+      const generation = editorTaskGenerationRef.current
+      queuedEditorTaskRef.current = queuedEditorTaskRef.current.then(
+        () =>
+          new Promise<void>((resolve) => {
+            const schedule =
+              typeof queueMicrotask === 'function'
+                ? queueMicrotask
+                : (callback: () => void) => void Promise.resolve().then(callback)
+
+            schedule(() => {
+              if (generation !== editorTaskGenerationRef.current) {
+                resolve()
+                return
+              }
+
+              const view = editor._tiptapEditor?.view
+              if (!view || view.isDestroyed) {
+                resolve()
+                return
+              }
+
+              task()
+              resolve()
+            })
+          }),
+      )
+    },
+    [editor],
+  )
 
   const scheduleEditorContentReplace = useCallback(
     (nextContent: typeof initialContent, onComplete?: () => void) => {
-      const replaceId = ++scheduledContentReplaceIdRef.current
-      const schedule =
-        typeof queueMicrotask === 'function'
-          ? queueMicrotask
-          : (callback: () => void) => void Promise.resolve().then(callback)
-
-      schedule(() => {
-        if (replaceId !== scheduledContentReplaceIdRef.current) return
-        const view = editor._tiptapEditor?.view
-        if (!view || view.isDestroyed) return
-
+      enqueueEditorTask(() => {
         suppressChangeRef.current = true
         try {
           editor.replaceBlocks(editor.topLevelBlocks, nextContent)
@@ -462,14 +476,26 @@ export function DocumentEditor({
         onComplete?.()
       })
     },
-    [actorRef, editor],
+    [actorRef, editor, enqueueEditorTask],
   )
 
   useEffect(() => {
     return () => {
-      scheduledContentReplaceIdRef.current += 1
+      editorTaskGenerationRef.current += 1
+      queuedEditorTaskRef.current = Promise.resolve()
     }
   }, [editor, isEditing])
+
+  useEffect(() => {
+    enqueueEditorTask(() => {
+      suppressChangeRef.current = true
+      try {
+        setEditorRootChildrenType(editor, rootChildrenType)
+      } finally {
+        suppressChangeRef.current = false
+      }
+    })
+  }, [editor, enqueueEditorTask, rootChildrenType])
 
   useEffect(() => {
     if (isEditing) return
@@ -484,87 +510,81 @@ export function DocumentEditor({
 
   // Register imperative handlers the document machine calls when entering /
   // exiting the `editing` state (flip editable, replace blocks with the right
-  // content, place cursor). Replacing the effect-based sync with a machine-
-  // driven entry/exit guarantees the editor is editable synchronously as part
-  // of the `edit.start` transition — so any callsite may `send({type: 'edit.start'})`
-  // immediately followed by `editor.updateBlock(...)`.
+  // content, place cursor). Schedule the editor mutations onto a microtask so
+  // Tiptap's React node views don't call flushSync from the surrounding React
+  // effect commit.
   useEffect(() => {
     handlersRef.current = {
       setEditable: (editable) => {
-        if (editor.isEditable !== editable) {
-          editor.isEditable = editable
-        }
+        enqueueEditorTask(() => {
+          if (editor.isEditable !== editable) {
+            editor.isEditable = editable
+          }
+        })
       },
       applyInitialContent: () => {
-        suppressChangeRef.current = true
-        try {
-          editor.replaceBlocks(editor.topLevelBlocks, initialContentRef.current)
-        } finally {
-          suppressChangeRef.current = false
-        }
-        // Use the post-replace blocks as the diff baseline so future change counts
-        // compare against blocks after editor initialization.
-        actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
-        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
+        scheduleEditorContentReplace(initialContentRef.current)
       },
       getCurrentBlocks: () => editor.topLevelBlocks as any,
       placeCursor: (position) => {
-        const view = editor._tiptapEditor?.view
-        if (!view) {
-          // console.log('[DocEditor] placeCursor: no view')
-          return
-        }
-
-        let pos: number | null
-        if (position === 'end') {
-          const lastBlock = editor.topLevelBlocks.at(-1)
-          if (lastBlock) {
-            if (TEXT_BLOCK_TYPES.has(lastBlock.type)) {
-              editor.setTextCursorPosition(lastBlock, 'end')
-            } else {
-              editor.insertBlocks([{type: 'paragraph', content: ''}], lastBlock.id, 'after')
-              const insertedBlock = editor.topLevelBlocks.at(-1)
-              if (insertedBlock) editor.setTextCursorPosition(insertedBlock, 'start')
-            }
-            view.focus()
+        enqueueEditorTask(() => {
+          const view = editor._tiptapEditor?.view
+          if (!view) {
+            // console.log('[DocEditor] placeCursor: no view')
             return
           }
-          pos = view.state.doc.content.size
-        } else {
-          pos = position ?? null
-        }
 
-        // Fall back to saved draft cursor position when no explicit position is pending.
-        if (pos === null && draftCursorPositionRef.current != null) {
-          pos = draftCursorPositionRef.current
-        }
-
-        // console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
-
-        const applySelection = () => {
-          if (pos !== null) {
-            const safePos = Math.min(Math.max(pos, 0), view.state.doc.content.size)
-            try {
-              const selection = TextSelection.create(view.state.doc, safePos)
-              view.dispatch(view.state.tr.setSelection(selection))
-              // ProseMirror's scrollIntoView doesn't work with the custom ScrollArea
-              // container used in the layout — use the DOM directly.
-              const cursorDOM = view.domAtPos(safePos)
-              const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
-              node?.scrollIntoView({block: 'center', behavior: 'instant'})
-            } catch (err) {
-              // console.log('[DocEditor] placeCursor selection failed', err)
+          let pos: number | null
+          if (position === 'end') {
+            const lastBlock = editor.topLevelBlocks.at(-1)
+            if (lastBlock) {
+              if (TEXT_BLOCK_TYPES.has(lastBlock.type)) {
+                editor.setTextCursorPosition(lastBlock, 'end')
+              } else {
+                editor.insertBlocks([{type: 'paragraph', content: ''}], lastBlock.id, 'after')
+                const insertedBlock = editor.topLevelBlocks.at(-1)
+                if (insertedBlock) editor.setTextCursorPosition(insertedBlock, 'start')
+              }
+              view.focus()
+              return
             }
+            pos = view.state.doc.content.size
+          } else {
+            pos = position ?? null
           }
-          view.focus()
-        }
 
-        // Apply immediately, but also re-apply on the next frame so focus
-        // restoration from surrounding UI cannot steal focus from the editor.
-        applySelection()
-        requestAnimationFrame(() => {
-          if (view.isDestroyed) return
+          // Fall back to saved draft cursor position when no explicit position is pending.
+          if (pos === null && draftCursorPositionRef.current != null) {
+            pos = draftCursorPositionRef.current
+          }
+
+          // console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
+
+          const applySelection = () => {
+            if (pos !== null) {
+              const safePos = Math.min(Math.max(pos, 0), view.state.doc.content.size)
+              try {
+                const selection = TextSelection.create(view.state.doc, safePos)
+                view.dispatch(view.state.tr.setSelection(selection))
+                // ProseMirror's scrollIntoView doesn't work with the custom ScrollArea
+                // container used in the layout — use the DOM directly.
+                const cursorDOM = view.domAtPos(safePos)
+                const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
+                node?.scrollIntoView({block: 'center', behavior: 'instant'})
+              } catch (err) {
+                // console.log('[DocEditor] placeCursor selection failed', err)
+              }
+            }
+            view.focus()
+          }
+
+          // Apply immediately, but also re-apply on the next frame so focus
+          // restoration from surrounding UI cannot steal focus from the editor.
           applySelection()
+          requestAnimationFrame(() => {
+            if (view.isDestroyed) return
+            applySelection()
+          })
         })
       },
     }
@@ -584,7 +604,7 @@ export function DocumentEditor({
     return () => {
       handlersRef.current = null
     }
-  }, [actorRef, editor, handlersRef, scheduleEditorContentReplace])
+  }, [actorRef, editor, enqueueEditorTask, handlersRef, scheduleEditorContentReplace])
 
   const focusEditorEnd = useCallback(() => {
     const view = editor._tiptapEditor?.view
@@ -652,24 +672,26 @@ export function DocumentEditor({
   const rangeStart = focusBlockRange && 'start' in focusBlockRange ? focusBlockRange.start : null
   const rangeEnd = focusBlockRange && 'end' in focusBlockRange ? focusBlockRange.end : null
   useEffect(() => {
-    const view = editor._tiptapEditor?.view
-    if (!view) return
+    enqueueEditorTask(() => {
+      const view = editor._tiptapEditor?.view
+      if (!view) return
 
-    if (focusBlockId && rangeStart != null && rangeEnd != null) {
-      view.dispatch(
-        view.state.tr.setMeta(blockHighlightPluginKey, {
-          type: 'rangeFocus',
-          blockId: focusBlockId,
-          start: rangeStart,
-          end: rangeEnd,
-        }),
-      )
-    } else if (focusBlockId) {
-      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: focusBlockId}))
-    } else {
-      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
-    }
-  }, [editor, focusBlockId, rangeStart, rangeEnd])
+      if (focusBlockId && rangeStart != null && rangeEnd != null) {
+        view.dispatch(
+          view.state.tr.setMeta(blockHighlightPluginKey, {
+            type: 'rangeFocus',
+            blockId: focusBlockId,
+            start: rangeStart,
+            end: rangeEnd,
+          }),
+        )
+      } else if (focusBlockId) {
+        view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: focusBlockId}))
+      } else {
+        view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
+      }
+    })
+  }, [editor, enqueueEditorTask, focusBlockId, rangeStart, rangeEnd])
 
   // Attach DOM click listener for click-to-edit. Using a DOM listener (rather
   // than a ProseMirror plugin) gives us reliable access to the raw event target

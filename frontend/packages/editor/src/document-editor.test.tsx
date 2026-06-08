@@ -163,10 +163,12 @@ beforeEach(() => {
   editor._tiptapEditor.view.dom = document.createElement('div')
   editor._tiptapEditor.view.domAtPos = () => ({node: document.createElement('div')})
   const tr = {
-    setSelection: () => tr,
-    setMeta: () => tr,
+    setSelection: vi.fn(() => tr),
+    setMeta: vi.fn(() => tr),
+    setNodeMarkup: vi.fn(() => tr),
   }
   editor._tiptapEditor.view.state.tr = tr
+  editor._tiptapEditor.view.state.doc.firstChild = null
   editor._tiptapEditor.view.state.selection.empty = true
   editor.topLevelBlocks = [{id: 'existing-block', type: 'paragraph', content: ''}]
   editor.replaceBlocks.mockReset()
@@ -206,5 +208,86 @@ describe('DocumentEditor', () => {
 
     expect(editor.replaceBlocks).toHaveBeenCalledTimes(1)
     expect(editor.topLevelBlocks).toEqual([{id: 'next-block', type: 'paragraph', content: ''}])
+  })
+
+  it('defers machine-driven editor mutations to microtasks', async () => {
+    act(() => {
+      root.render(
+        <DocumentEditor
+          blocks={[{id: 'next-block', type: 'paragraph', content: ''}] as any}
+          resourceId="hm://doc/test"
+        />,
+      )
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    editor.isEditable = false
+    editor.replaceBlocks.mockClear()
+
+    act(() => {
+      handlersRef.current.setEditable(true)
+      handlersRef.current.applyInitialContent()
+    })
+
+    expect(editor.isEditable).toBe(false)
+    expect(editor.replaceBlocks).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(editor.isEditable).toBe(true)
+    expect(editor.replaceBlocks).toHaveBeenCalledTimes(1)
+    expect(editor.topLevelBlocks).toEqual([{id: 'next-block', type: 'paragraph', content: ''}])
+  })
+
+  it('defers block highlight dispatch to a microtask', async () => {
+    act(() => {
+      root.render(
+        <DocumentEditor
+          blocks={[{id: 'next-block', type: 'paragraph', content: ''}] as any}
+          resourceId="hm://doc/test"
+          focusBlockId="next-block"
+        />,
+      )
+    })
+
+    expect(editor._tiptapEditor.view.dispatch).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(editor._tiptapEditor.view.dispatch).toHaveBeenCalledTimes(1)
+  })
+
+  it('defers root children type sync to a microtask', async () => {
+    editor._tiptapEditor.view.state.doc.firstChild = {
+      type: {name: 'blockChildren'},
+      attrs: {listType: 'Group'},
+    }
+
+    act(() => {
+      root.render(
+        <DocumentEditor
+          blocks={[{id: 'next-block', type: 'paragraph', content: ''}] as any}
+          resourceId="hm://doc/test"
+          rootChildrenType="Ordered"
+        />,
+      )
+    })
+
+    expect(editor._tiptapEditor.view.dispatch).not.toHaveBeenCalled()
+    expect(editor._tiptapEditor.view.state.tr.setNodeMarkup).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(editor._tiptapEditor.view.state.tr.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 })
