@@ -24,6 +24,8 @@ export const siteConfigSchema = z.object({
   feedbackDestinationCapabilityCid: z.string().optional(),
   feedbackDocumentVisibility: z.enum(['private', 'public']).optional(),
   feedbackDestinationPeerAddrs: z.array(z.string()).optional(),
+  feedbackTaskUrl: z.string().optional(),
+  feedbackTaskLabel: z.string().optional(),
 })
 export type SiteConfig = z.infer<typeof siteConfigSchema>
 

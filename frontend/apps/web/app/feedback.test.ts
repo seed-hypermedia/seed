@@ -14,6 +14,7 @@ import {
   hasMeaningfulFeedback,
   normalizeFeedbackFormValues,
   publishFeedbackDocument,
+  resolveFeedbackTaskConfig,
   type FeedbackFormValues,
 } from './feedback'
 
@@ -28,6 +29,7 @@ function makeValues(overrides: Partial<FeedbackFormValues> = {}): FeedbackFormVa
     clarity: '',
     foundCommentButton: '',
     oneChange: '',
+    readingPreference: '',
     ...overrides,
   }
 }
@@ -60,6 +62,26 @@ describe('feedback helpers', () => {
     expect(buildFeedbackDocumentTitle(submittedAt, 'nodosdeconocimiento.es')).toBe(
       'Feedback on nodosdeconocimiento.es — 2026-05-28 14:32',
     )
+  })
+
+  it('resolves feedback task target from config with safe defaults', () => {
+    expect(resolveFeedbackTaskConfig(null)).toEqual({
+      url: 'https://seedsurveys.com',
+      label: 'seedsurveys.com',
+    })
+    expect(resolveFeedbackTaskConfig({feedbackTaskUrl: 'https://example.org/path'})).toEqual({
+      url: 'https://example.org/path',
+      label: 'example.org',
+    })
+    expect(
+      resolveFeedbackTaskConfig({
+        feedbackTaskUrl: 'https://example.org/path',
+        feedbackTaskLabel: 'Example task',
+      }),
+    ).toEqual({
+      url: 'https://example.org/path',
+      label: 'Example task',
+    })
   })
 
   it('builds markdown with context markers and omits empty sections', () => {

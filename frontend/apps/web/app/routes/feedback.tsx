@@ -4,6 +4,7 @@ import {
   type FeedbackFormValues,
   hasMeaningfulFeedback,
   normalizeFeedbackFormValues,
+  resolveFeedbackTaskConfig,
 } from '@/feedback'
 import {loadSiteHeaderData, type SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
@@ -32,6 +33,8 @@ import {useState} from 'react'
 type FeedbackPagePayload = SiteHeaderPayload & {
   feedbackDestinationLabel: string | null
   feedbackDocumentVisibility: 'private' | 'public'
+  feedbackTaskUrl: string
+  feedbackTaskLabel: string
 }
 
 type PublishSuccessState = {
@@ -55,6 +58,7 @@ const INITIAL_VALUES: FeedbackFormValues = {
   clarity: '',
   foundCommentButton: '',
   oneChange: '',
+  readingPreference: '',
 }
 
 const CLARITY_OPTIONS = ['1', '2', '3', '4', '5'] as const
@@ -69,10 +73,13 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
       loadSiteHeaderData(parsedRequest),
       getConfig(parsedRequest.hostname),
     ])
+    const task = resolveFeedbackTaskConfig(config)
     return wrapJSON({
       ...headerData,
       feedbackDestinationLabel: config?.feedbackDestinationLabel?.trim() || null,
       feedbackDocumentVisibility: config?.feedbackDocumentVisibility === 'public' ? 'public' : 'private',
+      feedbackTaskUrl: task.url,
+      feedbackTaskLabel: task.label,
     } satisfies FeedbackPagePayload)
   })
 }
@@ -104,15 +111,8 @@ export const meta: MetaFunction<typeof loader> = ({data}) => {
 }
 
 export default function FeedbackRoute() {
-  const {
-    originHomeId,
-    siteHost,
-    origin,
-    homeMetadata,
-    dehydratedState,
-    feedbackDestinationLabel,
-    feedbackDocumentVisibility,
-  } = unwrap<FeedbackPagePayload>(useLoaderData())
+  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState, feedbackTaskUrl, feedbackTaskLabel} =
+    unwrap<FeedbackPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
@@ -132,8 +132,8 @@ export default function FeedbackRoute() {
             originHomeId={originHomeId}
             homeMetadata={homeMetadata}
             siteOrigin={origin}
-            feedbackDestinationLabel={feedbackDestinationLabel}
-            feedbackDocumentVisibility={feedbackDocumentVisibility}
+            feedbackTaskUrl={feedbackTaskUrl}
+            feedbackTaskLabel={feedbackTaskLabel}
           />
         </NavigationLoadingContent>
         <PageFooter className="w-full" hideDeviceLinkToast />
@@ -146,23 +146,22 @@ function FeedbackPageBody({
   originHomeId,
   homeMetadata,
   siteOrigin,
-  feedbackDestinationLabel,
-  feedbackDocumentVisibility,
+  feedbackTaskUrl,
+  feedbackTaskLabel,
 }: {
   originHomeId: NonNullable<FeedbackPagePayload['originHomeId']>
   homeMetadata: FeedbackPagePayload['homeMetadata']
   siteOrigin: string
-  feedbackDestinationLabel: string | null
-  feedbackDocumentVisibility: 'private' | 'public'
+  feedbackTaskUrl: string
+  feedbackTaskLabel: string
 }) {
   const [values, setValues] = useState<FeedbackFormValues>(INITIAL_VALUES)
   const [formError, setFormError] = useState<string | null>(null)
   const [success, setSuccess] = useState<PublishSuccessState | null>(null)
 
   const siteName = homeMetadata?.name?.trim() || new URL(siteOrigin).host
-  const testedPageLabel = new URL(siteOrigin).host
-  const testedPageUrl = siteOrigin
-  const visibilityCopy = feedbackDocumentVisibility === 'public' ? 'público' : 'privado'
+  const testedPageLabel = feedbackTaskLabel
+  const testedPageUrl = feedbackTaskUrl
   const logoCid = homeMetadata?.icon ? extractIpfsUrlCid(homeMetadata.icon) : null
   const logoSrc = logoCid ? getOptimizedImageUrl(logoCid, 'M') : null
 
@@ -233,8 +232,8 @@ function FeedbackPageBody({
 
         <div className="relative z-10 flex flex-col gap-8">
           <header className="max-w-2xl">
-            <p className="mb-4 text-[11px] font-medium tracking-[0.18em] text-[#888780] uppercase">
-              Feedback {visibilityCopy}
+            <p className="mb-4 inline-flex rounded-full bg-[#1d9e75] px-4 py-1.5 text-[10px] font-bold tracking-[0.18em] text-white uppercase">
+              {FEEDBACK_CONFIG.productLabel}
             </p>
             <h1
               className="text-[2.35rem] leading-[1.08] text-[#1a1a18] sm:text-[2.8rem]"
@@ -256,11 +255,8 @@ function FeedbackPageBody({
               Tu tarea
             </span>
             <p className="mb-3 text-sm leading-7 text-[#2c2c2a]">
-              Vuelve a la portada del sitio, echa un vistazo a lo que ves durante un par de minutos y lee lo que te
-              llame la atención. A continuación responde a las preguntas.
-            </p>
-            <p className="mb-4 text-sm leading-7 text-[#2c2c2a]">
-              No te preocupes por hacerlo “bien” — tu confusión es el feedback más valioso que podemos recibir.
+              Abre el enlace, echa un vistazo a lo que ves durante un par de minutos y lee lo que te llame la atención.
+              A continuación responde a las preguntas.
             </p>
             <a
               href={testedPageUrl}
@@ -270,17 +266,6 @@ function FeedbackPageBody({
             >
               ↗ Abrir {testedPageLabel}
             </a>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InfoNote>
-              Tu feedback se enviará al equipo y se guardará como un documento <strong>{visibilityCopy}</strong> en{' '}
-              <strong>{feedbackDestinationLabel || 'Seed Surveys'}</strong>.
-            </InfoNote>
-            <InfoNote>
-              No necesitas permisos de escritura en el destino. El servidor guardará el feedback de forma segura desde{' '}
-              <strong>{FEEDBACK_ROUTE_PATH}</strong>.
-            </InfoNote>
           </div>
 
           {success ? (
@@ -297,11 +282,7 @@ function FeedbackPageBody({
             <form className="flex flex-col gap-8" onSubmit={handleSubmit}>
               <SectionLabel>Tu feedback</SectionLabel>
 
-              <QuestionBlock
-                number="1 de 7"
-                label="¿Cuál ha sido tu primera impresión? ¿Qué has pensado que era esto?"
-                hint="Tu primer instinto, sin filtros"
-              >
+              <QuestionBlock number="1 de 8" label="¿Cuál ha sido tu primera impresión? ¿Qué has pensado que era esto?">
                 <Textarea
                   value={values.firstImpression}
                   onChange={(event) => updateField('firstImpression', event.target.value)}
@@ -310,19 +291,21 @@ function FeedbackPageBody({
                 />
               </QuestionBlock>
 
-              <QuestionBlock number="2 de 7" label="¿Qué has pensado que podías hacer en este site?">
+              <QuestionBlock
+                number="2 de 8"
+                label="¿Qué has pensado que puedes hacer aquí y cómo crees que puedes participar?"
+              >
                 <Textarea
                   value={values.possibleActions}
                   onChange={(event) => updateField('possibleActions', event.target.value)}
-                  placeholder="Pensé que podía…"
+                  placeholder="Pensé que podía… / No entendí cómo…"
                   className="min-h-28 rounded-2xl border-[#c5c3ba] bg-[#faf9f5] px-4 py-3 text-sm leading-7 shadow-none focus-visible:border-[#1d9e75] focus-visible:ring-[#1d9e75]/20"
                 />
               </QuestionBlock>
 
               <QuestionBlock
-                number="3 de 7"
-                label="Si te interesara mucho un contenido y quisieras hacer un comentario, ¿cómo lo harías?"
-                hint="Si te bloqueaste o lo dejaste a medias, eso es exactamente lo que necesitamos saber"
+                number="3 de 8"
+                label="Si quisieras empezar o participar en una conversación sobre algo que has leído, ¿cómo lo harías?"
               >
                 <Textarea
                   value={values.howToComment}
@@ -333,8 +316,8 @@ function FeedbackPageBody({
               </QuestionBlock>
 
               <QuestionBlock
-                number="4 de 7"
-                label="Imagina que lees un párrafo que te parece muy interesante y quieres compartirlo con alguien. ¿Cómo lo harías?"
+                number="4 de 8"
+                label="Imagina que lees un párrafo de interés y quieres compartirlo con alguien. ¿Cómo lo harías?"
                 hint="No hay respuesta correcta, nos interesa tu intuición"
               >
                 <Textarea
@@ -346,7 +329,7 @@ function FeedbackPageBody({
               </QuestionBlock>
 
               <QuestionBlock
-                number="5 de 7"
+                number="5 de 8"
                 label="¿Qué tan claro te quedó para qué sirve esta herramienta?"
                 hint="1 = nada claro, 5 = completamente obvio"
               >
@@ -370,7 +353,7 @@ function FeedbackPageBody({
                 </fieldset>
               </QuestionBlock>
 
-              <QuestionBlock number="6 de 7" label="¿Encontraste el botón de comentar?">
+              <QuestionBlock number="6 de 8" label="¿Encontraste cómo participar en una conversación?">
                 <fieldset>
                   <legend className="sr-only">Botón de comentar</legend>
                   <div className="flex flex-wrap gap-2">
@@ -389,8 +372,8 @@ function FeedbackPageBody({
               </QuestionBlock>
 
               <QuestionBlock
-                number="7 de 7"
-                label="Una cosa que cambiarías para que todo tenga más sentido desde el primer momento y te den ganas de interactuar y comentar."
+                number="7 de 8"
+                label="¿Qué cambiarías para que todo tenga más sentido desde el primer momento y te den ganas de explorar e interactuar?"
               >
                 <Textarea
                   value={values.oneChange}
@@ -400,12 +383,21 @@ function FeedbackPageBody({
                 />
               </QuestionBlock>
 
+              <QuestionBlock number="8 de 8" label="¿Cómo preferirías leer o explorar el contenido?">
+                <Textarea
+                  value={values.readingPreference}
+                  onChange={(event) => updateField('readingPreference', event.target.value)}
+                  placeholder="Me resultaría más fácil si… (p.ej. más visual, más texto, otra forma de navegar...)"
+                  className="min-h-28 rounded-2xl border-[#c5c3ba] bg-[#faf9f5] px-4 py-3 text-sm leading-7 shadow-none focus-visible:border-[#1d9e75] focus-visible:ring-[#1d9e75]/20"
+                />
+              </QuestionBlock>
+
               <div className="border-t border-[#c5c3ba] pt-8">
                 <span
                   className="mb-3 block text-[1.35rem] font-bold text-[#1a1a18]"
                   style={{fontFamily: '"Libre Baskerville", serif'}}
                 >
-                  Ya estamos, muchísimas gracias por tu ayuda 🙌
+                  Ya estamos, muchísimas gracias por tu ayuda
                 </span>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Input
@@ -426,17 +418,13 @@ function FeedbackPageBody({
                   natural.
                 </p>
                 {formError ? <ErrorBanner>{formError}</ErrorBanner> : null}
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="max-w-xl text-sm leading-7 text-[#5f5e5a]">
-                    Al enviar, el servidor guardará tu feedback {visibilityCopy} en{' '}
-                    <strong>{feedbackDestinationLabel || 'Seed Surveys'}</strong>.
-                  </p>
+                <div className="mt-6">
                   <Button
                     type="submit"
                     variant="inverse"
                     size="lg"
                     disabled={submitDisabled}
-                    className="rounded-full px-6"
+                    className="w-full rounded-full px-6"
                   >
                     {submitDisabled ? (
                       <>
@@ -520,14 +508,6 @@ function ChoicePill({
         {value}
       </span>
     </label>
-  )
-}
-
-function InfoNote({children}: {children: ReactNode}) {
-  return (
-    <div className="rounded-2xl border border-white/60 bg-white/55 px-4 py-4 text-sm leading-7 text-[#3b3a36] backdrop-blur">
-      {children}
-    </div>
   )
 }
 
