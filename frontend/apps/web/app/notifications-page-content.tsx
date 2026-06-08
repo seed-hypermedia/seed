@@ -13,11 +13,8 @@ import {markNotificationReadAndNavigate} from '@shm/shared/models/notification-h
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import type {NavRoute} from '@shm/shared/routes'
 import {Button} from '@shm/ui/button'
-import {NotificationListItem} from '@shm/ui/notification-list-item'
-import {Spinner} from '@shm/ui/spinner'
-import {SizableText, Text} from '@shm/ui/text'
-import {Bell} from 'lucide-react'
-import {useCallback, useEffect, useMemo} from 'react'
+import {NotificationPageEmptyState, NotificationsPageContent} from '@shm/ui/notifications-page'
+import {useCallback, useEffect} from 'react'
 
 /** Client-only notifications page content for the web app. */
 export function WebNotificationsPage() {
@@ -26,31 +23,21 @@ export function WebNotificationsPage() {
 
   if (!keyPair || !accountUid) {
     return (
-      <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-        <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-          <Bell size={50} className="text-muted-foreground" />
-        </div>
-        <Text weight="bold" size="2xl">
-          Notifications
-        </Text>
-        <p className="text-muted-foreground max-w-lg text-center">Sign in to view your notifications.</p>
-      </div>
+      <NotificationPageEmptyState
+        title="Notifications"
+        titleSize="2xl"
+        description="Sign in to view your notifications."
+      />
     )
   }
 
   if (!keyPair.notifyServerUrl) {
     return (
-      <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-        <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-          <Bell size={50} className="text-muted-foreground" />
-        </div>
-        <Text weight="bold" size="2xl">
-          Notifications unavailable
-        </Text>
-        <p className="text-muted-foreground max-w-lg text-center">
-          Log out and log back in again to use notifications.
-        </p>
-      </div>
+      <NotificationPageEmptyState
+        title="Notifications unavailable"
+        titleSize="2xl"
+        description="Log out and log back in again to use notifications."
+      />
     )
   }
 
@@ -71,7 +58,7 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const notifications = inbox.data?.notifications ?? []
   const [searchParams, setSearchParams] = useSearchParams()
   const viewParam = searchParams.get('view')
-  const filter: 'all' | 'unread' = viewParam === 'unread' ? 'unread' : 'all'
+  const filter = viewParam === 'unread' ? 'unread' : 'all'
 
   const setFilter = useCallback(
     (view: 'all' | 'unread') => {
@@ -94,17 +81,15 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const queryErrorMessage =
     queryError instanceof Error ? queryError.message : queryError ? String(queryError) : 'Unknown notification error'
 
-  const filteredNotifications = useMemo(() => {
-    if (filter === 'all') return notifications
-    return notifications.filter(
-      (item) =>
-        !isNotificationEventRead({
-          readState: readState.data ?? undefined,
-          eventId: item.feedEventId,
-          eventAtMs: item.eventAtMs,
-        }),
-    )
-  }, [notifications, filter, readState.data])
+  const isRead = useCallback(
+    (item: (typeof notifications)[number]) =>
+      isNotificationEventRead({
+        readState: readState.data ?? undefined,
+        eventId: item.feedEventId,
+        eventAtMs: item.eventAtMs,
+      }),
+    [readState.data],
+  )
 
   const remixNavigate = useRemixNavigate()
   const navigate = useCallback(
@@ -116,14 +101,14 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   )
 
   return (
-    <div className="flex flex-col gap-4 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Text weight="bold" size="2xl">
-            Notifications
-          </Text>
-          {inbox.isLoading ? <Spinner /> : null}
-        </div>
+    <NotificationsPageContent
+      filter={filter}
+      onFilterChange={setFilter}
+      notifications={notifications}
+      isNotificationRead={isRead}
+      isLoading={inbox.isLoading}
+      errorMessage={queryError ? queryErrorMessage : null}
+      headerActions={
         <Button
           size="sm"
           variant="outline"
@@ -136,100 +121,34 @@ function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
         >
           {markAllRead.isLoading ? 'Marking…' : 'Mark all as read'}
         </Button>
-      </div>
-
-      <div className="flex self-start rounded-md border">
-        <Button
-          size="sm"
-          variant={filter === 'all' ? 'secondary' : 'ghost'}
-          className="rounded-r-none border-0"
-          onClick={() => setFilter('all')}
-        >
-          All
-        </Button>
-        <Button
-          size="sm"
-          variant={filter === 'unread' ? 'secondary' : 'ghost'}
-          className="rounded-l-none border-0"
-          onClick={() => setFilter('unread')}
-        >
-          Unread
-        </Button>
-      </div>
-
-      {inbox.isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-20">
-          <Spinner />
-        </div>
-      ) : queryError ? (
-        <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-            <Bell size={50} className="text-muted-foreground" />
-          </div>
-          <SizableText size="xl">Could not load notifications</SizableText>
-          <p className="text-muted-foreground max-w-lg text-center">{queryErrorMessage}</p>
-        </div>
-      ) : notifications.length === 0 ? (
-        <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-            <Bell size={50} className="text-muted-foreground" />
-          </div>
-          <SizableText size="xl">No notifications yet</SizableText>
-          <p className="text-muted-foreground max-w-lg text-center">Mentions and replies will appear here.</p>
-        </div>
-      ) : filteredNotifications.length === 0 ? (
-        <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-            <Bell size={50} className="text-muted-foreground" />
-          </div>
-          <SizableText size="xl">All caught up</SizableText>
-          <p className="text-muted-foreground max-w-lg text-center">No unread notifications.</p>
-        </div>
-      ) : (
-        <div className="divide-border flex flex-col divide-y rounded-lg border">
-          {filteredNotifications.map((item) => {
-            const isRead = isNotificationEventRead({
-              readState: readState.data ?? undefined,
-              eventId: item.feedEventId,
-              eventAtMs: item.eventAtMs,
-            })
-            return (
-              <NotificationListItem
-                key={item.feedEventId}
-                item={item}
-                isRead={isRead}
-                onOpen={async () => {
-                  await markNotificationReadAndNavigate({
-                    accountUid,
-                    item,
-                    markEventRead: (params) => markEventRead.mutateAsync(params).then(() => undefined),
-                    navigate,
-                  })
-                }}
-                onToggleRead={() => {
-                  if (isRead) {
-                    markEventUnread.mutate({
-                      accountUid,
-                      eventId: item.feedEventId,
-                      eventAtMs: item.eventAtMs,
-                      otherLoadedEvents: notifications.map((n) => ({
-                        eventId: n.feedEventId,
-                        eventAtMs: n.eventAtMs,
-                      })),
-                    })
-                  } else {
-                    markEventRead.mutate({
-                      accountUid,
-                      eventId: item.feedEventId,
-                      eventAtMs: item.eventAtMs,
-                    })
-                  }
-                }}
-              />
-            )
-          })}
-        </div>
-      )}
-    </div>
+      }
+      onOpenNotification={(item) =>
+        markNotificationReadAndNavigate({
+          accountUid,
+          item,
+          markEventRead: (params) => markEventRead.mutateAsync(params).then(() => undefined),
+          navigate,
+        })
+      }
+      onToggleNotificationRead={(item, itemIsRead) => {
+        if (itemIsRead) {
+          markEventUnread.mutate({
+            accountUid,
+            eventId: item.feedEventId,
+            eventAtMs: item.eventAtMs,
+            otherLoadedEvents: notifications.map((notification) => ({
+              eventId: notification.feedEventId,
+              eventAtMs: notification.eventAtMs,
+            })),
+          })
+        } else {
+          markEventRead.mutate({
+            accountUid,
+            eventId: item.feedEventId,
+            eventAtMs: item.eventAtMs,
+          })
+        }
+      }}
+    />
   )
 }

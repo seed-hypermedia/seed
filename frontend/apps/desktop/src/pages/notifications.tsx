@@ -23,20 +23,20 @@ import {
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import {NotificationListItem} from '@shm/ui/notification-list-item'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {PanelContainer} from '@shm/ui/container'
+import {GeneralPageSurface} from '@shm/ui/general-page'
+import {NotificationPageEmptyState, NotificationsPageContent} from '@shm/ui/notifications-page'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {Bell, Info, Settings} from 'lucide-react'
+import {Info, Settings} from 'lucide-react'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 
 export default function NotificationsPage() {
@@ -45,17 +45,11 @@ export default function NotificationsPage() {
 
   if (!accountUid) {
     return (
-      <PanelContainer>
+      <PanelContainer className="dark:bg-background bg-white">
         <MainWrapper scrollable>
-          <Container centered className="h-full">
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-                <Bell size={50} className="text-muted-foreground" />
-              </div>
-              <SizableText size="xl">Notifications</SizableText>
-              <p className="text-muted-foreground max-w-lg text-center">Select an account to view notifications.</p>
-            </div>
-          </Container>
+          <GeneralPageSurface>
+            <NotificationPageEmptyState title="Notifications" description="Select an account to view notifications." />
+          </GeneralPageSurface>
         </MainWrapper>
       </PanelContainer>
     )
@@ -106,17 +100,15 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
     }
   }, [persistedView.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredNotifications = useMemo(() => {
-    if (filter === 'all') return notifications
-    return notifications.filter(
-      (item) =>
-        !isNotificationEventRead({
-          readState: readState.data,
-          eventId: item.feedEventId,
-          eventAtMs: item.eventAtMs,
-        }),
-    )
-  }, [notifications, filter, readState.data])
+  const isRead = useCallback(
+    (item: (typeof notifications)[number]) =>
+      isNotificationEventRead({
+        readState: readState.data,
+        eventId: item.feedEventId,
+        eventAtMs: item.eventAtMs,
+      }),
+    [readState.data],
+  )
 
   const maxLoadedEventAtMs = useMemo(() => {
     return getMaxLoadedNotificationEventAtMs(notifications)
@@ -129,122 +121,68 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   }, [accountUid, notifyServiceHost])
 
   return (
-    <PanelContainer>
+    <PanelContainer className="dark:bg-background bg-white">
       <MainWrapper scrollable>
-        <Container centered className="gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <SizableText size="xl">Notifications</SizableText>
-              {syncNow.isLoading ? <Spinner /> : null}
-              {syncStatus.data?.lastSyncError ? (
-                <Tooltip content={syncStatus.data.lastSyncError}>
-                  <Info size={16} className="text-muted-foreground" />
-                </Tooltip>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <NotificationEmailSettingsDialog accountUid={accountUid} />
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!notifications.length || markAllRead.isLoading}
-                onClick={() =>
-                  markAllRead.mutate({
-                    accountUid,
-                    markAllReadAtMs: maxLoadedEventAtMs,
-                  })
-                }
-              >
-                {markAllRead.isLoading ? 'Marking…' : 'Mark all as read'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex self-start rounded-md border">
-            <Button
-              size="sm"
-              variant={filter === 'all' ? 'secondary' : 'ghost'}
-              className="rounded-r-none border-0"
-              onClick={() => setFilter('all')}
-            >
-              All
-            </Button>
-            <Button
-              size="sm"
-              variant={filter === 'unread' ? 'secondary' : 'ghost'}
-              className="rounded-l-none border-0"
-              onClick={() => setFilter('unread')}
-            >
-              Unread
-            </Button>
-          </div>
-
-          {inbox.isLoading ? (
-            <div className="flex flex-1 items-center justify-center">
-              <Spinner />
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-                <Bell size={50} className="text-muted-foreground" />
-              </div>
-              <SizableText size="xl">No notifications yet</SizableText>
-              <p className="text-muted-foreground max-w-lg text-center">Mentions and replies will appear here.</p>
-            </div>
-          ) : filteredNotifications.length === 0 ? (
-            <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-              <div className="bg-muted flex size-20 items-center justify-center rounded-lg">
-                <Bell size={50} className="text-muted-foreground" />
-              </div>
-              <SizableText size="xl">All caught up</SizableText>
-              <p className="text-muted-foreground max-w-lg text-center">No unread notifications.</p>
-            </div>
-          ) : (
-            <div className="divide-border flex flex-col divide-y rounded-lg border">
-              {filteredNotifications.map((item) => {
-                const isRead = isNotificationEventRead({
-                  readState: readState.data,
+        <GeneralPageSurface>
+          <NotificationsPageContent
+            filter={filter}
+            onFilterChange={setFilter}
+            notifications={notifications}
+            isNotificationRead={isRead}
+            isLoading={inbox.isLoading}
+            headerLoading={syncNow.isLoading}
+            headerActions={
+              <>
+                {syncStatus.data?.lastSyncError ? (
+                  <Tooltip content={syncStatus.data.lastSyncError}>
+                    <Info size={16} className="text-muted-foreground" />
+                  </Tooltip>
+                ) : null}
+                <NotificationEmailSettingsDialog accountUid={accountUid} />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!notifications.length || markAllRead.isLoading}
+                  onClick={() =>
+                    markAllRead.mutate({
+                      accountUid,
+                      markAllReadAtMs: maxLoadedEventAtMs,
+                    })
+                  }
+                >
+                  {markAllRead.isLoading ? 'Marking…' : 'Mark all as read'}
+                </Button>
+              </>
+            }
+            onOpenNotification={(item) =>
+              markNotificationReadAndNavigate({
+                accountUid,
+                item,
+                markEventRead: (params) => markEventRead.mutateAsync(params).then(() => undefined),
+                navigate,
+              })
+            }
+            onToggleNotificationRead={(item, itemIsRead) => {
+              if (itemIsRead) {
+                markEventUnread.mutate({
+                  accountUid,
+                  eventId: item.feedEventId,
+                  eventAtMs: item.eventAtMs,
+                  otherLoadedEvents: notifications.map((notification) => ({
+                    eventId: notification.feedEventId,
+                    eventAtMs: notification.eventAtMs,
+                  })),
+                })
+              } else {
+                markEventRead.mutate({
+                  accountUid,
                   eventId: item.feedEventId,
                   eventAtMs: item.eventAtMs,
                 })
-                return (
-                  <NotificationListItem
-                    key={item.feedEventId}
-                    item={item}
-                    isRead={isRead}
-                    onOpen={async () => {
-                      await markNotificationReadAndNavigate({
-                        accountUid,
-                        item,
-                        markEventRead: (params) => markEventRead.mutateAsync(params).then(() => undefined),
-                        navigate,
-                      })
-                    }}
-                    onToggleRead={() => {
-                      if (isRead) {
-                        markEventUnread.mutate({
-                          accountUid,
-                          eventId: item.feedEventId,
-                          eventAtMs: item.eventAtMs,
-                          otherLoadedEvents: notifications.map((n) => ({
-                            eventId: n.feedEventId,
-                            eventAtMs: n.eventAtMs,
-                          })),
-                        })
-                      } else {
-                        markEventRead.mutate({
-                          accountUid,
-                          eventId: item.feedEventId,
-                          eventAtMs: item.eventAtMs,
-                        })
-                      }
-                    }}
-                  />
-                )
-              })}
-            </div>
-          )}
-        </Container>
+              }
+            }}
+          />
+        </GeneralPageSurface>
       </MainWrapper>
     </PanelContainer>
   )

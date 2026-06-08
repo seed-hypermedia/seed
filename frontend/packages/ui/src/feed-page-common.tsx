@@ -6,13 +6,12 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useMemo} from 'react'
 import {ScrollArea} from './components/scroll-area'
 import {Feed} from './feed'
+import {GeneralPageContainer, GeneralPageHeader} from './general-page'
 import {useDocumentLayout} from './layout'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {PageLayout} from './page-layout'
 import {CommentEditorProps, computeHeaderData, PageWrapper} from './resource-page-common'
 import {Separator} from './separator'
 import {Spinner} from './spinner'
-import {Text} from './text'
 import {useMedia} from './use-media'
 
 export interface FeedPageProps {
@@ -95,22 +94,16 @@ function FeedBody({
     menuItems.length > 0 ? <OptionsDropdown menuItems={menuItems} align="end" side="bottom" /> : null
 
   const feedContent = (
-    <PageLayout contentMaxWidth={contentMaxWidth}>
-      <div className="flex flex-col gap-4 pt-8">
-        <div className="px-4">
-          <Text weight="bold" size="3xl">
-            Activity Feed
-          </Text>
-        </div>
-        <Separator />
-        <Feed
-          filterResource={`${siteHomeId.id}*`}
-          targetDomain={targetDomain}
-          size="md"
-          filterEventType={filterEventType}
-        />
-      </div>
-    </PageLayout>
+    <GeneralPageContainer contentMaxWidth={contentMaxWidth}>
+      <GeneralPageHeader title="Activity Feed" />
+      <Separator />
+      <Feed
+        filterResource={`${siteHomeId.id}*`}
+        targetDomain={targetDomain}
+        size="md"
+        filterEventType={filterEventType}
+      />
+    </GeneralPageContainer>
   )
 
   if (isMobile) {

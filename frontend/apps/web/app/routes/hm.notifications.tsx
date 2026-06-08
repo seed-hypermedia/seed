@@ -14,6 +14,7 @@ import {ClientOnly} from '@/client-lazy'
 import {WebNotificationsPage} from '@/notifications-page-content'
 import {WebHeaderActions} from '@/web-utils'
 import {Suspense} from 'react'
+import {GeneralPageSurface} from '@shm/ui/general-page'
 import {Spinner} from '@shm/ui/spinner'
 
 type NotificationsPagePayload = SiteHeaderPayload
@@ -50,7 +51,7 @@ export default function NotificationsRoute() {
   }
   return (
     <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
-      <div className="flex min-h-screen flex-1 flex-col items-center">
+      <GeneralPageSurface className="min-h-screen items-center">
         <WebSiteHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
@@ -59,7 +60,7 @@ export default function NotificationsRoute() {
           origin={origin}
           rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
         />
-        <NavigationLoadingContent className="flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
           <ClientOnly>
             <Suspense fallback={<Spinner />}>
               <WebNotificationsPage />
@@ -67,7 +68,7 @@ export default function NotificationsRoute() {
           </ClientOnly>
         </NavigationLoadingContent>
         <PageFooter className="w-full" hideDeviceLinkToast />
-      </div>
+      </GeneralPageSurface>
     </WebSiteProvider>
   )
 }
