@@ -1,6 +1,11 @@
 import {Code} from '@connectrpc/connect'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {wrap} from '../wrapping'
+
+vi.mock('@/client-lazy', () => ({
+  WebCommenting: () => null,
+}))
+
 import {documentPageMeta} from '../routes/$'
 
 describe('documentPageMeta', () => {
