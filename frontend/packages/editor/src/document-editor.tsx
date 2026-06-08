@@ -4,6 +4,7 @@ import '@/editor.css'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
+import type {EditCursorPosition} from '@shm/shared/models/document-machine'
 import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {
   selectCanEdit,
@@ -130,10 +131,6 @@ export function DocumentEditor({
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
 
-  // Stores the ProseMirror position of the pending click so that when the
-  // machine transitions to editing we can place the cursor there.
-  const pendingClickPosRef = useRef<number | null>(null)
-
   // Track mousedown coords so we can distinguish a click from a drag.
   const mousedownCoordsRef = useRef<{x: number; y: number} | null>(null)
 
@@ -141,10 +138,13 @@ export function DocumentEditor({
   // Used to suppress edit.start when a click is intended to dismiss a selection.
   const mousedownHadSelectionRef = useRef<boolean>(false)
 
-  const onEditStart = useCallback(() => {
-    // console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
-    actorRef.send({type: 'edit.start'})
-  }, [actorRef])
+  const onEditStart = useCallback(
+    (cursorPosition?: EditCursorPosition | null) => {
+      // console.log('[DocEditor] sending edit.start', {state: actorRef.getSnapshot().value})
+      actorRef.send({type: 'edit.start', cursorPosition})
+    },
+    [actorRef],
+  )
 
   const onTextSelectionRef = useRef(onTextSelection)
   onTextSelectionRef.current = onTextSelection
@@ -481,17 +481,33 @@ export function DocumentEditor({
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
       getCurrentBlocks: () => editor.topLevelBlocks as any,
-      placeCursor: () => {
+      placeCursor: (position) => {
         const view = editor._tiptapEditor?.view
         if (!view) {
           // console.log('[DocEditor] placeCursor: no view')
           return
         }
 
-        let pos = pendingClickPosRef.current
-        pendingClickPosRef.current = null
+        let pos: number | null
+        if (position === 'end') {
+          const lastBlock = editor.topLevelBlocks.at(-1)
+          if (lastBlock) {
+            if (TEXT_BLOCK_TYPES.has(lastBlock.type)) {
+              editor.setTextCursorPosition(lastBlock, 'end')
+            } else {
+              editor.insertBlocks([{type: 'paragraph', content: ''}], lastBlock.id, 'after')
+              const insertedBlock = editor.topLevelBlocks.at(-1)
+              if (insertedBlock) editor.setTextCursorPosition(insertedBlock, 'start')
+            }
+            view.focus()
+            return
+          }
+          pos = view.state.doc.content.size
+        } else {
+          pos = position ?? null
+        }
 
-        // Fall back to saved draft cursor position when no click position is pending
+        // Fall back to saved draft cursor position when no explicit position is pending.
         if (pos === null && draftCursorPositionRef.current != null) {
           pos = draftCursorPositionRef.current
         }
@@ -544,24 +560,10 @@ export function DocumentEditor({
 
   const focusEditorEnd = useCallback(() => {
     const view = editor._tiptapEditor?.view
-    if (!view || !view.editable) return
+    if (!view) return
 
-    const endPos = view.state.doc.content.size
-
-    const applySelection = () => {
-      if (view.isDestroyed) return
-      const safePos = Math.min(Math.max(endPos, 0), view.state.doc.content.size)
-      try {
-        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, safePos)))
-      } catch {
-        // Ignore invalid end positions; focus still keeps the editor active.
-      }
-      view.focus()
-    }
-
-    applySelection()
-    requestAnimationFrame(applySelection)
-  }, [editor])
+    onEditStart('end')
+  }, [editor, onEditStart])
 
   // Keyboard shortcut: while in read-only mode and the document area has
   // focus (or focus is on document.body), pressing Enter enters edit mode
@@ -592,8 +594,7 @@ export function DocumentEditor({
         if (!domRoot.contains(active) && !active.contains(domRoot)) return
       }
 
-      pendingClickPosRef.current = view.state.doc.content.size
-      onEditStart()
+      onEditStart('end')
       e.preventDefault()
     }
 
@@ -696,10 +697,8 @@ export function DocumentEditor({
 
         // Use posAtCoords to get the ProseMirror position closest to the click
         const coords = view.posAtCoords({left: e.clientX, top: e.clientY})
-        pendingClickPosRef.current = coords ? coords.pos : null
-
         // console.log('[DocEditor] click on text block → onEditStart')
-        onEditStart()
+        onEditStart(coords ? coords.pos : null)
         e.preventDefault()
         return
       }
@@ -710,9 +709,8 @@ export function DocumentEditor({
       // and place the cursor at the end of the document.
       const editorRect = domRoot.getBoundingClientRect()
       if (e.clientX >= editorRect.left && e.clientX <= editorRect.right && e.clientY > editorRect.bottom) {
-        pendingClickPosRef.current = view.state.doc.content.size
         // console.log('[DocEditor] click below last block → onEditStart')
-        onEditStart()
+        onEditStart('end')
         e.preventDefault()
       }
     }

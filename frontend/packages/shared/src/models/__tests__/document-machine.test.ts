@@ -290,6 +290,38 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('loaded → capability.changed(false) → edit.start → stays loaded', () => {
+    const actor = createTestActor({canEdit: true})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'capability.changed', canEdit: false})
+    actor.send({type: 'edit.start'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.canEdit).toBe(false)
+    expect(actor.getSnapshot().context.pendingEditCursorPosition).toBeNull()
+    actor.stop()
+  })
+
+  it('loaded → draft.existing (canEdit=false) → stores draft and stays loaded', () => {
+    const actor = createTestActor({canEdit: false})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'draft.existing', draftId: 'draft-123'})
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(actor.getSnapshot().context.draftId).toBe('draft-123')
+    actor.stop()
+  })
+
+  it('loaded → draft.existing (canEdit=true) → editing', () => {
+    const actor = createTestActor({canEdit: true})
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'draft.existing', draftId: 'draft-123'})
+    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(actor.getSnapshot().context.draftId).toBe('draft-123')
+    actor.stop()
+  })
+
   it('loaded → edit.start (isLatest=false) → stays loaded', () => {
     const actor = createTestActor({isLatest: false})
     actor.start()
@@ -1221,11 +1253,66 @@ describe('DocumentLifecycle machine', () => {
       actor.stop()
     })
 
+    it('editing → edit.start updates cursor position and refocuses editor', () => {
+      const cursorPositions: Array<number | 'end' | null> = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-ent'})),
+          publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        },
+        actions: {
+          placeCursorFromPendingOrDraft: ({context}) => {
+            cursorPositions.push(context.pendingEditCursorPosition)
+          },
+        },
+      })
+      const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}})
+      actor.start()
+      loadDocument(actor)
+      actor.send({type: 'edit.start', cursorPosition: 5})
+      cursorPositions.length = 0
+
+      actor.send({type: 'edit.start', cursorPosition: 42})
+
+      expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+      expect(actor.getSnapshot().context.pendingEditCursorPosition).toBe(42)
+      expect(cursorPositions).toEqual([42])
+      actor.stop()
+    })
+
+    it('loaded → edit.start with end cursor intent preserves end intent through entry actions', () => {
+      const cursorPositions: Array<number | 'end' | null> = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-ent'})),
+          publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        },
+        actions: {
+          placeCursorFromPendingOrDraft: ({context}) => {
+            cursorPositions.push(context.pendingEditCursorPosition)
+          },
+        },
+      })
+      const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}})
+      actor.start()
+      loadDocument(actor)
+
+      actor.send({type: 'edit.start', cursorPosition: 'end'})
+
+      expect(actor.getSnapshot().context.pendingEditCursorPosition).toBe('end')
+      expect(cursorPositions).toEqual(['end'])
+      actor.stop()
+    })
+
     it('entry actions route through a mutable handlers ref (DocumentMachineProvider wiring)', () => {
       // Mirrors what `DocumentMachineProvider` does: `.provide({actions})` where
       // each action reads the freshest handler from a ref at call time.
       const ref: {
-        current: {setEditable: (v: boolean) => void; applyInitialContent: () => void; placeCursor: () => void} | null
+        current: {
+          setEditable: (v: boolean) => void
+          applyInitialContent: () => void
+          placeCursor: (position?: number | 'end' | null) => void
+        } | null
       } = {
         current: null,
       }
@@ -1238,7 +1325,7 @@ describe('DocumentLifecycle machine', () => {
           setEditorEditable: () => ref.current?.setEditable(true),
           setEditorReadOnly: () => ref.current?.setEditable(false),
           applyInitialContentToEditor: () => ref.current?.applyInitialContent(),
-          placeCursorFromPendingOrDraft: () => ref.current?.placeCursor(),
+          placeCursorFromPendingOrDraft: ({context}) => ref.current?.placeCursor(context.pendingEditCursorPosition),
         },
       })
       const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}})

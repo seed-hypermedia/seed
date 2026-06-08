@@ -75,7 +75,8 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
           setEditorEditable: () => editorHandlersRef.current?.setEditable(true),
           setEditorReadOnly: () => editorHandlersRef.current?.setEditable(false),
           applyInitialContentToEditor: () => editorHandlersRef.current?.applyInitialContent(),
-          placeCursorFromPendingOrDraft: () => editorHandlersRef.current?.placeCursor(),
+          placeCursorFromPendingOrDraft: ({context}) =>
+            editorHandlersRef.current?.placeCursor(context.pendingEditCursorPosition),
         },
       }),
     [machine],

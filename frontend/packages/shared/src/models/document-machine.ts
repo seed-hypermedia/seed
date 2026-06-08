@@ -19,6 +19,8 @@ import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xs
  * Both web and desktop create an accessor conforming to this shape,
  * which actors use to read blocks and cursor position.
  */
+export type EditCursorPosition = number | 'end'
+
 export interface EditorAccessor {
   /** Read the editor's current top-level blocks. */
   getTopLevelBlocks(): EditorBlock[] | null
@@ -80,6 +82,8 @@ export type DocumentMachineContext = {
   draftContent: HMBlockNode[] | null
   /** Cursor position saved in the draft file; restored when re-entering editing after reload. */
   draftCursorPosition: number | null
+  /** Cursor requested by the edit.start event that entered or refocused editing. */
+  pendingEditCursorPosition: EditCursorPosition | null
   /** Published content in editor-block format. Baseline for unpublished-change diffs. */
   editorBaseline: EditorBlock[] | null
   /** Snapshot of the published blocks taken on entry to editing. Used as the three-way merge base. */
@@ -140,7 +144,7 @@ export type DocumentMachineEvent =
   | {type: 'document.loaded'; document: HMDocument}
   | {type: 'document.error'; error: unknown}
   | {type: 'document.retry'}
-  | {type: 'edit.start'}
+  | {type: 'edit.start'; cursorPosition?: EditCursorPosition | null}
   | {type: 'edit.cancel'}
   | {type: 'change'; metadata?: HMDraft['metadata']}
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
@@ -340,6 +344,12 @@ export const documentMachine = setup({
     clearShouldAutoEdit: assign({
       shouldAutoEdit: false,
     }),
+    setPendingEditCursorPosition: assign({
+      pendingEditCursorPosition: ({event}) => {
+        if (event.type !== 'edit.start') return null
+        return event.cursorPosition ?? null
+      },
+    }),
     setCanEdit: assign({
       canEdit: ({event}) => {
         if (event.type === 'capability.changed') {
@@ -358,6 +368,7 @@ export const documentMachine = setup({
       pendingRemoteVersion: null,
       draftContent: null,
       draftCursorPosition: null,
+      pendingEditCursorPosition: null,
       metadata: {},
       navigation: undefined,
       baseBlocks: null,
@@ -375,6 +386,7 @@ export const documentMachine = setup({
       draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
+      pendingEditCursorPosition: null,
       baseBlocks: null,
       mineTouchedIds: [],
       pendingRemoteDocument: null,
@@ -659,6 +671,9 @@ export const documentMachine = setup({
       // })
       return result
     },
+    canOpenExistingDraft: ({context, event}) => {
+      return context.canEdit && (context.isLatestVersion || (event.type === 'draft.existing' && !!event.draftId))
+    },
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
@@ -731,6 +746,7 @@ export const documentMachine = setup({
     draftReady: !!input.existingDraftId,
     draftContent: null,
     draftCursorPosition: null,
+    pendingEditCursorPosition: null,
     editorBaseline: null,
     baseBlocks: null,
     mineTouchedIds: [],
@@ -790,7 +806,7 @@ export const documentMachine = setup({
         'edit.start': {
           target: 'editing',
           guard: 'canTransitionToEditing',
-          actions: ['setDepsFromPublished', 'snapshotBaseBlocks'],
+          actions: ['setPendingEditCursorPosition', 'setDepsFromPublished', 'snapshotBaseBlocks'],
         },
         'edit.discard': [
           {
@@ -815,10 +831,16 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setIsLatestVersion'],
         },
-        'draft.existing': {
-          target: 'editing',
-          actions: ['setExistingDraft', 'clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
-        },
+        'draft.existing': [
+          {
+            target: 'editing',
+            guard: 'canOpenExistingDraft',
+            actions: ['setExistingDraft', 'clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
+          },
+          {
+            actions: ['setExistingDraft'],
+          },
+        ],
       },
       always: {
         target: 'editing',
@@ -845,6 +867,9 @@ export const documentMachine = setup({
         {type: 'setEditorReadOnly'},
       ],
       on: {
+        'edit.start': {
+          actions: ['setPendingEditCursorPosition', 'placeCursorFromPendingOrDraft'],
+        },
         'edit.cancel': {
           target: 'loaded',
           actions: [() => console.log('[DocMachine] edit.cancel received in editing → loaded'), 'clearEditingState'],
