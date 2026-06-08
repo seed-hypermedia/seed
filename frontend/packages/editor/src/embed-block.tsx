@@ -423,7 +423,7 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       {block.props.url && (
         <EditorEmbedContent
           openOnClick={!canEdit || !isEditing}
-          titleLinkOnly={canEdit}
+          titleLinkOnly={canEdit && !isEditing}
           parentBlockId={block.props.parentBlockId || null}
           hideInlineActions={canEdit && isAtomicEmbedView}
           block={{

@@ -223,6 +223,15 @@ describe('EmbedBlock card navigation mode', () => {
     )
   })
 
+  it('disables title-only navigation while editing so the first click can select the block', () => {
+    renderEmbedBlock({canEdit: true, isEditing: true, view: 'Card'})
+
+    const card = container.querySelector('[data-testid="block-embed-card"]') as HTMLElement | null
+    expect(card).toBeTruthy()
+    expect(card?.dataset.titleLinkOnly).toBe('false')
+    expect(card?.dataset.openOnClick).toBe('false')
+  })
+
   it('keeps whole-card navigation for card embeds when the user cannot edit', () => {
     renderEmbedBlock({canEdit: false, isEditing: false, view: 'Card'})
 

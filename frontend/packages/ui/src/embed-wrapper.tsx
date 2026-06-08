@@ -4,10 +4,22 @@ import {NavRoute} from '@shm/shared'
 import {useRouteLink} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {HTMLAttributes, PropsWithChildren, useMemo} from 'react'
+import {HTMLAttributes, MouseEvent, PropsWithChildren, useMemo} from 'react'
 import {blockStyles} from './blocks-content-utils'
 import {useHighlighter} from './highlight-context'
 import {cn} from './utils'
+
+function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
+  const target = event.target as HTMLElement | null
+  if (!target?.closest) return false
+
+  const embedEl = target.closest('[data-content-type="embed"]')
+  const interactiveEl = target.closest(
+    'a[href], .link[href], button, input, textarea, select, [role="button"], [data-embed-interactive]',
+  )
+
+  return !!interactiveEl && interactiveEl !== embedEl
+}
 
 export function EmbedWrapper({
   id,
@@ -78,6 +90,8 @@ export function EmbedWrapper({
       onClick={
         openOnClick && effectiveRoute
           ? (e) => {
+              if (isInteractiveEmbedClickTarget(e)) return
+
               const selection = window.getSelection()
               const hasSelection = selection && selection.toString().length > 0
               if (hasSelection) {

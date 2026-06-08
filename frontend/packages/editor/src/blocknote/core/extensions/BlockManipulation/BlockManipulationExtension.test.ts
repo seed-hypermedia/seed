@@ -50,6 +50,12 @@ function getCursorSelectPlugin(openUrl = vi.fn()) {
   })[0]
 }
 
+function clickEventWithTarget(target: HTMLElement) {
+  const event = new MouseEvent('click', {bubbles: true, cancelable: true})
+  Object.defineProperty(event, 'target', {value: target})
+  return event
+}
+
 function createView({
   embedView = 'Card',
   selectedEmbed = false,
@@ -96,7 +102,7 @@ function createView({
   }
 }
 
-describe('BlockManipulationExtension card embed clicks', () => {
+describe('BlockManipulationExtension embed clicks', () => {
   it('selects the card embed on first click', () => {
     const openUrl = vi.fn()
     const plugin = getCursorSelectPlugin(openUrl)
@@ -157,10 +163,10 @@ describe('BlockManipulationExtension card embed clicks', () => {
     expect(openUrl).toHaveBeenCalledWith('hm://uid/doc', false)
   })
 
-  it('keeps non-card embeds selectable even when already selected', () => {
+  it('selects content embeds on first click', () => {
     const openUrl = vi.fn()
     const plugin = getCursorSelectPlugin(openUrl)
-    const {view, embedNode, embedPos} = createView({selectedEmbed: true, embedView: 'Content'})
+    const {view, embedNode, embedPos} = createView({selectedEmbed: false, embedView: 'Content'})
 
     const handled = plugin.props.handleClickOn(view, null, embedNode, embedPos, new MouseEvent('click'))
 
@@ -168,6 +174,37 @@ describe('BlockManipulationExtension card embed clicks', () => {
     expect(view.dispatch).toHaveBeenCalledOnce()
     expect(view.state.selection instanceof NodeSelection).toBe(true)
     expect(view.state.selection.from).toBe(embedPos)
+    expect(openUrl).not.toHaveBeenCalled()
+  })
+
+  it('navigates on second click when a content embed is already selected', () => {
+    const openUrl = vi.fn()
+    const plugin = getCursorSelectPlugin(openUrl)
+    const {view, embedNode, embedPos} = createView({selectedEmbed: true, embedView: 'Content'})
+
+    const handled = plugin.props.handleClickOn(view, null, embedNode, embedPos, new MouseEvent('click'))
+
+    expect(handled).toBe(true)
+    expect(view.dispatch).not.toHaveBeenCalled()
+    expect(view.focus).not.toHaveBeenCalled()
+    expect(openUrl).toHaveBeenCalledWith('hm://uid/doc', false)
+  })
+
+  it('does not open the outer embed when clicking an inner link', () => {
+    const openUrl = vi.fn()
+    const plugin = getCursorSelectPlugin(openUrl)
+    const {view, embedNode, embedPos} = createView({selectedEmbed: true, embedView: 'Content'})
+    const embedEl = document.createElement('div')
+    embedEl.setAttribute('data-content-type', 'embed')
+    const link = document.createElement('a')
+    link.href = 'hm://uid/linked-doc'
+    embedEl.appendChild(link)
+
+    const handled = plugin.props.handleClickOn(view, null, embedNode, embedPos, clickEventWithTarget(link))
+
+    expect(handled).toBe(false)
+    expect(view.dispatch).not.toHaveBeenCalled()
+    expect(view.focus).not.toHaveBeenCalled()
     expect(openUrl).not.toHaveBeenCalled()
   })
 })

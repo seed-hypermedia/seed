@@ -8,8 +8,19 @@ import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/
 
 export const selectableNodeTypes = ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query']
 
-function getClickedCardEmbed(node: Node, nodePos: number, view: EditorView): {url: string; blockId: string} | null {
-  if (node.type.name === 'embed' && node.attrs.view === 'Card' && node.attrs.url) {
+function isInteractiveEmbedClickTarget(event: MouseEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target?.closest) return false
+
+  const interactiveEl = target.closest(
+    'a[href], .link[href], button, input, textarea, select, [role="button"], [data-embed-interactive]',
+  )
+
+  return !!interactiveEl
+}
+
+function getClickedEmbed(node: Node, nodePos: number, view: EditorView): {url: string; blockId: string} | null {
+  if (node.type.name === 'embed' && node.attrs.url) {
     const blockInfo = getBlockInfoFromPos(view.state, nodePos)
     return {
       url: node.attrs.url,
@@ -20,7 +31,6 @@ function getClickedCardEmbed(node: Node, nodePos: number, view: EditorView): {ur
   if (
     node.type.name === 'blockNode' &&
     node.firstChild?.type.name === 'embed' &&
-    node.firstChild.attrs.view === 'Card' &&
     node.firstChild.attrs.url &&
     node.attrs.id
   ) {
@@ -33,16 +43,16 @@ function getClickedCardEmbed(node: Node, nodePos: number, view: EditorView): {ur
   return null
 }
 
-/** Returns true when the current click should open a card embed instead of selecting it. */
-function shouldOpenSelectedCardEmbed(node: Node, nodePos: number, view: EditorView, event: MouseEvent) {
-  const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
-  if (!clickedCardEmbed) return false
+/** Returns true when the current click should open an embed instead of selecting it. */
+function shouldOpenSelectedEmbed(node: Node, nodePos: number, view: EditorView, event: MouseEvent) {
+  const clickedEmbed = getClickedEmbed(node, nodePos, view)
+  if (!clickedEmbed) return false
 
   if (event.detail > 1) return true
   if (!(view.state.selection instanceof NodeSelection)) return false
 
   const selectedBlock = getBlockInfoFromSelection(view.state)
-  return selectedBlock.block.node.attrs.id === clickedCardEmbed.blockId
+  return selectedBlock.block.node.attrs.id === clickedEmbed.blockId
 }
 
 export const BlockManipulationExtension = Extension.create<{
@@ -101,26 +111,28 @@ export const BlockManipulationExtension = Extension.create<{
         props: {
           handleDoubleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
             if (!view.editable) return false
+            if (isInteractiveEmbedClickTarget(event)) return false
 
-            const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
-            if (!clickedCardEmbed || !openUrl) return false
+            const clickedEmbed = getClickedEmbed(node, nodePos, view)
+            if (!clickedEmbed || !openUrl) return false
 
-            openUrl(clickedCardEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
+            openUrl(clickedEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
             return true
           },
           handleClickOn: (view: EditorView, _, node: Node, nodePos: number, event: MouseEvent) => {
             if (!view.editable) return false
+            if (isInteractiveEmbedClickTarget(event)) return false
             if (
               (node.type.name === 'image' &&
                 // @ts-ignore
                 event.target?.nodeName === 'IMG') ||
               ['file', 'embed', 'video', 'web-embed', 'math', 'button', 'query'].includes(node.type.name)
             ) {
-              const clickedCardEmbed = getClickedCardEmbed(node, nodePos, view)
-              const shouldOpen = shouldOpenSelectedCardEmbed(node, nodePos, view, event)
+              const clickedEmbed = getClickedEmbed(node, nodePos, view)
+              const shouldOpen = shouldOpenSelectedEmbed(node, nodePos, view, event)
 
-              if (shouldOpen && openUrl && clickedCardEmbed) {
-                openUrl(clickedCardEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
+              if (shouldOpen && openUrl && clickedEmbed) {
+                openUrl(clickedEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
                 return true
               }
 

@@ -8,8 +8,12 @@ import {EmbedWrapper} from '../embed-wrapper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
+const {routeOnClickMock} = vi.hoisted(() => ({
+  routeOnClickMock: vi.fn(),
+}))
+
 vi.mock('@shm/shared/routing', () => ({
-  useRouteLink: () => ({}),
+  useRouteLink: () => ({href: '#embed-target', onClick: routeOnClickMock}),
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
@@ -24,6 +28,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  routeOnClickMock.mockReset()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -54,5 +59,28 @@ describe('EmbedWrapper', () => {
     expect(wrapper).toBeTruthy()
     expect(wrapper?.className).not.toContain('hm-embed-range-wrapper')
     expect(wrapper?.dataset.isRange).toBe('true')
+  })
+
+  it('lets links inside embed content handle the click instead of opening the outer embed', () => {
+    act(() => {
+      root.render(
+        <EmbedWrapper
+          id={hmId('uid-1', {path: ['doc']})}
+          parentBlockId={null}
+          route={{key: 'document', id: hmId('uid-1', {path: ['doc']})}}
+        >
+          <span className="link" {...({href: '#inner-link'} as any)}>
+            inner link
+          </span>
+        </EmbedWrapper>,
+      )
+    })
+
+    const innerLink = container.querySelector('.link[href="#inner-link"]') as HTMLElement | null
+    expect(innerLink).toBeTruthy()
+
+    innerLink?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+
+    expect(routeOnClickMock).not.toHaveBeenCalled()
   })
 })
