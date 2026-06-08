@@ -1,12 +1,12 @@
-import type { HTMLAttributes, ReactNode } from 'react'
-import { widthValues } from './layout'
-import { PageLayout } from './page-layout'
-import { Spinner } from './spinner'
-import { Text } from './text'
-import { cn } from './utils'
+import type {HTMLAttributes, ReactNode} from 'react'
+import {widthValues} from './layout'
+import {PageLayout} from './page-layout'
+import {Spinner} from './spinner'
+import {Text} from './text'
+import {cn} from './utils'
 
 /** GeneralPageSurface provides the shared page background for feed-like pages. */
-export function GeneralPageSurface({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function GeneralPageSurface({className, ...props}: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('dark:bg-background flex flex-1 flex-col bg-white', className)} {...props} />
 }
 
@@ -22,7 +22,7 @@ export function GeneralPageContainer({
 }) {
   return (
     <PageLayout contentMaxWidth={contentMaxWidth}>
-      <div className={cn('flex flex-col gap-4 pt-8 px-4', className)}>{children}</div>
+      <div className={cn('flex flex-col gap-4 px-4 pt-8', className)}>{children}</div>
     </PageLayout>
   )
 }

@@ -1,10 +1,10 @@
-import { useLocalKeyPair } from '@/auth'
-import type { HMCapability, UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
-import { useUniversalAppContext } from '@shm/shared'
-import { WEB_IS_GATEWAY } from '@shm/shared/constants'
-import { roleCanWrite } from '@shm/shared/models/capabilities'
-import { useCapabilities } from '@shm/shared/models/entity'
-import { useMemo } from 'react'
+import {useLocalKeyPair} from '@/auth'
+import type {HMCapability, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useUniversalAppContext} from '@shm/shared'
+import {WEB_IS_GATEWAY} from '@shm/shared/constants'
+import {roleCanWrite} from '@shm/shared/models/capabilities'
+import {useCapabilities} from '@shm/shared/models/entity'
+import {useMemo} from 'react'
 
 /**
  * Result of resolving whether the current web user can edit a document.
