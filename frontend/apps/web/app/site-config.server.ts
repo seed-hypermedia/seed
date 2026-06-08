@@ -18,6 +18,14 @@ export const siteConfigSchema = z.object({
   availableRegistrationSecret: z.string().optional(),
   sourcePeerId: z.string().optional(),
   registeredAccountUid: z.string().optional(),
+  feedbackDestinationAccountUid: z.string().optional(),
+  feedbackDestinationLabel: z.string().optional(),
+  feedbackSignerAccountUid: z.string().optional(),
+  feedbackDestinationCapabilityCid: z.string().optional(),
+  feedbackDocumentVisibility: z.enum(['private', 'public']).optional(),
+  feedbackDestinationPeerAddrs: z.array(z.string()).optional(),
+  feedbackTaskUrl: z.string().optional(),
+  feedbackTaskLabel: z.string().optional(),
 })
 export type SiteConfig = z.infer<typeof siteConfigSchema>
 
