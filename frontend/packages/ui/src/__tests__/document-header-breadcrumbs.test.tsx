@@ -15,7 +15,21 @@ vi.mock('../tooltip', async () => {
   }
 })
 
-import {Breadcrumbs, type BreadcrumbEntry} from '../document-header'
+vi.mock('@shm/shared/models/entity', () => ({
+  useAccount: (uid: string) => ({
+    data: {
+      metadata: {
+        name: uid,
+      },
+    },
+  }),
+}))
+
+vi.mock('@shm/shared/utils/navigation', () => ({
+  useNavRoute: () => ({key: 'document'}),
+}))
+
+import {Breadcrumbs, DocumentHeader, type BreadcrumbEntry} from '../document-header'
 
 let container: HTMLDivElement
 let root: Root
@@ -33,7 +47,7 @@ afterEach(() => {
   container.remove()
 })
 
-function renderBreadcrumbs(breadcrumbs: BreadcrumbEntry[], openRoute = vi.fn()) {
+function renderWithProvider(node: React.ReactNode, openRoute = vi.fn()) {
   act(() => {
     root.render(
       <UniversalAppProvider
@@ -41,11 +55,15 @@ function renderBreadcrumbs(breadcrumbs: BreadcrumbEntry[], openRoute = vi.fn()) 
         openUrl={vi.fn()}
         universalClient={{request: vi.fn(), publish: vi.fn()} as any}
       >
-        <Breadcrumbs breadcrumbs={breadcrumbs} />
+        {node}
       </UniversalAppProvider>,
     )
   })
   return {openRoute}
+}
+
+function renderBreadcrumbs(breadcrumbs: BreadcrumbEntry[], openRoute = vi.fn()) {
+  return renderWithProvider(<Breadcrumbs breadcrumbs={breadcrumbs} />, openRoute)
 }
 
 describe('DocumentHeader Breadcrumbs', () => {
@@ -136,5 +154,26 @@ describe('DocumentHeader Breadcrumbs', () => {
 
     expect(container.textContent).toContain('path-slug')
     expect(container.textContent).not.toContain('Loading…')
+  })
+
+  it('deduplicates repeated authors before rendering the author list', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const authorId = hmId('alice')
+
+    try {
+      renderWithProvider(
+        <DocumentHeader
+          docId={hmId('site', {path: ['doc']})}
+          docMetadata={{name: 'Doc'} as any}
+          authors={[{id: authorId, metadata: null} as any, {id: authorId, metadata: null} as any]}
+          updateTime={null}
+        />,
+      )
+
+      expect(Array.from(container.querySelectorAll('a')).filter((link) => link.textContent === 'alice')).toHaveLength(1)
+      expect(errorSpy).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 })

@@ -72,6 +72,15 @@ export function DocumentHeader({
   const highlighter = useHighlighter()
   const isPrivate = visibility === 'PRIVATE'
   const headCount = getVersionHeads(version).length
+  const displayAuthors = useMemo(() => {
+    const seen = new Set<string>()
+    return authors.filter((author) => {
+      const key = author.id.id
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [authors])
 
   return (
     <Container
@@ -117,14 +126,14 @@ export function DocumentHeader({
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="flex flex-1 flex-wrap items-center gap-3">
-              {authors?.length ? (
+              {displayAuthors.length ? (
                 <>
                   <p className="text-sm font-bold">
-                    {authors.flatMap((a, index) => {
+                    {displayAuthors.flatMap((a, index) => {
                       return [
                         <AuthorLink id={a.id} key={a.id.id} siteUid={docId?.uid} />,
-                        index !== authors.length - 1 ? (
-                          index === authors.length - 2 ? (
+                        index !== displayAuthors.length - 1 ? (
+                          index === displayAuthors.length - 2 ? (
                             <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
                               {' & '}
                             </SizableText>
