@@ -2,6 +2,7 @@ import {useBookmarks, useRemoveBookmark} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
+import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
@@ -14,11 +15,13 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useRouteLink} from '@shm/shared'
+import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
 import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -367,10 +370,36 @@ function SubscriptionsSection() {
   // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
 
-  // Filter contacts with site subscription, excluding own account
-  const siteSubscribedRaw = contacts.data?.filter(
-    (contact) => contact.subscribe?.site && contact.subject !== selectedAccountId,
-  )
+  const defaultJoinedSiteContact: HMContactRecord = {
+    id: `default-joined-site:${defaultJoinedSiteUid}`,
+    subject: defaultJoinedSiteUid,
+    name: '',
+    account: '',
+    signer: '',
+    subscribe: {site: true},
+  }
+
+  React.useEffect(() => {
+    if (selectedAccountId) return
+    grpcClient.subscriptions
+      .subscribe({
+        account: defaultJoinedSiteUid,
+        path: '',
+        recursive: true,
+      })
+      .then(() => {
+        invalidateQueries([queryKeys.SUBSCRIPTIONS])
+      })
+      .catch((error) => {
+        console.error('Failed to subscribe to default joined site', error)
+      })
+  }, [selectedAccountId])
+
+  // Filter contacts with site subscription, excluding own account. Before an
+  // account exists, show the default joined site so the sidebar isn't empty.
+  const siteSubscribedRaw = selectedAccountId
+    ? contacts.data?.filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
+    : [defaultJoinedSiteContact]
 
   // Deduplicate by subject — the same site may have been joined multiple times
   // (e.g. via delegated keys or repeated join actions), each creating a separate
@@ -432,9 +461,9 @@ function SubscriptionsSection() {
           const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
           const metadata: HMMetadata = {name, icon}
 
-          // Skip if no name and still loading
-          if (!name && siteResource?.isLoading) return null
-          if (!name) return null
+          // Skip if no name and still loading, except for the pre-account default site.
+          if (!name && siteResource?.isLoading && selectedAccountId) return null
+          if (!name && selectedAccountId) return null
 
           // Get activity data
           const docData = subscribedDocs.data?.get(id.id)
@@ -464,6 +493,7 @@ function SubscriptionsSection() {
                 activitySummary={activitySummary}
                 latestComment={latestComment}
                 accountsMetadata={accountsMetadata}
+                canLeave={!!selectedAccountId}
               />
             </SidebarMenuItem>
           )
@@ -489,6 +519,7 @@ function JoinedSiteListItem({
   activitySummary,
   latestComment,
   accountsMetadata,
+  canLeave = true,
 }: {
   id: UnpackedHypermediaId
   contact: HMContactRecord
@@ -498,6 +529,7 @@ function JoinedSiteListItem({
   activitySummary?: HMActivitySummary
   latestComment?: HMComment
   accountsMetadata?: HMAccountsMetadata
+  canLeave?: boolean
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   const navigate = useNavigate()
@@ -542,14 +574,18 @@ function JoinedSiteListItem({
             icon: <LayoutList className="size-4" />,
             onClick: () => navigate({key: 'all-documents', id}),
           },
-          {
-            key: 'leave',
-            label: 'Leave Site',
-            icon: <CircleOff className="size-4" />,
-            variant: 'destructive',
-            disabled: isPending,
-            onClick: () => leaveSite(),
-          },
+          ...(canLeave
+            ? [
+                {
+                  key: 'leave',
+                  label: 'Leave Site',
+                  icon: <CircleOff className="size-4" />,
+                  variant: 'destructive' as const,
+                  disabled: isPending,
+                  onClick: () => leaveSite(),
+                },
+              ]
+            : []),
         ]}
       />
     </>
