@@ -6,6 +6,10 @@ vi.mock('@/client-lazy', () => ({
   WebCommenting: () => null,
 }))
 
+vi.mock('@shm/editor/comment-editor', () => ({
+  CommentEditor: () => null,
+}))
+
 import {documentPageMeta} from '../routes/$'
 
 describe('documentPageMeta', () => {
