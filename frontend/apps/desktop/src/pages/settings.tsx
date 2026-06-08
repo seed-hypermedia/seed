@@ -229,7 +229,8 @@ function AgentServersSettingsPage() {
   )
 }
 
-function AgentServersSettings() {
+/** Renders the desktop settings UI for managing configured agent servers. */
+export function AgentServersSettings() {
   const servers = useAgentServerUrls()
   const defaultServer = useAgentServerUrl()
   const setServers = useSetAgentServerUrls()
@@ -250,7 +251,7 @@ function AgentServersSettings() {
   async function removeServer(serverUrl: string) {
     try {
       const next = (servers.data || []).filter((url) => url !== serverUrl)
-      await setServers.mutateAsync(next.length ? next : [DEFAULT_AGENT_SERVER_URL])
+      await setServers.mutateAsync(next)
       toast.success('Agent server removed')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not remove agent server')
@@ -275,14 +276,14 @@ function AgentServersSettings() {
         <Input
           value={draftUrl}
           onChange={(event) => setDraftUrl(event.target.value)}
-          placeholder="http://localhost:3050"
+          placeholder={DEFAULT_AGENT_SERVER_URL}
         />
         <Button onClick={() => void addServer()} disabled={setServers.isLoading}>
           Add server
         </Button>
       </div>
       <div className="flex flex-col gap-2">
-        {(servers.data || [DEFAULT_AGENT_SERVER_URL]).map((serverUrl) => (
+        {(servers.data || []).map((serverUrl) => (
           <AgentServerSettingsRow
             key={serverUrl}
             serverUrl={serverUrl}
@@ -291,6 +292,11 @@ function AgentServersSettings() {
             onRemove={() => void removeServer(serverUrl)}
           />
         ))}
+        {!servers.data?.length ? (
+          <SizableText size="sm" className="text-muted-foreground">
+            No agent servers configured.
+          </SizableText>
+        ) : null}
       </div>
     </div>
   )

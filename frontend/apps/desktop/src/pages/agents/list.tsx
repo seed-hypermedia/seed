@@ -1,5 +1,4 @@
 import {
-  DEFAULT_AGENT_SERVER_URL,
   useAgentLists,
   useAgentServerHealths,
   useAgentServerUrls,
@@ -22,7 +21,7 @@ function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
   const serverUrlsQuery = useAgentServerUrls()
-  const serverUrls = serverUrlsQuery.data || [DEFAULT_AGENT_SERVER_URL]
+  const serverUrls = serverUrlsQuery.data || []
   const agentQueries = useAgentLists(serverUrls, selectedAccountId)
   const healthQueries = useAgentServerHealths(serverUrls)
   const providerQueries = useModelProviderLists(serverUrls, selectedAccountId)
@@ -129,6 +128,7 @@ function AgentsListPage() {
               </AgentServerSubscription>
             )
           })}
+          {!serverUrls.length ? <SizableText color="muted">No agent servers configured.</SizableText> : null}
         </section>
 
         {providersDialog.content}

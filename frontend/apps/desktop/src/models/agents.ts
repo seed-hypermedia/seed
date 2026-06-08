@@ -24,7 +24,14 @@ import {useEffect, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
-export const DEFAULT_AGENT_SERVER_URL = 'http://localhost:3050'
+const LOCAL_DEFAULT_AGENT_SERVER_URL = 'http://localhost:3050'
+const PRODUCTION_DEFAULT_AGENT_SERVER_URL = 'https://agentic.seed.hyper.media'
+/** Returns the built-in default agent server URL for the current desktop runtime. */
+export function getDefaultAgentServerUrl() {
+  return process.env.NODE_ENV === 'production' ? PRODUCTION_DEFAULT_AGENT_SERVER_URL : LOCAL_DEFAULT_AGENT_SERVER_URL
+}
+/** The built-in default agent server URL for the current desktop runtime. */
+export const DEFAULT_AGENT_SERVER_URL = getDefaultAgentServerUrl()
 const AGENT_BACKGROUND_REFETCH_INTERVAL_MS = 5_000
 
 function tryNormalizeAgentServerUrl(input: string): string | null {
@@ -56,7 +63,6 @@ export function useAgentServerUrls() {
         const normalized = tryNormalizeAgentServerUrl(storedDefault)
         if (normalized) urls.add(normalized)
       }
-      urls.add(DEFAULT_AGENT_SERVER_URL)
       return Array.from(urls)
     },
     useErrorBoundary: false,
@@ -70,10 +76,12 @@ export function useSetAgentServerUrls() {
       const normalized = Array.from(new Set(serverUrls.map((url) => normalizeAgentServerUrl(url))))
       await client.appSettings.setSetting.mutate({key: AGENT_SERVER_URLS_KEY, value: normalized})
       const currentDefault = await client.appSettings.getSetting.query(AGENT_SERVER_URL_KEY)
-      if (!normalized.includes(currentDefault)) {
+      const normalizedCurrentDefault =
+        typeof currentDefault === 'string' ? tryNormalizeAgentServerUrl(currentDefault) : null
+      if (!normalizedCurrentDefault || !normalized.includes(normalizedCurrentDefault)) {
         await client.appSettings.setSetting.mutate({
           key: AGENT_SERVER_URL_KEY,
-          value: normalized[0] || DEFAULT_AGENT_SERVER_URL,
+          value: normalized[0] || null,
         })
       }
       return normalized
