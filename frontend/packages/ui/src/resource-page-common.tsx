@@ -347,6 +347,8 @@ export interface ResourcePageProps {
   publishAccountUid?: string
   /** Async function that uploads a File to the daemon and resolves to its CID. Platform-specific. */
   fileUpload?: (file: File) => Promise<string>
+  /** Imports a remote web file into platform storage. */
+  importWebFile?: DocumentContentProps['importWebFile']
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
@@ -408,6 +410,7 @@ export function ResourcePage({
   signingAccountId,
   publishAccountUid,
   fileUpload,
+  importWebFile,
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
@@ -749,6 +752,7 @@ export function ResourcePage({
           signingAccountId={signingAccountId}
           publishAccountUid={publishAccountUid}
           fileUpload={fileUpload}
+          importWebFile={importWebFile}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
@@ -955,6 +959,7 @@ function DocumentBody({
   signingAccountId,
   publishAccountUid,
   fileUpload,
+  importWebFile,
   ssrContentHTML,
   perspectiveAccountUid,
   linkExtensionOptions,
@@ -1000,6 +1005,8 @@ function DocumentBody({
   publishAccountUid?: string
   /** Async function that uploads a File to the daemon and resolves to its CID */
   fileUpload?: (file: File) => Promise<string>
+  /** Imports a remote web file into platform storage. */
+  importWebFile?: DocumentContentProps['importWebFile']
   ssrContentHTML?: string | null
   /** Account uid used in inline mention suggestions. */
   perspectiveAccountUid?: string | null
@@ -1846,6 +1853,7 @@ function DocumentBody({
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
+          importWebFile={importWebFile}
           draftVersionEntry={draftVersionEntry}
         />
       </div>
@@ -2352,6 +2360,7 @@ function MainContent({
   perspectiveAccountUid,
   linkExtensionOptions,
   fileUpload,
+  importWebFile,
   draftVersionEntry,
 }: {
   docId: UnpackedHypermediaId
@@ -2401,6 +2410,7 @@ function MainContent({
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
+  importWebFile?: DocumentContentProps['importWebFile']
   draftVersionEntry?: DraftVersionEntry
 }) {
   const {originHomeId} = useUniversalAppContext()
@@ -2507,6 +2517,7 @@ function MainContent({
           perspectiveAccountUid={perspectiveAccountUid}
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
+          importWebFile={importWebFile}
         />
       )
   }
@@ -2539,6 +2550,7 @@ function ContentViewWithOutline({
   perspectiveAccountUid,
   linkExtensionOptions,
   fileUpload,
+  importWebFile,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2570,6 +2582,7 @@ function ContentViewWithOutline({
   perspectiveAccountUid?: string | null
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
+  importWebFile?: DocumentContentProps['importWebFile']
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
@@ -2633,6 +2646,7 @@ function ContentViewWithOutline({
             linkExtensionOptions={linkExtensionOptions}
             isUnpublishedDraft={isUnpublishedDraft}
             isBlockInPublishedVersion={isBlockInPublishedVersion}
+            importWebFile={importWebFile}
             handleFileAttachment={handleFileAttachment}
           />
         ) : ssrContentHTML ? (

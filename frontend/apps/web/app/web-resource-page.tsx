@@ -40,7 +40,7 @@ import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
 import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
 import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
-import {makeWebFileUpload} from './document-edit/web-image-upload'
+import {makeWebFileUpload, makeWebImportWebFile} from './document-edit/web-image-upload'
 import {getWebDraftPlaceholderId} from './document-edit/web-draft-path'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -91,6 +91,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
   const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
+  const importWebFile = useMemo(() => makeWebImportWebFile(universalClient), [universalClient])
 
   // Editor accessor — populated by the editor's onEditorReady callback.
   const editorRef = useRef<any>(null)
@@ -380,6 +381,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                 draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                 editingFloatingActions={editingFloatingActions}
                 fileUpload={fileUpload}
+                importWebFile={importWebFile}
               />
             </QueryBlockDraftsProvider>
           </WebDraftActionsProvider>
