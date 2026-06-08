@@ -94,7 +94,7 @@ export const PARAM_EMAIL = 'email'
 export const DELEGATION_PATH = '/delegate'
 
 const AUTH_STATE_BYTES = 16
-const REQUEST_PROOF_MAX_AGE_MS = 5 * 60 * 1000
+const REQUEST_PROOF_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const REQUEST_PROOF_FUTURE_SKEW_MS = 60 * 1000
 
 /** Encode a 32-byte Ed25519 public key as a base58btc multibase principal string. */

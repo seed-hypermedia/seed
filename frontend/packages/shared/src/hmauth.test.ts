@@ -121,7 +121,7 @@ describe('delegation request protocol', () => {
   cryptoTest('rejects expired request proof', async () => {
     const {url} = await createSignedDelegationUrl()
     const request = SDK.parseDelegationRequest(url)
-    const now = Date.now() + 6 * 60 * 1000
+    const now = Date.now() + 25 * 60 * 60 * 1000
     await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com', now)).rejects.toThrow('expired')
   })
 
