@@ -54,6 +54,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
+  LogIn,
   LogOut,
   Monitor,
   PanelLeft,
@@ -184,6 +185,7 @@ export function AccountProfileButton() {
       return accountData
     })
     .filter((d) => !!d)
+  const hasAccounts = !!myAccountIds.data?.length
 
   useEffect(() => {
     if (!menuOpen) {
@@ -210,6 +212,35 @@ export function AccountProfileButton() {
       ? `Remote vault synced ${formattedDate(vaultStatus.data.syncStatus.lastSyncTime, {onlyRelative: true})}`
       : 'Remote vault connected'
     : 'Vault stored locally'
+
+  if (!hasAccounts) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+            <div className="bg-muted flex size-8 items-center justify-center rounded-full">
+              <User className="text-muted-foreground size-4" />
+            </div>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
+          <DropdownMenuItem onClick={() => navigate({key: 'settings', tab: 'sync'})}>
+            <LogIn className="size-4" />
+            Log in
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={isCreating} onClick={() => createAccount()}>
+            <Plus className="size-4" />
+            {isCreating ? 'Creating…' : 'Create account'}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+          <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
+            <Settings className="size-4" />
+            App settings
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
 
   return (
     <DropdownMenu

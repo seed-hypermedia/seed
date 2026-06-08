@@ -13,7 +13,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {KeySquare, Plus, Settings} from 'lucide-react'
+import {KeySquare, LogIn, Plus, Settings} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {useCreateAccount} from './create-account'
 
@@ -58,7 +58,8 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
 
   if (!selectedIdentityValue) {
     return (
-      <div className="flex w-full flex-row items-center justify-between gap-3 rounded-sm bg-white p-1 shadow-sm">
+      <div className="bg-background flex w-full flex-row items-center justify-between gap-2 rounded-sm p-1 shadow-sm">
+        <LoginButton />
         <CreateAccountButton />
         <AppSettingsButton />
       </div>
@@ -167,6 +168,22 @@ function CreateAccountButton({className}: {className?: string}) {
     >
       <Plus className="size-4" />
       {isCreating ? 'Creating…' : 'Create Account'}
+    </Button>
+  )
+}
+
+function LoginButton() {
+  const navigate = useNavigate()
+  return (
+    <Button
+      variant="outline"
+      className="flex-1 border-none"
+      onClick={() => {
+        navigate({key: 'settings', tab: 'sync'})
+      }}
+    >
+      <LogIn className="size-4" />
+      Log in
     </Button>
   )
 }
