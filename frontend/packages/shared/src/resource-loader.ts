@@ -52,6 +52,7 @@ export function createResourceFetcher(grpcClient: GRPCClient) {
           type: 'redirect',
           id,
           redirectTarget: err.target,
+          republish: err.republish,
         } satisfies HMResourceRedirect
       }
       if (err instanceof HMNotFoundError) {

@@ -39,10 +39,15 @@ const documentResponse = (id: ReturnType<typeof hmId>) => ({
   },
 })
 
-const redirectResponse = (from: ReturnType<typeof hmId>, to: ReturnType<typeof hmId>) => ({
+const redirectResponse = (
+  from: ReturnType<typeof hmId>,
+  to: ReturnType<typeof hmId>,
+  options?: {republish?: boolean},
+) => ({
   type: 'redirect' as const,
   id: from,
   redirectTarget: to,
+  republish: options?.republish ?? false,
 })
 
 const notFoundResponse = (id: ReturnType<typeof hmId>) => ({
@@ -87,6 +92,18 @@ describe('queryResource', () => {
     const result = await query.queryFn!()
     expect(result).toMatchObject({type: 'document', id: docC})
     expect(client.request).toHaveBeenCalledTimes(3)
+  })
+
+  test('republish redirects render target content without changing the requested id', async () => {
+    const client = createMockClient((_key, input) => {
+      if (input.id === docA.id) return redirectResponse(docA, docB, {republish: true})
+      if (input.id === docB.id) return documentResponse(docB)
+      throw new Error(`Unexpected request: ${input.id}`)
+    })
+    const query = queryResource(client, docA)
+    const result = await query.queryFn!()
+    expect(result).toMatchObject({type: 'document', id: docA})
+    expect(client.request).toHaveBeenCalledTimes(2)
   })
 
   test('handles redirect to not-found', async () => {

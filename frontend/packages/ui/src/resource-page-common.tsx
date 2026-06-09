@@ -422,10 +422,15 @@ export function ResourcePage({
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
       if (isDeleted || !redirectTarget) return
-      replaceRoute(replaceRouteDocumentId(route, redirectTarget))
-      toast('This document has been redirected to a new location.')
+      const nextRoute = replaceRouteDocumentId(route, redirectTarget)
+      const sourcePathName = docId.path?.join('/') || '/'
+      const destinationPathName = redirectTarget.path?.join('/') || '/'
+      const sourceDisplayPath = sourcePathName === '/' ? '/' : `/${sourcePathName}`
+      const destinationDisplayPath = destinationPathName === '/' ? '/' : `/${destinationPathName}`
+      replaceRoute(nextRoute)
+      toast(`This document redirected from ${sourceDisplayPath} to ${destinationDisplayPath}.`)
     },
-    [replaceRoute, route],
+    [docId, replaceRoute, route],
   )
 
   const resource = useResource(docId, {

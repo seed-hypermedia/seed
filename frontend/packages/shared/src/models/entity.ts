@@ -78,6 +78,7 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
     redirectInfo = {
       type: 'redirect' as const,
       target,
+      republish: docInfo.redirectInfo.republish,
     }
   }
 
@@ -170,6 +171,11 @@ export function useResource(
   const queryClient = useQueryClient()
   const redirectTarget = (() => {
     if (!result.data || !id) return null
+    // When the route/id changes, React Query may briefly expose the previous
+    // successful result while the new request is in flight. Treating that
+    // transitional state as a redirect causes false redirects like A → C when
+    // the user simply navigated from A to B and B is still loading.
+    if (result.isFetching) return null
     if (result.data.type !== 'document' && result.data.type !== 'comment') return null
     if (result.data.id?.id !== id.id) return result.data.id
     return null
@@ -471,6 +477,9 @@ export class HMRedirectError extends HMError {
       path: entityQueryPathToHmIdPath(this.redirect.targetPath),
     })
   }
+  public get republish(): boolean {
+    return !!this.redirect.republish
+  }
 }
 
 export class HMNotFoundError extends HMError {
@@ -520,7 +529,7 @@ export function getErrorMessage(err: any) {
 
     // Fallback: detect redirect from message when error details are missing
     if (e.code === Code.FailedPrecondition && e.message.match('has a redirect to')) {
-      const match = e.message.match(/has a redirect to (hm:\/\/\S+)/)
+      const match = e.message.match(/has a redirect to (hm:\/\/\S+?)(?: \(republish = (true|false)\))?$/)
       if (match) {
         const targetId = unpackHmId(match[1])
         if (targetId) {
@@ -528,6 +537,7 @@ export function getErrorMessage(err: any) {
             new RedirectErrorDetails({
               targetAccount: targetId.uid,
               targetPath: targetId.path ? `/${targetId.path.join('/')}` : '',
+              republish: match[2] === 'true',
             }),
           )
         }

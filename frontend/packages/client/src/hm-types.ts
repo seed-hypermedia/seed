@@ -637,6 +637,7 @@ export type HMGenerationInfo = z.infer<typeof HMGenerationInfoSchema>
 export const HMRedirectInfoSchema = z.object({
   type: z.literal('redirect'),
   target: z.string(),
+  republish: z.boolean().optional(),
 })
 export type HMRedirectInfo = z.infer<typeof HMRedirectInfoSchema>
 
@@ -865,6 +866,7 @@ export const HMResourceRedirectSchema = z.object({
   type: z.literal('redirect'),
   id: unpackedHmIdSchema,
   redirectTarget: unpackedHmIdSchema,
+  republish: z.boolean().optional().default(false),
 })
 export type HMResourceRedirect = z.infer<typeof HMResourceRedirectSchema>
 

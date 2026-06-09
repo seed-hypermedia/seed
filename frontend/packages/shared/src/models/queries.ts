@@ -74,12 +74,26 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
       if (!id) return null
       try {
         let res = await client.request('Resource', id, {signal})
-        // Follow redirects automatically so consumers never see {type: 'redirect'}
+        let republishSourceId: UnpackedHypermediaId | null = null
+        // Follow redirects automatically so consumers never see {type: 'redirect'}.
+        // Republish refs are special: they should render the target content while
+        // preserving the source route/ID, so the omnibar and navigation stay on
+        // the republished path instead of being treated like a move redirect.
         let maxRedirects = 5
         while (res?.type === 'redirect' && maxRedirects-- > 0) {
+          if (res.republish && !republishSourceId) {
+            republishSourceId = res.id
+          }
           res = await client.request('Resource', res.redirectTarget, {signal})
         }
-        return HMResourceSchema.parse(res)
+        const parsed = HMResourceSchema.parse(res)
+        if (republishSourceId && (parsed.type === 'document' || parsed.type === 'comment')) {
+          return {
+            ...parsed,
+            id: republishSourceId,
+          }
+        }
+        return parsed
       } catch (e) {
         if (isAbortError(e)) throw e
         const message = e instanceof Error ? e.message : 'Unknown error'

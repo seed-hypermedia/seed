@@ -589,41 +589,6 @@ function useCurrentRouteUrl(): {
 
   // Debug: trace omnibar URL resolution so we can see why an unpublished doc
   // briefly appeared copyable. Remove once verified.
-  useEffect(() => {
-    if (!routeId) return
-    // eslint-disable-next-line no-console
-    console.log('[omnibar-url]', {
-      routeKey: route.key,
-      routeId: routeId.id,
-      routePath: routeId.path,
-      draft:
-        existingDraft === undefined
-          ? 'loading'
-          : existingDraft === false
-          ? 'none'
-          : {
-              id: existingDraft.id,
-              editUid: existingDraft.editUid,
-              editPath: existingDraft.editPath,
-              locationUid: existingDraft.locationUid,
-              locationPath: existingDraft.locationPath,
-            },
-      resourceType: routeResource.data?.type,
-      isFetching: routeResource.isFetching,
-      isDiscovering: routeResource.isDiscovering,
-      hasPublishedResource,
-      isLocationOnlyDraft,
-    })
-  }, [
-    route.key,
-    routeId?.id,
-    existingDraft,
-    routeResource.data?.type,
-    routeResource.isFetching,
-    routeResource.isDiscovering,
-    hasPublishedResource,
-    isLocationOnlyDraft,
-  ])
 
   return useMemo(() => {
     if (route.key === 'draft') {
