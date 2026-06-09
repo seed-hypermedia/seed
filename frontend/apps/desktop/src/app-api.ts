@@ -52,6 +52,7 @@ import {
   getWindowsState,
   hideFindView,
   setAvailableAccountIds,
+  updateWindowState,
 } from './app-windows'
 import * as log from './logger'
 ipcMain.on('invalidate_queries', (_event, info) => {
@@ -332,6 +333,21 @@ export const router = t.router({
   }),
   deleteAccount: t.procedure.input(z.string()).mutation(async ({input: accountId}) => {
     return await deleteAccount(accountId)
+  }),
+  selectIdentityForWindowsWithoutAccount: t.procedure.input(z.string()).mutation(async ({input: accountId}) => {
+    const windowNavState = getWindowNavState()
+    for (const [windowId, windowState] of Object.entries(windowNavState)) {
+      if (windowState?.selectedIdentity) continue
+      updateWindowState(windowId, (window) => ({
+        ...window,
+        selectedIdentity: accountId,
+      }))
+      const window = getAllWindows().get(windowId)
+      window?.webContents.send('appWindowEvent', {
+        type: 'selectedIdentityChanged',
+        selectedIdentity: accountId,
+      })
+    }
   }),
   createAppWindow: t.procedure
     .input(

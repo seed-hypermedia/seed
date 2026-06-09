@@ -1,7 +1,7 @@
 import { domainResolver } from '@/grpc-client'
 import { roleCanWrite, useSelectedAccountCapability } from '@/models/access-control'
 import { DEFAULT_AGENT_SERVER_URL, useAgentSession } from '@/models/agents'
-import { useForceVaultSync, useMyAccountIds, useVaultStatus } from '@/models/daemon'
+import { useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus } from '@/models/daemon'
 import { useExistingDraft } from '@/models/drafts'
 import { useGatewayUrl } from '@/models/gateway-settings'
 import { useNotificationInbox } from '@/models/notification-inbox'
@@ -30,6 +30,7 @@ import { useStream } from '@shm/shared/use-stream'
 import { createWebHMUrl, hmId, routeToUrl, unpackHmId } from '@shm/shared/utils/entity-id-url'
 import { useNavigationDispatch, useNavigationState, useNavRoute } from '@shm/shared/utils/navigation'
 import { Button } from '@shm/ui/button'
+import { AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from '@shm/ui/components/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +45,7 @@ import { Spinner } from '@shm/ui/spinner'
 import { TitlebarSection } from '@shm/ui/titlebar'
 import { toast } from '@shm/ui/toast'
 import { Tooltip } from '@shm/ui/tooltip'
+import { useAppDialog } from '@shm/ui/universal-dialog'
 import { cn } from '@shm/ui/utils'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -67,6 +69,7 @@ import { ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useStat
 import { BookmarkButton } from './bookmarking'
 import { CopyReferenceButton } from './copy-reference-button'
 import { useCreateAccount } from './create-account'
+import { useDesktopAuthDialog } from './desktop-auth-dialog'
 import { usePublishSite } from './publish-site'
 import { SearchInput, SearchInputHandle } from './search-input'
 import { TitleBarProps } from './titlebar'
@@ -161,6 +164,36 @@ function NotificationButton() {
   )
 }
 
+function LogoutConfirmationDialog({ onClose, input }: { onClose: () => void; input: { onSuccess: () => void } }) {
+  const logout = useLogout({
+    onSuccess: () => {
+      onClose()
+      input.onSuccess()
+      toast.success('Logged out')
+    },
+    onError: (error) => {
+      toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
+    },
+  })
+
+  return (
+    <>
+      <AlertDialogTitle>Log out?</AlertDialogTitle>
+      <AlertDialogDescription>
+        This will disconnect the remote vault and delete all local vault keys from this device.
+      </AlertDialogDescription>
+      <AlertDialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="destructive" disabled={logout.isLoading} onClick={() => logout.mutate()}>
+          {logout.isLoading ? 'Logging out…' : 'Log out'}
+        </Button>
+      </AlertDialogFooter>
+    </>
+  )
+}
+
 export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
@@ -176,6 +209,8 @@ export function AccountProfileButton() {
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
   const { createAccount, isCreating } = useCreateAccount()
+  const authDialog = useDesktopAuthDialog()
+  const logoutDialog = useAppDialog(LogoutConfirmationDialog, { isAlert: true })
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -204,63 +239,46 @@ export function AccountProfileButton() {
 
   if (!hasAccounts) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
-            <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-              <User className="text-muted-foreground size-4" />
-            </div>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-          <DropdownMenuItem onClick={() => navigate({ key: 'settings', tab: 'sync' })}>
-            <LogIn className="size-4" />
-            Log in
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={isCreating} onClick={() => createAccount()}>
-            <Plus className="size-4" />
-            {isCreating ? 'Creating…' : 'Create account'}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-          <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
-            <Settings className="size-4" />
-            App settings
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+              <div className="bg-muted flex size-8 items-center justify-center rounded-full">
+                <User className="text-muted-foreground size-4" />
+              </div>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
+            <DropdownMenuItem onClick={() => authDialog.open({})}>
+              <LogIn className="size-4" />
+              Log in
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => authDialog.open({})}>
+              <Plus className="size-4" />
+              Sign up
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+            <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
+              <Settings className="size-4" />
+              App settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {authDialog.content}
+      </>
     )
   }
 
   return (
-    <DropdownMenu
-      onOpenChange={(open) => {
-        setMenuOpen(open)
-        if (!open) setSwitcherOpen(false)
-      }}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
-          {accountUid ? (
-            <HMIcon
-              id={hmId(accountUid)}
-              name={selectedAccount?.metadata?.name}
-              icon={selectedAccount?.metadata?.icon}
-              size={32}
-            />
-          ) : (
-            <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-              <User className="text-muted-foreground size-4" />
-            </div>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-        {/* Account header + switcher */}
-        <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
-          <button
-            className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-            onClick={() => setSwitcherOpen(!switcherOpen)}
-          >
+    <>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          setMenuOpen(open)
+          if (!open) setSwitcherOpen(false)
+        }}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
             {accountUid ? (
               <HMIcon
                 id={hmId(accountUid)}
@@ -269,95 +287,131 @@ export function AccountProfileButton() {
                 size={32}
               />
             ) : (
-              <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+              <div className="bg-muted flex size-8 items-center justify-center rounded-full">
                 <User className="text-muted-foreground size-4" />
               </div>
             )}
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
-            </div>
-            {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
-          </button>
-          {switcherOpen && (
-            <>
-              <div
-                className="max-h-[200px] overflow-y-auto"
-                style={{
-                  background: [
-                    'linear-gradient(var(--popover) 33%, transparent) center top',
-                    'linear-gradient(transparent, var(--popover) 66%) center bottom',
-                    'radial-gradient(farthest-side at 50% 0, oklch(0 0 0 / 0.12), transparent) center top',
-                    'radial-gradient(farthest-side at 50% 100%, oklch(0 0 0 / 0.12), transparent) center bottom',
-                  ].join(', '),
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '100% 40px, 100% 40px, 100% 6px, 100% 6px',
-                  backgroundAttachment: 'local, local, scroll, scroll',
-                }}
-              >
-                {accountOptions?.map((option) =>
-                  option ? (
-                    <button
-                      key={option.id.uid}
-                      className={cn(
-                        'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
-                        selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
-                      )}
-                      onClick={() => {
-                        setSelectedIdentity?.(option.id.uid || null)
-                        setSwitcherOpen(false)
-                      }}
-                    >
-                      <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={32} />
-                      <p className="min-w-0 truncate text-sm">
-                        {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
-                      </p>
-                    </button>
-                  ) : null,
-                )}
-              </div>
-              <button
-                className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2 disabled:opacity-60"
-                disabled={isCreating}
-                onClick={() => createAccount()}
-              >
-                <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-                  <Plus className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
+          {/* Account header + switcher */}
+          <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
+            <button
+              className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
+              onClick={() => setSwitcherOpen(!switcherOpen)}
+            >
+              {accountUid ? (
+                <HMIcon
+                  id={hmId(accountUid)}
+                  name={selectedAccount?.metadata?.name}
+                  icon={selectedAccount?.metadata?.icon}
+                  size={32}
+                />
+              ) : (
+                <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+                  <User className="text-muted-foreground size-4" />
                 </div>
-                <p className="text-sm">{isCreating ? 'Creating…' : 'Create account'}</p>
-              </button>
-            </>
+              )}
+              <div className="min-w-0 flex-1 text-left">
+                <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
+              </div>
+              {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
+            </button>
+            {switcherOpen && (
+              <>
+                <div
+                  className="max-h-[200px] overflow-y-auto"
+                  style={{
+                    background: [
+                      'linear-gradient(var(--popover) 33%, transparent) center top',
+                      'linear-gradient(transparent, var(--popover) 66%) center bottom',
+                      'radial-gradient(farthest-side at 50% 0, oklch(0 0 0 / 0.12), transparent) center top',
+                      'radial-gradient(farthest-side at 50% 100%, oklch(0 0 0 / 0.12), transparent) center bottom',
+                    ].join(', '),
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '100% 40px, 100% 40px, 100% 6px, 100% 6px',
+                    backgroundAttachment: 'local, local, scroll, scroll',
+                  }}
+                >
+                  {accountOptions?.map((option) =>
+                    option ? (
+                      <button
+                        key={option.id.uid}
+                        className={cn(
+                          'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
+                          selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
+                        )}
+                        onClick={() => {
+                          setSelectedIdentity?.(option.id.uid || null)
+                          setSwitcherOpen(false)
+                        }}
+                      >
+                        <HMIcon id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={32} />
+                        <p className="min-w-0 truncate text-sm">
+                          {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
+                        </p>
+                      </button>
+                    ) : null,
+                  )}
+                </div>
+                <button
+                  className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2 disabled:opacity-60"
+                  disabled={isCreating}
+                  onClick={() => createAccount()}
+                >
+                  <div className="bg-muted flex size-8 items-center justify-center rounded-full">
+                    <Plus className="size-4" />
+                  </div>
+                  <p className="text-sm">{isCreating ? 'Creating…' : 'Create account'}</p>
+                </button>
+              </>
+            )}
+          </div>
+          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+          {accountUid && (
+            <DropdownMenuItem
+              onClick={() => {
+                navigate({ key: 'profile', id: hmId(accountUid) })
+              }}
+            >
+              <User className="size-4" />
+              My Profile
+            </DropdownMenuItem>
           )}
-        </div>
-        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-        {accountUid && (
+          <DropdownMenuItem disabled>
+            <UserCog className="size-4" />
+            Manage account
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled>
+            <Monitor className="size-4" />
+            Site settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
+            <Settings className="size-4" />
+            App settings
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
           <DropdownMenuItem
+            variant="destructive"
             onClick={() => {
-              navigate({ key: 'profile', id: hmId(accountUid) })
+              setMenuOpen(false)
+              logoutDialog.open({
+                onSuccess: () => {
+                  authDialog.close()
+                  setSelectedIdentity?.(null)
+                  navigate({ key: 'onboarding' })
+                },
+              })
             }}
           >
-            <User className="size-4" />
-            My Profile
+            <LogOut className="size-4" />
+            Log out
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem disabled>
-          <UserCog className="size-4" />
-          Manage account
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <Monitor className="size-4" />
-          Site settings
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
-          <Settings className="size-4" />
-          App settings
-        </DropdownMenuItem>
-        <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-        <DropdownMenuItem variant="destructive" disabled>
-          <LogOut className="size-4" />
-          Log out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {logoutDialog.content}
+      {authDialog.content}
+    </>
   )
 }
 
@@ -1032,7 +1086,7 @@ export function Omnibar() {
               'min-w-0 flex-1 truncate border-none! bg-transparent text-xs outline-none',
               'placeholder:text-muted-foreground',
             )}
-            placeholder="Search documents…"
+            placeholder="Search documents or paste a URL…"
             autoFocus
           />
           {isSearchLoading ? <Spinner className="text-muted-foreground size-3.5 shrink-0" /> : null}

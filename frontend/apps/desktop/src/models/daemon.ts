@@ -172,6 +172,21 @@ export function useDisconnectVault(opts?: UseMutationOptions<void, unknown, void
   })
 }
 
+/** Logs out by disconnecting remote vault sync and deleting all local vault keys. */
+export function useLogout(opts?: UseMutationOptions<void, unknown, void>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async () => {
+      await grpcClient.daemon.disconnectVault({})
+      await grpcClient.daemon.deleteAllKeys({})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 /** Forces an immediate sync with the remote vault. Returns error if remote is not configured or offline. */
 export function useForceVaultSync(opts?: UseMutationOptions<GetVaultStatusResponse, unknown, void>) {
   return useMutation({
