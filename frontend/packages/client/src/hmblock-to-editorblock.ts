@@ -34,6 +34,9 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Query') return 'query'
+  if (hmBlockType === 'Table') return 'table'
+  if (hmBlockType === 'TableRow') return 'tableRow'
+  if (hmBlockType === 'TableColumn') return 'tableColumn'
   return 'unknown'
 }
 
@@ -156,6 +159,20 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
 
     // return out
+  }
+
+  if (block.type === 'Paragraph') {
+    const columnId = (block as any).attributes?.columnId
+    if (typeof columnId === 'string' && columnId) {
+      ;(out.props as EditorBlockProps).columnId = columnId
+    }
+  }
+
+  if (block.type === 'TableColumn') {
+    const width = (block as any).attributes?.width
+    if (typeof width === 'number') {
+      ;(out.props as any).width = String(width)
+    }
   }
 
   if (block.type === 'Query') {

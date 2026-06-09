@@ -1157,4 +1157,99 @@ describe('HMBlock to EditorBlock', () => {
       expect(text.styles.textColor).toBeUndefined()
     })
   })
+
+  describe('table blocks', () => {
+    test('Table maps to editor table block', () => {
+      const hmBlock: HMBlock = {
+        id: 't1',
+        type: 'Table',
+        attributes: {},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val.type).toBe('table')
+      expect(val.id).toBe('t1')
+    })
+
+    test('TableRow restores its text as the row label', () => {
+      const hmBlock: HMBlock = {
+        id: 'r-rev',
+        type: 'TableRow',
+        text: 'Revenue',
+        annotations: [],
+        attributes: {},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+      const text = val.content.find((c: any) => c.type === 'text') as any
+
+      expect(val.type).toBe('tableRow')
+      expect(text.text).toBe('Revenue')
+    })
+
+    test('TableRow with empty text yields empty editor content', () => {
+      const hmBlock: HMBlock = {
+        id: 'r1',
+        type: 'TableRow',
+        text: '',
+        annotations: [],
+        attributes: {},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val.type).toBe('tableRow')
+      // The converter emits a single empty text leaf when block.text is ''.
+      // This matches Paragraph behaviour and keeps the inline content array shape stable.
+      expect(val.content).toEqual([{type: 'text', text: '', styles: {}}])
+    })
+
+    test('TableColumn restores header text and width', () => {
+      const hmBlock: HMBlock = {
+        id: 'c-q1',
+        type: 'TableColumn',
+        text: 'Q1',
+        annotations: [],
+        attributes: {width: 120},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+      const text = val.content.find((c: any) => c.type === 'text') as any
+
+      expect(val.type).toBe('tableColumn')
+      expect(text.text).toBe('Q1')
+      expect((val.props as any).width).toBe('120')
+    })
+
+    test('Paragraph with columnId attribute exposes it as editor prop', () => {
+      const hmBlock: HMBlock = {
+        id: 'cell-1',
+        type: 'Paragraph',
+        text: '10',
+        annotations: [],
+        attributes: {columnId: 'c-q1'},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val.type).toBe('paragraph')
+      expect((val.props as any).columnId).toBe('c-q1')
+    })
+
+    test('Paragraph without columnId does not surface the prop', () => {
+      const hmBlock: HMBlock = {
+        id: 'p1',
+        type: 'Paragraph',
+        text: 'hi',
+        annotations: [],
+        attributes: {},
+      } as unknown as HMBlock
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect(val.type).toBe('paragraph')
+      expect((val.props as any).columnId).toBeUndefined()
+    })
+  })
 })

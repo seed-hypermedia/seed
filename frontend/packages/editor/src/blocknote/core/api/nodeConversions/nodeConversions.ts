@@ -140,7 +140,11 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
 
   let contentNode: Node
 
-  if (!block.content) {
+  // Tables hold structural inner content and they don't fit the generic
+  // content shape used by every other block. Needs a custom handler.
+  if (type === 'table') {
+    return tableBlockToNode(block, schema, id!)
+  } else if (!block.content) {
     // @ts-ignore
     contentNode = schema.nodes[type].create(block.props)
   } else if (typeof block.content === 'string') {
@@ -438,6 +442,14 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     }
   }
 
+  // Walk the table's PM tree by hand and pack rows and cells into the block
+  // representation so they survive the BlockNote save/load round-trip.
+  if (node.firstChild!.type.name === 'table') {
+    const block = tableNodeToBlock<BSchema>(node, id, props)
+    blockCache?.set(node, block)
+    return block
+  }
+
   const content = contentNodeToInlineContent(node.firstChild!)
 
   const children: Block<BSchema>[] = []
@@ -456,4 +468,83 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   blockCache?.set(node, block)
 
   return block
+}
+
+// Extract a PM table tree into the BlockNote block shape.
+function tableNodeToBlock<BSchema extends BlockSchema>(blockNode: Node, id: string, props: any): Block<BSchema> {
+  const tableNode = blockNode.firstChild!
+  const rowBlocks: Block<BSchema>[] = []
+
+  tableNode.content.forEach((rowNode) => {
+    if (rowNode.type.name !== 'tableRow') return
+
+    const cellBlocks: Block<BSchema>[] = []
+    rowNode.content.forEach((cellNode) => {
+      const isHeader = cellNode.type.name === 'tableHeader'
+      // Expect a single paragraph per cell. If a cell ends up with multiple blocks
+      // from paste edge cases, the first block's inline content is what we keep.
+      const inner = cellNode.firstChild
+      const inlineContent = inner ? contentNodeToInlineContent(inner) : []
+      cellBlocks.push({
+        id: UniqueID.options.generateID(),
+        type: 'paragraph',
+        props: isHeader ? {isHeader: 'true'} : {},
+        content: inlineContent,
+        children: [],
+      } as unknown as Block<BSchema>)
+    })
+
+    rowBlocks.push({
+      id: UniqueID.options.generateID(),
+      type: 'tableRow',
+      props: {},
+      content: [],
+      children: cellBlocks,
+    } as unknown as Block<BSchema>)
+  })
+
+  return {
+    id,
+    type: 'table',
+    props,
+    content: [],
+    children: rowBlocks,
+  } as unknown as Block<BSchema>
+}
+
+/**
+ * Rebuild a PM table tree from a BlockNote table block.
+ */
+function tableBlockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSchema>, schema: Schema, id: string): Node {
+  const rowNodes: Node[] = []
+
+  for (const rowBlock of block.children ?? []) {
+    const cellNodes: Node[] = []
+    for (const cellBlock of rowBlock.children ?? []) {
+      const inlineNodes = cellBlock.content ? inlineContentToNodes(cellBlock.content as any, schema) : []
+      // @ts-ignore — paragraph is always in the schema
+      const paragraphNode = schema.nodes['paragraph'].create(null, inlineNodes)
+      const isHeader = (cellBlock.props as any)?.isHeader === 'true'
+      const cellTypeName = isHeader ? 'tableHeader' : 'tableCell'
+      // @ts-ignore
+      cellNodes.push(schema.nodes[cellTypeName].createChecked(null, paragraphNode))
+    }
+    // Append zero cells as they produce empty rows, that need to be rendered.
+    // @ts-ignore
+    rowNodes.push(schema.nodes['tableRow'].createChecked(null, cellNodes))
+  }
+
+  // If there are no rows, fall back to createAndFill so PM
+  // produces a valid empty table instead of throwing.
+  let tableNode: Node
+  if (rowNodes.length > 0) {
+    // @ts-ignore
+    tableNode = schema.nodes['table'].createChecked(block.props, rowNodes)
+  } else {
+    // @ts-ignore
+    tableNode = schema.nodes['table'].createAndFill(block.props)!
+  }
+
+  // @ts-ignore
+  return schema.nodes['blockNode'].create({id, ...block.props}, tableNode)
 }

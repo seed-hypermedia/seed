@@ -1394,4 +1394,158 @@ describe('EditorBlock to HMBlock', () => {
       expect(() => editorBlockToHMBlock(editorBlock)).not.toThrow()
     })
   })
+
+  describe('table blocks', () => {
+    test('table', () => {
+      const editorBlock: EditorBlock = {
+        id: 't1',
+        type: 'table',
+        children: [],
+        props: {},
+        content: [],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 't1',
+        type: 'Table',
+        text: '',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
+    test('tableRow with row label text', () => {
+      const editorBlock: EditorBlock = {
+        id: 'r-rev',
+        type: 'tableRow',
+        children: [],
+        props: {},
+        content: [{type: 'text', text: 'Revenue', styles: {}}],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 'r-rev',
+        type: 'TableRow',
+        text: 'Revenue',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
+    test('tableRow with empty label is fine', () => {
+      const editorBlock: EditorBlock = {
+        id: 'r1',
+        type: 'tableRow',
+        children: [],
+        props: {},
+        content: [],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 'r1',
+        type: 'TableRow',
+        text: '',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
+    test('tableRow text supports inline annotations', () => {
+      const editorBlock: EditorBlock = {
+        id: 'r1',
+        type: 'tableRow',
+        children: [],
+        props: {},
+        content: [
+          {type: 'text', text: 'Rev', styles: {bold: true}},
+          {type: 'text', text: 'enue', styles: {}},
+        ],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'TableRow'}>
+
+      expect(val.text).toBe('Revenue')
+      expect(val.annotations).toEqual([{type: 'Bold', link: '', starts: [0], ends: [3]}])
+    })
+
+    test('tableColumn with header text and width', () => {
+      const editorBlock: EditorBlock = {
+        id: 'c-q1',
+        type: 'tableColumn',
+        children: [],
+        props: {width: '120'},
+        content: [{type: 'text', text: 'Q1', styles: {}}],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 'c-q1',
+        type: 'TableColumn',
+        text: 'Q1',
+        annotations: [],
+        attributes: {width: 120},
+      })
+    })
+
+    test('tableColumn with no header text and no width', () => {
+      const editorBlock: EditorBlock = {
+        id: 'c1',
+        type: 'tableColumn',
+        children: [],
+        props: {},
+        content: [],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual({
+        id: 'c1',
+        type: 'TableColumn',
+        text: '',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
+    test('paragraph carries columnId when inside a TableRow', () => {
+      const editorBlock: EditorBlock = {
+        id: 'cell-1',
+        type: 'paragraph',
+        children: [],
+        props: {columnId: 'c-q1'},
+        content: [{type: 'text', text: '10', styles: {}}],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
+
+      expect(val).toEqual({
+        id: 'cell-1',
+        type: 'Paragraph',
+        text: '10',
+        annotations: [],
+        attributes: {columnId: 'c-q1'},
+      })
+    })
+
+    test('paragraph outside a TableRow has no columnId attribute', () => {
+      const editorBlock: EditorBlock = {
+        id: 'p1',
+        type: 'paragraph',
+        children: [],
+        props: {},
+        content: [{type: 'text', text: 'hi', styles: {}}],
+      }
+
+      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
+
+      expect(val.attributes).toEqual({})
+    })
+  })
 })
