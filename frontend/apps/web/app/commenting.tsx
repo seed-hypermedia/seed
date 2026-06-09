@@ -42,6 +42,7 @@ import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizontal, X} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
+import {fetchWebImportBlob} from './document-edit/web-image-upload'
 import {EmailNotificationsForm} from './email-notifications'
 import {hasPromptedEmailNotifications, setHasPromptedEmailNotifications, setPendingIntent} from './local-db'
 import {processPendingIntent} from './pending-intent'
@@ -569,22 +570,14 @@ async function importWebFile(
   size: number
 }> {
   try {
-    const res = await fetch(url, {method: 'GET', mode: 'cors'})
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch: ${res.status} ${res.statusText}`)
-    }
-
-    const contentType = res.headers.get('content-type') || 'application/octet-stream'
-    const blob = await res.blob()
-
+    const {blob, type, size} = await fetchWebImportBlob(url)
     const result = await handleFileAttachment(blob, draftId)
 
     return {
       displaySrc: result.displaySrc,
       fileBinary: result.fileBinary,
-      type: contentType,
-      size: blob.size,
+      type,
+      size,
     }
   } catch (err: any) {
     throw new Error(err?.message || 'Could not download file.')

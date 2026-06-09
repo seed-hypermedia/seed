@@ -65,9 +65,9 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
 
         const html = event.clipboardData?.getData('text/html') || ''
         const htmlImageSources = extractPastedImageSources(html)
-        const firstHtmlImageSource = htmlImageSources[0]
-        if (firstHtmlImageSource) {
-          processImageSource(firstHtmlImageSource, view, insertPos, blockNoteEditor)
+        const firstConvertibleHtmlImageSource = htmlImageSources.find(shouldConvertPastedImageSourceToFile)
+        if (firstConvertibleHtmlImageSource) {
+          processImageSource(firstConvertibleHtmlImageSource, view, insertPos, blockNoteEditor)
           return true
         }
 
@@ -115,6 +115,11 @@ export function extractPastedImageSources(html: string): string[] {
     .filter((imgEl) => !imgEl.closest('[data-content-type="image"]'))
     .map((imgEl) => imgEl.getAttribute('src') || '')
     .filter(Boolean)
+}
+
+/** Whether a pasted HTML image src should be fetched in-renderer and converted into a File. */
+export function shouldConvertPastedImageSourceToFile(src: string): boolean {
+  return src.startsWith('data:') || src.startsWith('blob:')
 }
 
 /** Convert an image URL from pasted HTML into a File that can use the normal media insertion path. */

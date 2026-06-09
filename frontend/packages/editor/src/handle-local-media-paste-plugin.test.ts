@@ -3,6 +3,7 @@ import {
   createNodePropsFromAttachmentResult,
   extractPastedImageSources,
   imageSourceToFile,
+  shouldConvertPastedImageSourceToFile,
 } from './handle-local-media-paste-plugin'
 
 describe('local media paste helpers', () => {
@@ -29,6 +30,14 @@ describe('local media paste helpers', () => {
     `
 
     expect(extractPastedImageSources(html)).toEqual(['https://example.com/external.png'])
+  })
+
+  it('only converts local pasted HTML image sources to Files', () => {
+    expect(shouldConvertPastedImageSourceToFile('data:image/png;base64,abc')).toBe(true)
+    expect(shouldConvertPastedImageSourceToFile('blob:https://example.com/123')).toBe(true)
+    expect(shouldConvertPastedImageSourceToFile('https://example.com/image.webp')).toBe(false)
+    expect(shouldConvertPastedImageSourceToFile('http://example.com/image.webp')).toBe(false)
+    expect(shouldConvertPastedImageSourceToFile('ipfs://bafy...')).toBe(false)
   })
 
   it('converts pasted HTML image sources to Files', async () => {
