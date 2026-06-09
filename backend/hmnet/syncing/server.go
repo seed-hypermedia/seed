@@ -385,32 +385,44 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 	}()
 
-	protocolVersion := protocolVersionFromContext(ctx)
-
-	// While a reindex is pending or in flight, the derived index (rbsr_scope /
-	// rbsr_item) may be torn down or only half-built, so serve from the
-	// authoritative rebuild instead of a possibly-incomplete maintained set.
-	if st := s.index.ReindexInfo().State; st == blob.ReindexStatePending || st == blob.ReindexStateInProgress {
-		// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables, which
-		// don't take the main-DB writer mutex. See SaveTempOnly contract.
-		legacy := newAuthorizedStore()
-		if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
-			return loadRBSRStore(conn, dkeys, legacy)
-		}); err != nil {
-			return nil, err
+	// Serve from the maintained index only when explicitly enabled and no
+	// reindex is in flight (the derived tables may be torn down mid-reindex).
+	// Any error in the index path falls back to the authoritative legacy
+	// rebuild, so a problem in the maintained index can never break sync.
+	if rbsrServeFromIndex {
+		if st := s.index.ReindexInfo().State; st != blob.ReindexStatePending && st != blob.ReindexStateInProgress {
+			store, err := s.loadStoreFromIndex(ctx, dkeys, authorizedSpaces, protocolVersionFromContext(ctx))
+			if err == nil {
+				return store, nil
+			}
+			s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
 		}
-		if err := legacy.Seal(); err != nil {
-			return nil, err
-		}
-		return legacy.WithFilter(authorizedSpaces), nil
 	}
 
-	// Serve from the maintained index: materialize each scope once (the only
-	// place the expensive collectBlobs closure runs), then build the
-	// tree-backed store from the union of persisted rows. WithSave (a write
-	// tx) is needed because first-time materialization writes rbsr_item; once
-	// materialized, subsequent rounds only read. The incremental oracle keeps
-	// the set current so reconciliation no longer rebuilds it per round.
+	return s.loadStoreLegacy(ctx, dkeys, authorizedSpaces)
+}
+
+// loadStoreLegacy builds the store by rebuilding the full set via collectBlobs —
+// the original, authoritative path. It writes only TEMP tables (rbsr_blobs /
+// rbsr_iris), so WithSaveTempOnly avoids the main-DB writer mutex.
+func (s *Server) loadStoreLegacy(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal) (rbsr.Store, error) {
+	store := newAuthorizedStore()
+	if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, dkeys, store)
+	}); err != nil {
+		return nil, err
+	}
+	if err := store.Seal(); err != nil {
+		return nil, err
+	}
+	return store.WithFilter(authorizedSpaces), nil
+}
+
+// loadStoreFromIndex serves from the maintained index: materialize each scope
+// once (the only place the expensive collectBlobs closure runs), then build the
+// tree-backed store from the union of persisted rows. The incremental oracle
+// keeps the set current so reconciliation no longer rebuilds it per round.
+func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal, protocolVersion string) (rbsr.Store, error) {
 	store := newAuthorizedTreeStore()
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		scopeIDs := make([]int64, 0, len(dkeys))
