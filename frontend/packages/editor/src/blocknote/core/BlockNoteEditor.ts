@@ -276,7 +276,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.hyperlinkToolbar = isReadOnly ? null : new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = isReadOnly ? null : new LinkMenuProsemirrorPlugin(this)
 
-    // Read-only UI plugins: for document + viewer (not embed)
+    // Non-embed UI plugins: hover actions work across editor states, while
+    // range/full-block selection suppress themselves when not applicable.
     this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
     this.fullBlockSelection = isEmbed ? null : new FullBlockSelectionProsemirrorPlugin(this)

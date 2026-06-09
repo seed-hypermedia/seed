@@ -81,20 +81,71 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   // -------------------------------------------------------------------------
 
   /**
-   * Walks up the DOM from `element` until a node that carries `data-id` is
-   * found.  Returns `null` if none is found before reaching the editor root.
+   * Walks up the DOM from `node` until a block content element is found.
+   * Returns `null` if the pointer is over a block wrapper or nested children
+   * area instead of an actual block content element.
    */
-  private findBlockElement(element: HTMLElement): HTMLElement | null {
-    let node: HTMLElement | null = element
+  private findBlockContentElement(node: Node | null): HTMLElement | null {
+    let element: HTMLElement | null =
+      node?.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof HTMLElement ? node : null
 
-    while (node && node !== this.pmView.dom) {
-      if (node.hasAttribute('data-id')) {
-        return node
+    while (element && element !== this.pmView.dom) {
+      if (element.hasAttribute('data-content-type')) {
+        return element
       }
-      node = node.parentElement
+      element = element.parentElement
     }
 
     return null
+  }
+
+  /**
+   * Finds the block node that owns a block content element. The direct
+   * `data-content-type` target is used first so hovering nested children does
+   * not accidentally select the parent block wrapper.
+   */
+  private findOwningBlockElement(contentElement: HTMLElement): HTMLElement | null {
+    let element: HTMLElement | null = contentElement.parentElement
+
+    while (element && element !== this.pmView.dom) {
+      if (element.getAttribute('data-node-type') === 'blockNode' && element.hasAttribute('data-id')) {
+        return element
+      }
+      element = element.parentElement
+    }
+
+    return null
+  }
+
+  private findBlockElementById(blockId: string): HTMLElement | null {
+    return this.pmView.dom.querySelector(`[data-node-type="blockNode"][data-id="${blockId}"]`) as HTMLElement | null
+  }
+
+  private findBlockContentElementForBlock(blockElement: HTMLElement): HTMLElement | null {
+    return Array.from(blockElement.children).find((child) =>
+      child.hasAttribute('data-content-type'),
+    ) as HTMLElement | null
+  }
+
+  private keepHoverInCurrentRightGutter(event: MouseEvent, requireCurrentBlockTarget: boolean): boolean {
+    if (!this.currentState.show || !this.currentState.blockId || !this.currentState.referenceRect) {
+      return false
+    }
+
+    if (requireCurrentBlockTarget) {
+      const target = event.target
+      if (!(target instanceof Element)) {
+        return false
+      }
+
+      const currentBlock = this.findBlockElementById(this.currentState.blockId)
+      if (!currentBlock?.contains(target)) {
+        return false
+      }
+    }
+
+    const rect = this.currentState.referenceRect
+    return event.clientX >= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
   }
 
   private emitState(state: BlockHoverActionsState) {
@@ -117,12 +168,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   private handleMouseMove(event: MouseEvent) {
-    // Only show hover actions in read-only mode.
-    if (this.pmView.editable) {
-      this.hide()
-      return
-    }
-
     if (!this.pmView.dom.isConnected) {
       this.hide()
       return
@@ -134,43 +179,31 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    // Use posAtCoords to find the ProseMirror position under the cursor.
-    const coords = {left: event.clientX, top: event.clientY}
-    const posResult = this.pmView.posAtCoords(coords)
+    const supernumberBadge = event.target instanceof Element ? event.target.closest('.bn-supernumber-badge') : null
+    const supernumberBlockId = supernumberBadge instanceof HTMLElement ? supernumberBadge.dataset.blockId : undefined
 
-    if (!posResult) {
+    if (supernumberBlockId) {
+      const blockElement = this.findBlockElementById(supernumberBlockId)
+      const contentElement = blockElement ? this.findBlockContentElementForBlock(blockElement) : null
+
+      if (blockElement && contentElement) {
+        const referenceRect = contentElement.getBoundingClientRect()
+        this.emitState({show: true, blockId: supernumberBlockId, referenceRect})
+        return
+      }
+    }
+
+    const contentElement = this.findBlockContentElement(event.target as Node | null)
+    if (!contentElement) {
+      if (this.keepHoverInCurrentRightGutter(event, true)) {
+        return
+      }
+
       this.hide()
       return
     }
 
-    // Walk up from the DOM node returned by posAtCoords to find the block element.
-    let domNode: Node | null = null
-
-    // posResult.inside can be -1 (outside any node), so use pos as fallback.
-    if (posResult.inside >= 0) {
-      domNode = this.pmView.nodeDOM(posResult.inside) as Node | null
-    }
-
-    if (!domNode) {
-      const domAtResult = this.pmView.domAtPos(posResult.pos)
-      domNode = domAtResult.node
-    }
-
-    if (!domNode) {
-      this.hide()
-      return
-    }
-
-    // Normalise text nodes to their parent element.
-    const element: HTMLElement = (domNode.nodeType === Node.TEXT_NODE ? domNode.parentElement : domNode) as HTMLElement
-
-    if (!element) {
-      this.hide()
-      return
-    }
-
-    const blockElement = this.findBlockElement(element)
-
+    const blockElement = this.findOwningBlockElement(contentElement)
     if (!blockElement) {
       this.hide()
       return
@@ -186,7 +219,7 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     // On touch-only devices, suppress for block types whose own click action
     // competes with the hover action buttons.
     if (isTouchOnlyDevice) {
-      const contentType = blockElement.querySelector('[data-content-type]')?.getAttribute('data-content-type')
+      const contentType = contentElement.getAttribute('data-content-type')
       if (contentType && TOUCH_SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
         this.hide()
         return
@@ -198,12 +231,21 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    const referenceRect = blockElement.getBoundingClientRect()
+    const referenceRect = contentElement.getBoundingClientRect()
 
     this.emitState({show: true, blockId, referenceRect})
   }
 
-  onMouseLeave = () => {
+  onMouseLeave = (event?: MouseEvent) => {
+    const relatedTarget = event?.relatedTarget
+    if (relatedTarget instanceof Element && relatedTarget.closest('[data-bn-block-hover-actions="true"]')) {
+      return
+    }
+
+    if (event && this.keepHoverInCurrentRightGutter(event, false)) {
+      return
+    }
+
     if (!this.frozen) {
       this.hide()
     }
@@ -241,7 +283,8 @@ export const blockHoverActionsPluginKey = new PluginKey('BlockHoverActionsPlugin
  * ProseMirror plugin that tracks which block the cursor is hovering over and
  * exposes that information to React via an {@link EventEmitter}.
  *
- * Only active in **read-only** mode (`!view.editable`).
+ * Active in editable and read-only mode; hidden while a non-empty text
+ * selection is active so it does not overlap selection-specific toolbars.
  *
  * @example
  * ```ts
