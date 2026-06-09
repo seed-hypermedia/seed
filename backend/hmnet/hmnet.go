@@ -357,7 +357,7 @@ type IndexDrift struct {
 // Single SQL call, joined on indexed primary key, so cost is O(unindexed rows).
 func (n *Node) IndexDrift(ctx context.Context) (IndexDrift, error) {
 	var d IndexDrift
-	conn, release, err := n.db.Conn(ctx)
+	conn, release, err := n.db.ReadConn(ctx)
 	if err != nil {
 		return d, err
 	}
@@ -392,7 +392,7 @@ func (n *Node) IndexDrift(ctx context.Context) (IndexDrift, error) {
 // DB file, excluding WAL frames not yet checkpointed. It's an O(1) header
 // read, safe to call on every /debug/network render.
 func dbLogicalSize(ctx context.Context, db *sqlitex.Pool) (uint64, error) {
-	conn, release, err := db.Conn(ctx)
+	conn, release, err := db.ReadConn(ctx)
 	if err != nil {
 		return 0, err
 	}

@@ -14,7 +14,8 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-// Exec a query and print the results into w.
+// Exec runs a read-only query and prints the results into w.
+// Pass a *sqlite.Conn directly when write-capable debugging is needed.
 func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args ...any) {
 	if w == nil {
 		w = os.Stdout
@@ -26,7 +27,7 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args 
 	case *sqlite.Conn:
 		conn = v
 	case *sqlitex.Pool:
-		c, release, err := v.Conn(context.Background())
+		c, release, err := v.ReadConn(context.Background())
 		if err != nil {
 			panic(err)
 		}
@@ -86,9 +87,9 @@ func Exec[T *sqlitex.Pool | *sqlite.Conn](db T, w io.Writer, query string, args 
 	tw.Render()
 }
 
-// ExecPool is the same as Exec but uses the connection pool.
+// ExecPool is the same as Exec but uses a read-only connection from the pool.
 func ExecPool(db *sqlitex.Pool, w io.Writer, query string) {
-	conn, release, err := db.Conn(context.Background())
+	conn, release, err := db.ReadConn(context.Background())
 	if err != nil {
 		panic(err)
 	}

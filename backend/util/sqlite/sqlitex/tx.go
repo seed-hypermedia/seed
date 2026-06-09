@@ -29,7 +29,7 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	// It might indicate a design flaw in the code, but because this is a wrapper that invokes a callback function,
 	// it's relatively safe to just fallback to a savepoint when we receive a nested transaction error.
 	//
-	// This behavior should not be abused. Check [Read] and [Write] functions for better alternatives.
+	// This behavior should not be abused — use proper transaction/savepoints.
 	t0 := time.Now()
 	// Register this goroutine as in-flight on BEGIN IMMEDIATE before the
 	// Exec call so a CONCURRENT begin_busy victim (in a different goroutine)
@@ -148,7 +148,7 @@ const sqliteBusyTimeout sqlite.ErrorCode = sqlite.ErrorCode(sqlite.SQLITE_BUSY) 
 // WithTx executes fn within an immediate transaction using a new connection from the pool.
 func (p *Pool) WithTx(ctx context.Context, fn func(*sqlite.Conn) error) error {
 	t0 := time.Now()
-	conn, release, err := p.Conn(ctx)
+	conn, release, err := p.WriteConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -158,10 +158,10 @@ func (p *Pool) WithTx(ctx context.Context, fn func(*sqlite.Conn) error) error {
 	return WithTx(conn, func() error { return fn(conn) })
 }
 
-// WithSave executes fn within a Savepoint.
+// WithSave executes fn within a Savepoint using a read-only connection.
 func (p *Pool) WithSave(ctx context.Context, fn func(*sqlite.Conn) error) error {
 	t0 := time.Now()
-	conn, release, err := p.Conn(ctx)
+	conn, release, err := p.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -174,14 +174,13 @@ func (p *Pool) WithSave(ctx context.Context, fn func(*sqlite.Conn) error) error 
 	return fnerr
 }
 
-// WithSaveTempOnly is the Pool wrapper for SaveTempOnly. Same shape
-// as WithSave but uses the TEMP-only Save variant — see SaveTempOnly
-// for the contract. Use only when the body writes exclusively to TEMP
-// tables (per-connection temp.* attached DB); never for main-DB
-// writes, since the writer-slot tracker will under-report.
+// WithSaveTempOnly executes fn on a pool reader while recording it with the
+// TEMP-only Save variant. Use only when the body writes exclusively to TEMP
+// tables (per-connection temp.* attached DB); never for main-DB writes, since
+// the writer-slot tracker will under-report.
 func (p *Pool) WithSaveTempOnly(ctx context.Context, fn func(*sqlite.Conn) error) error {
 	t0 := time.Now()
-	conn, release, err := p.Conn(ctx)
+	conn, release, err := p.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -203,7 +202,7 @@ func Read[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*s
 		conn = db
 	case *Pool:
 		t0 := time.Now()
-		c, release, err := db.Conn(ctx)
+		c, release, err := db.ReadConn(ctx)
 		if err != nil {
 			return out, err
 		}
@@ -215,32 +214,4 @@ func Read[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*s
 	defer Save(conn)(&err)
 
 	return fn(conn)
-}
-
-// Write is a generic function for writing to the database.
-func Write[DB *Pool | *sqlite.Conn, T any](ctx context.Context, db DB, fn func(*sqlite.Conn) (T, error)) (out T, err error) {
-	var conn *sqlite.Conn
-	switch db := any(db).(type) {
-	case *sqlite.Conn:
-		conn = db
-	case *Pool:
-		t0 := time.Now()
-		c, release, err := db.Conn(ctx)
-		if err != nil {
-			return out, err
-		}
-		defer release()
-		stashPoolWait(c, time.Since(t0))
-		conn = c
-	}
-
-	if err := WithTx(conn, func() error {
-		var err error
-		out, err = fn(conn)
-		return err
-	}); err != nil {
-		return out, err
-	}
-
-	return out, nil
 }

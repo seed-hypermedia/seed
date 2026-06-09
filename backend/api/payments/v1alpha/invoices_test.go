@@ -56,7 +56,7 @@ func TestRequestLndHubInvoice(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, bobsWallet, defaultWallet)
 	require.Eventually(t, func() bool {
-		conn, release, err := bob.pool.Conn(ctx)
+		conn, release, err := bob.pool.ReadConn(ctx)
 		require.NoError(t, err)
 		defer release()
 		_, err = lndhubsql.GetToken(conn, defaultWallet.Id)

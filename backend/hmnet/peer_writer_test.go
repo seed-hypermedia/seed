@@ -118,7 +118,7 @@ func countPeers(ctx context.Context, db *sqlitex.Pool) (int, error) {
 		ctx = context.Background()
 	}
 	var n int
-	err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	err := db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, "SELECT COUNT(*) FROM peers;", func(stmt *sqlite.Stmt) error {
 			n = stmt.ColumnInt(0)
 			return nil

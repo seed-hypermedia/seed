@@ -69,7 +69,7 @@ func TestGet_Missing(t *testing.T) {
 	require.Equal(t, 0, size)
 
 	{
-		conn, release, err := bs.db.Conn(context.Background())
+		conn, release, err := bs.db.WriteConn(context.Background())
 		require.NoError(t, err)
 		_, err = dbBlobsInsert(conn, 0, c.Hash(), int64(c.Prefix().Codec), nil, -1)
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestBlobCanCallerAccessChecksAllVisibilitySpaces(t *testing.T) {
 	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
-	conn, release, err := db.Conn(ctx)
+	conn, release, err := db.WriteConn(ctx)
 	require.NoError(t, err)
 	carolID, err := DbPublicKeysInsert(conn, carol.Principal())
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestBlobCanCallerAccessChecksAllVisibilitySpaces(t *testing.T) {
 	privateBlock := ipfs.NewBlock(cid.Raw, []byte("private data shared with multiple spaces"))
 	require.NoError(t, idx.Put(ctx, privateBlock))
 
-	conn, release, err = db.Conn(ctx)
+	conn, release, err = db.WriteConn(ctx)
 	require.NoError(t, err)
 	defer release()
 

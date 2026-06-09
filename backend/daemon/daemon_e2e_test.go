@@ -30,6 +30,7 @@ import (
 	"seed/backend/ipfs"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitedbg"
 	"slices"
@@ -1454,22 +1455,30 @@ func TestRelatedMaterials(t *testing.T) {
 	_ = carolHome
 	_ = updatedCarsJP
 
-	conn, release, err := alice.Storage.DB().Conn(t.Context())
+	conn, release, err := alice.Storage.DB().ReadConn(t.Context())
 	require.NoError(t, err)
-	defer release()
 
 	blobCount, err := sqlitex.QueryOne[int64](conn, "SELECT count() FROM blobs")
 	require.NoError(t, err)
+	release()
 
-	allBlobs, err := syncing.GetRelatedMaterial(conn, map[syncing.DiscoveryKey]struct{}{
-		syncing.DiscoveryKey{
-			IRI:       blob.IRI("hm://" + aliceHome.Account + aliceHome.Path),
-			Recursive: true,
-		}: {},
-	}, true, nil)
+	var allBlobs []syncing.CIDWithTS
+	err = alice.Storage.DB().WithSaveTempOnly(t.Context(), func(conn *sqlite.Conn) error {
+		var err error
+		allBlobs, err = syncing.GetRelatedMaterial(conn, map[syncing.DiscoveryKey]struct{}{
+			syncing.DiscoveryKey{
+				IRI:       blob.IRI("hm://" + aliceHome.Account + aliceHome.Path),
+				Recursive: true,
+			}: {},
+		}, true, nil)
+		return err
+	})
 	require.NoError(t, err)
 
 	if blobCount != int64(len(allBlobs)) {
+		conn, release, err := alice.Storage.DB().ReadConn(t.Context())
+		require.NoError(t, err)
+		defer release()
 		sqlitedbg.Exec(conn, nil, `
 			SELECT b.id, b.codec, b.multihash, sb.type, sb.ts, sb.resource
 			FROM blobs b

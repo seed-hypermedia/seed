@@ -475,7 +475,7 @@ var captureBufs sync.Map // *sqlite.Conn -> *txCapture
 
 // pendingPoolWait is a single-shot handoff from Pool.WithTx / Pool.WithSave
 // down to WithTx(conn, fn) / Save(conn). The pool-side wrapper measures
-// time.Since(t0) across p.Conn(ctx) and stores it here keyed by *conn;
+// time.Since(t0) across p.ReadConn(ctx) and stores it here keyed by *conn;
 // the bare-conn entry loads-and-deletes at the top of its critical
 // section so the value is attributed exactly once to the outer scope.
 // Bare-conn callers (callers that already hold a conn and call WithTx
@@ -490,7 +490,7 @@ var pendingPoolWait sync.Map // *sqlite.Conn -> time.Duration
 
 // stashPoolWait records the conn-acquire wait time for the next
 // instrumented scope that runs on conn. Called by Pool.WithTx /
-// Pool.WithSave immediately after a successful p.Conn(ctx).
+// Pool.WithSave immediately after a successful p.ReadConn(ctx).
 func stashPoolWait(conn *sqlite.Conn, wait time.Duration) {
 	pendingPoolWait.Store(conn, wait)
 }

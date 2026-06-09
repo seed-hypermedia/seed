@@ -5,14 +5,16 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestWithTxRecordsCaller verifies that WithTx attributes its observations to
@@ -21,8 +23,9 @@ func TestWithTxRecordsCaller(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
 
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS t (x int);", nil))
 
 	require.NoError(t, sqlitex.WithTx(conn, func() error {
@@ -49,17 +52,19 @@ func TestWithTxRecordsBeginBusy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Hog the write lock on connection A.
-	holder := pool.Get(nil)
+	holder, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
 
 	// Try to BEGIN IMMEDIATE on connection B with a tight timeout.
-	victim := pool.Get(nil)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(100 * time.Millisecond)
 
 	t.Cleanup(func() {
-		pool.Put(victim)
+		releaseVictim()
 		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
-		pool.Put(holder)
+		_ = holder.Close()
 		_ = pool.Close()
 	})
 
@@ -84,8 +89,9 @@ func TestWithTxRecordsBeginBusy(t *testing.T) {
 func TestPerCallerP99ReflectsRealHolds(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS p99test (x int);", nil))
 
 	// One slow commit — must be visible in p99.
@@ -122,8 +128,9 @@ func TestWithTxRecordsBeginInterrupted(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
 
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 
 	// Wire an already-cancelled ctx so the next syscall trips SQLITE_INTERRUPT
 	// during BEGIN IMMEDIATE — no busy timeout, no lock holder to blame.
@@ -132,7 +139,7 @@ func TestWithTxRecordsBeginInterrupted(t *testing.T) {
 	conn.SetInterrupt(ctx.Done())
 	defer conn.SetInterrupt(nil)
 
-	err := sqlitex.WithTx(conn, func() error { return nil })
+	err = sqlitex.WithTx(conn, func() error { return nil })
 	require.Error(t, err)
 	require.True(t, errors.Is(err, sqlitex.ErrBeginImmediateTx),
 		"interrupted BEGIN IMMEDIATE must still wrap ErrBeginImmediateTx for backward-compat with connect.go retry logic")
@@ -154,12 +161,14 @@ func TestWithTxBeginBusySnapshotsHolder(t *testing.T) {
 	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
 	require.NoError(t, err)
 
-	holderConn := pool.Get(nil)
-	victim := pool.Get(nil)
+	holderConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(100 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
-		pool.Put(holderConn)
+		releaseVictim()
+		_ = holderConn.Close()
 		_ = pool.Close()
 	})
 
@@ -201,8 +210,9 @@ func holderHogTx(conn *sqlite.Conn, entered, release chan struct{}) error {
 func TestWithTxNestedSavepointFallback(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS t (x int);", nil))
 
 	require.NoError(t, sqlitex.WithTx(conn, func() error {
@@ -217,8 +227,9 @@ func TestWithTxNestedSavepointFallback(t *testing.T) {
 func TestWithTxCapturesStatements(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS captest (k text, v int);", nil))
 
 	// Slow tx with two inserts that bind distinct args; only slow txs show
@@ -248,8 +259,9 @@ func TestWithTxCapturesStatements(t *testing.T) {
 func TestWithTxCaptureBytesSummarised(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS captest_b (b blob);", nil))
 
 	blob := make([]byte, 1024)
@@ -269,8 +281,9 @@ func TestWithTxCaptureBytesSummarised(t *testing.T) {
 func TestDebugHandlerRenders(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.WithTx(conn, func() error { return nil }))
 
 	body := renderDebugPage(t)
@@ -295,10 +308,15 @@ func TestPoolWithSaveRecordsAsTopLevelSavepoint(t *testing.T) {
 		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS withsave (x int);", nil)
 	}))
 
-	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+	conn, release, err := pool.WriteConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	err = func() (err error) {
+		defer sqlitex.Save(conn)(&err)
 		time.Sleep(120 * time.Millisecond)
-		return sqlitex.Exec(c, "INSERT INTO withsave (x) VALUES (1);", nil)
-	}))
+		return sqlitex.Exec(conn, "INSERT INTO withsave (x) VALUES (1);", nil)
+	}()
+	require.NoError(t, err)
 
 	body := renderDebugPage(t)
 	require.Contains(t, body, "TestPoolWithSaveRecordsAsTopLevelSavepoint",
@@ -315,8 +333,9 @@ func TestPoolWithSaveRecordsAsTopLevelSavepoint(t *testing.T) {
 func TestSaveDirectRecordsTopLevel(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS sd (x int);", nil))
 
 	func() (err error) {
@@ -341,12 +360,14 @@ func TestSaveTopLevelSnapshotsAsHolder(t *testing.T) {
 	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
 	require.NoError(t, err)
 
-	holderConn := pool.Get(nil)
-	victim := pool.Get(nil)
+	holderConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(100 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
-		pool.Put(holderConn)
+		releaseVictim()
+		_ = holderConn.Close()
 		_ = pool.Close()
 	})
 
@@ -450,8 +471,9 @@ func runReadOnlySave(ctx context.Context, t *testing.T, pool *sqlitex.Pool) {
 func TestSaveReadOnAfterWriteOnSameConnNotPromoted(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	setupReadOnlyTableConn(t, conn)
 	// Prime the conn with a real INSERT so conn.Changes() is non-zero
 	// going into the subsequent read-only Save.
@@ -532,8 +554,9 @@ func runReadOnlySaveOnConn(t *testing.T, conn *sqlite.Conn) {
 func TestRecentRingKeepsSlowestNotLast(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS slowring (x int);", nil))
 
 	// One genuine outlier: 350 ms hold via sleep. Must survive every later
@@ -573,8 +596,9 @@ func TestRecentRingKeepsSlowestNotLast(t *testing.T) {
 func TestSaveSavepointInterruptedAbsent(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -615,13 +639,18 @@ func TestSaveWriteAfterReadStillPromotes(t *testing.T) {
 		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS rw (x int);", nil)
 	}))
 
-	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
-		if err := sqlitex.Exec(c, "SELECT COUNT(*) FROM rw;", nil); err != nil {
+	conn, release, err := pool.WriteConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	err = func() (err error) {
+		defer sqlitex.Save(conn)(&err)
+		if err := sqlitex.Exec(conn, "SELECT COUNT(*) FROM rw;", nil); err != nil {
 			return err
 		}
 		time.Sleep(110 * time.Millisecond)
-		return sqlitex.Exec(c, "INSERT INTO rw (x) VALUES (1);", nil)
-	}))
+		return sqlitex.Exec(conn, "INSERT INTO rw (x) VALUES (1);", nil)
+	}()
+	require.NoError(t, err)
 
 	body := renderDebugPage(t)
 	require.Contains(t, body, "TestSaveWriteAfterReadStillPromotes")
@@ -640,13 +669,18 @@ func TestSaveCapturesStatements(t *testing.T) {
 		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS svcap (k text, v int);", nil)
 	}))
 
-	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
-		if err := sqlitex.Exec(c, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "alpha", 1); err != nil {
+	conn, release, err := pool.WriteConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	err = func() (err error) {
+		defer sqlitex.Save(conn)(&err)
+		if err := sqlitex.Exec(conn, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "alpha", 1); err != nil {
 			return err
 		}
 		time.Sleep(120 * time.Millisecond)
-		return sqlitex.Exec(c, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "beta", 2)
-	}))
+		return sqlitex.Exec(conn, "INSERT INTO svcap (k, v) VALUES (?, ?);", nil, "beta", 2)
+	}()
+	require.NoError(t, err)
 
 	body := renderDebugPage(t)
 	require.Contains(t, body, "INSERT INTO svcap",
@@ -689,8 +723,9 @@ func TestPoolWithTxConcurrency(t *testing.T) {
 func BenchmarkWithTxNoop(b *testing.B) {
 	pool := newBenchPool(b)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(b.Context())
+	require.NoError(b, err)
+	defer release()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -706,8 +741,9 @@ func BenchmarkWithTxNoop(b *testing.B) {
 func BenchmarkWithTxRealWork(b *testing.B) {
 	pool := newBenchPool(b)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(b.Context())
+	require.NoError(b, err)
+	defer release()
 	if err := sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS bench (x int);", nil); err != nil {
 		b.Fatal(err)
 	}
@@ -728,8 +764,9 @@ func BenchmarkWithTxRealWork(b *testing.B) {
 func BenchmarkExecOutsideTx(b *testing.B) {
 	pool := newBenchPool(b)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(b.Context())
+	require.NoError(b, err)
+	defer release()
 	if err := sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS bench_r (x int);", nil); err != nil {
 		b.Fatal(err)
 	}
@@ -793,8 +830,9 @@ func extractAggregateSection(t *testing.T, body string) string {
 func TestAggregateUtilizationSurfacesCommits(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS agg (x int);", nil))
 
 	// Three commits with controllable hold time so the Σ is non-trivial
@@ -831,15 +869,17 @@ func TestAggregateUtilizationExcludesBeginBusy(t *testing.T) {
 	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
 	require.NoError(t, err)
 
-	holder := pool.Get(nil)
+	holder, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
 
-	victim := pool.Get(nil)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(50 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
+		releaseVictim()
 		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
-		pool.Put(holder)
+		_ = holder.Close()
 		_ = pool.Close()
 	})
 
@@ -893,22 +933,25 @@ func TestDrainedWindowExcludesPreWaitEntries(t *testing.T) {
 	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
 	require.NoError(t, err)
 
-	preWaitConn := pool.Get(nil)
+	preWaitConn, releasePreWait, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(preWaitConn, "CREATE TABLE IF NOT EXISTS pw (x int);", nil))
 	wayBeforeVictim(t, preWaitConn)
-	pool.Put(preWaitConn)
+	releasePreWait()
 
 	// Sleep so the pre-wait commit lands well outside the upcoming
 	// victim's busy_timeout window.
 	time.Sleep(250 * time.Millisecond)
 
-	holderConn := pool.Get(nil)
-	victim := pool.Get(nil)
+	holderConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	// Tight busy_timeout — the drained window is just this small slice.
 	victim.SetBusyTimeout(50 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
-		pool.Put(holderConn)
+		releaseVictim()
+		_ = holderConn.Close()
 		_ = pool.Close()
 	})
 
@@ -989,7 +1032,7 @@ func TestDrainedWaitExcludesBeginBusyAndReadOnly(t *testing.T) {
 // TestPoolWaitInstrumentedUnderStarvation verifies the new pool_wait
 // instrumentation surfaces on /debug/sqlite when callers had to queue
 // for a connection. Setup: a small (2-conn) pool, then pin both conns
-// via pool.Get (NOT via WithTx — concurrent WithTxs in shared-cache
+// via WriteConn (NOT via WithTx — concurrent WithTxs in shared-cache
 // mode deadlock at the writer-mutex level), then fire a Pool.WithTx
 // waiter that has to queue for a pool conn before it can even attempt
 // BEGIN IMMEDIATE. pool_wait must be observably non-zero on the page.
@@ -1001,15 +1044,17 @@ func TestPoolWaitInstrumentedUnderStarvation(t *testing.T) {
 
 	// Setup table via a bare-conn WithTx so we don't pollute the
 	// pool_wait stats for this test's caller.
-	setupConn := pool.Get(nil)
+	setupConn, releaseSetup, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(setupConn, "CREATE TABLE IF NOT EXISTS pwtest (x int);", nil))
-	pool.Put(setupConn)
+	releaseSetup()
 
-	// Pin BOTH pool conns. We use pool.Get directly — no BEGIN
+	// Pin the single writer conn. We use WriteConn directly — no BEGIN
 	// IMMEDIATE attempt, no writer-mutex contention. The waiter below
-	// has to wait for one of these Get/Put pairs to return its conn.
-	pinned1 := pool.Get(nil)
-	pinned2 := pool.Get(nil)
+	// has to wait for this Get/Put pair to return its conn.
+	pinned, releasePinned, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	_ = pinned
 
 	type result struct {
 		err error
@@ -1027,11 +1072,10 @@ func TestPoolWaitInstrumentedUnderStarvation(t *testing.T) {
 	// Let the waiter actually queue, then release one pinned conn so it
 	// can proceed.
 	time.Sleep(120 * time.Millisecond)
-	pool.Put(pinned1)
+	releasePinned()
 
 	r := <-resCh
 	require.NoError(t, r.err)
-	pool.Put(pinned2)
 
 	// Sanity: the waiter must have actually queued for ~the pinned
 	// duration. Threshold is conservative (80ms vs ~120ms held) to
@@ -1056,8 +1100,9 @@ func TestPoolWaitInstrumentedUnderStarvation(t *testing.T) {
 func TestPoolWaitZeroForBareConnCaller(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS bareconn (x int);", nil))
 
 	// Bare-conn WithTx — caller already has the conn, never queued for
@@ -1135,10 +1180,15 @@ func TestSavepointTopWaitRendersDash(t *testing.T) {
 	// survives the top-K-by-hold ring under cross-test interleaving;
 	// at 110ms it tied other tests' rows and got evicted on some
 	// orderings (insertTopK uses strict `>` to displace).
-	require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
+	conn, release, err := pool.WriteConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	err = func() (err error) {
+		defer sqlitex.Save(conn)(&err)
 		time.Sleep(400 * time.Millisecond)
-		return sqlitex.Exec(c, "INSERT INTO svdash (x) VALUES (1);", nil)
-	}))
+		return sqlitex.Exec(conn, "INSERT INTO svdash (x) VALUES (1);", nil)
+	}()
+	require.NoError(t, err)
 
 	body := renderDebugPage(t)
 	row := extractRecentRowForCaller(t, body, "TestSavepointTopWaitRendersDash")
@@ -1165,10 +1215,15 @@ func TestSavepointTopNotInWaitPercentile(t *testing.T) {
 	// the SAVEPOINT statement duration (microseconds). After the fix,
 	// no savepoint_top sample lands in waitReserv, so this caller's
 	// wait p99 must render as 0 (empty reservoir).
+	conn, release, err := pool.WriteConn(ctx)
+	require.NoError(t, err)
+	defer release()
 	for i := 0; i < 20; i++ {
-		require.NoError(t, pool.WithSave(ctx, func(c *sqlite.Conn) error {
-			return sqlitex.Exec(c, "INSERT INTO svp99 (x) VALUES (?);", nil, i)
-		}))
+		err = func() (err error) {
+			defer sqlitex.Save(conn)(&err)
+			return sqlitex.Exec(conn, "INSERT INTO svp99 (x) VALUES (?);", nil, i)
+		}()
+		require.NoError(t, err)
 	}
 
 	body := renderDebugPage(t)
@@ -1226,8 +1281,9 @@ func extractWriteCallerRow(t *testing.T, body, caller string) string {
 func TestSaveTempOnlyStaysOffWriterSections(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_only (x int);", nil))
 
 	// Sleep above the slowThreshold so the row enters the slow-read ring
@@ -1254,8 +1310,9 @@ func TestSaveTempOnlyStaysOffWriterSections(t *testing.T) {
 func TestSaveTempOnlyRendersSavepointRo(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_only_ro (x int);", nil))
 
 	// 450 ms is well above other tests' typical hold magnitudes so this
@@ -1286,23 +1343,22 @@ func TestSaveTempOnlyRendersSavepointRo(t *testing.T) {
 
 // TestPoolWithSaveTempOnlyPath verifies the Pool wrapper plumbs the
 // pool-wait handoff into SaveTempOnly correctly (the wrapper measures
-// p.Conn() wait, stashes it via stashPoolWait, then SaveTempOnly
+// p.ReadConn() wait, stashes it via stashPoolWait, then SaveTempOnly
 // consumes it via loadAndClearPoolWait — same shape as WithSave).
 //
-// Uses a main-DB table (not TEMP) on purpose: TEMP tables are
-// per-connection and the Pool may hand back a different conn for the
-// setup vs the body. SaveTempOnly doesn't actually verify the
-// "TEMP-only" contract — it just trusts the caller — so writing to a
-// main-DB table here still exercises the same code path.
+// Uses a TEMP table because WithSaveTempOnly runs on a read-only pool
+// connection. This exercises the RBSR-shaped path where the caller writes
+// per-connection temp state without mutating the main database.
 func TestPoolWithSaveTempOnlyPath(t *testing.T) {
-	pool := newMemPool(t)
+	pool, err := sqlitex.Open(filepath.Join(t.TempDir(), "temponly.db"), 0, poolSize)
+	require.NoError(t, err)
 	defer pool.Close()
 	ctx := context.Background()
-	require.NoError(t, pool.WithTx(ctx, func(c *sqlite.Conn) error {
-		return sqlitex.Exec(c, "CREATE TABLE IF NOT EXISTS pool_temponly (x int);", nil)
-	}))
 
 	require.NoError(t, pool.WithSaveTempOnly(ctx, func(c *sqlite.Conn) error {
+		if err := sqlitex.Exec(c, "CREATE TEMP TABLE pool_temponly (x int);", nil); err != nil {
+			return err
+		}
 		return sqlitex.Exec(c, "INSERT INTO pool_temponly (x) VALUES (1);", nil)
 	}))
 
@@ -1323,8 +1379,9 @@ func TestPoolWithSaveTempOnlyPath(t *testing.T) {
 func TestSaveStillPromotesOnTempInsert(t *testing.T) {
 	pool := newMemPool(t)
 	defer pool.Close()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
 	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE IF NOT EXISTS tmp_save_regression (x int);", nil))
 
 	func() (err error) {
@@ -1352,16 +1409,18 @@ func TestRecentBusySeparateFromRecentWrite(t *testing.T) {
 
 	// Provoke a real begin_busy: hold the writer lock on conn A, fire
 	// WithTx on conn B with a tight busy_timeout.
-	holder := pool.Get(nil)
+	holder, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(holder, "CREATE TABLE IF NOT EXISTS rbsep (x int);", nil))
 	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
 
-	victim := pool.Get(nil)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(50 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
+		releaseVictim()
 		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
-		pool.Put(holder)
+		_ = holder.Close()
 		_ = pool.Close()
 	})
 
@@ -1434,15 +1493,17 @@ func TestBeginBusyExposesExtendedCodeAndErrMsg(t *testing.T) {
 	require.NoError(t, err)
 
 	// Hog the writer mutex on conn A; victim on conn B will time out.
-	holder := pool.Get(nil)
+	holder, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
 
-	victim := pool.Get(nil)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(50 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
+		releaseVictim()
 		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
-		pool.Put(holder)
+		_ = holder.Close()
 		_ = pool.Close()
 	})
 
@@ -1542,16 +1603,16 @@ func TestExtendedErrCodeOnCleanConn(t *testing.T) {
 // BEGIN IMMEDIATE retry loops.
 func TestBeginContendersCapturedDuringStorm(t *testing.T) {
 	dir := t.TempDir()
+	dbFile := "file:" + dir + "/test.db"
 	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
-	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 10)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = pool.Close() })
 
-	// Holder owns the writer mutex via a WithTx. Block long enough
+	holderConn, err := sqlite.OpenConn(dbFile, flags)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, holderConn.Close()) })
+
+	// Holder owns SQLite's write lock via a direct WithTx. Block long enough
 	// that several victim BEGIN IMMEDIATEs race in concurrently and
 	// stay stuck for a window where the storm-snapshot is meaningful.
-	holderConn := pool.Get(nil)
-	t.Cleanup(func() { pool.Put(holderConn) })
 	holderEntered := make(chan struct{})
 	holderRelease := make(chan struct{})
 	holderDone := make(chan struct{})
@@ -1562,14 +1623,14 @@ func TestBeginContendersCapturedDuringStorm(t *testing.T) {
 	<-holderEntered
 
 	// Launch a band of victims. Each runs in its own goroutine,
-	// grabs a conn from the pool, sets a short busy_timeout, and
-	// calls WithTx. They all enter the BEGIN IMMEDIATE retry loop
+	// opens a direct conn, sets a short busy_timeout, and calls WithTx.
+	// They all enter the BEGIN IMMEDIATE retry loop
 	// roughly concurrently.
 	const victims = 5
 	const busyTimeout = 200 * time.Millisecond
 	victimDone := make(chan struct{}, victims)
 	for i := 0; i < victims; i++ {
-		go contenderVictim(pool, busyTimeout, victimDone)
+		go contenderVictim(dbFile, flags, busyTimeout, victimDone)
 	}
 	for i := 0; i < victims; i++ {
 		<-victimDone
@@ -1590,10 +1651,13 @@ func TestBeginContendersCapturedDuringStorm(t *testing.T) {
 // contenderVictim runs a WithTx that is expected to BUSY-timeout. It
 // blocks long enough on BEGIN IMMEDIATE that other concurrent victims'
 // timeouts can snapshot it as a contender.
-func contenderVictim(pool *sqlitex.Pool, busyTimeout time.Duration, done chan<- struct{}) {
+func contenderVictim(dbFile string, flags sqlite.OpenFlags, busyTimeout time.Duration, done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
-	conn := pool.Get(nil)
-	defer pool.Put(conn)
+	conn, err := sqlite.OpenConn(dbFile, flags)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
 	conn.SetBusyTimeout(busyTimeout)
 	_ = sqlitex.WithTx(conn, func() error { return nil })
 }
@@ -1612,15 +1676,17 @@ func TestRecentBusyRowsHaveNoGoroutineDump(t *testing.T) {
 	// Raw BEGIN IMMEDIATE bypasses WithTx, so held_by would have been
 	// empty at the victim's timeout — the exact case where the old
 	// code captured a goroutine dump.
-	holder := pool.Get(nil)
+	holder, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
+	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(holder, "BEGIN IMMEDIATE TRANSACTION;", nil))
 
-	victim := pool.Get(nil)
+	victim, releaseVictim, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
 	victim.SetBusyTimeout(50 * time.Millisecond)
 	t.Cleanup(func() {
-		pool.Put(victim)
+		releaseVictim()
 		_ = sqlitex.Exec(holder, "ROLLBACK;", nil)
-		pool.Put(holder)
+		_ = holder.Close()
 		_ = pool.Close()
 	})
 
@@ -1633,98 +1699,4 @@ func TestRecentBusyRowsHaveNoGoroutineDump(t *testing.T) {
 		"the goroutine dump details block must be gone — replaced by the structured contenders block")
 	require.NotContains(t, body, "<pre style=\"white-space:pre",
 		"the <pre> block carrying runtime.Stack output must be gone")
-}
-
-// TestWALCheckpointerSurfacesAsWriterCaller verifies that the
-// background WAL checkpoint goroutine is instrumented as a real
-// writer-slot caller on /debug/sqlite. Without this hook, the
-// checkpointer's PRAGMA wal_checkpoint(PASSIVE) wouldn't go through
-// WithTx/Save and would be invisible — a victim begin_busy event
-// blocked by slow-disk checkpoint fsync would show "0 holders, 0
-// drained" on the Begin-busy attribution table.
-func TestWALCheckpointerSurfacesAsWriterCaller(t *testing.T) {
-	dir := t.TempDir()
-	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
-	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 4)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = pool.Close() })
-
-	// Open a dedicated conn for the checkpointer (mirrors the OpenSQLite
-	// production wiring) and start the goroutine with a tight interval
-	// so several ticks fire during the test.
-	ckptConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
-	require.NoError(t, err)
-	stop := sqlitex.StartWALCheckpointer(pool, ckptConn, 30*time.Millisecond, nil)
-	t.Cleanup(func() {
-		stop()
-		_ = ckptConn.Close()
-	})
-
-	// Give the goroutine time to fire at least 2-3 ticks.
-	time.Sleep(150 * time.Millisecond)
-
-	body := renderDebugPage(t)
-	require.Contains(t, body, "sqlitex.WALCheckpointer",
-		"WAL checkpointer must surface as a real caller on /debug/sqlite — otherwise victims blocked by slow checkpoint fsync would show no attributable holder")
-}
-
-// TestDedicatedCheckpointerDoesNotShrinkPool verifies that the
-// background checkpointer running on a DEDICATED *sqlite.Conn (not
-// borrowed from the pool) doesn't reduce the effective foreground pool
-// capacity by 1 during a tick. Pre-change the checkpointer would
-// pool.Conn(ctx) on every tick, so foreground callers competing during
-// that window saw an effective pool of poolSize-1. The dedicated-conn
-// design eliminates that contention path.
-func TestDedicatedCheckpointerDoesNotShrinkPool(t *testing.T) {
-	dir := t.TempDir()
-	flags := sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE | sqlite.SQLITE_OPEN_URI | sqlite.SQLITE_OPEN_NOMUTEX
-	pool, err := sqlitex.Open("file:"+dir+"/test.db", flags, 2)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = pool.Close() })
-
-	// Open a dedicated conn for the checkpointer and start the goroutine
-	// with a tight interval so a tick is guaranteed during the test.
-	ckptConn, err := sqlite.OpenConn("file:"+dir+"/test.db", flags)
-	require.NoError(t, err)
-	stop := sqlitex.StartWALCheckpointer(pool, ckptConn, 50*time.Millisecond, nil)
-	t.Cleanup(func() {
-		stop()
-		_ = ckptConn.Close()
-	})
-
-	// Hold BOTH pool conns concurrently for longer than a checkpoint
-	// tick. Pre-change the checkpointer would have been waiting on
-	// pool.Conn for the full duration; we'd see no foreground problem
-	// because there's no foreground waiter to starve. The thing the
-	// dedicated-conn design fixes is: any foreground caller during this
-	// window doesn't fight the checkpointer for the pool. We assert it
-	// indirectly by holding poolSize=2 conns simultaneously across a
-	// checkpoint tick — this would have been impossible pre-change
-	// (one of the two would have been the checkpointer's).
-	ctx := context.Background()
-	got := make(chan struct{}, 2)
-	release := make(chan struct{})
-	for i := 0; i < 2; i++ {
-		go func() {
-			c, rel, err := pool.Conn(ctx)
-			if err != nil {
-				return
-			}
-			got <- struct{}{}
-			<-release
-			rel()
-			_ = c
-		}()
-	}
-	// Both goroutines must successfully acquire conns within a
-	// reasonable timeout — at least one full checkpoint tick.
-	timeout := time.After(2 * time.Second)
-	for i := 0; i < 2; i++ {
-		select {
-		case <-got:
-		case <-timeout:
-			t.Fatalf("foreground caller %d failed to acquire a pool conn within 2s — checkpointer must be hogging it (regression)", i+1)
-		}
-	}
-	close(release)
 }

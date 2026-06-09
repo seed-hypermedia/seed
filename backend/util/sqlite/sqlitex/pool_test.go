@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+
+	"github.com/stretchr/testify/require"
 )
 
 const poolSize = 20
@@ -55,15 +56,17 @@ func TestPool(t *testing.T) {
 		}
 	}()
 
-	c := dbpool.Get(nil)
+	c, release, err := dbpool.WriteConn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
 	c.Prep("DROP TABLE IF EXISTS footable;").Step()
 	if hasRow, err := c.Prep("CREATE TABLE footable (col1 integer);").Step(); err != nil {
 		t.Fatal(err)
 	} else if hasRow {
 		t.Errorf("CREATE TABLE reports having a row")
 	}
-	dbpool.Put(c)
-	c = nil
+	release()
 
 	var wg sync.WaitGroup
 	for i := 0; i < poolSize; i++ {
@@ -77,8 +80,11 @@ func TestPool(t *testing.T) {
 	}
 	wg.Wait()
 
-	c = dbpool.Get(nil)
-	defer dbpool.Put(c)
+	c, release, err = dbpool.ReadConn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
 	stmt := c.Prep("SELECT COUNT(*) FROM footable;")
 	if hasRow, err := stmt.Step(); err != nil {
 		t.Fatal(err)
@@ -96,8 +102,12 @@ func TestPool(t *testing.T) {
 const insertCount = 120
 
 func testInsert(t *testing.T, id string, dbpool *sqlitex.Pool) {
-	c := dbpool.Get(nil)
-	defer dbpool.Put(c)
+	c, release, err := dbpool.WriteConn(context.TODO())
+	if err != nil {
+		t.Errorf("id=%s: WriteConn: %v", id, err)
+		return
+	}
+	defer release()
 
 	begin := c.Prep("BEGIN;")
 	commit := c.Prep("COMMIT;")
@@ -121,7 +131,7 @@ func testInsert(t *testing.T, id string, dbpool *sqlitex.Pool) {
 }
 
 func TestPoolAfterClose(t *testing.T) {
-	// verify that Get after close never try to initialize a Conn and segfault
+	// Verify that explicit connection requests after close never try to initialize a Conn and segfault.
 	dbpool := newMemPool(t)
 
 	err := dbpool.Close()
@@ -130,10 +140,10 @@ func TestPoolAfterClose(t *testing.T) {
 	}
 
 	for i := 0; i < 10*poolSize; i++ {
-		conn := dbpool.Get(nil)
-		if conn != nil {
-			t.Fatal("dbpool: Get after Close -> !nil conn")
-		}
+		_, _, err := dbpool.ReadConn(context.TODO())
+		require.ErrorIs(t, err, sqlitex.ErrPoolClosed)
+		_, _, err = dbpool.WriteConn(context.TODO())
+		require.ErrorIs(t, err, sqlitex.ErrPoolClosed)
 	}
 }
 
@@ -172,6 +182,82 @@ func TestPoolCloseRemovesWALFile(t *testing.T) {
 
 	_, err = os.Stat(wal)
 	require.ErrorIs(t, err, os.ErrNotExist, "SQLite should remove the WAL file when the pool closes its last connection")
+}
+
+func TestReadOnlyConnectionAllowsTempWrites(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "readonly-temp.db")
+	writer, err := sqlite.OpenConn(db, sqlite.SQLITE_OPEN_READWRITE|sqlite.SQLITE_OPEN_CREATE|sqlite.SQLITE_OPEN_WAL|sqlite.SQLITE_OPEN_NOMUTEX)
+	require.NoError(t, err)
+	require.NoError(t, sqlitex.ExecScript(writer, `
+		PRAGMA journal_mode = WAL;
+		CREATE TABLE main_table (value TEXT);
+		INSERT INTO main_table (value) VALUES ('hello');
+	`))
+	require.NoError(t, writer.Close())
+
+	reader, err := sqlite.OpenConn(db, sqlite.SQLITE_OPEN_READONLY|sqlite.SQLITE_OPEN_WAL|sqlite.SQLITE_OPEN_NOMUTEX)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, reader.Close()) }()
+
+	require.NoError(t, sqlitex.Exec(reader, "CREATE TEMP TABLE temp_table (value TEXT);", nil))
+	require.NoError(t, sqlitex.Exec(reader, "INSERT INTO temp_table (value) VALUES ('temp');", nil))
+	require.NoError(t, sqlitex.Exec(reader, "SELECT value FROM temp_table;", func(stmt *sqlite.Stmt) error {
+		require.Equal(t, "temp", stmt.ColumnText(0))
+		return nil
+	}))
+
+	err = sqlitex.Exec(reader, "INSERT INTO main_table (value) VALUES ('main');", nil)
+	require.Error(t, err)
+	require.Equal(t, sqlite.SQLITE_READONLY, sqlite.ErrCode(err))
+}
+
+func TestPoolReadConnRejectsMainWrites(t *testing.T) {
+	pool, err := sqlitex.Open(filepath.Join(t.TempDir(), "readonly-main.db"), 0, 1)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pool.Close()) }()
+
+	require.NoError(t, pool.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, "CREATE TABLE main_table (value TEXT);", nil)
+	}))
+
+	conn, release, err := pool.ReadConn(context.Background())
+	require.NoError(t, err)
+	defer release()
+
+	err = sqlitex.Exec(conn, "INSERT INTO main_table (value) VALUES ('main');", nil)
+	require.Error(t, err)
+	require.Equal(t, sqlite.SQLITE_READONLY, sqlite.ErrCode(err))
+}
+
+func TestPoolReadConnAllowsTempWritesForFileBackedDB(t *testing.T) {
+	pool, err := sqlitex.Open(filepath.Join(t.TempDir(), "readonly-temp.db"), 0, 1)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pool.Close()) }()
+
+	conn, release, err := pool.ReadConn(context.Background())
+	require.NoError(t, err)
+	defer release()
+
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TEMP TABLE temp_table (value TEXT);", nil))
+	require.NoError(t, sqlitex.Exec(conn, "INSERT INTO temp_table (value) VALUES ('temp');", nil))
+	require.NoError(t, sqlitex.Exec(conn, "SELECT value FROM temp_table;", func(stmt *sqlite.Stmt) error {
+		require.Equal(t, "temp", stmt.ColumnText(0))
+		return nil
+	}))
+}
+
+func TestPoolReadConnRejectsTempWritesForMemoryDB(t *testing.T) {
+	pool, err := sqlitex.Open("file:readonly-temp-memory?mode=memory&cache=shared", 0, 1)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, pool.Close()) }()
+
+	conn, release, err := pool.ReadConn(context.Background())
+	require.NoError(t, err)
+	defer release()
+
+	err = sqlitex.Exec(conn, "CREATE TEMP TABLE temp_table (value TEXT);", nil)
+	require.Error(t, err)
+	require.Equal(t, sqlite.SQLITE_READONLY, sqlite.ErrCode(err))
 }
 
 func TestSharedCacheLock(t *testing.T) {
@@ -323,9 +409,10 @@ func TestNoFalseSlowQueryAfterFailedWriteTx(t *testing.T) {
 		return sqlitex.ExecScript(conn, "CREATE TABLE test (id INTEGER PRIMARY KEY)")
 	}))
 
-	// Step 1: Acquire conn1 and hold the write lock.
-	conn1, release1, err := pool.Conn(ctx)
+	// Step 1: Acquire an external connection and hold the write lock.
+	conn1, err := sqlite.OpenConn(dbFile, 0)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, conn1.Close()) }()
 	require.NoError(t, sqlitex.Exec(conn1, "BEGIN IMMEDIATE", nil))
 
 	// Step 2: Try WithTx on the remaining pool connection — must fail with
@@ -342,7 +429,6 @@ func TestNoFalseSlowQueryAfterFailedWriteTx(t *testing.T) {
 	// Step 3: Release conn1's write lock immediately (before the busy timeout
 	// elapses, so conn1's transaction is NOT reported as slow).
 	require.NoError(t, sqlitex.Exec(conn1, "COMMIT", nil))
-	release1()
 
 	// Clear any logs from the setup phase.
 	capture.mu.Lock()
@@ -382,14 +468,27 @@ func TestPoolPutMatch(t *testing.T) {
 	}()
 
 	func() {
-		c := dbpool0.Get(nil)
+		c, release, err := dbpool0.WriteConn(context.TODO())
+		require.NoError(t, err)
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("expect put mismatch panic, got none")
 			}
-			dbpool0.Put(c)
+			release()
 		}()
 
 		dbpool1.Put(c)
 	}()
+}
+
+func TestPoolReadOnlyInMemoryDB(t *testing.T) {
+	db, err := sqlitex.Open("file::memory:?mode=memory&cache=shared", 0, 4)
+	require.NoError(t, err)
+	defer db.Close()
+
+	conn, release, err := db.ReadConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	require.Error(t, sqlitex.Exec(conn, "CREATE TABLE foo (id INTEGER PRIMARY KEY);", nil), "writes must fail for read-only conns")
 }

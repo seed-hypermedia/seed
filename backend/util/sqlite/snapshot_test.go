@@ -42,7 +42,7 @@ func initDB(t *testing.T) (*sqlite.Conn, *sqlitex.Pool, func()) {
 		t.Fatal(err)
 	}
 
-	poolFlags := sqlite.SQLITE_OPEN_READONLY |
+	poolFlags := sqlite.SQLITE_OPEN_READWRITE |
 		sqlite.SQLITE_OPEN_WAL |
 		sqlite.SQLITE_OPEN_URI |
 		sqlite.SQLITE_OPEN_NOMUTEX
@@ -60,12 +60,17 @@ func initDB(t *testing.T) (*sqlite.Conn, *sqlitex.Pool, func()) {
 	}
 
 	for range poolSize {
-		c := pool.Get(t.Context())
-		if err := sqlitex.ExecScript(c, `PRAGMA application_id;`); err != nil {
+		c, release, err := pool.ReadConn(t.Context())
+		if err != nil {
 			cleanup()
 			t.Fatal(err)
 		}
-		pool.Put(c)
+		if err := sqlitex.ExecScript(c, `PRAGMA application_id;`); err != nil {
+			release()
+			cleanup()
+			t.Fatal(err)
+		}
+		release()
 	}
 
 	return conn, pool, cleanup
@@ -93,8 +98,11 @@ func TestSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	read := pool.Get(t.Context())
-	defer pool.Put(read)
+	read, releaseRead, err := pool.ReadConn(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseRead()
 
 	endRead, err := read.StartSnapshotRead(s1)
 	if err != nil {
@@ -127,9 +135,9 @@ func TestSnapshot(t *testing.T) {
 	runtime.GC()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	read2 := pool.Get(ctx)
-	if read2 == nil {
-		t.Fatalf("expected to get another conn from the pool, but it was nil")
+	_, releaseRead2, err := pool.ReadConn(ctx)
+	if err != nil {
+		t.Fatalf("expected to get another conn from the pool: %v", err)
 	}
-	defer pool.Put(read2)
+	defer releaseRead2()
 }

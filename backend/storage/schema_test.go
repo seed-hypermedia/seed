@@ -23,7 +23,7 @@ func TestSchemaForeignKeyIndexes(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, InitSQLiteSchema(db))
 
-	conn, release, err := db.Conn(ctx)
+	conn, release, err := db.ReadConn(ctx)
 	require.NoError(t, err)
 	defer release()
 

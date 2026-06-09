@@ -262,7 +262,7 @@ func TestPeerExchangeTickConstants(t *testing.T) {
 // pool-conn lifecycle boilerplate.
 func queryPeers(t *testing.T, n *Node, query string, fn func(*sqlite.Stmt) error, args ...any) {
 	t.Helper()
-	conn, release, err := n.db.Conn(context.Background())
+	conn, release, err := n.db.ReadConn(context.Background())
 	require.NoError(t, err)
 	defer release()
 	require.NoError(t, sqlitex.Exec(conn, query, fn, args...))

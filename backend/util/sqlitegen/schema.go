@@ -144,7 +144,7 @@ func IntrospectSchema[T *sqlite.Conn | *sqlitex.Pool](db T) (Schema, error) {
 	case *sqlite.Conn:
 		conn = v
 	case *sqlitex.Pool:
-		c, release, err := v.Conn(context.Background())
+		c, release, err := v.ReadConn(context.Background())
 		if err != nil {
 			return Schema{}, err
 		}

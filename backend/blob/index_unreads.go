@@ -32,7 +32,7 @@ func (idx *Index) SetReadStatus(ctx context.Context, iri IRI, wantRead, isRecurs
 	} else {
 		args = []any{string(iri)}
 	}
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}

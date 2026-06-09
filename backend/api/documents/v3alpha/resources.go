@@ -107,7 +107,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	// If authorizedSpaces is empty, only public blobs are included.
 	// If authorizedSpaces has entries, those spaces' private blobs are also included.
 	var cids []syncing.CIDWithTS
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+	if err := srv.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) (err error) {
 		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true, authorizedSpaces)
 		return err
 	}); err != nil {

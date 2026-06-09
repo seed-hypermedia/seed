@@ -112,7 +112,7 @@ func executeQuery(ctx context.Context, pool *sqlitex.Pool, query string) error {
 		return nil
 	}
 
-	conn, release, err := pool.Conn(ctx)
+	conn, release, err := pool.WriteConn(ctx)
 	if err != nil {
 		return err
 	}

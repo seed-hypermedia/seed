@@ -94,7 +94,7 @@ func TestFillTables_BlobTypeFilter(t *testing.T) {
 	// and one blob of each interesting structural type anchored to that
 	// resource. We also create a Ref-anchored Change to exercise the
 	// recursive CTE traversal in fillTables.
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn,
 			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
 			return err
@@ -128,7 +128,7 @@ func TestFillTables_BlobTypeFilter(t *testing.T) {
 	collectTypes := func(t *testing.T, dkey DiscoveryKey) map[string]int {
 		t.Helper()
 		got := map[string]int{}
-		require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 			if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 				return err
 			}
@@ -210,7 +210,7 @@ func TestFillTables_PathScope(t *testing.T) {
 	notesFoo := notes + "/foo"      // depth 2 under /notes
 	notesFooX := notesFoo + "/deep" // depth 3 under /notes
 
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn,
 			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
 			return err
@@ -226,7 +226,7 @@ func TestFillTables_PathScope(t *testing.T) {
 	collectIRIs := func(t *testing.T, dkey DiscoveryKey) []string {
 		t.Helper()
 		var got []string
-		require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 			if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 				return err
 			}
@@ -289,7 +289,7 @@ func TestCollectBlobs_InboundContacts(t *testing.T) {
 
 	// Seed: two accounts, each with a home resource. Bob has a Contact blob
 	// whose subject is Alice (simulating "bob follows alice").
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn,
 			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
 			return err
@@ -326,7 +326,7 @@ func TestCollectBlobs_InboundContacts(t *testing.T) {
 	collectBlobTypes := func(t *testing.T, dkeys map[DiscoveryKey]struct{}) map[string][]int {
 		t.Helper()
 		got := map[string][]int{}
-		require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+		require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 			if err := collectBlobs(conn, dkeys, false); err != nil {
 				return err
 			}
@@ -385,7 +385,7 @@ func TestCollectBlobs_IncludeAuthorProfiles(t *testing.T) {
 	aliceRoot := blob.IRI("hm://" + alice.String())
 	aliceDoc := aliceRoot + "/docs/published"
 
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn,
 			`INSERT INTO public_keys (id, principal) VALUES (1, ?)`, nil, []byte(alice)); err != nil {
 			return err
@@ -416,7 +416,7 @@ func TestCollectBlobs_IncludeAuthorProfiles(t *testing.T) {
 	}))
 
 	got := map[string][]int{}
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		if err := collectBlobs(conn, map[DiscoveryKey]struct{}{
 			{IRI: aliceDoc}: {},
 		}, true); err != nil {

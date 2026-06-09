@@ -476,7 +476,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	if !supportedType {
 		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment, profile must be specified")
 	}
-	conn, release, err := e.pool.Conn(ctx)
+	conn, release, err := e.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
@@ -530,7 +530,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 		return fmt.Errorf("embedding indexing skipped: reindexing is in progress")
 	}
 
-	conn, release, err := e.pool.Conn(ctx)
+	conn, release, err := e.pool.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -562,7 +562,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 	processed := alreadyEmbedded
 	_, _ = e.taskMgr.UpdateProgress(taskID, totalEmbeddable, processed)
 	for {
-		conn, release, err := e.pool.Conn(ctx)
+		conn, release, err := e.pool.ReadConn(ctx)
 		if err != nil {
 			return err
 		}
@@ -581,7 +581,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 			return err
 		}
 
-		conn, release, err = e.pool.Conn(ctx)
+		conn, release, err = e.pool.WriteConn(ctx)
 		if err != nil {
 			return err
 		}
@@ -631,7 +631,7 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 	}
 	checksum, err := sqlitex.GetKV(ctx, e.pool, kvEmbeddingModelChecksumKey)
 	if err != nil || checksum == "" || checksum != info.Checksum {
-		conn, release, err := e.pool.Conn(ctx)
+		conn, release, err := e.pool.WriteConn(ctx)
 		if err != nil {
 			return fmt.Errorf("could not get database connection to store embedding model checksum: %w", err)
 		}

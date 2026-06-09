@@ -192,7 +192,7 @@ func (c *Client) UpdateNickname(ctx context.Context, walletID, nickname string, 
 	}
 	var resp CreateResponse
 
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (c *Client) UpdateNickname(ctx context.Context, walletID, nickname string, 
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
 func (c *Client) GetLnAddress(ctx context.Context, walletID string) (string, error) {
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -281,7 +281,7 @@ func (c *Client) GetLnAddress(ctx context.Context, walletID string) (string, err
 func (c *Client) Auth(ctx context.Context, walletID string) (string, error) {
 	var resp authResponse
 
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -313,7 +313,7 @@ func (c *Client) Auth(ctx context.Context, walletID string) (string, error) {
 	if err != nil {
 		return resp.AccessToken, err
 	}
-	conn, release, err = c.db.Conn(ctx)
+	conn, release, err = c.db.WriteConn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -330,7 +330,7 @@ func (c *Client) GetBalance(ctx context.Context, walletID string) (uint64, error
 		Btc btcBalance `mapstructure:"BTC"`
 	}
 
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -357,7 +357,7 @@ func (c *Client) GetBalance(ctx context.Context, walletID string) (uint64, error
 
 // ListPaidInvoices returns a list of outgoing invoices.
 func (c *Client) ListPaidInvoices(ctx context.Context, walletID string) ([]Invoice, error) {
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +388,7 @@ func (c *Client) ListPaidInvoices(ctx context.Context, walletID string) ([]Invoi
 
 // ListReceivedInvoices returns a list of incoming invoices.
 func (c *Client) ListReceivedInvoices(ctx context.Context, walletID string) ([]Invoice, error) {
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +434,7 @@ func (c *Client) CreateLocalInvoice(ctx context.Context, walletID string, sats i
 
 	var resp createLocalInvoiceResponse
 
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -510,7 +510,7 @@ func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats i
 		Amount  int64  `json:"amount"`
 	}
 
-	conn, release, err := c.db.Conn(ctx)
+	conn, release, err := c.db.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -525,6 +525,7 @@ func (c *Client) PayInvoice(ctx context.Context, walletID, payReq string, sats i
 		release()
 		return err
 	}
+	release()
 
 	err = c.do(ctx, c.db, walletID, httpRequest{
 		URL:    apiBaseURL + payInvoiceRoute,
@@ -590,7 +591,7 @@ func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, requ
 					var authResp authResponse
 					// Check if token expired and we need to issue one
 					if ok && strings.Contains(errMsg.(string), "bad auth") {
-						conn, release, err := db.Conn(ctx)
+						conn, release, err := db.ReadConn(ctx)
 						if err != nil {
 							return err
 						}
@@ -621,7 +622,7 @@ func (c *Client) do(ctx context.Context, db *sqlitex.Pool, walletID string, requ
 						if err != nil {
 							return err
 						}
-						conn, release, err = db.Conn(ctx)
+						conn, release, err = db.WriteConn(ctx)
 						if err != nil {
 							return err
 						}

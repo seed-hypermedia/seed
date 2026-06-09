@@ -13,7 +13,7 @@ import (
 )
 
 func (srv *rpcMux) ListSpaces(ctx context.Context, in *p2p.ListSpacesRequest) (*p2p.ListSpacesResponse, error) {
-	conn, release, err := srv.Node.db.Conn(ctx)
+	conn, release, err := srv.Node.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}

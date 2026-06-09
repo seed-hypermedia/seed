@@ -60,7 +60,7 @@ func (idx *Index) ReindexInfo() ReindexInfo {
 
 // Reindex the entire database. Usually needed only after migrations.
 func (idx *Index) Reindex(ctx context.Context) (err error) {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 // MaybeReindex will trigger reindexing of the entire database if needed,
 // i.e. if we've reset the last index timestamp in a migration.
 func (idx *Index) MaybeReindex(ctx context.Context) error {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}

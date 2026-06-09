@@ -89,7 +89,7 @@ func QueryOne[T Result](conn *sqlite.Conn, query string, args ...any) (resp T, e
 
 // QueryOnePool is like [QueryOne] but uses the connection pool.
 func QueryOnePool[T Result](ctx context.Context, db *Pool, query string, args ...any) (resp T, err error) {
-	conn, release, err := db.Conn(ctx)
+	conn, release, err := db.ReadConn(ctx)
 	if err != nil {
 		return resp, err
 	}

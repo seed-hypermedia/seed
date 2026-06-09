@@ -344,7 +344,7 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 		Name:    ret.Name,
 		Type:    ret.Type,
 	}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.WriteConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -373,7 +373,7 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 // wallets from that account.
 func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequest) (*payments.ListWalletsResponse, error) {
 	ret := &payments.ListWalletsResponse{Wallets: []*payments.Wallet{}}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func (srv *Server) ListWallets(ctx context.Context, in *payments.ListWalletsRequ
 // chosen as new default. Although it is advised that the user manually
 // changes the default wallet after removing the previous default.
 func (srv *Server) RemoveWallet(ctx context.Context, in *payments.WalletRequest) (*emptypb.Empty, error) {
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.WriteConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +419,7 @@ func (srv *Server) RemoveWallet(ctx context.Context, in *payments.WalletRequest)
 // current balance in Satoshis.
 func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequest) (*payments.GetWalletBalanceResponse, error) {
 	ret := &payments.GetWalletBalanceResponse{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -446,7 +446,7 @@ func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequ
 // returns error. nil otherwise, along with the updated wallet.
 func (srv *Server) UpdateWalletName(ctx context.Context, in *payments.UpdateWalletNameRequest) (*payments.Wallet, error) {
 	ret := &payments.Wallet{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.WriteConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -471,7 +471,7 @@ func (srv *Server) UpdateWalletName(ctx context.Context, in *payments.UpdateWall
 // created until manually changed.
 func (srv *Server) SetDefaultWallet(ctx context.Context, in *payments.SetDefaultWalletRequest) (*payments.Wallet, error) {
 	ret := &payments.Wallet{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.WriteConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -497,7 +497,7 @@ func (srv *Server) SetDefaultWallet(ctx context.Context, in *payments.SetDefault
 // If the ID is empty, then the builtin wallet is exported.
 func (srv *Server) ExportWallet(ctx context.Context, in *payments.WalletRequest) (*payments.ExportWalletResponse, error) {
 	ret := &payments.ExportWalletResponse{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -545,7 +545,7 @@ func (srv *Server) ExportWallet(ctx context.Context, in *payments.WalletRequest)
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
 func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID string) error {
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -577,7 +577,7 @@ func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID strin
 // wallet. It will remain default until manually changed.
 func (srv *Server) GetDefaultWallet(ctx context.Context, in *payments.GetDefaultWalletRequest) (*payments.Wallet, error) {
 	ret := &payments.Wallet{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -599,7 +599,7 @@ func (srv *Server) GetDefaultWallet(ctx context.Context, in *payments.GetDefault
 // GetWallet gets a specific wallet.
 func (srv *Server) GetWallet(ctx context.Context, in *payments.WalletRequest) (*payments.Wallet, error) {
 	ret := &payments.Wallet{}
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return ret, err
 	}

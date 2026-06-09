@@ -117,7 +117,7 @@ func runMigrationsTest(t *testing.T) {
 
 func getRawSQLSchema(t *testing.T, db *sqlitex.Pool) map[string]string {
 	out := make(map[string]string) // table to sql.
-	conn, release, err := db.Conn(context.Background())
+	conn, release, err := db.ReadConn(context.Background())
 	require.NoError(t, err)
 	defer release()
 

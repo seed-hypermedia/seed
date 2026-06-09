@@ -42,7 +42,7 @@ func TestModifyWallets(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, seedWallet, defaultWallet)
 	require.Eventually(t, func() bool {
-		conn, release, err := alice.pool.Conn(ctx)
+		conn, release, err := alice.pool.ReadConn(ctx)
 		require.NoError(t, err)
 		defer release()
 		_, err = lndhubsql.GetToken(conn, defaultWallet.Id)
@@ -76,7 +76,7 @@ func makeTestService(t *testing.T, name string) *Server {
 	node, closenode := makeTestPeer(t, device, ks, db)
 	t.Cleanup(closenode)
 	/*
-		conn, release, err := db.Conn(context.Background())
+		conn, release, err := db.ReadConn(context.Background())
 		require.NoError(t, err)
 		defer release()
 

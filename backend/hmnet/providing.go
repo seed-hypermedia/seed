@@ -38,7 +38,7 @@ func makeProvidingStrategy(db *sqlitex.Pool, logLevel string) provider.KeyChanFu
 		go func() {
 			defer close(ch)
 
-			conn, release, err := db.Conn(ctx)
+			conn, release, err := db.ReadConn(ctx)
 			if err != nil {
 				log.Error("Failed to open db connection: %w", zap.Error(err))
 				return

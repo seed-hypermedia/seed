@@ -35,7 +35,7 @@ func generateSchema() error {
 		return err
 	}
 
-	conn, release, err := db.Conn(context.Background())
+	conn, release, err := db.ReadConn(context.Background())
 	if err != nil {
 		return err
 	}

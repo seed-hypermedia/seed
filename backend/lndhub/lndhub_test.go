@@ -37,7 +37,7 @@ func TestCreate(t *testing.T) {
 	pool, err := makeConn(t)
 	require.NoError(t, err)
 
-	conn, release, err := pool.Conn(context.Background())
+	conn, release, err := pool.WriteConn(context.Background())
 	require.NoError(t, err)
 	defer release()
 

@@ -45,7 +45,7 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	require.NoError(t, idx.Put(context.Background(), publicBlk))
 
 	// Mark the public blob as public via blob_visibility.
-	conn, release, err := db.Conn(context.Background())
+	conn, release, err := db.WriteConn(context.Background())
 	require.NoError(t, err)
 	require.NoError(t, sqlitex.Exec(conn,
 		`INSERT INTO blob_visibility (id, space) SELECT id, 0 FROM blobs WHERE multihash = ?`,

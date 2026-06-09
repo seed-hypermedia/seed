@@ -19,7 +19,7 @@ import (
 
 // Put adds a block to the blockstore.
 func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	trackUnreads := unreadsTrackingEnabled(ctx)
 
 	for batch := range slices.Chunk(blks, batchSize) {
-		conn, release, err := idx.db.Conn(ctx)
+		conn, release, err := idx.db.WriteConn(ctx)
 		if err != nil {
 			return err
 		}

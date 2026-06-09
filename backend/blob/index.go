@@ -231,7 +231,7 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 
 // CanEditResource checks whether author can edit the resource.
 func (idx *Index) CanEditResource(ctx context.Context, resource IRI, author core.Principal) (ok bool, err error) {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return ok, err
 	}
@@ -270,7 +270,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 	check = func() error { return outErr }
 
 	it = func(yield func(ChangeRecord) bool) {
-		conn, release, err := idx.db.Conn(ctx)
+		conn, release, err := idx.db.ReadConn(ctx)
 		if err != nil {
 			outErr = err
 			return
@@ -469,7 +469,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 	check = func() error { return outErr }
 
 	it = func(yield func(ChangeRecord) bool) {
-		conn, release, err := idx.db.Conn(ctx)
+		conn, release, err := idx.db.ReadConn(ctx)
 		if err != nil {
 			outErr = err
 			return
@@ -650,7 +650,7 @@ func (idx *Index) IsValidAgent(ctx context.Context, space, agent core.Principal)
 		return true, nil
 	}
 
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -678,7 +678,7 @@ func (idx *Index) IsValidWriter(ctx context.Context, space core.Principal, path 
 		return true, nil
 	}
 
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -983,7 +983,7 @@ type generation struct {
 
 // WalkCapabilities walks through capabilities for a specific resource.
 func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -1037,7 +1037,7 @@ var qWalkCapabilities = dqb.Str(`
 
 // WalkCapabilitiesForDelegate walks through capabilities for a specific delegate.
 func (idx *Index) WalkCapabilitiesForDelegate(ctx context.Context, delegate core.Principal, fn func(cid.Cid, *Capability) error) error {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -1079,7 +1079,7 @@ func (idx *Index) WalkCapabilitiesForDelegate(ctx context.Context, delegate core
 // WalkAllAccountCapabilities walks through all capabilities for a given account across all document paths.
 // This is used when the caller wants to list site-wide collaborators.
 func (idx *Index) WalkAllAccountCapabilities(ctx context.Context, accountIRI IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -1838,7 +1838,7 @@ var qLoadStashedBlobs = dqb.Str(`
 // GetSiteURL returns the siteURL metadata from the home document of a space.
 // When a valid siteURL is found, it is automatically tracked in the domain store.
 func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string, error) {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -1876,7 +1876,7 @@ var qGetSiteURL = dqb.Str(`
 // GetDocumentVisibility returns the visibility of a document from the latest generation's metadata.
 // Returns VisibilityPublic if the document is not found or has no explicit visibility.
 func (idx *Index) GetDocumentVisibility(ctx context.Context, space core.Principal, path string) (Visibility, error) {
-	conn, release, err := idx.db.Conn(ctx)
+	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return VisibilityPublic, err
 	}

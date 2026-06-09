@@ -13,7 +13,7 @@ func SetKV[T *sqlite.Conn | *Pool](ctx context.Context, db T, key, value string,
 	case *sqlite.Conn:
 		conn = v
 	case *Pool:
-		c, release, err := v.Conn(ctx)
+		c, release, err := v.WriteConn(ctx)
 		if err != nil {
 			return err
 		}
@@ -35,7 +35,7 @@ func GetKV[T *sqlite.Conn | *Pool](ctx context.Context, db T, key string) (strin
 	case *sqlite.Conn:
 		conn = v
 	case *Pool:
-		c, release, err := v.Conn(ctx)
+		c, release, err := v.ReadConn(ctx)
 		if err != nil {
 			return "", err
 		}

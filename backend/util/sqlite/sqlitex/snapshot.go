@@ -18,13 +18,14 @@ import (
 //
 // See sqlite.Conn.GetSnapshot and sqlite.Snapshot for more details.
 func (p *Pool) GetSnapshot(ctx context.Context, schema string) (*sqlite.Snapshot, error) {
-	conn := p.Get(ctx)
-	if conn == nil {
-		return nil, context.Canceled
+	conn, releaseConn, err := p.ReadConn(ctx)
+	if err != nil {
+		return nil, err
 	}
 	conn.SetInterrupt(nil)
 	s, release, err := conn.GetSnapshot(schema)
 	if err != nil {
+		releaseConn()
 		return nil, err
 	}
 
@@ -45,7 +46,7 @@ func (p *Pool) GetSnapshot(ctx context.Context, schema string) (*sqlite.Snapshot
 		// the Snapshot.
 		release()
 		// Return the conn to the Pool for reuse.
-		p.Put(conn)
+		releaseConn()
 	}()
 
 	return s, nil

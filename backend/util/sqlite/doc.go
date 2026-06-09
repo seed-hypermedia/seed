@@ -85,11 +85,11 @@ be called multiple times to reset the associated lifetime.
 When using pools, the shorthand for associating a context with a
 connection is:
 
-	conn := dbpool.Get(ctx)
-	if conn == nil {
+	conn, release, err := dbpool.ReadConn(ctx)
+	if err != nil {
 		// ... handle error
 	}
-	defer dbpool.Put(c)
+	defer release()
 
 # Transactions
 
@@ -115,11 +115,11 @@ Using a Pool to execute SQL in a concurrent HTTP handler.
 	}
 
 	func handle(w http.ResponseWriter, r *http.Request) {
-		conn := dbpool.Get(r.Context())
-		if conn == nil {
+		conn, release, err := dbpool.ReadConn(r.Context())
+		if err != nil {
 			return
 		}
-		defer dbpool.Put(conn)
+		defer release()
 		stmt := conn.Prep("SELECT foo FROM footable WHERE id = $id;")
 		stmt.SetText("$id", "_user_id_")
 		for {

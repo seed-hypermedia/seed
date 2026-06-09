@@ -202,7 +202,7 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	conn, release, err := db.Conn(ctx)
+	conn, release, err := db.ReadConn(ctx)
 	require.NoError(t, err)
 	beforeTotal := countEmbeddings(t, conn)
 	beforeFTS2 := countEmbeddingsForFTSID(t, conn, 2)
@@ -245,7 +245,7 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	}
 	require.Equal(t, []string{"tiny-text"}, secondPassInputs)
 
-	conn, release, err = db.Conn(ctx)
+	conn, release, err = db.ReadConn(ctx)
 	require.NoError(t, err)
 	afterTotal := countEmbeddings(t, conn)
 	require.Equal(t, beforeFTS2, countEmbeddingsForFTSID(t, conn, 2), "fts2 must not be duplicated")
@@ -263,7 +263,7 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	require.Equal(t, 1, backend.getLoadCalls(), "model must only be loaded once")
 	require.Equal(t, 2, backend.getEmbedCalls(), "no new embedding calls expected")
 
-	conn, release, err = db.Conn(ctx)
+	conn, release, err = db.ReadConn(ctx)
 	require.NoError(t, err)
 	require.Equal(t, afterTotal, countEmbeddings(t, conn))
 	release()
@@ -347,7 +347,7 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 
 	// With context size 10 -> max chunk len 9 -> 20 runes become 3 chunks.
 	require.Eventually(t, func() bool {
-		conn, release, err := db.Conn(t.Context())
+		conn, release, err := db.ReadConn(t.Context())
 		if err != nil {
 			return false
 		}

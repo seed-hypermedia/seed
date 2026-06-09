@@ -541,7 +541,7 @@ func (s *Store) migrate(currentVersion string) error {
 
 		pending := migrations[idx+1:]
 
-		conn, release, err := s.db.Conn(context.Background())
+		conn, release, err := s.db.WriteConn(context.Background())
 		if err != nil {
 			return err
 		}

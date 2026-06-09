@@ -66,7 +66,7 @@ func TestListEventsDefaultsToClaimedTimeOrder(t *testing.T) {
 	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
 	require.NoError(t, err)
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func TestListEventsOrdersByLocalObservationWhenRequested(t *testing.T) {
 	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
 	require.NoError(t, err)
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
 	require.NoError(t, err)
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
 	commentHash, err := multihash.Sum([]byte("comment mentions profile"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?), (2, ?);`, nil, []byte(author), []byte(mentioned)); err != nil {
 			return err
 		}
@@ -243,7 +243,7 @@ func TestListEventsCommentExtraAttrsContainsTarget(t *testing.T) {
 
 	targetIRI := "hm://" + author.String() + "/doc/path"
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
 			return err
 		}
@@ -304,7 +304,7 @@ func TestListEventsOrdersSameBlobMentionsByLinkID(t *testing.T) {
 	commentHash, err := multihash.Sum([]byte("comment mentions two docs"), multihash.SHA2_256, -1)
 	require.NoError(t, err)
 
-	require.NoError(t, alice.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
 			return err
 		}

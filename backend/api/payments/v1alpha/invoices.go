@@ -20,7 +20,7 @@ import (
 
 // ListPaidInvoices returns the invoices that the wallet represented by walletID has paid.
 func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoic
 
 // ListReceivednvoices returns the incoming invoices that the wallet represented by walletID has received.
 func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
-	conn, release, err := srv.pool.Conn(ctx)
+	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (srv *Server) PayInvoice(ctx context.Context, in *payments.PayInvoiceReques
 	var amountToPay int64
 
 	if in.Id != "" {
-		conn, release, err := srv.pool.Conn(ctx)
+		conn, release, err := srv.pool.ReadConn(ctx)
 		if err != nil {
 			return nil, err
 		}

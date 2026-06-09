@@ -27,7 +27,7 @@ func TestDBQueries(t *testing.T) {
 func TestFTS(t *testing.T) {
 	t.Parallel()
 
-	db, err := storage.OpenSQLite("file::memory:?mode=memory", 0, 1)
+	db, err := storage.OpenSQLite(t.TempDir()+"/fts.db", 0, 1)
 	require.NoError(t, err)
 	defer db.Close()
 

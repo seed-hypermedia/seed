@@ -152,7 +152,7 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 
 	eid, err := EntityIDFromCID(c)
 	if err != nil {
-		conn, release, err := b.db.Conn(ctx)
+		conn, release, err := b.db.ReadConn(ctx)
 		if err != nil {
 			return false, err
 		}
@@ -183,7 +183,7 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		// Cross-check: entity-CID branch said "no Change blob exists for this
 		// entity", yet maybe the entity-CID's own blob row IS in `blobs`. If
 		// so, putBlock will see it and bounce as "exists" — that's the loop.
-		conn, release, cerr := b.db.Conn(ctx)
+		conn, release, cerr := b.db.ReadConn(ctx)
 		if cerr == nil {
 			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
 			release()
@@ -209,7 +209,7 @@ func (b *blockStore) has(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publ
 }
 
 func (b *blockStore) checkEntityExists(ctx context.Context, eid string) (exists bool, err error) {
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.ReadConn(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -239,7 +239,7 @@ var qCheckEntityHasChanges = dqb.Str(`
 func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	mCallsTotal.WithLabelValues("Get").Inc()
 
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block, error) {
 	mCallsTotal.WithLabelValues("GetMany").Inc()
 
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func (b *blockStore) decompress(data []byte, originalSize int) ([]byte, error) {
 func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	mCallsTotal.WithLabelValues("GetSize").Inc()
 
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.ReadConn(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -568,7 +568,7 @@ var qBlobsUpdateMissingData = dqb.Str(`
 func (b *blockStore) DeleteBlock(ctx context.Context, c cid.Cid) error {
 	mCallsTotal.WithLabelValues("DeleteBlock").Inc()
 
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -589,7 +589,7 @@ func (b *blockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 
 	c := make(chan cid.Cid, 10) // The buffer is arbitrary.
 
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +624,7 @@ func (b *blockStore) HashOnRead(bool) {
 }
 
 func (b *blockStore) withConn(ctx context.Context, fn func(*sqlite.Conn) error) error {
-	conn, release, err := b.db.Conn(ctx)
+	conn, release, err := b.db.WriteConn(ctx)
 	if err != nil {
 		return err
 	}

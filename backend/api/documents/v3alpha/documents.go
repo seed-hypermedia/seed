@@ -543,7 +543,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +653,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		query = qb.String()
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -731,7 +731,7 @@ func (srv *Server) BatchGetAccounts(ctx context.Context, in *documents.BatchGetA
 		Accounts: make(map[string]*documents.Account, len(in.Ids)),
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1085,7 +1085,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		query = qb.String()
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1185,7 +1185,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		query = qb.String()
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}

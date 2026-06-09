@@ -40,7 +40,7 @@ func TestRoaring(t *testing.T) {
 
 	defer pool.Close()
 
-	conn, release, err := pool.Conn(t.Context())
+	conn, release, err := pool.WriteConn(t.Context())
 	require.NoError(t, err)
 	defer release()
 
@@ -64,7 +64,7 @@ func TestSqliteVec(t *testing.T) {
 
 	defer pool.Close()
 
-	conn, release, err := pool.Conn(t.Context())
+	conn, release, err := pool.WriteConn(t.Context())
 	require.NoError(t, err)
 	defer release()
 	var sqliteVersion, vecVersion string
@@ -324,7 +324,7 @@ func TestBase58BTC(t *testing.T) {
 		},
 	}
 
-	conn, release, err := pool.Conn(context.Background())
+	conn, release, err := pool.ReadConn(context.Background())
 	require.NoError(t, err)
 	defer release()
 

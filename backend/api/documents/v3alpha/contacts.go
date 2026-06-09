@@ -273,7 +273,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode contact ID: %v", err)
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
+	conn, release, err := srv.db.ReadConn(ctx)
 	if err != nil {
 		return nil, err
 	}

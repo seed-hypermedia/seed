@@ -95,16 +95,25 @@ func TestBuffer(t *testing.T) {
 func TestConcurrentBuffer(t *testing.T) {
 	// Make sure the shared cache table lock does not
 	// apply to blob buffers (because we use temp tables).
-	dbpool, err := Open("file::memory:?mode=memory", 0, 2)
+	uri := "file::memory:?mode=memory&cache=shared"
+	conn1, err := sqlite.OpenConn(uri, sqlite.SQLITE_OPEN_READWRITE|sqlite.SQLITE_OPEN_CREATE|sqlite.SQLITE_OPEN_URI|sqlite.SQLITE_OPEN_NOMUTEX|sqlite.SQLITE_OPEN_SHAREDCACHE)
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn1 := dbpool.Get(t.Context())
-	conn2 := dbpool.Get(t.Context())
+	conn2, err := sqlite.OpenConn(uri, sqlite.SQLITE_OPEN_READWRITE|sqlite.SQLITE_OPEN_CREATE|sqlite.SQLITE_OPEN_URI|sqlite.SQLITE_OPEN_NOMUTEX|sqlite.SQLITE_OPEN_SHAREDCACHE)
+	if err != nil {
+		if closeErr := conn1.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+		t.Fatal(err)
+	}
 	defer func() {
-		dbpool.Put(conn1)
-		dbpool.Put(conn2)
-		dbpool.Close()
+		if err := conn1.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := conn2.Close(); err != nil {
+			t.Error(err)
+		}
 	}()
 
 	b1a, err := NewBuffer(conn1)

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/trace"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,20 +33,15 @@ var ErrPoolClosed = errors.New("sqlite pool is closed")
 //
 // It is safe for use by multiple goroutines concurrently.
 //
-// Typically, a goroutine that needs to use an SQLite *Conn
-// Gets it from the pool and defers its return:
+// Callers must explicitly request either a read-only or read-write connection:
 //
-//	conn := dbpool.Get(nil)
-//	defer dbpool.Put(conn)
-//
-// As Get may block, a context can be used to return if a task
-// is cancelled. In this case the Conn returned will be nil:
-//
-//	conn := dbpool.Get(ctx)
-//	if conn == nil {
-//		return context.Canceled
+//	conn, release, err := dbpool.ReadConn(ctx)
+//	if err != nil {
+//		return err
 //	}
-//	defer dbpool.Put(conn)
+//	defer release()
+//
+// Use WriteConn for work that may write to the main database.
 type Pool struct {
 	// If checkReset, the Put method checks all of the connection's
 	// prepared statements and ensures they were correctly cleaned up.
@@ -54,14 +50,23 @@ type Pool struct {
 	// TODO: export this? Is it enough of a performance concern?
 	checkReset bool
 
-	free   chan *sqlite.Conn
-	closed chan struct{}
-	file   string
+	freeRead  chan *sqlite.Conn
+	freeWrite chan *sqlite.Conn
+	closed    chan struct{}
+	file      string
 
-	all map[*sqlite.Conn]context.CancelFunc
+	all   map[*sqlite.Conn]context.CancelFunc
+	roles map[*sqlite.Conn]connRole
 
 	mu sync.RWMutex
 }
+
+type connRole uint8
+
+const (
+	connRead connRole = iota
+	connWrite
+)
 
 // Open opens a fixed-size pool of SQLite connections.
 // A flags value of 0 defaults to:
@@ -73,19 +78,31 @@ type Pool struct {
 //	SQLITE_OPEN_NOMUTEX
 func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err error) {
 	if uri == ":memory:" {
-		return nil, strerror{msg: `sqlite: ":memory:" does not work with multiple connections, use "file::memory:?mode=memory"`}
+		return nil, strerror{msg: `sqlite: ":memory:" does not work with multiple connections, use "file::memory:?mode=memory&cache=shared"`}
+	}
+	inMemory := strings.Contains(strings.ToLower(uri), "mode=memory")
+	if inMemory && !strings.Contains(strings.ToLower(uri), "cache=shared") {
+		if strings.Contains(uri, "cache=") {
+			return nil, strerror{msg: `sqlite: in-memory pools require cache=shared`}
+		}
+		sep := "&"
+		if !strings.Contains(uri, "?") {
+			sep = "?"
+		}
+		uri += sep + "cache=shared"
 	}
 
 	p := &Pool{
 		checkReset: true,
-		free:       make(chan *sqlite.Conn, poolSize),
+		freeRead:   make(chan *sqlite.Conn, poolSize),
+		freeWrite:  make(chan *sqlite.Conn, 1),
 		closed:     make(chan struct{}),
 		file:       uri,
 	}
 	defer func() {
 		// If an error occurred, call Close outside the lock so this doesn't deadlock.
 		if err != nil {
-			p.Close()
+			err = errors.Join(err, p.closePartial())
 		}
 	}()
 
@@ -102,13 +119,32 @@ func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err err
 	flags |= sqlitex_pool
 
 	p.all = make(map[*sqlite.Conn]context.CancelFunc)
+	p.roles = make(map[*sqlite.Conn]connRole)
+	writeFlags := flags&^sqlite.SQLITE_OPEN_READONLY | sqlite.SQLITE_OPEN_READWRITE
+	readFlags := flags&^(sqlite.SQLITE_OPEN_READWRITE|sqlite.SQLITE_OPEN_CREATE) | sqlite.SQLITE_OPEN_READONLY
+
+	conn, err := sqlite.OpenConn(uri, writeFlags)
+	if err != nil {
+		return nil, err
+	}
+	p.freeWrite <- conn
+	p.all[conn] = func() {}
+	p.roles[conn] = connWrite
+
 	for range poolSize {
-		conn, err := sqlite.OpenConn(uri, flags)
+		conn, err := sqlite.OpenConn(uri, readFlags)
 		if err != nil {
 			return nil, err
 		}
-		p.free <- conn
+		if inMemory {
+			if err := Exec(conn, "PRAGMA query_only=ON", nil); err != nil {
+				err = errors.Join(err, conn.Close())
+				return nil, err
+			}
+		}
+		p.freeRead <- conn
 		p.all[conn] = func() {}
+		p.roles[conn] = connRead
 	}
 
 	return p, nil
@@ -131,27 +167,40 @@ func (p *Pool) ForEach(fn func(conn *sqlite.Conn) error) error {
 	return nil
 }
 
-// Conn is a like Get, but returns an error instead of nil Conn. It also returns
-// the cancel func as a second value for convenience.
-//
-// So a typical usage could be something like:
-//
-// ```
-// conn, release, err := pool.Conn(ctx)
-//
-//	if err != nil {
-//	  // Handle error.
-//	}
-//
-// defer release()
-// // Use conn normally.
-// ```
-func (p *Pool) Conn(ctx context.Context) (*sqlite.Conn, context.CancelFunc, error) {
+// ForWrite applies fn to the pool's single write connection.
+func (p *Pool) ForWrite(fn func(conn *sqlite.Conn) error) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for conn, role := range p.roles {
+		if role == connWrite {
+			return fn(conn)
+		}
+	}
+	return ErrPoolClosed
+}
+
+// ForEachRead applies fn to all read-only connections in the pool.
+func (p *Pool) ForEachRead(fn func(conn *sqlite.Conn) error) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for conn, role := range p.roles {
+		if role != connRead {
+			continue
+		}
+		if err := fn(conn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReadConn gets a read-only SQLite connection from the pool.
+func (p *Pool) ReadConn(ctx context.Context) (*sqlite.Conn, context.CancelFunc, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	conn := p.Get(ctx)
+	conn := p.get(ctx, connRead)
 	if conn == nil {
 		err := ctx.Err()
 		if err != nil {
@@ -163,18 +212,25 @@ func (p *Pool) Conn(ctx context.Context) (*sqlite.Conn, context.CancelFunc, erro
 	return conn, func() { p.Put(conn) }, nil
 }
 
-// Get returns an SQLite connection from the Pool.
-//
-// If no Conn is available, Get will block until one is, or until either the
-// Pool is closed or the context expires. If no Conn can be obtained, nil is
-// returned.
-//
-// The provided context is used to control the execution lifetime of the
-// connection. See Conn.SetInterrupt for details.
-//
-// Applications must ensure that all non-nil Conns returned from Get are
-// returned to the same Pool with Put.
-func (p *Pool) Get(ctx context.Context) *sqlite.Conn {
+// WriteConn gets the single read-write SQLite connection from the pool.
+func (p *Pool) WriteConn(ctx context.Context) (*sqlite.Conn, context.CancelFunc, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	conn := p.get(ctx, connWrite)
+	if conn == nil {
+		err := ctx.Err()
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, ErrPoolClosed
+	}
+
+	return conn, func() { p.Put(conn) }, nil
+}
+
+func (p *Pool) get(ctx context.Context, role connRole) *sqlite.Conn {
 	var tr sqlite.Tracer
 	if ctx != nil {
 		tr = &tracer{ctx: ctx}
@@ -183,16 +239,20 @@ func (p *Pool) Get(ctx context.Context) *sqlite.Conn {
 	}
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithCancel(ctx)
+	free := p.freeRead
+	if role == connWrite {
+		free = p.freeWrite
+	}
 
 outer:
 	select {
-	case conn := <-p.free:
+	case conn := <-free:
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
 		select {
 		case <-p.closed:
-			p.free <- conn
+			free <- conn
 			break outer
 		default:
 		}
@@ -215,8 +275,8 @@ outer:
 // Put will panic if conn is nil or if the conn was not originally created by
 // p.
 //
-// Applications must ensure that all non-nil Conns returned from Get are
-// returned to the same Pool with Put.
+// Callers should normally use ReadConn or WriteConn and call the returned
+// release function instead of calling Put directly.
 func (p *Pool) Put(conn *sqlite.Conn) {
 	if conn == nil {
 		panic("attempted to Put a nil Conn into Pool")
@@ -238,12 +298,19 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 
 	conn.ResetTxTracking()
 	cancel()
-	p.free <- conn
+	switch p.roles[conn] {
+	case connRead:
+		p.freeRead <- conn
+	case connWrite:
+		p.freeWrite <- conn
+	default:
+		panic("sqlite.Pool.Put: connection has unknown role")
+	}
 }
 
-// Query executes a function on a connection from the pool.
+// Query executes a function on a read-only connection from the pool.
 func (p *Pool) Query(ctx context.Context, fn func(conn *sqlite.Conn) error) error {
-	conn, release, err := p.Conn(ctx)
+	conn, release, err := p.ReadConn(ctx)
 	if err != nil {
 		return err
 	}
@@ -279,23 +346,66 @@ func (p *Pool) Close() (err error) {
 	p.mu.RUnlock()
 
 	timeout := time.After(PoolCloseTimeout)
-	for closed := 0; closed < len(p.all); closed++ {
+	readCount := 0
+	for _, role := range p.roles {
+		if role == connRead {
+			readCount++
+		}
+	}
+	for closed := 0; closed < readCount; closed++ {
 		select {
-		case conn := <-p.free:
-			// Because we've interrupted each connection when we canceled their context above,
-			// those connections are marked as interrupted internally by SQLite, and it prevents the WAL file
-			// from being checkpointed, which is the usual behavior in SQLite when the database is closed.
-			//
-			// So what we do here is clear the interrupt flag, and execute a dummy statement to make sure the flag is cleared in C,
-			// which should let SQLite to checkpoint the WAL file.
-			conn.SetInterrupt(nil)
-			err = errors.Join(err, Exec(conn, "SELECT 1", nil))
-			err = errors.Join(err, conn.Close())
+		case conn := <-p.freeRead:
+			err = errors.Join(err, closePoolConn(conn))
 		case <-timeout:
 			panic("not all connections returned to Pool before timeout")
 		}
 	}
+	select {
+	case conn := <-p.freeWrite:
+		err = errors.Join(err, closePoolConn(conn))
+	case <-timeout:
+		panic("not all connections returned to Pool before timeout")
+	}
 	return
+}
+
+func (p *Pool) closePartial() (err error) {
+	p.mu.RLock()
+	for _, cancel := range p.all {
+		cancel()
+	}
+	p.mu.RUnlock()
+
+	readCount := 0
+	writeCount := 0
+	for _, role := range p.roles {
+		switch role {
+		case connRead:
+			readCount++
+		case connWrite:
+			writeCount++
+		}
+	}
+	for range readCount {
+		select {
+		case conn := <-p.freeRead:
+			err = errors.Join(err, closePoolConn(conn))
+		default:
+		}
+	}
+	for range writeCount {
+		select {
+		case conn := <-p.freeWrite:
+			err = errors.Join(err, closePoolConn(conn))
+		default:
+		}
+	}
+	return err
+}
+
+func closePoolConn(conn *sqlite.Conn) error {
+	conn.SetInterrupt(nil)
+	return errors.Join(Exec(conn, "SELECT 1", nil), conn.Close())
 }
 
 type strerror struct {

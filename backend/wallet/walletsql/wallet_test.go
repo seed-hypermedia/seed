@@ -38,7 +38,7 @@ var (
 
 func TestQueries(t *testing.T) {
 	pool := storage.MakeTestDB(t)
-	conn, release, err := pool.Conn(context.Background())
+	conn, release, err := pool.WriteConn(context.Background())
 	require.NoError(t, err)
 	defer release()
 

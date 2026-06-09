@@ -52,8 +52,11 @@ import (
 //
 // Typical use:
 //
-//	conn := dbpool.Get()
-//	defer dbpool.Put(conn)
+//	conn, release, err := dbpool.WriteConn(ctx)
+//	if err != nil {
+//		// handle err
+//	}
+//	defer release()
 //
 //	if err := sqlitex.Exec(conn, "INSERT INTO t (a, b, c, d) VALUES (?, ?, ?, ?);", nil, "a1", 1, 42, 1); err != nil {
 //		// handle err
