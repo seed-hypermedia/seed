@@ -17,11 +17,15 @@ import (
 // (collectBlobs) and compare it to the maintained set; any drift forces a
 // re-materialization. This is what makes the deferred edges safe.
 
-var qFreshScopeBlobs = dqb.Str(`
+// qFreshScopeBlobs reads from the rbsr_blobs TEMP table (created by
+// collectBlobs), so it is a plain const, not a dqb.Str — dqb queries are
+// validated against the schema-only DB by TestDBQueries, which has no temp
+// tables. Same convention as the temp-table queries in discovery.go.
+const qFreshScopeBlobs = `
 	SELECT rb.id
 	FROM rbsr_blobs rb
 	JOIN blobs b ON b.id = rb.id
-	WHERE b.size >= 0;`)
+	WHERE b.size >= 0;`
 
 var qMaintainedScopeBlobs = dqb.Str(`SELECT blob FROM rbsr_item WHERE scope = :scope;`)
 
@@ -38,7 +42,7 @@ func shadowVerifyScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) (ok 
 	}
 
 	fresh := map[int64]struct{}{}
-	if err := sqlitex.Exec(conn, qFreshScopeBlobs(), func(stmt *sqlite.Stmt) error {
+	if err := sqlitex.Exec(conn, qFreshScopeBlobs, func(stmt *sqlite.Stmt) error {
 		fresh[stmt.ColumnInt64(0)] = struct{}{}
 		return nil
 	}); err != nil {

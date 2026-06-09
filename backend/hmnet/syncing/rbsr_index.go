@@ -65,12 +65,16 @@ func resolveScope(conn *sqlite.Conn, dkey DiscoveryKey, protocolVersion string) 
 	return id, materialized, nil
 }
 
-var qMaterializeReplace = dqb.Str(`
+// qMaterializeReplace reads from the rbsr_blobs TEMP table (created by
+// collectBlobs), so it is a plain const rather than a dqb.Str — dqb queries are
+// validated against the schema-only DB by TestDBQueries, which has no temp
+// tables. Same convention as the temp-table queries in discovery.go.
+const qMaterializeReplace = `
 	INSERT OR IGNORE INTO rbsr_item (scope, blob)
 	SELECT :scope, rb.id
 	FROM rbsr_blobs rb
 	JOIN blobs b ON b.id = rb.id
-	WHERE b.size >= 0;`)
+	WHERE b.size >= 0;`
 
 var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)
 
@@ -87,13 +91,11 @@ func materializeScope(conn *sqlite.Conn, scopeID int64, dkey DiscoveryKey) error
 	if err := sqlitex.Exec(conn, qMaterializeClear(), nil, scopeID); err != nil {
 		return err
 	}
-	if err := sqlitex.Exec(conn, qMaterializeReplace(), nil, scopeID); err != nil {
+	if err := sqlitex.Exec(conn, qMaterializeReplace, nil, scopeID); err != nil {
 		return err
 	}
 	return sqlitex.Exec(conn, qMarkMaterialized(), nil, time.Now().Unix(), scopeID)
 }
-
-var qTouchScope = dqb.Str(`UPDATE rbsr_scope SET last_access = :now WHERE id = :scope;`)
 
 // qScopeItems mirrors loadRBSRStore's result query but sources the blob set from
 // the persisted rbsr_item rows of the given scopes (a JSON array of scope ids)
