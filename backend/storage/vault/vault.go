@@ -939,6 +939,19 @@ func (ks *Vault) Disconnect() error {
 	return nil
 }
 
+// DisconnectAndClear clears remote vault metadata/state and resets local vault state without delete tombstones.
+func (ks *Vault) DisconnectAndClear() error {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+
+	if err := ks.saveSnapshotLocked(vaultSnapshot{State: newEmptyState()}); err != nil {
+		return fmt.Errorf("failed to clear local vault state: %w", err)
+	}
+
+	ks.connection = nil
+	return nil
+}
+
 func (ks *Vault) applyMutation(fn func(state *State) (bool, error)) (shouldSync bool, err error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()

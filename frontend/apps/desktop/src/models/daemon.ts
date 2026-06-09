@@ -177,8 +177,7 @@ export function useLogout(opts?: UseMutationOptions<void, unknown, void>) {
   return useMutation({
     ...opts,
     mutationFn: async () => {
-      await grpcClient.daemon.disconnectVault({})
-      await grpcClient.daemon.deleteAllKeys({})
+      await grpcClient.daemon.disconnectVault({clearLocalVault: true})
     },
     onSuccess: async (data, variables, context) => {
       invalidateVaultDependentQueries()

@@ -637,6 +637,35 @@ func TestRemoteMergeKeepsNewerDeleteTombstone(t *testing.T) {
 	require.NotZero(t, state.DeletedAccounts[accountID])
 }
 
+func TestDisconnectCanClearLocalVaultWithoutTombstones(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
+
+	ks, err := New(dataDir, secretStore)
+	require.NoError(t, err)
+	connectTestRemoteVault(t, ks, "https://example.com/vault", 1, time.Now())
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	require.NoError(t, ks.StoreKey(ctx, "main", kp))
+
+	require.NoError(t, ks.DisconnectAndClear())
+
+	envelope, err := load(dataDir)
+	require.NoError(t, err)
+	require.NotNil(t, envelope)
+	require.Nil(t, envelope.Remote)
+	require.Empty(t, envelope.Credentials)
+	state, err := decodeStateFromEnvelope(t, ks.store, envelope)
+	require.NoError(t, err)
+	require.Empty(t, state.Accounts)
+	require.Empty(t, state.DeletedAccounts)
+}
+
 func TestMergeNormalizedStatesPrefersNewerNotificationServerURL(t *testing.T) {
 	local, err := normalizeLocalState(State{
 		SchemaVersion:         stateSchemaVersion,

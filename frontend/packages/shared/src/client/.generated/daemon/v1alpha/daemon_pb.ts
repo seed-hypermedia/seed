@@ -695,6 +695,14 @@ export class StartVaultConnectionResponse extends Message<StartVaultConnectionRe
  * @generated from message com.seed.daemon.v1alpha.DisconnectVaultRequest
  */
 export class DisconnectVaultRequest extends Message<DisconnectVaultRequest> {
+  /**
+   * Optional. When true, clears local vault state after disconnecting without
+   * recording account delete tombstones.
+   *
+   * @generated from field: bool clear_local_vault = 1;
+   */
+  clearLocalVault = false;
+
   constructor(data?: PartialMessage<DisconnectVaultRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -703,6 +711,7 @@ export class DisconnectVaultRequest extends Message<DisconnectVaultRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.DisconnectVaultRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "clear_local_vault", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DisconnectVaultRequest {
