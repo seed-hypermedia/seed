@@ -62,7 +62,10 @@ func TestScopeAllowsType(t *testing.T) {
 // base is "hm://<principal>".
 func oracleFixture(t *testing.T) (*sqlitex.Pool, string) {
 	t.Helper()
-	db := storage.MakeTestDB(t)
+	// In-memory DB: this package's test suite opens many pools in parallel, and
+	// file-backed WAL pools exhaust -shm/file descriptors under CI concurrency
+	// (SQLITE_READONLY on first write). In-memory DBs use no WAL/-shm files.
+	db := storage.MakeTestMemoryDB(t)
 	base := "hm://" + testSpace(t)
 
 	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
@@ -214,7 +217,7 @@ func TestOracle_RefSeedsItsChangeClosure(t *testing.T) {
 // answer.
 func TestOracle_UncoveredEdgesReportIncomplete(t *testing.T) {
 	t.Parallel()
-	db := storage.MakeTestDB(t)
+	db := storage.MakeTestMemoryDB(t)
 
 	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
 		stmts := []string{
