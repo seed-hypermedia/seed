@@ -13,6 +13,9 @@ export type EditorBlock =
   | EditorMathBlock
   | EditorNostrBlock
   | EditorQueryBlock
+  | EditorTableBlock
+  | EditorTableRowBlock
+  | EditorTableColumnBlock
   | EditorUnknownBlock
 export type HMInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
@@ -32,6 +35,9 @@ export interface EditorBlockProps {
   level?: number | string
   ref?: string
   revision?: string
+  // Present if the block is a cell inside a TableRow. References a TableColumn
+  // block by id
+  columnId?: string
 }
 
 export interface EditorParagraphBlock extends EditorBaseBlock {
@@ -145,6 +151,28 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryIncludes?: string
     querySort?: string
     banner?: 'true' | 'false'
+  }
+  content: Array<HMInlineContent>
+}
+
+// The Table itself. Has no own text. Children are a mix of
+// EditorTableRowBlock and EditorTableColumnBlock.
+export interface EditorTableBlock extends EditorBaseBlock {
+  type: 'table'
+  content: Array<HMInlineContent> // always empty
+}
+
+// A row in a table, where content is the row header. Children are cell blocks.
+export interface EditorTableRowBlock extends EditorBaseBlock {
+  type: 'tableRow'
+  content: Array<HMInlineContent>
+}
+
+// A column in a table, where content is the column header. No children.
+export interface EditorTableColumnBlock extends EditorBaseBlock {
+  type: 'tableColumn'
+  props: EditorBlockProps & {
+    width?: string
   }
   content: Array<HMInlineContent>
 }
