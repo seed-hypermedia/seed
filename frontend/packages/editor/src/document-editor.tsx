@@ -436,40 +436,6 @@ export function DocumentEditor({
   const draftCursorPositionRef = useRef(draftCursorPosition)
   draftCursorPositionRef.current = draftCursorPosition
   const lastReadOnlyContentKeyRef = useRef('')
-  const scheduledContentReplaceIdRef = useRef(0)
-
-  const scheduleEditorContentReplace = useCallback(
-    (nextContent: typeof initialContent, onComplete?: () => void) => {
-      const replaceId = ++scheduledContentReplaceIdRef.current
-      const schedule =
-        typeof queueMicrotask === 'function'
-          ? queueMicrotask
-          : (callback: () => void) => void Promise.resolve().then(callback)
-
-      schedule(() => {
-        if (replaceId !== scheduledContentReplaceIdRef.current) return
-        const view = editor._tiptapEditor?.view
-        if (!view || view.isDestroyed) return
-
-        suppressChangeRef.current = true
-        try {
-          editor.replaceBlocks(editor.topLevelBlocks, nextContent)
-        } finally {
-          suppressChangeRef.current = false
-        }
-        actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
-        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
-        onComplete?.()
-      })
-    },
-    [actorRef, editor],
-  )
-
-  useEffect(() => {
-    return () => {
-      scheduledContentReplaceIdRef.current += 1
-    }
-  }, [editor, isEditing])
 
   useEffect(() => {
     if (isEditing) return
@@ -477,8 +443,15 @@ export function DocumentEditor({
     if (contentKey === lastReadOnlyContentKeyRef.current) return
     lastReadOnlyContentKeyRef.current = contentKey
 
-    scheduleEditorContentReplace(initialContent)
-  }, [initialContent, isEditing, scheduleEditorContentReplace])
+    suppressChangeRef.current = true
+    try {
+      editor.replaceBlocks(editor.topLevelBlocks, initialContent)
+    } finally {
+      suppressChangeRef.current = false
+    }
+    actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
+    actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
+  }, [actorRef, editor, initialContent, isEditing])
 
   const handlersRef = useEditorHandlersRef()
 
@@ -576,15 +549,14 @@ export function DocumentEditor({
     // content, and places the cursor.
     if (actorRef.getSnapshot().matches('editing')) {
       handlersRef.current.setEditable(true)
-      scheduleEditorContentReplace(initialContentRef.current, () => {
-        handlersRef.current?.placeCursor()
-      })
+      handlersRef.current.applyInitialContent()
+      handlersRef.current.placeCursor()
     }
 
     return () => {
       handlersRef.current = null
     }
-  }, [actorRef, editor, handlersRef, scheduleEditorContentReplace])
+  }, [editor, actorRef, handlersRef])
 
   const focusEditorEnd = useCallback(() => {
     const view = editor._tiptapEditor?.view
