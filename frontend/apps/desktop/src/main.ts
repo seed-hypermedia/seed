@@ -28,7 +28,14 @@ import fs from 'fs'
 import mime from 'mime'
 import path from 'node:path'
 
-import {dispatchFocusedWindowAppEvent, handleSecondInstance, handleUrlOpen, openInitialWindows, trpc} from './app-api'
+import {
+  dispatchFocusedWindowAppEvent,
+  getDefaultStartupRoute,
+  handleSecondInstance,
+  handleUrlOpen,
+  openInitialWindows,
+  trpc,
+} from './app-api'
 import {grpcClient} from './app-grpc'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
@@ -345,7 +352,7 @@ app.whenReady().then(async () => {
 
         if (response.keys.length === 0) {
           deleteWindowsState().then(() => {
-            trpc.createAppWindow({routes: [defaultRoute]})
+            trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
             isStartingUp = false
             logger.debug('[MAIN]: Startup complete, main window created')
             // Process cold start deep link if present
@@ -386,7 +393,7 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     logger.debug('[MAIN]: no windows found. will open the home window')
     trpc.createAppWindow({
-      routes: [defaultRoute],
+      routes: [getDefaultStartupRoute()],
     })
   }
 })
@@ -439,7 +446,7 @@ function initializeIpcHandlers() {
         grpcClient.daemon.listKeys({}).then(async (response) => {
           if (response.keys.length === 0) {
             deleteWindowsState().then(() => {
-              trpc.createAppWindow({routes: [defaultRoute]})
+              trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
               isStartingUp = false
             })
           } else {

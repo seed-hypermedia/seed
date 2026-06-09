@@ -38,6 +38,7 @@ import {syncApi} from './app-sync'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
+import {getOnboardingState} from './app-onboarding-store'
 import {
   closeAppWindow,
   createAppWindow,
@@ -144,6 +145,15 @@ function startNotificationServicesWhenReady() {
 }
 startNotificationServicesWhenReady()
 
+/** Returns the route the app should open when there is no saved window state. */
+export function getDefaultStartupRoute(): NavRoute {
+  const onboardingState = getOnboardingState()
+  if (!onboardingState.hasCompletedOnboarding && !onboardingState.hasSkippedOnboarding) {
+    return {key: 'onboarding'}
+  }
+  return defaultRoute
+}
+
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
@@ -157,7 +167,7 @@ export async function openInitialWindows() {
   await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
     trpc.createAppWindow({
-      routes: [defaultRoute],
+      routes: [getDefaultStartupRoute()],
     })
     return
   }
@@ -180,7 +190,7 @@ export async function openInitialWindows() {
     const e = error as Error
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     await getFirstAvailableAccount()
-    trpc.createAppWindow({routes: [defaultRoute]})
+    trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
     return
   }
 }

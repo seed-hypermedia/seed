@@ -1,11 +1,11 @@
-import {domainResolver} from '@/grpc-client'
-import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {DEFAULT_AGENT_SERVER_URL, useAgentSession} from '@/models/agents'
-import {useForceVaultSync, useMyAccountIds, useVaultStatus} from '@/models/daemon'
-import {useExistingDraft} from '@/models/drafts'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {useNotificationInbox} from '@/models/notification-inbox'
-import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import { domainResolver } from '@/grpc-client'
+import { roleCanWrite, useSelectedAccountCapability } from '@/models/access-control'
+import { DEFAULT_AGENT_SERVER_URL, useAgentSession } from '@/models/agents'
+import { useForceVaultSync, useMyAccountIds, useVaultStatus } from '@/models/daemon'
+import { useExistingDraft } from '@/models/drafts'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { useNotificationInbox } from '@/models/notification-inbox'
+import { isNotificationEventRead, useLocalNotificationReadState } from '@/models/notification-read-state'
 import {
   agentSessionUrl,
   agentTriggerUrl,
@@ -13,24 +13,23 @@ import {
   resolveOmnibarUrlToRoute,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
-import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
-import {SidebarContext} from '@/sidebar-context'
-import {client} from '@/trpc'
-import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
-import {useListenAppEvent} from '@/utils/window-events'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useUniversalAppContext} from '@shm/shared'
-import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
-import {useStream} from '@shm/shared/use-stream'
-import {formattedDate} from '@shm/shared/utils/date'
-import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
-import {Button} from '@shm/ui/button'
+import { useSelectedAccount, useSelectedAccountId } from '@/selected-account'
+import { SidebarContext } from '@/sidebar-context'
+import { client } from '@/trpc'
+import { pathNameify } from '@/utils/path'
+import { useNavigate } from '@/utils/useNavigate'
+import { useListenAppEvent } from '@/utils/window-events'
+import { UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
+import { useUniversalAppContext } from '@shm/shared'
+import { VaultConnectionStatus } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import { DEFAULT_GATEWAY_URL } from '@shm/shared/constants'
+import { useAccounts, useDomain, useResource } from '@shm/shared/models/entity'
+import { queryKeys } from '@shm/shared/models/query-keys'
+import { DocumentRoute, FeedRoute, NavRoute } from '@shm/shared/routes'
+import { useStream } from '@shm/shared/use-stream'
+import { createWebHMUrl, hmId, routeToUrl, unpackHmId } from '@shm/shared/utils/entity-id-url'
+import { useNavigationDispatch, useNavigationState, useNavRoute } from '@shm/shared/utils/navigation'
+import { Button } from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,15 +37,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Back, Forward, UploadCloud} from '@shm/ui/icons'
-import {Spinner} from '@shm/ui/spinner'
-import {TitlebarSection} from '@shm/ui/titlebar'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {cn} from '@shm/ui/utils'
-import {useQuery} from '@tanstack/react-query'
+import { Popover, PopoverContent, PopoverTrigger } from '@shm/ui/components/popover'
+import { HMIcon } from '@shm/ui/hm-icon'
+import { Back, Forward, UploadCloud } from '@shm/ui/icons'
+import { Spinner } from '@shm/ui/spinner'
+import { TitlebarSection } from '@shm/ui/titlebar'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { cn } from '@shm/ui/utils'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
@@ -64,13 +63,13 @@ import {
   User,
   UserCog,
 } from 'lucide-react'
-import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
-import {BookmarkButton} from './bookmarking'
-import {CopyReferenceButton} from './copy-reference-button'
-import {useCreateAccount} from './create-account'
-import {usePublishSite} from './publish-site'
-import {SearchInput, SearchInputHandle} from './search-input'
-import {TitleBarProps} from './titlebar'
+import { ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { BookmarkButton } from './bookmarking'
+import { CopyReferenceButton } from './copy-reference-button'
+import { useCreateAccount } from './create-account'
+import { usePublishSite } from './publish-site'
+import { SearchInput, SearchInputHandle } from './search-input'
+import { TitleBarProps } from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
 const DOC_OPTIONS_ROUTE_KEYS = [
@@ -97,12 +96,12 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
-function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
+function isDocOptionsRoute(route: NavRoute): route is NavRoute & { key: DocOptionsRouteKey; id: UnpackedHypermediaId } {
   return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
 }
 
 export function DocOptionsButton(_props: {
-  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
+  onPublishSite: (input: { id: UnpackedHypermediaId; step?: 'seed-host-custom-domain' }) => void
 }) {
   return null
 }
@@ -146,9 +145,9 @@ function NotificationButton() {
           isActive
             ? undefined
             : () => {
-                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
-                navigate({key: 'notifications', view})
-              }
+              const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
+              navigate({ key: 'notifications', view })
+            }
         }
       >
         <Bell className="size-4" />
@@ -166,17 +165,17 @@ export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
-  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const { selectedIdentity, setSelectedIdentity } = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
   const vaultStatus = useVaultStatus()
-  const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
+  const { isPending: isForceVaultSyncPending, mutate: forceVaultSync } = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
-  const {createAccount, isCreating} = useCreateAccount()
+  const { createAccount, isCreating } = useCreateAccount()
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -203,16 +202,6 @@ export function AccountProfileButton() {
     })
   }, [forceVaultSync, isForceVaultSyncPending, menuOpen, remoteVaultConnected])
 
-  const vaultSyncLabel = isForceVaultSyncPending
-    ? 'Checking remote vault…'
-    : vaultStatus.data?.syncStatus?.lastSyncError
-    ? 'Remote vault sync needs attention'
-    : remoteVaultConnected
-    ? vaultStatus.data?.syncStatus?.lastSyncTime
-      ? `Remote vault synced ${formattedDate(vaultStatus.data.syncStatus.lastSyncTime, {onlyRelative: true})}`
-      : 'Remote vault connected'
-    : 'Vault stored locally'
-
   if (!hasAccounts) {
     return (
       <DropdownMenu>
@@ -224,7 +213,7 @@ export function AccountProfileButton() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-          <DropdownMenuItem onClick={() => navigate({key: 'settings', tab: 'sync'})}>
+          <DropdownMenuItem onClick={() => navigate({ key: 'settings', tab: 'sync' })}>
             <LogIn className="size-4" />
             Log in
           </DropdownMenuItem>
@@ -233,7 +222,7 @@ export function AccountProfileButton() {
             {isCreating ? 'Creating…' : 'Create account'}
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-          <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
+          <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
             <Settings className="size-4" />
             App settings
           </DropdownMenuItem>
@@ -289,18 +278,6 @@ export function AccountProfileButton() {
             </div>
             {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
           </button>
-          <div className="px-2 pb-1 text-left">
-            <p
-              className={cn(
-                'truncate text-xs',
-                vaultStatus.data?.syncStatus?.lastSyncError
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-muted-foreground',
-              )}
-            >
-              {vaultSyncLabel}
-            </p>
-          </div>
           {switcherOpen && (
             <>
               <div
@@ -355,7 +332,7 @@ export function AccountProfileButton() {
         {accountUid && (
           <DropdownMenuItem
             onClick={() => {
-              navigate({key: 'profile', id: hmId(accountUid)})
+              navigate({ key: 'profile', id: hmId(accountUid) })
             }}
           >
             <User className="size-4" />
@@ -370,7 +347,7 @@ export function AccountProfileButton() {
           <Monitor className="size-4" />
           Site settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
+        <DropdownMenuItem onClick={() => navigate({ key: 'settings' })}>
           <Settings className="size-4" />
           App settings
         </DropdownMenuItem>
@@ -395,8 +372,8 @@ export function PageActionButtons(props: TitleBarProps) {
   )
 }
 
-function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
-  const {id} = route
+function DocumentTitlebarButtons({ route }: { route: DocumentRoute | FeedRoute }) {
+  const { id } = route
 
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
@@ -408,7 +385,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   return (
     <TitlebarSection>
       {showPublishSiteButton ? (
-        <Button variant="default" onClick={() => publishSite.open({id})} size="sm">
+        <Button variant="default" onClick={() => publishSite.open({ id })} size="sm">
           Publish to Web Domain
           <UploadCloud className="size-4" />
         </Button>
@@ -425,7 +402,7 @@ export function NavigationButtons() {
     <div className="no-window-drag flex">
       <Button
         size="icon"
-        onClick={() => dispatch({type: 'pop'})}
+        onClick={() => dispatch({ type: 'pop' })}
         variant="ghost"
         disabled={state.routeIndex <= 0}
         className="rounded-tl-0 rounded-bl-0"
@@ -435,7 +412,7 @@ export function NavigationButtons() {
 
       <Button
         size="icon"
-        onClick={() => dispatch({type: 'forward'})}
+        onClick={() => dispatch({ type: 'forward' })}
         disabled={state.routeIndex >= state.routes.length - 1}
         className="rounded-tr-0 rounded-br-0"
       >
@@ -445,7 +422,7 @@ export function NavigationButtons() {
   )
 }
 
-export function NavMenuButton({left}: {left?: ReactNode}) {
+export function NavMenuButton({ left }: { left?: ReactNode }) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
   const isHoverVisible = useStream(ctx?.isHoverVisible)
@@ -531,6 +508,8 @@ type OmnibarMode = 'idle' | 'focused' | 'search'
 /** Label for non-document routes */
 function getRouteLabel(route: NavRoute): string | null {
   switch (route.key) {
+    case 'onboarding':
+      return 'Welcome to Seed Hypermedia'
     case 'library':
       return 'Library'
     case 'agents':
@@ -620,9 +599,6 @@ function useCurrentRouteUrl(): {
 
   const draftTitle = draft?.metadata?.name
 
-  // Debug: trace omnibar URL resolution so we can see why an unpublished doc
-  // briefly appeared copyable. Remove once verified.
-
   return useMemo(() => {
     if (route.key === 'draft') {
       const hostname = validatedSiteUrl || gwUrl
@@ -632,7 +608,7 @@ function useCurrentRouteUrl(): {
           hostname,
           originHomeId: validatedSiteUrl ? hmId(route.editUid) : undefined,
         })
-        return {displayUrl: url, copyableUrl: url}
+        return { displayUrl: url, copyableUrl: url }
       }
       if (route.locationUid) {
         const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : route.id
@@ -642,14 +618,14 @@ function useCurrentRouteUrl(): {
           hostname,
           originHomeId: validatedSiteUrl ? hmId(route.locationUid) : undefined,
         })
-        return {displayUrl: url, copyableUrl: null}
+        return { displayUrl: url, copyableUrl: null }
       }
-      return {displayUrl: null, copyableUrl: null}
+      return { displayUrl: null, copyableUrl: null }
     }
 
     if (route.key === 'agent-server') {
       const url = `${route.serverUrl}/agents`
-      return {displayUrl: url, copyableUrl: url}
+      return { displayUrl: url, copyableUrl: url }
     }
 
     if (route.key === 'agent') {
@@ -657,16 +633,16 @@ function useCurrentRouteUrl(): {
         route.tab === 'triggers' && route.triggerId
           ? agentTriggerUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.triggerId)
           : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId)
-      return {displayUrl: url, copyableUrl: url}
+      return { displayUrl: url, copyableUrl: url }
     }
 
     if (route.key === 'agent-session') {
       const agentId = route.agentId || agentSession.data?.session.agentId
       if (agentId) {
         const url = agentSessionUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, agentId, route.sessionId)
-        return {displayUrl: url, copyableUrl: url}
+        return { displayUrl: url, copyableUrl: url }
       }
-      return {displayUrl: null, copyableUrl: null}
+      return { displayUrl: null, copyableUrl: null }
     }
 
     if (routeId) {
@@ -682,7 +658,7 @@ function useCurrentRouteUrl(): {
           hostname,
           originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
         })
-        return {displayUrl: url, copyableUrl: null}
+        return { displayUrl: url, copyableUrl: null }
       }
 
       // Standard route URL. Only mark copyable once we've confirmed a published
@@ -692,15 +668,15 @@ function useCurrentRouteUrl(): {
         hostname: validatedSiteUrl || gwUrl,
         originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
       })
-      return {displayUrl: url, copyableUrl: hasPublishedResource ? url : null}
+      return { displayUrl: url, copyableUrl: hasPublishedResource ? url : null }
     }
 
     if (route.key === 'inspect-ipfs') {
-      const url = routeToUrl(route, {hostname: validatedSiteUrl || gwUrl})
-      return {displayUrl: url, copyableUrl: url}
+      const url = routeToUrl(route, { hostname: validatedSiteUrl || gwUrl })
+      return { displayUrl: url, copyableUrl: url }
     }
 
-    return {displayUrl: null, copyableUrl: null}
+    return { displayUrl: null, copyableUrl: null }
   }, [
     routeId,
     route,
@@ -835,7 +811,7 @@ function useOmnibarState(currentUrl: string | null) {
 export function Omnibar() {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const {displayUrl, copyableUrl} = useCurrentRouteUrl()
+  const { displayUrl, copyableUrl } = useCurrentRouteUrl()
   const publishSite = usePublishSite()
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
@@ -848,7 +824,7 @@ export function Omnibar() {
 
   // Pass null to the omnibar state when the URL isn't shareable so the focused
   // input doesn't prefill with it.
-  const {mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange} = useOmnibarState(
+  const { mode, inputValue, inputRef, focus, focusSearch, blur, handleInputChange } = useOmnibarState(
     isUnsharable ? null : copyableUrl,
   )
 
@@ -869,7 +845,7 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
+      const route = await resolveOmnibarUrlToRoute(url, { domainResolver })
       if (route) {
         navigate(route)
         return true
@@ -974,13 +950,13 @@ export function Omnibar() {
               // Drafts that haven't been published yet have no shareable URL
               isUnsharable && 'select-none',
             )}
-            style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
+            style={isUnsharable ? { userSelect: 'none', WebkitUserSelect: 'none' } : undefined}
             onCopy={
               isUnsharable
                 ? (e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
                 : undefined
             }
           >
@@ -1077,7 +1053,7 @@ export function Omnibar() {
             onExternalSearchChange={handleInputChange}
             hideInput={true}
             onLoadingChange={setIsSearchLoading}
-            onSelect={({id, route: selectedRoute}) => {
+            onSelect={({ id, route: selectedRoute }) => {
               if (selectedRoute) {
                 navigate(selectedRoute)
               } else if (id) {

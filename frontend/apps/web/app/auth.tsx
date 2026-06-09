@@ -8,8 +8,8 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
+import {CreateAccountDialogContent} from '@shm/ui/create-account-dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
-import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -17,7 +17,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {LogOut, Monitor, Settings, Smartphone} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
+import {useEffect, useMemo, useState, useSyncExternalStore} from 'react'
 import {SubmitHandler} from 'react-hook-form'
 import {encodeBlock, rawCodec} from './api'
 import * as authSession from './auth-session'
@@ -360,11 +360,7 @@ function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput;
   const siteName = hostnameStripProtocol(origin)
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
-  const [customVaultUrl, setCustomVaultUrl] = useState('https://hyper.media')
-  const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
   const [localAccountUnlocked, setLocalAccountUnlocked] = useState(false)
-  const [vaultEmail, setVaultEmail] = useState('')
-  const customVaultInputRef = useRef<HTMLInputElement>(null)
 
   const secretTap = useMemo(
     () =>
@@ -423,123 +419,45 @@ function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput;
   }
 
   return (
-    <>
-      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={secretTap.tap}>
-        {localAccountUnlocked ? (
-          tx('create_account_title', ({siteName}: {siteName: string}) => `Create Account on ${siteName}`, {
-            siteName: siteName || 'this site',
-          })
-        ) : (
-          <>
-            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
-              <SeedLogo className="size-4 text-white" />
-            </div>
-            {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
-          </>
-        )}
-      </DialogTitle>
-
-      {localAccountUnlocked ? (
-        <>
-          <DialogDescription className="max-sm:text-sm">
-            {tx(
-              'create_account_description',
-              'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
-            )}
-          </DialogDescription>
-          <EditProfileForm
-            onSubmit={(values) => {
-              onSubmit(values)
-            }}
-            submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
-              siteName,
-            })}
-            processImage={optimizeImage}
-          />
-        </>
-      ) : (
-        <>
-          <DialogDescription className="max-sm:text-sm">
-            Sign in or create your identity to get started.
-          </DialogDescription>
-
-          {/* <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
-                By continuing, you agree to our{' '}
-                <a
-                  href="https://hyper.media/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                >
-                  Terms and Privacy Policy
-                </a>
-                .
-              </SizableText> */}
-          <Button variant="default" type="submit" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
-            {tx('Create Identity on Hypermedia')}
-          </Button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-            <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
-            <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-          </div>
-
-          <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
-            Already have a Hypermedia Identity?
-          </Button>
-
-          <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Do you have another identity domain?{' '}
-            <button
-              type="button"
-              className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-              onClick={() => setShowCustomVaultInput(true)}
-            >
-              Sign in with it
-            </button>
-          </div>
-
-          {showCustomVaultInput && (
-            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
-              <SizableText size="sm" className="font-medium">
-                Identity Domain
-              </SizableText>
-              <input
-                ref={customVaultInputRef}
-                className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
-                value={customVaultUrl}
-                onChange={(e) => setCustomVaultUrl(e.target.value)}
-                placeholder={defaultVaultUrl}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && customVaultUrl.trim()) {
-                    handleVaultSignIn(customVaultUrl.trim())
-                  }
-                }}
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={!customVaultUrl.trim()}
-                  onClick={() => handleVaultSignIn(customVaultUrl.trim())}
-                >
-                  Connect
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
+    <CreateAccountDialogContent
+      localAccountUnlocked={localAccountUnlocked}
+      title={tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
+      localAccountTitle={tx(
+        'create_account_title',
+        ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
+        {
+          siteName: siteName || 'this site',
+        },
       )}
-    </>
+      localAccountDescription={tx(
+        'create_account_description',
+        'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
+      )}
+      createIdentityLabel={tx('Create Identity on Hypermedia')}
+      defaultCustomIdentityUrl="https://hyper.media"
+      customIdentityPlaceholder={defaultVaultUrl}
+      localAccountForm={
+        <EditProfileForm
+          onSubmit={(values) => {
+            onSubmit(values)
+          }}
+          submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
+            siteName,
+          })}
+          processImage={optimizeImage}
+        />
+      }
+      onTitleClick={secretTap.tap}
+      onSubmit={(submit) => {
+        if (submit.type === 'custom-id-server') {
+          handleVaultSignIn(submit.url)
+          return
+        }
+        handleVaultSignIn()
+      }}
+    />
   )
 }
-
 function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
   const {origin} = useUniversalAppContext()
   const siteName = hostnameStripProtocol(origin)

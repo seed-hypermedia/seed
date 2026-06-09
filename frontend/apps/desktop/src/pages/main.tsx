@@ -44,6 +44,7 @@ import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 
+var Onboarding = lazy(() => import('./onboarding'))
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
@@ -356,6 +357,11 @@ function PanelContent({children}: {children: ReactNode}) {
 
 function getPageComponent(navRoute: NavRoute) {
   switch (navRoute.key) {
+    case 'onboarding':
+      return {
+        PageComponent: Onboarding,
+        Fallback: BaseLoading,
+      }
     case 'contacts':
       return {
         PageComponent: Contacts,

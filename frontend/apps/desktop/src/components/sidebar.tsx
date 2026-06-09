@@ -62,6 +62,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Quote,
+  Rocket,
   Users,
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
@@ -81,6 +82,20 @@ export function MainAppSidebar() {
     <GenericSidebarContainer
       footer={({isVisible}) => (
         <SidebarFooterLayout className="gap-0 p-0">
+          <SidebarMenu className="px-2 pb-3">
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'onboarding'}
+                onClick={() => {
+                  navigate({key: 'onboarding'})
+                }}
+                title="Onboarding"
+                bold
+                icon={<Rocket className="size-4" />}
+                rightHover={[]}
+              />
+            </SidebarMenuItem>
+          </SidebarMenu>
           <SidebarSeparator />
           <SidebarMenu className="py-4">
             <SidebarMenuItem>
