@@ -5,6 +5,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {selectDraftId, useDocumentSelector} from '@shm/shared/models/use-document-machine'
 import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {isDraftPlaceholderPath} from '@shm/shared/draft-breadcrumb-context'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
@@ -83,9 +84,12 @@ export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
           draftId: discardDraftId,
           onConfirm: () => {
             send({type: 'edit.discard'})
+            const nextId = isDraftPlaceholderPath(docId.path, discardDraftId)
+              ? hmId(docId.uid, {path: docId.path?.slice(0, -1)})
+              : {...docId, version: null}
             navigate({
               ...(route.key === 'document' ? route : {key: 'document'}),
-              id: {...docId, version: null},
+              id: nextId,
             } as any)
             toast.success('Draft changes discarded')
           },

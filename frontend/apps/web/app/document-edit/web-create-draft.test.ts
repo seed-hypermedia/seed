@@ -63,8 +63,8 @@ describe('createWebDocumentDraft', () => {
       capabilityCid: 'cap-1',
       locationUid: 'site',
       locationPath: ['parent'],
-      editUid: 'site',
-      editPath: ['parent', '-draft-1'],
+      editUid: null,
+      editPath: null,
       visibility: 'PUBLIC',
     })
   })

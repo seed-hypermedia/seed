@@ -10,6 +10,8 @@ import {
   parseMarkdown,
 } from '@seed-hypermedia/client/markdown-to-blocks'
 import {hmId} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
 import {putWebDocDraft} from './web-draft-db'
@@ -79,6 +81,7 @@ export async function createWebDocumentDraft({
   }
 
   const routeId = hmId(locationId.uid, {path: editPath})
+  const isNavigatedPublicDraft = !isPrivate && !!navigate
 
   await putWebDocDraft({
     draftId,
@@ -91,11 +94,13 @@ export async function createWebDocumentDraft({
     navigation: null,
     locationUid: locationId.uid,
     locationPath,
-    editUid: locationId.uid,
-    editPath,
+    editUid: isNavigatedPublicDraft ? null : locationId.uid,
+    editPath: isNavigatedPublicDraft ? null : editPath,
     cursorPosition: null,
     visibility,
   })
+  invalidateQueries([queryKeys.DRAFTS_LIST])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, locationId.uid])
 
   console.log('[web-create-doc] createWebDocumentDraft', {
     locationId: locationId.id,

@@ -41,7 +41,8 @@ import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provide
 import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
 import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
-import {getWebDraftPlaceholderId} from './document-edit/web-draft-path'
+import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
+import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath} from './document-edit/web-draft-path'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -160,12 +161,20 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     },
     enabled: typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId),
     staleTime: 60_000,
+    keepPreviousData: false,
   })
   // Keep local drafts even when their base is no longer latest. Remote updates
   // are handled by the document machine's queued rebase flow; deleting here can
   // destroy a valid in-progress draft when the user is merely viewing a pinned
   // historical version.
-  const draftData = draftQuery.data
+  const loadedDraftData = draftQuery.data
+  const draftData =
+    loadedDraftData &&
+    (placeholderDraftId
+      ? loadedDraftData.draftId === placeholderDraftId && loadedDraftData.docId === docId.id
+      : loadedDraftData.docId === docId.id)
+      ? loadedDraftData
+      : null
   const isDraftStale = false
 
   const canEditLocalPlaceholderDraft =
@@ -267,9 +276,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       onDiscardConfirm: (draftId: string, send) => {
         if (window.confirm('Discard draft changes?')) {
           send({type: 'edit.discard'})
+          const nextId = isWebDraftPlaceholderPath(docId.path, draftId)
+            ? hmId(docId.uid, {path: docId.path?.slice(0, -1)})
+            : {...docId, version: null}
           replaceRouteRef.current({
             ...(route.key === 'document' ? route : {key: 'document'}),
-            id: {...docId, version: null},
+            id: nextId,
           } as any)
           toast.success('Draft changes discarded')
         }
@@ -353,34 +365,37 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
               lastCreatedDraftId={lastCreatedDraftId}
               setLastCreatedDraftId={setLastCreatedDraftId}
             >
-              <ResourcePage
-                docId={docId}
-                CommentEditor={CommentEditor}
-                pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
-                onEditProfile={onEditProfile}
-                profileHeaderButtons={profileHeaderButtons}
-                onFollowClick={onFollowClick}
-                rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                optionsMenuItems={optionsMenuItems}
-                inlineInsert={inlineInsert}
-                DocumentContentComponent={DocumentContentComponent}
-                ssrContentHTML={ssrContentHTML}
-                perspectiveAccountUid={ownAccountUid}
-                linkExtensionOptions={linkExtensionOptions}
-                canEdit={effectiveCanEdit}
-                machine={machine}
-                signingAccountId={signingAccountId ?? undefined}
-                publishAccountUid={signingAccountId ?? undefined}
-                onEditorReady={onEditorReady}
-                existingDraft={existingDraft}
-                existingDraftVisibility={draftData?.visibility}
-                existingDraftContent={existingDraftContent}
-                existingDraftCursorPosition={existingDraftCursorPosition}
-                existingDraftDeps={draftData?.deps}
-                draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                editingFloatingActions={editingFloatingActions}
-                fileUpload={fileUpload}
-              />
+              <WebDraftBreadcrumbProvider>
+                <ResourcePage
+                  docId={docId}
+                  resourceId={placeholderDraftId ? null : docId}
+                  CommentEditor={CommentEditor}
+                  pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+                  onEditProfile={onEditProfile}
+                  profileHeaderButtons={profileHeaderButtons}
+                  onFollowClick={onFollowClick}
+                  rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                  optionsMenuItems={optionsMenuItems}
+                  inlineInsert={inlineInsert}
+                  DocumentContentComponent={DocumentContentComponent}
+                  ssrContentHTML={ssrContentHTML}
+                  perspectiveAccountUid={ownAccountUid}
+                  linkExtensionOptions={linkExtensionOptions}
+                  canEdit={effectiveCanEdit}
+                  machine={machine}
+                  signingAccountId={signingAccountId ?? undefined}
+                  publishAccountUid={signingAccountId ?? undefined}
+                  onEditorReady={onEditorReady}
+                  existingDraft={existingDraft}
+                  existingDraftVisibility={draftData?.visibility}
+                  existingDraftContent={existingDraftContent}
+                  existingDraftCursorPosition={existingDraftCursorPosition}
+                  existingDraftDeps={draftData?.deps}
+                  draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                  editingFloatingActions={editingFloatingActions}
+                  fileUpload={fileUpload}
+                />
+              </WebDraftBreadcrumbProvider>
             </QueryBlockDraftsProvider>
           </WebDraftActionsProvider>
         </DocumentActionsProvider>

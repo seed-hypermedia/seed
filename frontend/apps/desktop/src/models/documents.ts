@@ -33,7 +33,7 @@ import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   compareBlocksWithMap,
@@ -1043,6 +1043,12 @@ export function useCreateDraft(
       deps: plan.writeParams.deps ?? [],
     }
     await client.drafts.write.mutate(writeParams)
+    const accountUid = writeParams.locationUid || writeParams.editUid
+    if (accountUid) {
+      const drafts = await client.drafts.listAccount.query(accountUid)
+      queryClient.setQueryData([queryKeys.DRAFTS_LIST_ACCOUNT, accountUid], drafts)
+    }
+    invalidateQueries([queryKeys.DRAFTS_LIST])
     navigate({key: 'document', id: plan.routeId})
   }
 }

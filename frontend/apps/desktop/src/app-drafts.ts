@@ -566,6 +566,10 @@ export const draftsApi = t.router({
         draftFileMap.set(draftId, `${draftId}.json`)
         appInvalidateQueries([queryKeys.DRAFTS_LIST])
         appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+        if (input.locationUid) appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.locationUid])
+        if (input.editUid && input.editUid !== input.locationUid) {
+          appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.editUid])
+        }
         appInvalidateQueries([queryKeys.DRAFT, draftId])
         return {id: draftId}
       } catch (err) {
