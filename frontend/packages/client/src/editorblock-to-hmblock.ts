@@ -22,6 +22,9 @@ function toHMBlockType(editorBlockType: EditorBlock['type']): HMBlockType | unde
   if (editorBlockType === 'embed') return 'Embed'
   if (editorBlockType === 'web-embed') return 'WebEmbed'
   if (editorBlockType === 'query') return 'Query'
+  if (editorBlockType === 'table') return 'Table'
+  if (editorBlockType === 'tableRow') return 'TableRow'
+  if (editorBlockType === 'tableColumn') return 'TableColumn'
   return undefined
 }
 
@@ -243,6 +246,27 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view) blockEmbed.attributes.view = editorBlock.props.view
+  }
+
+  const blockParagraph = block.type === 'Paragraph' ? block : undefined
+  if (blockParagraph && editorBlock.type == 'paragraph') {
+    // A Paragraph that lives inside a TableRow carries a columnId pointing at
+    // its TableColumn.
+    if (editorBlock.props.columnId) {
+      blockParagraph.attributes.columnId = editorBlock.props.columnId
+    }
+  }
+
+  const blockTable = block.type === 'Table' ? block : undefined
+  if (blockTable && editorBlock.type == 'table') {
+    // Tables hold no own text. Defensive normalisation in case the editor surfaced any.
+    blockTable.text = ''
+  }
+
+  const blockTableColumn = block.type === 'TableColumn' ? block : undefined
+  if (blockTableColumn && editorBlock.type == 'tableColumn') {
+    const width = toNumber(editorBlock.props.width)
+    if (width) blockTableColumn.attributes.width = width
   }
 
   const blockQuery = block.type === 'Query' ? block : undefined
