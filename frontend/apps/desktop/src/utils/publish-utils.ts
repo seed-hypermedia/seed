@@ -95,9 +95,9 @@ export function resolvePublishPath(args: {
  * Three cases:
  * 1. Editing an existing doc — `editUid`/`editPath` provided. Document route
  *    targets that doc; draft writer records edit anchor + deps.
- * 2. Public new doc at a location — `locationUid` provided. Draft path becomes
- *    `[...locationPath, '-${draftId}']` so `useExistingDraft` can match the
- *    document route via editUid/editPath.
+ * 2. Public new doc at a location — `locationUid` provided. Draft stays
+ *    location-only, while the route targets `[...locationPath, '-${draftId}']`;
+ *    `useExistingDraft` matches that placeholder route back to the local draft.
  * 3. Private doc — needs a `locationUid` (or `selectedAccountId`) and a random
  *    path so the doc has a stable home before publish.
  *
@@ -165,19 +165,17 @@ export function computeNewDraftParams(
 
   if (draftParams.locationUid) {
     const locationPath = draftParams.locationPath || []
-    const editPath = [...locationPath, `-${draftId}`]
+    const routePath = [...locationPath, `-${draftId}`]
     return {
       draftId,
       writeParams: {
         id: draftId,
         locationUid: draftParams.locationUid,
         locationPath,
-        editUid: draftParams.locationUid,
-        editPath,
         deps: draftParams.deps,
         visibility: visibility ?? 'PUBLIC',
       },
-      routeId: hmId(draftParams.locationUid, {path: editPath}),
+      routeId: hmId(draftParams.locationUid, {path: routePath}),
     }
   }
 

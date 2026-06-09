@@ -391,7 +391,7 @@ describe('computeNewDraftParams', () => {
     expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
   })
 
-  it('public new doc encodes draft id placeholder in editPath', () => {
+  it('public new doc stores a location-only draft and routes to the draft placeholder path', () => {
     const draftParams = {
       locationUid: 'location-uid',
       locationPath: ['docs', 'sub'],
@@ -407,8 +407,6 @@ describe('computeNewDraftParams', () => {
       id: 'draft-id-10',
       locationUid: 'location-uid',
       locationPath: ['docs', 'sub'],
-      editUid: 'location-uid',
-      editPath: ['docs', 'sub', '-draft-id-10'],
       deps: undefined,
       visibility: 'PUBLIC',
     })

@@ -173,6 +173,21 @@ export function webDraftToListedDraft(draft: WebDocDraft): HMListedDraftWithLoca
   } as HMListedDraftWithLocation
 }
 
+/** Return all drafts for a given account uid, newest first. */
+export async function listWebDocDraftsForAccount(accountUid: string | undefined): Promise<WebDocDraft[]> {
+  if (!accountUid || !isBrowser()) return []
+  try {
+    const store = await tx('readonly')
+    const all = await reqToPromise<WebDocDraft[]>(store.getAll())
+    return all
+      .filter((draft) => draft.locationUid === accountUid || draft.editUid === accountUid)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+  } catch (err) {
+    console.warn('listWebDocDraftsForAccount failed', err)
+    return []
+  }
+}
+
 /** Return all drafts for a given docId, newest first. */
 export async function listWebDocDraftsForDoc(docId: string): Promise<WebDocDraft[]> {
   if (!isBrowser()) return []

@@ -285,6 +285,8 @@ export interface CommentEditorProps {
 
 export interface ResourcePageProps {
   docId: UnpackedHypermediaId
+  /** Resource ID to fetch for published content. Pass null for local-only draft routes that must not hit the backend. */
+  resourceId?: UnpackedHypermediaId | null
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
   /** Complete platform-specific menu items for the options dropdown */
@@ -379,6 +381,7 @@ function getPanelTitle(panelKey: string | null): string {
 
 export function ResourcePage({
   docId,
+  resourceId,
   CommentEditor,
   optionsMenuItems,
   extraMenuItems,
@@ -433,7 +436,8 @@ export function ResourcePage({
     [docId, replaceRoute, route],
   )
 
-  const resource = useResource(docId, {
+  const resourceFetchId = resourceId === undefined ? docId : resourceId
+  const resource = useResource(resourceFetchId, {
     subscribed: true,
     recursive: true,
     onRedirectOrDeleted: handleResourceRedirect,
@@ -443,9 +447,17 @@ export function ResourcePage({
   // subsequent transient resource failures (refetch errors, discovery flapping, transient
   // not-found from a stale daemon `latest` pointer). Without this sticky gate, the early
   // returns below would unmount DocumentBody and destroy the XState actor on each blip.
+  // Reset on route changes so a newly-created local draft never reuses the parent
+  // document while its draft record is resolving.
+  const lastGoodRouteIdRef = useRef(docId.id)
   const hasEverLoadedRef = useRef(false)
   const lastGoodDocumentRef = useRef<HMDocument | null>(null)
-  if (resource.data?.type === 'document') {
+  if (lastGoodRouteIdRef.current !== docId.id) {
+    lastGoodRouteIdRef.current = docId.id
+    hasEverLoadedRef.current = false
+    lastGoodDocumentRef.current = null
+  }
+  if (resourceFetchId && resource.data?.type === 'document' && resource.data.id.id === resourceFetchId.id) {
     hasEverLoadedRef.current = true
     lastGoodDocumentRef.current = resource.data.document
   }
@@ -453,7 +465,7 @@ export function ResourcePage({
   // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const isLatest = useIsLatest(docId, resource)
+  const isLatest = useIsLatest(resourceFetchId, resource)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
 
@@ -511,6 +523,17 @@ export function ResourcePage({
     )
   }
 
+  if (resourceFetchId === null && existingDraft === undefined) {
+    return (
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
+
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading && !hasEverLoadedRef.current) {
     return (
@@ -529,8 +552,8 @@ export function ResourcePage({
   // document so the document machine can transition to "loaded" → editing.
   const hasUnpublishedDraft =
     !!existingDraft &&
-    canEdit &&
-    (resource.isDiscovering ||
+    (resourceFetchId === null ||
+      resource.isDiscovering ||
       !resource.data ||
       resource.data.type === 'not-found' ||
       (resource.data.type === 'error' && !resource.data.message?.toLowerCase?.().includes('permission')))
@@ -651,7 +674,7 @@ export function ResourcePage({
   // exists, fabricate a placeholder so DocumentBody / the document machine
   // can transition to "loaded" → editing for the new-document case.
   let document: HMDocument
-  if (resource.data?.type === 'document') {
+  if (resourceFetchId && resource.data?.type === 'document' && resource.data.id.id === resourceFetchId.id) {
     document = resource.data.document
   } else if (lastGoodDocumentRef.current) {
     // Transient refetch failure / not-found / discovery flap — keep showing the last
@@ -680,7 +703,8 @@ export function ResourcePage({
   }
 
   const shouldUseDraft = shouldUseDraftForRenderedDocument({docId, existingDraft, isLatest})
-  const effectiveCanEdit = canEdit && (!docId.version || isLatest || shouldUseDraft)
+  const effectiveCanEdit =
+    (canEdit || (resourceFetchId === null && !!existingDraft)) && (!docId.version || isLatest || shouldUseDraft)
   const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
   const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
   const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined

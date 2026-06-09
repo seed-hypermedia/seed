@@ -119,15 +119,20 @@ export default function DesktopResourcePage() {
   const hasLocationOnlyDraft =
     !!existingDraftRecord && !!existingDraftRecord.locationUid && !existingDraftRecord.editUid
   const documentResourceId = hasLocationOnlyDraft || isDraftRouteLookupPending ? null : docId
+  const capabilityId =
+    hasLocationOnlyDraft && existingDraftRecord?.locationUid
+      ? hmId(existingDraftRecord.locationUid, {path: existingDraftRecord.locationPath})
+      : docId
 
-  const capability = useSelectedAccountCapability(docId)
+  const capability = useSelectedAccountCapability(capabilityId)
   const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
 
   // Fetch draft content early so the editor can be initialized with draft blocks
   // instead of published blocks (avoids the flash + replaceBlocks race condition)
   const draftQuery = useDraft(existingDraft ? existingDraft.id : undefined)
-  const existingDraftContent = draftQuery.data?.content
+  const draftData = existingDraft && draftQuery.data?.id === existingDraft.id ? draftQuery.data : undefined
+  const existingDraftContent = draftData?.content
 
   // When another window writes to this draft (e.g. a child publish appended a
   // card embed via auto-link-parent), the editor's in-memory ProseMirror state
@@ -822,16 +827,17 @@ export default function DesktopResourcePage() {
                 <QuerySearchInputProvider value={SearchInput}>
                   <ResourcePage
                     docId={docId}
+                    resourceId={documentResourceId}
                     canEdit={canEdit}
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
                     existingDraft={existingDraft}
-                    existingDraftVisibility={draftQuery.data?.visibility}
+                    existingDraftVisibility={draftData?.visibility}
                     existingDraftContent={existingDraftContent}
-                    existingDraftCursorPosition={draftQuery.data?.cursorPosition}
-                    existingDraftMineTouchedIds={draftQuery.data?.mineTouchedIds}
-                    existingDraftBaseBlocks={draftQuery.data?.baseBlocks}
-                    existingDraftDeps={draftQuery.data?.deps}
+                    existingDraftCursorPosition={draftData?.cursorPosition}
+                    existingDraftMineTouchedIds={draftData?.mineTouchedIds}
+                    existingDraftBaseBlocks={draftData?.baseBlocks}
+                    existingDraftDeps={draftData?.deps}
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
                     rightActions={<JoinButton siteUid={docId.uid} />}
                     onEditProfile={onEditProfile}

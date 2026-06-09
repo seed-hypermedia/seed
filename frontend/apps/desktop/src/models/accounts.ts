@@ -59,6 +59,7 @@ export function useDraft(id: string | undefined) {
     queryKey: [queryKeys.DRAFT, id],
     queryFn: () => client.drafts.get.query(id),
     enabled: !!id,
+    keepPreviousData: false,
   })
 }
 

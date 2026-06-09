@@ -3,10 +3,26 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 ;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 import {act} from 'react-dom/test-utils'
-import type {HMBlockNode, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const canSeePrivateDocsMock = vi.hoisted(() => vi.fn(() => false))
+
+vi.mock('@shm/shared', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared')>('@shm/shared')
+  return {
+    ...actual,
+    useRouteLink: (route: any) => ({
+      href:
+        route?.key === 'draft'
+          ? `/draft/${route.id}`
+          : route?.key === 'document'
+          ? `/doc/${route.id.path?.join('/') ?? ''}`
+          : '/',
+      onClick: undefined,
+    }),
+  }
+})
 
 vi.mock('@shm/shared/models/capabilities', () => ({
   useCanSeePrivateDocs: canSeePrivateDocsMock,
@@ -20,6 +36,7 @@ vi.mock('../document-list-item', async () => {
   }
 })
 
+import {DraftBreadcrumbContext, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 import {UnreferencedDocuments} from '../unreferenced-documents'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -83,6 +100,27 @@ function makeBlock(block: any, children?: HMBlockNode[]): HMBlockNode {
   return {block, children}
 }
 
+function makeDraft(id: string, uid: string, parentPath: string[], name: string): HMListedDraftWithLocation {
+  return {
+    id,
+    locationUid: uid,
+    locationPath: parentPath,
+    locationId: makeId(uid, parentPath),
+    metadata: {name},
+    lastUpdateTime: Date.now(),
+    visibility: 'PUBLIC',
+    deps: [],
+  } as HMListedDraft & HMListedDraftWithLocation
+}
+
+function withDrafts(node: React.ReactNode, drafts: HMListedDraftWithLocation[]) {
+  return (
+    <DraftBreadcrumbContext.Provider value={{useDraftsForAccount: () => ({data: drafts, isLoading: false})}}>
+      {node}
+    </DraftBreadcrumbContext.Provider>
+  )
+}
+
 describe('UnreferencedDocuments', () => {
   let rendered: {container: HTMLDivElement; root: Root} | undefined
 
@@ -114,6 +152,35 @@ describe('UnreferencedDocuments', () => {
     expect(rendered.container.textContent).not.toContain('Linked Child')
     expect(rendered.container.textContent).not.toContain('Unreferenced Documents')
     expect(rendered.container.querySelector('button')).toBeNull()
+  })
+
+  it('renders unreferenced child drafts from the current directory', () => {
+    rendered = renderNode(
+      withDrafts(
+        <UnreferencedDocuments
+          docId={makeId('uid1', ['parent'])}
+          content={[
+            makeBlock({
+              type: 'Embed',
+              id: 'embed-draft',
+              link: 'hm://uid1/parent/-draft-linked',
+              attributes: {draftId: 'draft-linked'},
+            }),
+          ]}
+          directory={[]}
+        />,
+        [
+          makeDraft('draft-linked', 'uid1', ['parent'], 'Linked Draft'),
+          makeDraft('draft-loose', 'uid1', ['parent'], 'Loose Draft'),
+          makeDraft('draft-other-parent', 'uid1', ['other'], 'Other Parent Draft'),
+        ],
+      ),
+    )
+
+    expect(rendered.container.textContent).toContain('Loose Draft')
+    expect(rendered.container.textContent).not.toContain('Linked Draft')
+    expect(rendered.container.textContent).not.toContain('Other Parent Draft')
+    expect(rendered.container.querySelector('a')?.getAttribute('href')).toBe('/doc/parent/-draft-loose')
   })
 
   it('returns null when there are no directory items', () => {
