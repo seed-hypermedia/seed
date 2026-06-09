@@ -823,7 +823,7 @@ export function DocumentEditor({
             </>
           )}
 
-          {/* Read-only extensions */}
+          {/* Viewer/hover extensions */}
           <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
           <BlockHoverActionsPositioner
             editor={editor}

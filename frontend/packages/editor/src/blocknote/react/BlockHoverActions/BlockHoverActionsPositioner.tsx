@@ -10,6 +10,10 @@ import {
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
 
 const HOVER_BG_CLASS = 'bn-block-hover-highlight'
+const HOVER_BRIDGE_PX = 16
+const POPOVER_GAP_PX = 4
+const VIEWPORT_PADDING_PX = 4
+const VERTICAL_POPOVER_WIDTH_ESTIMATE_PX = 40
 
 /**
  * Helper type: once `blockHoverActions` is registered on the editor the
@@ -37,14 +41,16 @@ export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = Block
 // ---------------------------------------------------------------------------
 
 /**
- * Renders a small floating action card anchored to the top-right corner of the
- * block currently under the mouse cursor.
+ * Renders a small vertical floating action card anchored to the top-right
+ * corner of the block currently under the mouse cursor.
  *
  * Subscribe to the editor's `blockHoverActions` plugin via the EventEmitter and
- * position itself using the block's bounding rect.
+ * position itself using the block's bounding rect. When a block has a
+ * supernumber badge, the card anchors just to the right of that badge so both
+ * controls remain visible.
  *
- * Only active when the editor is in **read-only** mode (the plugin suppresses
- * emissions when the editor is editable).
+ * Active in editable and read-only editor states; the plugin suppresses
+ * emissions while text selection is active.
  *
  * @example
  * ```tsx
@@ -60,6 +66,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   onCopyBlockLink,
   onStartComment,
 }: BlockHoverActionsPositionerProps<BSchema>): React.ReactElement | null {
+  const hasActions = !!(onCopyBlockLink || onStartComment)
   const [hoverState, setHoverState] = useState<BlockHoverActionsState>({
     show: false,
     blockId: null,
@@ -117,60 +124,73 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     }, []),
   )
 
-  if (!hoverState.show || !hoverState.referenceRect || !hoverState.blockId) {
+  if (!hasActions || !hoverState.show || !hoverState.referenceRect || !hoverState.blockId) {
     return null
   }
 
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
+  const supernumberBadges = Array.from(
+    editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge'),
+  ) as HTMLElement[]
+  const supernumberBadge = supernumberBadges.find((badge) => badge.dataset.blockId === blockId)
+  const anchorRect = supernumberBadge?.isConnected ? supernumberBadge.getBoundingClientRect() : rect
+  const bridgeWidth = Math.max(
+    HOVER_BRIDGE_PX + POPOVER_GAP_PX,
+    anchorRect.right - rect.right + HOVER_BRIDGE_PX + POPOVER_GAP_PX,
+  )
 
-  // Anchor the card to the top-right of the block, nudged up by 16px so it
-  // sits slightly above the block's first line (keeps positioning consistent
-  // regardless of block height — tall blocks no longer place the card in the
-  // middle). The wrapper overlaps the block by ~8px on its left side so the
-  // cursor can travel from the block into the buttons without crossing a gap
-  // and losing hover; small padding on the right keeps outward mouse travel
-  // forgiving too.
+  // Anchor the vertical card to the right of the supernumber badge when
+  // present, otherwise to the block's right edge. The outer wrapper starts at
+  // the content edge and contains an invisible bridge all the way to the card,
+  // which keeps hover alive across the supernumber gap.
   //
   // On narrow viewports (mobile) the block typically fills the screen, so
-  // the default left-anchored positioning would push the second button past
-  // the right edge and clip it. Detect that case and pin the card to the
-  // viewport's right edge instead so all buttons stay visible.
-  const OVERLAP_PX = 8
-  const TOP_OFFSET_PX = -16
-  // Generous estimate so the overflow check still fires when the popover is
-  // wider than expected.
-  const POPOVER_WIDTH_ESTIMATE_PX = 120
+  // the default right-of-block positioning can clip. Pin the card inside the
+  // viewport so all buttons stay visible.
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : Infinity
-  const wouldOverflow = rect.right - OVERLAP_PX + POPOVER_WIDTH_ESTIMATE_PX > viewportWidth
+  const visibleLeft = rect.right + bridgeWidth
+  const wouldOverflow = visibleLeft + VERTICAL_POPOVER_WIDTH_ESTIMATE_PX > viewportWidth - VIEWPORT_PADDING_PX
+  const activeBridgeWidth = wouldOverflow ? HOVER_BRIDGE_PX : bridgeWidth
   const style: React.CSSProperties = wouldOverflow
-    ? {
+    ? ({
         position: 'fixed',
-        top: rect.top + TOP_OFFSET_PX,
-        right: 4,
+        top: rect.top,
+        right: VIEWPORT_PADDING_PX,
+        paddingLeft: HOVER_BRIDGE_PX,
+        minHeight: rect.height,
         zIndex: 50,
-      }
-    : {
+        transition: 'top 150ms ease-out, left 150ms ease-out, right 150ms ease-out',
+      } as React.CSSProperties)
+    : ({
         position: 'fixed',
-        top: rect.top + TOP_OFFSET_PX,
-        left: rect.right - OVERLAP_PX,
+        top: rect.top,
+        left: rect.right,
+        paddingLeft: bridgeWidth,
+        paddingRight: VIEWPORT_PADDING_PX,
+        minHeight: rect.height,
         zIndex: 50,
-        paddingLeft: OVERLAP_PX,
-        paddingRight: 4,
-      }
+        transition: 'top 150ms ease-out, left 150ms ease-out, right 150ms ease-out',
+      } as React.CSSProperties)
 
   return (
-    <div
-      style={style}
-      onMouseEnter={() => editor.blockHoverActions?.freeze()}
-      onMouseLeave={() => {
-        editor.blockHoverActions?.unfreeze()
-        // Clear highlight immediately when leaving the card.
-        highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
-        highlightedElRef.current = null
-      }}
-    >
-      <div className="bg-popover flex items-center gap-1 rounded-md border p-1 shadow-sm">
+    <div data-bn-block-hover-actions="true" className="pointer-events-none" style={style}>
+      <div
+        aria-hidden="true"
+        data-bn-block-hover-bridge="true"
+        className="pointer-events-none absolute top-0 left-0 h-full rounded-sm"
+        style={{width: activeBridgeWidth}}
+      />
+      <div
+        className="bg-popover pointer-events-auto relative z-50 flex flex-col items-center gap-1 rounded-md border p-1 shadow-sm"
+        onMouseEnter={() => editor.blockHoverActions?.freeze()}
+        onMouseLeave={() => {
+          editor.blockHoverActions?.unfreeze()
+          // Clear highlight immediately when leaving the card.
+          highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
+          highlightedElRef.current = null
+        }}
+      >
         {onCopyBlockLink && (
           <button
             type="button"
