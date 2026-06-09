@@ -30,6 +30,9 @@ const WEB_ENV = (() => {
 
 export const DEFAULT_GATEWAY_URL: string = IME.VITE_GATEWAY_URL || process.env.VITE_GATEWAY_URL || 'https://hyper.media'
 
+export const DEFAULT_DESKTOP_VAULT_URL: string | undefined =
+  IME.VITE_DESKTOP_DEFAULT_VAULT_URL || process.env.VITE_DESKTOP_DEFAULT_VAULT_URL || undefined
+
 export const P2P_PORT = IME.VITE_DESKTOP_P2P_PORT || process.env.VITE_DESKTOP_P2P_PORT || 56000
 
 export const DAEMON_HTTP_PORT =

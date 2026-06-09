@@ -1,5 +1,5 @@
 import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, IS_PROD_DESKTOP, P2P_PORT, VERSION} from '@shm/shared/constants'
+import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, P2P_PORT, VERSION} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as readline from 'node:readline'
@@ -45,10 +45,11 @@ const embeddingFlags = [
 function buildDaemonArguments(embeddingEnabled: boolean): string[] {
   const args = [...baseDaemonArguments]
 
-  // Use file-based keys in desktop dev so deleting the app support directory
-  // really produces a clean identity state and never resurrects legacy OS
-  // keychain keys. Production keeps using the encrypted local vault.
-  if (!IS_PROD_DESKTOP || process.env.SEED_FIXTURE_DATA_DIR) {
+  // Fixture mode uses file-based keys so tests can isolate identity state by
+  // deleting the fixture directory. Normal desktop runs, including development,
+  // use the encrypted local vault because remote identity sign-in depends on
+  // the daemon-managed Vault Connect flow.
+  if (process.env.SEED_FIXTURE_DATA_DIR) {
     args.push(`-keystore-dir=${userDataPath}/daemon/keys`)
   }
 
