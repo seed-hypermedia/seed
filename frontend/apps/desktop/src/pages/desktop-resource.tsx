@@ -62,18 +62,19 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
-import {displayHostname} from '@shm/shared/utils/entity-id-url'
+import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, Folder, History, LayoutList, Link, Split} from 'lucide-react'
+import {Copy, FileInput, Folder, Globe, History, LayoutList, Link, Link2, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -551,19 +552,36 @@ export default function DesktopResourcePage() {
 
   const menuItems: MenuItemType[] = []
 
-  if (siteUrl) {
-    menuItems.push({
-      key: 'link-site',
-      label: `Copy ${displayHostname(siteUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => onCopySiteUrl(route),
-    })
-  }
   menuItems.push({
-    key: 'link',
-    label: `Copy ${displayHostname(gwUrl)} Link`,
+    key: 'copy-link',
+    label: 'Copy Link',
     icon: <Link className="size-4" />,
-    onClick: () => onCopyGateway(route),
+    children: [
+      ...(siteUrl
+        ? [
+            {
+              key: 'copy-site',
+              label: `Copy ${displayHostname(siteUrl)} Link`,
+              icon: <Globe className="size-4" />,
+              onClick: () => onCopySiteUrl(route),
+            },
+          ]
+        : []),
+      {
+        key: 'copy-gateway',
+        label: `Copy ${displayHostname(gwUrl)} Link`,
+        icon: <Link className="size-4" />,
+        onClick: () => onCopyGateway(route),
+      },
+      {
+        key: 'copy-hm',
+        label: 'Copy Hypermedia URL',
+        icon: <Link2 className="size-4" />,
+        onClick: async () => {
+          await copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia')
+        },
+      },
+    ],
   })
 
   if (newMenuItem) {

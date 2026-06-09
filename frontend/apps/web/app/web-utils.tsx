@@ -10,6 +10,7 @@ import {
 import {useAccount} from '@shm/shared/models/entity'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
+import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
@@ -35,10 +36,12 @@ import {
   Bell,
   FilePlus2,
   Folder,
+  Globe,
   History,
   Import as ImportIcon,
   LayoutList,
   Link,
+  Link2,
   Lock,
   LogOut,
   Search,
@@ -54,7 +57,7 @@ import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifi
 export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeInspect?: boolean}): MenuItemType[] {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const {originHomeId} = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin, originHomeId} = useUniversalAppContext()
   const includeInspect = options?.includeInspect !== false
   const inspectRoute = useMemo(() => {
     if (!includeInspect) return null
@@ -66,13 +69,41 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
   return useMemo(
     () => [
       {
-        key: 'link',
-        label: 'Copy Gateway Link',
+        key: 'copy-link',
+        label: 'Copy Link',
         icon: <Link className="size-4" />,
-        onClick: () => {
-          const url = routeToUrl(route, {hostname: DEFAULT_GATEWAY_URL})
-          if (url) copyUrlToClipboardWithFeedback(url, 'Gateway')
-        },
+        children: [
+          {
+            key: 'copy-canonical',
+            label: 'Copy Canonical URL',
+            icon: <Globe className="size-4" />,
+            onClick: async () => {
+              if (onCopyReference) {
+                await onCopyReference(docId)
+              } else if (typeof window !== 'undefined') {
+                await copyUrlToClipboardWithFeedback(window.location.href, 'Link')
+              }
+            },
+          },
+          {
+            key: 'copy-gateway',
+            label: 'Copy Gateway URL',
+            icon: <Link className="size-4" />,
+            onClick: async () => {
+              const url = routeToUrl(route, {hostname: origin ?? DEFAULT_GATEWAY_URL, originHomeId})
+              if (url) await copyUrlToClipboardWithFeedback(url, 'Gateway')
+              onPushReference?.(docId)
+            },
+          },
+          {
+            key: 'copy-hm',
+            label: 'Copy Hypermedia URL',
+            icon: <Link2 className="size-4" />,
+            onClick: async () => {
+              await copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia')
+            },
+          },
+        ],
       },
       {
         key: 'versions',
@@ -111,7 +142,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
           ]
         : []),
     ],
-    [allDocumentsId, docId, inspectRoute, navigate, route],
+    [allDocumentsId, docId, inspectRoute, navigate, onCopyReference, onPushReference, origin, originHomeId, route],
   )
 }
 
