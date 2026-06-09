@@ -28,6 +28,12 @@ var derivedTables = []string{
 	storage.T_Fts,
 	storage.T_FtsIndex,
 	storage.T_BlobVisibility,
+	// The maintained RBSR index is derived: drop it on reindex and let it
+	// re-materialize lazily on the next reconcile. rbsr_item has an FK to
+	// rbsr_scope with ON DELETE CASCADE, but reindex deletes tables in list
+	// order, so list rbsr_item before rbsr_scope to avoid relying on cascade.
+	storage.T_RbsrItem,
+	storage.T_RbsrScope,
 }
 
 // ReindexState represents the state of the initial re-indexing process.
