@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   LogIn,
   Radical,
+  Table as TableIcon,
   Video,
 } from 'lucide-react'
 import {Node} from 'prosemirror-model'
@@ -187,6 +188,22 @@ export function getSlashMenuItems({
       // focuses the LaTeX textarea, instead of leaving the cursor in
       // the following block.
       selectInsertedBlock(editor)
+    },
+  })
+  slashMenuItems.push({
+    name: 'Table',
+    aliases: ['table', 'grid', 'rows', 'columns'],
+    group: 'Text blocks',
+    icon: <TableIcon size={18} />,
+    hint: 'Insert a 3×3 table',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      // The table extension exposes `insertTable` on the
+      // Tiptap editor. Going through the Tiptap command rather than
+      // `insertOrUpdateBlock` lets the extension create the full
+      // `table > tableRow > tableCell` PM tree itself.
+      editor._tiptapEditor.commands.insertTable({rows: 3, cols: 3, withHeaderRow: true})
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
     },
   })
 

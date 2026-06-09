@@ -789,3 +789,45 @@ NESTED BLOCKS
 :global(.dark) :global(.comment-editor) .blockContent[data-content-type='code-block'] {
   background-color: rgb(255 255 255 / 0.1);
 }
+
+/* Table block styles */
+.blockContent[data-content-type='table'] {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.blockContent[data-content-type='table'] th,
+.blockContent[data-content-type='table'] td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  text-align: left;
+  min-width: 4em;
+}
+
+.blockContent[data-content-type='table'] th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
+/* The paragraph inside a cell carries its own block level margins from
+ * .hm-prose. Clear them so cells stay compact. */
+.blockContent[data-content-type='table'] th > p,
+.blockContent[data-content-type='table'] td > p {
+  margin: 0;
+}
+
+/* Cell selection highlight. `prosemirror-tables` adds the `.selectedCell`
+ * class to <th>/<td> elements covered by a CellSelection. Tint the cell with
+ * a translucent primary color so it reads as selected without obscuring text. */
+.blockContent[data-content-type='table'] td.selectedCell,
+.blockContent[data-content-type='table'] th.selectedCell {
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+:global(.dark) .blockContent[data-content-type='table'] td.selectedCell,
+:global(.dark) .blockContent[data-content-type='table'] th.selectedCell {
+  background-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
