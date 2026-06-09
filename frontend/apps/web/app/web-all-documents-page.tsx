@@ -1,8 +1,23 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {routeToHref, useUniversalAppContext} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {AllDocumentsPage} from '@shm/ui/all-documents-page'
 
 export function WebAllDocumentsPage({siteId}: {siteId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
-  return <AllDocumentsPage siteId={siteId} onNavigateToDocument={(id) => navigate({key: 'document', id})} />
+  const {originHomeId} = useUniversalAppContext()
+  return (
+    <AllDocumentsPage
+      siteId={siteId}
+      onNavigateToDocument={(id, opts) => {
+        const route = {key: 'document' as const, id}
+        if (opts?.newWindow) {
+          const href = routeToHref(route, {originHomeId})
+          if (href) window.open(href, '_blank')
+          return
+        }
+        navigate(route)
+      }}
+    />
+  )
 }

@@ -90,4 +90,28 @@ describe('AllDocumentsPage', () => {
 
     expect(onNavigateToDocument).toHaveBeenCalledWith(document.id)
   })
+
+  it('passes newWindow when shift-clicking a document title', () => {
+    const document = makeDoc(['folder', 'doc'], 'Doc Title')
+    const onNavigateToDocument = vi.fn()
+    useDirectoryMock.mockReturnValue({
+      data: [document],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<AllDocumentsPage siteId={hmId('site')} onNavigateToDocument={onNavigateToDocument} />)
+    })
+
+    const titleButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Doc Title',
+    )
+    expect(titleButton).toBeTruthy()
+
+    act(() => {
+      titleButton?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, shiftKey: true}))
+    })
+
+    expect(onNavigateToDocument).toHaveBeenCalledWith(document.id, {newWindow: true})
+  })
 })

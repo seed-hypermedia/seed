@@ -5,41 +5,41 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {abbreviateUid, useRouteLink} from '@shm/shared'
-import type {NavRoute} from '@shm/shared/routes'
-import {useAccount} from '@shm/shared/models/entity'
-import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {useMemo} from 'react'
-import {Container} from './container'
-import {DocumentDate} from './document-date'
-import {useHighlighter} from './highlight-context'
-import {HMIcon} from './hm-icon'
-import {Home} from './icons'
-import {getContextualProfileRoute} from './inline-descriptor'
-import {MergedBadge} from './merged-badge'
-import {PrivateBadge} from './private-badge'
-import {Spinner} from './spinner'
-import {SizableText} from './text'
-import {Tooltip} from './tooltip'
+import { abbreviateUid, useRouteLink } from '@shm/shared'
+import { useAccount } from '@shm/shared/models/entity'
+import type { NavRoute } from '@shm/shared/routes'
+import { getVersionHeads } from '@shm/shared/utils/entity-id-url'
+import { useNavRoute } from '@shm/shared/utils/navigation'
+import { useMemo } from 'react'
+import { Container } from './container'
+import { DocumentDate } from './document-date'
+import { useHighlighter } from './highlight-context'
+import { HMIcon } from './hm-icon'
+import { Home } from './icons'
+import { getContextualProfileRoute } from './inline-descriptor'
+import { MergedBadge } from './merged-badge'
+import { PrivateBadge } from './private-badge'
+import { Spinner } from './spinner'
+import { SizableText } from './text'
+import { Tooltip } from './tooltip'
 
 export type AuthorPayload = HMMetadataPayload
 
 export type BreadcrumbEntry =
   | {
-      id: UnpackedHypermediaId
-      metadata: HMMetadata
-      isLoading?: boolean
-      isNotFound?: boolean
-      isTombstone?: boolean
-      isError?: boolean
-      /** Set on the last crumb when the current page is an unpublished local draft. */
-      isUnpublishedDraft?: boolean
-      /** Local draft route target for unpublished breadcrumb sections. */
-      draftId?: string
-      fallbackName?: string
-    }
-  | {label: string}
+    id: UnpackedHypermediaId
+    metadata: HMMetadata
+    isLoading?: boolean
+    isNotFound?: boolean
+    isTombstone?: boolean
+    isError?: boolean
+    /** Set on the last crumb when the current page is an unpublished local draft. */
+    isUnpublishedDraft?: boolean
+    /** Local draft route target for unpublished breadcrumb sections. */
+    draftId?: string
+    fallbackName?: string
+  }
+  | { label: string }
 
 export function DocumentHeader({
   docId,
@@ -113,7 +113,7 @@ export function DocumentHeader({
         ) : (
           <>
             {showTitle && (
-              <SizableText size="5xl" weight="bold" {...highlighter(docId)}>
+              <SizableText className="text-3xl md:text-4xl lg:text-5xl" weight="bold" {...highlighter(docId)}>
                 {isHomeDoc ? 'Home' : docMetadata?.name}
               </SizableText>
             )}
@@ -160,9 +160,9 @@ export function DocumentHeader({
 }
 
 /** Renders a clickable author name with a spinner while the account is loading. */
-function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string}) {
+function AuthorLink({ id, siteUid }: { id: UnpackedHypermediaId; siteUid?: string }) {
   const currentRoute = useNavRoute()
-  const account = useAccount(id.uid, {subscribe: true})
+  const account = useAccount(id.uid, { subscribe: true })
   const resolvedName = account.data?.metadata?.name
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
   return (
@@ -183,7 +183,7 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
 /**
  * Renders document breadcrumbs when there is at least one navigable item beyond the home/root crumb.
  */
-export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
+export function Breadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
   if (breadcrumbs.length <= 1) return null
 
   const [first, ...rest] = breadcrumbs
@@ -224,10 +224,10 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   )
 }
 
-type DocumentBreadcrumbEntry = Extract<BreadcrumbEntry, {id: any}>
+type DocumentBreadcrumbEntry = Extract<BreadcrumbEntry, { id: any }>
 
-function HomeBreadcrumb({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
-  const linkProps = useRouteLink({key: 'document', id: crumb.id})
+function HomeBreadcrumb({ crumb, isCurrent }: { crumb: DocumentBreadcrumbEntry; isCurrent: boolean }) {
+  const linkProps = useRouteLink({ key: 'document', id: crumb.id })
   if (isCurrent) {
     return (
       <span aria-current="page" className="text-muted-foreground flex items-center gap-1">
@@ -242,8 +242,8 @@ function HomeBreadcrumb({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
   )
 }
 
-function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isCurrent: boolean}) {
-  const route: NavRoute = crumb.draftId ? {key: 'draft', id: crumb.draftId} : {key: 'document', id: crumb.id}
+function BreadcrumbLink({ crumb, isCurrent }: { crumb: DocumentBreadcrumbEntry; isCurrent: boolean }) {
+  const route: NavRoute = crumb.draftId ? { key: 'draft', id: crumb.draftId } : { key: 'document', id: crumb.id }
   const linkProps = useRouteLink(route)
   const title = crumb.metadata?.name
   const fallbackName = crumb.fallbackName || crumb.id.path?.at(-1) || crumb.id.uid.slice(0, 8)
@@ -321,7 +321,7 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
   return renderText('min-w-0 truncate overflow-hidden text-xs whitespace-nowrap', crumb.metadata.name)
 }
 
-function SiteURLButton({siteUrl, onSiteUrlClick}: {siteUrl: string; onSiteUrlClick?: (url: string) => void}) {
+function SiteURLButton({ siteUrl, onSiteUrlClick }: { siteUrl: string; onSiteUrlClick?: (url: string) => void }) {
   return (
     <SizableText
       size="sm"

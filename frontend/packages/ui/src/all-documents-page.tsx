@@ -19,7 +19,7 @@ import {cn} from './utils'
 export interface AllDocumentsPageProps {
   siteId: UnpackedHypermediaId
   scopeId?: UnpackedHypermediaId
-  onNavigateToDocument: (id: UnpackedHypermediaId) => void
+  onNavigateToDocument: (id: UnpackedHypermediaId, opts?: {newWindow?: boolean}) => void
 }
 
 function pathKeyOf(doc: HMDocumentInfo) {
@@ -213,7 +213,10 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
                 <button
                   type="button"
                   className="block min-w-0 truncate text-left font-medium hover:underline"
-                  onClick={() => onNavigateToDocument(item.doc.id)}
+                  onClick={(event) => {
+                    if (event.shiftKey) onNavigateToDocument(item.doc.id, {newWindow: true})
+                    else onNavigateToDocument(item.doc.id)
+                  }}
                 >
                   {titleOf(item.doc)}
                 </button>

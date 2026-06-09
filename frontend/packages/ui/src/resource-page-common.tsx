@@ -16,6 +16,7 @@ import {
   NavRoute,
   replaceRouteDocumentId,
   ProfileTab,
+  routeToHref,
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -2434,7 +2435,7 @@ function MainContent({
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
 }) {
-  const {originHomeId} = useUniversalAppContext()
+  const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
   const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
 
@@ -2444,7 +2445,19 @@ function MainContent({
         <AllDocumentsPage
           siteId={allDocumentsSiteId}
           scopeId={allDocumentsSiteId}
-          onNavigateToDocument={(id) => navigate({key: 'document', id})}
+          onNavigateToDocument={(id, opts) => {
+            const route = {key: 'document' as const, id}
+            if (opts?.newWindow) {
+              if (openRouteNewWindow) {
+                openRouteNewWindow(route)
+              } else {
+                const href = routeToHref(route, {originHomeId})
+                if (href) window.open(href, '_blank')
+              }
+              return
+            }
+            navigate(route)
+          }}
         />
       )
 
