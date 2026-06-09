@@ -8,7 +8,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {ArrowLeft, Link2, MessageSquare, MoreHorizontal, Trash2, Upload} from 'lucide-react'
+import {ArrowLeft, Link, MessageSquare, MoreHorizontal, Trash2, Upload} from 'lucide-react'
 import {KeyboardEvent, useState} from 'react'
 
 export type MediaSelectionMenuProps = {
@@ -104,7 +104,7 @@ export function MediaSelectionMenu({
             className="hover:bg-black/10 dark:hover:bg-white/10"
             onClick={onCopyLink}
           >
-            <Link2 className="size-4" />
+            <Link className="size-4" />
           </Button>
         </Tooltip>
       )}
@@ -162,7 +162,7 @@ export function MediaSelectionMenu({
                   setMode('url')
                 }}
               >
-                <Link2 className="size-4" />
+                <Link className="size-4" />
                 <span>{urlMenuLabel}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
