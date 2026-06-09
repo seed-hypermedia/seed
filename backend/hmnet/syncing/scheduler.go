@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultHotTTL      = 40 * time.Second
-	defaultHotCooldown = 20 * time.Second
+	defaultHotCooldown = 1 * time.Second
 )
 
 // Queue priority tiers. Lower value = higher priority.

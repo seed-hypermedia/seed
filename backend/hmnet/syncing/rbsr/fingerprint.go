@@ -15,13 +15,22 @@ type accumulator struct {
 }
 
 func (acc *accumulator) Add(other [32]byte) {
+	addSum(&acc.sum, other)
+}
+
+// addSum adds other into sum as a 256-bit little-endian unsigned integer with
+// wraparound (mod 2^256). The operation is associative and commutative with a
+// zero identity, which is exactly what lets the per-subtree sums of a monoid
+// tree be combined in any order — see [treeStore]. Factored out of
+// [accumulator.Add] so both the linear fold and the tree share one carry impl.
+func addSum(sum *[32]byte, other [32]byte) {
 	var currCarry, nextCarry uint64
 
 	// Treating [32]byte as [4]uint64 when adding.
-	p := (*[4]uint64)(unsafe.Pointer(&acc.sum[0]))
+	p := (*[4]uint64)(unsafe.Pointer(&sum[0]))
 	po := (*[4]uint64)(unsafe.Pointer(&other[0]))
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		orig := p[i]
 		otherV := po[i]
 
