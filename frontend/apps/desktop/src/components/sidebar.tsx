@@ -62,7 +62,6 @@ import {
   MessageSquare,
   MoreHorizontal,
   Quote,
-  Rocket,
   Users,
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
@@ -78,23 +77,38 @@ export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
+  const selectedSite = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
+  const contacts = useSelectedAccountContacts()
+  const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
+  const joinedSiteCount = selectedAccountId
+    ? new Set(
+        (contacts.data ?? [])
+          .filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
+          .map((contact) => contact.subject),
+      ).size
+    : 1
+  const isCheckingOnboardingVisibility =
+    !!selectedAccountId && (contacts.isLoading || selectedSite.isInitialLoading || selectedSite.isDiscovering)
+  const shouldShowOnboarding = !isCheckingOnboardingVisibility && !hasSelectedSite && joinedSiteCount < 2
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => (
         <SidebarFooterLayout className="gap-0 p-0">
           <SidebarMenu className="px-2 pb-3">
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'onboarding'}
-                onClick={() => {
-                  navigate({key: 'onboarding'})
-                }}
-                title="Onboarding"
-                bold
-                icon={<Rocket className="size-4" />}
-                rightHover={[]}
-              />
-            </SidebarMenuItem>
+            {shouldShowOnboarding ? (
+              <SidebarMenuItem>
+                <SmallListItem
+                  onClick={() => {
+                    navigate({key: 'onboarding'})
+                  }}
+                  title="Get Started with Seed"
+                  bold
+                  className="min-h-12 w-full border border-dashed border-neutral-400 bg-transparent py-2 hover:border-neutral-600 hover:bg-transparent dark:border-neutral-600 dark:hover:border-neutral-400 dark:hover:bg-transparent"
+                  icon={<span className="h-2 w-2 rounded-full bg-emerald-500" />}
+                  rightHover={[]}
+                />
+              </SidebarMenuItem>
+            ) : null}
           </SidebarMenu>
           <SidebarSeparator />
           <SidebarMenu className="py-4">

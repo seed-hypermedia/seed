@@ -1,16 +1,16 @@
-import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
-import {MainWrapper} from '@/components/main-wrapper'
-import {useSelectedAccountId} from '@/selected-account'
-import {client} from '@/trpc'
-import {useTriggerWindowEvent} from '@/utils/window-events'
-import {useNavigate} from '@/utils/useNavigate'
-import {useResource} from '@shm/shared/models/entity'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/button'
-import {PanelContainer} from '@shm/ui/container'
-import {GeneralPageSurface} from '@shm/ui/general-page'
-import {Plus, Search, User} from 'lucide-react'
-import {nanoid} from 'nanoid'
+import { useDesktopAuthDialog } from '@/components/desktop-auth-dialog'
+import { MainWrapper } from '@/components/main-wrapper'
+import { useSelectedAccountId } from '@/selected-account'
+import { client } from '@/trpc'
+import { useNavigate } from '@/utils/useNavigate'
+import { useTriggerWindowEvent } from '@/utils/window-events'
+import { useResource } from '@shm/shared/models/entity'
+import { hmId } from '@shm/shared/utils/entity-id-url'
+import { Button } from '@shm/ui/button'
+import { PanelContainer } from '@shm/ui/container'
+import { GeneralPageSurface } from '@shm/ui/general-page'
+import { Plus, Search, User } from 'lucide-react'
+import { nanoid } from 'nanoid'
 
 export default function OnboardingPage() {
   const createAccountDialog = useDesktopAuthDialog()
@@ -35,14 +35,14 @@ export default function OnboardingPage() {
                     <Search className="size-6" />
                   </div>
                   <div className="flex flex-col items-start gap-1">
-                    <h3 className="font-bold">Join a Site</h3>
+                    <h3 className="font-bold">Find and Join a Site</h3>
                     <p className="text-muted-foreground">Paste a site link in the bar above</p>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:hover:text-emerald-300"
-                  onClick={() => triggerWindowEvent({type: 'focus_omnibar', mode: 'search'})}
+                  onClick={() => triggerWindowEvent({ type: 'focus_omnibar', mode: 'search' })}
                 >
                   Search for a Site
                 </Button>
@@ -76,7 +76,7 @@ export default function OnboardingPage() {
                       })
                       navigate({
                         key: 'document',
-                        id: hmId(selectedAccountId, {path: []}),
+                        id: hmId(selectedAccountId, { path: [] }),
                       })
                     }}
                   >
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
               <>
                 <div className="flex w-full items-center gap-2">
                   <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-                  <span className="text-xs text-neutral-400 dark:text-neutral-500">already have an identity?</span>
+                  <span className="text-sm text-neutral-400 dark:text-neutral-500">already have an identity?</span>
                   <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
                 </div>
                 <button
