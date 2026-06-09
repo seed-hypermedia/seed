@@ -81,13 +81,17 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
         // the republished path instead of being treated like a move redirect.
         let maxRedirects = 5
         while (res?.type === 'redirect' && maxRedirects-- > 0) {
+          const nextTarget = {
+            ...res.redirectTarget,
+            hostname: res.redirectTarget.hostname || res.id.hostname || id.hostname,
+          }
           if (res.republish && !republishSourceId) {
             republishSourceId = res.id
           }
-          res = await client.request('Resource', res.redirectTarget, {signal})
+          res = await client.request('Resource', nextTarget, {signal})
         }
         const parsed = HMResourceSchema.parse(res)
-        if (republishSourceId && (parsed.type === 'document' || parsed.type === 'comment')) {
+        if (republishSourceId && (parsed.type === 'document' || parsed.type === 'comment') && !id.hostname) {
           return {
             ...parsed,
             id: republishSourceId,

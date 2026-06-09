@@ -171,30 +171,25 @@ export function useResource(
   const queryClient = useQueryClient()
   const redirectTarget = (() => {
     if (!result.data || !id) return null
-    // When the route/id changes, React Query may briefly expose the previous
-    // successful result while the new request is in flight. Treating that
-    // transitional state as a redirect causes false redirects like A → C when
-    // the user simply navigated from A to B and B is still loading.
-    if (result.isFetching) return null
+    if (result.isPreviousData) return null
     if (result.data.type !== 'document' && result.data.type !== 'comment') return null
     if (result.data.id?.id !== id.id) return result.data.id
     return null
   })()
   const onRedirectOrDeletedRef = useRef(onRedirectOrDeleted)
   onRedirectOrDeletedRef.current = onRedirectOrDeleted
-  const handledRedirectRef = useRef<string | null>(null)
+  const requestedId = id?.id || null
+  const resolvedId = redirectTarget?.id || null
   useEffect(() => {
-    if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
-      handledRedirectRef.current = redirectTarget.id
-      // Cache the resolved data under the target's key so other components
-      // querying the target id get an instant cache hit instead of re-fetching.
-      queryClient.setQueryData(
-        [queryKeys.ENTITY, redirectTarget.id, redirectTarget.version || undefined, redirectTarget.latest || false],
-        result.data,
-      )
-      onRedirectOrDeletedRef.current?.({isDeleted: false, redirectTarget})
-    }
-  }, [redirectTarget])
+    if (!redirectTarget || !requestedId || !resolvedId) return
+    // Cache the resolved data under the target's key so other components
+    // querying the target id get an instant cache hit instead of re-fetching.
+    queryClient.setQueryData(
+      [queryKeys.ENTITY, redirectTarget.id, redirectTarget.version || undefined, redirectTarget.latest || false],
+      result.data,
+    )
+    onRedirectOrDeletedRef.current?.({isDeleted: false, redirectTarget})
+  }, [queryClient, requestedId, resolvedId])
 
   return {
     ...result,

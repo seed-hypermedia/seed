@@ -106,6 +106,20 @@ describe('queryResource', () => {
     expect(client.request).toHaveBeenCalledTimes(2)
   })
 
+  test('republish redirects opened from web urls resolve to the target route', async () => {
+    const webDocA = hmId('uid1', {path: ['old-name'], hostname: 'https://site.example'})
+    const webDocB = hmId('uid1', {path: ['new-name'], hostname: 'https://site.example'})
+    const client = createMockClient((_key, input) => {
+      if (input.id === webDocA.id) return redirectResponse(webDocA, docB, {republish: true})
+      if (input.id === docB.id) return documentResponse(webDocB)
+      throw new Error(`Unexpected request: ${input.id}`)
+    })
+    const query = queryResource(client, webDocA)
+    const result = await query.queryFn!()
+    expect(result).toMatchObject({type: 'document', id: webDocB})
+    expect(client.request).toHaveBeenCalledTimes(2)
+  })
+
   test('handles redirect to not-found', async () => {
     const client = createMockClient((_key, input) => {
       if (input.id === docA.id) return redirectResponse(docA, docB)
