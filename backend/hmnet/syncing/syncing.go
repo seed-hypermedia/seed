@@ -515,7 +515,37 @@ func (s *Service) Run(ctx context.Context) error {
 		return err
 	}
 
+	go s.runShadowVerify(ctx)
+
 	return s.scheduler.run(ctx)
+}
+
+// shadowVerifyInterval is how often the maintained RBSR index is checked against
+// a fresh collectBlobs materialization. Drift (a scope whose incrementally
+// maintained set diverged — e.g. via an edge the oracle defers) forces that
+// scope to re-materialize, which is the safety net for the deferred edges.
+const shadowVerifyInterval = 5 * time.Minute
+
+func (s *Service) runShadowVerify(ctx context.Context) {
+	ticker := time.NewTicker(shadowVerifyInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			checked, drifted, err := ShadowVerifySweep(ctx, s.db)
+			switch {
+			case err != nil:
+				s.log.Warn("ShadowVerifyFailed", zap.Error(err))
+			case drifted > 0:
+				s.log.Warn("ShadowVerifyDrift", zap.Int("checked", checked), zap.Int("drifted", drifted))
+			default:
+				s.log.Debug("ShadowVerifyClean", zap.Int("checked", checked))
+			}
+		}
+	}
 }
 
 // loadSubscriptionsOnStart loads all existing subscriptions from the database

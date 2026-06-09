@@ -377,3 +377,39 @@ CREATE VIRTUAL TABLE embeddings USING vec0(
     multilingual_minilm_l12_v2 int8[384] distance_metric=cosine,
     fts_id int
 );
+
+-- Maintained RBSR fingerprint index.
+-- Each rbsr_scope is one reconciliation scope: a canonical discovery key
+-- (IRI + recursion flags + blob-type allowlist) plus the wire protocol version,
+-- since different protocol versions advertise different codec-canonical sets.
+-- rbsr_item holds the resolved blob set for the scope, maintained incrementally
+-- by the syncing oracle so reconciliation no longer rebuilds the set per round.
+CREATE TABLE rbsr_scope (
+    id INTEGER PRIMARY KEY,
+    -- The discovery key's resource IRI.
+    iri TEXT NOT NULL,
+    -- Whether the scope covers the entire subtree below the IRI.
+    recursive INTEGER NOT NULL DEFAULT 0,
+    -- Whether the scope covers only the direct children of the IRI.
+    depth_one INTEGER NOT NULL DEFAULT 0,
+    -- Canonical (sorted, comma-joined) blob-type allowlist. Empty means no filter.
+    blob_types TEXT NOT NULL DEFAULT '',
+    -- Wire protocol version whose codec canonicalization this scope's set reflects.
+    protocol_version TEXT NOT NULL,
+    -- 1 once materialized from collectBlobs; 0 means it must be re-materialized
+    -- before serving (first use, post-reindex, or repair).
+    materialized INTEGER NOT NULL DEFAULT 0,
+    -- Unix seconds of last access, used to evict idle scopes from the working set.
+    last_access INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (iri, recursive, depth_one, blob_types, protocol_version)
+);
+
+-- The resolved blob set for each maintained scope.
+CREATE TABLE rbsr_item (
+    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    blob INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    PRIMARY KEY (scope, blob)
+) WITHOUT ROWID;
+
+-- The scope column is covered by the primary key's leading column; index blob.
+CREATE INDEX rbsr_item_by_blob ON rbsr_item (blob);

@@ -50,6 +50,11 @@ type blobIndex interface {
 // NewServer creates a new RPC handler instance.
 // It has to be further registered with the actual [grpc.Server].
 func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap, maxInboundReconciles int, inboundReconcileWait time.Duration) *Server {
+	// Keep the maintained RBSR index current: every blob indexed (via Put /
+	// PutMany) patches the materialized scopes it joins, in the same write
+	// transaction, so reconciliation serves a fresh set without rebuilding it.
+	index.SetIndexedHook(MaintainRBSRIndex)
+
 	return &Server{
 		db:               db,
 		index:            index,
@@ -348,8 +353,6 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 }
 
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
-	store := newAuthorizedStore()
-
 	dkeys := make(colx.HashSet[DiscoveryKey], len(filters))
 	requestedIRIs := make([]blob.IRI, 0, len(filters))
 	for _, f := range filters {
@@ -378,30 +381,61 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 	MReconcileServerPhaseSeconds.WithLabelValues("auth_resolve").Observe(time.Since(authStart).Seconds())
 
 	loadStart := time.Now()
-	// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables
-	// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces, all created
-	// via ensureTempTable in discovery.go). These don't take the
-	// main-DB writer mutex, so opting out of writer-slot accounting
-	// keeps loadStore off /debug/sqlite's Aggregate-utilization and
-	// Slowest-write sections — where it was previously the dominant
-	// false-positive offender due to high call rate (one per inbound
-	// ReconcileBlobs RPC). See SaveTempOnly contract.
-	if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
-		return loadRBSRStore(conn, dkeys, store)
-	}); err != nil {
+	defer func() {
 		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
+	}()
+
+	protocolVersion := protocolVersionFromContext(ctx)
+
+	// While a reindex is pending or in flight, the derived index (rbsr_scope /
+	// rbsr_item) may be torn down or only half-built, so serve from the
+	// authoritative rebuild instead of a possibly-incomplete maintained set.
+	if st := s.index.ReindexInfo().State; st == blob.ReindexStatePending || st == blob.ReindexStateInProgress {
+		// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables, which
+		// don't take the main-DB writer mutex. See SaveTempOnly contract.
+		legacy := newAuthorizedStore()
+		if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
+			return loadRBSRStore(conn, dkeys, legacy)
+		}); err != nil {
+			return nil, err
+		}
+		if err := legacy.Seal(); err != nil {
+			return nil, err
+		}
+		return legacy.WithFilter(authorizedSpaces), nil
+	}
+
+	// Serve from the maintained index: materialize each scope once (the only
+	// place the expensive collectBlobs closure runs), then build the
+	// tree-backed store from the union of persisted rows. WithSave (a write
+	// tx) is needed because first-time materialization writes rbsr_item; once
+	// materialized, subsequent rounds only read. The incremental oracle keeps
+	// the set current so reconciliation no longer rebuilds it per round.
+	store := newAuthorizedTreeStore()
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		scopeIDs := make([]int64, 0, len(dkeys))
+		for dkey := range dkeys {
+			id, materialized, err := resolveScope(conn, dkey, protocolVersion)
+			if err != nil {
+				return err
+			}
+			if !materialized {
+				if err := materializeScope(conn, id, dkey); err != nil {
+					return err
+				}
+			}
+			scopeIDs = append(scopeIDs, id)
+		}
+		return buildStoreFromScopes(conn, scopeIDs, protocolVersion, store)
+	}); err != nil {
 		return nil, err
 	}
 
 	if err := store.Seal(); err != nil {
-		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 		return nil, err
 	}
 
-	store = store.WithFilter(authorizedSpaces)
-	MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
-
-	return store, nil
+	return store.WithFilter(authorizedSpaces), nil
 }
 
 // getRemoteID extracts the remote peer ID from the gRPC context.

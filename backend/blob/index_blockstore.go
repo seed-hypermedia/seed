@@ -37,7 +37,11 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 		}
 
 		// Single-blob path: a fresh per-call cache (no cross-blob reuse to exploit).
-		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache())
+		if err := indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache()); err != nil {
+			return err
+		}
+
+		return idx.runIndexedHook(conn, []int64{id})
 	})
 }
 
@@ -93,7 +97,11 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				indexed = append(indexed, id)
 			}
 
-			return propagateVisibilityBatch(conn, indexed)
+			if err := propagateVisibilityBatch(conn, indexed); err != nil {
+				return err
+			}
+
+			return idx.runIndexedHook(conn, indexed)
 		})
 		release()
 		if err != nil {
