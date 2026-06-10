@@ -1,17 +1,18 @@
-import { useDesktopAuthDialog } from '@/components/desktop-auth-dialog'
-import { useDesktopAccountIntent } from '@/components/desktop-intents'
-import { MainWrapper } from '@/components/main-wrapper'
-import { useSelectedAccountId } from '@/selected-account'
-import { client } from '@/trpc'
-import { useNavigate } from '@/utils/useNavigate'
-import { useTriggerWindowEvent } from '@/utils/window-events'
-import { useResource } from '@shm/shared/models/entity'
-import { hmId } from '@shm/shared/utils/entity-id-url'
-import { Button } from '@shm/ui/button'
-import { PanelContainer } from '@shm/ui/container'
-import { GeneralPageSurface } from '@shm/ui/general-page'
-import { Plus, Search, User } from 'lucide-react'
-import { nanoid } from 'nanoid'
+import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
+import {useDesktopAccountIntent} from '@/components/desktop-intents'
+import {MainWrapper} from '@/components/main-wrapper'
+import {useSelectedAccountId} from '@/selected-account'
+import {getOrCreateSiteHome} from '@/utils/create-site'
+import {useNavigate} from '@/utils/useNavigate'
+import {useTriggerWindowEvent} from '@/utils/window-events'
+import {useResource} from '@shm/shared/models/entity'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {PanelContainer} from '@shm/ui/container'
+import {GeneralPageSurface} from '@shm/ui/general-page'
+import {toast} from '@shm/ui/toast'
+import {Plus, Search, User} from 'lucide-react'
+import {useState} from 'react'
 
 export default function OnboardingPage() {
   const createAccountDialog = useDesktopAuthDialog()
@@ -21,22 +22,22 @@ export default function OnboardingPage() {
   const triggerWindowEvent = useTriggerWindowEvent()
   const navigate = useNavigate()
   const createSiteIntent = useDesktopAccountIntent()
+  const [isCreatingSite, setIsCreatingSite] = useState(false)
 
   const createSite = async (accountUid: string) => {
-    const draftId = nanoid(10)
-    await client.drafts.write.mutate({
-      id: draftId,
-      editUid: accountUid,
-      editPath: [],
-      metadata: {},
-      content: [],
-      deps: [],
-      visibility: 'PUBLIC',
-    })
-    navigate({
-      key: 'document',
-      id: hmId(accountUid, { path: [] }),
-    })
+    setIsCreatingSite(true)
+    try {
+      const homeId = await getOrCreateSiteHome(accountUid)
+      navigate({
+        key: 'document',
+        id: homeId,
+      })
+    } catch (error) {
+      console.error('Failed to verify site before creating draft:', error)
+      toast.error('Could not verify whether your site already exists. Please try again.')
+    } finally {
+      setIsCreatingSite(false)
+    }
   }
 
   return (
@@ -61,7 +62,7 @@ export default function OnboardingPage() {
                 <Button
                   variant="outline"
                   className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:hover:text-emerald-300"
-                  onClick={() => triggerWindowEvent({ type: 'focus_omnibar', mode: 'search' })}
+                  onClick={() => triggerWindowEvent({type: 'focus_omnibar', mode: 'search'})}
                 >
                   Search for a Site
                 </Button>
@@ -80,9 +81,10 @@ export default function OnboardingPage() {
                   <Button
                     variant="outline"
                     className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:hover:text-emerald-300"
+                    disabled={isCreatingSite}
                     onClick={() => createSiteIntent.requireAccount(createSite)}
                   >
-                    Create my Site
+                    {isCreatingSite ? 'Checking for existing site…' : 'Create my Site'}
                   </Button>
                 </div>
               ) : null}

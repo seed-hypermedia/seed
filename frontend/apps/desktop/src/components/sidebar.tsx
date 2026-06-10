@@ -4,7 +4,7 @@ import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
-import {client} from '@/trpc'
+import {getOrCreateSiteHome} from '@/utils/create-site'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMAccountsMetadata,
@@ -47,6 +47,7 @@ import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
@@ -64,7 +65,6 @@ import {
   Quote,
   Users,
 } from 'lucide-react'
-import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {BookmarkOptionsMenu} from './bookmark-options-menu'
 import {CreateDocumentButton} from './create-doc-button'
@@ -751,6 +751,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
   const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
+  const [isCreatingSite, setIsCreatingSite] = React.useState(false)
 
   if (!selectedAccountId) return null
 
@@ -789,24 +790,24 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
         <Button
           className="w-full"
           variant="default"
+          disabled={isCreatingSite}
           onClick={async () => {
-            const draftId = nanoid(10)
-            await client.drafts.write.mutate({
-              id: draftId,
-              editUid: selectedAccountId,
-              editPath: [],
-              metadata: {},
-              content: [],
-              deps: [],
-              visibility: 'PUBLIC',
-            })
-            navigate({
-              key: 'document',
-              id: hmId(selectedAccountId, {path: []}),
-            })
+            setIsCreatingSite(true)
+            try {
+              const homeId = await getOrCreateSiteHome(selectedAccountId)
+              navigate({
+                key: 'document',
+                id: homeId,
+              })
+            } catch (error) {
+              console.error('Failed to verify site before creating draft:', error)
+              toast.error('Could not verify whether your site already exists. Please try again.')
+            } finally {
+              setIsCreatingSite(false)
+            }
           }}
         >
-          Create my Site
+          {isCreatingSite ? 'Checking for existing site…' : 'Create my Site'}
         </Button>
       </Tooltip>
     </SidebarSection>
