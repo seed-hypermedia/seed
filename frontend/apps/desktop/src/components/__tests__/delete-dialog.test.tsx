@@ -37,6 +37,7 @@ vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({
     isLoading: false,
     data: {
+      type: 'document',
       document: {
         metadata: {
           name: 'My Doc',
@@ -82,7 +83,7 @@ function findButtonExact(container: HTMLDivElement, label: string) {
 }
 
 describe('DeleteDocumentDialog', () => {
-  it('closes and navigates immediately while the delete toast tracks progress', async () => {
+  it('closes and navigates after the delete completes while the delete toast tracks progress', async () => {
     let resolveDelete: (() => void) | undefined
     const deletePromise = new Promise<void>((resolve) => {
       resolveDelete = resolve
@@ -121,14 +122,17 @@ describe('DeleteDocumentDialog', () => {
         error: expect.any(Function),
       }),
     )
-    expect(onClose).toHaveBeenCalledTimes(1)
-    expect(onSuccess).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onSuccess).not.toHaveBeenCalled()
     expect(toastErrorMock).not.toHaveBeenCalled()
 
     resolveDelete?.()
     await act(async () => {
       await deletePromise
     })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onSuccess).toHaveBeenCalledTimes(1)
 
     cleanupRendered(root, container)
   })

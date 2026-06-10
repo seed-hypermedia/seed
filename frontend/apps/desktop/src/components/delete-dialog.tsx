@@ -4,13 +4,13 @@ import {useListSite} from '@/models/documents'
 
 import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
-import {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
 import {Button, ButtonProps} from '@shm/ui/button'
+import {DeleteDocumentDialog as SharedDeleteDocumentDialog} from '@shm/ui/delete-document-dialog'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import React, {ReactNode} from 'react'
 import {useDeleteEntities} from '../models/entities'
@@ -40,13 +40,11 @@ export function DeleteDocumentDialog({
       if (!item.path?.length) return false
       if (!id.path) return false
       if (id.path.length === item.path.length) return false
-      return item.path.join('/').startsWith(id.path.join('/'))
+      return id.path.every((segment, index) => item.path[index] === segment)
     }) || []
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
-  const deletedDocumentCount = childDocs.length + 1
-  const documentLabel = deletedDocumentCount === 1 ? 'document' : 'documents'
 
   if (doc.isLoading)
     return (
@@ -55,94 +53,35 @@ export function DeleteDocumentDialog({
       </div>
     )
 
-  // @ts-expect-error
-  if (doc.isError || !doc.data?.document)
-    return (
-      <Text className="text-destructive text-sm">
-        {/* @ts-expect-error */}
-        {doc.error || 'Could not load document'}
-      </Text>
-    )
+  if (doc.isError || doc.data?.type !== 'document')
+    return <Text className="text-destructive text-sm">{doc.error ? String(doc.error) : 'Could not load document'}</Text>
+
   const childDocIds = childDocs.map((item) => hmId(id.uid, {path: item.path}))
+  const document = doc.data.document
+
   return (
-    <div className="flex max-w-[440px] flex-col gap-4 rounded-lg p-4">
-      <Text className="text-lg font-semibold">
-        {/* @ts-expect-error */}
-        Delete "{getDocumentTitle(doc.data?.document)}"
-      </Text>
-      <Text className="text-muted-foreground text-sm">
-        Are you sure you want to delete {childDocs.length ? 'these documents' : 'this document'}? This may break links
-        that refer to the current {childDocs.length ? 'versions' : 'version'}.
-      </Text>
-      <Text className="text-muted-foreground text-sm">
-        {childDocs.length ? 'They' : 'It'} will be removed from your directory but the content will remain on your
-        computer, and other people may still have it saved.
-      </Text>
-      <Text className="text-muted-foreground text-sm">
-        Note: This feature is a work-in-progress. For now, the raw document data will continue to be synced with other
-        peers. Soon we will avoid that. Eventually, you will be able to recover deleted documents.
-      </Text>
-      <div className="my-4 flex flex-col gap-3">
-        <DeletionListItem
-          // @ts-expect-error
-          metadata={doc.data.document.metadata}
-          path={id.path}
-        />
-        {childDocs.map((item) => (
-          <DeletionListItem key={item.path?.join('/')} metadata={item.metadata} path={item.path} />
-        ))}
-      </div>
-      <div className="flex justify-end gap-3">
-        <Button onClick={onClose} variant="outline">
-          Cancel
-        </Button>
-
-        <Button
-          variant="destructive"
-          onClick={() => {
-            if (!cap || !roleCanWrite(cap.role)) {
-              toast.error('Not allowed to delete')
-              return
-            }
-
-            const deletePromise = deleteEntity.mutateAsync({
-              ids: [id, ...childDocIds],
-              signingAccountUid: cap.accountUid,
-              capabilityId: cap.capabilityId,
-            })
-
-            toast.promise(deletePromise, {
-              loading:
-                deletedDocumentCount === 1 ? 'Deleting document…' : `Deleting ${deletedDocumentCount} documents…`,
-              success:
-                deletedDocumentCount === 1
-                  ? 'Successfully deleted document'
-                  : `Successfully deleted ${deletedDocumentCount} documents`,
-              error: (error) => {
-                const message = error instanceof Error ? error.message : 'Unknown error'
-                return deletedDocumentCount === 1
-                  ? `Failed to delete document: ${message}`
-                  : `Failed to delete ${documentLabel}: ${message}`
-              },
-            })
-
-            onClose?.()
-            onSuccess?.()
-          }}
-        >
-          {childDocs.length ? 'Delete Documents' : 'Delete Document'}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function DeletionListItem({metadata, path}: {metadata: HMMetadata; path: string[] | null}) {
-  return (
-    <div className="flex justify-between gap-3">
-      <Text className="text-destructive line-through">{getMetadataName(metadata)}</Text>
-      <Text className="text-destructive/70 line-through">{path?.join('/') || '?'}</Text>
-    </div>
+    <SharedDeleteDocumentDialog
+      document={{
+        key: id.id,
+        title: getDocumentTitle(document),
+        path: id.path,
+      }}
+      childDocuments={childDocs.map((item) => ({
+        key: item.id.id,
+        title: getMetadataName(item.metadata),
+        path: item.path,
+      }))}
+      canDelete={!!cap && roleCanWrite(cap.role)}
+      onConfirm={() =>
+        deleteEntity.mutateAsync({
+          ids: [id, ...childDocIds],
+          signingAccountUid: cap!.accountUid,
+          capabilityId: cap!.capabilityId,
+        })
+      }
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
   )
 }
 

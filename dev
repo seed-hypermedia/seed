@@ -85,7 +85,7 @@ def main():
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
-        return run("pnpm desktop", args=args)
+        return run("VITE_XSTATE_INSPECT=true pnpm desktop", args=args)
 
     @cmd(
         cmds,

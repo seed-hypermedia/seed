@@ -21,6 +21,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
+import {Trash} from '@shm/ui/icons'
+import type {MenuItemType} from '@shm/ui/options-dropdown'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,
@@ -43,6 +45,7 @@ import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath} from './document-edit/web-draft-path'
+import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -316,9 +319,38 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     capabilityCid: effectiveCapabilityCid,
   })
   const webMenuItems = useWebMenuItems(docId, {includeInspect: false})
+  const deleteCapabilityId = capability && capability.id !== '_owner' ? capability.id : undefined
+  const deleteDialog = useWebDeleteDocumentDialog({
+    signingAccountId: signingAccountId ?? undefined,
+    capabilityId: deleteCapabilityId,
+    canDelete: effectiveCanEdit,
+  })
+  const onDeleteDocument = useCallback(
+    (id: UnpackedHypermediaId, onSuccess?: () => void) => {
+      deleteDialog.open({id, onSuccess})
+    },
+    [deleteDialog],
+  )
+  const deleteMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
+    return {
+      key: 'delete',
+      label: 'Delete Document',
+      icon: <Trash className="size-4" />,
+      variant: 'destructive',
+      onClick: () => {
+        onDeleteDocument(docId, () => {
+          replaceRoute({
+            key: 'document',
+            id: hmId(docId.uid, {path: docId.path?.slice(0, -1)}),
+          } as any)
+        })
+      },
+    }
+  }, [docId, effectiveCanEdit, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => (newMenuItem ? [newMenuItem, ...webMenuItems] : webMenuItems),
-    [newMenuItem, webMenuItems],
+    () => [newMenuItem, ...webMenuItems, deleteMenuItem].filter(Boolean) as MenuItemType[],
+    [deleteMenuItem, newMenuItem, webMenuItems],
   )
 
   // Inline subscribe box for non-members
@@ -354,7 +386,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         onReplyCountClick={onReplyCountClick}
         renderInlineEditor={renderWebInlineEditor}
       >
-        <DocumentActionsProvider onCopyLink={() => {}}>
+        <DocumentActionsProvider
+          onCopyLink={() => {}}
+          selectedAccountUid={signingAccountId ?? undefined}
+          myAccountIds={signingAccountId ? [signingAccountId] : []}
+          onDeleteDocument={onDeleteDocument}
+        >
           <WebDraftActionsProvider
             canCreateInlineDraft={canCreateInlineDraft}
             signingAccountId={signingAccountId ?? undefined}
@@ -403,6 +440,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {editProfileDialog.content}
       {followAccountContent}
       {newMenuContent}
+      {deleteDialog.content}
       {vaultSuccessContent}
     </WebSitePageShell>
   )
