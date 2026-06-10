@@ -31,7 +31,7 @@ function createSchema(): Schema {
 
 function createDoc(schema: Schema) {
   return schema.nodes.doc.create(null, [
-    schema.nodes.paragraph.create(null, schema.text('hello')),
+    schema.nodes.paragraph.create(null),
     schema.nodes.image.create(null, schema.text('caption')),
   ])
 }
@@ -86,6 +86,7 @@ describe('slash menu caption guards', () => {
       selection: TextSelection.create(doc, selectionPos),
     })
     const container = document.createElement('div')
+    document.body.appendChild(container)
     const view = new EditorView(container, {
       state,
       editable: () => true,
@@ -102,6 +103,7 @@ describe('slash menu caption guards', () => {
     expect(handled).toBe(true)
     expect(pluginKey.getState(view.state).active).toBe(true)
     view.destroy()
+    view.dom.parentElement?.remove()
   })
 
   it('blocks slash menu inside image captions', () => {
@@ -112,12 +114,12 @@ describe('slash menu caption guards', () => {
     expect(handled).toBe(false)
     expect(pluginKey.getState(view.state).active).toBe(false)
     view.destroy()
+    view.dom.parentElement?.remove()
   })
 
   it('closes an active slash menu when selection moves into an image caption', () => {
     const doc = createDoc(schema)
     const paragraphPos = findPos(doc, 'paragraph', 1)
-    const captionPos = findPos(doc, 'image', 1)
     const {view, pluginKey} = createView(paragraphPos)
 
     view.dispatch(
@@ -128,9 +130,10 @@ describe('slash menu caption guards', () => {
     )
     expect(pluginKey.getState(view.state).active).toBe(true)
 
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, captionPos)))
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, findPos(view.state.doc, 'image', 1))))
 
     expect(pluginKey.getState(view.state).active).toBe(false)
     view.destroy()
+    view.dom.parentElement?.remove()
   })
 })

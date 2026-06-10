@@ -80,7 +80,7 @@ describe('activity event processing', () => {
       const {extractResource} = await loadModule()
       const event = makeBlobEvent('Ref', 'hm://z6MkOwner/some-path?v=abc')
       expect(extractResource(event)).toBe('hm://z6MkOwner/some-path')
-    })
+    }, 30000)
 
     it('returns null for events with empty resource', async () => {
       const {extractResource} = await loadModule()

@@ -825,13 +825,15 @@ export function DocumentEditor({
 
           {/* Viewer/hover extensions */}
           <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
-          <BlockHoverActionsPositioner
-            editor={editor}
-            onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
-            onStartComment={
-              onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined
-            }
-          />
+          {(onBlockSelect || onBlockCommentClick) && (
+            <BlockHoverActionsPositioner
+              editor={editor}
+              onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
+              onStartComment={
+                onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined
+              }
+            />
+          )}
           <RangeSelectionPositioner
             editor={editor}
             onCopyFragmentLink={

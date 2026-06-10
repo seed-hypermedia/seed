@@ -42,6 +42,12 @@ describe('BlockNoteEditor constructor (Phase 1)', () => {
     editor._tiptapEditor.destroy()
   })
 
+  it('registers block hover actions outside embed render type', () => {
+    const editor = new BlockNoteEditor({})
+    expect(editor.blockHoverActions).not.toBeNull()
+    editor._tiptapEditor.destroy()
+  })
+
   it('allows toggling isEditable at runtime', () => {
     const editor = new BlockNoteEditor({editable: true})
     expect(editor.isEditable).toBe(true)
