@@ -21,7 +21,7 @@ func TestShadowVerify_DetectsDriftAndMarksStale(t *testing.T) {
 	ctx := context.Background()
 
 	var scopeID int64
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		id, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
 		if err != nil {
 			return err
@@ -31,7 +31,7 @@ func TestShadowVerify_DetectsDriftAndMarksStale(t *testing.T) {
 	}))
 
 	// A faithfully materialized scope must verify clean and stay materialized.
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		ok, err := shadowVerifyScope(conn, scopeID, dkey)
 		require.NoError(t, err)
 		require.True(t, ok, "faithful set must verify clean")
@@ -40,11 +40,11 @@ func TestShadowVerify_DetectsDriftAndMarksStale(t *testing.T) {
 	require.True(t, scopeMaterialized(t, db, scopeID), "clean scope stays materialized")
 
 	// Corrupt the maintained set by dropping a blob it should contain.
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, `DELETE FROM rbsr_item WHERE scope = ? AND blob = 11`, nil, scopeID)
 	}))
 
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		ok, err := shadowVerifyScope(conn, scopeID, dkey)
 		require.NoError(t, err)
 		require.False(t, ok, "drift must be detected")

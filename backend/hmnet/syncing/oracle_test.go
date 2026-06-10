@@ -20,20 +20,6 @@ func testSpace(t *testing.T) string {
 	return coretest.NewTester("alice").Account.Principal().String()
 }
 
-// newMemDB opens a single-connection in-memory database for tests. The shared
-// MakeTestDB/MakeTestMemoryDB helpers open a NumCPU-sized connection pool, which
-// under this package's parallel suite intermittently returns SQLITE_READONLY on
-// the first write in CI. A single-connection in-memory pool (the same config
-// TestDBQueries uses) is stable.
-func newMemDB(t *testing.T) *sqlitex.Pool {
-	t.Helper()
-	db, err := storage.OpenSQLite("file::memory:?mode=memory", 0, 1)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, db.Close()) })
-	require.NoError(t, storage.InitSQLiteSchema(db))
-	return db
-}
-
 func TestScopeCovers(t *testing.T) {
 	t.Parallel()
 
@@ -76,10 +62,10 @@ func TestScopeAllowsType(t *testing.T) {
 // base is "hm://<principal>".
 func oracleFixture(t *testing.T) (*sqlitex.Pool, string) {
 	t.Helper()
-	db := newMemDB(t)
+	db := storage.MakeTestDB(t)
 	base := "hm://" + testSpace(t)
 
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		for id, iri := range map[int]string{100: base, 101: base + "/doc", 102: base + "/doc/sub"} {
 			if err := sqlitex.Exec(conn, `INSERT INTO resources (id, iri) VALUES (?, ?)`, nil, id, iri); err != nil {
 				return err
@@ -228,9 +214,9 @@ func TestOracle_RefSeedsItsChangeClosure(t *testing.T) {
 // answer.
 func TestOracle_UncoveredEdgesReportIncomplete(t *testing.T) {
 	t.Parallel()
-	db := newMemDB(t)
+	db := storage.MakeTestDB(t)
 
-	require.NoError(t, db.WithSave(context.Background(), func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
 		stmts := []string{
 			`INSERT INTO resources (id, iri) VALUES (100, 'hm://s')`,
 			`INSERT INTO resources (id, iri) VALUES (101, 'hm://s/doc')`,
