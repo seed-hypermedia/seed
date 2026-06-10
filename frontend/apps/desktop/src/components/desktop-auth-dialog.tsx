@@ -18,9 +18,13 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CreateAccountDialogContent, type CreateAccountDialogSubmit} from '@shm/ui/create-account-dialog'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
-function DesktopAuthDialogContent() {
+type DesktopAuthDialogInput = {
+  onReady?: (accountUid: string) => void | Promise<void>
+}
+
+function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInput; onClose: () => void}) {
   const gatewayUrl = useGatewayUrl()
   const startVaultConnection = useStartVaultConnection()
   const openUrl = useOpenUrl()
@@ -35,6 +39,7 @@ function DesktopAuthDialogContent() {
   const isConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const hasAccounts = !!accountIds.data?.length
   const isReady = isConnected && hasAccounts
+  const handledReadyRef = useRef(false)
 
   useEffect(() => {
     if (!browserUrl || isReady) return
@@ -54,14 +59,18 @@ function DesktopAuthDialogContent() {
 
   useEffect(() => {
     const firstAccountId = accountIds.data?.[0]
-    if (!isReady || !firstAccountId) return
+    if (!isReady || !firstAccountId || handledReadyRef.current) return
+    handledReadyRef.current = true
     if (!selectedIdentityValue) {
       setSelectedIdentity?.(firstAccountId)
     }
     client.selectIdentityForWindowsWithoutAccount.mutate(firstAccountId).catch((error) => {
       console.error('Failed to select remote vault account for windows', error)
     })
-  }, [accountIds.data, isReady, selectedIdentityValue, setSelectedIdentity])
+    Promise.resolve(input.onReady?.(firstAccountId)).finally(() => {
+      onClose()
+    })
+  }, [accountIds.data, input, isReady, onClose, selectedIdentityValue, setSelectedIdentity])
 
   const handleSubmit = async (input: CreateAccountDialogSubmit) => {
     const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl

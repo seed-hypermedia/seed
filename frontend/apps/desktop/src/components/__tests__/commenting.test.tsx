@@ -62,6 +62,7 @@ vi.mock('@/utils/useNavigate', () => ({
 }))
 
 vi.mock('@seed-hypermedia/client', () => ({
+  commentRecordIdFromBlob: vi.fn(),
   createComment: vi.fn(),
 }))
 
@@ -127,6 +128,8 @@ vi.mock('@shm/shared/routing', () => ({
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
+  NavContextProvider: ({children}: {children: React.ReactNode}) => children,
+  useNavigation: () => ({}),
   useNavRoute: () => ({key: 'document', panel: null}),
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true

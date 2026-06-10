@@ -1,4 +1,5 @@
 import { useDesktopAuthDialog } from '@/components/desktop-auth-dialog'
+import { useDesktopAccountIntent } from '@/components/desktop-intents'
 import { MainWrapper } from '@/components/main-wrapper'
 import { useSelectedAccountId } from '@/selected-account'
 import { client } from '@/trpc'
@@ -19,13 +20,31 @@ export default function OnboardingPage() {
   const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
   const triggerWindowEvent = useTriggerWindowEvent()
   const navigate = useNavigate()
+  const createSiteIntent = useDesktopAccountIntent()
+
+  const createSite = async (accountUid: string) => {
+    const draftId = nanoid(10)
+    await client.drafts.write.mutate({
+      id: draftId,
+      editUid: accountUid,
+      editPath: [],
+      metadata: {},
+      content: [],
+      deps: [],
+      visibility: 'PUBLIC',
+    })
+    navigate({
+      key: 'document',
+      id: hmId(accountUid, { path: [] }),
+    })
+  }
 
   return (
     <PanelContainer className="dark:bg-background bg-white">
       <MainWrapper scrollable>
         <GeneralPageSurface>
           <div className="mx-auto flex h-full max-w-3xl flex-col justify-center gap-6 p-8">
-            <h1 className="text-3xl font-semibold tracking-tight">Welcome to Seed Hypermedia</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Welcome to Seed Hypermedia 👋</h1>
             <p>A place where people build sites to share knowledge freely. Where would you like to start?</p>
 
             <div className="flex gap-2">
@@ -61,24 +80,7 @@ export default function OnboardingPage() {
                   <Button
                     variant="outline"
                     className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:hover:text-emerald-300"
-                    disabled={!selectedAccountId}
-                    onClick={async () => {
-                      if (!selectedAccountId) return
-                      const draftId = nanoid(10)
-                      await client.drafts.write.mutate({
-                        id: draftId,
-                        editUid: selectedAccountId,
-                        editPath: [],
-                        metadata: {},
-                        content: [],
-                        deps: [],
-                        visibility: 'PUBLIC',
-                      })
-                      navigate({
-                        key: 'document',
-                        id: hmId(selectedAccountId, { path: [] }),
-                      })
-                    }}
+                    onClick={() => createSiteIntent.requireAccount(createSite)}
                   >
                     Create my Site
                   </Button>
@@ -113,6 +115,7 @@ export default function OnboardingPage() {
         </GeneralPageSurface>
       </MainWrapper>
       {createAccountDialog.content}
+      {createSiteIntent.content}
     </PanelContainer>
   )
 }
