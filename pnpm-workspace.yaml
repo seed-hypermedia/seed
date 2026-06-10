@@ -22,56 +22,6 @@ minimumReleaseAge: 1440
 # supply-chain incidents. Re-enable once the dep tree stabilises or when pnpm
 # adds a way to bulk-accept historical workflow changes.
 
-# Ignore CVEs that have no upstream fix available.
-# Re-evaluate periodically — remove once a patched version is released.
-auditConfig:
-  ignoreCves:
-    # ip@<=2.0.1 — Server-Side Request Forgery — no patch published.
-    # Reaches us via: lighthouse > puppeteer-core > ... > ip
-    # and react-devtools > ip (both are devDependencies only).
-    - CVE-2024-29415
-    # html-minifier@<=4.0.0 — ReDoS — no patch published.
-    # Reaches us via: mjml > mjml-cli > html-minifier (emails app devDep).
-    - CVE-2022-37620
-    # @xmldom/xmldom@<0.8.13 — family of XML-serialization advisories
-    # (CDATA, DocumentType, processing instruction, comment node injection,
-    # and uncontrolled recursion DoS). Upgrading to 0.9.x breaks plist
-    # parsing in @electron/packager (stricter mimeType validation).
-    # Ignoring until plist or electron-forge updates.
-    - CVE-2026-34601
-    - CVE-2026-41672
-    - CVE-2026-41673
-    - CVE-2026-41674
-    - CVE-2026-41675
-    # electron@<39.8.5 — multiple use-after-free and command injection vulns.
-    # Upgrading from electron 35 to 39+ is a major version jump requiring
-    # dedicated testing. Ignoring until the electron upgrade is planned.
-    - CVE-2026-34774
-    - CVE-2026-34771
-    - CVE-2026-34770
-    - CVE-2026-34769
-  ignoreGhsas:
-    # vitest@<4.1.0 — Vitest UI arbitrary file read/execute. Vitest is only
-    # used as a local/CI dev test runner here; upgrading 0.x/1.x/3.x to 4.x
-    # needs dedicated test-runner migration work.
-    - GHSA-5xrq-8626-4rwp
-    # js-cookie@<=3.0.5 — reaches us through mjml/js-beautify for email
-    # rendering, not browser cookie handling. Ignore until mjml/js-beautify
-    # updates its dependency.
-    - GHSA-qjx8-664m-686j
-    # tmp@<0.2.6 — reaches us through developer tooling (jscodeshift and
-    # Electron Forge prompts/installers). Ignore until those tools update.
-    - GHSA-ph9p-34f9-6g65
-    # vite@<=5.4.8 — reaches us through legacy vitest@0.34.x in desktop,
-    # shared, and ui unit-test tooling. Upgrading these Vitest suites to a
-    # newer major should be handled separately from this feature PR.
-    - GHSA-c27g-q93r-2cwf
-    # turbo-stream@<3.0.0 — remaining path is @remix-run/dev ->
-    # @remix-run/server-runtime in notify dev tooling after upgrading Remix to
-    # the latest 2.17.x patch. Ignore until Remix publishes a compatible
-    # turbo-stream 3 update.
-    - GHSA-rxv8-25v2-qmq8
-
 # blockExoticSubdeps: true
 # Prevents transitive dependencies from being resolved from exotic sources
 # (git repositories, direct tarball URLs). All transitive deps must come

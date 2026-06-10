@@ -61,7 +61,7 @@ function renderDocumentCard({
   act(() => {
     root.render(
       <UniversalAppProvider
-        openRoute={openRoute}
+        openRoute={openRoute as any}
         openUrl={vi.fn()}
         universalClient={{request: vi.fn(), publish: vi.fn()} as any}
       >

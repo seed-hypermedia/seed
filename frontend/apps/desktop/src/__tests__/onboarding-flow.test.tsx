@@ -24,7 +24,7 @@ const createAccountGate = vi.hoisted(() => ({
 }))
 
 const genMnemonicMock = vi.hoisted(() =>
-  vi.fn<[], Promise<{mnemonic: string[]}>>(() => {
+  vi.fn<() => Promise<{mnemonic: string[]}>>(() => {
     if (!createAccountGate.promise) {
       createAccountGate.promise = new Promise<never>(() => {})
     }
@@ -301,7 +301,7 @@ describe('Onboarding flow', () => {
       if (!createAccountGate.promise) {
         createAccountGate.promise = new Promise<never>(() => {})
       }
-      return createAccountGate.promise
+      return createAccountGate.promise as unknown as Promise<{mnemonic: string[]}>
     })
     registerKeyMutateAsyncMock.mockReset()
     updateProfileMock.mockReset()

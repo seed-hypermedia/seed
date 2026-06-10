@@ -18,6 +18,7 @@ describe('loggingInterceptor redaction', () => {
 
   afterEach(() => {
     process.env.QUIET_NODE_LOGS = originalQuietNodeLogs
+    vi.restoreAllMocks()
   })
 
   it('redacts sensitive request bodies on errors', async () => {
