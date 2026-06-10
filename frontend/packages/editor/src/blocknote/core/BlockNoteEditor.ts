@@ -36,7 +36,7 @@ import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
-import {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
+import type {BlockHoverActionsProsemirrorPlugin} from './extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {FormattingToolbarProsemirrorPlugin} from './extensions/FormattingToolbar/FormattingToolbarPlugin'
 import {FullBlockSelectionProsemirrorPlugin} from './extensions/FullBlockSelection/FullBlockSelectionPlugin'
 import {HyperlinkToolbarProsemirrorPlugin} from './extensions/HyperlinkToolbar/HyperlinkToolbarPlugin'
@@ -276,9 +276,9 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     this.hyperlinkToolbar = isReadOnly ? null : new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = isReadOnly ? null : new LinkMenuProsemirrorPlugin(this)
 
-    // Non-embed UI plugins: hover actions work across editor states, while
-    // range/full-block selection suppress themselves when not applicable.
-    this.blockHoverActions = isEmbed ? null : new BlockHoverActionsProsemirrorPlugin(this)
+    // Temporarily disable block hover actions while investigating Query block flicker.
+    // Keep the plugin code available so it can be re-enabled with safer targeting.
+    this.blockHoverActions = null
     this.rangeSelection = isEmbed ? null : new RangeSelectionProsemirrorPlugin(this)
     this.fullBlockSelection = isEmbed ? null : new FullBlockSelectionProsemirrorPlugin(this)
 
@@ -299,7 +299,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     })
 
     if (!isEmbed) {
-      const plugins = [this.blockHoverActions!.plugin, this.rangeSelection!.plugin, this.fullBlockSelection!.plugin]
+      const plugins = [this.rangeSelection!.plugin, this.fullBlockSelection!.plugin]
 
       // Editing UI plugins only for non-readonly modes
       if (!isReadOnly) {

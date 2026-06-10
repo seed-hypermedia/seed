@@ -42,6 +42,12 @@ describe('BlockNoteEditor constructor (Phase 1)', () => {
     editor._tiptapEditor.destroy()
   })
 
+  it('keeps block hover actions disabled during the Query block flicker mitigation', () => {
+    const editor = new BlockNoteEditor({})
+    expect(editor.blockHoverActions).toBeNull()
+    editor._tiptapEditor.destroy()
+  })
+
   it('allows toggling isEditable at runtime', () => {
     const editor = new BlockNoteEditor({editable: true})
     expect(editor.isEditable).toBe(true)

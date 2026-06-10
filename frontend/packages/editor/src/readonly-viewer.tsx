@@ -9,7 +9,6 @@ import {
 } from '@shm/shared'
 import {useCallback, useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
-import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
@@ -46,8 +45,6 @@ export function ReadOnlyViewer({
   commentStyle,
   focusBlockId,
   blockRange,
-  onCopyBlockLink,
-  onStartComment,
   onCopyFragmentLink,
   onComment,
 }: ReadOnlyViewerProps) {
@@ -107,7 +104,6 @@ export function ReadOnlyViewer({
     }
   }, [editor, focusBlockId, rangeStart, rangeEnd])
 
-  const hasHoverActions = !!(onCopyBlockLink || onStartComment)
   const hasRangeSelection = !!(onCopyFragmentLink || onComment)
 
   return (
@@ -125,13 +121,6 @@ export function ReadOnlyViewer({
       >
         <ReadOnlyBlockNoteView editor={editor}>
           <>
-            {hasHoverActions && (
-              <BlockHoverActionsPositioner
-                editor={editor}
-                onCopyBlockLink={onCopyBlockLink}
-                onStartComment={onStartComment}
-              />
-            )}
             {hasRangeSelection && (
               <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
             )}
