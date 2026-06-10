@@ -11,7 +11,7 @@ import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
 
 const HOVER_BG_CLASS = 'bn-block-hover-highlight'
 const CARD_OVERLAP_PX = 0
-const HORIZONTAL_NUDGE_PX = 0
+const HORIZONTAL_NUDGE_PX = 8
 const VIEWPORT_PADDING_PX = 4
 const VERTICAL_POPOVER_WIDTH_ESTIMATE_PX = 40
 

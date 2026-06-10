@@ -37,6 +37,11 @@ function makeBlock(overrides: {url?: string; name?: string; alignment?: string} 
 function makeEditor() {
   return {
     _tiptapEditor: {
+      view: {
+        state: {
+          selection: {},
+        },
+      },
       on: vi.fn(),
       off: vi.fn(),
     },
