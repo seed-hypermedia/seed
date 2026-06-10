@@ -39,7 +39,7 @@ func TestRbsrIndex_BuildMatchesLoadRBSRStore(t *testing.T) {
 	require.NoError(t, want.Seal())
 
 	got := newAuthorizedTreeStore()
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		id, materialized, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
 		if err != nil {
 			return err
@@ -79,7 +79,7 @@ func TestRbsrIndex_IncrementalMaintenanceMatchesCollectBlobs(t *testing.T) {
 	ctx := context.Background()
 
 	var scopeID int64
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		id, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
 		if err != nil {
 			return err
@@ -89,7 +89,7 @@ func TestRbsrIndex_IncrementalMaintenanceMatchesCollectBlobs(t *testing.T) {
 	}))
 
 	// Index a new document under the scope: a Ref heading a new Change.
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		stmts := []string{
 			`INSERT INTO resources (id, iri) VALUES (200, '` + base + `/newdoc')`,
 			`INSERT INTO blobs (id, multihash, codec, size) VALUES (70, X'70', 113, 1)`,
@@ -120,7 +120,7 @@ func TestRbsrIndex_ResolveScopeIdempotent(t *testing.T) {
 	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
 	ctx := context.Background()
 
-	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		id1, mat1, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
 		require.NoError(t, err)
 		require.False(t, mat1)

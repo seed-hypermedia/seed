@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"seed/backend/hmnet/syncing/rbsr"
+	"seed/backend/storage"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -39,8 +40,8 @@ func TestCanonicalization_MakesCodecsAgreeAcrossPeers(t *testing.T) {
 	ctx := context.Background()
 
 	buildFingerprint := func(storedCodec int64, protocolVersion string) rbsr.Fingerprint {
-		db := newMemDB(t)
-		require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		db := storage.MakeTestDB(t)
+		require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			if err := sqlitex.Exec(conn, `INSERT INTO rbsr_scope (id, iri, protocol_version, materialized) VALUES (1, 'hm://x', '0.9.2', 1)`, nil); err != nil {
 				return err
 			}
