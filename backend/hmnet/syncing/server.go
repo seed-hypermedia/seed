@@ -424,7 +424,7 @@ func (s *Server) loadStoreLegacy(ctx context.Context, dkeys colx.HashSet[Discove
 // keeps the set current so reconciliation no longer rebuilds it per round.
 func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal, protocolVersion string) (rbsr.Store, error) {
 	store := newAuthorizedTreeStore()
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	if err := s.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		scopeIDs := make([]int64, 0, len(dkeys))
 		for dkey := range dkeys {
 			id, materialized, err := resolveScope(conn, dkey, protocolVersion)

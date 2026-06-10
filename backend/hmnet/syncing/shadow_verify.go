@@ -121,7 +121,7 @@ func ShadowVerifySweep(ctx context.Context, db *sqlitex.Pool) (checked, drifted 
 
 	for _, s := range scopes {
 		var ok bool
-		if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			var e error
 			ok, e = shadowVerifyScope(conn, s.id, s.dkey)
 			return e
