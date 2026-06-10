@@ -37,7 +37,7 @@ export default function IndexPage() {
   }
 
   // Handle errors
-  if (data.daemonError && data.daemonError.code !== Code.NotFound) {
+  if (data.daemonError && data.daemonError.code !== Code.NotFound && data.daemonError.code !== Code.PermissionDenied) {
     return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
   }
 

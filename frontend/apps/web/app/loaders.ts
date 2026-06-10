@@ -732,6 +732,11 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         message: e.message,
         code: e.code,
       }
+    } else if (e instanceof Error && e.message.toLowerCase().includes('permission')) {
+      daemonError = {
+        message: e.message,
+        code: Code.PermissionDenied,
+      }
     }
 
     return wrapJSON(
