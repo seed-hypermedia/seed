@@ -32,7 +32,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
       profile: {
         name: updates.name ?? '',
         icon: iconUri,
-        description: metadata?.summary ?? '',
+        description: updates.description ?? '',
       },
       signingKeyName: accountUid,
     })
@@ -62,8 +62,11 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
         defaultValues={{
           name: metadata?.name || '',
           icon: metadata?.icon || null,
+          description: metadata?.summary || '',
         }}
         onSubmit={handleSubmit}
+        accountCode={accountUid}
+        showDescription
       />
     </>
   )
