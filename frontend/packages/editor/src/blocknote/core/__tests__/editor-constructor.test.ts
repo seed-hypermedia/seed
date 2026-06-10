@@ -42,9 +42,9 @@ describe('BlockNoteEditor constructor (Phase 1)', () => {
     editor._tiptapEditor.destroy()
   })
 
-  it('keeps block hover actions disabled during the Query block flicker mitigation', () => {
+  it('registers block hover actions outside embed render type', () => {
     const editor = new BlockNoteEditor({})
-    expect(editor.blockHoverActions).toBeNull()
+    expect(editor.blockHoverActions).not.toBeNull()
     editor._tiptapEditor.destroy()
   })
 

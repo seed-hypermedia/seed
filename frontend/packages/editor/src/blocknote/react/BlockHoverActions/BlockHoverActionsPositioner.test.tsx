@@ -71,7 +71,7 @@ function renderPositioner() {
 }
 
 describe('BlockHoverActionsPositioner', () => {
-  it('stacks actions vertically to the right of a supernumber badge', () => {
+  it('overlays actions on top of a supernumber badge', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
     editorDom.appendChild(block)
@@ -96,12 +96,9 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(card.className).toContain('flex-col')
     expect(wrapper.dataset.bnBlockHoverActions).toBe('true')
-    expect(wrapper.style.left).toBe('100px')
-    expect(wrapper.style.paddingLeft).toBe('44px')
-    const bridge = container.querySelector('[data-bn-block-hover-bridge="true"]') as HTMLElement
-    expect(bridge.style.width).toBe('44px')
-    expect(bridge.className).toContain('pointer-events-none')
-    expect(wrapper.className).toContain('pointer-events-none')
+    expect(wrapper.style.left).toBe('32px')
+    expect(wrapper.style.paddingLeft).toBe('')
+    expect(container.querySelector('[data-bn-block-hover-bridge="true"]')).toBeNull()
     expect(block.classList.contains('bn-block-hover-highlight')).toBe(true)
   })
 
@@ -122,5 +119,6 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(wrapper.style.right).toBe('4px')
     expect(wrapper.style.left).toBe('')
+    expect(wrapper.style.paddingLeft).toBe('')
   })
 })

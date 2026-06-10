@@ -10,8 +10,8 @@ import {
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
 
 const HOVER_BG_CLASS = 'bn-block-hover-highlight'
-const HOVER_BRIDGE_PX = 16
-const POPOVER_GAP_PX = 4
+const CARD_OVERLAP_PX = 0
+const HORIZONTAL_NUDGE_PX = 0
 const VIEWPORT_PADDING_PX = 4
 const VERTICAL_POPOVER_WIDTH_ESTIMATE_PX = 40
 
@@ -41,13 +41,12 @@ export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = Block
 // ---------------------------------------------------------------------------
 
 /**
- * Renders a small vertical floating action card anchored to the top-right
- * corner of the block currently under the mouse cursor.
+ * Renders a small vertical floating action card for the block selected by
+ * the `blockHoverActions` plugin.
  *
  * Subscribe to the editor's `blockHoverActions` plugin via the EventEmitter and
  * position itself using the block's bounding rect. When a block has a
- * supernumber badge, the card anchors just to the right of that badge so both
- * controls remain visible.
+ * supernumber badge, the card overlays the badge instead of shifting outward.
  *
  * Active in editable and read-only editor states; the plugin suppresses
  * emissions while text selection is active.
@@ -130,67 +129,45 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
 
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
-  const supernumberBadges = Array.from(
-    editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge'),
-  ) as HTMLElement[]
-  const supernumberBadge = supernumberBadges.find((badge) => badge.dataset.blockId === blockId)
+  const supernumberBadge = Array.from(editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge')).find(
+    (badge) => badge instanceof HTMLElement && badge.dataset.blockId === blockId,
+  ) as HTMLElement | undefined
   const anchorRect = supernumberBadge?.isConnected ? supernumberBadge.getBoundingClientRect() : rect
-  const bridgeWidth = Math.max(
-    HOVER_BRIDGE_PX + POPOVER_GAP_PX,
-    anchorRect.right - rect.right + HOVER_BRIDGE_PX + POPOVER_GAP_PX,
-  )
 
-  // Anchor the vertical card to the right of the supernumber badge when
-  // present, otherwise to the block's right edge. The outer wrapper starts at
-  // the content edge and contains an invisible bridge all the way to the card,
-  // which keeps hover alive across the supernumber gap.
-  //
-  // On narrow viewports (mobile) the block typically fills the screen, so
-  // the default right-of-block positioning can clip. Pin the card inside the
-  // viewport so all buttons stay visible.
+  // Keep the action card out of document flow. Supernumber badges are covered
+  // in place; blocks without a badge get a small overlap on the content edge so
+  // moving into the card does not cross an empty gap.
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : Infinity
-  const visibleLeft = rect.right + bridgeWidth
-  const wouldOverflow = visibleLeft + VERTICAL_POPOVER_WIDTH_ESTIMATE_PX > viewportWidth - VIEWPORT_PADDING_PX
-  const activeBridgeWidth = wouldOverflow ? HOVER_BRIDGE_PX : bridgeWidth
+  const anchorLeft =
+    (supernumberBadge?.isConnected ? anchorRect.left : rect.right - CARD_OVERLAP_PX) + HORIZONTAL_NUDGE_PX
+  const wouldOverflow = anchorLeft + VERTICAL_POPOVER_WIDTH_ESTIMATE_PX > viewportWidth - VIEWPORT_PADDING_PX
   const style: React.CSSProperties = wouldOverflow
-    ? ({
+    ? {
         position: 'fixed',
-        top: rect.top,
+        top: anchorRect.top,
         right: VIEWPORT_PADDING_PX,
-        paddingLeft: HOVER_BRIDGE_PX,
-        minHeight: rect.height,
         zIndex: 50,
-        transition: 'top 150ms ease-out, left 150ms ease-out, right 150ms ease-out',
-      } as React.CSSProperties)
-    : ({
+      }
+    : {
         position: 'fixed',
-        top: rect.top,
-        left: rect.right,
-        paddingLeft: bridgeWidth,
-        paddingRight: VIEWPORT_PADDING_PX,
-        minHeight: rect.height,
+        top: anchorRect.top,
+        left: anchorLeft,
         zIndex: 50,
-        transition: 'top 150ms ease-out, left 150ms ease-out, right 150ms ease-out',
-      } as React.CSSProperties)
+      }
 
   return (
-    <div data-bn-block-hover-actions="true" className="pointer-events-none" style={style}>
-      <div
-        aria-hidden="true"
-        data-bn-block-hover-bridge="true"
-        className="pointer-events-none absolute top-0 left-0 h-full rounded-sm"
-        style={{width: activeBridgeWidth}}
-      />
-      <div
-        className="bg-popover pointer-events-auto relative z-50 flex flex-col items-center gap-1 rounded-md border p-1 shadow-sm"
-        onMouseEnter={() => editor.blockHoverActions?.freeze()}
-        onMouseLeave={() => {
-          editor.blockHoverActions?.unfreeze()
-          // Clear highlight immediately when leaving the card.
-          highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
-          highlightedElRef.current = null
-        }}
-      >
+    <div
+      data-bn-block-hover-actions="true"
+      style={style}
+      onMouseEnter={() => editor.blockHoverActions?.freeze()}
+      onMouseLeave={() => {
+        editor.blockHoverActions?.unfreeze()
+        // Clear highlight immediately when leaving the card.
+        highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
+        highlightedElRef.current = null
+      }}
+    >
+      <div className="bg-popover flex flex-col items-center gap-1 rounded-md border p-1 shadow-sm">
         {onCopyBlockLink && (
           <button
             type="button"

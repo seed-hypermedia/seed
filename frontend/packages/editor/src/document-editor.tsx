@@ -18,6 +18,7 @@ import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
+  BlockHoverActionsPositioner,
   BlockNoteEditor,
   BlockNoteView,
   FormattingToolbarPositioner,
@@ -822,8 +823,17 @@ export function DocumentEditor({
             </>
           )}
 
-          {/* Viewer extensions */}
+          {/* Viewer/hover extensions */}
           <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
+          {(onBlockSelect || onBlockCommentClick) && (
+            <BlockHoverActionsPositioner
+              editor={editor}
+              onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
+              onStartComment={
+                onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined
+              }
+            />
+          )}
           <RangeSelectionPositioner
             editor={editor}
             onCopyFragmentLink={

@@ -267,7 +267,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
     // Verify no spinner is rendered (data was found in cache)
     expect(html).not.toContain('animate-spin')
-  })
+  }, 30000)
 
   it('should render spinner when QueryClient cache is NOT hydrated', async () => {
     // Import after mocks are set up

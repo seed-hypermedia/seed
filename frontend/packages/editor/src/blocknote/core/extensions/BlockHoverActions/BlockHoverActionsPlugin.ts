@@ -5,10 +5,6 @@ import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 /**
  * The state emitted to React subscribers whenever the hovered block changes.
  * `show` is false when the cursor has left the editor or no block was found.
@@ -17,17 +13,11 @@ export type BlockHoverActionsState = {
   show: boolean
   /** The `data-id` attribute of the currently hovered blockNode, or null. */
   blockId: string | null
-  /**
-   * The bounding rect of the hovered block element, used by the React
-   * positioner to place the floating action card.
-   */
+  /** The bounding rect used by the React positioner to place the floating action card. */
   referenceRect: DOMRect | null
 }
 
-/**
- * Callbacks supplied by the consuming app.  All are optional; only the
- * ones provided will appear as active buttons in the floating card.
- */
+/** Callbacks supplied by the consuming app. */
 export type BlockHoverActionsCallbacks = {
   /** Called when the user clicks "Copy block link" for the given blockId. */
   onCopyBlockLink?: (blockId: string) => void
@@ -35,28 +25,12 @@ export type BlockHoverActionsCallbacks = {
   onStartComment?: (blockId: string) => void
 }
 
-/** Internal EventEmitter event map used by the plugin. */
 type BlockHoverActionsEvents = {
   update: [BlockHoverActionsState]
 }
 
-/** Block types to suppress showing hover action buttons in mobile */
-const TOUCH_SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['query', 'button'])
+const SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['embed', 'query', 'image', 'video', 'file'])
 
-/** True when the device cannot hover (phone/tablet). Cached at module load. */
-const isTouchOnlyDevice =
-  typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: none)').matches : false
-
-// ---------------------------------------------------------------------------
-// ProseMirror PluginView
-// ---------------------------------------------------------------------------
-
-/**
- * Internal ProseMirror PluginView that attaches mouse listeners to the editor
- * DOM and emits state updates via a callback whenever the hovered block changes.
- *
- * @internal
- */
 class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   private currentState: BlockHoverActionsState = {
     show: false,
@@ -74,17 +48,40 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   ) {
     this.pmView.dom.addEventListener('mousemove', this.onMouseMove)
     this.pmView.dom.addEventListener('mouseleave', this.onMouseLeave)
+    this.pmView.dom.addEventListener('focus', this.onFocus)
+    this.pmView.dom.addEventListener('blur', this.onBlur)
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
+  private isEditable(): boolean {
+    return (this.editor as any)._tiptapEditor ? this.editor.isEditable : this.pmView.editable
+  }
 
-  /**
-   * Walks up the DOM from `node` until a block content element is found.
-   * Returns `null` if the pointer is over a block wrapper or nested children
-   * area instead of an actual block content element.
-   */
+  private findBlockElementById(blockId: string): HTMLElement | null {
+    const blocks = this.pmView.dom.querySelectorAll('[data-node-type="blockNode"][data-id]')
+    return Array.from(blocks).find((block) => block.getAttribute('data-id') === blockId) as HTMLElement | null
+  }
+
+  private findDirectContentElement(blockElement: HTMLElement): HTMLElement | null {
+    for (const child of Array.from(blockElement.children)) {
+      if (child.hasAttribute('data-content-type')) {
+        return child as HTMLElement
+      }
+
+      if (child.getAttribute('data-node-type') === 'blockChildren') {
+        continue
+      }
+
+      const wrappedContent = Array.from(child.children).find((grandchild) =>
+        grandchild.hasAttribute('data-content-type'),
+      ) as HTMLElement | undefined
+      if (wrappedContent) {
+        return wrappedContent
+      }
+    }
+
+    return null
+  }
+
   private findBlockContentElement(node: Node | null): HTMLElement | null {
     let element: HTMLElement | null =
       node?.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof HTMLElement ? node : null
@@ -99,11 +96,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     return null
   }
 
-  /**
-   * Finds the block node that owns a block content element. The direct
-   * `data-content-type` target is used first so hovering nested children does
-   * not accidentally select the parent block wrapper.
-   */
   private findOwningBlockElement(contentElement: HTMLElement): HTMLElement | null {
     let element: HTMLElement | null = contentElement.parentElement
 
@@ -117,18 +109,47 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     return null
   }
 
-  private findBlockElementById(blockId: string): HTMLElement | null {
-    return this.pmView.dom.querySelector(`[data-node-type="blockNode"][data-id="${blockId}"]`) as HTMLElement | null
+  private blockStateFromElement(blockElement: HTMLElement): BlockHoverActionsState | null {
+    const blockId = blockElement.getAttribute('data-id')
+    const contentElement = this.findDirectContentElement(blockElement)
+    const contentType = contentElement?.getAttribute('data-content-type')
+
+    if (!blockId || !contentElement || !contentType || SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
+      return null
+    }
+
+    return {show: true, blockId, referenceRect: contentElement.getBoundingClientRect()}
   }
 
-  private findBlockContentElementForBlock(blockElement: HTMLElement): HTMLElement | null {
-    return Array.from(blockElement.children).find((child) =>
-      child.hasAttribute('data-content-type'),
-    ) as HTMLElement | null
+  private blockStateFromBlockId(blockId: string): BlockHoverActionsState | null {
+    const blockElement = this.findBlockElementById(blockId)
+    return blockElement ? this.blockStateFromElement(blockElement) : null
+  }
+
+  private selectionBlockState(): BlockHoverActionsState | null {
+    const {selection} = this.pmView.state
+
+    if (!this.isEditable() || !this.pmView.hasFocus() || !selection.empty) {
+      return null
+    }
+
+    for (let depth = selection.$from.depth; depth >= 0; depth--) {
+      const node = selection.$from.node(depth)
+      if (node.type.name === 'blockNode' && node.attrs?.id) {
+        return this.blockStateFromBlockId(node.attrs.id)
+      }
+    }
+
+    return null
   }
 
   private keepHoverInCurrentRightGutter(event: MouseEvent, requireCurrentBlockTarget: boolean): boolean {
-    if (!this.currentState.show || !this.currentState.blockId || !this.currentState.referenceRect) {
+    if (
+      this.isEditable() ||
+      !this.currentState.show ||
+      !this.currentState.blockId ||
+      !this.currentState.referenceRect
+    ) {
       return false
     }
 
@@ -149,6 +170,14 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   private emitState(state: BlockHoverActionsState) {
+    const sameVisibleBlock = this.currentState.show && state.show && this.currentState.blockId === state.blockId
+    const sameHidden = !this.currentState.show && !state.show
+
+    if (sameVisibleBlock || sameHidden) {
+      this.currentState = state
+      return
+    }
+
     this.currentState = state
     this.onUpdate(state)
   }
@@ -159,9 +188,14 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Event handlers
-  // -------------------------------------------------------------------------
+  private showState(state: BlockHoverActionsState | null) {
+    if (!state) {
+      this.hide()
+      return
+    }
+
+    this.emitState(state)
+  }
 
   onMouseMove = (event: MouseEvent) => {
     this.handleMouseMove(event)
@@ -173,7 +207,11 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    // Hide when there is an active text selection (the range selection bubble takes priority).
+    if (this.isEditable()) {
+      this.showState(this.selectionBlockState())
+      return
+    }
+
     if (!this.pmView.state.selection.empty) {
       this.hide()
       return
@@ -183,14 +221,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     const supernumberBlockId = supernumberBadge instanceof HTMLElement ? supernumberBadge.dataset.blockId : undefined
 
     if (supernumberBlockId) {
-      const blockElement = this.findBlockElementById(supernumberBlockId)
-      const contentElement = blockElement ? this.findBlockContentElementForBlock(blockElement) : null
-
-      if (blockElement && contentElement) {
-        const referenceRect = contentElement.getBoundingClientRect()
-        this.emitState({show: true, blockId: supernumberBlockId, referenceRect})
-        return
-      }
+      this.showState(this.blockStateFromBlockId(supernumberBlockId))
+      return
     }
 
     const contentElement = this.findBlockContentElement(event.target as Node | null)
@@ -204,39 +236,14 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     }
 
     const blockElement = this.findOwningBlockElement(contentElement)
-    if (!blockElement) {
-      this.hide()
-      return
-    }
-
-    const blockId = blockElement.getAttribute('data-id')
-
-    if (!blockId) {
-      this.hide()
-      return
-    }
-
-    // On touch-only devices, suppress for block types whose own click action
-    // competes with the hover action buttons.
-    if (isTouchOnlyDevice) {
-      const contentType = contentElement.getAttribute('data-content-type')
-      if (contentType && TOUCH_SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
-        this.hide()
-        return
-      }
-    }
-
-    // If we are already showing for this exact block, do nothing.
-    if (this.currentState.show && this.currentState.blockId === blockId) {
-      return
-    }
-
-    const referenceRect = contentElement.getBoundingClientRect()
-
-    this.emitState({show: true, blockId, referenceRect})
+    this.showState(blockElement ? this.blockStateFromElement(blockElement) : null)
   }
 
   onMouseLeave = (event?: MouseEvent) => {
+    if (this.isEditable()) {
+      return
+    }
+
     const relatedTarget = event?.relatedTarget
     if (relatedTarget instanceof Element && relatedTarget.closest('[data-bn-block-hover-actions="true"]')) {
       return
@@ -251,13 +258,29 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // PluginView lifecycle
-  // -------------------------------------------------------------------------
+  onFocus = () => {
+    if (this.isEditable()) {
+      this.showState(this.selectionBlockState())
+    }
+  }
 
-  /** Called by ProseMirror on every transaction (selection change, doc change, etc.). */
+  onBlur = (event: FocusEvent) => {
+    const relatedTarget = event.relatedTarget
+    if (relatedTarget instanceof Element && relatedTarget.closest('[data-bn-block-hover-actions="true"]')) {
+      return
+    }
+
+    if (!this.frozen) {
+      this.hide()
+    }
+  }
+
   update() {
-    // If a text selection appeared, hide the hover card so it doesn't overlap the range selection bubble.
+    if (this.isEditable()) {
+      this.showState(this.selectionBlockState())
+      return
+    }
+
     if (!this.pmView.state.selection.empty && this.currentState.show) {
       this.hide()
     }
@@ -266,6 +289,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   destroy() {
     this.pmView.dom.removeEventListener('mousemove', this.onMouseMove)
     this.pmView.dom.removeEventListener('mouseleave', this.onMouseLeave)
+    this.pmView.dom.removeEventListener('focus', this.onFocus)
+    this.pmView.dom.removeEventListener('blur', this.onBlur)
 
     if (this.currentState.show) {
       this.emitState({show: false, blockId: null, referenceRect: null})
@@ -273,27 +298,11 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Public plugin class
-// ---------------------------------------------------------------------------
-
 export const blockHoverActionsPluginKey = new PluginKey('BlockHoverActionsPlugin')
 
 /**
- * ProseMirror plugin that tracks which block the cursor is hovering over and
- * exposes that information to React via an {@link EventEmitter}.
- *
- * Active in editable and read-only mode; hidden while a non-empty text
- * selection is active so it does not overlap selection-specific toolbars.
- *
- * @example
- * ```ts
- * const plugin = new BlockHoverActionsProsemirrorPlugin(editor)
- * // Receive state updates:
- * plugin.onUpdate((state) => {
- *   if (state.show) console.log('hovering', state.blockId)
- * })
- * ```
+ * ProseMirror plugin that tracks the block that should show copy/comment hover actions.
+ * In reading mode it follows mouse hover; in editing mode it follows the focused collapsed selection.
  */
 export class BlockHoverActionsProsemirrorPlugin<
   BSchema extends BlockSchema,
@@ -326,15 +335,11 @@ export class BlockHoverActionsProsemirrorPlugin<
   public unfreeze() {
     if (this.view) {
       this.view.frozen = false
-      // The cursor may have already left the editor while frozen — emit hide.
       this.view.onMouseLeave()
     }
   }
 
-  /**
-   * Subscribes to hover state updates.  Returns an unsubscribe function that
-   * should be called on cleanup (e.g. in a React `useEffect` return).
-   */
+  /** Subscribes to hover state updates. Returns an unsubscribe function. */
   public onUpdate(callback: (state: BlockHoverActionsState) => void): () => void {
     return this.on('update', callback)
   }

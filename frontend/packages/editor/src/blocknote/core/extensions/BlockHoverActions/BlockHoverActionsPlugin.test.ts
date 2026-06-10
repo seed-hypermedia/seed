@@ -4,11 +4,13 @@ import {EditorView} from 'prosemirror-view'
 import {afterEach, describe, expect, it} from 'vitest'
 import {BlockHoverActionsProsemirrorPlugin, BlockHoverActionsState} from './BlockHoverActionsPlugin'
 
+const contentTypes = ['query', 'embed', 'image', 'video', 'file'] as const
+
 const schema = new Schema({
   nodes: {
     doc: {content: 'blockNode+'},
     blockNode: {
-      content: 'paragraph blockChildren?',
+      content: 'block blockChildren?',
       attrs: {id: {default: ''}},
       toDOM: (node) => ['div', {'data-node-type': 'blockNode', 'data-id': node.attrs.id}, 0],
     },
@@ -16,7 +18,12 @@ const schema = new Schema({
       content: 'blockNode+',
       toDOM: () => ['div', {'data-node-type': 'blockChildren'}, 0],
     },
-    paragraph: {content: 'text*', toDOM: () => ['p', {'data-content-type': 'paragraph'}, 0]},
+    paragraph: {group: 'block', content: 'text*', toDOM: () => ['p', {'data-content-type': 'paragraph'}, 0]},
+    query: {group: 'block', toDOM: () => ['div', {'data-content-type': 'query'}]},
+    embed: {group: 'block', toDOM: () => ['div', {'data-content-type': 'embed'}]},
+    image: {group: 'block', toDOM: () => ['div', {'data-content-type': 'image'}]},
+    video: {group: 'block', toDOM: () => ['div', {'data-content-type': 'video'}]},
+    file: {group: 'block', toDOM: () => ['div', {'data-content-type': 'file'}]},
     text: {group: 'inline'},
   },
 })
@@ -34,7 +41,12 @@ afterEach(() => {
 })
 
 function createView(editable: boolean, doc = createSingleBlockDoc()) {
-  const hoverActions = new BlockHoverActionsProsemirrorPlugin({} as any)
+  const editor = {
+    get isEditable() {
+      return editable
+    },
+  }
+  const hoverActions = new BlockHoverActionsProsemirrorPlugin(editor as any)
   const updates: BlockHoverActionsState[] = []
   hoverActions.onUpdate((state) => updates.push(state))
 
@@ -56,6 +68,20 @@ function createSingleBlockDoc() {
   return schema.nodes.doc.create(
     null,
     schema.nodes.blockNode.create({id: 'block-1'}, schema.nodes.paragraph.create(null, schema.text('hello world'))),
+  )
+}
+
+function createTwoBlockDoc() {
+  return schema.nodes.doc.create(null, [
+    schema.nodes.blockNode.create({id: 'block-1'}, schema.nodes.paragraph.create(null, schema.text('first'))),
+    schema.nodes.blockNode.create({id: 'block-2'}, schema.nodes.paragraph.create(null, schema.text('second'))),
+  ])
+}
+
+function createSuppressedBlockDoc(contentType: (typeof contentTypes)[number]) {
+  return schema.nodes.doc.create(
+    null,
+    schema.nodes.blockNode.create({id: contentType}, schema.nodes[contentType].create()),
   )
 }
 
@@ -95,39 +121,88 @@ function setRect(element: HTMLElement, rect: Partial<DOMRect>) {
   })
 }
 
+function forceFocused(view: EditorView) {
+  Object.defineProperty(view, 'hasFocus', {configurable: true, value: () => true})
+}
+
+function textPosForBlock(doc: any, blockId: string) {
+  let result = 1
+  doc.descendants((node: any, pos: number) => {
+    if (node.isText && doc.resolve(pos).node(1).attrs.id === blockId) {
+      result = pos
+      return false
+    }
+    return true
+  })
+  return result
+}
+
 describe('BlockHoverActionsProsemirrorPlugin', () => {
-  it('emits hover state while the editor is editable', () => {
-    const {view, updates} = createView(true)
+  it('emits hover state in reading mode', () => {
+    const {view, updates} = createView(false)
 
     dispatchMouseMove(view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement)
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
+  })
+
+  it('does not change blocks on mouse hover while editing', () => {
+    const {view, updates} = createView(true, createTwoBlockDoc())
+    forceFocused(view)
+    view.dispatch(
+      view.state.tr.setSelection(TextSelection.create(view.state.doc, textPosForBlock(view.state.doc, 'block-1'))),
+    )
+
+    dispatchMouseMove(view.dom.querySelector('[data-id="block-2"] > [data-content-type="paragraph"]') as HTMLElement)
 
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
   })
 
   it('hides when text selection is active', () => {
     const {view, updates} = createView(true)
-    dispatchMouseMove(view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement)
+    forceFocused(view)
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3)))
 
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3, 8)))
 
     expect(updates.at(-1)).toMatchObject({show: false, blockId: null})
   })
 
-  it('keeps hover visible when the pointer leaves into the hover actions bridge', () => {
-    const {view, updates} = createView(true)
+  it.each(contentTypes)('suppresses %s blocks in reading mode', (contentType) => {
+    const {view, updates} = createView(false, createSuppressedBlockDoc(contentType))
+
+    dispatchMouseMove(view.dom.querySelector(`[data-content-type="${contentType}"]`) as HTMLElement)
+
+    expect(updates.at(-1)).toBeUndefined()
+  })
+
+  it('suppresses query blocks even when hovering nested DOM inside them', () => {
+    const {view, updates} = createView(false, createSuppressedBlockDoc('query'))
+    const queryContent = view.dom.querySelector('[data-content-type="query"]') as HTMLElement
+    const nested = document.createElement('div')
+    nested.setAttribute('data-content-type', 'paragraph')
+    queryContent.appendChild(nested)
+
+    dispatchMouseMove(nested)
+
+    expect(updates.at(-1)).toBeUndefined()
+  })
+
+  it('keeps hover visible when the pointer leaves into the hover actions card in reading mode', () => {
+    const {view, updates} = createView(false)
     dispatchMouseMove(view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement)
 
-    const bridge = document.createElement('div')
-    bridge.dataset.bnBlockHoverActions = 'true'
-    document.body.appendChild(bridge)
-    view.dom.dispatchEvent(new MouseEvent('mouseleave', {relatedTarget: bridge}))
-    bridge.remove()
+    const card = document.createElement('div')
+    card.dataset.bnBlockHoverActions = 'true'
+    document.body.appendChild(card)
+    view.dom.dispatchEvent(new MouseEvent('mouseleave', {relatedTarget: card}))
+    card.remove()
 
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
   })
 
-  it('targets nested block content instead of the parent block wrapper', () => {
-    const {view, updates} = createView(true, createNestedBlockDoc())
+  it('targets nested block content instead of the parent block wrapper in reading mode', () => {
+    const {view, updates} = createView(false, createNestedBlockDoc())
     const childContent = view.dom.querySelector('[data-id="child"] > [data-content-type="paragraph"]') as HTMLElement
 
     dispatchMouseMove(childContent)
@@ -135,8 +210,8 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'child'})
   })
 
-  it('hides over nested children gaps instead of falling back to the parent block', () => {
-    const {view, updates} = createView(true, createNestedBlockDoc())
+  it('hides over nested children gaps instead of falling back to the parent block in reading mode', () => {
+    const {view, updates} = createView(false, createNestedBlockDoc())
     const parentContent = view.dom.querySelector('[data-id="parent"] > [data-content-type="paragraph"]') as HTMLElement
     const childrenWrapper = view.dom.querySelector('[data-node-type="blockChildren"]') as HTMLElement
 
@@ -146,8 +221,8 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
     expect(updates.at(-1)).toMatchObject({show: false, blockId: null})
   })
 
-  it('keeps hover visible while crossing the current block gutter', () => {
-    const {view, updates} = createView(true)
+  it('keeps hover visible while crossing the current block gutter in reading mode', () => {
+    const {view, updates} = createView(false)
     const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
     const block = view.dom.querySelector('[data-id="block-1"]') as HTMLElement
     setRect(content, {right: 100})
@@ -158,28 +233,14 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
   })
 
-  it('keeps hover visible when leaving the editor through the current block gutter', () => {
-    const {view, updates} = createView(true)
-    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
-    setRect(content, {right: 100})
-
-    dispatchMouseMove(content)
-    view.dom.dispatchEvent(new MouseEvent('mouseleave', {clientX: 110, clientY: 10}))
-
-    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
-  })
-
-  it('keeps hover visible over a supernumber badge for the current block', () => {
-    const {view, updates} = createView(true)
-    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
+  it('keeps hover visible over a supernumber badge for the current block in reading mode', () => {
+    const {view, updates} = createView(false)
     const block = view.dom.querySelector('[data-id="block-1"]') as HTMLElement
     const badge = document.createElement('button')
     badge.className = 'bn-supernumber-badge'
     badge.dataset.blockId = 'block-1'
     block.appendChild(badge)
-    setRect(content, {right: 100})
 
-    dispatchMouseMove(content)
     dispatchMouseMove(badge)
 
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
