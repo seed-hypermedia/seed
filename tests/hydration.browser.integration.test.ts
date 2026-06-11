@@ -118,7 +118,12 @@ describe('Browser Hydration', () => {
       const context = await browser.newContext()
       const page = await context.newPage()
 
-      await page.goto(`${env.web.baseUrl}/`, {waitUntil: 'networkidle'})
+      const response = await page.goto(`${env.web.baseUrl}/`, {
+        waitUntil: 'domcontentloaded',
+      })
+      expect(response?.status()).toBeLessThan(500)
+      await page.waitForSelector('body', {state: 'attached'})
+      await page.waitForLoadState('networkidle')
 
       // Wait for hydration
       await page.waitForTimeout(2000)
@@ -128,12 +133,18 @@ describe('Browser Hydration', () => {
       const isHydrated = await page.evaluate(() => {
         // Check if React has hydrated by looking for React internal properties
         // on DOM elements (React attaches __reactFiber$ keys after hydration)
-        const body = document.body
-        const hasReactFiber = Object.keys(body).some(
-          (key) =>
-            key.startsWith('__reactFiber$') || key.startsWith('__reactProps$'),
+        const elements = [
+          document.documentElement,
+          document.body,
+          ...document.querySelectorAll('*'),
+        ].filter(Boolean) as Element[]
+        return elements.some((element) =>
+          Object.keys(element).some(
+            (key) =>
+              key.startsWith('__reactFiber$') ||
+              key.startsWith('__reactProps$'),
+          ),
         )
-        return hasReactFiber
       })
 
       expect(isHydrated, 'Expected React to have hydrated the page').toBe(true)
@@ -154,16 +165,23 @@ describe('Browser Hydration', () => {
       const context = await browser.newContext()
       const page = await context.newPage()
 
-      await page.goto(`${env.web.baseUrl}/`, {waitUntil: 'networkidle'})
+      const response = await page.goto(`${env.web.baseUrl}/`, {
+        waitUntil: 'domcontentloaded',
+      })
+      expect(response?.status()).toBeLessThan(500)
+      await page.waitForSelector('body', {state: 'attached'})
+      await page.waitForLoadState('networkidle')
 
       // Wait for hydration
       await page.waitForTimeout(2000)
 
       // Check that error boundary UI is not showing
       const errorBoundaryVisible = await page.evaluate(() => {
-        return document.body.textContent?.includes(
-          "Uh oh, it's not you, it's us",
-        )
+        const pageText =
+          document.body?.textContent ??
+          document.documentElement?.textContent ??
+          ''
+        return pageText.includes("Uh oh, it's not you, it's us")
       })
 
       expect(
