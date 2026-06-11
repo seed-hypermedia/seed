@@ -117,6 +117,7 @@ describe('Browser Hydration', () => {
 
       const context = await browser.newContext()
       const page = await context.newPage()
+      await page.setViewportSize({width: 390, height: 844})
 
       const response = await page.goto(`${env.web.baseUrl}/`, {
         waitUntil: 'domcontentloaded',
@@ -128,26 +129,25 @@ describe('Browser Hydration', () => {
       // Wait for hydration
       await page.waitForTimeout(2000)
 
-      // Check that the page is interactive by verifying React has mounted
-      // After hydration, React attaches event handlers and the page becomes interactive
-      const isHydrated = await page.evaluate(() => {
-        // Check if React has hydrated by looking for React internal properties
-        // on DOM elements (React attaches __reactFiber$ keys after hydration)
-        const elements = [
-          document.documentElement,
-          document.body,
-          ...document.querySelectorAll('*'),
-        ].filter(Boolean) as Element[]
-        return elements.some((element) =>
-          Object.keys(element).some(
-            (key) =>
-              key.startsWith('__reactFiber$') ||
-              key.startsWith('__reactProps$'),
-          ),
-        )
+      // Check that the page is interactive by exercising a hydrated control.
+      // Avoid React private internals here: their shape differs across prod
+      // builds/runtimes, while the mobile menu state change is user-visible.
+      const mobileMenuButton = page.locator('button:has(svg.lucide-menu)').first()
+      const mobileMenuPanel = page.locator('div.fixed.inset-0.z-50').first()
+      await mobileMenuButton.waitFor({state: 'visible'})
+      const initialTransform = await mobileMenuPanel.evaluate((element) => {
+        return getComputedStyle(element).transform
       })
-
-      expect(isHydrated, 'Expected React to have hydrated the page').toBe(true)
+      await mobileMenuButton.click()
+      await expect
+        .poll(
+          async () =>
+            mobileMenuPanel.evaluate((element) => {
+              return getComputedStyle(element).transform
+            }),
+          {timeout: 5_000},
+        )
+        .not.toBe(initialTransform)
 
       await context.close()
     },
