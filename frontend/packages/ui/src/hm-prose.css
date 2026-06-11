@@ -106,6 +106,27 @@
   transform: none;
 }
 
+/* Media inside Grid cells should stay constrained to the cell instead
+ * of using the document-level breakout positioning. */
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Grid']
+  > [data-node-type='blockNode']:has(> [data-content-type='image']),
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Grid']
+  > [data-node-type='blockNode']:has(> [data-content-type='video']),
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Grid']
+  > [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+.hm-prose
+  [data-node-type='blockChildren'][data-list-type='Grid']
+  > [data-node-type='blockNode']:has(> * > [data-content-type='video']) {
+  position: static;
+  left: auto;
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+}
+
 /* Headings ride the UI sans stack so they read as structure, not prose. */
 .hm-prose h1,
 .hm-prose h2,
