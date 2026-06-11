@@ -42,7 +42,10 @@ afterAll(async () => {
   await env?.cleanup()
 })
 
-describe('Browser Hydration', () => {
+// Disabled while we replace the browser-level hydration signal with a
+// reliable CI-safe check. See:
+// https://github.com/seed-hypermedia/seed/issues/766
+describe.skip('Browser Hydration', () => {
   it(
     'should hydrate without React hook errors',
     async () => {

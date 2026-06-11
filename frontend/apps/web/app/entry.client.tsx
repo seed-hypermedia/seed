@@ -45,20 +45,11 @@ if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
   Sentry.setTag('app', 'web')
 }
 
-function HydratedRemixBrowser() {
-  useEffect(() => {
-    document.documentElement.dataset.seedHydrated = 'true'
-    window.dispatchEvent(new Event('seed:hydrated'))
-  }, [])
-
-  return <RemixBrowser />
-}
-
 startTransition(() => {
   hydrateRoot(
     document,
     <StrictMode>
-      <HydratedRemixBrowser />
+      <RemixBrowser />
     </StrictMode>,
   )
 })
