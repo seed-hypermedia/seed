@@ -1,3 +1,4 @@
+import type {HMBlockImage} from '@seed-hypermedia/client/hm-types'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
@@ -5,7 +6,7 @@ import {
   HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -269,8 +270,21 @@ export function DocumentCard({
     return plainTextOfContent(entity?.document?.content)
   }, [showSummary, resolvedMetadata, entity?.document?.content])
 
-  const coverImage = resolvedMetadata?.cover
-  const iconImage = resolvedMetadata?.icon
+  const explicitCover = resolvedMetadata?.cover
+  const explicitIcon = resolvedMetadata?.icon
+  // When the doc has neither a cover nor an explicit icon, use
+  // the first image block found in its content.
+  const firstContentImage = useMemo(() => {
+    if (explicitCover || explicitIcon) return undefined
+    if (!entity?.document?.content?.length) return undefined
+    const block = findFirstBlock<HMBlockImage>(
+      entity.document.content,
+      (b): b is HMBlockImage => b.type === 'Image' && !!(b as any).link,
+    )
+    return block?.link || undefined
+  }, [explicitCover, explicitIcon, entity?.document?.content])
+  const coverImage = explicitCover || firstContentImage
+  const iconImage = explicitIcon
   const resolvedVisibility = visibility ?? entity?.document?.visibility
   const isPrivate = resolvedVisibility === 'PRIVATE'
   const doc = entity?.document
