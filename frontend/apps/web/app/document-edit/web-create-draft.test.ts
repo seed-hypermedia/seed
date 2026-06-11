@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import {indexedDB} from 'fake-indexeddb'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './web-create-draft'
@@ -69,7 +70,7 @@ describe('createWebDocumentDraft', () => {
     })
   })
 
-  it('creates a private draft at a generated private path', async () => {
+  it('creates a private draft at an opaque random path', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
       locationId: makeDocId('site', ['parent']),
@@ -77,16 +78,70 @@ describe('createWebDocumentDraft', () => {
       visibility: 'PRIVATE',
       navigate,
       generateDraftId: () => 'draft-2',
-      generatePath: () => 'private-path',
+      generatePath: () => 'random-path-21',
     })
 
-    expect(routeId.path).toEqual(['private-path'])
+    expect(routeId.path).toEqual(['random-path-21'])
+    expect(getDraftReturnParentId('draft-2')).toMatchObject({uid: 'site', path: []})
 
     const draft = await getWebDocDraft('draft-2')
     expect(draft).toMatchObject({
       draftId: 'draft-2',
-      locationPath: ['private-path'],
-      editPath: ['private-path'],
+      locationPath: ['random-path-21'],
+      editPath: ['random-path-21'],
+      visibility: 'PRIVATE',
+    })
+  })
+
+  it('removes leading dashes from generated private draft paths', async () => {
+    const {routeId} = await createWebDocumentDraft({
+      locationId: makeDocId('site', ['parent']),
+      signingAccountId: 'author',
+      visibility: 'PRIVATE',
+      generateDraftId: () => 'draft-3',
+      generatePath: () => '-random-private-route',
+    })
+
+    expect(routeId.path).toEqual(['random-private-route'])
+  })
+
+  it('can navigate to a public child draft route without persisting an empty draft', async () => {
+    const navigate = vi.fn()
+    const {routeId, draftId} = await createWebDocumentDraft({
+      locationId: makeDocId('site', ['parent']),
+      signingAccountId: 'author',
+      visibility: 'PUBLIC',
+      navigate,
+      persist: false,
+      generateDraftId: () => 'lazy-draft',
+    })
+
+    expect(draftId).toBe('lazy-draft')
+    expect(routeId.path).toEqual(['parent', '-lazy-draft'])
+    expect(navigate).toHaveBeenCalledWith({key: 'document', id: routeId})
+    await expect(getWebDocDraft('lazy-draft')).resolves.toBeNull()
+    expect(isReservedLazyDraftId('lazy-draft')).toBe(true)
+  })
+
+  it('persists private draft routes even when lazy navigation is requested', async () => {
+    const navigate = vi.fn()
+    const {routeId, draftId} = await createWebDocumentDraft({
+      locationId: makeDocId('site', ['parent']),
+      signingAccountId: 'author',
+      visibility: 'PRIVATE',
+      navigate,
+      persist: false,
+      generateDraftId: () => 'lazy-private',
+      generatePath: () => 'random-private-route',
+    })
+
+    expect(draftId).toBe('lazy-private')
+    expect(routeId.path).toEqual(['random-private-route'])
+    expect(navigate).toHaveBeenCalledWith({key: 'document', id: routeId})
+    await expect(getWebDocDraft('lazy-private')).resolves.toMatchObject({
+      draftId: 'lazy-private',
+      locationPath: ['random-private-route'],
+      editPath: ['random-private-route'],
       visibility: 'PRIVATE',
     })
   })

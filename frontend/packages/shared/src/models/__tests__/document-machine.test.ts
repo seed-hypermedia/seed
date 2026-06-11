@@ -1360,6 +1360,98 @@ describe('DocumentLifecycle machine', () => {
     })
   })
 
+  describe('lazy draft creation', () => {
+    it('reserved draft id auto-enters editing but is not treated as persisted until first autosave', async () => {
+      const writeCalls: any[] = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async ({input}) => {
+            writeCalls.push(input)
+            return {id: input.draftId}
+          }),
+          publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+          discardDraft: fromPromise<void, any>(async () => {}),
+        },
+        delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+      })
+      const actor = createActor(machine, {
+        input: {documentId: mockDocumentId, canEdit: true, reservedDraftId: 'reserved-draft'},
+      })
+
+      actor.start()
+      actor.send({type: 'document.loaded', document: mockDocument})
+
+      expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+      expect(actor.getSnapshot().context.draftId).toBe('reserved-draft')
+      expect(actor.getSnapshot().context.draftCreated).toBe(false)
+      expect(writeCalls).toHaveLength(0)
+
+      actor.send({type: 'change'})
+      await new Promise((r) => setTimeout(r, 30))
+
+      expect(writeCalls).toHaveLength(1)
+      expect(writeCalls[0].draftId).toBe('reserved-draft')
+      expect(actor.getSnapshot().context.draftCreated).toBe(true)
+      actor.stop()
+    })
+
+    it('discarding a reserved draft before the first save does not call delete', async () => {
+      const discardCalls: any[] = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async ({input}) => ({id: input.draftId})),
+          publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+          discardDraft: fromPromise<void, any>(async ({input}) => {
+            discardCalls.push(input)
+          }),
+        },
+      })
+      const actor = createActor(machine, {
+        input: {documentId: mockDocumentId, canEdit: true, reservedDraftId: 'reserved-draft'},
+      })
+
+      actor.start()
+      actor.send({type: 'document.loaded', document: mockDocument})
+      actor.send({type: 'edit.discard'})
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(discardCalls).toHaveLength(0)
+      expect(actor.getSnapshot().value).toBe('loaded')
+      expect(actor.getSnapshot().context.draftId).toBeNull()
+      actor.stop()
+    })
+
+    it('publish while changed with a reserved draft creates the draft before publishing it', async () => {
+      const publishCalls: any[] = []
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise<{id: string}, any>(async ({input}) => ({id: input.draftId})),
+          publishDocument: fromPromise<HMDocument, any>(async ({input}) => {
+            publishCalls.push(input)
+            return {...mockDocument, version: 'bafylazy'}
+          }),
+          discardDraft: fromPromise<void, any>(async () => {}),
+        },
+        delays: {autosaveTimeout: 1000, saveIndicatorDismiss: 10},
+      })
+      const actor = createActor(machine, {
+        input: {documentId: mockDocumentId, canEdit: true, reservedDraftId: 'reserved-draft'},
+      })
+
+      actor.start()
+      actor.send({type: 'document.loaded', document: mockDocument})
+      actor.send({type: 'change'})
+      actor.send({type: 'publish.start'})
+
+      await new Promise((r) => setTimeout(r, 50))
+
+      expect(publishCalls).toHaveLength(1)
+      expect(publishCalls[0].draftId).toBe('reserved-draft')
+      expect(actor.getSnapshot().value).toBe('loaded')
+      actor.stop()
+    })
+  })
+
   describe('transient resource error', () => {
     it('resource.transientError on loaded keeps state in loaded and stores the error', () => {
       const actor = createTestActor()

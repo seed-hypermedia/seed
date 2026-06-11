@@ -151,11 +151,13 @@ export function useWebCreateDocumentMenuItem({
   locationId,
   signingAccountId,
   canCreate,
+  canCreateChildren = true,
   capabilityCid,
 }: {
   locationId: UnpackedHypermediaId
   signingAccountId?: string
   canCreate: boolean
+  canCreateChildren?: boolean
   capabilityCid?: string
 }): {
   menuItem: MenuItemType | null
@@ -177,6 +179,7 @@ export function useWebCreateDocumentMenuItem({
         signingAccountId,
         visibility,
         capabilityCid,
+        persist: false,
         navigate: (route) => navigate(route),
       })
     },
@@ -184,7 +187,7 @@ export function useWebCreateDocumentMenuItem({
   )
 
   const menuItem = useMemo<MenuItemType | null>(() => {
-    if (!canCreate || !signingAccountId) return null
+    if (!canCreate || !canCreateChildren || !signingAccountId) return null
     return {
       key: 'new',
       label: 'New',
@@ -210,12 +213,12 @@ export function useWebCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreate, createDraft, signingAccountId])
+  }, [canCreate, canCreateChildren, createDraft, signingAccountId])
 
   return {
     menuItem,
     content:
-      canCreate && signingAccountId ? (
+      canCreate && canCreateChildren && signingAccountId ? (
         <input
           ref={importInputRef}
           type="file"

@@ -17,7 +17,13 @@ import {ReactNode, useCallback, useMemo} from 'react'
 import {useImportDialog, useImporting} from './import-doc-button'
 
 /** Builds the document creation submenu item and its dialog content for the document options menu. */
-export function useCreateDocumentMenuItem({locationId}: {locationId: UnpackedHypermediaId}): {
+export function useCreateDocumentMenuItem({
+  locationId,
+  canCreateChildren = true,
+}: {
+  locationId: UnpackedHypermediaId
+  canCreateChildren?: boolean
+}): {
   menuItem: MenuItemType | null
   content: ReactNode
 } {
@@ -44,7 +50,7 @@ export function useCreateDocumentMenuItem({locationId}: {locationId: UnpackedHyp
 
   const menuItem = useMemo<MenuItemType | null>(() => {
     if (!myAccountIds.data?.length) return null
-    if (!canEdit) return null
+    if (!canEdit || !canCreateChildren) return null
 
     return {
       key: 'new',
@@ -75,7 +81,7 @@ export function useCreateDocumentMenuItem({locationId}: {locationId: UnpackedHyp
         },
       ],
     }
-  }, [canEdit, createDraft, myAccountIds.data?.length, openImportDialog])
+  }, [canCreateChildren, canEdit, createDraft, myAccountIds.data?.length, openImportDialog])
 
   return {
     menuItem,

@@ -15,7 +15,7 @@ import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
-import {shouldBypassServerDocumentFetchForWebDraftPath} from '@/document-edit/web-draft-path'
+import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -302,7 +302,16 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   let accountUid: string | null = null
 
   // Determine document type based on URL pattern
-  if (pathParts[0] === 'hm' && pathParts.length > 1) {
+  if (pathParts[0] === 'hm' && isSiteProfileTab(pathParts[1])) {
+    // Backward-compatible utility profile URLs: /hm/profile/:accountUid.
+    viewTerm = pathParts[1]
+    accountUid = pathParts[2] || registeredAccountUid
+    documentId = hmId(registeredAccountUid, {
+      path: [],
+      version,
+      latest,
+    })
+  } else if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...) or inspector document (/hm/inspect/uid/path...)
     const inspectResult = extractInspectPrefixFromPath(pathParts, true)
     isInspect = inspectResult.isInspect
@@ -354,7 +363,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     instrumentationCtx: ctx,
   }
 
-  const shouldLoadLocalDraftShell = shouldBypassServerDocumentFetchForWebDraftPath({
+  const shouldLoadLocalDraftShell = shouldBypassServerDocumentFetchForWebDraftShell({
     path: documentId.path,
     isInspect,
     version,

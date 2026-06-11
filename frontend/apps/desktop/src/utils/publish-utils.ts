@@ -133,7 +133,7 @@ export function computeNewDraftParams(
   if (visibility === 'PRIVATE') {
     const locationUid = draftParams.locationUid || selectedAccountId
     if (!locationUid) return null
-    const privatePath = generatePath()
+    const privatePath = generatePath().replace(/^-+/, '')
     return {
       draftId,
       writeParams: {

@@ -8,10 +8,6 @@ export default defineConfig({
     globals: true,
     // Run integration tests sequentially to avoid shared resource conflicts
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    fileParallelism: false,
   },
 })

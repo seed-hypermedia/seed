@@ -12,6 +12,7 @@ import {
 import {hmId} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {rememberDraftReturnParentId, rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
 import {putWebDocDraft} from './web-draft-db'
@@ -42,6 +43,7 @@ export async function createWebDocumentDraft({
   content,
   metadata,
   navigate,
+  persist = true,
   generateDraftId = () => nanoid(10),
   generatePath = () => nanoid(21),
   capabilityCid,
@@ -53,11 +55,13 @@ export async function createWebDocumentDraft({
   metadata?: HMMetadata
   capabilityCid?: string
   navigate?: (route: WebDocumentDraftRoute) => void
+  persist?: boolean
   generateDraftId?: () => string
   generatePath?: () => string
 }): Promise<CreateWebDocumentDraftResult> {
   const draftId = generateDraftId()
   const isPrivate = visibility === 'PRIVATE'
+  const shouldPersist = persist || isPrivate
 
   let locationPath: string[]
   let editPath: string[]
@@ -65,7 +69,7 @@ export async function createWebDocumentDraft({
   let writeContent: HMBlockNode[]
 
   if (isPrivate) {
-    locationPath = [generatePath()]
+    locationPath = [generatePath().replace(/^-+/, '')]
     editPath = locationPath
     writeMetadata = metadata ?? {}
     writeContent = content ?? []
@@ -83,24 +87,33 @@ export async function createWebDocumentDraft({
   const routeId = hmId(locationId.uid, {path: editPath})
   const isNavigatedPublicDraft = !isPrivate && !!navigate
 
-  await putWebDocDraft({
-    draftId,
-    docId: routeId.id,
-    signingAccountId,
-    ...(capabilityCid ? {capabilityCid} : {}),
-    content: writeContent,
-    metadata: writeMetadata,
-    deps: [],
-    navigation: null,
-    locationUid: locationId.uid,
-    locationPath,
-    editUid: isNavigatedPublicDraft ? null : locationId.uid,
-    editPath: isNavigatedPublicDraft ? null : editPath,
-    cursorPosition: null,
-    visibility,
-  })
-  invalidateQueries([queryKeys.DRAFTS_LIST])
-  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, locationId.uid])
+  if (!shouldPersist) {
+    rememberReservedLazyDraftId(draftId)
+  }
+  if (isPrivate) {
+    rememberDraftReturnParentId(draftId, hmId(locationId.uid))
+  }
+
+  if (shouldPersist) {
+    await putWebDocDraft({
+      draftId,
+      docId: routeId.id,
+      signingAccountId,
+      ...(capabilityCid ? {capabilityCid} : {}),
+      content: writeContent,
+      metadata: writeMetadata,
+      deps: [],
+      navigation: null,
+      locationUid: locationId.uid,
+      locationPath,
+      editUid: isNavigatedPublicDraft ? null : locationId.uid,
+      editPath: isNavigatedPublicDraft ? null : editPath,
+      cursorPosition: null,
+      visibility,
+    })
+    invalidateQueries([queryKeys.DRAFTS_LIST])
+    invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, locationId.uid])
+  }
 
   console.log('[web-create-doc] createWebDocumentDraft', {
     locationId: locationId.id,

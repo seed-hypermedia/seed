@@ -47,7 +47,8 @@ export function useDraftsForAccountSafe(uid: string | undefined): {
 /** Return true when a path ends with the exact placeholder segment for a draft ID. */
 export function isDraftPlaceholderPath(path: string[] | undefined | null, draftId: string | undefined | null): boolean {
   if (!draftId) return false
-  return path?.at(-1) === `-${draftId}`
+  const last = path?.at(-1)
+  return last === `-${draftId}` || last === `-private-${draftId}`
 }
 
 /**

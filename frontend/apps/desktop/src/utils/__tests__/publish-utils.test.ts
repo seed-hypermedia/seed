@@ -375,12 +375,24 @@ describe('computeNewDraftParams', () => {
     expect(result?.routeId.uid).toBe('selected-account-uid')
   })
 
+  it('removes leading dashes from generated private paths', () => {
+    const result = computeNewDraftParams(
+      'PRIVATE',
+      {locationUid: 'location-uid'},
+      undefined,
+      mockGenerateId,
+      () => '-random-path-21',
+    )
+    expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
+    expect(result?.routeId.path).toEqual(['random-path-21'])
+  })
+
   it('private doc returns null when no locationUid and no selectedAccountId', () => {
     const result = computeNewDraftParams('PRIVATE', {}, undefined, mockGenerateId, mockGeneratePath)
     expect(result).toBeNull()
   })
 
-  it('private doc ignores draftParams.locationPath and uses random path', () => {
+  it('private doc ignores draftParams.locationPath and uses a random path', () => {
     const result = computeNewDraftParams(
       'PRIVATE',
       {locationUid: 'location-uid', locationPath: ['existing', 'path']},

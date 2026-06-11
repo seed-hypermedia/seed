@@ -2,6 +2,7 @@ import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {
   getCommentReplyPanelRoute,
+  hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
   shouldUseDraftForRenderedDocument,
 } from '../resource-page-common'
@@ -146,6 +147,44 @@ describe('shouldUseDraftForRenderedDocument', () => {
       shouldUseDraftForRenderedDocument({
         docId: hmId('alice', {path: ['doc']}),
         existingDraft: false,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('hasUnpublishedDraftForResourceState', () => {
+  it('treats a reserved draft id as an unpublished draft even while the resource query is initially loading', () => {
+    expect(
+      hasUnpublishedDraftForResourceState({
+        existingDraft: false,
+        reservedDraftId: 'draft-1',
+        resourceFetchId: null,
+        resourceIsDiscovering: false,
+        resourceData: undefined,
+      }),
+    ).toBe(true)
+  })
+
+  it('treats a reserved draft id as unpublished while existing draft lookup is still settling', () => {
+    expect(
+      hasUnpublishedDraftForResourceState({
+        existingDraft: undefined,
+        reservedDraftId: 'draft-1',
+        resourceFetchId: null,
+        resourceIsDiscovering: false,
+        resourceData: undefined,
+      }),
+    ).toBe(true)
+  })
+
+  it('does not treat a missing draft as unpublished without an existing or reserved draft', () => {
+    expect(
+      hasUnpublishedDraftForResourceState({
+        existingDraft: false,
+        reservedDraftId: null,
+        resourceFetchId: null,
+        resourceIsDiscovering: false,
+        resourceData: undefined,
       }),
     ).toBe(false)
   })

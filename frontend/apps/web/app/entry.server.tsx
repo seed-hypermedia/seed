@@ -302,11 +302,34 @@ export function handleFullRequest(
   loadContext: AppLoadContext,
   onComplete: (msg: string) => void,
 ) {
+  ensureByteServerHandoffStream(remixContext)
   let prohibitOutOfOrderStreaming = isBotRequest(request.headers.get('user-agent')) || remixContext.isSpaMode
 
   return prohibitOutOfOrderStreaming
     ? handleBotRequest(request, responseStatusCode, responseHeaders, remixContext, onComplete)
     : handleBrowserRequest(request, responseStatusCode, responseHeaders, remixContext, onComplete)
+}
+
+function ensureByteServerHandoffStream(remixContext: EntryContext) {
+  const serverHandoffStream = remixContext.serverHandoffStream as ReadableStream<Uint8Array | string> | undefined
+  if (!serverHandoffStream) return
+
+  const reader = serverHandoffStream.getReader()
+  const encoder = new TextEncoder()
+
+  remixContext.serverHandoffStream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const {done, value} = await reader.read()
+      if (done) {
+        controller.close()
+        return
+      }
+      controller.enqueue(typeof value === 'string' ? encoder.encode(value) : value)
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
 }
 
 // We have some Remix apps in the wild already running with isbot@3 so we need

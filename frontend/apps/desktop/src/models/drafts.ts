@@ -1,6 +1,6 @@
 import {HMDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, NavRoute, pathMatches} from '@shm/shared'
-import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {getDraftIdFromDraftPathSegment, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {useDraft} from '@/models/accounts'
 import {isLocationOnlyDraftRoute} from '@/utils/draft-route'
 import {useEffect, useRef, useState} from 'react'
@@ -30,7 +30,7 @@ export function useExistingDraft(route: NavRoute) {
   const id = getRouteResourceId(route)
   const drafts = useAccountDraftList(id?.uid)
   const lastPathSegment = id?.path?.at(-1)
-  const placeholderDraftId = isDraftPathSegment(lastPathSegment) ? lastPathSegment!.slice(1) : undefined
+  const placeholderDraftId = getDraftIdFromDraftPathSegment(lastPathSegment) ?? undefined
   const placeholderDraft = useDraft(placeholderDraftId)
   const placeholderRouteId = id && placeholderDraftId ? id.id : null
   const checkedMissingPlaceholderRef = useRef<string | null>(null)

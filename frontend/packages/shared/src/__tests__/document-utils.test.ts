@@ -1,6 +1,20 @@
 import {describe, expect, it, vi} from 'vitest'
 import {Comment, Document} from '../client'
-import {prepareHMComment, prepareHMDocument} from '../document-utils'
+import {canCreateChildDocuments, prepareHMComment, prepareHMDocument} from '../document-utils'
+
+describe('canCreateChildDocuments', () => {
+  it('allows child creation for public documents without a private draft', () => {
+    expect(canCreateChildDocuments('PUBLIC')).toBe(true)
+  })
+
+  it('blocks child creation for private published documents', () => {
+    expect(canCreateChildDocuments('PRIVATE')).toBe(false)
+  })
+
+  it('blocks child creation when the local draft is private', () => {
+    expect(canCreateChildDocuments('PUBLIC', 'PRIVATE')).toBe(false)
+  })
+})
 
 describe('prepareHMDocument', () => {
   it('returns parsed document when schema validation succeeds', () => {

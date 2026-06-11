@@ -3,7 +3,8 @@
 /** Return the local draft id encoded by a placeholder segment like `-abc123`. */
 export function getWebDraftPlaceholderIdFromSegment(segment: string | null | undefined): string | null {
   if (!segment?.startsWith('-')) return null
-  const draftId = segment.slice(1)
+  const privatePrefix = '-private-'
+  const draftId = segment.startsWith(privatePrefix) ? segment.slice(privatePrefix.length) : segment.slice(1)
   return draftId.length > 0 ? draftId : null
 }
 
@@ -17,6 +18,11 @@ export function isWebDraftPlaceholderPath(path: string[] | null | undefined, dra
   const placeholderDraftId = getWebDraftPlaceholderId(path)
   if (!placeholderDraftId) return false
   return draftId ? placeholderDraftId === draftId : true
+}
+
+/** Return true when the route points at a private draft placeholder. */
+export function isWebPrivateDraftPlaceholderPath(path: string[] | null | undefined): boolean {
+  return !!path?.at(-1)?.startsWith('-private-')
 }
 
 /** Return true when the route should avoid fetching a placeholder draft from the backend. */
