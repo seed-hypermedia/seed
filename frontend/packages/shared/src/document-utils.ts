@@ -4,6 +4,14 @@ import {documentMetadataParseAdjustments} from './models/entity'
 
 const REQUIRES_LINK_TYPES = new Set(['Link', 'Image', 'Video', 'File', 'WebEmbed', 'Nostr', 'Embed', 'Button'])
 
+/** Returns whether a document can create child documents from its current published/draft visibility. */
+export function canCreateChildDocuments(
+  documentVisibility?: HMDocument['visibility'],
+  draftVisibility?: HMDocument['visibility'],
+): boolean {
+  return documentVisibility !== 'PRIVATE' && draftVisibility !== 'PRIVATE'
+}
+
 function sanitizeBlockNode(node: any, isNavigationChild: boolean = false): any | null {
   if (!node || typeof node !== 'object') return null
   const block = node.block

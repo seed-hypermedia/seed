@@ -12,7 +12,7 @@ import {
 import {hmId} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {rememberDraftReturnParentId, rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
 import {putWebDocDraft} from './web-draft-db'
@@ -45,6 +45,7 @@ export async function createWebDocumentDraft({
   navigate,
   persist = true,
   generateDraftId = () => nanoid(10),
+  generatePath = () => nanoid(21),
   capabilityCid,
 }: {
   locationId: UnpackedHypermediaId
@@ -60,6 +61,7 @@ export async function createWebDocumentDraft({
 }): Promise<CreateWebDocumentDraftResult> {
   const draftId = generateDraftId()
   const isPrivate = visibility === 'PRIVATE'
+  const shouldPersist = persist || isPrivate
 
   let locationPath: string[]
   let editPath: string[]
@@ -67,7 +69,7 @@ export async function createWebDocumentDraft({
   let writeContent: HMBlockNode[]
 
   if (isPrivate) {
-    locationPath = [`-private-${draftId}`]
+    locationPath = [generatePath().replace(/^-+/, '')]
     editPath = locationPath
     writeMetadata = metadata ?? {}
     writeContent = content ?? []
@@ -85,11 +87,14 @@ export async function createWebDocumentDraft({
   const routeId = hmId(locationId.uid, {path: editPath})
   const isNavigatedPublicDraft = !isPrivate && !!navigate
 
-  if (!persist) {
+  if (!shouldPersist) {
     rememberReservedLazyDraftId(draftId)
   }
+  if (isPrivate) {
+    rememberDraftReturnParentId(draftId, hmId(locationId.uid))
+  }
 
-  if (persist) {
+  if (shouldPersist) {
     await putWebDocDraft({
       draftId,
       docId: routeId.id,

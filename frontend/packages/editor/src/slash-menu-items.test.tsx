@@ -2,6 +2,13 @@ import {describe, expect, it, vi} from 'vitest'
 import {getSlashMenuItems} from './slash-menu-items'
 
 describe('getSlashMenuItems', () => {
+  it('omits New document when inline draft creation is unavailable', () => {
+    const items = getSlashMenuItems({
+      docId: {id: 'hm://uid/private', uid: 'uid', path: ['private'], version: null, blockRef: null} as any,
+    })
+
+    expect(items.find((item) => item.name === 'New document')).toBeUndefined()
+  })
   it('keeps the cursor in a newly inserted code block', () => {
     const currentBlock = {id: 'block-1', content: []}
     const tr = {scrollIntoView: vi.fn(() => 'scroll-tr')}

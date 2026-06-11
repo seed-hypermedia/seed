@@ -1,18 +1,20 @@
 import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
+import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
+import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
-import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {useQuery} from '@tanstack/react-query'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
@@ -45,7 +47,7 @@ import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot
 import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
 import {makeWebFileUpload} from './document-edit/web-image-upload'
 import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
-import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath} from './document-edit/web-draft-path'
+import {getWebDraftShellId, shouldUseLocalWebDraftShell} from './document-edit/web-draft-shell'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -146,7 +148,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [])
 
-  const placeholderDraftId = useMemo(() => getWebDraftPlaceholderId(docId.path), [docId.path])
+  const placeholderDraftId = useMemo(() => getWebDraftShellId(docId.path), [docId.path])
 
   // Load any local IDB draft for this doc. Placeholder draft URLs must load by
   // exact draft id instead of asking the backend for the nonexistent document.
@@ -211,9 +213,13 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
   }, [effectiveCanEdit, draftQuery.isLoading, draftData, isDraftStale])
   const reservedDraftId =
-    placeholderDraftId && !draftData && (existingDraft === false || isReservedLazyDraftId(placeholderDraftId))
-      ? placeholderDraftId
-      : null
+    placeholderDraftId && !draftData && isReservedLazyDraftId(placeholderDraftId) ? placeholderDraftId : null
+  const useLocalDraftShell = shouldUseLocalWebDraftShell({
+    placeholderDraftId,
+    isDraftLoading: draftQuery.isInitialLoading || draftQuery.isFetching,
+    hasDraft: !!draftData && !isDraftStale,
+    isReservedDraft: !!reservedDraftId,
+  })
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
 
@@ -281,16 +287,16 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           hostname: origin || null,
           originHomeId: originHomeId ?? undefined,
         }),
-      onDiscardConfirm: (draftId: string, send) => {
+      onDiscardConfirm: (discardDraftId: string, send) => {
         if (window.confirm('Discard draft changes?')) {
           send({type: 'edit.discard'})
-          const nextId = isWebDraftPlaceholderPath(docId.path, draftId)
-            ? hmId(docId.uid, {path: docId.path?.slice(0, -1)})
-            : {...docId, version: null}
-          replaceRouteRef.current({
-            ...(route.key === 'document' ? route : {key: 'document'}),
-            id: nextId,
-          } as any)
+          const parentId = getDraftPlaceholderParentId(docId, discardDraftId) ?? getDraftReturnParentId(discardDraftId)
+          if (parentId) {
+            replaceRoute({
+              ...(route.key === 'document' ? route : {key: 'document'}),
+              id: parentId,
+            } as any)
+          }
           toast.success('Draft changes discarded')
         }
       },
@@ -304,7 +310,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         } as any)
       },
     }),
-    [origin, originHomeId, navigate, docId, route],
+    [origin, originHomeId, navigate, replaceRoute, docId, route],
   )
 
   const showPublishToolbar = route.key === 'document'
@@ -317,10 +323,14 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       : undefined
 
   const siteUid = docId.uid
+  const currentResource = useResource(useLocalDraftShell ? undefined : docId)
+  const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
+  const canCreateChildDocs = canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
   const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
     locationId: docId,
     signingAccountId: signingAccountId ?? undefined,
     canCreate: effectiveCanEdit && !!signingAccountId,
+    canCreateChildren: canCreateChildDocs,
     capabilityCid: effectiveCapabilityCid,
   })
   const webMenuItems = useWebMenuItems(docId, {includeInspect: false})
@@ -382,7 +392,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   })
 
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
-  const canCreateInlineDraft = !placeholderDraftId
+  const canCreateInlineDraft = !useLocalDraftShell && canCreateChildDocs
 
   return (
     <WebSitePageShell siteUid={docId.uid}>
@@ -410,7 +420,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
               <WebDraftBreadcrumbProvider>
                 <ResourcePage
                   docId={docId}
-                  resourceId={placeholderDraftId ? null : docId}
+                  resourceId={useLocalDraftShell ? null : docId}
                   CommentEditor={CommentEditor}
                   pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
                   onEditProfile={onEditProfile}

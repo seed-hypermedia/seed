@@ -47,6 +47,7 @@ import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, hostnameStripProtocol, unpackHmId, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
@@ -520,8 +521,10 @@ export default function DesktopResourcePage() {
 
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const canCreateChildDocs = canCreateChildDocuments(doc?.visibility, draftData?.visibility)
   const {menuItem: newMenuItem, content: newMenuContent} = useCreateDocumentMenuItem({
     locationId: docId,
+    canCreateChildren: canCreateChildDocs,
   })
 
   // Bottom-of-doc "draft cards" — disabled while inline-draft UX is still
@@ -856,7 +859,9 @@ export default function DesktopResourcePage() {
           {/*
             Allow creating inline child drafts only when the current doc has a published version
           */}
-          <DesktopDraftActionsProvider canCreateInlineDraft={!existingDraft || !existingDraft.locationUid}>
+          <DesktopDraftActionsProvider
+            canCreateInlineDraft={canCreateChildDocs && (!existingDraft || !existingDraft.locationUid)}
+          >
             <DesktopDraftBreadcrumbProvider>
               <QueryBlockDraftsProvider
                 DraftSlot={DesktopQueryBlockDraftSlot}

@@ -74,7 +74,7 @@ export function DeleteDocumentDialog({
   return (
     <div
       className={cn(
-        'bg-background flex max-h-[min(720px,calc(100dvh-2rem))] w-[min(92vw,520px)] flex-col overflow-hidden rounded-lg',
+        
         className,
       )}
     >

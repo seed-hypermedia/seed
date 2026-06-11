@@ -35,7 +35,7 @@ import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/mode
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {rememberDraftReturnParentId, rememberReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {
   compareBlocksWithMap,
   createBlocksMap,
@@ -1037,7 +1037,20 @@ export function useCreateDraft(
       () => nanoid(21),
     )
     if (!plan) return
-    rememberReservedLazyDraftId(plan.draftId)
+    if (visibility === 'PRIVATE') {
+      rememberDraftReturnParentId(plan.draftId, hmId(plan.routeId.uid))
+      await client.drafts.write.mutate({
+        ...plan.writeParams,
+        signingAccount: selectedAccountId ?? undefined,
+        metadata: {},
+        content: [],
+        deps: [],
+      })
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, plan.routeId.uid])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+    } else {
+      rememberReservedLazyDraftId(plan.draftId)
+    }
     navigate({key: 'document', id: plan.routeId})
   }
 }

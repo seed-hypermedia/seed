@@ -15,7 +15,7 @@ import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
-import {shouldBypassServerDocumentFetchForWebDraftPath} from '@/document-edit/web-draft-path'
+import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -354,7 +354,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     instrumentationCtx: ctx,
   }
 
-  const shouldLoadLocalDraftShell = shouldBypassServerDocumentFetchForWebDraftPath({
+  const shouldLoadLocalDraftShell = shouldBypassServerDocumentFetchForWebDraftShell({
     path: documentId.path,
     isInspect,
     version,

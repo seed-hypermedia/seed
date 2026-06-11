@@ -114,7 +114,7 @@ export function computeNewDraftParams(
   },
   selectedAccountId: string | undefined,
   generateId: () => string,
-  _generatePath: () => string,
+  generatePath: () => string,
 ): {
   draftId: string
   writeParams: {
@@ -133,7 +133,7 @@ export function computeNewDraftParams(
   if (visibility === 'PRIVATE') {
     const locationUid = draftParams.locationUid || selectedAccountId
     if (!locationUid) return null
-    const privatePath = `-private-${draftId}`
+    const privatePath = generatePath().replace(/^-+/, '')
     return {
       draftId,
       writeParams: {

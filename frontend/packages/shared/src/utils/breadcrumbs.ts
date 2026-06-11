@@ -23,6 +23,18 @@ export function isPrivateDraftPathSegment(segment: string | undefined | null): b
   return !!segment && segment.startsWith('-private-')
 }
 
+/** Return the parent document id when the current id points at a draft placeholder segment. */
+export function getDraftPlaceholderParentId(
+  docId: UnpackedHypermediaId,
+  draftId: string | undefined | null,
+): UnpackedHypermediaId | null {
+  if (!draftId) return null
+  const path = docId.path ?? []
+  const last = path.at(-1)
+  if (last !== `-${draftId}` && last !== `-private-${draftId}`) return null
+  return hmId(docId.uid, {path: path.slice(0, -1)})
+}
+
 export function getParentPaths(path?: string[] | null): string[][] {
   if (!path) return [[]]
   let walkParentPaths: string[] = []
