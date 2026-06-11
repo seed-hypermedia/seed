@@ -541,6 +541,42 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleTab = () =>
       this.editor.commands.first(({commands}) => [
+        // If the current block's previous sibling is a table, create an empty paragraph
+        // blockNode, and indent a group under it.
+        () =>
+          commands.command(({state, tr, dispatch}) => {
+            if (isInGridContainer(state, state.selection.from)) return false
+
+            let blockInfo
+            try {
+              blockInfo = getBlockInfoFromSelection(state)
+            } catch {
+              return false
+            }
+
+            const prevSibling = state.doc.resolve(blockInfo.block.beforePos).nodeBefore
+            if (!prevSibling || prevSibling.firstChild?.type.name !== 'table') {
+              return false
+            }
+
+            if (dispatch) {
+              const blockNodeType = state.schema.nodes['blockNode']
+              const paragraphType = state.schema.nodes['paragraph']
+              const blockChildrenType = state.schema.nodes['blockChildren']
+
+              const emptyParagraph = paragraphType!.create()
+              const innerChildren = blockChildrenType!.create({listType: 'Group', listLevel: '1'}, blockInfo.block.node)
+              const wrappingBlock = blockNodeType!.create(null, [emptyParagraph, innerChildren])
+
+              tr.replaceWith(blockInfo.block.beforePos, blockInfo.block.afterPos, wrappingBlock)
+
+              // The original block is now two structural levels deeper, which is 4 added positions.
+              const newFrom = state.selection.from + 4
+              tr.setSelection(TextSelection.near(tr.doc.resolve(newFrom)))
+              tr.scrollIntoView()
+            }
+            return true
+          }),
         () =>
           commands.command(({state}) => {
             // Prevent indent inside Grid containers

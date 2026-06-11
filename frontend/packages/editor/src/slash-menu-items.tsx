@@ -190,22 +190,6 @@ export function getSlashMenuItems({
       selectInsertedBlock(editor)
     },
   })
-  slashMenuItems.push({
-    name: 'Table',
-    aliases: ['table', 'grid', 'rows', 'columns'],
-    group: 'Text blocks',
-    icon: <TableIcon size={18} />,
-    hint: 'Insert a 3×3 table',
-    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
-      // The table extension exposes `insertTable` on the
-      // Tiptap editor. Going through the Tiptap command rather than
-      // `insertOrUpdateBlock` lets the extension create the full
-      // `table > tableRow > tableCell` PM tree itself.
-      editor._tiptapEditor.commands.insertTable({rows: 3, cols: 3, withHeaderRow: true})
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
 
   // Media blocks
   slashMenuItems.push({
@@ -372,6 +356,19 @@ export function getSlashMenuItems({
         })
       }
 
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
+    name: 'Table',
+    aliases: ['table', 'cells', 'rows', 'columns'],
+    group: 'Layout',
+    icon: <TableIcon size={18} />,
+    hint: 'Insert a 3×3 table',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      // The vendored insertTable command handles container aware insertion of the table.
+      editor._tiptapEditor.commands.insertTable({rows: 3, cols: 3, withHeaderRow: true})
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },

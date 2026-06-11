@@ -16,13 +16,14 @@ import {
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
+import {CellSelection} from '@tiptap/pm/tables'
 import {ChevronDown, FileText, Link, ListChecks, MessageSquare} from 'lucide-react'
 import {TextSelection} from 'prosemirror-state'
 import {useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
-import {prosemirrorPosToBlockTextOffset} from './blocknote/core/extensions/RangeSelection/RangeSelectionPlugin'
-import {getNearestBlockPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getNearestBlockOrCellPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import {prosemirrorPosToBlockTextOffset} from './blocknote/core/extensions/RangeSelection/RangeSelectionPlugin'
 import {
   BlockTypeDropdownItem,
   FormattingToolbarProps,
@@ -82,6 +83,11 @@ function getSelectionFragment(editor: BlockNoteEditor<any>): {
 
   if (selection.empty) return null
 
+  // Disable copy link and comment on block buttons for multi-cell selections,
+  // because they don't have a single addressable container, so anchoring a
+  // comment or fragment link to one of the cells would pick only one cell.
+  if (selection instanceof CellSelection) return null
+
   const {$from, $to} = selection
   const from = $from.pos
   const to = $to.pos
@@ -90,16 +96,17 @@ function getSelectionFragment(editor: BlockNoteEditor<any>): {
   let blockBeforePos: number
 
   try {
-    const posInfo = getNearestBlockPos(state.doc, from)
+    const posInfo = getNearestBlockOrCellPos(state.doc, from)
     blockNode = posInfo.node
     blockBeforePos = posInfo.posBeforeNode
   } catch {
     return null
   }
 
-  // Only single-block selections.
+  // Only single-block selections and inside tables, only single-cell
+  // selections.
   try {
-    const endInfo = getNearestBlockPos(state.doc, to)
+    const endInfo = getNearestBlockOrCellPos(state.doc, to)
     if (endInfo.posBeforeNode !== blockBeforePos) return null
   } catch {
     return null
