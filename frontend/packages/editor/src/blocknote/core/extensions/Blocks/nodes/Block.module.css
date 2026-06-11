@@ -857,14 +857,13 @@ NESTED BLOCKS
 }
 
 /* Cell selection highlight. `prosemirror-tables` adds the `.selectedCell`
- * class to <th>/<td> elements covered by a CellSelection. Tint the cell with
- * a translucent primary color so it reads as selected without obscuring text. */
-.blockContent[data-content-type='table'] td.selectedCell,
-.blockContent[data-content-type='table'] th.selectedCell {
+ * class to <th>/<td> elements covered by a CellSelection. */
+.blockContent[data-content-type='table'] td:global(.selectedCell),
+.blockContent[data-content-type='table'] th:global(.selectedCell) {
   background-color: color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
-:global(.dark) .blockContent[data-content-type='table'] td.selectedCell,
-:global(.dark) .blockContent[data-content-type='table'] th.selectedCell {
+:global(.dark) .blockContent[data-content-type='table'] td:global(.selectedCell),
+:global(.dark) .blockContent[data-content-type='table'] th:global(.selectedCell) {
   background-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }

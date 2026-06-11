@@ -212,3 +212,64 @@ export function getBlockInfoFromPos(state: EditorState, pos: number) {
 
   return getBlockInfo(posInfo)
 }
+
+// Table cell aware variant of getNearestBlockPos.
+export function getNearestBlockOrCellPos(doc: Node, pos: number) {
+  const $pos = doc.resolve(pos)
+
+  const isStopType = (n: Node): boolean =>
+    n.type.isInGroup('blockNodeChild') || n.type.name === 'tableCell' || n.type.name === 'tableHeader'
+
+  if ($pos.nodeAfter && isStopType($pos.nodeAfter)) {
+    return {posBeforeNode: $pos.pos, node: $pos.nodeAfter}
+  }
+
+  let depth = $pos.depth
+  let node = $pos.node(depth)
+  while (depth > 0) {
+    if (isStopType(node)) {
+      return {posBeforeNode: $pos.before(depth), node}
+    }
+    depth--
+    node = $pos.node(depth)
+  }
+
+  return getNearestBlockPos(doc, pos)
+}
+
+// Build a BlockInfo from a node that is either a blockNode or a tableCell / tableHeader.
+function getBlockOrCellInfo(posInfo: {posBeforeNode: number; node: Node}): BlockInfo {
+  const node = posInfo.node
+  if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+    const inner = node.firstChild
+    if (!inner) {
+      // Schema guarantees `block+` content; an empty cell shouldn't reach here.
+      throw new Error(`tableCell at position ${posInfo.posBeforeNode} has no inner content`)
+    }
+    return {
+      block: {
+        node,
+        beforePos: posInfo.posBeforeNode,
+        afterPos: posInfo.posBeforeNode + node.nodeSize,
+      },
+      blockContent: {
+        node: inner,
+        beforePos: posInfo.posBeforeNode + 1,
+        afterPos: posInfo.posBeforeNode + 1 + inner.nodeSize,
+      },
+      childContainer: undefined,
+      blockContentType: inner.type.name,
+    }
+  }
+  return getBlockInfo(posInfo)
+}
+
+// Table cell aware sibling of getBlockInfoFromPos.
+export function getBlockOrCellInfoFromPos(state: EditorState, pos: number): BlockInfo {
+  return getBlockOrCellInfo(getNearestBlockOrCellPos(state.doc, pos))
+}
+
+// Table cell aware sibling of getBlockInfoFromSelection.
+export function getBlockOrCellInfoFromSelection(state: EditorState): BlockInfo {
+  return getBlockOrCellInfo(getNearestBlockOrCellPos(state.doc, state.selection.anchor))
+}

@@ -13,15 +13,17 @@ import {
   fixTables,
   goToNextCell,
   mergeCells,
+  selectionCell,
   setCellAttr,
   splitCell,
   tableEditing,
+  TableMap,
   toggleHeader,
   toggleHeaderCell,
 } from '@tiptap/pm/tables'
 import {NodeView} from '@tiptap/pm/view'
 
-import {BlockNoteDOMAttributes, mergeCSSClasses} from '../blocknote'
+import {BlockNoteDOMAttributes, getBlockInfoFromSelection, mergeCSSClasses} from '../blocknote'
 import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {TableView} from './TableView'
 import {createTable} from './utilities/createTable'
@@ -124,16 +126,47 @@ export const Table = Node.create<TableOptions>({
     return {
       insertTable:
         ({rows = 3, cols = 3, withHeaderRow = true} = {}) =>
-        ({tr, dispatch, editor}) => {
-          const node = createTable(editor.schema, rows, cols, withHeaderRow)
+        ({state, tr, dispatch, editor}) => {
+          const table = createTable(editor.schema, rows, cols, withHeaderRow)
 
-          if (dispatch) {
-            const offset = tr.selection.anchor + 1
+          if (!dispatch) return true
 
-            tr.replaceSelectionWith(node)
-              .scrollIntoView()
-              .setSelection(TextSelection.near(tr.doc.resolve(offset)))
+          // Find the current blockNode container.
+          let blockInfo
+          try {
+            blockInfo = getBlockInfoFromSelection(state)
+          } catch {
+            blockInfo = undefined
           }
+
+          // Wrap the table in a blockNode so it is inserted at the correct nesting level.
+          // @ts-ignore
+          const tableBlockNode = state.schema.nodes['blockNode'].create(null, table)
+
+          if (blockInfo) {
+            const blockContent = blockInfo.blockContent.node
+            const blockContentText = blockContent.textContent
+            const isEmptyOrSlash =
+              blockContent.type.name === 'paragraph' && (blockContentText === '' || blockContentText === '/')
+
+            if (isEmptyOrSlash) {
+              // Replace the current blockNode entirely.
+              tr.replaceWith(blockInfo.block.beforePos, blockInfo.block.afterPos, tableBlockNode)
+            } else {
+              // Insert as the next sibling after the current blockNode.
+              tr.insert(blockInfo.block.afterPos, tableBlockNode)
+            }
+          } else {
+            tr.replaceSelectionWith(tableBlockNode)
+          }
+
+          // Move selection to the first table cell
+          const insertPos = blockInfo
+            ? (blockInfo.blockContent.node.textContent === '' || blockInfo.blockContent.node.textContent === '/'
+                ? blockInfo.block.beforePos
+                : blockInfo.block.afterPos) + 3
+            : tr.selection.anchor + 1
+          tr.setSelection(TextSelection.near(tr.doc.resolve(insertPos))).scrollIntoView()
 
           return true
         },
@@ -259,8 +292,68 @@ export const Table = Node.create<TableOptions>({
         return this.editor.chain().addRowAfter().goToNextCell().run()
       },
       'Shift-Tab': () => this.editor.commands.goToPreviousCell(),
-      // Insert a line break instead of splitting the paragraph into a new block.
+      // Move the cursor to the cell directly below. If  in the last row,
+      // add a row first and then move into it.
       Enter: () => {
+        if (!this.editor.isActive('tableCell') && !this.editor.isActive('tableHeader')) {
+          return false
+        }
+
+        // Try to move into the cell directly below the current one.
+        const moved = this.editor.commands.command(({state, tr, dispatch}) => {
+          const $cell = selectionCell(state)
+          if (!$cell) return false
+
+          const table = $cell.node(-1)
+          const tableStart = $cell.start(-1)
+          const map = TableMap.get(table)
+
+          const cellRelPos = $cell.pos - tableStart
+          const rect = map.findCell(cellRelPos)
+
+          // rect.bottom is one past the last row this cell covers.
+          // If that's at or past the table height, the cursor is in the last row.
+          if (rect.bottom >= map.height) return false
+
+          // Target cell at same column, next row.
+          const targetRelPos = map.map[rect.bottom * map.width + rect.left]
+          if (targetRelPos == null) return false
+
+          if (dispatch) {
+            const insidePos = tableStart + targetRelPos + 2
+            tr.setSelection(TextSelection.create(tr.doc, insidePos)).scrollIntoView()
+          }
+          return true
+        })
+        if (moved) return true
+
+        // Add a new row below, then move into the same column
+        // cell in the newly added row.
+        if (!this.editor.can().addRowAfter()) return true
+        return this.editor
+          .chain()
+          .addRowAfter()
+          .command(({state, tr, dispatch}) => {
+            const $cell = selectionCell(state)
+            if (!$cell) return false
+            const table = $cell.node(-1)
+            const tableStart = $cell.start(-1)
+            const map = TableMap.get(table)
+            const cellRelPos = $cell.pos - tableStart
+            const rect = map.findCell(cellRelPos)
+            if (rect.bottom >= map.height) return false
+            const targetRelPos = map.map[rect.bottom * map.width + rect.left]
+            if (targetRelPos == null) return false
+            if (dispatch) {
+              const insidePos = tableStart + targetRelPos + 2
+              tr.setSelection(TextSelection.create(tr.doc, insidePos)).scrollIntoView()
+            }
+            return true
+          })
+          .run()
+      },
+      // Insert a line break within the current cell.
+      'Shift-Enter': () => {
         if (this.editor.isActive('tableCell') || this.editor.isActive('tableHeader')) {
           return this.editor.commands.setHardBreak()
         }

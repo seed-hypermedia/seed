@@ -69,7 +69,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     extensions.Tabindex,
 
     UniqueID.configure({
-      types: ['blockNode'],
+      // Table cells need stable ids for anchored data like comments and
+      // quote ranges that target a specific cell.
+      types: ['blockNode', 'tableCell', 'tableHeader'],
     }),
 
     // basics:
