@@ -10,6 +10,19 @@ export function isDraftPathSegment(segment: string | undefined | null): boolean 
   return !!segment && segment.startsWith('-')
 }
 
+/** Return the draft id encoded by a public/private placeholder path segment. */
+export function getDraftIdFromDraftPathSegment(segment: string | undefined | null): string | null {
+  if (!isDraftPathSegment(segment)) return null
+  const privatePrefix = '-private-'
+  const id = segment!.startsWith(privatePrefix) ? segment!.slice(privatePrefix.length) : segment!.slice(1)
+  return id.length ? id : null
+}
+
+/** Return true when a placeholder segment represents a private draft route. */
+export function isPrivateDraftPathSegment(segment: string | undefined | null): boolean {
+  return !!segment && segment.startsWith('-private-')
+}
+
 export function getParentPaths(path?: string[] | null): string[][] {
   if (!path) return [[]]
   let walkParentPaths: string[] = []

@@ -33,6 +33,7 @@ export type DocumentMachineInput = {
   documentId: UnpackedHypermediaId
   canEdit: boolean
   isLatest?: boolean
+  reservedDraftId?: string
   existingDraftId?: string
   editUid?: string
   editPath?: string[]
@@ -70,7 +71,7 @@ export type DocumentMachineContext = {
   canEdit: boolean
   hasChangedWhileSaving: boolean
   draftCreated: boolean
-  /** True only when machine was initialized with an existingDraftId — drives auto-enter editing. Cleared after first use. */
+  /** True when machine should enter editing after loading (existing or route-reserved draft). Cleared after first use. */
   shouldAutoEdit: boolean
   signingAccountId: string | null
   publishAccountUid: string | null
@@ -383,7 +384,6 @@ export const documentMachine = setup({
     clearEditingState: assign({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
       // and title/summary changes remain visible outside editing mode.
-      draftCreated: false,
       hasChangedWhileSaving: false,
       pendingRemoteVersion: null,
       pendingEditCursorPosition: null,
@@ -676,6 +676,7 @@ export const documentMachine = setup({
     },
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
+    hasPersistedDraft: ({context}) => context.draftId !== null && context.draftCreated,
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
     hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
@@ -724,7 +725,7 @@ export const documentMachine = setup({
   },
   context: ({input}) => ({
     documentId: input.documentId,
-    draftId: input.existingDraftId ?? null,
+    draftId: input.existingDraftId ?? input.reservedDraftId ?? null,
     document: null,
     metadata: {},
     deps: input.deps ?? [],
@@ -739,11 +740,11 @@ export const documentMachine = setup({
     canEdit: input.canEdit,
     hasChangedWhileSaving: false,
     draftCreated: !!input.existingDraftId,
-    shouldAutoEdit: !!input.existingDraftId,
+    shouldAutoEdit: !!input.existingDraftId || !!input.reservedDraftId,
     signingAccountId: input.signingAccountId ?? null,
     publishAccountUid: input.publishAccountUid ?? null,
     documentReady: false,
-    draftReady: !!input.existingDraftId,
+    draftReady: !!input.existingDraftId || !!input.reservedDraftId,
     draftContent: null,
     draftCursorPosition: null,
     pendingEditCursorPosition: null,
@@ -811,7 +812,7 @@ export const documentMachine = setup({
         'edit.discard': [
           {
             target: 'discarding',
-            guard: 'hasDraftId',
+            guard: 'hasPersistedDraft',
           },
           {
             actions: ['clearDraftState'],
@@ -877,7 +878,7 @@ export const documentMachine = setup({
         'edit.discard': [
           {
             target: 'discarding',
-            guard: 'hasDraftId',
+            guard: 'hasPersistedDraft',
             actions: [() => console.log('[DocMachine] edit.discard received in editing → discarding')],
           },
           {
@@ -915,7 +916,7 @@ export const documentMachine = setup({
             'change.navigation': [
               {
                 target: '.saving',
-                guard: 'hasDraftId',
+                guard: 'hasPersistedDraft',
                 actions: ['setNavigation'],
               },
               {
@@ -940,7 +941,7 @@ export const documentMachine = setup({
                 },
                 'publish.start': {
                   target: '#DocumentLifecycle.publishing',
-                  guard: 'hasDraftId',
+                  guard: 'hasPersistedDraft',
                   actions: ['setPathOverrideFromEvent'],
                 },
                 // A `publish.start` queued during a previous saving/creating
@@ -974,7 +975,7 @@ export const documentMachine = setup({
                 'publish.start': [
                   {
                     target: 'saving',
-                    guard: 'hasDraftId',
+                    guard: 'hasPersistedDraft',
                     actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                   },
                   {
@@ -987,7 +988,7 @@ export const documentMachine = setup({
                 autosaveTimeout: [
                   {
                     target: 'saving',
-                    guard: 'hasDraftId',
+                    guard: 'hasPersistedDraft',
                   },
                   {
                     target: 'creating',

@@ -358,20 +358,20 @@ describe('computeNewDraftParams', () => {
     expect(result?.writeParams).toEqual({
       id: 'draft-id-10',
       locationUid: 'location-uid',
-      locationPath: ['random-path-21'],
+      locationPath: ['-private-draft-id-10'],
       editUid: 'location-uid',
-      editPath: ['random-path-21'],
+      editPath: ['-private-draft-id-10'],
       visibility: 'PRIVATE',
     })
     expect(result?.routeId.uid).toBe('location-uid')
-    expect(result?.routeId.path).toEqual(['random-path-21'])
+    expect(result?.routeId.path).toEqual(['-private-draft-id-10'])
   })
 
   it('private doc falls back to selectedAccountId when no locationUid', () => {
     const result = computeNewDraftParams('PRIVATE', {}, 'selected-account-uid', mockGenerateId, mockGeneratePath)
     expect(result?.writeParams.locationUid).toBe('selected-account-uid')
     expect(result?.writeParams.editUid).toBe('selected-account-uid')
-    expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
+    expect(result?.writeParams.locationPath).toEqual(['-private-draft-id-10'])
     expect(result?.routeId.uid).toBe('selected-account-uid')
   })
 
@@ -380,7 +380,7 @@ describe('computeNewDraftParams', () => {
     expect(result).toBeNull()
   })
 
-  it('private doc ignores draftParams.locationPath and uses random path', () => {
+  it('private doc ignores draftParams.locationPath and uses the draft placeholder path', () => {
     const result = computeNewDraftParams(
       'PRIVATE',
       {locationUid: 'location-uid', locationPath: ['existing', 'path']},
@@ -388,7 +388,7 @@ describe('computeNewDraftParams', () => {
       mockGenerateId,
       mockGeneratePath,
     )
-    expect(result?.writeParams.locationPath).toEqual(['random-path-21'])
+    expect(result?.writeParams.locationPath).toEqual(['-private-draft-id-10'])
   })
 
   it('public new doc stores a location-only draft and routes to the draft placeholder path', () => {

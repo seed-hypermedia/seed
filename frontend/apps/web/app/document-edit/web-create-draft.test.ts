@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import {indexedDB} from 'fake-indexeddb'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './web-create-draft'
@@ -80,15 +81,50 @@ describe('createWebDocumentDraft', () => {
       generatePath: () => 'private-path',
     })
 
-    expect(routeId.path).toEqual(['private-path'])
+    expect(routeId.path).toEqual(['-private-draft-2'])
 
     const draft = await getWebDocDraft('draft-2')
     expect(draft).toMatchObject({
       draftId: 'draft-2',
-      locationPath: ['private-path'],
-      editPath: ['private-path'],
+      locationPath: ['-private-draft-2'],
+      editPath: ['-private-draft-2'],
       visibility: 'PRIVATE',
     })
+  })
+
+  it('can navigate to a public child draft route without persisting an empty draft', async () => {
+    const navigate = vi.fn()
+    const {routeId, draftId} = await createWebDocumentDraft({
+      locationId: makeDocId('site', ['parent']),
+      signingAccountId: 'author',
+      visibility: 'PUBLIC',
+      navigate,
+      persist: false,
+      generateDraftId: () => 'lazy-draft',
+    })
+
+    expect(draftId).toBe('lazy-draft')
+    expect(routeId.path).toEqual(['parent', '-lazy-draft'])
+    expect(navigate).toHaveBeenCalledWith({key: 'document', id: routeId})
+    await expect(getWebDocDraft('lazy-draft')).resolves.toBeNull()
+    expect(isReservedLazyDraftId('lazy-draft')).toBe(true)
+  })
+
+  it('can navigate to a private draft route without persisting an empty draft', async () => {
+    const navigate = vi.fn()
+    const {routeId, draftId} = await createWebDocumentDraft({
+      locationId: makeDocId('site', ['parent']),
+      signingAccountId: 'author',
+      visibility: 'PRIVATE',
+      navigate,
+      persist: false,
+      generateDraftId: () => 'lazy-private',
+    })
+
+    expect(draftId).toBe('lazy-private')
+    expect(routeId.path).toEqual(['-private-lazy-private'])
+    expect(navigate).toHaveBeenCalledWith({key: 'document', id: routeId})
+    await expect(getWebDocDraft('lazy-private')).resolves.toBeNull()
   })
 
   it('stores imported content and metadata when provided', async () => {

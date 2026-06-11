@@ -61,7 +61,12 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
-import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {
+  getDraftIdFromDraftPathSegment,
+  isDraftPathSegment,
+  isPrivateDraftPathSegment,
+} from '@shm/shared/utils/breadcrumbs'
 import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
@@ -115,14 +120,19 @@ export default function DesktopResourcePage() {
 
   const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
+  const placeholderDraftId = getDraftIdFromDraftPathSegment(docId.path?.at(-1))
   const isDraftRouteLookupPending = existingDraft === undefined && isDraftPathSegment(docId.path?.at(-1))
   const existingDraftRecord = existingDraft && typeof existingDraft === 'object' ? existingDraft : null
   const hasLocationOnlyDraft =
     !!existingDraftRecord && !!existingDraftRecord.locationUid && !existingDraftRecord.editUid
-  const documentResourceId = hasLocationOnlyDraft || isDraftRouteLookupPending ? null : docId
+  const documentResourceId = hasLocationOnlyDraft || !!placeholderDraftId ? null : docId
   const capabilityId =
     hasLocationOnlyDraft && existingDraftRecord?.locationUid
       ? hmId(existingDraftRecord.locationUid, {path: existingDraftRecord.locationPath})
+      : placeholderDraftId
+      ? hmId(docId.uid, {
+          path: isPrivateDraftPathSegment(docId.path?.at(-1)) ? [] : (docId.path ?? []).slice(0, -1),
+        })
       : docId
 
   const capability = useSelectedAccountCapability(capabilityId)
@@ -270,12 +280,23 @@ export default function DesktopResourcePage() {
         //   hasEditor: !!editor,
         // })
         const existingDraft = input.draftId ? await client.drafts.get.query(input.draftId) : null
-        const draftVisibility = existingDraft?.visibility ?? 'PUBLIC'
+        const currentPath = docIdRef.current.path ?? []
+        const routeDraftId = getDraftIdFromDraftPathSegment(currentPath.at(-1))
+        const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
+        const isReservedPrivateDraft = isReservedRouteDraft && isPrivateDraftPathSegment(currentPath.at(-1))
+        const isReservedPublicDraft = isReservedRouteDraft && !isReservedPrivateDraft
+        const defaultAnchors = {
+          locationUid: isReservedRouteDraft ? docIdRef.current.uid : input.locationUid || undefined,
+          locationPath: isReservedPublicDraft ? currentPath.slice(0, -1) : input.locationPath,
+          editUid: isReservedPublicDraft ? undefined : input.editUid || undefined,
+          editPath: isReservedRouteDraft ? (isReservedPrivateDraft ? currentPath : []) : input.editPath,
+        }
+        const draftVisibility = existingDraft?.visibility ?? (isReservedPrivateDraft ? 'PRIVATE' : 'PUBLIC')
         const anchors = resolveDraftWriteAnchors(existingDraft, {
-          locationUid: input.locationUid || undefined,
-          locationPath: input.locationPath,
-          editUid: input.editUid || undefined,
-          editPath: input.editPath,
+          locationUid: defaultAnchors.locationUid,
+          locationPath: defaultAnchors.locationPath,
+          editUid: defaultAnchors.editUid,
+          editPath: defaultAnchors.editPath,
         })
         const result = await client.drafts.write.mutate({
           id: draftId,
@@ -850,6 +871,13 @@ export default function DesktopResourcePage() {
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
                     existingDraft={existingDraft}
+                    reservedDraftId={
+                      placeholderDraftId &&
+                      !existingDraftRecord &&
+                      (existingDraft === false || isReservedLazyDraftId(placeholderDraftId))
+                        ? placeholderDraftId
+                        : null
+                    }
                     existingDraftVisibility={draftData?.visibility}
                     existingDraftContent={existingDraftContent}
                     existingDraftCursorPosition={draftData?.cursorPosition}

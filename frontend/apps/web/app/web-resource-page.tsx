@@ -12,6 +12,7 @@ import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
+import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
 import {useQuery} from '@tanstack/react-query'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
@@ -182,7 +183,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   const canEditLocalPlaceholderDraft =
     !!placeholderDraftId && !!draftData && !!signingAccountId && draftData.signingAccountId === signingAccountId
-  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft
+  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft || (!!placeholderDraftId && !!signingAccountId)
   const effectiveCapabilityCid = capability && capability.id !== '_owner' ? capability.id : draftData?.capabilityCid
 
   // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
@@ -209,6 +210,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
   }, [effectiveCanEdit, draftQuery.isLoading, draftData, isDraftStale])
+  const reservedDraftId =
+    placeholderDraftId && !draftData && (existingDraft === false || isReservedLazyDraftId(placeholderDraftId))
+      ? placeholderDraftId
+      : null
   const existingDraftContent = isDraftStale ? undefined : draftData?.content ?? undefined
   const existingDraftCursorPosition = isDraftStale ? undefined : draftData?.cursorPosition ?? undefined
 
@@ -424,6 +429,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   publishAccountUid={signingAccountId ?? undefined}
                   onEditorReady={onEditorReady}
                   existingDraft={existingDraft}
+                  reservedDraftId={reservedDraftId}
                   existingDraftVisibility={draftData?.visibility}
                   existingDraftContent={existingDraftContent}
                   existingDraftCursorPosition={existingDraftCursorPosition}

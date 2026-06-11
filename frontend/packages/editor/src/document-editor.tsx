@@ -50,6 +50,12 @@ import {selectAllEditorContent} from './utils'
 
 export type {DocumentContentProps}
 
+/** Return whether editor blocks changed compared to the previous serialized snapshot. */
+export function getEditorBlocksChange(previousKey: string | null, blocks: unknown[]) {
+  const nextKey = JSON.stringify(blocks)
+  return {changed: previousKey !== null && previousKey !== nextKey, nextKey}
+}
+
 /** Block types (data-content-type values) that trigger edit mode on click. */
 const TEXT_BLOCK_TYPES = new Set(['paragraph', 'heading', 'code-block'])
 
@@ -152,6 +158,7 @@ export function DocumentEditor({
   // Suppress change events during programmatic content replacement
   // (e.g. when loading draft content on edit-mode entry).
   const suppressChangeRef = useRef(false)
+  const lastEditorContentKeyRef = useRef<string | null>(null)
 
   // Ref to the BlockNote editor for use inside option callbacks that are
   // created before the editor instance exists (e.g. the paste handler's
@@ -192,6 +199,9 @@ export function DocumentEditor({
       getSlashMenuItems: () => getSlashMenuItems({docId: resourceId, onCreateInlineDraft}),
       onEditorContentChange(editor) {
         if (suppressChangeRef.current) return
+        const {changed, nextKey} = getEditorBlocksChange(lastEditorContentKeyRef.current, editor.topLevelBlocks)
+        lastEditorContentKeyRef.current = nextKey
+        if (!changed) return
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
         actorRef.send({type: 'change'})
       },
@@ -449,6 +459,7 @@ export function DocumentEditor({
     } finally {
       suppressChangeRef.current = false
     }
+    lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
     actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
     actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
   }, [actorRef, editor, initialContent, isEditing])
@@ -477,6 +488,7 @@ export function DocumentEditor({
         }
         // Use the post-replace blocks as the diff baseline so future change counts
         // compare against blocks after editor initialization.
+        lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
         actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },

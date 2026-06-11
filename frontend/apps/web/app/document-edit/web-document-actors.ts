@@ -42,7 +42,7 @@ import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
 import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, type WebDocDraft} from './web-draft-db'
-import {isWebDraftPlaceholderPath} from './web-draft-path'
+import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
 export type WebEditorAccessor = EditorAccessor
@@ -88,6 +88,13 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
 
     const draftId = input.draftId ?? nanoid(10)
     const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
+    const currentPath = deps.docId.path ?? []
+    const routeDraftId = getWebDraftPlaceholderId(currentPath)
+    const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
+    const isReservedPrivateDraft = isReservedRouteDraft && isWebPrivateDraftPlaceholderPath(currentPath)
+    const isReservedPublicDraft = isReservedRouteDraft && !isReservedPrivateDraft
+    const locationPath = isReservedPublicDraft ? currentPath.slice(0, -1) : input.locationPath
+    const editPath = isReservedRouteDraft ? (isReservedPrivateDraft ? currentPath : []) : input.editPath
     const record: Omit<WebDocDraft, 'updatedAt'> = {
       draftId,
       docId: deps.docId.id,
@@ -97,13 +104,17 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       metadata: input.metadata ?? {},
       deps: input.deps,
       navigation: input.navigation ?? null,
-      locationUid: input.locationUid || null,
-      locationPath: input.locationPath?.length ? input.locationPath : null,
-      editUid: input.editUid || null,
-      editPath: input.editPath?.length ? input.editPath : null,
+      locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
+      locationPath: locationPath?.length ? locationPath : null,
+      editUid: isReservedPublicDraft ? null : input.editUid || null,
+      editPath: editPath?.length ? editPath : null,
       visibility:
         existingDraft?.visibility ??
-        (deps.docId.path?.some((segment) => segment.startsWith('-')) ? 'PUBLIC' : undefined),
+        (isReservedPrivateDraft
+          ? 'PRIVATE'
+          : currentPath.some((segment) => segment.startsWith('-'))
+          ? 'PUBLIC'
+          : undefined),
       cursorPosition,
     }
     await putWebDocDraft(record)

@@ -177,6 +177,7 @@ export function useWebCreateDocumentMenuItem({
         signingAccountId,
         visibility,
         capabilityCid,
+        persist: false,
         navigate: (route) => navigate(route),
       })
     },

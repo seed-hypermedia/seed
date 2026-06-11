@@ -66,6 +66,7 @@ import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/mod
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {FilePen, Search} from 'lucide-react'
@@ -221,6 +222,31 @@ export function shouldUseDraftForRenderedDocument({
   return true
 }
 
+/** Return true when a local draft should bypass remote resource loading states. */
+export function hasUnpublishedDraftForResourceState({
+  existingDraft,
+  reservedDraftId,
+  resourceFetchId,
+  resourceIsDiscovering,
+  resourceData,
+}: {
+  existingDraft?: HMExistingDraft | false
+  reservedDraftId?: string | null
+  resourceFetchId: UnpackedHypermediaId | null
+  resourceIsDiscovering: boolean
+  resourceData?: {type?: string; message?: string} | null
+}) {
+  const hasVirtualDraft = !!reservedDraftId && !existingDraft
+  return (
+    (!!existingDraft || hasVirtualDraft) &&
+    (resourceFetchId === null ||
+      resourceIsDiscovering ||
+      !resourceData ||
+      resourceData.type === 'not-found' ||
+      (resourceData.type === 'error' && !resourceData.message?.toLowerCase?.().includes('permission')))
+  )
+}
+
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -296,6 +322,8 @@ export interface ResourcePageProps {
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Route-reserved draft id for an empty draft that has not been persisted yet. */
+  reservedDraftId?: string | null
   /** Visibility of the existing draft, when the platform can provide full draft data. */
   existingDraftVisibility?: HMDocument['visibility']
   /** Pre-fetched content blocks from the existing draft (when available, used as editor initial content) */
@@ -387,6 +415,7 @@ export function ResourcePage({
   optionsMenuItems,
   extraMenuItems,
   existingDraft,
+  reservedDraftId,
   existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
@@ -524,19 +553,7 @@ export function ResourcePage({
     )
   }
 
-  if (resourceFetchId === null && existingDraft === undefined) {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
-  // Loading state - should not show during SSR if data was prefetched
-  if (resource.isInitialLoading && !hasEverLoadedRef.current) {
+  if (resourceFetchId === null && existingDraft === undefined && !reservedDraftId) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center">
@@ -551,13 +568,25 @@ export function ResourcePage({
   // is creating a new doc via the unified editor). When that's the case,
   // bypass discovery / not-found and render the editor over a placeholder
   // document so the document machine can transition to "loaded" → editing.
-  const hasUnpublishedDraft =
-    !!existingDraft &&
-    (resourceFetchId === null ||
-      resource.isDiscovering ||
-      !resource.data ||
-      resource.data.type === 'not-found' ||
-      (resource.data.type === 'error' && !resource.data.message?.toLowerCase?.().includes('permission')))
+  const hasUnpublishedDraft = hasUnpublishedDraftForResourceState({
+    existingDraft,
+    reservedDraftId,
+    resourceFetchId,
+    resourceIsDiscovering: resource.isDiscovering,
+    resourceData: resource.data,
+  })
+
+  // Loading state - should not show during SSR if data was prefetched
+  if (resource.isInitialLoading && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
+    return (
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
 
   // Handle discovery state
   if (resource.isDiscovering && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
@@ -735,6 +764,7 @@ export function ResourcePage({
         canEdit: effectiveCanEdit,
         isLatest,
         deps: effectiveExistingDraftDeps,
+        reservedDraftId: reservedDraftId ?? undefined,
         editUid: docId.uid,
         editPath: docId.path ?? undefined,
         signingAccountId,
@@ -762,6 +792,7 @@ export function ResourcePage({
           optionsMenuItems={optionsMenuItems}
           extraMenuItems={extraMenuItems}
           existingDraft={effectiveExistingDraft}
+          reservedDraftId={reservedDraftId}
           existingDraftVisibility={effectiveExistingDraftVisibility}
           existingDraftContent={effectiveExistingDraftContent}
           existingDraftCursorPosition={effectiveExistingDraftCursorPosition}
@@ -967,6 +998,7 @@ function DocumentBody({
   optionsMenuItems,
   extraMenuItems,
   existingDraft,
+  reservedDraftId,
   existingDraftVisibility,
   existingDraftContent,
   existingDraftCursorPosition,
@@ -1002,6 +1034,7 @@ function DocumentBody({
   optionsMenuItems?: MenuItemType[]
   extraMenuItems?: MenuItemType[]
   existingDraft?: HMExistingDraft | false
+  reservedDraftId?: string | null
   existingDraftVisibility?: HMDocument['visibility']
   existingDraftContent?: HMBlockNode[]
   existingDraftCursorPosition?: number
@@ -1246,20 +1279,33 @@ function DocumentBody({
     [breadcrumbIds, accountDrafts.data],
   )
 
+  const reservedDraftBreadcrumbNames = useMemo(
+    () => breadcrumbIds.map((id) => getReservedLazyDraftBreadcrumbName(id.path?.at(-1), reservedDraftId)),
+    [breadcrumbIds, reservedDraftId],
+  )
+
   // Positions where the draft list is still loading but the path *looks*
   // like a draft (placeholder `-` segment). We treat them as loading rather
   // than firing a daemon fetch we'll discard once the local list resolves.
+  // Preallocated lazy draft ids are already known locally, so render their
+  // stable placeholder breadcrumb immediately instead of a loading spinner.
   const pendingDraftLookup = useMemo(
-    () => breadcrumbIds.map((id) => accountDrafts.isLoading && isDraftPathSegment(id.path?.at(-1))),
-    [breadcrumbIds, accountDrafts.isLoading],
+    () =>
+      breadcrumbIds.map(
+        (id, i) => accountDrafts.isLoading && isDraftPathSegment(id.path?.at(-1)) && !reservedDraftBreadcrumbNames[i],
+      ),
+    [breadcrumbIds, accountDrafts.isLoading, reservedDraftBreadcrumbNames],
   )
 
   // Mask draft positions so `useResources` skips the daemon `Resource`
   // request and the discovery subscription for them. Array length is
   // preserved so downstream index-based access stays aligned.
   const resourceFetchIds = useMemo(
-    () => breadcrumbIds.map((id, i) => (draftsForBreadcrumbs[i] || pendingDraftLookup[i] ? null : id)),
-    [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup],
+    () =>
+      breadcrumbIds.map((id, i) =>
+        draftsForBreadcrumbs[i] || pendingDraftLookup[i] || reservedDraftBreadcrumbNames[i] ? null : id,
+      ),
+    [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup, reservedDraftBreadcrumbNames],
   )
 
   const breadcrumbResults = useResources(resourceFetchIds, {subscribed: true})
@@ -1274,7 +1320,8 @@ function DocumentBody({
         isCurrent && isUnpublishedDraft
           ? ctx.metadata?.name || (existingDraft ? existingDraft.metadata?.name : undefined)
           : undefined
-      const fallbackName = currentDraftName || id.path?.at(-1) || id.uid.slice(0, 8)
+      const reservedDraftBreadcrumbName = reservedDraftBreadcrumbNames[i]
+      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || id.path?.at(-1) || id.uid.slice(0, 8)
 
       if (draft) {
         const draftIsUnpublished = isDraftPlaceholderPath(id.path, draft.id) || (isCurrent && isUnpublishedDraft)
@@ -1290,6 +1337,19 @@ function DocumentBody({
           isNotFound: false,
           isError: false,
           isUnpublishedDraft: draftIsUnpublished,
+        }
+      }
+
+      if (reservedDraftBreadcrumbName) {
+        return {
+          id,
+          metadata: currentDraftName ? {name: currentDraftName} : {},
+          fallbackName,
+          isLoading: false,
+          isTombstone: false,
+          isNotFound: false,
+          isError: false,
+          isUnpublishedDraft: true,
         }
       }
 
@@ -1367,6 +1427,7 @@ function DocumentBody({
     breadcrumbResults,
     draftsForBreadcrumbs,
     pendingDraftLookup,
+    reservedDraftBreadcrumbNames,
     document.metadata,
     isUnpublishedDraft,
     existingDraft,
