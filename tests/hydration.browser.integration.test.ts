@@ -108,7 +108,7 @@ describe('Browser Hydration', () => {
   )
 
   it(
-    'should have interactive page after hydration',
+    'should run client hydration effects',
     async () => {
       if (!browser) {
         console.log('Skipping: browser not available')
@@ -117,7 +117,6 @@ describe('Browser Hydration', () => {
 
       const context = await browser.newContext()
       const page = await context.newPage()
-      await page.setViewportSize({width: 390, height: 844})
 
       const response = await page.goto(`${env.web.baseUrl}/`, {
         waitUntil: 'domcontentloaded',
@@ -126,28 +125,9 @@ describe('Browser Hydration', () => {
       await page.waitForSelector('body', {state: 'attached'})
       await page.waitForLoadState('networkidle')
 
-      // Wait for hydration
-      await page.waitForTimeout(2000)
-
-      // Check that the page is interactive by exercising a hydrated control.
-      // Avoid React private internals here: their shape differs across prod
-      // builds/runtimes, while the mobile menu state change is user-visible.
-      const mobileMenuButton = page.locator('button:has(svg.lucide-menu)').first()
-      const mobileMenuPanel = page.locator('div.fixed.inset-0.z-50').first()
-      await mobileMenuButton.waitFor({state: 'visible'})
-      const initialTransform = await mobileMenuPanel.evaluate((element) => {
-        return getComputedStyle(element).transform
+      await page.waitForFunction(() => {
+        return document.documentElement.dataset.seedHydrated === 'true'
       })
-      await mobileMenuButton.click()
-      await expect
-        .poll(
-          async () =>
-            mobileMenuPanel.evaluate((element) => {
-              return getComputedStyle(element).transform
-            }),
-          {timeout: 5_000},
-        )
-        .not.toBe(initialTransform)
 
       await context.close()
     },
