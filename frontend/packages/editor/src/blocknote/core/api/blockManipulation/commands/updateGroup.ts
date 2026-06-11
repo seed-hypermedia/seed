@@ -2,8 +2,56 @@ import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Editor} from '@tiptap/core'
 import {ResolvedPos} from '@tiptap/pm/model'
 import {Node as PMNode} from 'prosemirror-model'
-import {EditorState} from 'prosemirror-state'
+import {EditorState, TextSelection} from 'prosemirror-state'
+import {getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+
+// Returns true if the current block's previous sibling is a table block.
+function isPreviousSiblingTable(state: EditorState): boolean {
+  let blockInfo
+  try {
+    blockInfo = getBlockInfoFromSelection(state)
+  } catch {
+    return false
+  }
+  const prevSibling = state.doc.resolve(blockInfo.block.beforePos).nodeBefore
+  return prevSibling?.firstChild?.type.name === 'table'
+}
+
+/**
+ * When the previous sibling is a table, wrap the current block in a new empty
+ * paragraph blockNode so the list has a parent to be attached to.
+ */
+function wrapInEmptyParagraphUnderTable(
+  state: EditorState,
+  dispatch: ((args?: any) => any) | undefined,
+  listType: HMBlockChildrenType,
+  listLevel: string,
+): boolean {
+  let blockInfo
+  try {
+    blockInfo = getBlockInfoFromSelection(state)
+  } catch {
+    return false
+  }
+  if (!dispatch) return true
+
+  const blockNodeType = state.schema.nodes['blockNode']
+  const paragraphType = state.schema.nodes['paragraph']
+  const blockChildrenType = state.schema.nodes['blockChildren']
+  if (!blockNodeType || !paragraphType || !blockChildrenType) return false
+
+  const emptyParagraph = paragraphType.create()
+  const innerChildren = blockChildrenType.create({listType, listLevel}, blockInfo.block.node)
+  const wrappingBlock = blockNodeType.create(null, [emptyParagraph, innerChildren])
+
+  const tr = state.tr.replaceWith(blockInfo.block.beforePos, blockInfo.block.afterPos, wrappingBlock)
+  // The original block now sits 2 structural levels deeper, which is 4 added positions.
+  const newFrom = state.selection.from + 4
+  tr.setSelection(TextSelection.near(tr.doc.resolve(newFrom))).scrollIntoView()
+  dispatch(tr)
+  return true
+}
 
 export const updateGroupCommand = (
   posInBlock: number,
@@ -71,7 +119,7 @@ export const updateGroupCommand = (
       return false
     }
 
-    // If block is not the first in its' group, sink list item and then update group
+    // If block is not the first in its' group, sink list item and then update group.
     if (
       group.firstChild &&
       container &&
@@ -79,6 +127,14 @@ export const updateGroupCommand = (
       !tab &&
       !(turnInto && group.attrs.listType === 'Grid')
     ) {
+      if (isPreviousSiblingTable(state)) {
+        // Wrap in an empty paragraph blockNode before sinking,
+        // if the previous sibling is a table block.
+        setTimeout(() => {
+          editor.commands.command(({state: s, dispatch: d}) => wrapInEmptyParagraphUnderTable(s, d, listType, '1'))
+        })
+        return false
+      }
       setTimeout(() => {
         editor
           .chain()
@@ -92,7 +148,7 @@ export const updateGroupCommand = (
       return false
     }
 
-    // If inserting other list type in another list, sink list item and then update group
+    // If inserting other list type in another list, sink list item and then update group.
     if (
       group.attrs.listType !== 'Group' &&
       group.attrs.listType !== listType &&
@@ -101,6 +157,14 @@ export const updateGroupCommand = (
       !turnInto &&
       !isSank
     ) {
+      if (isPreviousSiblingTable(state)) {
+        // Wrap in an empty paragraph blockNode before sinking,
+        // if the previous sibling is a table block.
+        setTimeout(() => {
+          editor.commands.command(({state: s, dispatch: d}) => wrapInEmptyParagraphUnderTable(s, d, listType, '1'))
+        })
+        return false
+      }
       setTimeout(() => {
         editor
           .chain()
