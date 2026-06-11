@@ -302,7 +302,16 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   let accountUid: string | null = null
 
   // Determine document type based on URL pattern
-  if (pathParts[0] === 'hm' && pathParts.length > 1) {
+  if (pathParts[0] === 'hm' && isSiteProfileTab(pathParts[1])) {
+    // Backward-compatible utility profile URLs: /hm/profile/:accountUid.
+    viewTerm = pathParts[1]
+    accountUid = pathParts[2] || registeredAccountUid
+    documentId = hmId(registeredAccountUid, {
+      path: [],
+      version,
+      latest,
+    })
+  } else if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...) or inspector document (/hm/inspect/uid/path...)
     const inspectResult = extractInspectPrefixFromPath(pathParts, true)
     isInspect = inspectResult.isInspect
