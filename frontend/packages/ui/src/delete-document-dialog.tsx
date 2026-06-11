@@ -72,12 +72,7 @@ export function DeleteDocumentDialog({
   }
 
   return (
-    <div
-      className={cn(
-        
-        className,
-      )}
-    >
+    <div className={cn(className)}>
       <div className="flex shrink-0 flex-col gap-3 p-4 pb-3">
         <Text className="text-lg font-semibold">Delete &quot;{document.title}&quot;</Text>
         <Text className="text-muted-foreground text-sm">
