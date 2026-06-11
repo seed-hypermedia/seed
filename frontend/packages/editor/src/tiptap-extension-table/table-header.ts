@@ -18,6 +18,10 @@ export const TableHeader = Node.create<TableHeaderOptions>({
 
   addAttributes() {
     return {
+      // Header cell-level block id. Carries the Paragraph block id for
+      // the cell's content so anchored data (comments, quote ranges) survives
+      // load/save. UniqueID generates one on first read if missing.
+      id: {default: null, keepOnSplit: true},
       colspan: {
         default: 1,
       },
