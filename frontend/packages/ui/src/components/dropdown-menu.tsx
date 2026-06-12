@@ -12,8 +12,14 @@ function DropdownMenuPortal({...props}: React.ComponentProps<typeof DropdownMenu
   return <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
 }
 
-function DropdownMenuTrigger({...props}: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-  return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
+function DropdownMenuTrigger({className, ...props}: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+  return (
+    <DropdownMenuPrimitive.Trigger
+      data-slot="dropdown-menu-trigger"
+      className={cn('data-[state=open]:opacity-100', className)}
+      {...props}
+    />
+  )
 }
 
 export type DropdownMenuContentProps = React.ComponentProps<typeof DropdownMenuPrimitive.Content>
