@@ -74,6 +74,13 @@ function formatRelativeTime(updateTime: AnyTimestamp): string | null {
   return formattedDateShort(date)
 }
 
+function slugifyEditedPathSegment(raw: string, slugify: (raw: string) => string): string {
+  const withoutLeadingWhitespace = raw.replace(/^\s+/, '')
+  const slug = slugify(withoutLeadingWhitespace)
+  if (!slug) return ''
+  return /\s$/.test(withoutLeadingWhitespace) ? `${slug}-` : slug
+}
+
 /**
  * Popover body shown when the user clicks Publish.
  * Exported for testing.
@@ -126,11 +133,12 @@ export function PublishPopoverBody({
   }
 
   const effectivePathSegment = editedPathSegment ?? autoSlugSegment ?? ''
+  const normalizedPathSegment = slugify ? slugify(effectivePathSegment) : effectivePathSegment
   const previewPath = useMemo(() => {
     if (!isFirstPublish) return docId.path
     const parent = (docId.path ?? []).slice(0, -1)
-    return [...parent, effectivePathSegment || `untitled-${draftId ?? ''}`]
-  }, [isFirstPublish, docId.path, effectivePathSegment, draftId])
+    return [...parent, normalizedPathSegment || `untitled-${draftId ?? ''}`]
+  }, [isFirstPublish, docId.path, normalizedPathSegment, draftId])
 
   const effectiveDocId = isFirstPublish ? {...docId, path: previewPath} : docId
   const documentUrl = getDocumentUrl?.(effectiveDocId) ?? null
@@ -189,7 +197,7 @@ export function PublishPopoverBody({
                 if (isPrivate) return
                 userEditedRef.current = true
                 const raw = e.target.value.replace(/^\//, '')
-                setEditedPathSegment(slugify(raw))
+                setEditedPathSegment(slugifyEditedPathSegment(raw, slugify))
               }}
               onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {

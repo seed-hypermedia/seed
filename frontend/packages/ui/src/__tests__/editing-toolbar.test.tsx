@@ -57,6 +57,7 @@ vi.mock('../tooltip', async () => {
 })
 
 import {PublishButtonWithPopover, PublishPopoverBody} from '../editing-toolbar'
+import {pathNameify} from '@shm/shared/utils/path'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 function renderNode(node: React.ReactNode) {
@@ -80,6 +81,10 @@ function findButtonByText(container: HTMLDivElement, label: string) {
   return Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === label) as
     | HTMLButtonElement
     | undefined
+}
+
+function findInput(container: HTMLDivElement) {
+  return container.querySelector('input') as HTMLInputElement | null
 }
 
 describe('editing-toolbar publish disabled states', () => {
@@ -146,6 +151,106 @@ describe('editing-toolbar publish disabled states', () => {
       expect(publishButton?.disabled).toBe(true)
       expect(publishButton?.className).toContain('bg-neutral-100')
       expect(publishButton?.className).toContain('text-neutral-500')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+})
+
+describe('PublishPopoverBody permalink editing', () => {
+  beforeEach(() => {
+    selectMock.document = {version: '', metadata: {}}
+    selectMock.draftId = 'draft-1'
+    selectMock.metadata = {name: 'My Doc'}
+    sendMock.mockReset()
+    unpublishedChangeCountMock.mockReset()
+    unpublishedChangeCountMock.mockReturnValue(1)
+    useAccountMock.mockReset()
+    useAccountMock.mockReturnValue({data: undefined})
+  })
+
+  it('turns a typed trailing space into an editable dash separator', () => {
+    const docId = hmId('acct-1', {path: ['parent', 'my']})
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={docId}
+        changeCount={1}
+        onPublish={vi.fn()}
+        onClose={vi.fn()}
+        publishDisabled={false}
+        slugify={pathNameify}
+      />,
+    )
+
+    try {
+      const input = findInput(container)!
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+        setter.call(input, '/my ')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+
+      expect(input.value).toBe('/my-')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('does not create a leading dash from a leading space', () => {
+    const docId = hmId('acct-1', {path: ['parent', 'my']})
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={docId}
+        changeCount={1}
+        onPublish={vi.fn()}
+        onClose={vi.fn()}
+        publishDisabled={false}
+        slugify={pathNameify}
+      />,
+    )
+
+    try {
+      const input = findInput(container)!
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+        setter.call(input, '/ my doc')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+
+      expect(input.value).toBe('/my-doc')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('trims a trailing space-created dash from the publish override', () => {
+    const docId = hmId('acct-1', {path: ['parent', 'my']})
+    const onPublish = vi.fn()
+    const {container, root} = renderNode(
+      <PublishPopoverBody
+        docId={docId}
+        changeCount={1}
+        onPublish={onPublish}
+        onClose={vi.fn()}
+        publishDisabled={false}
+        slugify={pathNameify}
+      />,
+    )
+
+    try {
+      const input = findInput(container)!
+      act(() => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+        setter.call(input, '/my ')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+
+      const publishButton = findButtonByText(container, 'Publish: Make it live now')
+      act(() => {
+        publishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+
+      expect(onPublish).toHaveBeenCalledWith(['parent', 'my'])
     } finally {
       cleanup(root, container)
     }
