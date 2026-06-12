@@ -7,7 +7,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
-import {buildRestoreVersionChanges} from '@shm/shared/utils/restore-document-version'
+import {buildRestoreVersionChanges, getRestoreVersionGeneration} from '@shm/shared/utils/restore-document-version'
 import {deleteWebDocDraft, getLatestWebDocDraftForDoc} from './web-draft-db'
 
 export type RestoreWebDocumentVersionInput = {
@@ -51,16 +51,13 @@ export async function restoreWebDocumentVersion(
     } as any,
   )) as any
 
-  const existingGenerationRaw = latestDocument.generationInfo?.generation
-  const existingGenerationNum = existingGenerationRaw != null ? Number(existingGenerationRaw) : 0
-  const nextGeneration = Math.max(Date.now(), existingGenerationNum + 1)
   const {changeCid, publishInput} = await signDocumentChange(
     {
       account: targetId.uid,
       path,
       unsignedChange: prepareResult.unsignedChange,
       genesis: latestDocument.genesis,
-      generation: nextGeneration,
+      generation: getRestoreVersionGeneration(latestDocument),
       capability: input.capabilityCid ?? '',
       visibility,
     },

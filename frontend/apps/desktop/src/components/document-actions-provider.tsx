@@ -15,15 +15,16 @@ import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {queryResource} from '@shm/shared/models/queries'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {hmId, latestId, pathMatches} from '@shm/shared/utils/entity-id-url'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useCallback, useMemo} from 'react'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {buildRestoreVersionChanges} from '@shm/shared/utils/restore-document-version'
+import {buildRestoreVersionChanges, getRestoreVersionGeneration} from '@shm/shared/utils/restore-document-version'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from 'sonner'
 
@@ -32,6 +33,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const myAccountIds = useMyAccountIds()
   const bookmarks = useBookmarks()
   const navigate = useNavigate()
+  const currentRoute = useNavRoute()
   const {exportDocument, openDirectory} = useAppContext()
   const {onCopyReference} = useUniversalAppContext()
   const universalClient = useUniversalClient()
@@ -246,7 +248,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
           capability,
           visibility: ResourceVisibility.UNSPECIFIED,
           genesis: latestDocument.genesis,
-          generation: latestDocument.generationInfo?.generation,
+          generation: getRestoreVersionGeneration(latestDocument),
         })
 
         const draftId = getDraftId(targetId)
@@ -260,7 +262,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         if (draftId) invalidateQueries([queryKeys.DRAFT, draftId])
 
-        navigate({key: 'document', id: targetId})
+        navigate(replaceRouteDocumentId(currentRoute, targetId))
         toast.success('Document restored successfully')
       } catch (error) {
         console.error('Failed to restore document version:', error)
@@ -268,7 +270,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         throw error
       }
     },
-    [getDraftId, navigate, selectedAccountId, universalClient],
+    [currentRoute, getDraftId, navigate, selectedAccountId, universalClient],
   )
 
   const value = useMemo(

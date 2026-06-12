@@ -74,6 +74,7 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -719,7 +720,7 @@ export default function DesktopResourcePage() {
       replace({
         key: 'document',
         id: docId,
-        panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+        panel: createDocumentVersionsPanelRoute(docId),
       })
     },
   })

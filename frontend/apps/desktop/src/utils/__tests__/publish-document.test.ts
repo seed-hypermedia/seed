@@ -55,6 +55,32 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
       }),
     ).toBe(false)
   })
+
+  it('keeps explicit-generation publishes on the seed client path', () => {
+    expect(
+      shouldUseDaemonCreateDocumentChange({
+        signerAccountUid: 'alice',
+        account: 'alice',
+        path: '/foo',
+        baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
+        generation: 123,
+        changes: [],
+      }),
+    ).toBe(false)
+  })
+
+  it('still uses daemon createDocumentChange for brand-new home documents with explicit generation', () => {
+    expect(
+      shouldUseDaemonCreateDocumentChange({
+        signerAccountUid: 'alice',
+        account: 'alice',
+        path: '',
+        generation: 123,
+        changes: [],
+      }),
+    ).toBe(true)
+  })
 })
 
 describe('createDocumentChangeRequest', () => {
@@ -180,6 +206,47 @@ describe('publishDesktopDocument', () => {
         account: 'alice',
         path: '/foo',
         baseVersion: 'bafy-base',
+        changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
+      },
+      signer,
+    )
+  })
+
+  it('passes explicit generation through the seed client path', async () => {
+    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
+    const publishDocument = vi.fn().mockResolvedValue(undefined)
+    const signer = {
+      getPublicKey: vi.fn(async () => new Uint8Array([1])),
+      sign: vi.fn(async () => new Uint8Array([2])),
+    }
+    const getSigner = vi.fn(() => signer)
+
+    await publishDesktopDocument(
+      {
+        createDocumentChange,
+        publishDocument,
+        getSigner,
+      },
+      {
+        signerAccountUid: 'alice',
+        account: 'alice',
+        path: '/foo',
+        baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
+        generation: 123,
+        changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
+      },
+    )
+
+    expect(createDocumentChange).not.toHaveBeenCalled()
+    expect(getSigner).toHaveBeenCalledWith('alice')
+    expect(publishDocument).toHaveBeenCalledWith(
+      {
+        account: 'alice',
+        path: '/foo',
+        baseVersion: 'bafy-base',
+        genesis: 'bafy-genesis',
+        generation: 123,
         changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
       },
       signer,

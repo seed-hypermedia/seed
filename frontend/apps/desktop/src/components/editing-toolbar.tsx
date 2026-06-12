@@ -15,6 +15,7 @@ import {
   DraftActionsToolbar as SharedDraftActionsToolbar,
   EditingDocToolsRight as SharedEditingDocToolsRight,
 } from '@shm/ui/editing-toolbar'
+import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {useCallback, useMemo} from 'react'
@@ -103,7 +104,7 @@ export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
         navigate({
           key: 'document',
           id,
-          panel: {key: 'activity', id, filterEventType: ['Ref']},
+          panel: createDocumentVersionsPanelRoute(id),
         } as any)
       },
     }),

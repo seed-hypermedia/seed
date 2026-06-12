@@ -1,48 +1,50 @@
 import {HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
-import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
+import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
+import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
-import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {pathNameify} from '@shm/shared/utils/path'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
-import {useQuery} from '@tanstack/react-query'
+import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
+import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
+import {Trash} from '@shm/ui/icons'
 import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
-import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
+import type {MenuItemType} from '@shm/ui/options-dropdown'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
-import {Trash} from '@shm/ui/icons'
-import type {MenuItemType} from '@shm/ui/options-dropdown'
-import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useQuery} from '@tanstack/react-query'
+import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
 import {preloadCommenting} from './client-lazy'
-import {setPendingIntent} from './local-db'
-import {PageFooter} from './page-footer'
-import {processPendingIntent} from './pending-intent'
-import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
-import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
-import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
-import {makeWebFileUpload} from './document-edit/web-image-upload'
 import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
+import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
 import {getWebDraftShellId, shouldUseLocalWebDraftShell} from './document-edit/web-draft-shell'
+import {makeWebFileUpload} from './document-edit/web-image-upload'
+import {WebQueryBlockDraftSlot} from './document-edit/web-query-block-draft-slot'
 import {restoreWebDocumentVersion} from './document-edit/web-restore-document-version'
+import {setPendingIntent} from './local-db'
+import {PageFooter} from './page-footer'
+import {processPendingIntent} from './pending-intent'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
+import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -300,7 +302,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         navigate({
           key: 'document',
           id,
-          panel: {key: 'activity', id, filterEventType: ['Ref']},
+          panel: createDocumentVersionsPanelRoute(id),
         } as any)
       },
     }),
@@ -409,7 +411,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             getSigner: (accountUid) => universalClient.getSigner!(accountUid),
           },
         )
-        replaceRouteRef.current({key: 'document', id: latestId(id), panel: null} as any)
+        replaceRouteRef.current(replaceRouteDocumentId(route, latestId(id)))
         toast.success('Document restored successfully')
       } catch (error) {
         console.error('Failed to restore document version:', error)
@@ -417,7 +419,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         throw error
       }
     },
-    [effectiveCanEdit, effectiveCapabilityCid, signingAccountId, universalClient],
+    [effectiveCanEdit, effectiveCapabilityCid, route, signingAccountId, universalClient],
   )
 
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)

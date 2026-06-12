@@ -30,6 +30,7 @@ import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
@@ -113,7 +114,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
           navigate({
             key: 'document',
             id: docId,
-            panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+            panel: createDocumentVersionsPanelRoute(docId),
           })
         },
       },

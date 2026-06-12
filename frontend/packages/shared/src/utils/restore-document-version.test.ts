@@ -1,6 +1,6 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {buildRestoreVersionChanges} from './restore-document-version'
+import {buildRestoreVersionChanges, getRestoreVersionGeneration} from './restore-document-version'
 
 function node(id: string, text: string): HMBlockNode {
   return {
@@ -32,15 +32,26 @@ function doc(overrides: Partial<HMDocument>): HMDocument {
 }
 
 describe('buildRestoreVersionChanges', () => {
-  it('builds replace and delete changes to make latest content match selected content', () => {
+  it('deletes current content before inserting every selected-version block', () => {
     const changes = buildRestoreVersionChanges(
       doc({content: [node('a', 'latest a'), node('b', 'latest b')]}),
-      doc({content: [node('a', 'old a')]}),
+      doc({content: [node('a', 'old a'), node('c', 'old c')]}),
     )
 
-    expect(changes.map((change) => change.op.case)).toEqual(['replaceBlock', 'deleteBlock'])
-    expect(changes[0]?.op.case === 'replaceBlock' ? changes[0].op.value.text : null).toBe('old a')
+    expect(changes.map((change) => change.op.case)).toEqual([
+      'deleteBlock',
+      'deleteBlock',
+      'moveBlock',
+      'replaceBlock',
+      'moveBlock',
+      'replaceBlock',
+    ])
+    expect(changes[0]?.op.case === 'deleteBlock' ? changes[0].op.value : null).toBe('a')
     expect(changes[1]?.op.case === 'deleteBlock' ? changes[1].op.value : null).toBe('b')
+    expect(changes[2]?.op.case === 'moveBlock' ? changes[2].op.value.blockId : null).toBe('a')
+    expect(changes[3]?.op.case === 'replaceBlock' ? changes[3].op.value.text : null).toBe('old a')
+    expect(changes[4]?.op.case === 'moveBlock' ? changes[4].op.value.blockId : null).toBe('c')
+    expect(changes[5]?.op.case === 'replaceBlock' ? changes[5].op.value.text : null).toBe('old c')
   })
 
   it('restores arbitrary metadata values and removes fields missing from selected version', () => {
@@ -82,5 +93,20 @@ describe('buildRestoreVersionChanges', () => {
       'nullValue',
       'stringValue',
     ])
+  })
+})
+
+describe('getRestoreVersionGeneration', () => {
+  it('uses the latest document generation instead of creating a new one', () => {
+    expect(
+      getRestoreVersionGeneration(
+        doc({
+          generationInfo: {
+            genesis: 'g1',
+            generation: 123n,
+          },
+        }),
+      ),
+    ).toBe(123n)
   })
 })

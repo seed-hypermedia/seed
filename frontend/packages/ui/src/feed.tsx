@@ -27,7 +27,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from './components/alert-dialog'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
@@ -61,6 +60,39 @@ export function getDraftVersionInsertIndex(events: LoadedEvent[], draft: DraftVe
   const baseVersions = new Set(draft.deps)
   const baseIndex = events.findIndex((event) => event.type === 'doc-update' && baseVersions.has(event.document.version))
   return baseIndex === -1 ? 0 : baseIndex
+}
+
+/** Returns the newest document update version from an activity feed ordered newest-first. */
+export function getLatestDocUpdateVersion(events: LoadedEvent[]) {
+  return events.find((event) => event.type === 'doc-update')?.document.version ?? null
+}
+
+export function isSelectedDocUpdateVersion(
+  eventVersion: string | undefined,
+  routeVersion: string | null | undefined,
+  routeLatest: boolean | null | undefined,
+  latestVersion: string | null | undefined,
+) {
+  if (!eventVersion) return false
+  if (routeVersion) return eventVersion === routeVersion
+  return !!routeLatest && !!latestVersion && eventVersion === latestVersion
+}
+
+export function canShowRestoreVersionButton(input: {
+  isSingleResource?: boolean
+  selectedAccountUid?: string
+  latestVersion?: string | null
+  eventVersion?: string
+  hasRestoreAction?: boolean
+}) {
+  return !!(
+    input.isSingleResource &&
+    input.selectedAccountUid &&
+    input.latestVersion &&
+    input.eventVersion &&
+    input.hasRestoreAction &&
+    input.latestVersion !== input.eventVersion
+  )
 }
 
 export function Feed({
@@ -164,6 +196,7 @@ export function Feed({
   const isSingleResource = filterResource && !filterResource.endsWith('*') ? true : false
   const shouldRenderDraftVersion = shouldShowDraftVersionEntry(filterEventType, draftVersionEntry)
   const draftInsertIndex = shouldRenderDraftVersion ? getDraftVersionInsertIndex(allEvents, draftVersionEntry) : -1
+  const latestDocUpdateVersion = isSingleResource ? getLatestDocUpdateVersion(allEvents) : null
 
   if (error) {
     return (
@@ -211,6 +244,7 @@ export function Feed({
                     route={route}
                     targetDomain={targetDomain}
                     size={size}
+                    latestDocUpdateVersion={latestDocUpdateVersion}
                   />
                   <Separator />
                 </div>
@@ -230,6 +264,7 @@ export function Feed({
                   route={route}
                   targetDomain={targetDomain}
                   size={size}
+                  latestDocUpdateVersion={latestDocUpdateVersion}
                 />
                 <Separator />
               </div>
@@ -319,11 +354,13 @@ function EventHeaderContent({
   targetDomain,
   isSingleResource,
   route,
+  latestDocUpdateVersion,
 }: {
   event: LoadedEvent
   targetDomain?: string
   isSingleResource?: boolean
   route?: NavRoute | null
+  latestDocUpdateVersion?: string | null
 }) {
   const tx = useTxString()
   const currentRoute = useNavRoute()
@@ -332,6 +369,7 @@ function EventHeaderContent({
   const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
   const latestResource = useResource(latestDocId)
   const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null
+  const latestVersion = latestDocUpdateVersion ?? latestDocument?.version
   const deleteCommentMutation = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const copyHmLink = useCopyHmLink()
@@ -449,29 +487,30 @@ function EventHeaderContent({
 
   if (event.type == 'doc-update') {
     const docUpdateHeadCount = getVersionHeads(event.document.version).length
-    const isLatestVersion = latestDocument?.version === event.document.version
-    const canRestore = !!(
-      isSingleResource &&
-      currentAccount &&
-      latestDocument &&
-      documentActions.onRestoreDocumentVersion &&
-      !isLatestVersion
-    )
+    const canRestore = canShowRestoreVersionButton({
+      isSingleResource,
+      selectedAccountUid: documentActions.selectedAccountUid,
+      latestVersion,
+      eventVersion: event.document.version,
+      hasRestoreAction: !!documentActions.onRestoreDocumentVersion,
+    })
     const restoreButton = canRestore ? (
       <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <AlertDialogTrigger asChild>
+        <Tooltip content="Restore">
           <Button
-            size="xs"
+            aria-label="Restore"
+            size="icon"
             variant="ghost"
             className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
+              setRestoreDialogOpen(true)
             }}
           >
             <RotateCcw className="size-3" />
-            Restore
           </Button>
-        </AlertDialogTrigger>
+        </Tooltip>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
             <AlertDialogTitle>Restore this version?</AlertDialogTitle>
@@ -741,12 +780,14 @@ function EventCommentWithReply({
   targetDomain,
   isSingleResource,
   size,
+  latestDocUpdateVersion,
 }: {
   event: LoadedCommentEvent
   route: NavRoute | null
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
+  latestDocUpdateVersion?: string | null
 }) {
   const linkProps = useRouteLink(route)
   const tx = useTx()
@@ -816,6 +857,7 @@ function EventCommentWithReply({
           event={event}
           targetDomain={targetDomain}
           route={route}
+          latestDocUpdateVersion={latestDocUpdateVersion}
         />
       </div>
       <div className="relative flex gap-2">
@@ -975,25 +1017,32 @@ function EventItem({
   targetDomain,
   isSingleResource,
   size,
+  latestDocUpdateVersion,
 }: {
   event: LoadedEvent
   route: NavRoute | null
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
+  latestDocUpdateVersion?: string | null
 }) {
   const currentRoute = useNavRoute()
   const linkProps = useRouteLink(route ? merge({}, currentRoute, route) : currentRoute)
+  const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
+  const latestResource = useResource(latestDocId)
+  const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null
+  const latestVersion = latestDocUpdateVersion ?? latestDocument?.version
+  const routeId = currentRoute.key === 'document' ? currentRoute.id : null
+  const isSelectedVersion =
+    event.type === 'doc-update' &&
+    isSelectedDocUpdateVersion(event.document.version, routeId?.version, routeId?.latest, latestVersion)
 
   const tx = useTx()
   return (
     <div
       className={cn(
         'hover:bg-background group flex flex-col gap-2 px-4 py-4 transition-colors dark:hover:bg-black/10',
-        currentRoute.key == 'document' &&
-          event.type == 'doc-update' &&
-          event.docId.version == currentRoute.id.version &&
-          'bg-accent hover:bg-accent dark:hover:bg-accent',
+        isSelectedVersion && 'bg-accent hover:bg-accent dark:hover:bg-accent',
       )}
       {...(route ? linkProps : {})}
     >
@@ -1008,7 +1057,12 @@ function EventItem({
             />
           ) : null}
         </div>
-        <EventHeaderContent event={event} targetDomain={targetDomain} isSingleResource={isSingleResource} />
+        <EventHeaderContent
+          event={event}
+          targetDomain={targetDomain}
+          isSingleResource={isSingleResource}
+          latestDocUpdateVersion={latestDocUpdateVersion}
+        />
       </div>
       {isSingleResource && event.type == 'doc-update' ? null : (
         <div className="relative flex gap-2">

@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto'
+import {signDocumentChange} from '@seed-hypermedia/client'
 import {indexedDB} from 'fake-indexeddb'
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
@@ -63,6 +64,7 @@ function doc(overrides: Partial<HMDocument>): HMDocument {
 
 describe('restoreWebDocumentVersion', () => {
   beforeEach(async () => {
+    vi.mocked(signDocumentChange).mockClear()
     _resetWebDocDraftDBForTesting()
     await dropDB()
     _resetWebDocDraftDBForTesting()
@@ -111,10 +113,19 @@ describe('restoreWebDocumentVersion', () => {
     expect(publish).toHaveBeenCalledTimes(1)
     const prepareCall = request.mock.calls.find(([key]) => key === 'PrepareDocumentChange')
     expect(prepareCall?.[1].baseVersion).toBe('latest-version')
+    expect(signDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        genesis: 'genesis',
+        generation: 5n,
+      }),
+      expect.anything(),
+    )
     expect(prepareCall?.[1].changes.map((change: any) => change.op.case)).toEqual([
       'setAttribute',
-      'replaceBlock',
       'deleteBlock',
+      'deleteBlock',
+      'moveBlock',
+      'replaceBlock',
     ])
     await expect(getWebDocDraft('draft-1')).resolves.toBeNull()
   })
