@@ -37,6 +37,16 @@ export function useBookmarks(): BookmarkItem[] {
   }, [bookmarksQuery.data])
 }
 
+/** Remove a bookmark URL from the stored bookmarks list. */
+export function useRemoveBookmark() {
+  return useMutation({
+    mutationFn: (url: string) => client.bookmarks.removeBookmark.mutate(url),
+    onSuccess: () => {
+      invalidateQueries([queryKeys.BOOKMARKS])
+    },
+  })
+}
+
 /** Check bookmark state for a specific bookmark URL (including view term). */
 export function useBookmark(bookmarkUrl: string | null) {
   const bookmarks = useBookmarks()

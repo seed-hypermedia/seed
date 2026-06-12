@@ -1,4 +1,4 @@
-import {useBookmarks} from '@/models/bookmarks'
+import {useBookmarks, useRemoveBookmark} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
@@ -68,6 +68,7 @@ import {
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
+import {BookmarkOptionsMenu} from './bookmark-options-menu'
 import {CreateDocumentButton} from './create-doc-button'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -192,6 +193,7 @@ function SidebarSection({
 
 function BookmarksSection() {
   const bookmarks = useBookmarks()
+  const removeBookmark = useRemoveBookmark()
   const contacts = useSelectedAccountContacts()
   const bookmarkIds = bookmarks.map((b) => b.id)
   const bookmarkEntities = useResources(bookmarkIds)
@@ -202,15 +204,45 @@ function BookmarksSection() {
     <SidebarSection title="Bookmarks">
       {bookmarks.map((bookmarkItem, i) => {
         const entity = bookmarkEntities[i]
-        if (!entity?.data) return null
-        if (entity.data.type === 'error') {
+        const deletingBookmark = removeBookmark.isLoading && removeBookmark.variables === bookmarkItem.url
+        const deleteBookmark = () => removeBookmark.mutate(bookmarkItem.url)
+        if (!entity?.data) {
+          if (entity?.isLoading) return null
           return (
             <SidebarMenuItem key={bookmarkItem.url}>
-              <ErrorListItem id={entity.data.id} active={currentBookmarkUrl === bookmarkItem.url} />
+              <ErrorListItem
+                id={bookmarkItem.id}
+                active={currentBookmarkUrl === bookmarkItem.url}
+                onDeleteBookmark={deleteBookmark}
+                deletingBookmark={deletingBookmark}
+              />
             </SidebarMenuItem>
           )
         }
-        if (entity.data.type !== 'document') return null
+        if (entity.data.type === 'error') {
+          return (
+            <SidebarMenuItem key={bookmarkItem.url}>
+              <ErrorListItem
+                id={entity.data.id}
+                active={currentBookmarkUrl === bookmarkItem.url}
+                onDeleteBookmark={deleteBookmark}
+                deletingBookmark={deletingBookmark}
+              />
+            </SidebarMenuItem>
+          )
+        }
+        if (entity.data.type !== 'document') {
+          return (
+            <SidebarMenuItem key={bookmarkItem.url}>
+              <ErrorListItem
+                id={bookmarkItem.id}
+                active={currentBookmarkUrl === bookmarkItem.url}
+                onDeleteBookmark={deleteBookmark}
+                deletingBookmark={deletingBookmark}
+              />
+            </SidebarMenuItem>
+          )
+        }
         const {id, document} = entity.data
         const metadata = id.path?.length
           ? document?.metadata
@@ -225,6 +257,8 @@ function BookmarksSection() {
               visibility={document?.visibility}
               bookmarkKey={bookmarkItem.key}
               viewTerm={bookmarkItem.viewTerm}
+              onDeleteBookmark={deleteBookmark}
+              deletingBookmark={deletingBookmark}
             />
           </SidebarMenuItem>
         )
@@ -233,18 +267,32 @@ function BookmarksSection() {
   )
 }
 
-function ErrorListItem({id, active}: {id: UnpackedHypermediaId; active: boolean}) {
+function ErrorListItem({
+  id,
+  active,
+  onDeleteBookmark,
+  deletingBookmark,
+}: {
+  id: UnpackedHypermediaId
+  active: boolean
+  onDeleteBookmark: () => void
+  deletingBookmark?: boolean
+}) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
-    <SmallListItem
-      key={id.id}
-      docId={id.id}
-      active={active}
-      title="Error"
-      textClass="text-destructive"
-      icon={<AlertCircle className="text-destructive size-5" />}
-      {...linkProps}
-    />
+    <>
+      <SmallListItem
+        key={id.id}
+        docId={id.id}
+        active={active}
+        title="Error"
+        textClass="text-destructive"
+        icon={<AlertCircle className="text-destructive size-5" />}
+        className="pr-8"
+        {...linkProps}
+      />
+      <BookmarkOptionsMenu onDeleteBookmark={onDeleteBookmark} disabled={deletingBookmark} />
+    </>
   )
 }
 
@@ -276,6 +324,8 @@ function BookmarkListItem({
   visibility,
   bookmarkKey,
   viewTerm,
+  onDeleteBookmark,
+  deletingBookmark,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
@@ -283,6 +333,8 @@ function BookmarkListItem({
   visibility?: HMResourceVisibility
   bookmarkKey: 'document' | 'profile'
   viewTerm: ViewTerm | null
+  onDeleteBookmark: () => void
+  deletingBookmark?: boolean
 }) {
   const navRoute =
     bookmarkKey === 'profile'
@@ -293,20 +345,24 @@ function BookmarkListItem({
   const linkProps = useRouteLink(navRoute)
   const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (
-    <SmallListItem
-      key={id.id}
-      docId={id.id}
-      active={active}
-      title={metadata?.name || 'Untitled'}
-      icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
-      accessory={
-        <>
-          {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground" /> : null}
-          {visibility === 'PRIVATE' ? <Lock size={12} /> : null}
-        </>
-      }
-      {...linkProps}
-    />
+    <>
+      <SmallListItem
+        key={id.id}
+        docId={id.id}
+        active={active}
+        title={metadata?.name || 'Untitled'}
+        icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
+        accessory={
+          <>
+            {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground" /> : null}
+            {visibility === 'PRIVATE' ? <Lock size={12} /> : null}
+          </>
+        }
+        className="pr-8"
+        {...linkProps}
+      />
+      <BookmarkOptionsMenu onDeleteBookmark={onDeleteBookmark} disabled={deletingBookmark} />
+    </>
   )
 }
 
