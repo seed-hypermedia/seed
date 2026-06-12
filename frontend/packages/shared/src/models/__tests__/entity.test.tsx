@@ -7,6 +7,7 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {UniversalAppContext} from '../../routing'
 import {hmId} from '../../utils/entity-id-url'
+import {queryKeys} from '../query-keys'
 import {useResource} from '../entity'
 
 const docA = hmId('uid1', {path: ['old-name']})
@@ -105,6 +106,7 @@ function renderUseResource(params: {
       container.remove()
     },
     client,
+    queryClient,
   }
 }
 
@@ -129,6 +131,20 @@ describe('useResource redirects', () => {
   afterEach(() => {
     document.body.innerHTML = ''
     vi.clearAllMocks()
+  })
+
+  it('caches resolved redirected resources under source and target query keys', async () => {
+    const onRedirectOrDeleted = vi.fn()
+    const rendered = renderUseResource({id: docA, onRedirectOrDeleted})
+
+    await waitForCondition(() => onRedirectOrDeleted.mock.calls.length === 1)
+
+    const oldKey = [queryKeys.ENTITY, docA.id, docA.version || undefined, docA.latest || false]
+    const newKey = [queryKeys.ENTITY, docB.id, docB.version || undefined, docB.latest || false]
+    expect(rendered.queryClient.getQueryData(oldKey)).toMatchObject({type: 'document', id: docB})
+    expect(rendered.queryClient.getQueryData(newKey)).toMatchObject({type: 'document', id: docB})
+
+    rendered.cleanup()
   })
 
   it('dispatches the same redirect again after navigating away and back', async () => {

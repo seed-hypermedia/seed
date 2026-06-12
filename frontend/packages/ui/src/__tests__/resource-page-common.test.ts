@@ -4,6 +4,7 @@ import {
   getCommentReplyPanelRoute,
   hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
+  getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
 } from '../resource-page-common'
 
@@ -187,5 +188,34 @@ describe('hasUnpublishedDraftForResourceState', () => {
         resourceData: undefined,
       }),
     ).toBe(false)
+  })
+})
+
+describe('getRenderedDocumentId', () => {
+  const oldId = hmId('uid1', {path: ['old-name']})
+  const newId = hmId('uid1', {path: ['new-name']})
+  const redirectedDocument = {
+    type: 'document' as const,
+    id: newId,
+    document: {
+      version: 'v1',
+      account: 'uid1',
+      path: '/new-name',
+      authors: [],
+      content: [],
+      metadata: {},
+      genesis: 'genesis1',
+      visibility: 'PUBLIC' as const,
+      createTime: '',
+      updateTime: '',
+    },
+  }
+
+  it('uses the resolved document id when a redirect returned a different document', () => {
+    expect(getRenderedDocumentId(oldId, redirectedDocument)).toEqual(newId)
+  })
+
+  it('keeps the route document id when the resource is not a document', () => {
+    expect(getRenderedDocumentId(oldId, {type: 'not-found', id: oldId})).toEqual(oldId)
   })
 })
