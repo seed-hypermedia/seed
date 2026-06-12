@@ -4,6 +4,7 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
+  HMResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -132,6 +133,15 @@ type CommentDraftTarget = {
   quotingBlockId?: string
   quotingRangeStart?: number
   quotingRangeEnd?: number
+}
+
+/** Returns true while a redirected document is waiting for the route to be replaced. */
+export function shouldWaitForRedirectRouteReplace(
+  requestedId: UnpackedHypermediaId | null | undefined,
+  resourceData: HMResource | null | undefined,
+  hasEverLoaded: boolean,
+): boolean {
+  return !!requestedId && !hasEverLoaded && resourceData?.type === 'document' && resourceData.id.id !== requestedId.id
 }
 
 function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
@@ -593,6 +603,17 @@ export function ResourcePage({
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <PageDiscovery />
+        {pageFooter}
+      </PageWrapper>
+    )
+  }
+
+  if (shouldWaitForRedirectRouteReplace(resourceFetchId, resource.data, hasEverLoadedRef.current)) {
+    return (
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
         {pageFooter}
       </PageWrapper>
     )

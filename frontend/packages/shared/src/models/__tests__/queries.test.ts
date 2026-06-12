@@ -142,8 +142,7 @@ describe('queryResource', () => {
     expect(result).toMatchObject({type: 'tombstone', id: docB})
   })
 
-  test('stops following redirects after max depth (5)', async () => {
-    // Create a chain of 6 redirects — should stop after 5
+  test('returns an error after redirect max depth instead of leaking a redirect resource', async () => {
     const ids = Array.from({length: 7}, (_, i) => hmId('uid1', {path: [`doc-${i}`]}))
     const client = createMockClient((_key, input) => {
       const idx = ids.findIndex((id) => id.id === input.id)
@@ -152,13 +151,30 @@ describe('queryResource', () => {
       }
       return documentResponse(ids[idx]!)
     })
-    const query = queryResource(client, ids[0]!)
-    const result = await query.queryFn!()
-    // After 5 redirects, we're at ids[5] which still redirects to ids[6],
-    // but we've hit the limit. The result is the redirect response itself.
-    expect(result).toMatchObject({type: 'redirect'})
-    // 1 initial + 5 follows = 6 total requests
+
+    const result = await queryResource(client, ids[0]!).queryFn!()
+
+    expect(result).toMatchObject({
+      type: 'error',
+      id: ids[0],
+      message: 'Too many redirects while resolving resource',
+    })
     expect(client.request).toHaveBeenCalledTimes(6)
+  })
+
+  test('does not copy source version onto redirect target', async () => {
+    const versionedDocA = hmId('uid1', {path: ['old-name'], version: 'v123'})
+    const client = createMockClient((_key, input) => {
+      if (input.id === versionedDocA.id) return redirectResponse(versionedDocA, docB)
+      if (input.id === docB.id) return documentResponse(docB)
+      throw new Error(`Unexpected request: ${input.id}`)
+    })
+
+    const result = await queryResource(client, versionedDocA).queryFn!()
+
+    expect(result).toMatchObject({type: 'document', id: docB})
+    expect(result?.id.version).toBeNull()
+    expect(client.request).toHaveBeenNthCalledWith(2, 'Resource', docB, {signal: undefined})
   })
 
   test('returns null for null id', async () => {

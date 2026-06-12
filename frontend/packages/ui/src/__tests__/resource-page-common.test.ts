@@ -5,6 +5,7 @@ import {
   hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
   shouldUseDraftForRenderedDocument,
+  shouldWaitForRedirectRouteReplace,
 } from '../resource-page-common'
 
 describe('shouldSuppressMainCommentEditor', () => {
@@ -187,5 +188,38 @@ describe('hasUnpublishedDraftForResourceState', () => {
         resourceData: undefined,
       }),
     ).toBe(false)
+  })
+})
+
+describe('shouldWaitForRedirectRouteReplace', () => {
+  const oldId = hmId('uid1', {path: ['old-name']})
+  const newId = hmId('uid1', {path: ['new-name']})
+  const redirectedDocument = {
+    type: 'document' as const,
+    id: newId,
+    document: {
+      version: 'v1',
+      account: 'uid1',
+      path: '/new-name',
+      authors: [],
+      content: [],
+      metadata: {},
+      genesis: 'genesis1',
+      visibility: 'PUBLIC' as const,
+      createTime: '',
+      updateTime: '',
+    },
+  }
+
+  it('waits when the fetched document resolved to a different id before any document loaded', () => {
+    expect(shouldWaitForRedirectRouteReplace(oldId, redirectedDocument, false)).toBe(true)
+  })
+
+  it('does not wait when the resolved document matches the requested id', () => {
+    expect(shouldWaitForRedirectRouteReplace(newId, redirectedDocument, false)).toBe(false)
+  })
+
+  it('does not wait after a document has already loaded', () => {
+    expect(shouldWaitForRedirectRouteReplace(oldId, redirectedDocument, true)).toBe(false)
   })
 })

@@ -90,6 +90,9 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
           }
           res = await client.request('Resource', nextTarget, {signal})
         }
+        if (res?.type === 'redirect') {
+          return {type: 'error', id, message: 'Too many redirects while resolving resource'}
+        }
         const parsed = HMResourceSchema.parse(res)
         if (republishSourceId && (parsed.type === 'document' || parsed.type === 'comment') && !id.hostname) {
           return {
