@@ -103,23 +103,23 @@ function SidebarMenuButton({
   )
 }
 
-function SidebarMenuAction({
-  className,
-  asChild = false,
-  ...props
-}: React.ComponentProps<'button'> & {asChild?: boolean}) {
-  const Comp = asChild ? Slot : 'button'
-  return (
-    <Comp
-      data-slot="sidebar-menu-action"
-      className={cn(
-        'text-sidebar-foreground/70 hover:text-sidebar-foreground absolute top-1/2 right-1 flex -translate-y-1/2 items-center justify-center rounded-md p-1 opacity-0 group-hover/menu-item:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
+const SidebarMenuAction = React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'> & {asChild?: boolean}>(
+  ({className, asChild = false, ...props}, ref) => {
+    const Comp = asChild ? Slot : 'button'
+    return (
+      <Comp
+        ref={ref}
+        data-slot="sidebar-menu-action"
+        className={cn(
+          'text-sidebar-foreground/70 hover:text-sidebar-foreground absolute top-1/2 right-1 flex -translate-y-1/2 items-center justify-center rounded-md p-1 opacity-0 group-hover/menu-item:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100',
+          className,
+        )}
+        {...props}
+      />
+    )
+  },
+)
+SidebarMenuAction.displayName = 'SidebarMenuAction'
 
 function SidebarMenuBadge({className, ...props}: React.ComponentProps<'div'>) {
   return (

@@ -2,8 +2,8 @@ import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {ImageIcon, MoreVertical, Pencil, Trash2} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DraftBadge} from './draft-badge'
+import {OptionsDropdown} from './options-dropdown'
 import {cn} from './utils'
 
 export interface InlineDraftCardProps {
@@ -131,23 +131,29 @@ export function InlineDraftCard({
             </div>
           </div>
           <div className="flex items-center justify-end py-3 pr-2 pl-4" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="iconSm">
+            <OptionsDropdown
+              align="end"
+              button={
+                <Button variant="ghost" size="iconSm" aria-label="Draft options">
                   <MoreVertical className="size-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openDraft}>
-                  <Pencil className="size-4" />
-                  Open Draft
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive" onClick={() => onDeleteDraft(draft.id)}>
-                  <Trash2 className="size-4" />
-                  Delete Draft
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              menuItems={[
+                {
+                  key: 'open',
+                  label: 'Open Draft',
+                  icon: <Pencil className="size-4" />,
+                  onClick: openDraft,
+                },
+                {
+                  key: 'delete',
+                  label: 'Delete Draft',
+                  icon: <Trash2 className="size-4" />,
+                  variant: 'destructive',
+                  onClick: () => onDeleteDraft(draft.id),
+                },
+              ]}
+            />
           </div>
         </div>
       </div>

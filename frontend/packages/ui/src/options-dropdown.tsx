@@ -50,6 +50,7 @@ function MenuItemHelpIcon({content}: {content: string}) {
   )
 }
 
+/** Describes one action row rendered by the shared three-dot options menu. */
 export type MenuItemType = {
   key: string
   label: string
@@ -59,8 +60,79 @@ export type MenuItemType = {
   variant?: 'default' | 'destructive'
   children?: MenuItemType[]
   tooltip?: string
+  disabled?: boolean
 }
 
+function orderMenuItems(menuItems: (MenuItemType | null)[]) {
+  const presentItems = menuItems.filter((item): item is MenuItemType => item != null)
+  const nonDestructive = presentItems.filter((item) => item.variant !== 'destructive')
+  const destructive = presentItems.filter((item) => item.variant === 'destructive')
+  const firstDestructiveIndex = nonDestructive.length > 0 && destructive.length > 0 ? nonDestructive.length : -1
+  return {ordered: [...nonDestructive, ...destructive], firstDestructiveIndex}
+}
+
+function MenuItemLabel({item}: {item: MenuItemType}) {
+  return item.subLabel ? (
+    <div className="flex flex-col gap-1">
+      <SizableText>{item.label}</SizableText>
+      <SizableText size="sm" className="text-muted-foreground text-xs">
+        {item.subLabel}
+      </SizableText>
+    </div>
+  ) : (
+    <SizableText>{item.label}</SizableText>
+  )
+}
+
+function renderMenuItem(item: MenuItemType, close: () => void) {
+  if (item.children) {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger disabled={item.disabled}>
+          {item.icon}
+          <SizableText>{item.label}</SizableText>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {item.children.map((child) => (
+            <DropdownMenuItem
+              key={child.key}
+              variant={child.variant}
+              disabled={child.disabled}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (child.disabled) return
+                close()
+                child.onClick?.(e as any)
+              }}
+            >
+              {child.icon}
+              <SizableText>{child.label}</SizableText>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
+
+  return (
+    <DropdownMenuItem
+      variant={item.variant}
+      disabled={item.disabled}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (item.disabled) return
+        close()
+        item.onClick?.(e as any)
+      }}
+    >
+      {item.icon}
+      <MenuItemLabel item={item} />
+      {item.tooltip ? <MenuItemHelpIcon content={item.tooltip} /> : null}
+    </DropdownMenuItem>
+  )
+}
+
+/** Renders the shared three-dot action menu used by row, card, and document option controls. */
 export function OptionsDropdown({
   menuItems,
   hiddenUntilItemHover,
@@ -68,6 +140,10 @@ export function OptionsDropdown({
   align,
   className,
   size = 'icon',
+  button,
+  triggerClassName,
+  contentClassName,
+  ariaLabel = 'Open options',
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
@@ -77,8 +153,13 @@ export function OptionsDropdown({
   align?: DropdownMenuContentProps['align']
   size?: ButtonProps['size']
   className?: string
+  triggerClassName?: string
+  contentClassName?: string
+  ariaLabel?: string
 }) {
   const popoverState = usePopoverState()
+  const {ordered, firstDestructiveIndex} = orderMenuItems(menuItems)
+  const close = () => popoverState.onOpenChange(false)
 
   return (
     <div
@@ -86,80 +167,32 @@ export function OptionsDropdown({
         'flex group-hover/item:opacity-100',
         !popoverState.open && hiddenUntilItemHover ? 'opacity-0' : 'opacity-100',
         className,
-        popoverState.open && '!opacity-100', // Force visible when dropdown is open
+        popoverState.open && '!opacity-100',
       )}
     >
       <DropdownMenu open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
-        <DropdownMenuTrigger className={cn(buttonVariants({variant: 'outline', size}), 'no-window-drag')}>
-          <MoreHorizontal className="size-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="p-1" side={side} align={align}>
+        {button ? (
+          <DropdownMenuTrigger asChild className={cn('no-window-drag', triggerClassName)}>
+            {button}
+          </DropdownMenuTrigger>
+        ) : (
+          <DropdownMenuTrigger
+            aria-label={ariaLabel}
+            className={cn(buttonVariants({variant: 'outline', size}), 'no-window-drag', triggerClassName)}
+          >
+            <MoreHorizontal className="size-3.5" />
+          </DropdownMenuTrigger>
+        )}
+        <DropdownMenuContent className={cn('p-1', contentClassName)} side={side} align={align}>
           <div className="flex flex-col">
-            {(() => {
-              // Filter items so destructive items are rendered at the bottom of the menu
-              const presentItems = menuItems.filter((item): item is MenuItemType => item != null)
-              const nonDestructive = presentItems.filter((item) => item.variant !== 'destructive')
-              const destructive = presentItems.filter((item) => item.variant === 'destructive')
-              const ordered = [...nonDestructive, ...destructive]
-              const firstDestructiveIndex =
-                nonDestructive.length > 0 && destructive.length > 0 ? nonDestructive.length : -1
-
-              return ordered.map((item, index) => (
-                <div key={item.key}>
-                  {index === firstDestructiveIndex ? (
-                    // Show separator before first destructive item
-                    <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-                  ) : null}
-                  {item.children ? (
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        {item.icon}
-                        <SizableText>{item.label}</SizableText>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {item.children.map((child) => (
-                          <DropdownMenuItem
-                            key={child.key}
-                            variant={child.variant}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              popoverState.onOpenChange(false)
-                              child.onClick?.(e as any)
-                            }}
-                          >
-                            {child.icon}
-                            <SizableText>{child.label}</SizableText>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  ) : (
-                    <DropdownMenuItem
-                      variant={item.variant}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        popoverState.onOpenChange(false)
-                        item.onClick?.(e as any)
-                      }}
-                    >
-                      {item.icon}
-                      {item.subLabel ? (
-                        <div className="flex flex-col gap-1">
-                          <SizableText>{item.label}</SizableText>
-
-                          <SizableText size="sm" className="text-muted-foreground text-xs">
-                            {item.subLabel}
-                          </SizableText>
-                        </div>
-                      ) : (
-                        <SizableText>{item.label}</SizableText>
-                      )}
-                      {item.tooltip ? <MenuItemHelpIcon content={item.tooltip} /> : null}
-                    </DropdownMenuItem>
-                  )}
-                </div>
-              ))
-            })()}
+            {ordered.map((item, index) => (
+              <div key={item.key}>
+                {index === firstDestructiveIndex ? (
+                  <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+                ) : null}
+                {renderMenuItem(item, close)}
+              </div>
+            ))}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>

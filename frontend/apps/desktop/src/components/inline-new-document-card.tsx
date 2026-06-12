@@ -6,13 +6,8 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
 import {DraftBadge} from '@shm/ui/draft-badge'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {ImageIcon, MoreVertical, Pencil, Trash2} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
@@ -160,23 +155,29 @@ export function InlineNewDocumentCard({draft, autoFocus}: {draft: HMListedDraft;
               <Pencil className="size-3" />
               Edit
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="iconSm">
+            <OptionsDropdown
+              align="end"
+              button={
+                <Button variant="ghost" size="iconSm" aria-label="Draft options">
                   <MoreVertical className="size-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={openDraft}>
-                  <Pencil className="size-4" />
-                  Open Draft
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive" onClick={() => deleteDraft.mutate(draft.id)}>
-                  <Trash2 className="size-4" />
-                  Delete Draft
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              menuItems={[
+                {
+                  key: 'open',
+                  label: 'Open Draft',
+                  icon: <Pencil className="size-4" />,
+                  onClick: openDraft,
+                },
+                {
+                  key: 'delete',
+                  label: 'Delete Draft',
+                  icon: <Trash2 className="size-4" />,
+                  variant: 'destructive',
+                  onClick: () => deleteDraft.mutate(draft.id),
+                },
+              ]}
+            />
           </div>
         </div>
       </div>

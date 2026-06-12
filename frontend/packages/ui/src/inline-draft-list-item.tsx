@@ -2,8 +2,8 @@ import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {FileText, MoreVertical, Pencil, Trash2} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DraftBadge} from './draft-badge'
+import {OptionsDropdown} from './options-dropdown'
 
 export interface InlineDraftListItemProps {
   draft: HMListedDraft
@@ -108,23 +108,29 @@ export function InlineDraftListItem({
           <DraftBadge />
         </div>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="iconSm">
+          <OptionsDropdown
+            align="end"
+            button={
+              <Button variant="ghost" size="iconSm" aria-label="Draft options">
                 <MoreVertical className="size-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={openDraft}>
-                <Pencil className="size-4" />
-                Open Draft
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive" onClick={() => onDeleteDraft(draft.id)}>
-                <Trash2 className="size-4" />
-                Delete Draft
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            menuItems={[
+              {
+                key: 'open',
+                label: 'Open Draft',
+                icon: <Pencil className="size-4" />,
+                onClick: openDraft,
+              },
+              {
+                key: 'delete',
+                label: 'Delete Draft',
+                icon: <Trash2 className="size-4" />,
+                variant: 'destructive',
+                onClick: () => onDeleteDraft(draft.id),
+              },
+            ]}
+          />
         </div>
       </div>
     </div>

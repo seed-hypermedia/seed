@@ -26,12 +26,6 @@ import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
-import {
   SidebarContent,
   SidebarFooter as SidebarFooterLayout,
   SidebarGroup,
@@ -48,6 +42,7 @@ import {useImageUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
@@ -532,39 +527,31 @@ function JoinedSiteListItem({
           )}
         </div>
       </SidebarMenuButton>
-      <DropdownMenu>
-        <SidebarMenuAction asChild>
-          <DropdownMenuTrigger
-            className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <OptionsDropdown
+        side="right"
+        align="start"
+        button={
+          <SidebarMenuAction aria-label="Joined site options" onClick={(e) => e.stopPropagation()}>
             <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-        </SidebarMenuAction>
-        <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate({key: 'all-documents', id})
-            }}
-          >
-            <LayoutList className="size-4" />
-            All Documents
-          </DropdownMenuItem>
-          <SidebarSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={isPending}
-            onClick={(e) => {
-              e.stopPropagation()
-              leaveSite()
-            }}
-          >
-            <CircleOff className="size-4" />
-            Leave Site
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </SidebarMenuAction>
+        }
+        menuItems={[
+          {
+            key: 'all-documents',
+            label: 'All Documents',
+            icon: <LayoutList className="size-4" />,
+            onClick: () => navigate({key: 'all-documents', id}),
+          },
+          {
+            key: 'leave',
+            label: 'Leave Site',
+            icon: <CircleOff className="size-4" />,
+            variant: 'destructive',
+            disabled: isPending,
+            onClick: () => leaveSite(),
+          },
+        ]}
+      />
     </>
   )
 }
@@ -669,29 +656,25 @@ function FollowingListItem({
           <span className="truncate text-left text-sm font-bold select-none">{metadata?.name || 'Untitled'}</span>
         </div>
       </SidebarMenuButton>
-      <DropdownMenu>
-        <SidebarMenuAction asChild>
-          <DropdownMenuTrigger
-            className="hover:bg-sidebar-accent flex items-center justify-center rounded-md p-1"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <OptionsDropdown
+        side="right"
+        align="start"
+        button={
+          <SidebarMenuAction aria-label="Following options" onClick={(e) => e.stopPropagation()}>
             <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-        </SidebarMenuAction>
-        <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={isPending}
-            onClick={(e) => {
-              e.stopPropagation()
-              unfollowProfile()
-            }}
-          >
-            <CircleOff className="size-4" />
-            Unfollow
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </SidebarMenuAction>
+        }
+        menuItems={[
+          {
+            key: 'unfollow',
+            label: 'Unfollow',
+            icon: <CircleOff className="size-4" />,
+            variant: 'destructive',
+            disabled: isPending,
+            onClick: () => unfollowProfile(),
+          },
+        ]}
+      />
     </>
   )
 }
