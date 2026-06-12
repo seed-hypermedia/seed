@@ -1,12 +1,22 @@
 import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {
+  getDocumentResourceRouteKey,
   getCommentReplyPanelRoute,
   hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
   getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
 } from '../resource-page-common'
+
+describe('getDocumentResourceRouteKey', () => {
+  it('changes when only the document version changes', () => {
+    const latest = hmId('alice', {path: ['doc'], latest: true})
+    const versioned = hmId('alice', {path: ['doc'], version: 'version-1', latest: false})
+
+    expect(getDocumentResourceRouteKey(latest)).not.toBe(getDocumentResourceRouteKey(versioned))
+  })
+})
 
 describe('shouldSuppressMainCommentEditor', () => {
   const docId = hmId('alice', {path: ['doc']})

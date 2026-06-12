@@ -30,6 +30,7 @@ import {
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {createDocumentVersionsPanelRoute} from './document-versions-panel'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
@@ -78,7 +79,7 @@ export function useDocumentCardMenuItems(
         navigate({
           key: 'document',
           id: docId,
-          panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+          panel: createDocumentVersionsPanelRoute(docId),
         } as any)
       },
     })

@@ -9,12 +9,25 @@ import {Params, useLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
+import {shouldRevalidateDocumentRoute} from './revalidation'
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {
   return await loaderFn({
     params,
     request,
   })
+}
+
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  defaultShouldRevalidate,
+}: {
+  currentUrl: URL
+  nextUrl: URL
+  defaultShouldRevalidate: boolean
+}) {
+  return shouldRevalidateDocumentRoute({currentUrl, nextUrl, defaultShouldRevalidate})
 }
 
 type ExtendedSitePayload = SiteDocumentPayload & {

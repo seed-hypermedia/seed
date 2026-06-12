@@ -16,6 +16,7 @@ export type DocumentActionsContextValue = {
   onDeleteDocument?: (id: UnpackedHypermediaId, onSuccess?: () => void) => void
   onBranchDocument?: (id: UnpackedHypermediaId) => void
   onDuplicateDocument?: (id: UnpackedHypermediaId) => void
+  onRestoreDocumentVersion?: (id: UnpackedHypermediaId, selectedVersion: HMDocument) => Promise<void> | void
   onExportDocument?: (doc: HMDocument) => void
   onCopyLink?: (id: UnpackedHypermediaId) => void
 
@@ -39,6 +40,7 @@ export function DocumentActionsProvider({children, ...value}: PropsWithChildren<
       value.onDeleteDocument,
       value.onBranchDocument,
       value.onDuplicateDocument,
+      value.onRestoreDocumentVersion,
       value.onExportDocument,
       value.onCopyLink,
       value.getDraftId,

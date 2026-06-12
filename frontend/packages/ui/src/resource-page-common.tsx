@@ -81,6 +81,7 @@ import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
+import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
@@ -116,6 +117,11 @@ const LazyDocumentMachineDebugDrawer = lazy(() =>
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   const {panel, width, ...params} = route as any
   return params as DocumentPanelRoute
+}
+
+/** Returns a stable key for the exact document resource being viewed, including version state. */
+export function getDocumentResourceRouteKey(id: UnpackedHypermediaId): string {
+  return `${id.id}@${id.version ?? ''}@${id.latest ? 'latest' : ''}`
 }
 
 export type ActiveView =
@@ -485,11 +491,12 @@ export function ResourcePage({
   // returns below would unmount DocumentBody and destroy the XState actor on each blip.
   // Reset on route changes so a newly-created local draft never reuses the parent
   // document while its draft record is resolving.
-  const lastGoodRouteIdRef = useRef(docId.id)
+  const documentResourceRouteKey = getDocumentResourceRouteKey(docId)
+  const lastGoodRouteIdRef = useRef(documentResourceRouteKey)
   const hasEverLoadedRef = useRef(false)
   const lastGoodDocumentRef = useRef<HMDocument | null>(null)
-  if (lastGoodRouteIdRef.current !== docId.id) {
-    lastGoodRouteIdRef.current = docId.id
+  if (lastGoodRouteIdRef.current !== documentResourceRouteKey) {
+    lastGoodRouteIdRef.current = documentResourceRouteKey
     hasEverLoadedRef.current = false
     lastGoodDocumentRef.current = null
   }
@@ -2048,6 +2055,7 @@ function DocumentBody({
         panelKey={panelKey}
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
+        isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
@@ -2270,6 +2278,11 @@ function PanelContentRenderer({
     case 'options':
       return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
     case 'activity':
+      if (isDocumentVersionsPanelRoute(panelRoute)) {
+        return (
+          <DocumentVersionsPanel size="sm" docId={docId} targetDomain={siteUrl} draftVersionEntry={draftVersionEntry} />
+        )
+      }
       return (
         <Feed
           size="sm"
@@ -2540,6 +2553,18 @@ function MainContent({
       )
 
     case 'activity':
+      if (activityFilterToSlug(activityFilterEventType) === 'versions') {
+        return (
+          <PageLayout contentMaxWidth={contentMaxWidth}>
+            <DocumentVersionsPanel
+              size="md"
+              docId={docId}
+              targetDomain={siteUrl}
+              draftVersionEntry={draftVersionEntry}
+            />
+          </PageLayout>
+        )
+      }
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {activityFilterToSlug(activityFilterEventType) !== 'citations' && (

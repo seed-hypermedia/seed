@@ -20,6 +20,10 @@ type PublishDesktopDocumentDeps = {
 
 /** Uses the daemon publish path for updates to existing published documents and new root documents. */
 export function shouldUseDaemonCreateDocumentChange(input: PublishDocumentInput): boolean {
+  // The daemon CreateDocumentChange request cannot carry an explicit generation.
+  // Keep existing-document publishes on the seed client path so restores stay in the latest generation.
+  if (input.generation != null && input.baseVersion && input.genesis) return false
+
   // Use daemon for updates to existing documents (has baseVersion and genesis),
   // and for new root documents (path is empty) which need genesis creation
   // via ensureProfileGenesis — PrepareChange cannot handle this.

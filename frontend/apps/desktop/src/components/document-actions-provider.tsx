@@ -15,13 +15,17 @@ import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {queryResource} from '@shm/shared/models/queries'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {hmId, pathMatches} from '@shm/shared/utils/entity-id-url'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {replaceRouteDocumentId} from '@shm/shared/routes'
+import {hmId, latestId, pathMatches} from '@shm/shared/utils/entity-id-url'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useCallback, useMemo} from 'react'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {buildRestoreVersionChanges, getRestoreVersionGeneration} from '@shm/shared/utils/restore-document-version'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from 'sonner'
 
 export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
@@ -29,6 +33,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const myAccountIds = useMyAccountIds()
   const bookmarks = useBookmarks()
   const navigate = useNavigate()
+  const currentRoute = useNavRoute()
   const {exportDocument, openDirectory} = useAppContext()
   const {onCopyReference} = useUniversalAppContext()
   const universalClient = useUniversalClient()
@@ -197,6 +202,77 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
 
   const getDraftId = useCallback((id: UnpackedHypermediaId) => getDraft(id)?.id, [getDraft])
 
+  const onRestoreDocumentVersion = useCallback(
+    async (id: UnpackedHypermediaId, selectedVersion: HMDocument) => {
+      if (!selectedAccountId) {
+        toast.error('Select an account before restoring a version')
+        return
+      }
+      if (!universalClient.publishDocument) {
+        toast.error('Restore is not available in this client')
+        return
+      }
+
+      try {
+        const targetId = latestId(id)
+        const latestResource = await queryClient.fetchQuery(queryResource(universalClient, targetId))
+        const latestDocument = latestResource?.type === 'document' ? latestResource.document : null
+        if (!latestDocument?.version) throw new Error('Could not load the latest document version')
+        if (latestDocument.version === selectedVersion.version) {
+          toast.info('This version is already the latest version')
+          return
+        }
+
+        const changes = buildRestoreVersionChanges(latestDocument, selectedVersion)
+        if (!changes.length) {
+          toast.info('This version matches the latest version')
+          return
+        }
+
+        let capability = ''
+        if (selectedAccountId !== targetId.uid) {
+          const result = await universalClient.request('ListCapabilities', {targetId})
+          const rawCapability = result.capabilities.find(
+            (cap: any) => cap.delegate === selectedAccountId && String(cap.role || '').toUpperCase() === 'WRITER',
+          )
+          if (!rawCapability?.id) throw new Error('Could not find write capability for selected account')
+          capability = rawCapability.id
+        }
+
+        await universalClient.publishDocument({
+          signerAccountUid: selectedAccountId,
+          account: targetId.uid,
+          path: hmIdPathToEntityQueryPath(targetId.path || []),
+          baseVersion: latestDocument.version,
+          changes,
+          capability,
+          visibility: ResourceVisibility.UNSPECIFIED,
+          genesis: latestDocument.genesis,
+          generation: getRestoreVersionGeneration(latestDocument),
+        })
+
+        const draftId = getDraftId(targetId)
+        if (draftId) {
+          await client.drafts.delete.mutate(draftId)
+        }
+
+        invalidateQueries([queryKeys.ENTITY])
+        invalidateQueries([queryKeys.ACTIVITY_FEED])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+        if (draftId) invalidateQueries([queryKeys.DRAFT, draftId])
+
+        navigate(replaceRouteDocumentId(currentRoute, targetId))
+        toast.success('Document restored successfully')
+      } catch (error) {
+        console.error('Failed to restore document version:', error)
+        toast.error(error instanceof Error ? error.message : 'Failed to restore document version')
+        throw error
+      }
+    },
+    [currentRoute, getDraftId, navigate, selectedAccountId, universalClient],
+  )
+
   const value = useMemo(
     () => ({
       selectedAccountUid: selectedAccountId ?? undefined,
@@ -208,6 +284,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onDeleteDocument,
       onBranchDocument,
       onDuplicateDocument,
+      onRestoreDocumentVersion,
       onExportDocument,
       onCopyLink,
       getDraftId,
@@ -223,6 +300,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       onDeleteDocument,
       onBranchDocument,
       onDuplicateDocument,
+      onRestoreDocumentVersion,
       onExportDocument,
       onCopyLink,
       getDraftId,

@@ -42,6 +42,7 @@ import {useNavigationState} from '@shm/shared/utils/navigation'
 import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
+import {shouldRevalidateDocumentRoute} from './revalidation'
 
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
@@ -220,22 +221,7 @@ export function shouldRevalidate({
   nextUrl: URL
   defaultShouldRevalidate: boolean
 }) {
-  // Different pathname always revalidates
-  if (currentUrl.pathname !== nextUrl.pathname) {
-    return defaultShouldRevalidate
-  }
-
-  // Same pathname — check if data-affecting params changed
-  const currentV = currentUrl.searchParams.get('v')
-  const nextV = nextUrl.searchParams.get('v')
-  const currentL = currentUrl.searchParams.get('l')
-  const nextL = nextUrl.searchParams.get('l')
-
-  if (currentV === nextV && currentL === nextL) {
-    return false // Only cosmetic params (panel, view) changed
-  }
-
-  return defaultShouldRevalidate
+  return shouldRevalidateDocumentRoute({currentUrl, nextUrl, defaultShouldRevalidate})
 }
 
 export const loader = async ({params, request}: {params: Params; request: Request}) => {

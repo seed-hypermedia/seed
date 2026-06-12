@@ -24,6 +24,8 @@ export interface PanelLayoutProps {
   panelContent: React.ReactNode | null
   panelKey: PanelSelectionOptions | null
   onPanelClose: () => void
+  /** True when the activity panel is being used as the shared versions panel. */
+  isVersionsPanel?: boolean
   /** For activity panel: current filter state */
   filterEventType?: string[]
   /** For activity panel: filter change handler */
@@ -61,6 +63,7 @@ export function PanelLayout({
   panelContent,
   panelKey,
   onPanelClose,
+  isVersionsPanel = false,
   filterEventType,
   onFilterChange,
   widthStorage,
@@ -94,7 +97,7 @@ export function PanelLayout({
     prevPanelKey.current = panelKey
   }, [panelKey, onPanelWidthChange])
 
-  const title = getPanelTitle(panelKey)
+  const title = isVersionsPanel ? 'Document Versions' : getPanelTitle(panelKey)
 
   return (
     <div ref={containerRef} className="flex h-full flex-1">
@@ -132,7 +135,7 @@ export function PanelLayout({
                         <X className="size-4" />
                       </Button>
                     </div>
-                    {panelKey === 'activity' && onFilterChange && (
+                    {panelKey === 'activity' && !isVersionsPanel && onFilterChange && (
                       <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
                     )}
                   </div>

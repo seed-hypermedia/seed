@@ -1,3 +1,4 @@
+import {Empty} from '@bufbuild/protobuf'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
@@ -16,38 +17,57 @@ export type BlocksMapItem = {
   block: HMBlock
 }
 
-export function getDocAttributeChanges(metadata: HMMetadata) {
-  const changes = []
-  if (metadata.name !== undefined) changes.push(docAttributeChangeString(['name'], metadata.name))
-  if (metadata.summary !== undefined) changes.push(docAttributeChangeString(['summary'], metadata.summary))
-  if (metadata.icon !== undefined) changes.push(docAttributeChangeString(['icon'], metadata.icon))
-  if (metadata.thumbnail !== undefined) changes.push(docAttributeChangeString(['thumbnail'], metadata.thumbnail))
-  if (metadata.cover !== undefined) changes.push(docAttributeChangeString(['cover'], metadata.cover))
-  if (metadata.siteUrl !== undefined) changes.push(docAttributeChangeString(['siteUrl'], metadata.siteUrl))
-  if (metadata.layout !== undefined) changes.push(docAttributeChangeString(['layout'], metadata.layout))
-  if (metadata.displayAuthor !== undefined)
-    changes.push(docAttributeChangeString(['displayAuthor'], metadata.displayAuthor))
-  if (metadata.displayPublishTime !== undefined)
-    changes.push(docAttributeChangeString(['displayPublishTime'], metadata.displayPublishTime))
-  if (metadata.seedExperimentalLogo !== undefined)
-    changes.push(docAttributeChangeString(['seedExperimentalLogo'], metadata.seedExperimentalLogo))
-  if (metadata.seedExperimentalHomeOrder !== undefined)
-    changes.push(docAttributeChangeString(['seedExperimentalHomeOrder'], metadata.seedExperimentalHomeOrder))
-  if (metadata.showOutline !== undefined) changes.push(docAttributeChangeBool(['showOutline'], metadata.showOutline))
-  if (metadata.theme !== undefined) {
-    if (metadata.theme.headerLayout !== undefined)
-      changes.push(docAttributeChangeString(['theme', 'headerLayout'], metadata.theme.headerLayout))
-  }
-  if (metadata.contentWidth !== undefined) {
-    changes.push(docAttributeChangeString(['contentWidth'], metadata.contentWidth))
-  }
-  if (metadata.childrenType !== undefined) {
-    changes.push(docAttributeChangeString(['childrenType'], metadata.childrenType || ''))
-  }
-  if (metadata.showActivity !== undefined) {
-    changes.push(docAttributeChangeBool(['showActivity'], metadata.showActivity))
+export function getDocAttributeChanges(metadata: HMMetadata, baseMetadata?: HMMetadata) {
+  return getAttributeChangesForObject(
+    metadata as Record<string, unknown>,
+    baseMetadata as Record<string, unknown> | undefined,
+  )
+}
+
+function getAttributeChangesForObject(
+  metadata: Record<string, unknown>,
+  baseMetadata: Record<string, unknown> | undefined,
+) {
+  const changes: DocumentChange[] = []
+  const keys = new Set([...Object.keys(baseMetadata ?? {}), ...Object.keys(metadata ?? {})])
+  for (const key of Array.from(keys)) {
+    pushAttributeChanges(changes, [key], metadata?.[key], baseMetadata?.[key])
   }
   return changes
+}
+
+function pushAttributeChanges(changes: DocumentChange[], key: string[], value: unknown, baseValue: unknown) {
+  if (isPlainObject(value) || isPlainObject(baseValue)) {
+    const valueObj = isPlainObject(value) ? value : undefined
+    const baseObj = isPlainObject(baseValue) ? baseValue : undefined
+    const keys = new Set([...Object.keys(baseObj ?? {}), ...Object.keys(valueObj ?? {})])
+    for (const childKey of Array.from(keys)) {
+      pushAttributeChanges(changes, [...key, childKey], valueObj?.[childKey], baseObj?.[childKey])
+    }
+    return
+  }
+
+  if (baseValue !== undefined && value === undefined) {
+    changes.push(docAttributeChangeNull(key))
+    return
+  }
+  if (baseValue !== undefined && value === baseValue) return
+
+  if (typeof value === 'string') {
+    changes.push(docAttributeChangeString(key, value))
+  } else if (typeof value === 'boolean') {
+    changes.push(docAttributeChangeBool(key, value))
+  } else if (typeof value === 'number' && Number.isInteger(value)) {
+    changes.push(docAttributeChangeInt(key, value))
+  } else if (typeof value === 'bigint') {
+    changes.push(docAttributeChangeInt(key, value))
+  } else if (value === null) {
+    changes.push(docAttributeChangeNull(key))
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 type PrimitiveValue = string | number | boolean | null | undefined
@@ -78,21 +98,37 @@ function docAttributeChangeString(key: string[], value: string) {
     },
   })
 }
-// function docAttributeChangeInt(key: string[], value: number) {
-//   return new DocumentChange({
-//     op: {
-//       case: 'setAttribute',
-//       value: new DocumentChange_SetAttribute({
-//         blockId: '',
-//         key,
-//         value: {
-//           case: 'intValue',
-//           value: BigInt(value),
-//         },
-//       }),
-//     },
-//   })
-// }
+function docAttributeChangeInt(key: string[], value: number | bigint) {
+  return new DocumentChange({
+    op: {
+      case: 'setAttribute',
+      value: new DocumentChange_SetAttribute({
+        blockId: '',
+        key,
+        value: {
+          case: 'intValue',
+          value: BigInt(value),
+        },
+      }),
+    },
+  })
+}
+
+function docAttributeChangeNull(key: string[]) {
+  return new DocumentChange({
+    op: {
+      case: 'setAttribute',
+      value: new DocumentChange_SetAttribute({
+        blockId: '',
+        key,
+        value: {
+          case: 'nullValue',
+          value: new Empty(),
+        },
+      }),
+    },
+  })
+}
 function docAttributeChangeBool(key: string[], value: boolean) {
   return new DocumentChange({
     op: {
