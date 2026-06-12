@@ -87,12 +87,6 @@ import {
 import {Badge} from '@shm/ui/components/badge'
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -104,6 +98,7 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Undo} from '@shm/ui/icons'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
@@ -2051,8 +2046,10 @@ function ProviderListActions({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <OptionsDropdown
+        align="end"
+        contentClassName="w-44"
+        button={
           <Button
             size="iconSm"
             variant="ghost"
@@ -2061,34 +2058,37 @@ function ProviderListActions({
           >
             <MoreHorizontal className="size-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onSelect={onEdit}>
-            <Pencil className="size-4" />
-            Edit
-          </DropdownMenuItem>
-          {!isDefault ? (
-            <DropdownMenuItem onSelect={onSetDefault}>
-              <Check className="size-4" />
-              Use by default
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem onSelect={onDuplicate}>
-            <CopyIcon className="size-4" />
-            Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-destructive"
-            onSelect={(event) => {
-              event.preventDefault()
-              setIsDeleteDialogOpen(true)
-            }}
-          >
-            <Trash className="size-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        menuItems={[
+          {
+            key: 'edit',
+            label: 'Edit',
+            icon: <Pencil className="size-4" />,
+            onClick: onEdit,
+          },
+          !isDefault
+            ? {
+                key: 'default',
+                label: 'Use by default',
+                icon: <Check className="size-4" />,
+                onClick: onSetDefault,
+              }
+            : null,
+          {
+            key: 'duplicate',
+            label: 'Duplicate',
+            icon: <CopyIcon className="size-4" />,
+            onClick: onDuplicate,
+          },
+          {
+            key: 'delete',
+            label: 'Delete',
+            icon: <Trash className="size-4" />,
+            variant: 'destructive',
+            onClick: () => setIsDeleteDialogOpen(true),
+          },
+        ]}
+      />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogPortal>

@@ -11,23 +11,13 @@ import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent, BlockEmbedLink} from '@shm/ui/embed-views'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {ExternalLink, FileText, MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentCardMenuItems} from '@shm/ui/newspaper'
-import {MenuItemType} from '@shm/ui/options-dropdown'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
@@ -259,9 +249,9 @@ function DraftEmbedPlaceholder({
         </div>
       </div>
 
-      {/* 3-dot menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <OptionsDropdown
+        align="end"
+        button={
           <Button
             variant="outline"
             size="icon"
@@ -273,32 +263,24 @@ function DraftEmbedPlaceholder({
           >
             <MoreHorizontal className="size-4" />
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              void handleOpen()
-            }}
-            disabled={!draftActions?.onOpenDraft || !draft}
-          >
-            <Pencil className="size-4" />
-            Open draft
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={async (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              editor.removeBlocks([blockId])
-            }}
-          >
-            <Trash2 className="size-4" />
-            Remove card
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+        menuItems={[
+          {
+            key: 'open',
+            label: 'Open draft',
+            icon: <Pencil className="size-4" />,
+            disabled: !draftActions?.onOpenDraft || !draft,
+            onClick: () => void handleOpen(),
+          },
+          {
+            key: 'remove',
+            label: 'Remove card',
+            icon: <Trash2 className="size-4" />,
+            variant: 'destructive',
+            onClick: () => editor.removeBlocks([blockId]),
+          },
+        ]}
+      />
     </div>
   )
 }
@@ -445,49 +427,6 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   return content
 }
 
-function renderMenuItem(item: MenuItemType, close: () => void): React.ReactNode {
-  if (item.children && item.children.length > 0) {
-    return (
-      <DropdownMenuSub key={item.key}>
-        <DropdownMenuSubTrigger>
-          {item.icon}
-          <SizableText>{item.label}</SizableText>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
-          {item.children.map((child) => (
-            <DropdownMenuItem
-              key={child.key}
-              variant={child.variant}
-              onClick={(e) => {
-                e.stopPropagation()
-                close()
-                child.onClick?.(e as any)
-              }}
-            >
-              {child.icon}
-              <SizableText>{child.label}</SizableText>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-    )
-  }
-  return (
-    <DropdownMenuItem
-      key={item.key}
-      variant={item.variant}
-      onClick={(e) => {
-        e.stopPropagation()
-        close()
-        item.onClick?.(e as any)
-      }}
-    >
-      {item.icon}
-      <SizableText>{item.label}</SizableText>
-    </DropdownMenuItem>
-  )
-}
-
 /** 3-dot contextual menu for a selected subdocument embed. */
 function SubdocumentMenu({
   editor,
@@ -498,8 +437,6 @@ function SubdocumentMenu({
   block: Block<HMBlockSchema>
   docId: UnpackedHypermediaId
 }) {
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
   const docResource = useResource(docId)
   const doc = docResource.data?.type === 'document' ? docResource.data.document : null
   const baseItems = useDocumentCardMenuItems(docId, doc)
@@ -592,14 +529,12 @@ function SubdocumentMenu({
       : item,
   )
 
-  // Reorder so destructive items render at the bottom with a separator.
   const allItems = [...prependedItems, ...enhancedBaseItems]
-  const nonDestructive = allItems.filter((i) => i.variant !== 'destructive')
-  const destructive = allItems.filter((i) => i.variant === 'destructive')
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
+    <OptionsDropdown
+      align="end"
+      button={
         <Button
           variant="ghost"
           size="icon"
@@ -612,15 +547,9 @@ function SubdocumentMenu({
         >
           <MoreHorizontal className="size-3.5" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {nonDestructive.map((item) => renderMenuItem(item, close))}
-        {destructive.length > 0 && nonDestructive.length > 0 && (
-          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-        )}
-        {destructive.map((item) => renderMenuItem(item, close))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+      menuItems={allItems}
+    />
   )
 }
 
