@@ -201,7 +201,7 @@ async function sendNotificationVerificationEmail(email: string, token: string) {
     notifyServiceHost: notificationEmailHost,
     token,
   })
-  const verificationEmail = createNotificationVerificationEmail({
+  const verificationEmail = await createNotificationVerificationEmail({
     verificationUrl,
   })
   await sendEmail(email, verificationEmail.subject, {

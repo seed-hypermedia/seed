@@ -62,7 +62,7 @@ export type CreateMentionEmailInput = {
 }
 
 /** Build an individual "mention" notification email matching the design mockup. */
-export function createMentionEmail(input: CreateMentionEmailInput) {
+export async function createMentionEmail(input: CreateMentionEmailInput) {
   const subject = `${input.authorName} mentioned ${input.subjectName} in a comment on ${input.documentName}`
 
   const text = `${subject}
@@ -71,7 +71,7 @@ View comment: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -141,7 +141,7 @@ export type CreateReplyEmailInput = {
 }
 
 /** Build an individual "reply" notification email matching the design mockup. */
-export function createReplyEmail(input: CreateReplyEmailInput) {
+export async function createReplyEmail(input: CreateReplyEmailInput) {
   const subject = `${input.authorName} replied to your comment in ${input.documentName}`
 
   const text = `${subject}
@@ -150,7 +150,7 @@ Continue the discussion: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -219,7 +219,7 @@ export type CreateDocUpdateEmailInput = {
 }
 
 /** Build an individual "document update" notification email matching the design mockup. */
-export function createDocUpdateEmail(input: CreateDocUpdateEmailInput) {
+export async function createDocUpdateEmail(input: CreateDocUpdateEmailInput) {
   const subject = `${input.documentName} was updated by ${input.authorName}`
 
   const changesList = input.changes?.length
@@ -232,7 +232,7 @@ Review changes: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -313,7 +313,7 @@ export type CreateCommentEmailInput = {
 }
 
 /** Build an individual "new comment" notification email matching the design mockup. */
-export function createCommentEmail(input: CreateCommentEmailInput) {
+export async function createCommentEmail(input: CreateCommentEmailInput) {
   const subject = `${input.authorName} left a comment on your document ${input.documentName}`
 
   const text = `${subject}
@@ -322,7 +322,7 @@ View comment: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -394,7 +394,7 @@ export type CreateDiscussionEmailInput = {
 }
 
 /** Build an individual "new discussion" notification email. */
-export function createDiscussionEmail(input: CreateDiscussionEmailInput) {
+export async function createDiscussionEmail(input: CreateDiscussionEmailInput) {
   const subject = `A new discussion in ${input.documentName} was created by ${input.authorName}`
 
   const text = `${subject}
@@ -403,7 +403,7 @@ See discussion: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -458,7 +458,7 @@ export type CreateWelcomeEmailInput = {
 }
 
 /** Build the "Welcome to the community" email for new users. */
-export function createWelcomeEmail(input: CreateWelcomeEmailInput) {
+export async function createWelcomeEmail(input: CreateWelcomeEmailInput) {
   const subject = "You're in. Welcome to the community."
   const greeting = input.recipientName ? `Hi ${input.recipientName},` : 'Hi there,'
   const text = `${subject}
@@ -469,7 +469,7 @@ We're thrilled to have you as part of Seed Hypermedia. You can now participate, 
 
 Go to ${input.siteName}: ${input.siteUrl}`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -526,7 +526,7 @@ function getNotificationActionUrl(notification: Notification) {
   return notification.url
 }
 
-export function createNotificationVerificationEmail(input: {
+export async function createNotificationVerificationEmail(input: {
   verificationUrl: string
   recipientName?: string
 }) {
@@ -542,7 +542,7 @@ ${input.verificationUrl}
 
 This link expires in 2 hours. If you didn't create an account, you can safely ignore this.`
 
-  const {html: emailHtml} = renderReactToMjml(
+  const {html: emailHtml} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -703,7 +703,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
   // console.log(notifications[0].notif.comment?.content)
   // console.log(JSON.stringify(notifications[0], null, 2))
 
-  const {html: emailHtml} = renderReactToMjml(
+  const {html: emailHtml} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -881,7 +881,7 @@ ${textLines}
 
 Manage notification emails: ${notifSettingsUrl}`
 
-  const {html: emailHtml} = renderReactToMjml(
+  const {html: emailHtml} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>
@@ -1119,6 +1119,6 @@ function extractOrigin(url: string): string | undefined {
   }
 }
 
-export function renderReactToMjml(email: React.ReactElement): MJMLParseResults {
+export async function renderReactToMjml(email: React.ReactElement): Promise<MJMLParseResults> {
   return mjml2html(renderToMjml(email))
 }

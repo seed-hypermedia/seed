@@ -19,7 +19,7 @@ export type LoginConfirmationEmailProps = {
 }
 
 /** Build the login link email matching the "New sign-in" design. */
-export function createLoginConfirmationEmail({loginUrl, recipientName}: LoginConfirmationEmailProps) {
+export async function createLoginConfirmationEmail({loginUrl, recipientName}: LoginConfirmationEmailProps) {
   const subject = 'New sign-in to your account'
   const greeting = recipientName ? `Hi ${recipientName},` : 'Hi there,'
   const text = `${subject}
@@ -33,7 +33,7 @@ ${loginUrl}
 If you don't recognise this activity, please change your password immediately.
 This link will expire in 15 minutes.`
 
-  const {html} = renderReactToMjml(
+  const {html} = await renderReactToMjml(
     <Mjml>
       <EmailHeadDefaults>
         <MjmlTitle>{subject}</MjmlTitle>

@@ -72,7 +72,7 @@ describe('notification email sending integration', () => {
 
     const [{createMentionEmail}, {sendEmail}] = await Promise.all([import('@shm/emails/notifier'), import('./mailer')])
 
-    const mentionEmail = createMentionEmail({
+    const mentionEmail = await createMentionEmail({
       authorName: 'Eric',
       subjectName: 'you',
       documentName: 'Design Notes',

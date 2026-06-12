@@ -62,21 +62,21 @@ const mentionBlocks: HMBlockNode[] = [
 const previews: Array<{name: string; result: {subject: string; text: string; html: string}}> = [
   {
     name: 'verification',
-    result: createNotificationVerificationEmail({
+    result: await createNotificationVerificationEmail({
       verificationUrl: 'https://hyper.media/hm/notification-email-verify?token=verify123',
       recipientName: 'First Name',
     }),
   },
   {
     name: 'login',
-    result: createLoginConfirmationEmail({
+    result: await createLoginConfirmationEmail({
       loginUrl: 'https://hyper.media/login?token=login123',
       recipientName: 'First Name',
     }),
   },
   {
     name: 'welcome',
-    result: createWelcomeEmail({
+    result: await createWelcomeEmail({
       recipientName: 'First Name',
       siteName: '<sitename>',
       siteUrl: 'https://seedteamtalks.hyper.media',
@@ -84,7 +84,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   },
   {
     name: 'discussion',
-    result: createDiscussionEmail({
+    result: await createDiscussionEmail({
       authorName: 'Gabo',
       documentName: 'Inspiration',
       commentBlocks: mockBlocks,
@@ -95,7 +95,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   },
   {
     name: 'comment',
-    result: createCommentEmail({
+    result: await createCommentEmail({
       authorName: 'Horacio',
       documentName: 'User Onboarding',
       sectionName: 'Design',
@@ -107,7 +107,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   },
   {
     name: 'mention',
-    result: createMentionEmail({
+    result: await createMentionEmail({
       authorName: 'Eric Alex',
       subjectName: 'you',
       documentName: 'Design Guidelines',
@@ -120,7 +120,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   },
   {
     name: 'reply',
-    result: createReplyEmail({
+    result: await createReplyEmail({
       authorName: 'Gabo',
       documentName: 'User test Round III',
       sectionName: 'Design',
@@ -132,7 +132,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   },
   {
     name: 'doc-update',
-    result: createDocUpdateEmail({
+    result: await createDocUpdateEmail({
       authorName: 'Gabo',
       documentName: 'Inspiration',
       sectionName: 'Design',

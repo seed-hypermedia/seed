@@ -62,6 +62,6 @@ export const sendLoginConfirmationEmail = async (
   email: string,
   props: LoginConfirmationEmailProps,
 ) => {
-  const {subject, text, html} = createLoginConfirmationEmail(props)
+  const {subject, text, html} = await createLoginConfirmationEmail(props)
   await sendEmail(email, subject, {text, html}, 'Seed Hypermedia')
 }

@@ -745,9 +745,9 @@ function withActionUrlLogContext(notification: QueuedNotification) {
 }
 
 /** Build an individual email for a single immediate notification using the new mockup-matching templates. */
-function buildImmediateNotificationEmail(
+async function buildImmediateNotificationEmail(
   notification: QueuedNotification,
-): {subject: string; text: string; html: string} | null {
+): Promise<{subject: string; text: string; html: string} | null> {
   const {notif, adminToken} = notification
   const unsubscribeUrl = `${notificationEmailHost}/hm/email-notifications?token=${adminToken}`
   const authorName = notif.authorMeta?.name || 'Someone'
@@ -816,7 +816,7 @@ async function sendImmediateNotificationEmails(notificationsToSend: Notification
     for (const notification of notifications) {
       try {
         const notificationWithAction = withImmediateActionUrl(notification)
-        const notificationEmail = buildImmediateNotificationEmail(notificationWithAction)
+        const notificationEmail = await buildImmediateNotificationEmail(notificationWithAction)
         if (!notificationEmail) continue
         const {subject, text, html} = notificationEmail
         const reason = notificationWithAction.notif.reason

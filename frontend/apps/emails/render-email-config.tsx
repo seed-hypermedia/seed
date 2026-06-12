@@ -1,7 +1,7 @@
 import fs from 'fs'
 import {createLoginConfirmationEmail} from './email-confirmation'
 
-const {html, text, subject} = createLoginConfirmationEmail({
+const {html, text, subject} = await createLoginConfirmationEmail({
   loginUrl: 'https://example.com/login?token=abc123xyz',
 })
 
