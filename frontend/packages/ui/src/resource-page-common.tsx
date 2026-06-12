@@ -135,13 +135,9 @@ type CommentDraftTarget = {
   quotingRangeEnd?: number
 }
 
-/** Returns true while a redirected document is waiting for the route to be replaced. */
-export function shouldWaitForRedirectRouteReplace(
-  requestedId: UnpackedHypermediaId | null | undefined,
-  resourceData: HMResource | null | undefined,
-  hasEverLoaded: boolean,
-): boolean {
-  return !!requestedId && !hasEverLoaded && resourceData?.type === 'document' && resourceData.id.id !== requestedId.id
+/** Returns the document ID that should back the rendered document content. */
+export function getRenderedDocumentId(routeDocId: UnpackedHypermediaId, resourceData: HMResource | null | undefined) {
+  return resourceData?.type === 'document' ? resourceData.id : routeDocId
 }
 
 function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
@@ -608,17 +604,6 @@ export function ResourcePage({
     )
   }
 
-  if (shouldWaitForRedirectRouteReplace(resourceFetchId, resource.data, hasEverLoadedRef.current)) {
-    return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner />
-        </div>
-        {pageFooter}
-      </PageWrapper>
-    )
-  }
-
   // Handle not-found
   if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
@@ -725,7 +710,8 @@ export function ResourcePage({
   // exists, fabricate a placeholder so DocumentBody / the document machine
   // can transition to "loaded" → editing for the new-document case.
   let document: HMDocument
-  if (resourceFetchId && resource.data?.type === 'document' && resource.data.id.id === resourceFetchId.id) {
+  const renderedDocId = getRenderedDocumentId(docId, resource.data)
+  if (resourceFetchId && resource.data?.type === 'document') {
     document = resource.data.document
   } else if (lastGoodDocumentRef.current) {
     // Transient refetch failure / not-found / discovery flap — keep showing the last
@@ -753,9 +739,9 @@ export function ResourcePage({
     )
   }
 
-  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId, existingDraft, isLatest})
+  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId: renderedDocId, existingDraft, isLatest})
   const effectiveCanEdit =
-    (canEdit || (resourceFetchId === null && !!existingDraft)) && (!docId.version || isLatest || shouldUseDraft)
+    (canEdit || (resourceFetchId === null && !!existingDraft)) && (!renderedDocId.version || isLatest || shouldUseDraft)
   const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
   const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
   const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
@@ -765,7 +751,7 @@ export function ResourcePage({
   const effectiveExistingDraftDeps = shouldUseDraft ? existingDraftDeps : undefined
   const draftVersionEntry = existingDraft
     ? {
-        docId,
+        docId: renderedDocId,
         draftId: existingDraft.id,
         deps: existingDraftDeps,
         metadata: existingDraft.metadata,
@@ -779,15 +765,15 @@ export function ResourcePage({
       // path changes (e.g. after first publish from `-${draftId}` → real slug).
       // Without this, useActorRef keeps the original actor instance and its
       // context still references the old documentId/editPath.
-      key={`${docId.id}@${docId.version ?? 'latest'}`}
+      key={`${renderedDocId.id}@${renderedDocId.version ?? 'latest'}`}
       input={{
-        documentId: docId,
+        documentId: renderedDocId,
         canEdit: effectiveCanEdit,
         isLatest,
         deps: effectiveExistingDraftDeps,
         reservedDraftId: reservedDraftId ?? undefined,
-        editUid: docId.uid,
-        editPath: docId.path ?? undefined,
+        editUid: renderedDocId.uid,
+        editPath: renderedDocId.path ?? undefined,
         signingAccountId,
         publishAccountUid,
       }}
@@ -796,7 +782,7 @@ export function ResourcePage({
     >
       <PageWrapper
         siteHomeId={siteHomeId}
-        docId={docId}
+        docId={renderedDocId}
         headerData={headerData}
         document={document}
         rightActions={rightActions}
@@ -804,7 +790,7 @@ export function ResourcePage({
         transientResourceError={transientResourceError}
       >
         <DocumentBody
-          docId={docId}
+          docId={renderedDocId}
           document={document}
           activeView={getActiveView(route.key)}
           isLatest={isLatest}

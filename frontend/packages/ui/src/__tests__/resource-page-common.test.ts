@@ -4,8 +4,8 @@ import {
   getCommentReplyPanelRoute,
   hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
+  getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
-  shouldWaitForRedirectRouteReplace,
 } from '../resource-page-common'
 
 describe('shouldSuppressMainCommentEditor', () => {
@@ -191,7 +191,7 @@ describe('hasUnpublishedDraftForResourceState', () => {
   })
 })
 
-describe('shouldWaitForRedirectRouteReplace', () => {
+describe('getRenderedDocumentId', () => {
   const oldId = hmId('uid1', {path: ['old-name']})
   const newId = hmId('uid1', {path: ['new-name']})
   const redirectedDocument = {
@@ -211,15 +211,11 @@ describe('shouldWaitForRedirectRouteReplace', () => {
     },
   }
 
-  it('waits when the fetched document resolved to a different id before any document loaded', () => {
-    expect(shouldWaitForRedirectRouteReplace(oldId, redirectedDocument, false)).toBe(true)
+  it('uses the resolved document id when a redirect returned a different document', () => {
+    expect(getRenderedDocumentId(oldId, redirectedDocument)).toEqual(newId)
   })
 
-  it('does not wait when the resolved document matches the requested id', () => {
-    expect(shouldWaitForRedirectRouteReplace(newId, redirectedDocument, false)).toBe(false)
-  })
-
-  it('does not wait after a document has already loaded', () => {
-    expect(shouldWaitForRedirectRouteReplace(oldId, redirectedDocument, true)).toBe(false)
+  it('keeps the route document id when the resource is not a document', () => {
+    expect(getRenderedDocumentId(oldId, {type: 'not-found', id: oldId})).toEqual(oldId)
   })
 })
