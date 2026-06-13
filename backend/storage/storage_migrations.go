@@ -63,6 +63,31 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Add the maintained RBSR fingerprint index tables (rbsr_scope / rbsr_item).
+	// They're derived, incremental acceleration for syncing and re-materialize
+	// lazily, so the migration only needs to create the empty tables. DDL must
+	// stay in lock-step with schema.sql (the migration snapshot test compares).
+	{Version: "2026-06-09.094401", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE rbsr_scope (
+			    id INTEGER PRIMARY KEY,
+			    iri TEXT NOT NULL,
+			    recursive INTEGER NOT NULL DEFAULT 0,
+			    depth_one INTEGER NOT NULL DEFAULT 0,
+			    blob_types TEXT NOT NULL DEFAULT '',
+			    protocol_version TEXT NOT NULL,
+			    materialized INTEGER NOT NULL DEFAULT 0,
+			    last_access INTEGER NOT NULL DEFAULT 0,
+			    UNIQUE (iri, recursive, depth_one, blob_types, protocol_version)
+			);
+			CREATE TABLE rbsr_item (
+			    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    blob INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    PRIMARY KEY (scope, blob)
+			) WITHOUT ROWID;
+			CREATE INDEX rbsr_item_by_blob ON rbsr_item (blob);
+		`))
+	}},
 	// Drop the UNIQUE constraint from peers.addresses. Two peers can legitimately
 	// share an address set (relay-shared, NAT-shared, address reuse after a peer
 	// leaves) and the old constraint aborted entire bulk peer-exchange INSERTs

@@ -118,7 +118,7 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 					COALESCE(res.owner, sb.author) as account_id,
 					ROW_NUMBER() OVER (
 						PARTITION BY sb.extra_attrs->>'tsid', COALESCE(res.owner, sb.author)
-						ORDER BY sb.ts DESC
+						ORDER BY sb.ts DESC, sb.id DESC
 					) as rn
 				FROM structural_blobs sb
 				LEFT JOIN resources res ON res.id = sb.resource
@@ -161,7 +161,7 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 					COALESCE(res.owner, sb.author) as account_id,
 					ROW_NUMBER() OVER (
 						PARTITION BY sb.extra_attrs->>'tsid', COALESCE(res.owner, sb.author)
-						ORDER BY sb.ts DESC
+						ORDER BY sb.ts DESC, sb.id DESC
 					) as rn
 				FROM structural_blobs sb
 				LEFT JOIN resources res ON res.id = sb.resource
@@ -298,7 +298,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 			SELECT id FROM resources WHERE iri = 'hm://' || ?
 		)
 		AND sb.extra_attrs->>'tsid' = ?
-		ORDER BY sb.ts DESC
+		ORDER BY sb.ts DESC, sb.id DESC
 		LIMIT 1
 	`
 

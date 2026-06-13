@@ -36,7 +36,11 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log)
+		if err := indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
+			return err
+		}
+
+		return idx.runIndexedHook(conn, []int64{id})
 	})
 }
 
@@ -82,7 +86,11 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				indexed = append(indexed, id)
 			}
 
-			return propagateVisibilityBatch(conn, indexed)
+			if err := propagateVisibilityBatch(conn, indexed); err != nil {
+				return err
+			}
+
+			return idx.runIndexedHook(conn, indexed)
 		})
 		release()
 		if err != nil {
