@@ -17,8 +17,6 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-const legacyMigrationCompleteName = "legacy-migration-complete"
-
 var (
 	errProductionVaultAlreadyInitialized = errors.New("production vault already initialized in this process")
 	productionVaultInitialized           atomic.Bool
@@ -36,14 +34,19 @@ func NewProduction(dataDir, environment string, opts ...RemoteOption) (*Vault, e
 		return nil, errProductionVaultAlreadyInitialized
 	}
 
+	localVaultKEKExists, err := localVaultKEKExistsInKeychain()
+	if err != nil {
+		return nil, err
+	}
+
 	secretStore, err := newOSKeychainSecretStore()
 	if err != nil {
 		return nil, err
 	}
-	return openProduction(dataDir, keystore.NewOS(environment), secretStore, opts...)
+	return openProduction(dataDir, keystore.NewOS(environment), secretStore, localVaultKEKExists, opts...)
 }
 
-func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStore, opts ...RemoteOption) (*Vault, error) {
+func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStore, localVaultKEKExists bool, opts ...RemoteOption) (*Vault, error) {
 	localVaultExists, err := productionVaultExists(dataDir)
 	if err != nil {
 		return nil, err
@@ -54,23 +57,12 @@ func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStor
 		return nil, err
 	}
 
-	legacyMigrationIsComplete, err := legacyMigrationComplete(secretStore)
-	if err != nil {
-		return nil, err
-	}
-	needsLegacyMigration := !localVaultExists && !legacyMigrationIsComplete
-
+	needsLegacyMigration := !localVaultExists && !localVaultKEKExists
 	if legacy == nil || !needsLegacyMigration {
-		if err := markLegacyMigrationComplete(secretStore); err != nil {
-			return nil, err
-		}
 		return local, nil
 	}
 
 	if err := local.migrateLegacyKeys(context.Background(), legacy); err != nil {
-		return nil, err
-	}
-	if err := markLegacyMigrationComplete(secretStore); err != nil {
 		return nil, err
 	}
 
@@ -89,26 +81,20 @@ func productionVaultExists(dataDir string) (bool, error) {
 	return false, fmt.Errorf("failed checking local vault file: %w", err)
 }
 
-func legacyMigrationComplete(secretStore SecretStore) (bool, error) {
-	_, err := secretStore.Load(legacyMigrationCompleteName, "")
-	if err == nil {
+func localVaultKEKExistsInKeychain() (bool, error) {
+	if _, err := keyring.Get(vaultKEKKeychainService, localVaultKEKName); err == nil {
 		return true, nil
+	} else if !errors.Is(err, keyring.ErrNotFound) {
+		return false, fmt.Errorf("failed checking local vault KEK: %w", err)
 	}
-	if errors.Is(err, keyring.ErrNotFound) {
-		return false, nil
-	}
-	return false, err
-}
 
-func markLegacyMigrationComplete(secretStore SecretStore) error {
-	complete, err := legacyMigrationComplete(secretStore)
-	if err != nil {
-		return err
+	if _, err := keyring.Get(legacyVaultKEKKeychainService, localVaultKEKName); err == nil {
+		return true, nil
+	} else if !errors.Is(err, keyring.ErrNotFound) {
+		return false, fmt.Errorf("failed checking legacy local vault KEK: %w", err)
 	}
-	if complete {
-		return nil
-	}
-	return secretStore.Store(legacyMigrationCompleteName, "", bytes.Repeat([]byte{0x01}, vaultSecretSize))
+
+	return false, nil
 }
 
 func (v *Vault) migrateLegacyKeys(ctx context.Context, legacy core.KeyStore) error {

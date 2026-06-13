@@ -107,7 +107,7 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
-	ks, err := openProduction(dataDir, legacy, secretStore)
+	ks, err := openProduction(dataDir, legacy, secretStore, false)
 	require.NoError(t, err)
 
 	storedKey, err := ks.GetKey(ctx, "alice")
@@ -118,10 +118,6 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), legacyKey.Principal())
 
-	complete, err := legacyMigrationComplete(secretStore)
-	require.NoError(t, err)
-	require.True(t, complete)
-
 	start, err := ks.StartConnection("https://vault.example.com", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://vault.example.com", start.RemoteURL)
@@ -130,7 +126,7 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 }
 
 func TestNewProductionReturnsSecretLoaderError(t *testing.T) {
-	_, err := openProduction(t.TempDir(), nil, boomSecretStore{})
+	_, err := openProduction(t.TempDir(), nil, boomSecretStore{}, false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to load local vault KEK")
 	require.Contains(t, err.Error(), "boom")
@@ -165,7 +161,7 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, legacy.StoreKey(ctx, "legacy", legacyKey))
 
-	ks, err := openProduction(dataDir, legacy, secretStore)
+	ks, err := openProduction(dataDir, legacy, secretStore, false)
 	require.NoError(t, err)
 
 	gotLocalOnly, err := ks.GetKey(ctx, "local-only")
@@ -180,9 +176,6 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, legacyKey.Principal(), gotLegacy.Principal())
 
-	complete, err := legacyMigrationComplete(secretStore)
-	require.NoError(t, err)
-	require.True(t, complete)
 }
 
 func TestNewProductionDoesNotResurrectLegacyKeysAfterLocalVaultRemoval(t *testing.T) {
@@ -196,7 +189,7 @@ func TestNewProductionDoesNotResurrectLegacyKeysAfterLocalVaultRemoval(t *testin
 	require.NoError(t, err)
 	require.NoError(t, legacy.StoreKey(ctx, "legacy", legacyKey))
 
-	first, err := openProduction(dataDir, legacy, secretStore)
+	first, err := openProduction(dataDir, legacy, secretStore, false)
 	require.NoError(t, err)
 	gotLegacy, err := first.GetKey(ctx, "legacy")
 	require.NoError(t, err)
@@ -204,7 +197,7 @@ func TestNewProductionDoesNotResurrectLegacyKeysAfterLocalVaultRemoval(t *testin
 
 	require.NoError(t, os.Remove(filepath.Join(dataDir, fileName)))
 
-	second, err := openProduction(dataDir, legacy, secretStore)
+	second, err := openProduction(dataDir, legacy, secretStore, true)
 	require.NoError(t, err)
 	keys, err := second.ListKeys(ctx)
 	require.NoError(t, err)
