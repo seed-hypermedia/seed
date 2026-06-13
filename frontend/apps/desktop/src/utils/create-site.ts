@@ -7,8 +7,14 @@ import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {nanoid} from 'nanoid'
 
-async function waitForHomeDiscovery(accountUid: string) {
-  await tryUntilSuccess(
+const remoteSignInHomeDiscoveryTasks = new Map<string, Promise<void>>()
+const remoteSignInHomeDiscoveryCompleted = new Set<string>()
+
+function waitForRemoteSignInHomeDiscovery(accountUid: string) {
+  const existing = remoteSignInHomeDiscoveryTasks.get(accountUid)
+  if (existing) return existing
+
+  const task = tryUntilSuccess(
     async () => {
       const response = await grpcClient.entities.discoverEntity({
         id: discoveryUrl({uid: accountUid, path: []}),
@@ -17,16 +23,34 @@ async function waitForHomeDiscovery(accountUid: string) {
     },
     {retryDelayMs: 1_000, maxRetryMs: 60_000},
   )
+    .then(() => {
+      remoteSignInHomeDiscoveryCompleted.add(accountUid)
+    })
+    .catch((error) => {
+      remoteSignInHomeDiscoveryTasks.delete(accountUid)
+      throw error
+    })
+
+  remoteSignInHomeDiscoveryTasks.set(accountUid, task)
+  return task
 }
 
-/** Returns the account home document id, creating a home draft only after discovery confirms no home document exists. */
+/** Discovers account home documents once after remote vault sign-in, before any pending create-site intent runs. */
+export function syncRemoteSignInSiteHomes(accountUids: string[]) {
+  return Promise.all(
+    Array.from(new Set(accountUids)).map((accountUid) => waitForRemoteSignInHomeDiscovery(accountUid)),
+  ).then(() => {})
+}
+
+/** Returns the account home document id, creating a home draft immediately except right after remote sign-in discovery. */
 export async function getOrCreateSiteHome(accountUid: string) {
   const homeId = hmId(accountUid, {path: []})
-  await waitForHomeDiscovery(accountUid)
-  const homeResource = await fetchResource(homeId)
-  if (homeResource.type === 'document' || homeResource.type === 'redirect') return homeId
-  if (homeResource.type !== 'not-found' && homeResource.type !== 'tombstone') {
-    throw new Error(`Unexpected home document status: ${homeResource.type}`)
+  if (remoteSignInHomeDiscoveryCompleted.has(accountUid)) {
+    const homeResource = await fetchResource(homeId)
+    if (homeResource.type === 'document' || homeResource.type === 'redirect') return homeId
+    if (homeResource.type !== 'not-found' && homeResource.type !== 'tombstone') {
+      throw new Error(`Unexpected home document status: ${homeResource.type}`)
+    }
   }
 
   const draftId = nanoid(10)

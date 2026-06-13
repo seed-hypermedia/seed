@@ -7,6 +7,7 @@ import {
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
+import {syncRemoteSignInSiteHomes} from '@/utils/create-site'
 import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
@@ -61,16 +62,35 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
     const firstAccountId = accountIds.data?.[0]
     if (!isReady || !firstAccountId || handledReadyRef.current) return
     handledReadyRef.current = true
-    if (!selectedIdentityValue) {
-      setSelectedIdentity?.(firstAccountId)
-    }
-    client.selectIdentityForWindowsWithoutAccount.mutate(firstAccountId).catch((error) => {
-      console.error('Failed to select remote vault account for windows', error)
-    })
-    Promise.resolve(input.onReady?.(firstAccountId)).finally(() => {
+    const readyAccountId = firstAccountId
+
+    async function finishRemoteSignIn() {
       onClose()
+      if (browserUrl && accountIds.data?.length) {
+        const toastId = toast.loading('Preparing your account…')
+        try {
+          await syncRemoteSignInSiteHomes(accountIds.data)
+          toast.dismiss(toastId)
+        } catch (error) {
+          toast.error('Could not sync your content. Connect to the internet and try again.', {id: toastId})
+          throw error
+        }
+      }
+      if (!selectedIdentityValue) {
+        setSelectedIdentity?.(readyAccountId)
+      }
+      client.selectIdentityForWindowsWithoutAccount.mutate(readyAccountId).catch((error) => {
+        console.error('Failed to select remote vault account for windows', error)
+      })
+      await input.onReady?.(readyAccountId)
+      if (!input.onReady) toast.success('Authenticated')
+    }
+
+    finishRemoteSignIn().catch((error) => {
+      handledReadyRef.current = false
+      console.error('Failed to finish remote vault sign-in', error)
     })
-  }, [accountIds.data, input, isReady, onClose, selectedIdentityValue, setSelectedIdentity])
+  }, [accountIds.data, browserUrl, input, isReady, onClose, selectedIdentityValue, setSelectedIdentity])
 
   const handleSubmit = async (input: CreateAccountDialogSubmit) => {
     const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl
@@ -96,14 +116,7 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
     }
   }
 
-  if (isReady) {
-    return (
-      <>
-        <DialogTitle>Your identity is connected</DialogTitle>
-        <DialogDescription>Your remote vault has been linked. You can now continue using Seed.</DialogDescription>
-      </>
-    )
-  }
+  if (isReady) return null
 
   if (browserUrl) {
     return (

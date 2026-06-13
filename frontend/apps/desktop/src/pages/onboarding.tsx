@@ -84,7 +84,7 @@ export default function OnboardingPage() {
                     disabled={isCreatingSite}
                     onClick={() => createSiteIntent.requireAccount(createSite)}
                   >
-                    {isCreatingSite ? 'Checking for existing site…' : 'Create my Site'}
+                    Create my Site
                   </Button>
                 </div>
               ) : null}

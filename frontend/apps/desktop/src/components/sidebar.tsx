@@ -807,7 +807,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
             }
           }}
         >
-          {isCreatingSite ? 'Checking for existing site…' : 'Create my Site'}
+          Create my Site
         </Button>
       </Tooltip>
     </SidebarSection>
