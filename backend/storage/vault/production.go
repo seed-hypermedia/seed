@@ -36,10 +36,12 @@ func NewProduction(dataDir, environment string, opts ...RemoteOption) (*Vault, e
 	if err != nil {
 		return nil, err
 	}
-	return openProduction(dataDir, keystore.NewOS(environment), secretStore, opts...)
+	return openProduction(dataDir, keystore.NewOS(environment), secretStore, func() error {
+		return keystore.ArchiveOSLegacyKeys(environment)
+	}, opts...)
 }
 
-func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStore, opts ...RemoteOption) (*Vault, error) {
+func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStore, archiveLegacyKeys func() error, opts ...RemoteOption) (*Vault, error) {
 	needsLegacyMigration, err := productionVaultNeedsLegacyMigration(dataDir)
 	if err != nil {
 		return nil, err
@@ -56,6 +58,11 @@ func openProduction(dataDir string, legacy core.KeyStore, secretStore SecretStor
 
 	if err := local.migrateLegacyKeys(context.Background(), legacy); err != nil {
 		return nil, err
+	}
+	if archiveLegacyKeys != nil {
+		if err := archiveLegacyKeys(); err != nil {
+			return nil, fmt.Errorf("failed archiving legacy keychain keys after migration: %w", err)
+		}
 	}
 
 	return local, nil
@@ -136,7 +143,7 @@ func (v *Vault) migrateLegacyKeySnapshot(ctx context.Context, legacyKeys map[str
 		}
 	}
 
-	// We are leaving the keychain record behind, just in case of any issues might arise.
+	// The caller archives the legacy keychain record after this migration returns successfully.
 
 	return nil
 }

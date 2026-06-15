@@ -107,7 +107,7 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, secretStore.Store(localVaultKEKName, "", localKey))
 
-	ks, err := openProduction(dataDir, legacy, secretStore)
+	ks, err := openProduction(dataDir, legacy, secretStore, nil)
 	require.NoError(t, err)
 
 	storedKey, err := ks.GetKey(ctx, "alice")
@@ -125,8 +125,57 @@ func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewProductionArchivesLegacyKeysAfterMigration(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+
+	legacy := newStubKeyStore()
+	legacyKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x44}, 64)))
+	require.NoError(t, err)
+	require.NoError(t, legacy.StoreKey(ctx, "legacy", legacyKey))
+
+	archiveCalled := false
+	ks, err := openProduction(dataDir, legacy, secretStore, func() error {
+		archiveCalled = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, archiveCalled)
+
+	gotLegacy, err := ks.GetKey(ctx, "legacy")
+	require.NoError(t, err)
+	require.Equal(t, legacyKey.Principal(), gotLegacy.Principal())
+}
+
+func TestNewProductionSkipsArchivingLegacyKeysWhenMigrationSkipped(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+
+	local, err := New(dataDir, secretStore)
+	require.NoError(t, err)
+	localKey, err := core.GenerateKeyPair(core.Ed25519, bytes.NewReader(bytes.Repeat([]byte{0x55}, 64)))
+	require.NoError(t, err)
+	require.NoError(t, local.StoreKey(ctx, "local", localKey))
+
+	archiveCalled := false
+	ks, err := openProduction(dataDir, newStubKeyStore(), secretStore, func() error {
+		archiveCalled = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.False(t, archiveCalled)
+
+	gotLocal, err := ks.GetKey(ctx, "local")
+	require.NoError(t, err)
+	require.Equal(t, localKey.Principal(), gotLocal.Principal())
+}
+
 func TestNewProductionReturnsSecretLoaderError(t *testing.T) {
-	_, err := openProduction(t.TempDir(), nil, boomSecretStore{})
+	_, err := openProduction(t.TempDir(), nil, boomSecretStore{}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to load local vault KEK")
 	require.Contains(t, err.Error(), "boom")
@@ -161,7 +210,7 @@ func TestNewProductionSkipsLegacyMigrationWhenLocalVaultExists(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, legacy.StoreKey(ctx, "legacy", legacyKey))
 
-	ks, err := openProduction(dataDir, legacy, secretStore)
+	ks, err := openProduction(dataDir, legacy, secretStore, nil)
 	require.NoError(t, err)
 
 	gotLocalOnly, err := ks.GetKey(ctx, "local-only")

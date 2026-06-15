@@ -43,8 +43,36 @@ func NewOS(environment string) core.KeyStore {
 	// to avoid mixing up keys from apps running in different environments.
 
 	return &osStore{
-		serviceName: "seed-daemon-" + environment,
+		serviceName: osServiceName(environment),
 	}
+}
+
+// ArchiveOSLegacyKeys renames the OS keychain service used by the legacy key store.
+func ArchiveOSLegacyKeys(environment string) error {
+	if environment == "" {
+		panic("BUG: must specify the environment for the OS key store")
+	}
+
+	serviceName := osServiceName(environment)
+	secret, err := keyring.Get(serviceName, collectionName)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	if err := keyring.Set(serviceName+"-legacy", collectionName, secret); err != nil {
+		return err
+	}
+	if err := keyring.Delete(serviceName, collectionName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func osServiceName(environment string) string {
+	return "seed-daemon-" + environment
 }
 
 func (ks *osStore) GetKey(_ context.Context, name string) (*core.KeyPair, error) {
