@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"seed/backend/api/apitest"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
@@ -26,7 +27,7 @@ func TestPrivateDocSecurity_PublicOnlyRequiresRootCapabilityForPrivateRead(t *te
 	carol := coretest.NewTester("carol")
 	account := alice.me.Account.PublicKey.String()
 
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -101,7 +102,7 @@ func TestPrivateDocSecurity_GetResourceSnapshotBypassesPublicOnly(t *testing.T) 
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -166,7 +167,7 @@ func TestPrivateDocSecurity_ListDocumentChangesLeaksMetadata(t *testing.T) {
 	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
 	account := alice.me.Account.PublicKey.String()
 
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -205,7 +206,7 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
 	account := alice.me.Account.PublicKey.String()
 
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -254,7 +255,7 @@ func TestPrivateDocSecurity_CreateRefIgnoresVisibility(t *testing.T) {
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -305,7 +306,7 @@ func TestPrivateDocSecurity_GetCommentReplyCountLeaksMetadata(t *testing.T) {
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
-	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -356,7 +357,7 @@ func TestPrivateDocSecurity_GetRefLeaksPrivateRefData(t *testing.T) {
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
-	_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/secret",
@@ -401,7 +402,7 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 	// Interleave private and public documents so that the SQL LIMIT will
 	// include a mix of both. This is the worst case for the pagination issue.
 	// Create: public, private, private, private, private, private, public, public.
-	_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/public-a",
@@ -414,7 +415,7 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        account,
 			Path:           "/private-" + string(rune('a'+i)),
@@ -428,7 +429,7 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/public-b",
@@ -440,7 +441,7 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        account,
 		Path:           "/public-c",
@@ -487,7 +488,7 @@ func TestPrivateDocSecurity_PublicOnlyListingsExcludePrivateDocs(t *testing.T) {
 		{path: "/public-b", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, title: "Public B"},
 		{path: "/private-b", visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, title: "Private B"},
 	} {
-		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        account,
 			Path:           tc.path,

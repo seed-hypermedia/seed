@@ -163,46 +163,6 @@ enum ResourceVisibility {
   RESOURCE_VISIBILITY_PRIVATE = 2;
 }
 
-// Request to create a new document change.
-//
-// The CreateDocumentChange RPC was removed in favor of client-side signing
-// (PrepareChange + PublishBlobs). This message is retained only as a convenience
-// payload for server-side change construction in tests.
-message CreateDocumentChangeRequest {
-  // Required. The ID of the account where the document is located.
-  string account = 1;
-
-  // Required. Path of the document to create change for.
-  // If document doesn't exist it will be created.
-  // Empty string means root document.
-  string path = 2;
-
-  // Required. Version of the document to apply changes to.
-  // Can be empty when creating a new document.
-  string base_version = 3;
-
-  // Required. Changes to be applied to the document.
-  repeated DocumentChange changes = 4;
-
-  // Required. Name of the key to use for signing.
-  // Use the Daemon API to list and manage keys.
-  string signing_key_name = 5;
-
-  // Optional. ID of the capability that allows signing key to write on behalf of the account
-  // for this particular path.
-  string capability = 6;
-
-  // Optional. Timestamp that the change should have.
-  // By default current time is used.
-  // The timestamp must be strictly greater than the timestamp of any other Change in the dependency chain.
-  google.protobuf.Timestamp timestamp = 7;
-
-  // Optional. Visibility of the document.
-  // Can only be specified here when creating the document for the first time,
-  // i.e. when `base_version` is empty.
-  ResourceVisibility visibility = 8;
-}
-
 // Request to prepare an unsigned document change for client-side signing.
 message PrepareChangeRequest {
   // Required. The ID of the account where the document is located.

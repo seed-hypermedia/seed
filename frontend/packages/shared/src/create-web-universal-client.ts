@@ -14,38 +14,65 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     if (!deps.getSigner) throw new Error('getSigner is required for publishDocument')
     const signer = deps.getSigner(input.signerAccountUid)
 
-    // Bootstrap brand-new home documents client-side. Other new documents go
-    // through PrepareDocumentChange so the server can prepare richer ops.
+    // Brand-new home documents need their deterministic genesis change created
+    // and signed client-side. For metadata-only account creation we can create
+    // the first content change locally; content blocks still go through
+    // PrepareDocumentChange after publishing an initial resolvable genesis ref.
     if (!input.genesis && !input.baseVersion && !input.path) {
       const genesisChange = await createGenesisChange(signer)
-      const contentChange = await createDocumentChange(
-        {
-          changes: input.changes,
-          genesisCid: genesisChange.cid,
-          deps: [genesisChange.cid],
-          depth: 1,
-        },
-        signer,
-      )
-      const ref = await createVersionRef(
+      const generation = input.generation != null ? Number(input.generation) : 1
+
+      if (input.changes.every((change) => change.op?.case === 'setMetadata')) {
+        const contentChange = await createDocumentChange(
+          {
+            changes: input.changes,
+            genesisCid: genesisChange.cid,
+            deps: [genesisChange.cid],
+            depth: 1,
+          },
+          signer,
+        )
+        const ref = await createVersionRef(
+          {
+            space: input.account,
+            path: '',
+            genesis: genesisChange.cid.toString(),
+            version: contentChange.cid.toString(),
+            generation,
+            capability: input.capability,
+          },
+          signer,
+        )
+        await deps.publish({
+          blobs: [
+            {data: genesisChange.bytes, cid: genesisChange.cid.toString()},
+            {data: contentChange.bytes, cid: contentChange.cid.toString()},
+            ...ref.blobs,
+          ],
+        })
+        return
+      }
+
+      const genesisRef = await createVersionRef(
         {
           space: input.account,
           path: '',
           genesis: genesisChange.cid.toString(),
-          version: contentChange.cid.toString(),
-          generation: input.generation != null ? Number(input.generation) : 1,
+          version: genesisChange.cid.toString(),
+          generation,
           capability: input.capability,
         },
         signer,
       )
       await deps.publish({
-        blobs: [
-          {data: genesisChange.bytes, cid: genesisChange.cid.toString()},
-          {data: contentChange.bytes, cid: contentChange.cid.toString()},
-          ...ref.blobs,
-        ],
+        blobs: [{data: genesisChange.bytes, cid: genesisChange.cid.toString()}, ...genesisRef.blobs],
       })
-      return
+      input = {
+        ...input,
+        baseVersion: genesisChange.cid.toString(),
+        genesis: genesisChange.cid.toString(),
+        generation,
+      }
     }
 
     // Use PrepareDocumentChange for both new and existing documents so the server

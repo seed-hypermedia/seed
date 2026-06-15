@@ -244,100 +244,6 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 	return out, nil
 }
 
-// CreateDocumentChange creates, signs, and indexes a document change server-side.
-//
-// It is no longer exposed as a gRPC endpoint: production clients sign changes
-// themselves via PrepareChange + PublishBlobs. This method is retained only as a
-// convenience helper for tests that need to author documents with a daemon-held key.
-func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
-	if in.SigningKeyName == "" {
-		return nil, errutil.MissingArgument("signing_key_name")
-	}
-
-	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
-	if err != nil {
-		return nil, err
-	}
-
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
-	}
-
-	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
-		return nil, err
-	}
-
-	if in.Path == "" && ns.Equal(kp.Principal()) {
-		if err := srv.ensureProfileGenesis(ctx, kp); err != nil {
-			return nil, err
-		}
-	}
-
-	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
-		Account:     in.Account,
-		Path:        in.Path,
-		BaseVersion: in.BaseVersion,
-		Changes:     in.Changes,
-		Capability:  in.Capability,
-		Visibility:  in.Visibility,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var newBlobs []blocks.Block
-
-	var docChange blob.Encoded[*blob.Change]
-	if in.Timestamp != nil {
-		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime())
-		if err != nil {
-			return nil, fmt.Errorf("failed to create document change with the provided timestamp: %w", err)
-		}
-	} else {
-		docChange, err = doc.SignChange(kp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create document change: %w", err)
-		}
-	}
-	newBlobs = append(newBlobs, docChange)
-
-	visibility := doc.Visibility()
-	switch in.Visibility {
-	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE:
-		visibility = blob.VisibilityPrivate
-	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC:
-		visibility = blob.VisibilityPublic
-	case documents.ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED:
-		// Keep the existing document visibility for updates.
-		// For new documents this defaults to public.
-	default:
-		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
-	}
-
-	ref, err := doc.Ref(kp, visibility)
-	if err != nil {
-		return nil, err
-	}
-	newBlobs = append(newBlobs, ref)
-
-	if err := srv.idx.PutMany(ctx, newBlobs); err != nil {
-		return nil, err
-	}
-
-	// Reload the document from the index to get a clean version.
-	doc, err = srv.loadDocument(ctx, ns, in.Path, []cid.Cid{docChange.CID}, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reload document after creating change: %w", err)
-	}
-
-	out, err := doc.Hydrate(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // PrepareChange prepares unsigned Change and Ref blobs for client-side signing.
 func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChangeRequest) (*documents.PrepareChangeResponse, error) {
 	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
@@ -364,7 +270,7 @@ func (srv *Server) PrepareChange(ctx context.Context, in *documents.PrepareChang
 	}, nil
 }
 
-// documentChangeParams holds the common parameters for CreateDocumentChange and PrepareChange.
+// documentChangeParams holds the common parameters for PrepareChange.
 type documentChangeParams struct {
 	Account     string
 	Path        string
@@ -374,8 +280,7 @@ type documentChangeParams struct {
 	Visibility  documents.ResourceVisibility
 }
 
-// handleDocumentChangeRequest handles the common logic for CreateDocumentChange and PrepareChange.
-// It validates input, loads/creates the document, and applies the requested changes.
+// handleDocumentChangeRequest validates input, loads or creates the document, and applies the requested changes.
 func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentChangeParams) (*docmodel.Document, error) {
 	ns, err := core.DecodePrincipal(in.Account)
 	if err != nil {

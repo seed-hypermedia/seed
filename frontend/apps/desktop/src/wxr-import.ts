@@ -578,8 +578,14 @@ export async function importPost(
     overwriteExisting?: boolean
   },
 ): Promise<ImportPostResult> {
-  const {destinationUid, documentPath, signingKeyName, signerPublicKey, displayAuthor, overwriteExisting = false} =
-    options
+  const {
+    destinationUid,
+    documentPath,
+    signingKeyName,
+    signerPublicKey,
+    displayAuthor,
+    overwriteExisting = false,
+  } = options
 
   // Build the document path.
   const docPath = documentPath

@@ -378,6 +378,50 @@ describe('Onboarding flow', () => {
     cleanupRendered(root, container, queryClient)
   })
 
+  it('creates the profile with UpdateProfile and then publishes post-account actions', async () => {
+    genMnemonicMock.mockResolvedValue({
+      mnemonic: ['alpha', 'beta', 'gamma'],
+    })
+    registerKeyMutateAsyncMock.mockResolvedValue({
+      accountId: 'z6Mkaccount',
+      publicKey: 'z6Mkaccount',
+      name: 'z6Mkaccount',
+    })
+    updateProfileMock.mockResolvedValue(undefined)
+    postAccountCreateActionMock.mockResolvedValue(undefined)
+
+    const {container, root, queryClient} = renderComponent()
+
+    await reachVaultStep(container)
+
+    await act(async () => {
+      findButton(container, 'CREATE NEW ACCOUNT')?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(updateProfileMock).toHaveBeenCalledTimes(1)
+    expect(updateProfileMock).toHaveBeenCalledWith({
+      account: 'z6Mkaccount',
+      profile: {
+        name: '',
+        icon: '',
+      },
+      signingKeyName: 'z6Mkaccount',
+    })
+    expect(postAccountCreateActionMock).toHaveBeenCalledTimes(1)
+    expect(postAccountCreateActionMock).toHaveBeenCalledWith(
+      {accountUid: 'z6Mkaccount'},
+      expect.objectContaining({
+        getSigner: expect.any(Function),
+        publish: expect.any(Function),
+      }),
+    )
+
+    cleanupRendered(root, container, queryClient)
+  })
+
   it('retries account creation without minting a second account', async () => {
     genMnemonicMock.mockResolvedValue({
       mnemonic: ['alpha', 'beta', 'gamma'],

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -47,17 +47,6 @@ export const Documents = {
       name: "BatchGetDocumentInfo",
       I: BatchGetDocumentInfoRequest,
       O: BatchGetDocumentInfoResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Creates a new Document Change.
-     *
-     * @generated from rpc com.seed.documents.v3alpha.Documents.CreateDocumentChange
-     */
-    createDocumentChange: {
-      name: "CreateDocumentChange",
-      I: CreateDocumentChangeRequest,
-      O: Document,
       kind: MethodKind.Unary,
     },
     /**

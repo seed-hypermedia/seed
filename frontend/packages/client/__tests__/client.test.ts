@@ -265,6 +265,7 @@ describe('createSeedClient', () => {
   })
 
   it('publishes new documents through PrepareDocumentChange before PublishBlobs', async () => {
+    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
     const mockedSignDocumentChange = vi.mocked(signDocumentChange)
     mockedSignDocumentChange.mockResolvedValueOnce({
       changeCid: {} as any,
@@ -318,11 +319,94 @@ describe('createSeedClient', () => {
     expect(fetchFn).toHaveBeenCalledTimes(2)
     expect(fetchFn.mock.calls[0]?.[0]).toBe('https://example.com/api/PrepareDocumentChange')
     expect(fetchFn.mock.calls[1]?.[0]).toBe('https://example.com/api/PublishBlobs')
+    expect(mockedCreateGenesisChange).not.toHaveBeenCalled()
     expect(mockedSignDocumentChange).toHaveBeenCalledWith(
       expect.objectContaining({
         account: 'test-uid',
         path: '/new-doc',
         unsignedChange: new Uint8Array([1, 2, 3]),
+      }),
+      signer,
+    )
+  })
+
+  it('publishes brand-new home documents with blocks by bootstrapping genesis before PrepareDocumentChange', async () => {
+    const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
+    const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
+    const mockedCreateVersionRef = vi.mocked(createVersionRef)
+    const mockedSignDocumentChange = vi.mocked(signDocumentChange)
+
+    mockedCreateGenesisChange.mockResolvedValueOnce({
+      bytes: new Uint8Array([1]),
+      cid: {toString: () => 'bafy-genesis'} as any,
+    })
+    mockedCreateVersionRef.mockResolvedValueOnce({
+      blobs: [{cid: 'bafy-genesis-ref', data: new Uint8Array([2])}],
+    })
+    mockedSignDocumentChange.mockResolvedValueOnce({
+      changeCid: {} as any,
+      publishInput: {
+        blobs: [{cid: 'bafy-content', data: new Uint8Array([4, 5, 6])}],
+      },
+    })
+
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => serialize({cids: ['bafy-genesis', 'bafy-genesis-ref']}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => serialize({unsignedChange: new Uint8Array([7, 8, 9])}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => serialize({cids: ['bafy-content']}),
+      })
+
+    const client = createSeedClient('https://example.com', {fetch: fetchFn})
+    const signer = {
+      getPublicKey: vi.fn(async () => new Uint8Array([1])),
+      sign: vi.fn(async () => new Uint8Array([2])),
+    }
+
+    await client.publishDocument(
+      {
+        account: 'test-uid',
+        changes: [
+          {op: {case: 'setMetadata', value: {key: 'name', value: 'Home'}}},
+          {op: {case: 'moveBlock', value: {blockId: 'b1', parent: '', leftSibling: ''}}},
+          {op: {case: 'replaceBlock', value: {id: 'b1', type: 'paragraph', text: 'Hello'}}},
+        ],
+      },
+      signer,
+    )
+
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+    expect(fetchFn.mock.calls[0]?.[0]).toBe('https://example.com/api/PublishBlobs')
+    expect(fetchFn.mock.calls[1]?.[0]).toBe('https://example.com/api/PrepareDocumentChange')
+    expect(fetchFn.mock.calls[2]?.[0]).toBe('https://example.com/api/PublishBlobs')
+    expect(mockedCreateDocumentChange).not.toHaveBeenCalled()
+    expect(mockedCreateVersionRef).toHaveBeenCalledWith(
+      expect.objectContaining({
+        space: 'test-uid',
+        path: '',
+        genesis: 'bafy-genesis',
+        version: 'bafy-genesis',
+        generation: 1,
+      }),
+      signer,
+    )
+    expect(mockedSignDocumentChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account: 'test-uid',
+        unsignedChange: new Uint8Array([7, 8, 9]),
+        genesis: 'bafy-genesis',
+        generation: 1,
       }),
       signer,
     )

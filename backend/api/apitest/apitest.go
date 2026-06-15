@@ -7,17 +7,31 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// DocumentChangeRequest is a test-only payload for creating document changes
+// through PrepareChange + test signing.
+type DocumentChangeRequest struct {
+	Account        string
+	Path           string
+	BaseVersion    string
+	Changes        []*documents.DocumentChange
+	SigningKeyName string
+	Capability     string
+	Timestamp      *timestamppb.Timestamp
+	Visibility     documents.ResourceVisibility
+}
 
 // ChangeBuilder is a helper for conveniently building document changes for the API.
 type ChangeBuilder struct {
-	req *documents.CreateDocumentChangeRequest
+	req *DocumentChangeRequest
 }
 
 // NewChangeBuilder creates a new ChangeBuilder.
 func NewChangeBuilder(account core.Principal, path, baseVersion, keyName string) *ChangeBuilder {
 	return &ChangeBuilder{
-		req: &documents.CreateDocumentChangeRequest{
+		req: &DocumentChangeRequest{
 			Account:        account.String(),
 			Path:           path,
 			BaseVersion:    baseVersion,
@@ -107,6 +121,6 @@ func (b *ChangeBuilder) DeleteBlock(block string) *ChangeBuilder {
 }
 
 // Build returns the built request.
-func (b *ChangeBuilder) Build() *documents.CreateDocumentChangeRequest {
+func (b *ChangeBuilder) Build() *DocumentChangeRequest {
 	return b.req
 }

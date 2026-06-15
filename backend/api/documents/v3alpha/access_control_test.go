@@ -23,7 +23,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial home document.
-	_, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
+	_, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
 		SetMetadata("title", "Alice's Home Page").
 		Build(),
 	)
@@ -31,7 +31,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 
 	// Try to create document with bob's key. It must fail.
 	{
-		_, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "bob").
+		_, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "bob").
 			SetMetadata("title", "Document about cars").
 			Build(),
 		)
@@ -39,7 +39,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 	}
 
 	// Alice creates document about cars.
-	cars, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "main").
+	cars, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars", "", "main").
 		SetMetadata("title", "Document about cars").
 		Build(),
 	)
@@ -76,7 +76,7 @@ func TestCapabilities_Smoke(t *testing.T) {
 
 	// Bob creates a document under /cars.
 	{
-		jp, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars/jp", "", "bob").
+		jp, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/cars/jp", "", "bob").
 			SetMetadata("title", "Catalogue of Japanese cars").
 			Build(),
 		)
@@ -95,7 +95,7 @@ func TestWriterCollaboratorPermissions(t *testing.T) {
 	require.NoError(t, owner.keys.StoreKey(ctx, "writer", writer.Account))
 
 	// Create the initial workspace document
-	workspace, err := owner.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	workspace, err := owner.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        owner.me.Account.PublicKey.String(),
 		Path:           "/workspace",
@@ -109,7 +109,7 @@ func TestWriterCollaboratorPermissions(t *testing.T) {
 	require.NotNil(t, workspace)
 
 	// Create a subdocument in the workspace
-	doc1, err := owner.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc1, err := owner.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        owner.me.Account.PublicKey.String(),
 		Path:           "/workspace/doc1",
@@ -134,7 +134,7 @@ func TestWriterCollaboratorPermissions(t *testing.T) {
 	require.NotNil(t, cap)
 
 	// Verify writer can create a new document
-	doc2, err := owner.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc2, err := owner.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "writer",
 		Account:        owner.me.Account.PublicKey.String(),
 		Path:           "/workspace/doc2",

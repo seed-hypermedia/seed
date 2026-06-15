@@ -211,8 +211,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const capabilityCid = deps.getCapabilityCid() ?? draft.capabilityCid ?? ''
   const visibility = isPrivate ? ResourceVisibility.PRIVATE : ResourceVisibility.UNSPECIFIED
   // Web signs client-side via `signDocumentChange`. Generation must be strictly
-  // greater than existing HEAD's — a tie keeps the old HEAD. Desktop avoids this
-  // because the daemon's `createDocumentChange` gRPC manages generation server-side.
+  // greater than existing HEAD's — a tie keeps the old HEAD.
   const signer = deps.getSigner(signerAccountUid)
   const prepareResult = (await deps.client.request(
     'PrepareDocumentChange' as any,

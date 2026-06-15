@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	"fmt"
+	"seed/backend/api/apitest"
 	entities "seed/backend/api/entities/v1alpha"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
@@ -27,7 +28,7 @@ func TestComments_Smoke(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial home document.
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -108,7 +109,7 @@ func TestListCommentsByAuthor(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial document.
-	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -190,7 +191,7 @@ func TestListCommentsByAuthor_Pagination(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial document.
-	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -281,7 +282,7 @@ func TestGetComment(t *testing.T) {
 	ctx := context.Background()
 
 	// Create the initial document.
-	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -344,7 +345,7 @@ func TestBatchGetComments(t *testing.T) {
 	ctx := context.Background()
 
 	// Create the initial document.
-	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -408,7 +409,7 @@ func TestCreateComment_ErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
 	// Create the initial document.
-	doc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -540,7 +541,7 @@ func TestUpdateComment(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create home document
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -672,7 +673,7 @@ func TestDeleteComment(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create home document
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -772,7 +773,7 @@ func TestCommentUpdateAndDeleteWorkflow(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create home document
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -866,7 +867,7 @@ func TestCommentEditTimestamps(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -928,7 +929,7 @@ func TestListCommentVersions(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1035,7 +1036,7 @@ func TestCommentCitations(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1102,7 +1103,7 @@ func TestListComments_AfterDocumentMove(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a document at /old-path and add a comment to it.
-	oldDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	oldDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/old-path",
@@ -1187,7 +1188,7 @@ func TestCommentCount_DedupesEditsAndDeletions(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
-	homeDoc, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",

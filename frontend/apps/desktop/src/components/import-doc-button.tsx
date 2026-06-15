@@ -659,17 +659,6 @@ const ImportDocumentsWithFeedback = (
         //       ? '/' + id.path?.join('/') + '/' + parentDir
         //       : '/' + parentDir
 
-        //     const publishedDoc =
-        //       await grpcClient.documents.createDocumentChange({
-        //         signingKeyName: id.uid,
-        //         account: id.uid,
-        //         baseVersion: undefined,
-        //         path: publicationPath,
-        //         changes: allChanges,
-        //         capability: '',
-        //       })
-        //   }
-
         //   await createDraft.mutateAsync({
         //     id: id.id + '/' + parentDir + '/' + path,
         //     draft: inputData,

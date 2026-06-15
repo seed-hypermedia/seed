@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 	"fmt"
+	"seed/backend/api/apitest"
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
@@ -109,7 +110,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "carol")
 		ctx := context.Background()
 
-		_, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -140,7 +141,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "alice")
 		ctx := context.Background()
 
-		_, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -172,7 +173,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "david")
 		ctx := context.Background()
 
-		doc1, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		doc1, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -187,7 +188,7 @@ func TestGetResource(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err = srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -218,7 +219,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "alice")
 		ctx := context.Background()
 
-		doc1, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		doc1, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -233,7 +234,7 @@ func TestGetResource(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err = srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -264,7 +265,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "bob")
 		ctx := context.Background()
 
-		_, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",
@@ -329,7 +330,7 @@ func TestGetResource(t *testing.T) {
 		srv := newTestDocsAPI(t, "david")
 		ctx := context.Background()
 
-		_, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        srv.me.Account.PublicKey.String(),
 			Path:           "/test",

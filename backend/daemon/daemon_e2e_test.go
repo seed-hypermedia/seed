@@ -43,6 +43,7 @@ import (
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/multiformats/go-multicodec"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -50,6 +51,157 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
+
+func createTestDocumentChange(ctx context.Context, t *testing.T, app *App, in *apitest.DocumentChangeRequest) (*documents.Document, error) {
+	t.Helper()
+
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "missing required argument: signing_key_name")
+	}
+
+	kp, err := app.Storage.KeyStore().GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+	docCtx := blob.WithAuthenticatedCaller(ctx, kp.Principal())
+
+	account, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
+	}
+
+	if in.Path == "" && account.Equal(kp.Principal()) {
+		if err := storeTestProfileGenesis(ctx, app, kp); err != nil {
+			return nil, err
+		}
+	}
+
+	var (
+		generation int64
+		visibility = blob.VisibilityPublic
+	)
+	existing, err := app.RPC.DocumentsV3.GetDocument(docCtx, &documents.GetDocumentRequest{
+		Account: in.Account,
+		Path:    in.Path,
+		Version: in.BaseVersion,
+	})
+	if err == nil {
+		if existing.GenerationInfo != nil {
+			generation = existing.GenerationInfo.Generation
+		}
+		visibility = documentVisibility(existing.Visibility)
+	} else if code := status.Code(err); code != codes.NotFound && code != codes.FailedPrecondition {
+		return nil, err
+	}
+
+	prepared, err := app.RPC.DocumentsV3.PrepareChange(ctx, &documents.PrepareChangeRequest{
+		Account:     in.Account,
+		Path:        in.Path,
+		BaseVersion: in.BaseVersion,
+		Changes:     in.Changes,
+		Capability:  in.Capability,
+		Visibility:  in.Visibility,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	signedChange, err := signPreparedTestChange(prepared.UnsignedChange, kp)
+	if err != nil {
+		return nil, err
+	}
+
+	if generation == 0 && existing == nil {
+		generation = signedChange.Decoded.Ts.UnixMilli()
+	}
+
+	switch in.Visibility {
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE:
+		visibility = blob.VisibilityPrivate
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC:
+		visibility = blob.VisibilityPublic
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED:
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
+	}
+
+	genesis := signedChange.Decoded.Genesis
+	if !genesis.Defined() {
+		genesis = signedChange.CID
+	}
+
+	ref, err := blob.NewRef(kp, generation, genesis, account, in.Path, []cid.Cid{signedChange.CID}, signedChange.Decoded.Ts, visibility)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := app.RPC.Daemon.StoreBlobs(ctx, &daemon.StoreBlobsRequest{
+		Blobs: []*daemon.Blob{
+			{Cid: signedChange.CID.String(), Data: signedChange.Data},
+			{Cid: ref.CID.String(), Data: ref.Data},
+		},
+	}); err != nil {
+		return nil, err
+	}
+
+	return app.RPC.DocumentsV3.GetDocument(docCtx, &documents.GetDocumentRequest{
+		Account: in.Account,
+		Path:    in.Path,
+		Version: signedChange.CID.String(),
+	})
+}
+
+func storeTestProfileGenesis(ctx context.Context, app *App, kp *core.KeyPair) error {
+	change, err := blob.NewChange(kp, cid.Undef, nil, 0, blob.ChangeBody{}, blob.ZeroUnixTime())
+	if err != nil {
+		return err
+	}
+
+	ref, err := blob.NewRef(kp, 0, change.CID, kp.Principal(), "", []cid.Cid{change.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic)
+	if err != nil {
+		return err
+	}
+
+	_, err = app.RPC.Daemon.StoreBlobs(ctx, &daemon.StoreBlobsRequest{
+		Blobs: []*daemon.Blob{
+			{Cid: change.CID.String(), Data: change.Data},
+			{Cid: ref.CID.String(), Data: ref.Data},
+		},
+	})
+	return err
+}
+
+func signPreparedTestChange(unsignedBytes []byte, kp *core.KeyPair) (blob.Encoded[*blob.Change], error) {
+	var change blob.Change
+	if err := cbornode.DecodeInto(unsignedBytes, &change); err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("decoding unsigned change: %w", err)
+	}
+
+	change.Signer = kp.Principal()
+
+	if err := blob.Sign(kp, &change, &change.Sig); err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("signing change: %w", err)
+	}
+
+	data, err := cbornode.DumpObject(&change)
+	if err != nil {
+		return blob.Encoded[*blob.Change]{}, fmt.Errorf("encoding signed change: %w", err)
+	}
+
+	blk := ipfs.NewBlock(uint64(multicodec.DagCbor), data)
+	return blob.Encoded[*blob.Change]{
+		CID:     blk.Cid(),
+		Data:    blk.RawData(),
+		Decoded: &change,
+	}, nil
+}
+
+func documentVisibility(v documents.ResourceVisibility) blob.Visibility {
+	if v == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		return blob.VisibilityPrivate
+	}
+	return blob.VisibilityPublic
+}
 
 func TestDaemonRegisterKey(t *testing.T) {
 	t.Parallel()
@@ -348,7 +500,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	ctx := context.Background()
 	alice := coretest.NewTester("alice").Account.Principal()
 
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", "", "main").
+	doc, err := createTestDocumentChange(ctx, t, dmn, apitest.NewChangeBuilder(alice, "", "", "main").
 		SetMetadata("title", "Alice from the Wonderland").
 		MoveBlock("b1", "", "").
 		ReplaceBlock("b1", "paragraph", "Hello").
@@ -394,7 +546,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 	// Do another update.
 
 	{
-		doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", doc.Version, "main").
+		doc, err := createTestDocumentChange(ctx, t, dmn, apitest.NewChangeBuilder(alice, "", doc.Version, "main").
 			SetMetadata("title", "Just Alice").
 			Build(),
 		)
@@ -492,7 +644,7 @@ func TestSyncingProfiles(t *testing.T) {
 	aliceIdentity := coretest.NewTester("alice")
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobIdentity := coretest.NewTester("bob")
-	doc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -544,7 +696,7 @@ func TestSyncingProfiles(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, doc.Content, doc2.Content)
 
-	bobsProfile, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobsProfile, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -581,7 +733,7 @@ func TestDiscoverHomeDocument(t *testing.T) {
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	ctx := context.Background()
 
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -663,7 +815,7 @@ func TestSubscriptions(t *testing.T) {
 	ctx := context.Background()
 
 	// Phase 1: Create initial documents for all participants.
-	carolHome, err := carol.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	carolHome, err := createTestDocumentChange(ctx, t, carol, &apitest.DocumentChangeRequest{
 		Account:        carolIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -695,7 +847,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -727,7 +879,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceToyota, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/toyota",
 		SigningKeyName: "main",
@@ -759,7 +911,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHonda, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
@@ -794,7 +946,7 @@ func TestSubscriptions(t *testing.T) {
 	david := coretest.NewTester("david")
 	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "david", david.Account))
 
-	davidInAliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	davidInAliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        david.Account.String(),
 		Path:           "",
 		SigningKeyName: "david",
@@ -806,7 +958,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobHome, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -968,7 +1120,7 @@ func TestSubscriptions(t *testing.T) {
 
 	// Phase 8: Test update propagation through subscriptions.
 	t.Logf("Phase 8 starting at %v", time.Now())
-	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHondaUpdated, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceHonda.Version,
 		Path:           "/cars/honda",
@@ -1246,7 +1398,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "carol", carolIdentity.Account))
 
 	// Create home documents for all 3 keys
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1258,7 +1410,7 @@ func TestRelatedMaterials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bobHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "bob",
@@ -1270,7 +1422,7 @@ func TestRelatedMaterials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	carolHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	carolHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        carolIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "carol",
@@ -1291,7 +1443,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create /cars/jp document
-	carsJp, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	carsJp, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/jp",
 		SigningKeyName: "main",
@@ -1314,7 +1466,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create /cars/jp/honda document
-	carsJpHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	carsJpHonda, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/jp/honda",
 		SigningKeyName: "main",
@@ -1337,7 +1489,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create /cars/jp/toyota document
-	carsJpToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	carsJpToyota, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/jp/toyota",
 		SigningKeyName: "main",
@@ -1360,7 +1512,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update /cars/jp to have links to honda and toyota
-	updatedCarsJP, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	updatedCarsJP, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/jp",
 		BaseVersion:    carsJp.Version,
@@ -1393,7 +1545,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Bob creates /alices-cars document in his account with link to alice's /cars/jp
-	bobAlicesCars, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobAlicesCars, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "/alices-cars",
 		SigningKeyName: "bob",
@@ -1499,7 +1651,7 @@ func TestPushing_Deletes(t *testing.T) {
 	aliceIdentity := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 
-	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1531,7 +1683,7 @@ func TestPushing_Deletes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHonda, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.PublicKey.String(),
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
@@ -1603,7 +1755,7 @@ func TestPushing(t *testing.T) {
 	bobIdentity := coretest.NewTester("bob")
 	ctx := context.Background()
 
-	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobHome, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1635,7 +1787,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1677,7 +1829,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceToyota, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/toyota",
 		SigningKeyName: "main",
@@ -1709,7 +1861,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHonda, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
@@ -1741,7 +1893,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bobSubaru, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobSubaru, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "/cars/subaru",
 		SigningKeyName: "main",
@@ -1802,7 +1954,7 @@ func TestPushing(t *testing.T) {
 		Path:    aliceHonda.Path,
 	})
 	require.Error(t, err, "Honda is not yet related to Toyota so should not have been pushed")
-	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHondaUpdated, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceHonda.Version,
 		Path:           aliceHonda.Path,
@@ -1830,7 +1982,7 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err, "A Backlink from Honda to toyota should cause Honda to be pushed")
 
 	var link = "hm://" + aliceHonda.Account + aliceHonda.Path
-	aliceToyotaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceToyotaUpdated, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceToyota.Version,
 		Path:           "/cars/toyota",
@@ -1994,7 +2146,7 @@ func TestPushing(t *testing.T) {
 		require.Equal(t, int64(randomFileSize), n, "file received by Alice must be the same size as Bob created it")
 	}
 
-	aliceHomeUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHomeUpdated, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceHome.Version,
 		Path:           "",
@@ -2068,7 +2220,7 @@ func TestPushing_ProfileRedirect(t *testing.T) {
 	aliceIdentity := coretest.NewTester("alice")
 	bobIdentity := coretest.NewTester("bob")
 
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -2080,7 +2232,7 @@ func TestPushing_ProfileRedirect(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -2145,7 +2297,7 @@ func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	ctx := context.Background()
 	alice := coretest.NewTester("alice").Account.Principal()
 
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice, "", "", "main").
+	doc, err := createTestDocumentChange(ctx, t, dmn, apitest.NewChangeBuilder(alice, "", "", "main").
 		SetMetadata("title", "Alice from the Wonderland").
 		MoveBlock("b1", "", "").
 		ReplaceBlock("b1", "paragraph", "Hello world", &documents.Annotation{Type: "bold", Starts: []int32{0}, Ends: []int32{5}}).
@@ -2165,7 +2317,7 @@ func TestBug_LeftOverDocumentsAfterDelete(t *testing.T) {
 	alice := coretest.NewTester("alice").Account.Principal()
 
 	// Create initial document.
-	doc, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		Account:        alice.String(),
 		Path:           "/test/doc",
 		SigningKeyName: "main",
@@ -2242,7 +2394,7 @@ func TestKeyDelegation(t *testing.T) {
 	bob := coretest.NewTester("bob").Account.Principal()
 
 	// Alice creates her home document.
-	aliceHome, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceHome, err := createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.String(),
 		Changes: []*documents.DocumentChange{
@@ -2261,7 +2413,7 @@ func TestKeyDelegation(t *testing.T) {
 	// Bob, whom in this case we treat as if it was Alice's phone or other device,
 	// also creates his home document.
 	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", coretest.NewTester("bob").Account))
-	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		SigningKeyName: "bob",
 		Account:        bob.String(),
 		Changes: []*documents.DocumentChange{
@@ -2307,7 +2459,7 @@ func TestKeyDelegation(t *testing.T) {
 	require.Equal(t, alice.String(), bobAcc.AliasAccount, "bob must have alice as alias")
 
 	// Now Bob edits alice's home document.
-	_, err = dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		SigningKeyName: "bob",
 		Account:        alice.String(),
 		BaseVersion:    aliceHome.Version,
@@ -2366,7 +2518,7 @@ func TestDelegatedWriterSessionKeyCanWriteSubdocument(t *testing.T) {
 	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob", bobTester.Account))
 	require.NoError(t, dmn.RPC.Daemon.RegisterAccount(ctx, "bob-session", bobSessionKey))
 
-	podcasts, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	podcasts, err := createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.String(),
 		Path:           "/podcasts",
@@ -2397,7 +2549,7 @@ func TestDelegatedWriterSessionKeyCanWriteSubdocument(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	episode, err := dmn.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	episode, err := createTestDocumentChange(ctx, t, dmn, &apitest.DocumentChangeRequest{
 		SigningKeyName: "bob-session",
 		Account:        alice.String(),
 		Path:           "/podcasts/episode-1",
@@ -2627,7 +2779,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
 
 	// Create Bob's home document
-	_, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -2650,7 +2802,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subdocument 1
-	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "/projects",
 		SigningKeyName: "main",
@@ -2673,7 +2825,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subdocument 2
-	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "/notes/daily",
 		SigningKeyName: "main",
@@ -2696,7 +2848,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subdocument 3
-	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "/about/me",
 		SigningKeyName: "main",
@@ -2771,7 +2923,7 @@ func TestCommentDiscovery(t *testing.T) {
 	ctx := context.Background()
 
 	// Alice creates a document.
-	aliceDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
 		Path:           "/test-doc",
 		SigningKeyName: "main",
@@ -2846,7 +2998,7 @@ func TestCommentImageSync(t *testing.T) {
 	ctx := context.Background()
 
 	// Alice creates a document.
-	aliceDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
 		Path:           "/test-doc",
 		SigningKeyName: "main",
@@ -2954,7 +3106,7 @@ func TestCommentEmbedSync(t *testing.T) {
 	aliceAccount := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String()
 
 	// Alice creates a document that will be embedded.
-	embeddedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	embeddedDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/embedded-doc",
 		SigningKeyName: "main",
@@ -2977,7 +3129,7 @@ func TestCommentEmbedSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// Alice creates another document where the comment will be posted.
-	targetDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	targetDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/target-doc",
 		SigningKeyName: "main",
@@ -3061,7 +3213,7 @@ func TestActivityFeed(t *testing.T) {
 	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
 
 	// 1) Create Alice's root (Profile/Ref) and a named doc (Ref).
-	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceRoot, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -3071,7 +3223,7 @@ func TestActivityFeed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/named/a",
 		SigningKeyName: "main",
@@ -3192,7 +3344,7 @@ func TestActivityFeedFilterAuthorsIncludesAliasAccounts(t *testing.T) {
 	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
 	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
 
-	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceRoot, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -3253,7 +3405,7 @@ func TestActivityFeedFilterAuthorsUsesLatestAliasState(t *testing.T) {
 	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
 	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
 
-	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceRoot, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -3324,7 +3476,7 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
 
 	// Alice creates a private document.
-	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/private-doc",
 		SigningKeyName: "main",
@@ -3351,7 +3503,7 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, privateDoc.Visibility, "private document must have private visibility")
 
 	// Alice creates a public document.
-	publicDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	publicDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/public-doc",
 		SigningKeyName: "main",
@@ -3511,7 +3663,7 @@ func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
 
-	createdDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	createdDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/private-doc-update",
 		SigningKeyName: "main",
@@ -3535,7 +3687,7 @@ func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, createdDoc.Visibility, "created document must be private")
 
-	updatedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	updatedDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           createdDoc.Path,
 		BaseVersion:    createdDoc.Version,
@@ -3609,7 +3761,7 @@ func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
 
-	createdDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	createdDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/private-doc-explicit-public",
 		SigningKeyName: "main",
@@ -3623,7 +3775,7 @@ func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, createdDoc.Visibility)
 
-	updatedDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	updatedDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           createdDoc.Path,
 		BaseVersion:    createdDoc.Version,
@@ -3701,7 +3853,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	}
 
 	// Create Alice's home document with siteUrl pointing to the gateway.
-	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -3727,7 +3879,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a private document for Alice.
-	aliceSecret, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceSecret, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/secret",
 		SigningKeyName: "main",
@@ -3817,7 +3969,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 
 	// 4. Bob creates a private document and the gateway should pull it from Bob.
 	// First, create Bob's home document with siteUrl pointing to the gateway.
-	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobHome, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -3833,7 +3985,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	require.NoError(t, err)
 
 	// Bob creates a private document.
-	bobSecret, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobSecret, err := createTestDocumentChange(ctx, t, bob, &apitest.DocumentChangeRequest{
 		Account:        bobKey.String(),
 		Path:           "/bob-secret",
 		SigningKeyName: "main",
@@ -3964,7 +4116,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	aliceAccount := aliceIdentity.Account.PublicKey.String()
 
 	// Create documents with distinct, searchable content at different paths.
-	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "",
 		SigningKeyName: "main",
@@ -3982,7 +4134,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/cars/honda",
 		SigningKeyName: "main",
@@ -4000,7 +4152,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/cars/toyota",
 		SigningKeyName: "main",
@@ -4018,7 +4170,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/bikes/yamaha",
 		SigningKeyName: "main",
@@ -4193,7 +4345,7 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 		targetType = "document"
 	)
 
-	doc, err := app.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := createTestDocumentChange(ctx, t, app, &apitest.DocumentChangeRequest{
 		Account:        account,
 		Path:           oldPath,
 		SigningKeyName: "main",
@@ -4333,7 +4485,7 @@ func TestSearchProfileOnlyAccount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Also create a document for Alice so she has a "title" entry (to confirm no regression).
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "",
 		SigningKeyName: "main",
@@ -4436,7 +4588,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	// C5: b3="delta iguana" (b1, b2 untouched)
 
 	// C1: Create document with 3 blocks.
-	c1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	c1, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-animals",
 		SigningKeyName: "main",
@@ -4467,7 +4619,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// C2: Modify b1 only.
-	c2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	c2, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-animals",
 		SigningKeyName: "main",
@@ -4481,7 +4633,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// C3: Modify b3 only.
-	c3, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	c3, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-animals",
 		SigningKeyName: "main",
@@ -4495,7 +4647,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// C4: Modify b1 only.
-	c4, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	c4, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-animals",
 		SigningKeyName: "main",
@@ -4509,7 +4661,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// C5: Modify b3 only (final version for doc1).
-	c5, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	c5, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-animals",
 		SigningKeyName: "main",
@@ -4530,7 +4682,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	// D3: b1="epsilon panda" (b2 untouched)
 
 	// D1: Create document with 2 blocks.
-	d1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	d1, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-creatures",
 		SigningKeyName: "main",
@@ -4555,7 +4707,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// D2: Modify b1 only.
-	d2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	d2, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-creatures",
 		SigningKeyName: "main",
@@ -4569,7 +4721,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// D3: Modify b1 only (final version for doc2).
-	d3, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	d3, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/version-test-creatures",
 		SigningKeyName: "main",
@@ -4598,7 +4750,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	// modified. This causes the returned version to be M2's instead of M1's.
 
 	// M1: Create document with 3 blocks.
-	m1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	m1, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/multi-block-commit-test",
 		SigningKeyName: "main",
@@ -4629,7 +4781,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// M2: Modify ALL 3 blocks in ONE commit (b1 content deleted, b2 and b3 modified).
-	m2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	m2, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceAccount,
 		Path:           "/multi-block-commit-test",
 		SigningKeyName: "main",
@@ -5082,7 +5234,7 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		app = makeTestApp(t, name, makeTestConfig(t), true)
 		account = coretest.NewTester(name).Account.PublicKey.String()
 
-		doc, err := app.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		doc, err := createTestDocumentChange(ctx, t, app, &apitest.DocumentChangeRequest{
 			Account:        account,
 			Path:           "/comments-move-src",
 			SigningKeyName: "main",
@@ -5245,7 +5397,7 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	alice := makeTestApp(t, "alice", cfg, true)
 
 	// Create a private document.
-	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main")).String(),
 		Path:           "/private-doc",
@@ -5356,7 +5508,7 @@ func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
 	alice := makeTestApp(t, "alice", cfg, true)
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
 
-	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	privateDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        aliceKey.String(),
 		Path:           "/private-blob",
@@ -5398,7 +5550,7 @@ func TestPublicOnlyGetRemotePublicBlob(t *testing.T) {
 	bob := makeTestApp(t, "bob", bobCfg, true)
 
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
-	publicDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	publicDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
 		Account:        aliceKey.String(),
 		Path:           "/public-doc",
 		SigningKeyName: "main",

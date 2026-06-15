@@ -33,13 +33,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestCreateDocumentChange(t *testing.T) {
+func TestDocumentChangePublishing(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -112,7 +112,7 @@ func TestListRootDocuments(t *testing.T) {
 	ctx := context.Background()
 
 	// Create root document for Alice.
-	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	profile, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -125,7 +125,7 @@ func TestListRootDocuments(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a named doc for Alice to make sure only roots are returned in list requests.
-	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	namedDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/foo",
@@ -142,7 +142,7 @@ func TestListRootDocuments(t *testing.T) {
 	var bobsRoot *documents.DocumentInfo
 	{
 		bob := newTestDocsAPI(t, "bob")
-		_, err = bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err = bob.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        bob.me.Account.PublicKey.String(),
 			Path:           "",
@@ -196,7 +196,7 @@ func TestListAccounts(t *testing.T) {
 	ctx := context.Background()
 
 	// Create root document for Alice.
-	aliceRoot, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	aliceRoot, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -230,7 +230,7 @@ func TestListAccounts(t *testing.T) {
 	testutil.StructsEqual(aliceAcc, accs.Accounts[0]).Compare(t, "alice's account must match")
 
 	bob := newTestDocsAPI(t, "bob")
-	bobRoot, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobRoot, err := bob.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "",
@@ -286,7 +286,7 @@ func TestListDocuments(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	profile, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	profile, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -300,7 +300,7 @@ func TestListDocuments(t *testing.T) {
 	require.NotNil(t, profile)
 
 	// Create a named doc for Alice to make sure we have things to list.
-	namedDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	namedDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/foo",
@@ -313,7 +313,7 @@ func TestListDocuments(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, namedDoc)
 
-	namedDoc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	namedDoc2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/named/bar",
@@ -356,7 +356,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -388,7 +388,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	doc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -399,7 +399,7 @@ func TestGetDocumentWithVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	doc3, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc3, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -439,7 +439,7 @@ func TestConcurrentChanges(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	doc1, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc1, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -451,7 +451,7 @@ func TestConcurrentChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	doc21, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc21, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -464,7 +464,7 @@ func TestConcurrentChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	doc22, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc22, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -500,7 +500,7 @@ func TestConcurrentChanges(t *testing.T) {
 	require.Equal(t, concurrent.Version, concurrentExplicit.Version, "explicit compound version must round-trip")
 	testutil.StructsEqual(concurrent, concurrentExplicit).Compare(t, "compound-version fetch must match latest fetch")
 
-	merged, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	merged, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -515,7 +515,7 @@ func TestConcurrentChanges(t *testing.T) {
 	require.False(t, strings.Contains(merged.Version, "."), "merged version must not be composite")
 }
 
-func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
+func TestDocumentChangePublishingWithTimestamp(t *testing.T) {
 	t.Parallel()
 
 	alice := newTestDocsAPI(t, "alice")
@@ -523,7 +523,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 
 	now := time.Now().Add(24 * time.Hour * -1)
 
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -591,7 +591,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 		IgnoreFields(documents.Document{}, "Version", "Genesis", "GenerationInfo").
 		Compare(t, "profile document must match")
 
-	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		BaseVersion:    doc.Version,
@@ -612,7 +612,7 @@ func TestTombstoneRef(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := context.Background()
 
-	home, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	home, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -640,7 +640,7 @@ func TestTombstoneRef(t *testing.T) {
 		require.Error(t, err, "creating refs for home docs must fail")
 	}
 
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/hello",
@@ -749,7 +749,7 @@ func TestTombstoneRef(t *testing.T) {
 	// }
 
 	// Now I want to republish some document to the same path.
-	republished, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	republished, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/hello",
@@ -819,7 +819,7 @@ func TestTombstoneRef(t *testing.T) {
 
 	// Changes with no base version must fail when there's a live document.
 	{
-		_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        alice.me.Account.PublicKey.String(),
 			Path:           "/hello",
@@ -834,7 +834,7 @@ func TestTombstoneRef(t *testing.T) {
 
 	// Changes with base version of the old generation must not overwrite the newer generation
 	{
-		got, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		got, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 			SigningKeyName: "main",
 			Account:        doc.Account,
 			Path:           doc.Path,
@@ -873,7 +873,7 @@ func TestListRefs(t *testing.T) {
 
 	baseTS := time.UnixMilli(1730000000000).UTC()
 
-	docV1, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	docV1, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/refs-list",
@@ -886,7 +886,7 @@ func TestListRefs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	docV2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	docV2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/refs-list",
@@ -978,7 +978,7 @@ func TestListDirectory(t *testing.T) {
 
 	aliceSpace := alice.me.Account.PublicKey.String()
 
-	_, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        aliceSpace,
 		Changes: []*documents.DocumentChange{
@@ -989,7 +989,7 @@ func TestListDirectory(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Path:           "/doc-1",
 		Account:        aliceSpace,
@@ -1001,7 +1001,7 @@ func TestListDirectory(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Path:           "/nested/doc-1",
 		Account:        aliceSpace,
@@ -1074,7 +1074,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	ctx := context.Background()
 
 	// Create home document for Bob.
-	bobHome, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobHome, err := bob.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1087,7 +1087,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create some nested documents for Bob.
-	bobDoc1, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobDoc1, err := bob.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "/doc-1",
@@ -1099,7 +1099,7 @@ func TestUpdateReadStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bobDoc2, err := bob.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	bobDoc2, err := bob.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        bob.me.Account.PublicKey.String(),
 		Path:           "/nested/doc-2",
@@ -1179,7 +1179,7 @@ func TestDocumentAttributesFullJSONModel(t *testing.T) {
 		},
 	}
 
-	doc, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
+	doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
 		SetAttribute("", []string{"stringValue"}, "Hello World").
 		SetAttribute("", []string{"intValue"}, 42).
 		SetAttribute("", []string{"boolValue"}, true).
@@ -1196,7 +1196,7 @@ func TestDocumentAttributesFullJSONModel(t *testing.T) {
 	testutil.StructsEqual(want, docmodel.ProtoStructAsMap(accs.Accounts[0].Metadata)).Compare(t, "document attributes must match")
 
 	{
-		doc, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", doc.Version, "main").
+		doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", doc.Version, "main").
 			SetAttribute("", []string{"stringValue"}, "ChangedString").
 			SetAttribute("", []string{"intValue"}, 52).
 			SetAttribute("", []string{"boolValueFalse"}, nil). // Make sure value is removed.
@@ -1220,7 +1220,7 @@ func TestRedirect(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 	ctx := t.Context()
 
-	v1, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/src", "", "main").
+	v1, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/src", "", "main").
 		SetAttribute("", []string{"stringValue"}, "Hello World").
 		SetAttribute("", []string{"intValue"}, 42).
 		SetAttribute("", []string{"boolValue"}, true).
@@ -1231,7 +1231,7 @@ func TestRedirect(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	v2, err := alice.CreateDocumentChange(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), v1.Path, v1.Version, "main").
+	v2, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), v1.Path, v1.Version, "main").
 		SetAttribute("", []string{"stringValue"}, "Changed string").
 		Build(),
 	)
@@ -1329,6 +1329,82 @@ type testServer struct {
 	me coretest.Tester
 }
 
+func (srv testServer) PublishDocumentChangeForTest(ctx context.Context, in *apitest.DocumentChangeRequest) (*documents.Document, error) {
+	if in.SigningKeyName == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "missing required argument signing_key_name")
+	}
+
+	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
+	}
+
+	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
+		return nil, err
+	}
+
+	if in.Path == "" && ns.Equal(kp.Principal()) {
+		if err := srv.ensureProfileGenesis(ctx, kp); err != nil {
+			return nil, err
+		}
+	}
+
+	doc, err := srv.handleDocumentChangeRequest(ctx, documentChangeParams{
+		Account:     in.Account,
+		Path:        in.Path,
+		BaseVersion: in.BaseVersion,
+		Changes:     in.Changes,
+		Capability:  in.Capability,
+		Visibility:  in.Visibility,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var docChange blob.Encoded[*blob.Change]
+	if in.Timestamp != nil {
+		docChange, err = doc.SignChangeAt(kp, in.Timestamp.AsTime())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create document change with the provided timestamp: %w", err)
+		}
+	} else {
+		docChange, err = doc.SignChange(kp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create document change: %w", err)
+		}
+	}
+
+	visibility := doc.Visibility()
+	switch in.Visibility {
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE:
+		visibility = blob.VisibilityPrivate
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC:
+		visibility = blob.VisibilityPublic
+	case documents.ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED:
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown visibility value: %v", in.Visibility)
+	}
+
+	ref, err := doc.Ref(kp, visibility)
+	if err != nil {
+		return nil, err
+	}
+	if err := srv.idx.PutMany(ctx, []blocks.Block{docChange, ref}); err != nil {
+		return nil, err
+	}
+
+	doc, err = srv.loadDocument(ctx, ns, in.Path, []cid.Cid{docChange.CID}, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload document after creating change: %w", err)
+	}
+	return doc.Hydrate(ctx)
+}
+
 func newTestDocsAPI(t *testing.T, name string) testServer {
 	return newTestDocsAPIWithConfig(t, name, config.Base{})
 }
@@ -1384,7 +1460,7 @@ func TestDetachedBlocks(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a document with blocks that are not moved into the content tree.
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/detached-test",
@@ -1435,7 +1511,7 @@ func TestDetachedBlocks(t *testing.T) {
 	_ = doc
 
 	// Create a document with blocks that are not moved into the content tree.
-	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		BaseVersion:    doc.Version,
@@ -1515,7 +1591,7 @@ func TestDetachedBlocks(t *testing.T) {
 	require.Equal(t, "content1", doc.Content[0].Block.Id, "only the moved block should be in content")
 
 	// Create another change that moves one of the detached blocks into the tree.
-	doc2, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/detached-test",
@@ -1547,7 +1623,7 @@ func TestBug_DetachedBlocksWithChildrenInTheSameChange(t *testing.T) {
 	alice := newTestDocsAPI(t, "alice")
 
 	// 1. Create home document with content blocks and a detached navigation block.
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1576,7 +1652,7 @@ func TestBug_DetachedBlocksWithChildrenInTheSameChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// 2. Add navigation items as children of the navigation block in a separate change.
-	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1623,7 +1699,7 @@ func TestBug_DetachedBlocksWithChildrenInTheSameChange(t *testing.T) {
 	require.NoError(t, err)
 
 	// 3. Move navigation items around and check the order.
-	doc, err = alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -1664,7 +1740,7 @@ func TestRepublishDocument(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create a document with alice's key.
-	originalDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	originalDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/science/physics",
@@ -1777,7 +1853,7 @@ func TestPrepareChangeAndSubmit(t *testing.T) {
 	ctx := context.Background()
 
 	// Step 1: Create a document with blocks [A, B] using the normal server-side signing.
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/prepare-test",
@@ -1869,7 +1945,7 @@ func TestPrepareChangeBlockReordering(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a document with blocks [A, B, C].
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/reorder-test",
@@ -1949,7 +2025,7 @@ func TestPrepareChangeMetadataUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a document with title "Original".
-	doc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/metadata-test",

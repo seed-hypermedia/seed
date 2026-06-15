@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"seed/backend/api/apitest"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/testutil"
@@ -19,7 +20,7 @@ func TestListDocumentChanges(t *testing.T) {
 	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
 
 	// Create the initial home document.
-	_, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "",
@@ -29,7 +30,7 @@ func TestListDocumentChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	d1, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	d1, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        alice.me.Account.PublicKey.String(),
 		Path:           "/cars",
@@ -39,7 +40,7 @@ func TestListDocumentChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	d2, err := alice.CreateDocumentChange(ctx, &pb.CreateDocumentChangeRequest{
+	d2, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
 		SigningKeyName: "main",
 		Account:        d1.Account,
 		Path:           d1.Path,
