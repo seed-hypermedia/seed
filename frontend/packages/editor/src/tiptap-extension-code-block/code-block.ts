@@ -83,6 +83,11 @@ export const CodeBlock = Node.create<CodeBlockOptions>({
         },
         rendered: false,
       },
+      revision: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-revision') || '',
+        renderHTML: (attributes) => (attributes.revision ? {'data-revision': attributes.revision} : {}),
+      },
     }
   },
 

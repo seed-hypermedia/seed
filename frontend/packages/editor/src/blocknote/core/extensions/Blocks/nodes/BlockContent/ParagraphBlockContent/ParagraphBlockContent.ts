@@ -7,6 +7,16 @@ export const ParagraphBlockContent = createTipTapBlock({
   name: 'paragraph',
   content: 'inline*',
 
+  addAttributes() {
+    return {
+      revision: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-revision') || '',
+        renderHTML: (attributes) => (attributes.revision ? {'data-revision': attributes.revision} : {}),
+      },
+    }
+  },
+
   parseHTML() {
     return [
       {

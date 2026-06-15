@@ -47,12 +47,23 @@ function rect(top: number, right: number): DOMRect {
   } as DOMRect
 }
 
+function appendPublishedContent(block: HTMLElement) {
+  const content = document.createElement('div')
+  content.dataset.contentType = 'paragraph'
+  content.dataset.revision = 'rev-1'
+  block.appendChild(content)
+}
+
 function renderPositioner({
   onCopyBlockLink = () => {},
   onStartComment = () => {},
+  isBlockReferenceable,
+  doc,
 }: {
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
+  isBlockReferenceable?: (blockId: string) => boolean
+  doc?: {descendants: (callback: (node: any) => void | false) => void}
 } = {}) {
   const plugin = {
     onUpdate: (listener: Listener) => {
@@ -66,12 +77,17 @@ function renderPositioner({
   }
   const editor = {
     blockHoverActions: plugin,
-    prosemirrorView: {dom: editorDom},
+    prosemirrorView: {dom: editorDom, state: {doc}},
   } as any
 
   act(() => {
     root.render(
-      <BlockHoverActionsPositioner editor={editor} onCopyBlockLink={onCopyBlockLink} onStartComment={onStartComment} />,
+      <BlockHoverActionsPositioner
+        editor={editor}
+        onCopyBlockLink={onCopyBlockLink}
+        onStartComment={onStartComment}
+        isBlockReferenceable={isBlockReferenceable}
+      />,
     )
   })
 
@@ -82,6 +98,7 @@ describe('BlockHoverActionsPositioner', () => {
   it('overlays actions on top of a supernumber badge', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
+    appendPublishedContent(block)
     editorDom.appendChild(block)
 
     const badge = document.createElement('button')
@@ -114,6 +131,7 @@ describe('BlockHoverActionsPositioner', () => {
     Object.defineProperty(window, 'innerWidth', {value: 130, configurable: true})
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
+    appendPublishedContent(block)
     editorDom.appendChild(block)
 
     renderPositioner()
@@ -130,9 +148,109 @@ describe('BlockHoverActionsPositioner', () => {
     expect(wrapper.style.paddingLeft).toBe('')
   })
 
+  it('uses ProseMirror block revision state when the DOM has no data-revision attribute', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    editorDom.appendChild(block)
+
+    renderPositioner({
+      doc: {
+        descendants: (callback) => {
+          callback({
+            type: {name: 'blockNode'},
+            attrs: {id: 'block-1'},
+            forEach: (childCallback: (child: any) => void) => {
+              childCallback({type: {spec: {group: 'block'}}, attrs: {revision: 'rev-1'}})
+            },
+          })
+        },
+      },
+    })
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Copy block link"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+  })
+
+  it('finds ProseMirror revisions inside the normal blockChildren document wrapper', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    editorDom.appendChild(block)
+
+    const publishedBlock = {
+      type: {name: 'blockNode'},
+      attrs: {id: 'block-1'},
+      forEach: (childCallback: (child: any) => void) => {
+        childCallback({type: {spec: {group: 'block'}}, attrs: {revision: 'rev-1'}})
+      },
+      children: [],
+    }
+    const blockChildren = {
+      type: {name: 'blockChildren'},
+      attrs: {},
+      children: [publishedBlock],
+    }
+
+    renderPositioner({
+      doc: {
+        descendants: (callback) => {
+          const visit = (node: any) => {
+            if (callback(node) === false) return
+            node.children?.forEach(visit)
+          }
+          visit(blockChildren)
+        },
+      },
+    })
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Copy block link"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+  })
+
+  it('hides actions for blocks without a revision', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    const content = document.createElement('div')
+    content.dataset.contentType = 'paragraph'
+    block.appendChild(content)
+    editorDom.appendChild(block)
+
+    renderPositioner()
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Copy block link"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).toBeNull()
+  })
+
+  it('uses a caller-provided referenceable predicate instead of requiring revision attributes', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    editorDom.appendChild(block)
+
+    renderPositioner({isBlockReferenceable: (blockId) => blockId === 'block-1'})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Copy block link"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+  })
+
   it('keeps editor focus stable when pressing hover action buttons', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
+    appendPublishedContent(block)
     editorDom.appendChild(block)
 
     const onCopyBlockLink = vi.fn()

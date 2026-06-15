@@ -34,6 +34,8 @@ type EditorWithHoverActions<BSchema extends BlockSchema> = BlockNoteEditor<BSche
 export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = BlockSchema> = {
   /** The BlockNote editor instance. */
   editor: EditorWithHoverActions<BSchema>
+  /** Optional app-level referenceability check for the hovered block id. */
+  isBlockReferenceable?: (blockId: string) => boolean
 } & BlockHoverActionsCallbacks
 
 // ---------------------------------------------------------------------------
@@ -60,10 +62,37 @@ export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = Block
  * />
  * ```
  */
+
+function getPublishedBlockRevision<BSchema extends BlockSchema>(
+  editor: EditorWithHoverActions<BSchema>,
+  blockId: string,
+): string {
+  let revision = ''
+  editor.prosemirrorView.state?.doc?.descendants?.((node: any) => {
+    if (revision) return false
+    if (node.type?.name !== 'blockNode' || node.attrs?.id !== blockId) return
+    if (typeof node.attrs?.revision === 'string') {
+      revision = node.attrs.revision
+    }
+    node.forEach?.((child: any) => {
+      if (revision) return
+      if (child.type?.spec?.group === 'block' && typeof child.attrs?.revision === 'string') {
+        revision = child.attrs.revision
+      }
+    })
+    return false
+  })
+  if (revision) return revision
+
+  const blockElement = editor.prosemirrorView.dom.querySelector(`[data-id="${blockId}"]`) as HTMLElement | null
+  return blockElement?.querySelector('[data-revision]')?.getAttribute('data-revision') || ''
+}
+
 export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockSchema>({
   editor,
   onCopyBlockLink,
   onStartComment,
+  isBlockReferenceable,
 }: BlockHoverActionsPositionerProps<BSchema>): React.ReactElement | null {
   const hasActions = !!(onCopyBlockLink || onStartComment)
   const [hoverState, setHoverState] = useState<BlockHoverActionsState>({
@@ -129,6 +158,13 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
 
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
+  const canReferenceBlock = isBlockReferenceable
+    ? isBlockReferenceable(blockId)
+    : !!getPublishedBlockRevision(editor, blockId)
+  if (!canReferenceBlock) {
+    return null
+  }
+
   const supernumberBadge = Array.from(editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge')).find(
     (badge) => badge instanceof HTMLElement && badge.dataset.blockId === blockId,
   ) as HTMLElement | undefined

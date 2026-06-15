@@ -804,6 +804,15 @@ export function DocumentEditor({
     }
   }, [onBlockSelect, onBlockCommentClick, isUnpublishedDraft, isBlockInPublishedVersion])
 
+  const isHoverActionBlockReferenceable = useCallback(
+    (blockId: string) => {
+      if (isUnpublishedDraft) return false
+      if (isBlockInPublishedVersion) return isBlockInPublishedVersion(blockId)
+      return true
+    },
+    [isUnpublishedDraft, isBlockInPublishedVersion],
+  )
+
   // Memo so the FormattingToolbarPositioner doesn't rebuild its React
   // tree on every parent render. An inline arrow here was causing
   // HMFormattingToolbar to mount/unmount continuously, wiping its panel
@@ -840,6 +849,7 @@ export function DocumentEditor({
           {(onBlockSelect || onBlockCommentClick) && (
             <BlockHoverActionsPositioner
               editor={editor}
+              isBlockReferenceable={isHoverActionBlockReferenceable}
               onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
               onStartComment={
                 onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined

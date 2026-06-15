@@ -21,6 +21,11 @@ export const HeadingBlockContent = createTipTapBlock<'heading'>({
           }
         },
       },
+      revision: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-revision') || '',
+        renderHTML: (attributes) => (attributes.revision ? {'data-revision': attributes.revision} : {}),
+      },
     }
   },
 

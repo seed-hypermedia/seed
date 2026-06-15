@@ -11,6 +11,9 @@ export const defaultProps = {
     default: 'null' as const,
     values: ['deleted', 'added', 'updated', 'null'] as const,
   },
+  revision: {
+    default: '',
+  },
   childrenType: {
     default: 'Group' as const,
     values: ['Group', 'Unordered', 'Ordered', 'Blockquote', 'Grid'] as const,

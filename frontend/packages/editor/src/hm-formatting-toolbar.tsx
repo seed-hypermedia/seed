@@ -108,13 +108,18 @@ function getSelectionFragment(editor: BlockNoteEditor<any>): {
   const blockId: string = blockNode.attrs?.id ?? ''
   if (!blockId) return null
 
-  // Find blockContent start position.
+  // Find blockContent start position and revision. A missing revision means
+  // the block has not been published yet, so it cannot be referenced.
   let blockContentBeforePos = blockBeforePos
+  let revision = typeof blockNode.attrs?.revision === 'string' ? blockNode.attrs.revision : ''
   blockNode.forEach((child, offset) => {
     if (child.type.spec.group === 'block') {
       blockContentBeforePos = blockBeforePos + offset + 1
+      revision = typeof child.attrs?.revision === 'string' ? child.attrs.revision : revision
     }
   })
+
+  if (!revision) return null
 
   const rangeStart = prosemirrorPosToBlockTextOffset(state.doc, from, blockContentBeforePos)
   const rangeEnd = prosemirrorPosToBlockTextOffset(state.doc, to, blockContentBeforePos)
@@ -217,6 +222,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   const [currentTextFamily, setCurrentTextFamily] = useState<string>('')
   const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
   const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
+  const [hasReferenceableFragment, setHasReferenceableFragment] = useState(() => !!getSelectionFragment(props.editor))
   const stylePopover = usePopoverState()
   // Keep a ref to the latest popover state so the toolbar visibility
   // subscription doesn't need to resubscribe on every render.
@@ -238,6 +244,7 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
   useEditorSelectionChange(props.editor, () => {
     const tiptap = props.editor._tiptapEditor
     const {state} = tiptap
+    setHasReferenceableFragment(!!getSelectionFragment(props.editor))
 
     try {
       const groupInfo = getGroupInfoFromPos(state.selection.from, state)
@@ -405,10 +412,10 @@ export function HMFormattingToolbar<Schema extends Record<string, BlockSpec<stri
               </div>
             )}
 
-            {/* Fragment actions (only when a published version exists).
-                Per design: no separator from the marks, and these buttons
-                are borderless to read as "secondary" icons. */}
-            {fragmentActions && (
+            {/* Fragment actions are only valid for selections inside one
+                previously-published block (identified by revision). Per design:
+                no separator from marks; these buttons read as secondary icons. */}
+            {fragmentActions && hasReferenceableFragment && (
               <>
                 <Tooltip content="Comment">
                   <Button
