@@ -38,6 +38,7 @@ type SearchResult = {
   metadata?: HMMetadata
 }
 
+
 function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
@@ -82,33 +83,36 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
     [domainResolver],
   )
 
-  const matches = useMemo(
-    () =>
-      (search ? searchResults.data?.entities : [])
-        ?.map((result) => {
-          return {
-            id: result.id,
-            label: result.title,
-            type: result.type,
-            metadata: result.metadata,
-          }
-        })
-        .filter((result) => {
-          if (!result) return false // probably id was not parsed correctly
-          if (result.type == 'contact') return true
-          if (result.id.path?.length) return false // this is a directory document, not an account
-          if (result.id.uid === id.uid) return false // this account is already the owner, cannot be added
-          if (result.type == 'document') return true // this is a directory document, not an account
-          if (capabilities.data?.find((capability) => capability.grantId.uid === result.id.uid)) return false // already added
-          if (selectedCollaborators.find((collab) => collab.id.id === result.id.id)) return false // already added
+  const matches = useMemo(() => {
+    const matchesByAccountUid = new Map<string, SearchResult & {type: string}>()
+    const orderedAccountUids: string[] = []
 
-          // this is temporarily disabled because the API is not returning the `&l` flag correctly
-          // if (!result.id.latest) return false // this is not the latest version
+    for (const result of search ? searchResults.data?.entities || [] : []) {
+      if (!result) continue // probably id was not parsed correctly
+      if (result.id.path?.length) continue // this is a directory document, not an account
+      if (result.id.uid === id.uid) continue // this account is already the owner, cannot be added
+      if (capabilities.data?.find((capability) => capability.grantId.uid === result.id.uid)) continue // already added
+      if (selectedCollaborators.find((collab) => collab.id.uid === result.id.uid)) continue // already added
+      if (result.type !== 'contact' && result.type !== 'document') continue
 
-          return true
-        }) || [],
-    [search, searchResults, selectedCollaborators, capabilities.data],
-  )
+      const match = {
+        id: result.id,
+        label: result.title,
+        type: result.type,
+        metadata: result.metadata,
+      }
+      const existing = matchesByAccountUid.get(result.id.uid)
+      if (!existing) {
+        matchesByAccountUid.set(result.id.uid, match)
+        orderedAccountUids.push(result.id.uid)
+      } else if (existing.type !== 'contact' && result.type === 'contact') {
+        // Prefer real profile/contact results, but keep root account documents as a legacy fallback.
+        matchesByAccountUid.set(result.id.uid, match)
+      }
+    }
+
+    return orderedAccountUids.map((uid) => matchesByAccountUid.get(uid)!).filter(Boolean)
+  }, [search, searchResults.data?.entities, selectedCollaborators, capabilities.data, id.uid])
 
   if (!myCapability) return null
   return (
