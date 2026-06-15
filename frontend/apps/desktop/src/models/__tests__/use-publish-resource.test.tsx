@@ -236,6 +236,46 @@ describe('usePublishResource path resolution', () => {
     expect(arg.visibility).toBe(ResourceVisibility.UNSPECIFIED)
   })
 
+  it('omits existing document genesis and generation when a placeholder path first-publishes', async () => {
+    const editId = hmId('acct-1', {path: ['parent', '-draft-abc']})
+    useResourceMock.mockReturnValue({
+      data: {
+        type: 'document',
+        document: {
+          genesis: 'bafy-wrong-existing-genesis',
+          generationInfo: {generation: 777},
+          content: [],
+          detachedBlocks: {},
+        },
+      },
+      isFetched: true,
+      isLoading: false,
+    })
+    getDocumentMock.mockImplementation(({path}) => {
+      if (path === '/parent/-draft-abc') throw new Error('not found')
+      return Promise.resolve({version: 'bafynew', account: 'acct-1', path, content: [], metadata: {}})
+    })
+
+    const {call, cleanup} = await renderHarness(editId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({
+          draft: makeDraft(),
+          destinationId: editId,
+          accountId: 'acct-1',
+        })
+      })
+    } finally {
+      cleanup()
+    }
+
+    const arg = publishDocumentMock.mock.calls[0][0]
+    expect(arg.path).toBe('/parent/my-cool-doc')
+    expect(arg.baseVersion).toBe('')
+    expect(arg.genesis).toBeUndefined()
+    expect(arg.generation).toBeUndefined()
+  })
+
   it('honours an explicit pathOverride from the publish popover', async () => {
     const editId = hmId('acct-1', {path: ['parent', '-draft-abc']})
     getDocumentMock.mockImplementation(({path}) => {

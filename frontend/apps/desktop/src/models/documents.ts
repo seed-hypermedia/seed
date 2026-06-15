@@ -381,8 +381,8 @@ export function usePublishResource(
               changes: allChanges as any,
               capability: capabilityId,
               visibility,
-              genesis: editDocument?.genesis,
-              generation: editDocument?.generationInfo?.generation,
+              genesis: baseVersion ? editDocument?.genesis : undefined,
+              generation: baseVersion ? editDocument?.generationInfo?.generation : undefined,
             }
             await desktopUniversalClient.publishDocument!(publishInput)
 

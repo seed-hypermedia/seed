@@ -162,6 +162,15 @@ describe('createSeedClient', () => {
     }
   })
 
+  it('includes JSON error details in SeedClientError messages', async () => {
+    const fetchFn = mockFetchError(500, 'Internal Server Error', '{"error":"failed to store blocks: genesis mismatch"}')
+    const client = createSeedClient('https://example.com', {fetch: fetchFn})
+
+    await expect(client.request('Account', 'test')).rejects.toThrow(
+      'HTTP 500 from Account: Internal Server Error: failed to store blocks: genesis mismatch',
+    )
+  })
+
   it('throws SeedNetworkError on fetch failure', async () => {
     const fetchFn = vi.fn().mockRejectedValue(new Error('DNS failure'))
     const client = createSeedClient('https://example.com', {fetch: fetchFn})

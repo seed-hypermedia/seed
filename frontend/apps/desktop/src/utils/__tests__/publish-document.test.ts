@@ -1,13 +1,8 @@
-import {DocumentChange, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {describe, expect, it, vi} from 'vitest'
-import {
-  createDocumentChangeRequest,
-  publishDesktopDocument,
-  shouldUseDaemonCreateDocumentChange,
-} from '../publish-document'
+import {publishDesktopDocument, shouldUseDaemonCreateDocumentChange} from '../publish-document'
 
 describe('shouldUseDaemonCreateDocumentChange', () => {
-  it('uses daemon createDocumentChange for existing home documents', () => {
+  it('does not use daemon createDocumentChange for existing home documents', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -17,10 +12,10 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         genesis: 'bafy-genesis',
         changes: [],
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  it('uses daemon createDocumentChange for existing non-home documents', () => {
+  it('does not use daemon createDocumentChange for existing non-home documents', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -30,10 +25,10 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         genesis: 'bafy-genesis',
         changes: [],
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  it('uses daemon createDocumentChange for brand-new home documents (needs genesis)', () => {
+  it('does not use daemon createDocumentChange for brand-new home documents', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -41,7 +36,7 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         path: '',
         changes: [],
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('keeps documents without a known genesis on the seed client path', () => {
@@ -70,7 +65,7 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
     ).toBe(false)
   })
 
-  it('still uses daemon createDocumentChange for brand-new home documents with explicit generation', () => {
+  it('does not use daemon createDocumentChange for brand-new home documents with explicit generation', () => {
     expect(
       shouldUseDaemonCreateDocumentChange({
         signerAccountUid: 'alice',
@@ -79,58 +74,17 @@ describe('shouldUseDaemonCreateDocumentChange', () => {
         generation: 123,
         changes: [],
       }),
-    ).toBe(true)
-  })
-})
-
-describe('createDocumentChangeRequest', () => {
-  it('normalizes an existing document publish for daemon createDocumentChange', () => {
-    const request = createDocumentChangeRequest({
-      signerAccountUid: 'alice',
-      account: 'alice',
-      path: '/foo',
-      baseVersion: 'bafy-base',
-      genesis: 'bafy-genesis',
-      capability: 'bafy-cap',
-      visibility: ResourceVisibility.PRIVATE,
-      changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
-    })
-
-    expect(request.signingKeyName).toBe('alice')
-    expect(request.account).toBe('alice')
-    expect(request.path).toBe('/foo')
-    expect(request.baseVersion).toBe('bafy-base')
-    expect(request.capability).toBe('bafy-cap')
-    expect(request.visibility).toBe(ResourceVisibility.UNSPECIFIED)
-    expect(request.changes).toHaveLength(1)
-    expect(request.changes[0]).toBeInstanceOf(DocumentChange)
-    expect(request.changes[0]?.op.case).toBe('setMetadata')
-  })
-
-  it('preserves explicit visibility for first-publish daemon createDocumentChange', () => {
-    const request = createDocumentChangeRequest({
-      signerAccountUid: 'alice',
-      account: 'alice',
-      path: '/foo',
-      capability: 'bafy-cap',
-      visibility: ResourceVisibility.PRIVATE,
-      changes: [{op: {case: 'setMetadata', value: {key: 'name', value: 'Foo'}}}],
-    })
-
-    expect(request.baseVersion).toBe('')
-    expect(request.visibility).toBe(ResourceVisibility.PRIVATE)
+    ).toBe(false)
   })
 })
 
 describe('publishDesktopDocument', () => {
-  it('uses daemon createDocumentChange for existing home documents', async () => {
-    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
+  it('uses the seed client PrepareDocumentChange path for existing home documents', async () => {
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const getSigner = vi.fn()
 
     await publishDesktopDocument(
       {
-        createDocumentChange,
         publishDocument,
         getSigner,
       },
@@ -144,19 +98,16 @@ describe('publishDesktopDocument', () => {
       },
     )
 
-    expect(createDocumentChange).toHaveBeenCalledTimes(1)
-    expect(publishDocument).not.toHaveBeenCalled()
-    expect(getSigner).not.toHaveBeenCalled()
+    expect(getSigner).toHaveBeenCalledWith('alice')
+    expect(publishDocument).toHaveBeenCalled()
   })
 
-  it('uses daemon createDocumentChange for existing non-home documents', async () => {
-    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
+  it('uses the seed client PrepareDocumentChange path for existing non-home documents', async () => {
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const getSigner = vi.fn()
 
     await publishDesktopDocument(
       {
-        createDocumentChange,
         publishDocument,
         getSigner,
       },
@@ -170,13 +121,11 @@ describe('publishDesktopDocument', () => {
       },
     )
 
-    expect(createDocumentChange).toHaveBeenCalledTimes(1)
-    expect(publishDocument).not.toHaveBeenCalled()
-    expect(getSigner).not.toHaveBeenCalled()
+    expect(getSigner).toHaveBeenCalledWith('alice')
+    expect(publishDocument).toHaveBeenCalled()
   })
 
   it('uses the seed client path for documents without a known genesis', async () => {
-    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const signer = {
       getPublicKey: vi.fn(async () => new Uint8Array([1])),
@@ -186,7 +135,6 @@ describe('publishDesktopDocument', () => {
 
     await publishDesktopDocument(
       {
-        createDocumentChange,
         publishDocument,
         getSigner,
       },
@@ -199,7 +147,6 @@ describe('publishDesktopDocument', () => {
       },
     )
 
-    expect(createDocumentChange).not.toHaveBeenCalled()
     expect(getSigner).toHaveBeenCalledWith('alice')
     expect(publishDocument).toHaveBeenCalledWith(
       {
@@ -213,7 +160,6 @@ describe('publishDesktopDocument', () => {
   })
 
   it('passes explicit generation through the seed client path', async () => {
-    const createDocumentChange = vi.fn().mockResolvedValue(undefined)
     const publishDocument = vi.fn().mockResolvedValue(undefined)
     const signer = {
       getPublicKey: vi.fn(async () => new Uint8Array([1])),
@@ -223,7 +169,6 @@ describe('publishDesktopDocument', () => {
 
     await publishDesktopDocument(
       {
-        createDocumentChange,
         publishDocument,
         getSigner,
       },
@@ -238,7 +183,6 @@ describe('publishDesktopDocument', () => {
       },
     )
 
-    expect(createDocumentChange).not.toHaveBeenCalled()
     expect(getSigner).toHaveBeenCalledWith('alice')
     expect(publishDocument).toHaveBeenCalledWith(
       {

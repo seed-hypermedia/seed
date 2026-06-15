@@ -23,6 +23,8 @@ export type CreateVersionRefInput = {
   capability?: string
   /** Optional CBOR visibility value (e.g., "Private"). Omit or leave empty for public. */
   visibility?: string
+  /** Optional timestamp in Unix milliseconds. Defaults to Date.now(). */
+  ts?: number
 }
 
 export type CreateTombstoneRefInput = {
@@ -77,6 +79,7 @@ function buildUnsignedRef({
   generation,
   capability,
   visibility,
+  ts,
 }: {
   signerKey: Uint8Array
   space: string
@@ -85,6 +88,7 @@ function buildUnsignedRef({
   generation: number
   capability?: string
   visibility?: string
+  ts?: number
 }): Record<string, unknown> {
   const signerBytes = new Uint8Array(signerKey)
   const spaceBytes = new Uint8Array(base58btc.decode(space))
@@ -92,7 +96,7 @@ function buildUnsignedRef({
   const unsigned: Record<string, unknown> = {
     type: 'Ref',
     signer: signerBytes,
-    ts: BigInt(Date.now()),
+    ts: BigInt(ts ?? Date.now()),
     sig: new Uint8Array(64),
     genesisBlob: CID.parse(genesis),
   }
@@ -137,6 +141,7 @@ export async function createVersionRef(input: CreateVersionRefInput, signer: HMS
     generation: input.generation,
     capability: input.capability,
     visibility: input.visibility,
+    ts: input.ts,
   })
 
   // Parse version string into CID array

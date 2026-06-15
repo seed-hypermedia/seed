@@ -50,7 +50,6 @@ export const desktopUniversalClient: UniversalClient = {
   publishDocument: (input) =>
     publishDesktopDocument(
       {
-        createDocumentChange: (request) => grpcClient.documents.createDocumentChange(request),
         publishDocument: seedClient.publishDocument.bind(seedClient),
         getSigner,
       },

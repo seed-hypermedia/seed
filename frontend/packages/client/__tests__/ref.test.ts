@@ -63,6 +63,23 @@ describe('ref generation encoding', () => {
     expect(decoded['generation']).toBeUndefined()
   })
 
+  it('uses the provided timestamp for version ref ts', async () => {
+    const result = await createVersionRef(
+      {
+        space: TEST_ACCOUNT_UID,
+        path: '/forked-doc',
+        genesis: TEST_GENESIS_CID,
+        version: TEST_VERSION_CID,
+        generation: 123456,
+        ts: 654321,
+      },
+      makeSigner(),
+    )
+
+    const decoded = cborDecode(result.blobs[0]!.data) as Record<string, unknown>
+    expect(decoded['ts']).toBe(654321)
+  })
+
   it('omits generation from redirect refs when it is zero', async () => {
     const result = await createRedirectRef(
       {

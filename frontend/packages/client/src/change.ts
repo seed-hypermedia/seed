@@ -71,11 +71,12 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
 export async function createChange(
   unsignedBytes: Uint8Array,
   signer: HMSigner,
-): Promise<{bytes: Uint8Array; cid: CID; genesis: CID | null}> {
+): Promise<{bytes: Uint8Array; cid: CID; genesis: CID | null; ts: number | undefined}> {
   const change = cborDecode(unsignedBytes) as Record<string, unknown>
 
   // Extract genesis CID from the change before signing
   const genesis = change.genesis instanceof CID ? change.genesis : null
+  const ts = timestampToNumber(change.ts)
 
   change.signer = new Uint8Array(await signer.getPublicKey())
   change.sig = new Uint8Array(64)
@@ -84,7 +85,7 @@ export async function createChange(
 
   const block = await Block.encode({value: change, codec: cborCodec, hasher: sha256})
 
-  return {bytes: block.bytes, cid: block.cid, genesis}
+  return {bytes: block.bytes, cid: block.cid, genesis, ts}
 }
 
 /** @deprecated Use createChange instead */
@@ -183,6 +184,12 @@ export function visibilityToCbor(protoVisibility?: number): string | undefined {
   return protoVisibility === RESOURCE_VISIBILITY_PRIVATE ? 'Private' : undefined
 }
 
+function timestampToNumber(ts: unknown): number | undefined {
+  if (typeof ts === 'number') return ts
+  if (typeof ts === 'bigint') return Number(ts)
+  return undefined
+}
+
 export type SignDocumentChangeInput = {
   /** Account UID (base58btc-encoded principal) */
   account: string
@@ -210,11 +217,16 @@ export async function signDocumentChange(
   input: SignDocumentChangeInput,
   signer: HMSigner,
 ): Promise<{changeCid: CID; publishInput: HMPublishBlobsInput}> {
-  const {bytes: signedBytes, cid: changeCid, genesis: changeGenesis} = await createChange(input.unsignedChange, signer)
+  const {
+    bytes: signedBytes,
+    cid: changeCid,
+    genesis: changeGenesis,
+    ts: changeTs,
+  } = await createChange(input.unsignedChange, signer)
 
   // Use explicit genesis from input, or the genesis embedded in the change blob, or fall back to the change CID
   const effectiveGenesis = input.genesis || (changeGenesis ? changeGenesis.toString() : changeCid.toString())
-  const effectiveGeneration = input.generation != null ? Number(input.generation) : Date.now()
+  const effectiveGeneration = input.generation != null ? Number(input.generation) : changeTs ?? Date.now()
 
   const refBlobs = await createVersionRef(
     {
@@ -225,6 +237,7 @@ export async function signDocumentChange(
       generation: effectiveGeneration,
       capability: input.capability,
       visibility: visibilityToCbor(input.visibility),
+      ts: changeTs,
     },
     signer,
   )

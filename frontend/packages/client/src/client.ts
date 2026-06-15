@@ -236,7 +236,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
         // ignore
       }
       throw new SeedClientError(
-        `HTTP ${response.status} from ${key}: ${response.statusText}`,
+        formatHTTPErrorMessage(key, response.status, response.statusText, errorBody),
         response.status,
         errorBody,
       )
@@ -325,6 +325,23 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     publishBlobs: publish,
     publishDocument,
   }
+}
+
+function formatHTTPErrorMessage(key: string, status: number, statusText: string, body: string | undefined): string {
+  const base = `HTTP ${status} from ${key}: ${statusText}`
+  if (!body) return base
+
+  try {
+    const parsed = JSON.parse(body)
+    if (parsed && typeof parsed === 'object' && typeof parsed.error === 'string' && parsed.error.trim()) {
+      return `${base}: ${parsed.error}`
+    }
+  } catch {
+    // If the response is not JSON, include a compact raw body below.
+  }
+
+  const trimmed = body.trim()
+  return trimmed ? `${base}: ${trimmed}` : base
 }
 
 /** Remove undefined values from an object so CBOR encoding doesn't choke. */
