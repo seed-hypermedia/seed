@@ -244,7 +244,11 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 	return out, nil
 }
 
-// CreateDocumentChange implements Documents API v3.
+// CreateDocumentChange creates, signs, and indexes a document change server-side.
+//
+// It is no longer exposed as a gRPC endpoint: production clients sign changes
+// themselves via PrepareChange + PublishBlobs. This method is retained only as a
+// convenience helper for tests that need to author documents with a daemon-held key.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
 	if in.SigningKeyName == "" {
 		return nil, errutil.MissingArgument("signing_key_name")

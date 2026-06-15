@@ -365,7 +365,7 @@ func handlerNameMiddleware(mux *http.ServeMux) func(http.Handler) http.Handler {
 			if pattern != "" {
 				routeName := routeNameFromPattern(pattern)
 				// Skip the catch-all "/" too: gRPC-Web is mounted there and
-				// covers many distinct methods (e.g. /seed.documents.v3alpha.Documents/CreateDocumentChange).
+				// covers many distinct methods (e.g. /seed.documents.v3alpha.Documents/PrepareChange).
 				// Overriding with "/" buckets every gRPC call under a single trace
 				// row and hides per-method latency on /debug/traces.
 				if routeName != "/{$}" && routeName != "/" {

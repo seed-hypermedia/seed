@@ -2,10 +2,14 @@
  * WordPress WXR import orchestration.
  * Coordinates parsing, author key generation, and document creation.
  */
+import {createSeedClient} from '@seed-hypermedia/client'
+import type {HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
 import {DocumentChange} from '@shm/shared/client/grpc-types'
 import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {API_HTTP_URL} from '@shm/shared/constants'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
+import {base58btc} from 'multiformats/bases/base58'
 import {nanoid} from 'nanoid'
 import {grpcClient} from './app-grpc'
 import {uploadFile} from './app-web-importing'
@@ -316,6 +320,8 @@ async function executeImport(
             destinationUid: state.destinationUid,
             documentPath: postPath,
             signingKeyName,
+            // Authored posts are signed by the author's ephemeral key; ghostwritten posts by the publisher account itself.
+            signerPublicKey: canUseAuthoredSigner && author?.publicKey ? author.publicKey : state.destinationUid,
             displayAuthor,
             imageCache,
             overwriteExisting: state.overwriteExisting,
@@ -540,6 +546,22 @@ type ImportablePost = Pick<WXRPost, 'id' | 'title' | 'slug' | 'content' | 'postD
 
 export type ImportPostResult = 'imported' | 'skipped'
 
+const seedClient = createSeedClient(API_HTTP_URL)
+
+/**
+ * Build an HMSigner for the daemon-held key identified by `signingKeyName`,
+ * whose public key is the base58btc-encoded `signerPublicKey`.
+ */
+function getWxrSigner(signingKeyName: string, signerPublicKey: string): HMSigner {
+  return {
+    getPublicKey: async () => new Uint8Array(base58btc.decode(signerPublicKey)),
+    sign: async (data: Uint8Array) => {
+      const result = await grpcClient.daemon.signData({signingKeyName, data: new Uint8Array(data)})
+      return new Uint8Array(result.signature)
+    },
+  }
+}
+
 /**
  * Import a single post as a document.
  * Returns 'imported' if a new document was created, 'skipped' if the document already exists.
@@ -550,12 +572,14 @@ export async function importPost(
     destinationUid: string
     documentPath: string[]
     signingKeyName: string
+    signerPublicKey: string
     displayAuthor?: string
     imageCache: Map<string, string>
     overwriteExisting?: boolean
   },
 ): Promise<ImportPostResult> {
-  const {destinationUid, documentPath, signingKeyName, displayAuthor, overwriteExisting = false} = options
+  const {destinationUid, documentPath, signingKeyName, signerPublicKey, displayAuthor, overwriteExisting = false} =
+    options
 
   // Build the document path.
   const docPath = documentPath
@@ -563,6 +587,8 @@ export async function importPost(
 
   // Check if document already exists at this path.
   let baseVersion: string | undefined
+  let genesis: string | undefined
+  let generation: bigint | undefined
   try {
     const existingDoc = await grpcClient.documents.getDocument({
       account: destinationUid,
@@ -574,8 +600,11 @@ export async function importPost(
       console.log(`Document already exists at ${pathString}, skipping (overwrite disabled)`)
       return 'skipped'
     }
-    // Document exists and we want to overwrite - get the version for base_version.
+    // Document exists and we want to overwrite - carry the existing version/genesis/generation
+    // so the client-signed Ref stays in the same document generation.
     baseVersion = existingDoc.version
+    genesis = existingDoc.genesis
+    generation = existingDoc.generationInfo?.generation
     console.log(`Document exists at ${pathString}, overwriting (base_version: ${baseVersion})`)
   } catch {
     // Document doesn't exist (expected for new imports), proceed with creation.
@@ -655,14 +684,18 @@ export async function importPost(
   // Add blocks.
   changes.push(...blocksToChanges(blocks))
 
-  // Create or update the document.
-  await grpcClient.documents.createDocumentChange({
-    signingKeyName,
-    account: destinationUid,
-    path: pathString,
-    changes,
-    baseVersion: baseVersion || '',
-  })
+  // Create or update the document via client-side signing (PrepareChange + sign + PublishBlobs).
+  await seedClient.publishDocument(
+    {
+      account: destinationUid,
+      path: pathString,
+      changes: changes as unknown as HMPrepareDocumentChangeInput['changes'],
+      baseVersion: baseVersion || '',
+      genesis,
+      generation,
+    },
+    getWxrSigner(signingKeyName, signerPublicKey),
+  )
 
   return 'imported'
 }
