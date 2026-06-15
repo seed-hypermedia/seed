@@ -142,7 +142,12 @@ type CommentDraftTarget = {
 }
 
 /** Returns the document ID that should back the rendered document content. */
-export function getRenderedDocumentId(routeDocId: UnpackedHypermediaId, resourceData: HMResource | null | undefined) {
+export function getRenderedDocumentId(
+  routeDocId: UnpackedHypermediaId,
+  resourceData: HMResource | null | undefined,
+  resourceFetchId: UnpackedHypermediaId | null | undefined = routeDocId,
+) {
+  if (!resourceFetchId) return routeDocId
   return resourceData?.type === 'document' ? resourceData.id : routeDocId
 }
 
@@ -717,7 +722,7 @@ export function ResourcePage({
   // exists, fabricate a placeholder so DocumentBody / the document machine
   // can transition to "loaded" → editing for the new-document case.
   let document: HMDocument
-  const renderedDocId = getRenderedDocumentId(docId, resource.data)
+  const renderedDocId = getRenderedDocumentId(docId, resource.data, resourceFetchId)
   if (resourceFetchId && resource.data?.type === 'document') {
     document = resource.data.document
   } else if (lastGoodDocumentRef.current) {

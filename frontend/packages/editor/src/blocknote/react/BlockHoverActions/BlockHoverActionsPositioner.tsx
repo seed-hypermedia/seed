@@ -36,6 +36,8 @@ export type BlockHoverActionsPositionerProps<BSchema extends BlockSchema = Block
   editor: EditorWithHoverActions<BSchema>
   /** Optional app-level referenceability check for the hovered block id. */
   isBlockReferenceable?: (blockId: string) => boolean
+  /** Optional lookup for the number of comments that reference a block. */
+  getCommentCount?: (blockId: string) => number | undefined
 } & BlockHoverActionsCallbacks
 
 // ---------------------------------------------------------------------------
@@ -93,6 +95,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   onCopyBlockLink,
   onStartComment,
   isBlockReferenceable,
+  getCommentCount,
 }: BlockHoverActionsPositionerProps<BSchema>): React.ReactElement | null {
   const hasActions = !!(onCopyBlockLink || onStartComment)
   const [hoverState, setHoverState] = useState<BlockHoverActionsState>({
@@ -164,18 +167,19 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   if (!canReferenceBlock) {
     return null
   }
+  const commentCount = getCommentCount?.(blockId) ?? 0
 
   const supernumberBadge = Array.from(editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge')).find(
     (badge) => badge instanceof HTMLElement && badge.dataset.blockId === blockId,
   ) as HTMLElement | undefined
-  const anchorRect = supernumberBadge?.isConnected ? supernumberBadge.getBoundingClientRect() : rect
+  const hasSupernumberBadge = !!supernumberBadge?.isConnected
+  const anchorRect = hasSupernumberBadge ? supernumberBadge.getBoundingClientRect() : rect
 
   // Keep the action card out of document flow. Supernumber badges are covered
   // in place; blocks without a badge get a small overlap on the content edge so
   // moving into the card does not cross an empty gap.
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : Infinity
-  const anchorLeft =
-    (supernumberBadge?.isConnected ? anchorRect.left : rect.right - CARD_OVERLAP_PX) + HORIZONTAL_NUDGE_PX
+  const anchorLeft = hasSupernumberBadge ? anchorRect.left : rect.right - CARD_OVERLAP_PX + HORIZONTAL_NUDGE_PX
   const wouldOverflow = anchorLeft + VERTICAL_POPOVER_WIDTH_ESTIMATE_PX > viewportWidth - VIEWPORT_PADDING_PX
   const style: React.CSSProperties = wouldOverflow
     ? {
@@ -223,18 +227,25 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
           </button>
         )}
         {onStartComment && (
-          <button
-            type="button"
-            aria-label="Start comment"
-            title="Start comment"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1"
-            onClick={(e) => {
-              e.stopPropagation()
-              onStartComment(blockId)
-            }}
-          >
-            <MessageSquare size={14} />
-          </button>
+          <div className="flex flex-col items-center gap-0.5">
+            <button
+              type="button"
+              aria-label="Start comment"
+              title="Start comment"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground rounded p-1"
+              onClick={(e) => {
+                e.stopPropagation()
+                onStartComment(blockId)
+              }}
+            >
+              <MessageSquare size={14} />
+            </button>
+            {commentCount > 0 ? (
+              <span className="text-muted-foreground text-xs leading-none" aria-label={`${commentCount} comments`}>
+                {commentCount}
+              </span>
+            ) : null}
+          </div>
         )}
       </div>
     </div>

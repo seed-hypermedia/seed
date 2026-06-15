@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'vitest'
-import {draftDocumentRouteId, isLocationOnlyDraftRoute} from '../../utils/draft-route'
+import {hmId} from '@shm/shared'
+import {
+  draftDocumentRouteId,
+  getPublishedResourceIdForDraftRoute,
+  isDraftDocumentRoute,
+  isLocationOnlyDraftRoute,
+} from '../../utils/draft-route'
 
 describe('draftDocumentRouteId', () => {
   it('uses edit path when the draft has an edit target', () => {
@@ -53,5 +59,45 @@ describe('draftDocumentRouteId', () => {
         locationPath: ['parent', '-draft-1'],
       }),
     ).toBe(true)
+  })
+
+  it('matches edit-target draft document routes exactly', () => {
+    expect(
+      isDraftDocumentRoute(hmId('acct', {path: ['parent', '-draft-1']}), {
+        id: 'draft-1',
+        editUid: 'acct',
+        editPath: ['parent', '-draft-1'],
+        locationUid: 'acct',
+        locationPath: ['parent'],
+      }),
+    ).toBe(true)
+
+    expect(
+      isDraftDocumentRoute(hmId('acct', {path: ['parent', '-other']}), {
+        id: 'draft-1',
+        editUid: 'acct',
+        editPath: ['parent', '-draft-1'],
+        locationUid: 'acct',
+        locationPath: ['parent'],
+      }),
+    ).toBe(false)
+  })
+
+  it('suppresses published resource fetches for placeholder draft routes', () => {
+    const placeholderRoute = hmId('acct', {path: ['parent', '-draft-1']})
+
+    expect(getPublishedResourceIdForDraftRoute(placeholderRoute, false)).toBeNull()
+  })
+
+  it('suppresses published resource fetches for location-only draft routes', () => {
+    const placeholderRoute = hmId('acct', {path: ['parent', '-draft-1']})
+
+    expect(
+      getPublishedResourceIdForDraftRoute(placeholderRoute, {
+        id: 'draft-1',
+        locationUid: 'acct',
+        locationPath: ['parent'],
+      }),
+    ).toBeNull()
   })
 })

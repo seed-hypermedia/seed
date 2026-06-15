@@ -59,6 +59,36 @@ export function getEditorBlocksChange(previousKey: string | null, blocks: unknow
 /** Block types (data-content-type values) that trigger edit mode on click. */
 const TEXT_BLOCK_TYPES = new Set(['paragraph', 'heading', 'code-block'])
 
+/** Returns a stable key for a document text selection, including collapsed selections. */
+export function getDocumentSelectionObserverKey(selection: {from: number; to: number}): string {
+  return `${selection.from}:${selection.to}`
+}
+
+/**
+ * Returns whether a block action must be blocked until publish. Draft-only
+ * blocks are not stable references, but blocks already present in the
+ * published document remain referenceable even while editing a draft.
+ */
+export function shouldRequirePublishForBlockAction({
+  blockId,
+  isUnpublishedDraft,
+  isBlockInPublishedVersion,
+}: {
+  blockId: string
+  isUnpublishedDraft?: boolean
+  isBlockInPublishedVersion?: (blockId: string) => boolean
+}): boolean {
+  if (isBlockInPublishedVersion) return !isBlockInPublishedVersion(blockId)
+  return !!isUnpublishedDraft
+}
+
+function shouldClearBlockHighlightOnMouseDown(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return !target.closest(
+    '[data-bn-block-hover-actions="true"], .bn-supernumber-badge, button, a[href], input, textarea, select',
+  )
+}
+
 function setEditorRootChildrenType(
   editor: BlockNoteEditor<HMBlockSchema>,
   childrenType: DocumentContentProps['rootChildrenType'],
@@ -266,12 +296,12 @@ export function DocumentEditor({
                       const selection = view.state.selection
                       if (selection.eq(prevState.selection)) return
 
-                      if (!(selection instanceof TextSelection) || selection.empty) {
+                      if (!(selection instanceof TextSelection)) {
                         lastSelectionKey = null
                         return
                       }
 
-                      const selectionKey = `${selection.from}:${selection.to}`
+                      const selectionKey = getDocumentSelectionObserverKey(selection)
                       if (selectionKey === lastSelectionKey) return
                       lastSelectionKey = selectionKey
                       onTextSelectionRef.current?.()
@@ -668,6 +698,9 @@ export function DocumentEditor({
     const handleMousedown = (e: MouseEvent) => {
       mousedownCoordsRef.current = {x: e.clientX, y: e.clientY}
       mousedownHadSelectionRef.current = !view.state.selection.empty
+      if (shouldClearBlockHighlightOnMouseDown(e.target)) {
+        onTextSelectionRef.current?.()
+      }
     }
 
     const handleClick = (e: MouseEvent) => {
@@ -764,9 +797,7 @@ export function DocumentEditor({
   const fragmentActionsValue = useMemo<FragmentActions | null>(() => {
     if (!onBlockSelect && !onBlockCommentClick) return null
     const shouldIntercept = (blockId: string): boolean => {
-      if (isUnpublishedDraft) return true
-      if (isBlockInPublishedVersion && !isBlockInPublishedVersion(blockId)) return true
-      return false
+      return shouldRequirePublishForBlockAction({blockId, isUnpublishedDraft, isBlockInPublishedVersion})
     }
     return {
       onCopyFragmentLink: (blockId, rangeStart, rangeEnd) => {
@@ -806,9 +837,7 @@ export function DocumentEditor({
 
   const isHoverActionBlockReferenceable = useCallback(
     (blockId: string) => {
-      if (isUnpublishedDraft) return false
-      if (isBlockInPublishedVersion) return isBlockInPublishedVersion(blockId)
-      return true
+      return !shouldRequirePublishForBlockAction({blockId, isUnpublishedDraft, isBlockInPublishedVersion})
     },
     [isUnpublishedDraft, isBlockInPublishedVersion],
   )
@@ -850,6 +879,7 @@ export function DocumentEditor({
             <BlockHoverActionsPositioner
               editor={editor}
               isBlockReferenceable={isHoverActionBlockReferenceable}
+              getCommentCount={(blockId) => blockCitations?.[blockId]?.comments}
               onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
               onStartComment={
                 onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined

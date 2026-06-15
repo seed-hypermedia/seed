@@ -31,6 +31,7 @@ export interface ReadOnlyViewerProps {
   blockRange?: BlockRange
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
+  getBlockCommentCount?: (blockId: string) => number | undefined
   onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
   onComment?: (blockId: string, rangeStart: number, rangeEnd: number) => void
 }
@@ -48,6 +49,7 @@ export function ReadOnlyViewer({
   blockRange,
   onCopyBlockLink,
   onStartComment,
+  getBlockCommentCount,
   onCopyFragmentLink,
   onComment,
 }: ReadOnlyViewerProps) {
@@ -130,6 +132,7 @@ export function ReadOnlyViewer({
                 editor={editor}
                 onCopyBlockLink={onCopyBlockLink}
                 onStartComment={onStartComment}
+                getCommentCount={getBlockCommentCount}
               />
             )}
             {hasRangeSelection && (

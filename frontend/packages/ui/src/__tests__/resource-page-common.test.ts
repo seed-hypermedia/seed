@@ -228,4 +228,8 @@ describe('getRenderedDocumentId', () => {
   it('keeps the route document id when the resource is not a document', () => {
     expect(getRenderedDocumentId(oldId, {type: 'not-found', id: oldId})).toEqual(oldId)
   })
+
+  it('keeps the route document id for local-only draft routes even if stale resource data exists', () => {
+    expect(getRenderedDocumentId(oldId, redirectedDocument, null)).toEqual(oldId)
+  })
 })

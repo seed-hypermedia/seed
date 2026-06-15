@@ -90,6 +90,7 @@ export function HyperMediaEditorView({
               editor={editor}
               onCopyBlockLink={onCopyBlockLink}
               onStartComment={onStartComment}
+              getCommentCount={(blockId) => blockCitations?.[blockId]?.comments}
             />
             <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
           </>

@@ -58,11 +58,13 @@ function renderPositioner({
   onCopyBlockLink = () => {},
   onStartComment = () => {},
   isBlockReferenceable,
+  getCommentCount,
   doc,
 }: {
   onCopyBlockLink?: (blockId: string) => void
   onStartComment?: (blockId: string) => void
   isBlockReferenceable?: (blockId: string) => boolean
+  getCommentCount?: (blockId: string) => number | undefined
   doc?: {descendants: (callback: (node: any) => void | false) => void}
 } = {}) {
   const plugin = {
@@ -87,6 +89,7 @@ function renderPositioner({
         onCopyBlockLink={onCopyBlockLink}
         onStartComment={onStartComment}
         isBlockReferenceable={isBlockReferenceable}
+        getCommentCount={getCommentCount}
       />,
     )
   })
@@ -121,7 +124,7 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(card.className).toContain('flex-col')
     expect(wrapper.dataset.bnBlockHoverActions).toBe('true')
-    expect(wrapper.style.left).toBe('32px')
+    expect(wrapper.style.left).toBe('24px')
     expect(wrapper.style.paddingLeft).toBe('')
     expect(container.querySelector('[data-bn-block-hover-bridge="true"]')).toBeNull()
     expect(block.classList.contains('bn-block-hover-highlight')).toBe(true)
@@ -272,5 +275,37 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(onCopyBlockLink).toHaveBeenCalledWith('block-1')
     expect(onStartComment).toHaveBeenCalledWith('block-1')
+  })
+
+  it('renders the hovered block comment count under the comment button', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    appendPublishedContent(block)
+    editorDom.appendChild(block)
+
+    renderPositioner({getCommentCount: (blockId) => (blockId === 'block-1' ? 147 : 0)})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="147 comments"]')?.textContent).toBe('147')
+  })
+
+  it('hides the comment count when the hovered block has no comments', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    appendPublishedContent(block)
+    editorDom.appendChild(block)
+
+    renderPositioner({getCommentCount: () => 0})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label$="comments"]')).toBeNull()
   })
 })

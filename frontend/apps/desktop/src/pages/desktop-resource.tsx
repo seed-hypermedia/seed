@@ -40,6 +40,7 @@ import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
+import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
 import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
@@ -63,11 +64,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
-import {
-  getDraftIdFromDraftPathSegment,
-  isDraftPathSegment,
-  isPrivateDraftPathSegment,
-} from '@shm/shared/utils/breadcrumbs'
+import {getDraftIdFromDraftPathSegment, isPrivateDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
@@ -123,11 +120,10 @@ export default function DesktopResourcePage() {
   const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
   const placeholderDraftId = getDraftIdFromDraftPathSegment(docId.path?.at(-1))
-  const isDraftRouteLookupPending = existingDraft === undefined && isDraftPathSegment(docId.path?.at(-1))
   const existingDraftRecord = existingDraft && typeof existingDraft === 'object' ? existingDraft : null
   const hasLocationOnlyDraft =
     !!existingDraftRecord && !!existingDraftRecord.locationUid && !existingDraftRecord.editUid
-  const documentResourceId = hasLocationOnlyDraft || !!placeholderDraftId ? null : docId
+  const documentResourceId = getPublishedResourceIdForDraftRoute(docId, existingDraftRecord || existingDraft)
   const capabilityId =
     hasLocationOnlyDraft && existingDraftRecord?.locationUid
       ? hmId(existingDraftRecord.locationUid, {path: existingDraftRecord.locationPath})
@@ -236,7 +232,7 @@ export default function DesktopResourcePage() {
   // After publish completes, if the user was viewing a pinned (old) version,
   // navigate them to the new merged version so they see the published result
   // rather than remaining on the outdated pinned URL.
-  const publishResource = usePublishResource(docId, {
+  const publishResource = usePublishResource(documentResourceId, {
     onSuccess: (result) => {
       const currentId = (route as any).id as UnpackedHypermediaId | undefined
       if (!currentId) return

@@ -1,5 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, pathMatches} from '@shm/shared'
+import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 
 /** Minimal draft fields needed to resolve the document route that opens a draft. */
 export type DraftRouteFields = {
@@ -30,4 +31,26 @@ export function isLocationOnlyDraftRoute(id: UnpackedHypermediaId, draft: DraftR
   if (id.uid !== draft.locationUid) return false
   const path = id.path ?? []
   return pathMatches(path, locationOnlyDraftPath(draft))
+}
+
+/** Return true when a document route opens the given draft. */
+export function isDraftDocumentRoute(id: UnpackedHypermediaId, draft: DraftRouteFields): boolean {
+  if (draft.editUid) {
+    return id.uid === draft.editUid && pathMatches(draft.editPath ?? [], id.path)
+  }
+  return isLocationOnlyDraftRoute(id, draft)
+}
+
+/**
+ * Return the published document id to fetch for a document route, or null when
+ * the route is a local draft placeholder that intentionally has no published
+ * document yet.
+ */
+export function getPublishedResourceIdForDraftRoute(
+  id: UnpackedHypermediaId,
+  draft: DraftRouteFields | false | null | undefined,
+): UnpackedHypermediaId | null {
+  if (isDraftPathSegment(id.path?.at(-1))) return null
+  if (draft && draft.locationUid && !draft.editUid) return null
+  return id
 }
