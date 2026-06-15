@@ -47,7 +47,13 @@ function rect(top: number, right: number): DOMRect {
   } as DOMRect
 }
 
-function renderPositioner() {
+function renderPositioner({
+  onCopyBlockLink = () => {},
+  onStartComment = () => {},
+}: {
+  onCopyBlockLink?: (blockId: string) => void
+  onStartComment?: (blockId: string) => void
+} = {}) {
   const plugin = {
     onUpdate: (listener: Listener) => {
       listeners.push(listener)
@@ -64,7 +70,9 @@ function renderPositioner() {
   } as any
 
   act(() => {
-    root.render(<BlockHoverActionsPositioner editor={editor} onCopyBlockLink={() => {}} onStartComment={() => {}} />)
+    root.render(
+      <BlockHoverActionsPositioner editor={editor} onCopyBlockLink={onCopyBlockLink} onStartComment={onStartComment} />,
+    )
   })
 
   return {plugin}
@@ -120,5 +128,31 @@ describe('BlockHoverActionsPositioner', () => {
     expect(wrapper.style.right).toBe('4px')
     expect(wrapper.style.left).toBe('')
     expect(wrapper.style.paddingLeft).toBe('')
+  })
+
+  it('keeps editor focus stable when pressing hover action buttons', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    editorDom.appendChild(block)
+
+    const onCopyBlockLink = vi.fn()
+    const onStartComment = vi.fn()
+    renderPositioner({onCopyBlockLink, onStartComment})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    const copyButton = container.querySelector('[aria-label="Copy block link"]') as HTMLElement
+    const mouseDown = new MouseEvent('mousedown', {bubbles: true, cancelable: true})
+
+    expect(copyButton.dispatchEvent(mouseDown)).toBe(false)
+    expect(mouseDown.defaultPrevented).toBe(true)
+
+    copyButton.click()
+    ;(container.querySelector('[aria-label="Start comment"]') as HTMLElement).click()
+
+    expect(onCopyBlockLink).toHaveBeenCalledWith('block-1')
+    expect(onStartComment).toHaveBeenCalledWith('block-1')
   })
 })

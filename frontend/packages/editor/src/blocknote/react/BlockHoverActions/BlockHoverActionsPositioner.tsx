@@ -159,6 +159,10 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     <div
       data-bn-block-hover-actions="true"
       style={style}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
       onMouseEnter={() => editor.blockHoverActions?.freeze()}
       onMouseLeave={() => {
         editor.blockHoverActions?.unfreeze()
