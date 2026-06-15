@@ -9,6 +9,7 @@ import {
 import {findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
@@ -273,17 +274,23 @@ export function DocumentCard({
 
   const explicitCover = resolvedMetadata?.cover
   const explicitIcon = resolvedMetadata?.icon
-  // When the doc has neither a cover nor an explicit icon, use
-  // the first image block found in its content.
+  // When the doc has neither a cover nor an explicit icon, fall back to
+  // the first image block in the doc's content.
+  const needsContentFetch = !explicitCover && !explicitIcon && !entity?.document?.content?.length
+  const lazyResource = useResource(needsContentFetch ? docId : null, {
+    enabled: needsContentFetch,
+  })
+  const lazyContent = lazyResource.data?.type === 'document' ? lazyResource.data.document?.content : undefined
+  const fallbackContent = entity?.document?.content ?? lazyContent
   const firstContentImage = useMemo(() => {
     if (explicitCover || explicitIcon) return undefined
-    if (!entity?.document?.content?.length) return undefined
+    if (!fallbackContent?.length) return undefined
     const block = findFirstBlock<HMBlockImage>(
-      entity.document.content,
+      fallbackContent,
       (b): b is HMBlockImage => b.type === 'Image' && !!(b as any).link,
     )
     return block?.link || undefined
-  }, [explicitCover, explicitIcon, entity?.document?.content])
+  }, [explicitCover, explicitIcon, fallbackContent])
   const coverImage = explicitCover || firstContentImage
   const iconImage = explicitIcon
   const resolvedVisibility = visibility ?? entity?.document?.visibility

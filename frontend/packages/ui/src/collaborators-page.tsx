@@ -38,7 +38,6 @@ type SearchResult = {
   metadata?: HMMetadata
 }
 
-
 function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
