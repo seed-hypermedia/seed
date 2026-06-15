@@ -17,5 +17,7 @@ WORKDIR /app
 COPY --from=build /build/vault/dist/ .
 VOLUME /data
 ENV SEED_VAULT_DB_PATH=/data/vault.sqlite
+ENV SEED_VAULT_BACKEND_HTTP_BASE_URL=http://seed-daemon:56001
+ENV SEED_VAULT_BACKEND_GRPC_BASE_URL=http://seed-daemon:56001
 EXPOSE 3000
 CMD ["bun", "run", "--no-install", "main.js"]

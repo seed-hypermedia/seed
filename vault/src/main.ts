@@ -87,6 +87,7 @@ async function main() {
     },
     error: handleError,
     routes: {
+      ...createIPFSProxyRoutes(cfg.backend.httpBaseUrl),
       ...createAPIRoutes(svc),
       // In development, proxy /hm/api/config to the web app (shares the same daemon in prod).
       '/hm/api/config': {
@@ -145,6 +146,47 @@ async function main() {
 
 if (import.meta.main) {
   main()
+}
+
+function createIPFSProxyRoutes(backendHttpBaseUrl: string): Bun.Serve.Routes<undefined, string> {
+  return {
+    '/vault/ipfs/:cid': {
+      GET: (req) => proxyIPFSRequest(req, backendHttpBaseUrl),
+      POST: (req) => proxyIPFSRequest(req, backendHttpBaseUrl),
+    },
+  }
+}
+
+async function proxyIPFSRequest(req: BunRequest, backendHttpBaseUrl: string): Promise<Response> {
+  const cid = req.params.cid
+  if (!cid) {
+    return new Response('Missing CID', {status: 400})
+  }
+
+  const sourceUrl = new URL(req.url)
+  const upstreamUrl = new URL(`/ipfs/${encodeURIComponent(cid)}`, backendHttpBaseUrl)
+  upstreamUrl.search = sourceUrl.search
+
+  const headers = new Headers(req.headers)
+  headers.delete('host')
+  headers.delete('cookie')
+  headers.delete('authorization')
+
+  const upstreamResponse = await fetch(upstreamUrl, {
+    method: req.method,
+    headers,
+    body: req.method === 'GET' || req.method === 'HEAD' ? undefined : req.body,
+    redirect: 'manual',
+  })
+
+  const responseHeaders = new Headers(upstreamResponse.headers)
+  responseHeaders.delete('set-cookie')
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers: responseHeaders,
+  })
 }
 
 function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {

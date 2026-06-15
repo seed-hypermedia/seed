@@ -11,17 +11,18 @@ import './styles.css'
 const elem = document.getElementById('root')
 if (!elem) throw new Error('root element not found')
 const rootElem = elem
+const blockstoreBaseUrl = '/vault'
 
 // Apply theme before first paint to prevent flash of wrong theme.
 initTheme()
 
 async function bootstrap() {
   const client = new FetchClient()
-  const {backendHttpBaseUrl, notificationServerUrl} = await client.getConfig()
+  const {notificationServerUrl} = await client.getConfig()
   const appStore = createStore(
     client,
-    new IndexedDBBlockstore(new RemoteBlockstore(backendHttpBaseUrl)),
-    backendHttpBaseUrl,
+    new IndexedDBBlockstore(new RemoteBlockstore(blockstoreBaseUrl)),
+    blockstoreBaseUrl,
     notificationServerUrl,
   )
   const router = createRouter()
