@@ -38,6 +38,7 @@ import {syncApi} from './app-sync'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
+import {getOnboardingState} from './app-onboarding-store'
 import {
   closeAppWindow,
   createAppWindow,
@@ -51,6 +52,7 @@ import {
   getWindowsState,
   hideFindView,
   setAvailableAccountIds,
+  updateWindowState,
 } from './app-windows'
 import * as log from './logger'
 ipcMain.on('invalidate_queries', (_event, info) => {
@@ -144,6 +146,15 @@ function startNotificationServicesWhenReady() {
 }
 startNotificationServicesWhenReady()
 
+/** Returns the route the app should open when there is no saved window state. */
+export function getDefaultStartupRoute(): NavRoute {
+  const onboardingState = getOnboardingState()
+  if (!onboardingState.hasCompletedOnboarding && !onboardingState.hasSkippedOnboarding) {
+    return {key: 'onboarding'}
+  }
+  return defaultRoute
+}
+
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
@@ -157,7 +168,7 @@ export async function openInitialWindows() {
   await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
     trpc.createAppWindow({
-      routes: [defaultRoute],
+      routes: [getDefaultStartupRoute()],
     })
     return
   }
@@ -180,7 +191,7 @@ export async function openInitialWindows() {
     const e = error as Error
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     await getFirstAvailableAccount()
-    trpc.createAppWindow({routes: [defaultRoute]})
+    trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
     return
   }
 }
@@ -322,6 +333,21 @@ export const router = t.router({
   }),
   deleteAccount: t.procedure.input(z.string()).mutation(async ({input: accountId}) => {
     return await deleteAccount(accountId)
+  }),
+  selectIdentityForWindowsWithoutAccount: t.procedure.input(z.string()).mutation(async ({input: accountId}) => {
+    const windowNavState = getWindowNavState()
+    for (const [windowId, windowState] of Object.entries(windowNavState)) {
+      if (windowState?.selectedIdentity) continue
+      updateWindowState(windowId, (window) => ({
+        ...window,
+        selectedIdentity: accountId,
+      }))
+      const window = getAllWindows().get(windowId)
+      window?.webContents.send('appWindowEvent', {
+        type: 'selectedIdentityChanged',
+        selectedIdentity: accountId,
+      })
+    }
   }),
   createAppWindow: t.procedure
     .input(

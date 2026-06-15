@@ -85,6 +85,8 @@ def main():
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
+        os.environ.setdefault("VITE_DESKTOP_DEFAULT_VAULT_URL", "http://localhost:3030/vault")
+
         return run("VITE_XSTATE_INSPECT=true pnpm desktop", args=args)
 
     @cmd(
@@ -240,6 +242,8 @@ def main():
             run("plz build //backend:seed-daemon")
 
         del os.environ["SEED_P2P_TESTNET_NAME"]
+        os.environ["VITE_GATEWAY_URL"] = "https://hyper.media"
+        os.environ.setdefault("VITE_DESKTOP_DEFAULT_VAULT_URL", "http://localhost:3030/vault")
 
         return run("pnpm desktop", args=args)
 

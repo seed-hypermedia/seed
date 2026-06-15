@@ -172,6 +172,26 @@ export function useDisconnectVault(opts?: UseMutationOptions<void, unknown, void
   })
 }
 
+/** Disconnects the remote vault and removes all local account keys from this device. */
+export function useLogout(opts?: UseMutationOptions<void, unknown, void>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async () => {
+      await grpcClient.daemon.disconnectVault({})
+      const keys = await grpcClient.daemon.listKeys({})
+      for (const key of keys.keys) {
+        if (key.publicKey) {
+          await client.deleteAccount.mutate(key.publicKey)
+        }
+      }
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 /** Forces an immediate sync with the remote vault. Returns error if remote is not configured or offline. */
 export function useForceVaultSync(opts?: UseMutationOptions<GetVaultStatusResponse, unknown, void>) {
   return useMutation({

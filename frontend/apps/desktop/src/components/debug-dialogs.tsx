@@ -3,7 +3,6 @@ import {hmId} from '@shm/shared'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useState} from 'react'
-import {dispatchOnboardingDialog} from './onboarding'
 import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
 
 // Mock data for testing - create proper UnpackedHypermediaId
@@ -90,14 +89,6 @@ export function DebugDialogs() {
 
           <Button size="sm" variant="outline" onClick={() => removeSiteDialog.open(MOCK_DOCUMENT_ID)}>
             Remove Site
-          </Button>
-        </div>
-
-        <div className="mt-2 flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs tracking-wider uppercase">Onboarding</span>
-
-          <Button size="sm" variant="outline" onClick={() => dispatchOnboardingDialog(true)}>
-            Onboarding Dialog
           </Button>
         </div>
 

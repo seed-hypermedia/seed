@@ -72,7 +72,7 @@ export function FormTextArea<Fields extends FieldValues>({
   return <Textarea {...c.field} {...props} />
 }
 
-export function FormError<TFieldValues extends Record<string, string>>({
+export function FormError<TFieldValues extends FieldValues>({
   errors,
   name,
 }: {

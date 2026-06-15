@@ -4,14 +4,16 @@ import {useEffect} from 'react'
 import {Control, FieldValues, Path, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {Button} from './button'
+import {Input} from './components/input'
 import {Field} from './form-fields'
-import {FormInput} from './form-input'
+import {FormError, FormInput, FormTextArea} from './form-input'
 import {getDaemonFileUrl} from './get-file-url'
 import {SizableText} from './text'
 
 export const siteMetaSchema = z.object({
-  name: z.string(),
+  name: z.string().trim().min(1, 'Name is required'),
   icon: z.string().or(z.instanceof(Blob)).nullable(),
+  description: z.string().optional(),
 })
 export type SiteMetaFields = z.infer<typeof siteMetaSchema>
 
@@ -20,11 +22,15 @@ export function EditProfileForm({
   defaultValues,
   submitLabel,
   processImage,
+  accountCode,
+  showDescription,
 }: {
   onSubmit: (data: SiteMetaFields) => void
   defaultValues?: SiteMetaFields
   submitLabel?: string
   processImage?: (file: File) => Promise<Blob>
+  accountCode?: string
+  showDescription?: boolean
 }) {
   const tx = useTxString()
   const form = useForm<SiteMetaFields>({
@@ -32,6 +38,7 @@ export function EditProfileForm({
     defaultValues: defaultValues || {
       name: '',
       icon: null,
+      description: '',
     },
   })
   useEffect(() => {
@@ -42,9 +49,24 @@ export function EditProfileForm({
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <div className="flex flex-col gap-2">
+        {accountCode ? (
+          <Field id="account-code" label={tx('Account Code')}>
+            <Input id="account-code" value={accountCode} disabled />
+          </Field>
+        ) : null}
         <Field id="name" label={tx('Account Name')}>
           <FormInput control={form.control} name="name" placeholder={tx('My New Public Name')} />
+          <FormError errors={form.formState.errors} name="name" />
         </Field>
+        {showDescription ? (
+          <Field id="description" label={tx('Description')}>
+            <FormTextArea
+              control={form.control}
+              name="description"
+              placeholder={tx('Tell people about this profile')}
+            />
+          </Field>
+        ) : null}
         <Field id="icon" label={tx('Profile Icon')}>
           <ImageField control={form.control} name="icon" label={tx('Profile Icon')} processImage={processImage} />
         </Field>

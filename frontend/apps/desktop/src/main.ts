@@ -28,7 +28,14 @@ import fs from 'fs'
 import mime from 'mime'
 import path from 'node:path'
 
-import {dispatchFocusedWindowAppEvent, handleSecondInstance, handleUrlOpen, openInitialWindows, trpc} from './app-api'
+import {
+  dispatchFocusedWindowAppEvent,
+  getDefaultStartupRoute,
+  handleSecondInstance,
+  handleUrlOpen,
+  openInitialWindows,
+  trpc,
+} from './app-api'
 import {grpcClient} from './app-grpc'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
@@ -57,7 +64,7 @@ import {initDerivedSubscriptions} from './derived-subscriptions'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
 import {getStoredEmbeddingEnabled} from './app-experiments'
-import {getOnboardingState, setInitialAccountIdCount, setupOnboardingHandlers} from './app-onboarding-store'
+import {setupOnboardingHandlers} from './app-onboarding-store'
 import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
 import {
@@ -339,20 +346,13 @@ app.whenReady().then(async () => {
         })
 
       grpcClient.daemon.listKeys({}).then(async (response) => {
-        const onboardingState = getOnboardingState()
-        setInitialAccountIdCount(response.keys.length)
-
         // Close loading window right before opening main windows
         closeLoadingWindow()
         logger.debug('[MAIN]: Loading window closed, opening main windows')
 
-        if (
-          response.keys.length === 0 &&
-          !onboardingState.hasCompletedOnboarding &&
-          !onboardingState.hasSkippedOnboarding
-        ) {
+        if (response.keys.length === 0) {
           deleteWindowsState().then(() => {
-            trpc.createAppWindow({routes: [defaultRoute]})
+            trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
             isStartingUp = false
             logger.debug('[MAIN]: Startup complete, main window created')
             // Process cold start deep link if present
@@ -393,7 +393,7 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     logger.debug('[MAIN]: no windows found. will open the home window')
     trpc.createAppWindow({
-      routes: [defaultRoute],
+      routes: [getDefaultStartupRoute()],
     })
   }
 })
@@ -444,15 +444,9 @@ function initializeIpcHandlers() {
           })
 
         grpcClient.daemon.listKeys({}).then(async (response) => {
-          const onboardingState = getOnboardingState()
-          setInitialAccountIdCount(response.keys.length)
-          if (
-            response.keys.length === 0 &&
-            !onboardingState.hasCompletedOnboarding &&
-            !onboardingState.hasSkippedOnboarding
-          ) {
+          if (response.keys.length === 0) {
             deleteWindowsState().then(() => {
-              trpc.createAppWindow({routes: [defaultRoute]})
+              trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
               isStartingUp = false
             })
           } else {

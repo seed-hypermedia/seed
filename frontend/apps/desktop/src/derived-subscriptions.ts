@@ -7,12 +7,14 @@
  * 2. Contacts with subscribe.site === true (joined sites)
  * 3. Contacts with subscribe.profile === true (followed profiles)
  * 4. Legacy contacts with no subscribe field (implicit profile subscription)
+ * 5. The default joined site before any local account exists
  *
  * When contacts or keys change, subscriptions are automatically updated.
  */
 
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {grpcClient} from './app-grpc'
+import {defaultJoinedSiteUid} from '@shm/shared/publish-default-joined-site'
 import {BIG_INT} from '@shm/shared/constants'
 import {onQueryInvalidation} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -77,6 +79,9 @@ async function computeDesiredSubscriptions(): Promise<Set<string>> {
 
   // Add all local keys
   const keys = await grpcClient.daemon.listKeys({})
+  if (keys.keys.length === 0) {
+    desired.add(defaultJoinedSiteUid)
+  }
   for (const key of keys.keys) {
     desired.add(key.accountId)
   }

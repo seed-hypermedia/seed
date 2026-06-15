@@ -6,7 +6,7 @@ import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
-import {createComment} from '@seed-hypermedia/client'
+import {commentRecordIdFromBlob, createComment} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
   HMCommentGroup,
@@ -28,10 +28,12 @@ import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from 
 import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
 import {Check, SendHorizonal, X} from 'lucide-react'
 import React, {memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useContactSubscribeIntent, useDesktopAccountIntent} from './desktop-intents'
 
 export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
@@ -81,6 +83,8 @@ function CommentBoxImpl(props: {
   const {getSigner, publish} = universalClient
   const route = useNavRoute()
   const navigate = useNavigate('replace')
+  const accountIntent = useDesktopAccountIntent()
+  const subscribeContact = useContactSubscribeIntent()
 
   // Resolve reply parent: commentId is an ID like "author/path", but publishing uses CID versions
   const commentsService = useDocumentComments(docId)
@@ -110,6 +114,7 @@ function CommentBoxImpl(props: {
   const isDeletingDraft = useRef(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
   const pendingBlocksRef = useRef<HMBlockNode[] | null>(null)
+  const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
   const flushPendingDraftSaveRef = useRef<() => void>(() => {})
 
   const commentDraftQueryKey = [
@@ -292,6 +297,7 @@ function CommentBoxImpl(props: {
     (blocks: HMBlockNode[]) => {
       if (isDeletingDraft.current) return
 
+      latestBlocksRef.current = blocks
       pendingBlocksRef.current = blocks
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(() => {
@@ -299,6 +305,66 @@ function CommentBoxImpl(props: {
       }, 500)
     },
     [flushPendingDraftSave],
+  )
+
+  const publishStoredComment = useCallback(
+    async (accountUid: string, contentBlocks: HMBlockNode[], reset: () => void) => {
+      if (!getSigner) throw new Error('getSigner not available')
+      setIsSubmitting(true)
+      try {
+        const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
+        const signer = getSigner(accountUid)
+        const joinedSite = accountUid !== docId.uid
+        if (joinedSite) {
+          await subscribeContact({accountUid, subjectUid: docId.uid, subscribe: 'site'})
+        }
+        const commentPayload = await createComment(
+          {
+            content: contentBlocks,
+            docId,
+            docVersion: targetDoc?.version || docId.version || '',
+            replyCommentVersion: finalReplyVersion,
+            rootReplyCommentVersion: finalRootVersion,
+            quoting,
+            visibility: targetDoc?.visibility === 'PRIVATE' ? 'Private' : '',
+          } as any,
+          signer,
+        )
+        const commentBlobData = commentPayload.blobs[0]?.data
+        if (!commentBlobData) throw new Error('No comment blob data')
+        const recordId = await commentRecordIdFromBlob(commentBlobData)
+        await publish(commentPayload)
+        removeDraft.mutate()
+        invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+        invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
+        invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+        navigateToComment(navigate, route, recordId)
+        pushAfterAction({id: docId, trigger: 'publish'})
+        reset()
+        toast.success(joinedSite ? 'Joined site and posted comment' : 'Comment posted')
+      } catch (err) {
+        console.error('Failed to submit pending comment:', err)
+        reportError(err, {feature: 'comment', operation: 'submit-pending', docId: docId.id})
+        toast.error('Failed to post comment')
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [
+      docId,
+      finalReplyVersion,
+      finalRootVersion,
+      getSigner,
+      navigate,
+      publish,
+      pushAfterAction,
+      quoting,
+      removeDraft,
+      route,
+      subscribeContact,
+      targetEntity.data,
+    ],
   )
 
   // Handle submit
@@ -315,7 +381,14 @@ function CommentBoxImpl(props: {
       }>,
       reset: () => void,
     ) => {
-      if (isSubmitting || !account) return
+      if (isSubmitting) return
+
+      if (!account) {
+        const contentBlocks = latestBlocksRef.current || draft.data?.blocks || []
+        if (!contentBlocks.some(hasBlockContent)) return
+        accountIntent.requireAccount((accountUid) => publishStoredComment(accountUid, contentBlocks, reset))
+        return
+      }
 
       setIsSubmitting(true)
 
@@ -366,7 +439,10 @@ function CommentBoxImpl(props: {
     [
       isSubmitting,
       account,
+      accountIntent,
+      draft.data?.blocks,
       publishComment,
+      publishStoredComment,
       getSigner,
       targetEntity.data,
       docId,
@@ -395,44 +471,45 @@ function CommentBoxImpl(props: {
 
   if (draft.isInitialLoading) return null
 
-  if (!account) {
-    return (
-      <div className="flex w-full items-start gap-2">
-        <span className="text-sm font-thin italic">No account is loaded</span>
-      </div>
-    )
-  }
-
   return (
-    <CommentEditor
-      focusOnMount={focusOnMount}
-      isReplying={isReplying || !!commentId}
-      handleSubmit={handleSubmit}
-      initialBlocks={draft.data?.blocks}
-      onContentChange={handleContentChange}
-      handleFileAttachment={handleFileAttachment}
-      universalClient={universalClient}
-      domainResolver={domainResolver}
-      account={{
-        id: account.id,
-        metadata: account.metadata,
-      }}
-      perspectiveAccountUid={selectedAccountId}
-      submitButton={({getContent, reset}) => (
-        <Tooltip content={`Publish Comment as "${account?.metadata?.name}"`}>
-          <Button
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleSubmit(getContent, reset)
-            }}
-            disabled={isSubmitting}
+    <>
+      <CommentEditor
+        focusOnMount={focusOnMount}
+        isReplying={isReplying || !!commentId}
+        handleSubmit={handleSubmit}
+        initialBlocks={draft.data?.blocks}
+        onContentChange={handleContentChange}
+        handleFileAttachment={handleFileAttachment}
+        universalClient={universalClient}
+        domainResolver={domainResolver}
+        account={
+          account
+            ? {
+                id: account.id,
+                metadata: account.metadata,
+              }
+            : undefined
+        }
+        perspectiveAccountUid={selectedAccountId}
+        submitButton={({getContent, reset}) => (
+          <Tooltip
+            content={account ? `Publish Comment as "${account.metadata?.name}"` : 'Create an account to comment'}
           >
-            <SendHorizonal className="size-4" />
-          </Button>
-        </Tooltip>
-      )}
-    />
+            <Button
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSubmit(getContent, reset)
+              }}
+              disabled={isSubmitting}
+            >
+              <SendHorizonal className="size-4" />
+            </Button>
+          </Tooltip>
+        )}
+      />
+      {accountIntent.content}
+    </>
   )
 }
 

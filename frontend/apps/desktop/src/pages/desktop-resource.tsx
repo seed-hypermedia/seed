@@ -12,6 +12,7 @@ import {EditNavHeaderPane} from '@/components/edit-nav-header-pane'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/editing-toolbar'
 // import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
+import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {JoinButton} from '@/components/join-button'
 import {MoveDialog} from '@/components/move-dialog'
 import {ParentUpdateToast} from '@/components/parent-update-toast'
@@ -841,6 +842,7 @@ export default function DesktopResourcePage() {
     replaceRoute: replace,
     onAfterReply,
   })
+  const followIntent = useFollowProfileIntent(route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid)
 
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
@@ -889,6 +891,7 @@ export default function DesktopResourcePage() {
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
                     rightActions={<JoinButton siteUid={docId.uid} />}
                     onEditProfile={onEditProfile}
+                    onFollowClick={followIntent.follow}
                     inspect={inspect}
                     inspectStore={inspectStore}
                     DocumentContentComponent={DocumentEditorWithImport}
@@ -921,6 +924,7 @@ export default function DesktopResourcePage() {
       {removeSiteDialog.content}
       {publishSite.content}
       {newMenuContent}
+      {followIntent.content}
     </div>
   )
 }

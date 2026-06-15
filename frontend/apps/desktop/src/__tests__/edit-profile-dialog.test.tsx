@@ -121,7 +121,7 @@ describe('EditProfileDialog', () => {
     document.body.innerHTML = ''
   })
 
-  it('calls UpdateProfile RPC with current name, existing ipfs icon, and preserved description on submit', async () => {
+  it('calls UpdateProfile RPC with current name, existing ipfs icon, and edited description on submit', async () => {
     useAccountMock.mockReturnValue({
       isLoading: false,
       data: {
@@ -140,10 +140,17 @@ describe('EditProfileDialog', () => {
     expect(capturedFormProps.current.defaultValues).toEqual({
       name: 'Old Name',
       icon: 'ipfs://oldiconcid',
+      description: 'Existing description',
     })
+    expect(capturedFormProps.current.accountCode).toBe(ACCOUNT_UID)
+    expect(capturedFormProps.current.showDescription).toBe(true)
 
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'New Name', icon: 'ipfs://oldiconcid'})
+      await capturedFormProps.current.onSubmit({
+        name: 'New Name',
+        icon: 'ipfs://oldiconcid',
+        description: 'Updated description',
+      })
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()
@@ -153,7 +160,7 @@ describe('EditProfileDialog', () => {
       profile: {
         name: 'New Name',
         icon: 'ipfs://oldiconcid',
-        description: 'Existing description',
+        description: 'Updated description',
       },
       signingKeyName: ACCOUNT_UID,
     })
@@ -183,7 +190,7 @@ describe('EditProfileDialog', () => {
 
     const blob = new Blob([new Uint8Array([1, 2, 3])], {type: 'image/png'})
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Alice', icon: blob})
+      await capturedFormProps.current.onSubmit({name: 'Alice', icon: blob, description: 'Alice bio'})
     })
 
     expect(fileUploadMock).toHaveBeenCalledTimes(1)
@@ -196,7 +203,7 @@ describe('EditProfileDialog', () => {
       profile: {
         name: 'Alice',
         icon: 'ipfs://newcid123',
-        description: '',
+        description: 'Alice bio',
       },
       signingKeyName: ACCOUNT_UID,
     })
@@ -220,7 +227,7 @@ describe('EditProfileDialog', () => {
     const {container, root, queryClient} = renderDialog(onClose)
 
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Bob', icon: null})
+      await capturedFormProps.current.onSubmit({name: 'Bob', icon: null, description: ''})
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()
