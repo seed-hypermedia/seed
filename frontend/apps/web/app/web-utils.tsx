@@ -306,16 +306,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     )
   }
 
-  if (!isJoined) {
-    return (
-      <>
-        <JoinButton onClick={() => joinSite()} />
-        {createAccountContent}
-      </>
-    )
-  }
+  const joinButton = !isJoined ? <JoinButton onClick={() => joinSite()} /> : null
 
-  // How the avatar and bell if joined.
+  // Show the avatar and bell when logged in.
   const avatarIcon = (
     <HMIcon
       id={account?.id ?? hmId(accountId!, {latest: true})}
@@ -375,6 +368,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           <button className="flex cursor-pointer rounded-full shadow-lg" onClick={() => setMobileMenuOpen(true)}>
             {avatarIcon}
           </button>
+          {joinButton}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
             <div className="flex items-center gap-3 px-4 py-4">
               {avatarIcon}
@@ -429,6 +423,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {joinButton}
         </div>
       )}
       {logoutDialog.content}
