@@ -33,6 +33,12 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
     key: new PluginKey('pm-local-media-paste'),
     props: {
       handlePaste(view, event) {
+        // If the clipboard HTML carries a table, defer to PM's normal paste handling.
+        const rawHtml = event.clipboardData?.getData('text/html') || ''
+        if (/<table[\s>]/i.test(rawHtml)) {
+          return false
+        }
+
         const items = Array.from(event.clipboardData?.items || [])
         const files = Array.from(event.clipboardData?.files || [])
 
@@ -111,10 +117,13 @@ export function extractPastedImageSources(html: string): string[] {
   const tempEl = document.createElement('div')
   tempEl.innerHTML = html
 
-  return Array.from(tempEl.querySelectorAll('img[src]'))
-    .filter((imgEl) => !imgEl.closest('[data-content-type="image"]'))
-    .map((imgEl) => imgEl.getAttribute('src') || '')
-    .filter(Boolean)
+  return (
+    Array.from(tempEl.querySelectorAll('img[src]'))
+      // Skip images inside Seed image blocks and images inside tables.
+      .filter((imgEl) => !imgEl.closest('[data-content-type="image"]') && !imgEl.closest('table'))
+      .map((imgEl) => imgEl.getAttribute('src') || '')
+      .filter(Boolean)
+  )
 }
 
 /** Convert an image URL from pasted HTML into a File that can use the normal media insertion path. */
