@@ -262,7 +262,7 @@ export function AccountProfileButton() {
               className="cursor-pointer gap-3 rounded-none px-4 py-3"
               onClick={() => authDialog.open({ initialSubmit: { type: 'login' } })}
             >
-              <div className="flex size-11 items-center justify-center rounded-full border border-black/10 dark:border-white/10">
+              <div className="flex size-11 items-center justify-center rounded-full border border-black/10 dark:border-white/10 bg-white dark:bg-black/10">
                 <LogIn className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -275,7 +275,7 @@ export function AccountProfileButton() {
               className="cursor-pointer gap-3 rounded-none px-4 py-3"
               onClick={() => authDialog.open({ initialSubmit: { type: 'register' } })}
             >
-              <div className="bg-muted flex size-11 items-center justify-center rounded-full">
+              <div className="bg-muted flex size-11 items-center justify-center rounded-full dark:bg-black/20">
                 <Plus className="size-5" />
               </div>
               <div className="min-w-0 flex-1">

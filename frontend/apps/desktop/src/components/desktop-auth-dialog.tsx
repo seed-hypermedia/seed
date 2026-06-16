@@ -18,7 +18,7 @@ import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {CreateAccountDialogContent, type CreateAccountDialogSubmit} from '@shm/ui/create-account-dialog'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 
 type DesktopAuthDialogInput = {
   initialSubmit?: CreateAccountDialogSubmit
@@ -26,7 +26,15 @@ type DesktopAuthDialogInput = {
   onReady?: (accountUid: string) => void | Promise<void>
 }
 
-function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInput; onClose: () => void}) {
+function DesktopAuthDialogContent({
+  input,
+  onClose,
+  setDialogCloseProtection,
+}: {
+  input: DesktopAuthDialogInput
+  onClose: () => void
+  setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
+}) {
   const gatewayUrl = useGatewayUrl()
   const startVaultConnection = useStartVaultConnection()
   const openUrl = useOpenUrl()
@@ -43,6 +51,11 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
   const isReady = isConnected && hasAccounts
   const handledReadyRef = useRef(false)
   const handledInitialSubmitRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const preventClose = !!input.initialSubmit || !!browserUrl
+    setDialogCloseProtection?.({preventClose, showCloseButton: !preventClose})
+  }, [browserUrl, input.initialSubmit, setDialogCloseProtection])
 
   useEffect(() => {
     if (!browserUrl || isReady) return

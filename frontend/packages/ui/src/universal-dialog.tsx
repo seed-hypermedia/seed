@@ -88,6 +88,7 @@ export function useAppDialog<DialogInput>(
   DialogContentComponent: FC<{
     onClose: () => void
     input: DialogInput
+    setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
   }>,
   options?: {
     isAlert?: boolean
@@ -100,26 +101,37 @@ export function useAppDialog<DialogInput>(
   },
 ) {
   const [openState, setOpenState] = useState<null | DialogInput>(null)
+  const [closeProtection, setCloseProtection] = useState<null | {preventClose: boolean; showCloseButton: boolean}>(null)
   const nav = useNavigation(options?.overrideNavigation)
 
   const Component = getComponent(options?.isAlert)
   const onClose = options?.onClose
   return useMemo(() => {
     function open(input: DialogInput) {
+      setCloseProtection(null)
       setOpenState(input)
     }
 
     function close() {
+      setCloseProtection(null)
       setOpenState(null)
       onClose?.()
     }
 
-    const isClosePrevented =
+    const optionClosePrevented =
       typeof options?.preventClose === 'function'
         ? openState
           ? options.preventClose(openState)
           : false
         : !!options?.preventClose
+    const optionShowCloseButton =
+      typeof options?.showCloseButton === 'function'
+        ? openState
+          ? options.showCloseButton(openState)
+          : true
+        : options?.showCloseButton
+    const isClosePrevented = closeProtection?.preventClose ?? optionClosePrevented
+    const showCloseButton = closeProtection?.showCloseButton ?? optionShowCloseButton
 
     return {
       open,
@@ -142,18 +154,14 @@ export function useAppDialog<DialogInput>(
                 <Component.Content
                   className={options?.className}
                   contentClassName={options?.contentClassName}
-                  showCloseButton={
-                    typeof options?.showCloseButton === 'function'
-                      ? openState
-                        ? options.showCloseButton(openState)
-                        : true
-                      : options?.showCloseButton
-                  }
+                  showCloseButton={showCloseButton}
                 >
                   {openState && (
                     <DialogContentComponent
                       input={openState}
+                      setDialogCloseProtection={setCloseProtection}
                       onClose={() => {
+                        setCloseProtection(null)
                         setOpenState(null)
                         onClose?.()
                       }}
@@ -176,5 +184,6 @@ export function useAppDialog<DialogInput>(
     options?.contentClassName,
     options?.showCloseButton,
     options?.preventClose,
+    closeProtection,
   ])
 }
