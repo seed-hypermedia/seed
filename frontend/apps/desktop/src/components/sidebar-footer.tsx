@@ -32,20 +32,20 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
     .filter((d) => !!d)
 
   useEffect(() => {
-    // Check if current selected account is valid (exists in accountOptions)
-    const isSelectedAccountInvalid =
-      !!myAccounts.data && !myAccounts.data.some((option) => option === selectedIdentityValue)
+    if (!setSelectedIdentity || !myAccounts.data) return
 
-    // Get the first valid account from the filtered options
-    const firstValidAccount = myAccounts.data?.[0]
+    if (myAccounts.data.length === 0) {
+      if (selectedIdentityValue) setSelectedIdentity(null)
+      return
+    }
 
-    // Set selected identity if:
-    // 1. No account is selected, OR
-    // 2. The selected account is not in the valid options list
-    if (setSelectedIdentity && firstValidAccount && (!selectedIdentityValue || isSelectedAccountInvalid)) {
+    const isSelectedAccountInvalid = !myAccounts.data.some((option) => option === selectedIdentityValue)
+    const firstValidAccount = myAccounts.data[0]
+
+    if (firstValidAccount && (!selectedIdentityValue || isSelectedAccountInvalid)) {
       setSelectedIdentity(firstValidAccount)
     }
-  }, [setSelectedIdentity, myAccounts.data])
+  }, [setSelectedIdentity, selectedIdentityValue, myAccounts.data])
   const selectedAccountData = accountQueries.find((q) => q.data?.id?.uid === selectedIdentityValue)?.data
   const [isOpen, setIsOpen] = useState(false)
 
