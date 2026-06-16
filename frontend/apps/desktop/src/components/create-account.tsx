@@ -92,11 +92,7 @@ function CreateAccountDialog({onClose}: {onClose: () => void}) {
   return (
     <>
       <DialogTitle>Create Profile</DialogTitle>
-      <EditProfileForm
-        onSubmit={handleSubmit}
-        submitLabel={isCreating ? 'Creating…' : 'Create Profile'}
-        showDescription
-      />
+      <EditProfileForm onSubmit={handleSubmit} submitLabel={isCreating ? 'Creating…' : 'Create Profile'} />
     </>
   )
 }

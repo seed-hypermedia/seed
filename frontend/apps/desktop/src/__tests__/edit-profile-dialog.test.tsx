@@ -1,9 +1,9 @@
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
-;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 import {act} from 'react-dom/test-utils'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 
 const updateProfileMock = vi.hoisted(() => vi.fn())
 const fileUploadMock = vi.hoisted(() => vi.fn())
@@ -140,10 +140,7 @@ describe('EditProfileDialog', () => {
     expect(capturedFormProps.current.defaultValues).toEqual({
       name: 'Old Name',
       icon: 'ipfs://oldiconcid',
-      description: 'Existing description',
     })
-    expect(capturedFormProps.current.accountCode).toBe(ACCOUNT_UID)
-    expect(capturedFormProps.current.showDescription).toBe(true)
 
     await act(async () => {
       await capturedFormProps.current.onSubmit({

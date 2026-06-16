@@ -65,8 +65,6 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
           description: metadata?.summary || '',
         }}
         onSubmit={handleSubmit}
-        accountCode={accountUid}
-        showDescription
       />
     </>
   )
