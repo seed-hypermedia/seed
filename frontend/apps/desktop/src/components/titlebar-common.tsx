@@ -110,9 +110,14 @@ export function DocOptionsButton(_props: {
 }
 
 function NotificationButton() {
+  const accountUid = useSelectedAccountId()
+  if (!accountUid) return null
+  return <NotificationButtonForAccount accountUid={accountUid} />
+}
+
+function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
-  const accountUid = useSelectedAccountId()
   const inbox = useNotificationInbox(accountUid)
   const readState = useLocalNotificationReadState(accountUid)
   const isActive = route.key === 'notifications'
@@ -248,17 +253,44 @@ export function AccountProfileButton() {
               </div>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-            <DropdownMenuItem onClick={() => authDialog.open({})}>
-              <LogIn className="size-4" />
-              Log in
+          <DropdownMenuContent side="bottom" align="end" className="w-[320px] rounded-2xl p-0">
+            <DropdownMenuItem
+              className="cursor-pointer gap-3 rounded-none px-4 py-3"
+              onClick={() => authDialog.open({initialSubmit: {type: 'login'}})}
+            >
+              <div className="flex size-11 items-center justify-center rounded-full border border-black/10 dark:border-white/10">
+                <LogIn className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm leading-tight font-medium">Sign in</p>
+                <p className="text-muted-foreground mt-1 text-sm leading-tight">I already have a Hypermedia identity</p>
+              </div>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => authDialog.open({})}>
-              <Plus className="size-4" />
-              Sign up
+            <DropdownMenuSeparator className="my-0 bg-black/10 dark:bg-white/10" />
+            <DropdownMenuItem
+              className="cursor-pointer gap-3 rounded-none px-4 py-3"
+              onClick={() => authDialog.open({initialSubmit: {type: 'register'}})}
+            >
+              <div className="bg-muted flex size-11 items-center justify-center rounded-full">
+                <Plus className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm leading-tight font-medium">Create my identity</p>
+                <p className="text-muted-foreground mt-1 text-sm leading-tight">New to Seed Hypermedia</p>
+              </div>
             </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-            <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
+            <DropdownMenuSeparator className="my-0 bg-black/10 dark:bg-white/10" />
+            <DropdownMenuItem
+              className="text-muted-foreground cursor-pointer rounded-none px-4 py-3 text-sm"
+              onClick={() => authDialog.open({initialStep: 'custom-identity'})}
+            >
+              I have a different identity domain
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="my-0 bg-black/10 dark:bg-white/10" />
+            <DropdownMenuItem
+              className="cursor-pointer gap-3 rounded-none px-4 py-3 text-sm"
+              onClick={() => navigate({key: 'settings'})}
+            >
               <Settings className="size-4" />
               App settings
             </DropdownMenuItem>

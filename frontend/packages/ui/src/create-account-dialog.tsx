@@ -18,6 +18,7 @@ type CreateAccountDialogContentProps = {
   defaultCustomIdentityUrl?: string
   customIdentityPlaceholder?: string
   localAccountForm?: React.ReactNode
+  initialStep?: 'main' | 'custom-identity'
   onTitleClick?: () => void
   onSubmit: (input: CreateAccountDialogSubmit) => void
 }
@@ -35,10 +36,11 @@ export function CreateAccountDialogContent({
   defaultCustomIdentityUrl = '',
   customIdentityPlaceholder,
   localAccountForm,
+  initialStep = 'main',
   onTitleClick,
   onSubmit,
 }: CreateAccountDialogContentProps) {
-  const [step, setStep] = React.useState<'main' | 'custom-identity'>('main')
+  const [step, setStep] = React.useState<'main' | 'custom-identity'>(initialStep)
   const [customIdentityUrl, setCustomIdentityUrl] = React.useState(defaultCustomIdentityUrl)
 
   if (!localAccountUnlocked && step === 'custom-identity') {

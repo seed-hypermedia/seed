@@ -94,6 +94,8 @@ export function useAppDialog<DialogInput>(
     onClose?: () => void
     className?: string // Dialog container styles (size, position, etc.)
     contentClassName?: string // Inner content wrapper styles (padding, layout, etc.)
+    showCloseButton?: boolean | ((input: DialogInput) => boolean)
+    preventClose?: boolean | ((input: DialogInput) => boolean)
     overrideNavigation?: NavigationContext
   },
 ) {
@@ -111,6 +113,14 @@ export function useAppDialog<DialogInput>(
       setOpenState(null)
       onClose?.()
     }
+
+    const isClosePrevented =
+      typeof options?.preventClose === 'function'
+        ? openState
+          ? options.preventClose(openState)
+          : false
+        : !!options?.preventClose
+
     return {
       open,
       close,
@@ -119,6 +129,7 @@ export function useAppDialog<DialogInput>(
           modal
           onOpenChange={(isOpen: boolean) => {
             if (isOpen) throw new Error('Cannot open app dialog')
+            if (isClosePrevented) return
             close()
           }}
           open={!!openState}
@@ -127,8 +138,18 @@ export function useAppDialog<DialogInput>(
             {/* Stop React synthetic events from bubbling through portal to parent components */}
             <div onClick={(e) => e.stopPropagation()}>
               <NavContextProvider value={nav}>
-                <Component.Overlay onClick={close} />
-                <Component.Content className={options?.className} contentClassName={options?.contentClassName}>
+                <Component.Overlay onClick={isClosePrevented ? undefined : close} />
+                <Component.Content
+                  className={options?.className}
+                  contentClassName={options?.contentClassName}
+                  showCloseButton={
+                    typeof options?.showCloseButton === 'function'
+                      ? openState
+                        ? options.showCloseButton(openState)
+                        : true
+                      : options?.showCloseButton
+                  }
+                >
                   {openState && (
                     <DialogContentComponent
                       input={openState}
@@ -145,5 +166,15 @@ export function useAppDialog<DialogInput>(
         </Component.Root>
       ),
     }
-  }, [Component, DialogContentComponent, nav, openState, onClose, options?.className, options?.contentClassName])
+  }, [
+    Component,
+    DialogContentComponent,
+    nav,
+    openState,
+    onClose,
+    options?.className,
+    options?.contentClassName,
+    options?.showCloseButton,
+    options?.preventClose,
+  ])
 }

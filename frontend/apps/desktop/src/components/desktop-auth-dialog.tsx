@@ -15,13 +15,14 @@ import {DAEMON_HTTP_URL, DEFAULT_DESKTOP_VAULT_URL, DEFAULT_GATEWAY_URL} from '@
 import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {CreateAccountDialogContent, type CreateAccountDialogSubmit} from '@shm/ui/create-account-dialog'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 
 type DesktopAuthDialogInput = {
+  initialSubmit?: CreateAccountDialogSubmit
+  initialStep?: 'main' | 'custom-identity'
   onReady?: (accountUid: string) => void | Promise<void>
 }
 
@@ -41,6 +42,7 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
   const hasAccounts = !!accountIds.data?.length
   const isReady = isConnected && hasAccounts
   const handledReadyRef = useRef(false)
+  const handledInitialSubmitRef = useRef(false)
 
   useEffect(() => {
     if (!browserUrl || isReady) return
@@ -92,50 +94,67 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
     })
   }, [accountIds.data, browserUrl, input, isReady, onClose, selectedIdentityValue, setSelectedIdentity])
 
-  const handleSubmit = async (input: CreateAccountDialogSubmit) => {
-    const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl
-    let normalizedVaultUrl = ''
-    try {
-      normalizedVaultUrl = normalizeVaultOriginURL(rawVaultUrl, 'identity server URL')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid identity server URL')
-      return
-    }
+  const handleSubmit = useCallback(
+    async (input: CreateAccountDialogSubmit) => {
+      const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl
+      let normalizedVaultUrl = ''
+      try {
+        normalizedVaultUrl = normalizeVaultOriginURL(rawVaultUrl, 'identity server URL')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Invalid identity server URL')
+        return
+      }
 
-    try {
-      const vaultConnect = await startVaultConnection.mutateAsync({
-        vaultUrl: normalizedVaultUrl,
-        force: true,
-      })
-      const nextBrowserUrl = buildVaultConnectionURL(vaultConnect.vaultUrl, vaultConnect.connectToken, DAEMON_HTTP_URL)
-      setBrowserUrl(nextBrowserUrl)
-      openUrl(nextBrowserUrl)
-      toast.success('Opened identity sign-in in your browser.')
-    } catch (error) {
-      toast.error('Failed to start identity sign-in: ' + (error instanceof Error ? error.message : String(error)))
-    }
-  }
+      try {
+        const vaultConnect = await startVaultConnection.mutateAsync({
+          vaultUrl: normalizedVaultUrl,
+          force: true,
+        })
+        const nextBrowserUrl = buildVaultConnectionURL(
+          vaultConnect.vaultUrl,
+          vaultConnect.connectToken,
+          DAEMON_HTTP_URL,
+        )
+        setBrowserUrl(nextBrowserUrl)
+        openUrl(nextBrowserUrl)
+      } catch (error) {
+        toast.error('Failed to start identity sign-in: ' + (error instanceof Error ? error.message : String(error)))
+      }
+    },
+    [defaultVaultUrl, openUrl, startVaultConnection],
+  )
+
+  useEffect(() => {
+    if (!input.initialSubmit || handledInitialSubmitRef.current) return
+    handledInitialSubmitRef.current = true
+    handleSubmit(input.initialSubmit)
+  }, [handleSubmit, input.initialSubmit])
 
   if (isReady) return null
+
+  if (input.initialSubmit && !browserUrl) {
+    return (
+      <>
+        <DialogTitle>Opening identity sign-in</DialogTitle>
+        <DialogDescription>Opening your browser to continue.</DialogDescription>
+      </>
+    )
+  }
 
   if (browserUrl) {
     return (
       <>
-        <DialogTitle>Complete sign-in in your browser</DialogTitle>
-        <DialogDescription>
-          We opened your browser to finish connecting your identity. Return to Seed after sign-in completes.
+        <DialogTitle className="max-sm:text-base">Your browser will open to finish setup</DialogTitle>
+        <DialogDescription className="max-sm:text-sm">
+          Complete your identity creation there, then come back to Seed app.
         </DialogDescription>
-        <div className="flex flex-col gap-2 rounded-md border p-3">
-          <div className="text-muted-foreground text-xs">Manual browser link</div>
-          <input className="rounded border px-3 py-2 text-sm" value={browserUrl} readOnly />
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => copyTextToClipboard(browserUrl)}>
-              Copy Link
-            </Button>
-            <Button variant="default" className="flex-1" onClick={() => openUrl(browserUrl)}>
-              Open Browser
-            </Button>
-          </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="lg" className="font-semibold" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="default" size="lg" className="font-semibold" onClick={() => openUrl(browserUrl)}>
+            Ok, open browser
+          </Button>
         </div>
       </>
     )
@@ -148,6 +167,7 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
       localAccountDescription="Hypermedia accounts use public key cryptography."
       defaultCustomIdentityUrl={defaultVaultUrl}
       customIdentityPlaceholder={defaultVaultUrl}
+      initialStep={input.initialStep}
       onSubmit={handleSubmit}
     />
   )
@@ -157,5 +177,7 @@ function DesktopAuthDialogContent({input, onClose}: {input: DesktopAuthDialogInp
 export function useDesktopAuthDialog() {
   return useAppDialog(DesktopAuthDialogContent, {
     className: 'w-full sm:max-w-xl',
+    showCloseButton: (input) => !input.initialSubmit,
+    preventClose: (input) => !!input.initialSubmit,
   })
 }
