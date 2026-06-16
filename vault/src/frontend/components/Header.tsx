@@ -1,49 +1,38 @@
-import {Button} from '@/frontend/components/ui/button'
-import {useActions, useAppState} from '@/frontend/store'
-import {useTheme} from '@/frontend/use-theme'
-import {ChevronDown, LogOut, Moon, Sun} from 'lucide-react'
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {Link} from 'react-router-dom'
+import logoUrl from '@/frontend/assets/hypermedia-logo.png'
+import { useActions, useAppState } from '@/frontend/store'
+import { ChevronDown, LogOut } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 /**
- * Application header with user info, theme toggle, and logout button.
+ * Application header with user info and logout button.
  */
 export function Header() {
-  const {session} = useAppState()
+  const { session } = useAppState()
   const actions = useActions()
-  const {resolvedTheme, setTheme, theme} = useTheme()
-
-  const cycleTheme = () => {
-    if (theme === 'light') setTheme('dark')
-    else if (theme === 'dark') setTheme('system')
-    else setTheme('light')
-  }
-
   return (
-    <header className="bg-panel border-border flex items-center justify-between border-b px-4 py-4 md:px-8">
-      <Link
-        to="/"
-        className="!text-primary hover:!text-primary text-xl font-semibold transition-opacity hover:no-underline hover:opacity-80"
-      >
-        <span className="font-semibold">hyper.media</span> <span className="font-light">Vault</span>
-      </Link>
-      <div className="flex items-center gap-2">
+    <header className="border-border dark:bg-background z-20 flex w-full transform-gpu flex-row items-center border-b bg-white p-4 transition-transform duration-200">
+      <div className="flex min-w-0 items-center self-stretch sm:shrink-0">
+        <div className="flex flex-1 justify-center overflow-hidden">
+          <Link
+            to="/"
+            className="!text-foreground hover:!text-foreground flex min-w-0 items-center justify-center gap-2 !no-underline hover:!no-underline"
+          >
+            <img src={logoUrl} alt="" className="size-6 rounded-full" />
+            <p className="text-foreground min-w-0 truncate overflow-hidden text-center font-bold select-none md:text-left">
+              Hypermedia Identity
+            </p>
+          </Link>
+        </div>
+      </div>
+      <div className="flex flex-1 items-center justify-end gap-2">
         {session?.authenticated && <AccountMenu email={session.email || ''} onSignOut={actions.handleLogout} />}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={cycleTheme}
-          title={`Theme: ${theme} (click to cycle)`}
-          className="size-8 p-0"
-        >
-          {resolvedTheme === 'dark' ? <Moon className="size-4" /> : <Sun className="size-4" />}
-        </Button>
       </div>
     </header>
   )
 }
 
-function AccountMenu({email, onSignOut}: {email: string; onSignOut: () => void}) {
+function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -77,7 +66,7 @@ function AccountMenu({email, onSignOut}: {email: string; onSignOut: () => void})
             className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors"
           >
             <LogOut className="size-3.5" />
-            Sign out
+            Log out
           </button>
         </div>
       )}

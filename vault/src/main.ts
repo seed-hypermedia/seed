@@ -19,8 +19,7 @@ function collectStaticAssets(dir: string, urlPrefix: string): Map<string, Return
   const assets = new Map<string, ReturnType<typeof Bun.file>>()
   for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
     if (entry.isDirectory()) {
-      // Don't append subdir to URL — publicPath already handles URL mapping.
-      for (const [k, v] of collectStaticAssets(filepath.join(dir, entry.name), urlPrefix)) {
+      for (const [k, v] of collectStaticAssets(filepath.join(dir, entry.name), `${urlPrefix}${entry.name}/`)) {
         assets.set(k, v)
       }
     } else if (entry.name !== 'main.js' && !entry.name.endsWith('.map')) {
