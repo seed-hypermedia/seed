@@ -1,28 +1,26 @@
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
-import {hmId, hostnameStripProtocol, postAccountCreateAction, queryKeys, useUniversalAppContext} from '@shm/shared'
+import {hmId, hostnameStripProtocol, queryKeys, useUniversalAppContext} from '@shm/shared'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
-import {CreateAccountDialogContent} from '@shm/ui/create-account-dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {LogOut, Monitor, Settings, Smartphone} from 'lucide-react'
+import {LogOut, Settings} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
-import {useEffect, useMemo, useState, useSyncExternalStore} from 'react'
-import {SubmitHandler} from 'react-hook-form'
+import {useEffect, useRef, useState, useSyncExternalStore} from 'react'
 import {encodeBlock, rawCodec} from './api'
 import * as authSession from './auth-session'
 import {preparePublicKey, signWithKeyPair} from './auth-utils'
-import {createDefaultAccountName} from './default-account-name'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
   AUTH_STATE_DELEGATION_VAULT_URL,
@@ -33,11 +31,8 @@ import {
   setAuthState,
   setHasPromptedEmailNotifications,
   setPendingIntent,
-  writeLocalKeys,
 } from './local-db'
-import {queryAPI} from './models'
 import {reportError} from './report-error'
-import {createSecretTapUnlock} from './secret-tap-unlock'
 import {getVaultAccountSettingsUrl} from './vault-links'
 
 const seedClient = createSeedClient('')
@@ -66,8 +61,6 @@ export type LocalWebIdentity = CryptoKeyPair & {
 }
 let keyPair: LocalWebIdentity | null = null
 const keyPairHandlers = new Set<() => void>()
-const SECRET_UNLOCK_TAPS = 7
-const SECRET_UNLOCK_WINDOW_MS = 3500
 
 export async function getCurrentAccountUidWithDelegation(): Promise<string | null> {
   const stored = await getStoredLocalKeys()
@@ -159,105 +152,6 @@ export function useLocalKeyPair() {
   )
 }
 
-export async function createAccount({
-  name,
-  icon,
-}: {
-  name: string
-  icon: string | Blob | null
-}): Promise<LocalWebIdentity> {
-  if (typeof icon === 'string') {
-    throw new Error('Must provide an image or null for account creation')
-  }
-
-  const existingStored = await getStoredLocalKeys()
-  if (existingStored?.vaultUrl) {
-    await authSession.clearSession(existingStored.vaultUrl).catch((err) => {
-      console.error('Failed to clear delegated session while creating local account', err)
-      reportError(err, {
-        feature: 'auth',
-        operation: 'create-account-clear-delegated',
-        vaultUrl: existingStored.vaultUrl,
-      })
-    })
-  }
-
-  let keyPair = existingStored?.keyPair
-
-  if (keyPair) {
-    const id = await preparePublicKey(keyPair.publicKey)
-    const uid = base58btc.encode(id)
-
-    try {
-      const accountResult = await queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(uid)}`)
-      if (accountResult?.type === 'account') {
-        const webIdentity = {
-          ...keyPair,
-          id: uid,
-        }
-        keyPairStore.set(webIdentity)
-        return webIdentity
-      }
-    } catch (err) {
-      console.warn('Failed to verify existing local account, proceeding with account creation', err)
-      reportError(err, {feature: 'auth', operation: 'verify-existing-account', uid})
-    }
-  } else {
-    keyPair = await generateAndStoreKeyPair()
-  }
-
-  if (!keyPair) {
-    throw new Error('Failed to initialize local key pair')
-  }
-  const signer = createSignerFromKeyPair(keyPair)
-  const uid = base58btc.encode(await preparePublicKey(keyPair.publicKey))
-
-  const changes: HMPrepareDocumentChangeInput['changes'] = [
-    {op: {case: 'setMetadata', value: {key: 'name', value: name}}},
-  ]
-
-  // Publish icon blob first if provided
-  if (icon) {
-    const iconBlock = await encodeBlock(await icon.arrayBuffer(), rawCodec)
-    await seedClient.publish({
-      blobs: [{data: iconBlock.bytes, cid: iconBlock.cid.toString()}],
-    })
-    changes.push({op: {case: 'setMetadata', value: {key: 'icon', value: iconBlock.cid.toString()}}})
-  }
-
-  await seedClient.publishDocument({account: uid, changes}, signer)
-
-  const createdIdentity = {...keyPair, id: uid}
-  keyPairStore.set(createdIdentity)
-  await postAccountCreateAction(
-    {
-      accountUid: uid,
-    },
-    {
-      getSigner: () => signer,
-      publish: seedClient.publish,
-    },
-  )
-  return createdIdentity
-}
-
-/**
- * Generates a new key pair and stores it locally
- * @returns The generated key pair
- */
-export async function generateAndStoreKeyPair() {
-  const keyPair = await crypto.subtle.generateKey(
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256',
-    },
-    false, // non-extractable
-    ['sign', 'verify'],
-  )
-  await writeLocalKeys(keyPair)
-  return keyPair
-}
-
 export async function updateProfile({
   keyPair,
   document,
@@ -316,12 +210,6 @@ export function useCreateAccount(options?: {onClose?: () => void}) {
     canCreateAccount: !userKeyPair,
     createAccount: (input?: CreateAccountDialogInput) => createAccountDialog.open({source: input?.source ?? 'login'}),
     content: createAccountDialog.content,
-    createDefaultAccount: async () => {
-      return await createAccount({
-        name: createDefaultAccountName(),
-        icon: null,
-      })
-    },
     userKeyPair,
   }
 }
@@ -354,30 +242,14 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
-function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput; onClose: () => void}) {
+function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose: () => void}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
-  const siteName = hostnameStripProtocol(origin)
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
-  const [localAccountUnlocked, setLocalAccountUnlocked] = useState(false)
-
-  const secretTap = useMemo(
-    () =>
-      createSecretTapUnlock({
-        requiredTaps: SECRET_UNLOCK_TAPS,
-        windowMs: SECRET_UNLOCK_WINDOW_MS,
-        onUnlock: () => {
-          setLocalAccountUnlocked(true)
-          toast.success('Local account creation unlocked for this session')
-        },
-      }),
-    [],
-  )
-
-  useEffect(() => {
-    return () => secretTap.dispose()
-  }, [secretTap])
+  const [customVaultUrl, setCustomVaultUrl] = useState('https://hyper.media')
+  const [showCustomVaultInput, setShowCustomVaultInput] = useState(false)
+  const customVaultInputRef = useRef<HTMLInputElement>(null)
 
   const handleVaultSignIn = async (urlOverride?: string, email?: string) => {
     const vaultUrl = urlOverride || defaultVaultUrl
@@ -407,55 +279,88 @@ function CreateAccountDialog({input, onClose}: {input: CreateAccountDialogInput;
     }
   }
 
-  const onSubmit: SubmitHandler<SiteMetaFields> = async (data) => {
-    try {
-      await createAccount({name: data.name, icon: data.icon})
-      // onClose triggers processPendingIntent() which publishes the comment
-      // from IDB and navigates to it.
-      onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err))
-    }
-  }
-
   return (
-    <CreateAccountDialogContent
-      localAccountUnlocked={localAccountUnlocked}
-      title={tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
-      localAccountTitle={tx(
-        'create_account_title',
-        ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
-        {
-          siteName: siteName || 'this site',
-        },
+    <>
+      <DialogTitle className="flex items-center gap-2 max-sm:text-base">
+        <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+          <SeedLogo className="size-4 text-white" />
+        </div>
+        {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
+      </DialogTitle>
+
+      <DialogDescription className="max-sm:text-sm">Sign in or create your identity to get started.</DialogDescription>
+
+      {/* <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
+                By continuing, you agree to our{' '}
+                <a
+                  href="https://hyper.media/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                >
+                  Terms and Privacy Policy
+                </a>
+                .
+              </SizableText> */}
+      <Button variant="default" type="submit" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
+        {tx('Create Identity on Hypermedia')}
+      </Button>
+
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
+        <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+      </div>
+
+      <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
+        Already have a Hypermedia Identity?
+      </Button>
+
+      <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
+        Do you have another identity domain?{' '}
+        <button
+          type="button"
+          className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+          onClick={() => setShowCustomVaultInput(true)}
+        >
+          Sign in with it
+        </button>
+      </div>
+
+      {showCustomVaultInput && (
+        <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
+          <SizableText size="sm" className="font-medium">
+            Identity Domain
+          </SizableText>
+          <input
+            ref={customVaultInputRef}
+            className="rounded border px-2 py-1.5 text-sm dark:bg-neutral-900"
+            value={customVaultUrl}
+            onChange={(e) => setCustomVaultUrl(e.target.value)}
+            placeholder={defaultVaultUrl}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && customVaultUrl.trim()) {
+                handleVaultSignIn(customVaultUrl.trim())
+              }
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowCustomVaultInput(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={!customVaultUrl.trim()}
+              onClick={() => handleVaultSignIn(customVaultUrl.trim())}
+            >
+              Connect
+            </Button>
+          </div>
+        </div>
       )}
-      localAccountDescription={tx(
-        'create_account_description',
-        'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
-      )}
-      createIdentityLabel={tx('Create Identity on Hypermedia')}
-      defaultCustomIdentityUrl="https://hyper.media"
-      customIdentityPlaceholder={defaultVaultUrl}
-      localAccountForm={
-        <EditProfileForm
-          onSubmit={(values) => {
-            onSubmit(values)
-          }}
-          submitLabel={tx('create_account_submit', ({siteName}: {siteName: string}) => `Create ${siteName} Account`, {
-            siteName,
-          })}
-          processImage={optimizeImage}
-        />
-      }
-      onTitleClick={secretTap.tap}
-      onSubmit={(submit) => {
-        if (submit.type === 'custom-id-server') {
-          handleVaultSignIn(submit.url)
-          return
-        }
-        handleVaultSignIn()
-      }}
-    />
+    </>
   )
 }
 function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
@@ -642,49 +547,6 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   )
 }
 
-export function LinkKeysDialog() {
-  const tx = useTx()
-
-  return (
-    <>
-      <DialogTitle>{tx('Link Keys')}</DialogTitle>
-      <DialogDescription>
-        <div className="flex flex-col gap-1">
-          {tx(
-            'link_keys_explainer',
-            () => {
-              return (
-                <>
-                  <p>
-                    Hypermedia accounts are based on public key cryptography. Your private key is securely stored, but
-                    is only available in this browser, on this device.
-                  </p>
-                  <p>
-                    To stay logged in in the future, you should link this signing key to your account using one of the
-                    options below.
-                  </p>
-                </>
-              )
-            },
-            {},
-          )}
-        </div>
-      </DialogDescription>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="default" asChild>
-          http://localhost:56001/ipfs/bafybeieswa4lfaruhtyuy2xrwhxszta2mqxfkbmmcckofd65kcy243fdw4
-          <a href="/hm/device-link" target="_blank">
-            <Monitor /> {tx('Link with Desktop App')}
-          </a>
-        </Button>
-        <Button variant="default" disabled>
-          <Smartphone /> {tx('Link with Mobile App (Soon)')}
-        </Button>
-      </div>
-    </>
-  )
-}
-
 /** Renders the own-profile session actions shown in the account header. */
 export function LogoutButton() {
   const userKeyPair = useLocalKeyPair()
@@ -714,67 +576,16 @@ export function LogoutButton() {
   )
 }
 
-export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
+export function AccountFooterActions() {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
-  const linkKeysDialog = useAppDialog(LinkKeysDialog)
-
-  const tx = useTx()
-  const myAccount = useAccount(userKeyPair?.id)
-
-  // TODO(burdiyan): this is not a very robust solution to check whether we need to link keys.
-  // For now we request the account info from the backend, which would follow identity redirects to return the final account,
-  // in which case the ID of the final account will be different from the requested ID. When it happens, it means we have already linked this key to some other account.
-  // Delegated sessions are already linked via the vault, so they never need legacy key linking.
-  const needsKeyLinking =
-    !props.hideDeviceLinkToast &&
-    userKeyPair &&
-    !userKeyPair.delegatedAccountUid &&
-    myAccount.data?.id?.uid === userKeyPair?.id
-
-  useEffect(() => {
-    if (!needsKeyLinking) {
-      linkKeysDialog.close()
-      return
-    }
-
-    const t = toast.warning(
-      <div className="flex items-center">
-        <SizableText className="p-1">
-          {tx(
-            'stay_logged_in',
-            'Link your identity key to stay logged in! You can dismiss this message and do it later.',
-          )}
-        </SizableText>
-        <Button
-          size="xs"
-          variant="brand"
-          onClick={() => {
-            linkKeysDialog.open({})
-          }}
-        >
-          {tx('Link Keys')}
-        </Button>
-      </div>,
-      {
-        duration: Infinity,
-        dismissible: true,
-        closeButton: true,
-      },
-    )
-
-    return () => {
-      toast.dismiss(t)
-    }
-  }, [needsKeyLinking, tx])
 
   if (!userKeyPair) return null
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
       {logoutDialog.content}
       {editProfileDialog.content}
-      {linkKeysDialog.content}
     </div>
   )
 }

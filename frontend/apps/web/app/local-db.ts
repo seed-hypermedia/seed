@@ -15,7 +15,7 @@ const EMAIL_NOTIFICATIONS_STORE_NAME = 'email-notifications-01'
 const AUTH_SESSIONS_STORE_NAME = 'auth-sessions-01'
 const AUTH_STATE_STORE_NAME = 'auth-state-01'
 const PENDING_INTENT_STORE_NAME = 'pending-intent-01'
-const DB_VERSION = 7
+const DB_VERSION = 9
 
 export const AUTH_STATE_ACTIVE_VAULT_URL = 'active_vault_url'
 export const AUTH_STATE_DELEGATION_RETURN_URL = 'delegation_return_url'
@@ -35,25 +35,88 @@ function initDB(idb?: IDBFactory): Promise<IDBDatabase> {
   if (!idb) {
     throw new Error('NoIndexedDB')
   }
+  let needsReload = false
   const openDb = idb.open(DB_NAME, DB_VERSION)
   openDb.onupgradeneeded = (event) => {
     // @ts-expect-error
     const db: IDBDatabase = event.target.result
+    const tx = openDb.transaction
+    if (!tx) throw new Error('No IndexedDB upgrade transaction')
+
     upgradeStore(db, KEYS_STORE_NAME)
     upgradeStore(db, EMAIL_NOTIFICATIONS_STORE_NAME)
     upgradeStore(db, AUTH_SESSIONS_STORE_NAME)
     upgradeStore(db, AUTH_STATE_STORE_NAME)
     upgradeStore(db, PENDING_INTENT_STORE_NAME)
+
+    const migrationsStoreName = 'migrations-01'
+    if (db.objectStoreNames.contains(migrationsStoreName)) {
+      // This store only existed in an unreleased app-level migration experiment.
+      // Remove it during the next schema upgrade so local development databases
+      // match the simpler IndexedDB-versioned migration model.
+      db.deleteObjectStore(migrationsStoreName)
+    }
+
+    if (event.oldVersion < 9) {
+      // DB v9 drops browser-local ECDSA identities because web auth now only
+      // supports Ed25519 keys. Keep valid Ed25519 identities intact.
+      clearEcdsaKeysDuringUpgrade(tx, () => {
+        needsReload = true
+      })
+    }
   }
   return new Promise((resolve, reject) => {
-    openDb.onsuccess = (event) => {
-      resolve(openDb.result)
+    openDb.onsuccess = () => {
+      const result = openDb.result
+      configureVersionChangeReload(result)
+      if (needsReload) {
+        reloadWindow()
+      }
+      resolve(result)
+    }
+    openDb.onblocked = () => {
+      console.warn('IndexedDB upgrade is blocked by another open tab')
     }
     openDb.onerror = (error) => {
       console.error('~ error opening db', error)
       reject(error)
     }
   })
+}
+
+function clearEcdsaKeysDuringUpgrade(tx: IDBTransaction, onClear: () => void) {
+  const store = tx.objectStore(KEYS_STORE_NAME)
+  const privateKeyRequest = store.get('privateKey')
+  privateKeyRequest.onsuccess = () => {
+    const privateKey = privateKeyRequest.result as CryptoKey | undefined
+    const publicKeyRequest = store.get('publicKey')
+    publicKeyRequest.onsuccess = () => {
+      const publicKey = publicKeyRequest.result as CryptoKey | undefined
+      if (privateKey?.algorithm.name !== 'ECDSA' && publicKey?.algorithm.name !== 'ECDSA') return
+
+      // Legacy ECDSA identities can no longer sign with the current Ed25519-only
+      // auth code, so clear the whole local-key store and let the app fall back
+      // to the signed-out / delegated-sign-in path after the upgrade completes.
+      const clearRequest = store.clear()
+      clearRequest.onsuccess = onClear
+    }
+  }
+}
+
+function configureVersionChangeReload(db: IDBDatabase) {
+  db.onversionchange = () => {
+    // A newer tab is trying to upgrade this database. Close this stale
+    // connection immediately so the upgrade is not blocked, then reload so the
+    // tab picks up code that understands the new IndexedDB version.
+    db.close()
+    reloadWindow()
+  }
+}
+
+function reloadWindow() {
+  if (typeof window !== 'undefined' && typeof window.location.reload === 'function') {
+    window.location.reload()
+  }
 }
 
 let db: Promise<IDBDatabase> | null = null

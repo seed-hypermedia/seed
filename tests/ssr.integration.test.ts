@@ -235,48 +235,6 @@ describe("SSR Utility Pages Header", () => {
   );
 
   it(
-    "should server-render device-link page without SSR errors",
-    async () => {
-      const response = await fetch(`${env.web.baseUrl}/hm/device-link`, {
-        headers: {
-          "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)",
-        },
-      });
-      const html = await response.text();
-
-      // Page should load (even if it shows error due to missing site config)
-      expect(response.status).toBeLessThan(500);
-
-      // Should not have React SSR errors
-      expect(html).not.toContain("Invalid hook call");
-      expect(html).not.toContain("Minified React error");
-      expect(html).not.toContain("Hooks can only be called inside");
-    },
-    TEST_TIMEOUT,
-  );
-
-  it(
-    "should server-render device-link page with header",
-    async () => {
-      const response = await fetch(`${env.web.baseUrl}/hm/device-link`, {
-        headers: {
-          "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)",
-        },
-      });
-      const html = await response.text();
-      const $ = cheerio.load(html);
-
-      // Check for header element
-      const header = $("header");
-      expect(
-        header.length,
-        "Expected header element to be present on device-link page",
-      ).toBeGreaterThan(0);
-    },
-    TEST_TIMEOUT,
-  );
-
-  it(
     "should server-render connect page without SSR errors",
     async () => {
       const response = await fetch(`${env.web.baseUrl}/hm/connect`, {

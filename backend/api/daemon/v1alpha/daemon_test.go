@@ -113,7 +113,7 @@ func TestGetStatusRemote(t *testing.T) {
 	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
 	require.NoError(t, err)
 
-	srv := NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+	srv := NewServer(store, &mockedP2PNode{}, idx, tMgr, zap.NewNop())
 
 	resp, err := srv.GetVaultStatus(t.Context(), &daemon.GetVaultStatusRequest{})
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestDisconnect(t *testing.T) {
 	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
 	require.NoError(t, err)
 
-	srv := NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+	srv := NewServer(store, &mockedP2PNode{}, idx, tMgr, zap.NewNop())
 
 	_, err = srv.DisconnectVault(t.Context(), &daemon.DisconnectVaultRequest{})
 	require.NoError(t, err)
@@ -668,7 +668,7 @@ func newTestServer(t *testing.T, name string, opts ...vault.RemoteOption) *Serve
 	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
 	require.NoError(t, err)
 
-	return NewServer(store, &mockedP2PNode{}, idx, nil, tMgr, zap.NewNop())
+	return NewServer(store, &mockedP2PNode{}, idx, tMgr, zap.NewNop())
 }
 
 func newConnectedTestVault(t *testing.T, dataDir string, localKey []byte, kp *core.KeyPair) (*vault.Vault, string) {

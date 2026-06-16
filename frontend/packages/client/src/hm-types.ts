@@ -1114,17 +1114,6 @@ export type AggregatedDiscoveryState = {
   blobsFailed: number
 }
 
-export const DeviceLinkSessionSchema = z.object({
-  accountId: z.string(),
-  secretToken: z.string(),
-  addrInfo: z.object({
-    peerId: z.string(),
-    addrs: z.array(z.string()),
-  }),
-})
-
-export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>
-
 export const HMNavigationItemSchema = z.object({
   type: z.literal('Link'),
   id: z.string(),
@@ -1993,7 +1982,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
 }
 
 /** Special static paths that should not be treated as Hypermedia document UIDs. */
-const STATIC_HM_PATHS = new Set(['download', 'connect', 'register', 'device-link', 'profile', 'contact'])
+const STATIC_HM_PATHS = new Set(['download', 'connect', 'register', 'profile', 'contact'])
 
 /** Parse a hypermedia URL string into an UnpackedHypermediaId. */
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {

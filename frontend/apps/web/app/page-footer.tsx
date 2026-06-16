@@ -9,22 +9,14 @@ import {ReactNode} from 'react'
 import {AccountFooterActions} from './auth'
 import {ClientOnly} from './client-lazy'
 
-export function PageFooter({
-  id,
-  hideDeviceLinkToast = false,
-  className,
-}: {
-  id?: UnpackedHypermediaId | null
-  hideDeviceLinkToast?: boolean
-  className?: string
-}) {
+export function PageFooter({id, className}: {id?: UnpackedHypermediaId | null; className?: string}) {
   const tx = useTx()
   return (
     <div data-page-footer="true" className={cn('border-border border-t px-3 py-2 sm:px-4 sm:py-2', className)}>
       <div className="flex flex-wrap items-center gap-4">
         <ClientOnly>
           <div>
-            <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
+            <AccountFooterActions />
           </div>
         </ClientOnly>
         <div className={cn('ml-auto flex items-center gap-4')}>

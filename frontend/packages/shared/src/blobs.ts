@@ -90,6 +90,9 @@ export class WebCryptoKeyPair implements Signer {
   readonly keyPair: CryptoKeyPair
 
   constructor(keyPair: CryptoKeyPair, publicKeyRaw: Uint8Array) {
+    if (keyPair.privateKey.algorithm.name !== 'Ed25519' || keyPair.publicKey.algorithm.name !== 'Ed25519') {
+      throw new Error('WebCryptoKeyPair requires Ed25519 keys')
+    }
     this.keyPair = keyPair
     this.publicKey = new Uint8Array(publicKeyRaw)
     this.principal = principalFromEd25519(this.publicKey)

@@ -18,12 +18,10 @@ import (
 	"seed/backend/core"
 	"seed/backend/daemon/reindexing"
 	taskmanager "seed/backend/daemon/taskmanager"
-	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/storage/vault"
-	"seed/backend/util/colx"
 	"seed/backend/util/longrunning"
 	"strings"
 	sync "sync"
@@ -33,7 +31,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
@@ -116,8 +113,7 @@ type Server struct {
 	domains   *blob.DomainStore
 	log       *zap.Logger
 
-	p2p   Node
-	dlink *devicelink.Service
+	p2p Node
 
 	// Mainly to ensure there's only one registration request at a time.
 	mu sync.Mutex
@@ -133,7 +129,7 @@ type vaultConnectionPoll struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager, log *zap.Logger) *Server {
+func NewServer(store *storage.Store, n Node, idx *blob.Index, taskMgr *taskmanager.TaskManager, log *zap.Logger) *Server {
 	return &Server{
 		store:     store,
 		startTime: time.Now(),
@@ -141,7 +137,6 @@ func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.
 		p2p:     n,
 		blocks:  idx,
 		domains: idx.Domains,
-		dlink:   dlink,
 		taskMgr: taskMgr,
 		log:     log,
 	}
@@ -909,51 +904,6 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 	}
 
 	return resp, nil
-}
-
-// CreateDeviceLinkSession implements the corresponding gRPC method.
-func (srv *Server) CreateDeviceLinkSession(ctx context.Context, in *daemon.CreateDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
-	if in.SigningKeyName == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
-	}
-
-	sess, err := srv.dlink.NewSession(ctx, in.SigningKeyName, in.Label)
-	if err != nil {
-		return nil, err
-	}
-
-	return srv.sessionToProto(sess), nil
-}
-
-// GetDeviceLinkSession implements the corresponding gRPC method.
-func (srv *Server) GetDeviceLinkSession(ctx context.Context, in *daemon.GetDeviceLinkSessionRequest) (*daemon.DeviceLinkSession, error) {
-	sess, err := srv.dlink.Session()
-	if err != nil {
-		return nil, err
-	}
-
-	return srv.sessionToProto(sess), nil
-}
-
-func (srv *Server) sessionToProto(sess devicelink.Session) *daemon.DeviceLinkSession {
-	pinfo := srv.p2p.AddrInfo()
-
-	pb := &daemon.DeviceLinkSession{
-		AddrInfo: &daemon.AddrInfo{
-			PeerId: pinfo.ID.String(),
-			Addrs:  colx.SliceMap(pinfo.Addrs, multiaddr.Multiaddr.String),
-		},
-		SecretToken: sess.Secret,
-		AccountId:   sess.Account.String(),
-		Label:       sess.Label,
-		ExpireTime:  timestamppb.New(sess.ExpireTime),
-	}
-
-	if !sess.RedeemTime.IsZero() {
-		pb.RedeemTime = timestamppb.New(sess.RedeemTime)
-	}
-
-	return pb
 }
 
 // SignData implements the corresponding gRPC method.

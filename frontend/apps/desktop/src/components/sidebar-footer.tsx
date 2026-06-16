@@ -5,17 +5,15 @@ import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 
-import {LinkDeviceDialog} from '@/components/link-device-dialog'
-import {useAccount, useAccounts} from '@shm/shared/models/entity'
+import {useAccounts} from '@shm/shared/models/entity'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {KeySquare, LogIn, Plus, Settings} from 'lucide-react'
+import {Plus, Settings} from 'lucide-react'
 import {useEffect, useState} from 'react'
-import {useCreateAccountDialog} from './create-account'
+import {dispatchOnboardingDialog} from './onboarding'
 
 export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: boolean}) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
@@ -58,8 +56,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
 
   if (!selectedIdentityValue) {
     return (
-      <div className="bg-background flex w-full flex-row items-center justify-between gap-2 rounded-sm p-1 shadow-sm">
-        <LoginButton />
+      <div className="flex w-full flex-row items-center justify-between gap-3 rounded-sm bg-white p-1 shadow-sm">
         <CreateAccountButton />
         <AppSettingsButton />
       </div>
@@ -117,75 +114,22 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
           <CreateAccountButton />
         </PopoverContent>
       </Popover>
-      <LinkKeyButton />
       <AppSettingsButton />
     </div>
   )
 }
 
-function LinkKeyButton() {
-  const {selectedIdentity} = useUniversalAppContext()
-  const selectedIdentityValue = useStream(selectedIdentity)
-  const account = useAccount(selectedIdentityValue)
-  const linkDevice = useAppDialog(LinkDeviceDialog)
-
-  const accountName = account.data?.metadata?.name || 'Account'
-
-  return (
-    <>
-      <Tooltip content="Link Key">
-        <Button
-          size="icon"
-          className="hover:bg-muted active:bg-muted shrink-none h- flex size-8 items-center justify-center rounded-md"
-          onClick={() => {
-            if (selectedIdentityValue) {
-              linkDevice.open({
-                accountUid: selectedIdentityValue,
-                accountName,
-              })
-            }
-          }}
-        >
-          <KeySquare className="size-4" />
-        </Button>
-      </Tooltip>
-      {linkDevice.content}
-    </>
-  )
-}
-
 function CreateAccountButton({className}: {className?: string}) {
-  const createAccountDialog = useCreateAccountDialog()
-
-  return (
-    <>
-      <Button
-        variant="default"
-        className={cn('flex-1 border-none', className)}
-        onClick={() => {
-          createAccountDialog.open({})
-        }}
-      >
-        <Plus className="size-4" />
-        Create Account
-      </Button>
-      {createAccountDialog.content}
-    </>
-  )
-}
-
-function LoginButton() {
-  const navigate = useNavigate()
   return (
     <Button
-      variant="outline"
-      className="flex-1 border-none"
+      variant="default"
+      className={cn('flex-1 border-none', className)}
       onClick={() => {
-        navigate({key: 'settings', tab: 'sync'})
+        dispatchOnboardingDialog(true)
       }}
     >
-      <LogIn className="size-4" />
-      Log in
+      <Plus className="size-4" />
+      Create Account
     </Button>
   )
 }

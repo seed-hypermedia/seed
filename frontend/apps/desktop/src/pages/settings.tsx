@@ -1,5 +1,4 @@
 import {useAppContext, useIPC} from '@/app-context'
-import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
 import {
@@ -67,7 +66,7 @@ import {COMMIT_HASH, DAEMON_HTTP_URL, LIGHTNING_API_URL, SEED_HOST_URL, VERSION}
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {getMetadataName} from '@shm/shared/content'
 import type {SettingsTab} from '@shm/shared/routes'
-import {useCapabilities, useResource} from '@shm/shared/models/entity'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {formattedDateLong} from '@shm/shared/utils/date'
@@ -1128,9 +1127,6 @@ function AccountKeys() {
           <SettingsSection title="Wallets">
             <AccountWallet accountUid={selectedAccount} onOpenWallet={(walletId) => setWalletId(walletId)} />
           </SettingsSection>
-          <SettingsSection title="Linked Devices">
-            <LinkedDevices accountUid={selectedAccount} accountName={getMetadataName(profileDocument?.metadata)} />
-          </SettingsSection>
         </div>
       </div>
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
@@ -1190,52 +1186,6 @@ function AccountKeys() {
         <Plus className="mr-2 size-4" />
         Create a new Profile
       </Button>
-    </div>
-  )
-}
-
-function LinkedDevices({accountUid, accountName}: {accountUid: string; accountName: string}) {
-  const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useCapabilities(hmId(accountUid))
-  const devices = capabilities?.filter((c) => c.role === 'agent')
-  return (
-    <div className="flex flex-col gap-3">
-      {devices?.length ? (
-        <div className="flex flex-col gap-2">
-          {devices.map((d) => (
-            <div key={d.accountUid} className="flex flex-row items-center gap-2">
-              <Tooltip side="left" content={`Copy Account ID of ${d.label}`}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    copyTextToClipboard(d.accountUid)
-                    toast('Device ID copied to clipboard')
-                  }}
-                  className="justify-start"
-                >
-                  <SizableText>{d.label}</SizableText>
-                </Button>
-              </Tooltip>
-              <p className="text-muted-foreground text-sm">
-                {/* Removing the timezone name in the timestamp. */}
-                {formattedDateLong(d.createTime).replace(/\s+[A-Z]{2,4}[+-]?\d*$/, '')}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <div className="flex">
-        <Button
-          onClick={() => linkDevice.open({accountUid, accountName})}
-          variant="default"
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="mr-2 size-4" />
-          Link Web Session
-        </Button>
-      </div>
-      {linkDevice.content}
     </div>
   )
 }

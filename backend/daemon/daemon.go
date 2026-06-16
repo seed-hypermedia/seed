@@ -18,7 +18,6 @@ import (
 	"seed/backend/config"
 	"seed/backend/daemon/reindexing"
 	taskmanager "seed/backend/daemon/taskmanager"
-	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
@@ -186,8 +185,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean, a.Syncing)
 
-	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
-
 	embedder, err := initLLM(ctx, cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, a.Index)
 	if err != nil {
 		return nil, err
@@ -200,7 +197,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr, lightEmbedder)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, a.taskMgr, lightEmbedder)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +360,6 @@ func initGRPC(
 	LogLevel string,
 	isMainnet bool,
 	opts grpcOpts,
-	dlink *devicelink.Service,
 	taskMgr *taskmanager.TaskManager,
 	embedder embeddings.LightEmbedder,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
@@ -373,7 +369,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr, embedder)
+	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, taskMgr, embedder)
 	apis.Register(srv)
 
 	if remoteVault, ok := repo.KeyStore().(*vault.Vault); ok {

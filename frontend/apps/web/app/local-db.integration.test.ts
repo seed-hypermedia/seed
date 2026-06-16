@@ -6,6 +6,7 @@ global.window = {
   ...global.window,
   location: {
     origin: TEST_ORIGIN,
+    reload: vi.fn(),
   },
 } as any
 
@@ -14,7 +15,7 @@ global.window = {
 
 import {indexedDB} from 'fake-indexeddb'
 import 'fake-indexeddb/auto'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {
   AUTH_STATE_ACTIVE_VAULT_URL,
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -42,8 +43,53 @@ import {
 
 const DB_NAME = 'keyStore-04'
 
+async function generateEd25519KeyPair(): Promise<CryptoKeyPair> {
+  return (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
+    'sign',
+    'verify',
+  ])) as CryptoKeyPair
+}
+
+async function generateEcdsaKeyPair(): Promise<CryptoKeyPair> {
+  return await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+}
+
+function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function createLegacyV8Db(keyPair?: CryptoKeyPair): Promise<void> {
+  const request = indexedDB.open(DB_NAME, 8)
+  request.onupgradeneeded = () => {
+    const db = request.result
+    const keys = db.createObjectStore('keys-01')
+    db.createObjectStore('email-notifications-01')
+    db.createObjectStore('auth-sessions-01')
+    db.createObjectStore('auth-state-01')
+    db.createObjectStore('pending-intent-01')
+
+    // This store mirrors the app-level migration experiment that existed
+    // locally before v9 switched back to IndexedDB-versioned migrations.
+    const migrations = db.createObjectStore('migrations-01')
+    migrations.put(1, 'local_db_migration_version')
+
+    if (keyPair) {
+      keys.put(keyPair.privateKey, 'privateKey')
+      keys.put(keyPair.publicKey, 'publicKey')
+      keys.put('acc1', 'delegatedAccountUid')
+      keys.put('https://vault.example.com', 'vaultUrl')
+    }
+  }
+  const db = await requestToPromise(request)
+  db.close()
+}
+
 describe('local-db integration', () => {
   beforeEach(async () => {
+    vi.mocked(window.location.reload).mockClear()
     await new Promise<void>((resolve) => {
       const deleteRequest = indexedDB.deleteDatabase(DB_NAME)
       deleteRequest.onsuccess = () => resolve()
@@ -62,16 +108,57 @@ describe('local-db integration', () => {
   it('should initialize the database with correct version and stores', async () => {
     const db = await resetDB(indexedDB)
     try {
-      expect(db.version).toBe(7)
+      expect(db.version).toBe(9)
       const storeNames = Array.from(db.objectStoreNames)
       expect(storeNames).toContain('keys-01')
       expect(storeNames).toContain('email-notifications-01')
       expect(storeNames).toContain('auth-sessions-01')
       expect(storeNames).toContain('auth-state-01')
       expect(storeNames).toContain('pending-intent-01')
+      expect(storeNames).not.toContain('migrations-01')
     } finally {
       db.close()
     }
+  })
+
+  describe('database upgrades', () => {
+    it('deletes the development migration store when upgrading from v8', async () => {
+      await createLegacyV8Db()
+
+      const db = await resetDB(indexedDB)
+      try {
+        expect(db.version).toBe(9)
+        expect(Array.from(db.objectStoreNames)).not.toContain('migrations-01')
+      } finally {
+        db.close()
+      }
+    })
+
+    it('clears legacy ECDSA local keys during the v9 upgrade and requests a reload', async () => {
+      await createLegacyV8Db(await generateEcdsaKeyPair())
+
+      const db = await resetDB(indexedDB)
+      try {
+        expect(await getStoredLocalKeys()).toBeNull()
+        expect(window.location.reload).toHaveBeenCalledTimes(1)
+      } finally {
+        db.close()
+      }
+    })
+
+    it('keeps Ed25519 local keys during the v9 upgrade', async () => {
+      await createLegacyV8Db(await generateEd25519KeyPair())
+
+      const db = await resetDB(indexedDB)
+      try {
+        const stored = await getStoredLocalKeys()
+        expect(stored).not.toBeNull()
+        expect(stored!.keyPair.privateKey.algorithm.name).toBe('Ed25519')
+        expect(window.location.reload).not.toHaveBeenCalled()
+      } finally {
+        db.close()
+      }
+    })
   })
 
   describe('local keys', () => {
@@ -88,7 +175,7 @@ describe('local-db integration', () => {
     it('should write and read local keys', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         await writeLocalKeys(keyPair, {
           delegatedAccountUid: 'acc1',
           vaultUrl: 'https://vault.example.com',
@@ -111,7 +198,7 @@ describe('local-db integration', () => {
     it('should read older local keys without a notify server URL', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         await writeLocalKeys(keyPair, {
           delegatedAccountUid: 'acc1',
           vaultUrl: 'https://vault.example.com',
@@ -130,7 +217,7 @@ describe('local-db integration', () => {
     it('should delete local keys', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         await writeLocalKeys(keyPair)
         expect(await getStoredLocalKeys()).not.toBeNull()
         await deleteLocalKeys()
@@ -143,20 +230,14 @@ describe('local-db integration', () => {
     it('clears delegated metadata when replacing the local key pair', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const delegatedKeyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
-          'sign',
-          'verify',
-        ])) as CryptoKeyPair
+        const delegatedKeyPair = await generateEd25519KeyPair()
         await writeLocalKeys(delegatedKeyPair, {
           delegatedAccountUid: 'acc1',
           vaultUrl: 'https://vault.example.com',
           notifyServerUrl: 'https://notify.example.com',
         })
 
-        const localKeyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, [
-          'sign',
-          'verify',
-        ])
+        const localKeyPair = await generateEd25519KeyPair()
         await writeLocalKeys(localKeyPair)
 
         const stored = await getStoredLocalKeys()
@@ -207,7 +288,7 @@ describe('local-db integration', () => {
     it('should store and retrieve an auth session', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         const record: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
@@ -231,7 +312,7 @@ describe('local-db integration', () => {
     it('should delete an auth session', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         const record: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1, 2, 3]),
@@ -253,7 +334,7 @@ describe('local-db integration', () => {
     it('should store sessions keyed by vault URL independently', async () => {
       const db = await resetDB(indexedDB)
       try {
-        const keyPair = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, false, ['sign', 'verify'])
+        const keyPair = await generateEd25519KeyPair()
         const record1: DBSessionRecord = {
           keyPair,
           publicKeyRaw: new Uint8Array([1]),

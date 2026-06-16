@@ -83,7 +83,6 @@ genrule(
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
-        "//backend/wallet/walletsql:go_library",
         ":llama-cpp",
         "//:gomod",
     ],

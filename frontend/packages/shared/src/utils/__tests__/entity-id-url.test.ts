@@ -97,7 +97,6 @@ describe('unpackHmId', () => {
       expect(unpackHmId('https://seed.hyper.media/hm/download?l')).toBeNull()
       expect(unpackHmId('https://seed.hyper.media/hm/connect')).toBeNull()
       expect(unpackHmId('https://seed.hyper.media/hm/register')).toBeNull()
-      expect(unpackHmId('https://seed.hyper.media/hm/device-link')).toBeNull()
       expect(unpackHmId('https://seed.hyper.media/hm/profile')).toBeNull()
     })
   })

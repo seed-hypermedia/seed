@@ -11,7 +11,6 @@ import (
 	"seed/backend/blob"
 	"seed/backend/config"
 	taskmanager "seed/backend/daemon/taskmanager"
-	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
@@ -50,7 +49,6 @@ func New(
 	activity *activity.Server,
 	LogLevel string,
 	isMainnet bool,
-	dlink *devicelink.Service,
 	taskMgr *taskmanager.TaskManager,
 	embedder llm.LightEmbedder,
 ) Server {
@@ -65,7 +63,7 @@ func New(
 
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr, logging.New("seed/daemon-api", LogLevel)),
+		Daemon:      daemon.NewServer(repo, node, idx, taskMgr, logging.New("seed/daemon-api", LogLevel)),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(cfg, db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: docs,

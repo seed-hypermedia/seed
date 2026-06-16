@@ -21,14 +21,6 @@ vi.mock('@/app-context', () => ({
   useListen: () => {},
 }))
 
-vi.mock('@/components/link-device-dialog', async () => {
-  const React = await import('react')
-
-  return {
-    LinkDeviceDialog: () => React.createElement('div'),
-  }
-})
-
 vi.mock('@/components/window-controls', async () => {
   const React = await import('react')
 

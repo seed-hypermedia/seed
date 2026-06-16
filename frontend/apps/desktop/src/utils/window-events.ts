@@ -16,7 +16,6 @@ export type AppWindowEvent =
   | {type: 'hypermediaHoverIn'; id: string}
   | {type: 'hypermediaHoverOut'; id: string}
   | {type: 'selectedIdentityChanged'; selectedIdentity: string | null}
-  | {type: 'deviceLink'; origin?: string}
   | {type: 'draft_externally_modified'; draftId: string}
   | {type: 'document_path_changed'; oldId: string; newId: string}
   | {type: 'create_new_document'}

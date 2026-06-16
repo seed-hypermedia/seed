@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, CheckDomainRequest, CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -192,34 +192,6 @@ export const Daemon = {
       name: "StoreBlobs",
       I: StoreBlobsRequest,
       O: StoreBlobsResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Creates a new device link session.
-     * The session information has to be transferred to the other device,
-     * to establish a direct P2P connection between the devices, and complete the linking process.
-     *
-     * There can only be one active session at a time, and creating a new one will invalidate the previous one.
-     *
-     * After the session is redeemed, it becomes invalid.
-     *
-     * @generated from rpc com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession
-     */
-    createDeviceLinkSession: {
-      name: "CreateDeviceLinkSession",
-      I: CreateDeviceLinkSessionRequest,
-      O: DeviceLinkSession,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Get the current device link session (if it exists).
-     *
-     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession
-     */
-    getDeviceLinkSession: {
-      name: "GetDeviceLinkSession",
-      I: GetDeviceLinkSessionRequest,
-      O: DeviceLinkSession,
       kind: MethodKind.Unary,
     },
     /**

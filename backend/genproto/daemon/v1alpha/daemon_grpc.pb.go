@@ -20,30 +20,28 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Daemon_GenMnemonic_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/GenMnemonic"
-	Daemon_RegisterKey_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
-	Daemon_ImportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
-	Daemon_ExportKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
-	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
-	Daemon_Authenticate_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/Authenticate"
-	Daemon_GetVaultStatus_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
-	Daemon_StartVaultConnection_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
-	Daemon_DisconnectVault_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
-	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
-	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
-	Daemon_ListKeys_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
-	Daemon_UpdateKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
-	Daemon_DeleteKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
-	Daemon_DeleteAllKeys_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
-	Daemon_StoreBlobs_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
-	Daemon_CreateDeviceLinkSession_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/CreateDeviceLinkSession"
-	Daemon_GetDeviceLinkSession_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/GetDeviceLinkSession"
-	Daemon_SignData_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/SignData"
-	Daemon_GetDomain_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/GetDomain"
-	Daemon_ListDomains_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/ListDomains"
-	Daemon_AddDomain_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/AddDomain"
-	Daemon_RemoveDomain_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/RemoveDomain"
-	Daemon_CheckDomain_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/CheckDomain"
+	Daemon_GenMnemonic_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GenMnemonic"
+	Daemon_RegisterKey_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
+	Daemon_ImportKey_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
+	Daemon_ExportKey_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
+	Daemon_GetInfo_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
+	Daemon_Authenticate_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/Authenticate"
+	Daemon_GetVaultStatus_FullMethodName       = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
+	Daemon_StartVaultConnection_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
+	Daemon_DisconnectVault_FullMethodName      = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
+	Daemon_ForceSync_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
+	Daemon_ForceReindex_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
+	Daemon_ListKeys_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
+	Daemon_UpdateKey_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
+	Daemon_DeleteKey_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
+	Daemon_DeleteAllKeys_FullMethodName        = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
+	Daemon_StoreBlobs_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
+	Daemon_SignData_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/SignData"
+	Daemon_GetDomain_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/GetDomain"
+	Daemon_ListDomains_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/ListDomains"
+	Daemon_AddDomain_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/AddDomain"
+	Daemon_RemoveDomain_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/RemoveDomain"
+	Daemon_CheckDomain_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/CheckDomain"
 )
 
 // DaemonClient is the client API for Daemon service.
@@ -88,16 +86,6 @@ type DaemonClient interface {
 	// Receives raw blobs to be stored.
 	// The request may fail if blobs can't be recognized by the daemon.
 	StoreBlobs(ctx context.Context, in *StoreBlobsRequest, opts ...grpc.CallOption) (*StoreBlobsResponse, error)
-	// Creates a new device link session.
-	// The session information has to be transferred to the other device,
-	// to establish a direct P2P connection between the devices, and complete the linking process.
-	//
-	// There can only be one active session at a time, and creating a new one will invalidate the previous one.
-	//
-	// After the session is redeemed, it becomes invalid.
-	CreateDeviceLinkSession(ctx context.Context, in *CreateDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error)
-	// Get the current device link session (if it exists).
-	GetDeviceLinkSession(ctx context.Context, in *GetDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error)
 	// Sign arbitrary data with an existing signing key.
 	SignData(ctx context.Context, in *SignDataRequest, opts ...grpc.CallOption) (*SignDataResponse, error)
 	// Gets cached information about a domain.
@@ -280,26 +268,6 @@ func (c *daemonClient) StoreBlobs(ctx context.Context, in *StoreBlobsRequest, op
 	return out, nil
 }
 
-func (c *daemonClient) CreateDeviceLinkSession(ctx context.Context, in *CreateDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeviceLinkSession)
-	err := c.cc.Invoke(ctx, Daemon_CreateDeviceLinkSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *daemonClient) GetDeviceLinkSession(ctx context.Context, in *GetDeviceLinkSessionRequest, opts ...grpc.CallOption) (*DeviceLinkSession, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeviceLinkSession)
-	err := c.cc.Invoke(ctx, Daemon_GetDeviceLinkSession_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *daemonClient) SignData(ctx context.Context, in *SignDataRequest, opts ...grpc.CallOption) (*SignDataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SignDataResponse)
@@ -402,16 +370,6 @@ type DaemonServer interface {
 	// Receives raw blobs to be stored.
 	// The request may fail if blobs can't be recognized by the daemon.
 	StoreBlobs(context.Context, *StoreBlobsRequest) (*StoreBlobsResponse, error)
-	// Creates a new device link session.
-	// The session information has to be transferred to the other device,
-	// to establish a direct P2P connection between the devices, and complete the linking process.
-	//
-	// There can only be one active session at a time, and creating a new one will invalidate the previous one.
-	//
-	// After the session is redeemed, it becomes invalid.
-	CreateDeviceLinkSession(context.Context, *CreateDeviceLinkSessionRequest) (*DeviceLinkSession, error)
-	// Get the current device link session (if it exists).
-	GetDeviceLinkSession(context.Context, *GetDeviceLinkSessionRequest) (*DeviceLinkSession, error)
 	// Sign arbitrary data with an existing signing key.
 	SignData(context.Context, *SignDataRequest) (*SignDataResponse, error)
 	// Gets cached information about a domain.
@@ -480,12 +438,6 @@ func (UnimplementedDaemonServer) DeleteAllKeys(context.Context, *DeleteAllKeysRe
 }
 func (UnimplementedDaemonServer) StoreBlobs(context.Context, *StoreBlobsRequest) (*StoreBlobsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StoreBlobs not implemented")
-}
-func (UnimplementedDaemonServer) CreateDeviceLinkSession(context.Context, *CreateDeviceLinkSessionRequest) (*DeviceLinkSession, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateDeviceLinkSession not implemented")
-}
-func (UnimplementedDaemonServer) GetDeviceLinkSession(context.Context, *GetDeviceLinkSessionRequest) (*DeviceLinkSession, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDeviceLinkSession not implemented")
 }
 func (UnimplementedDaemonServer) SignData(context.Context, *SignDataRequest) (*SignDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignData not implemented")
@@ -813,42 +765,6 @@ func _Daemon_StoreBlobs_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Daemon_CreateDeviceLinkSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateDeviceLinkSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DaemonServer).CreateDeviceLinkSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Daemon_CreateDeviceLinkSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServer).CreateDeviceLinkSession(ctx, req.(*CreateDeviceLinkSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Daemon_GetDeviceLinkSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDeviceLinkSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DaemonServer).GetDeviceLinkSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Daemon_GetDeviceLinkSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServer).GetDeviceLinkSession(ctx, req.(*GetDeviceLinkSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Daemon_SignData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SignDataRequest)
 	if err := dec(in); err != nil {
@@ -1027,14 +943,6 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StoreBlobs",
 			Handler:    _Daemon_StoreBlobs_Handler,
-		},
-		{
-			MethodName: "CreateDeviceLinkSession",
-			Handler:    _Daemon_CreateDeviceLinkSession_Handler,
-		},
-		{
-			MethodName: "GetDeviceLinkSession",
-			Handler:    _Daemon_GetDeviceLinkSession_Handler,
 		},
 		{
 			MethodName: "SignData",

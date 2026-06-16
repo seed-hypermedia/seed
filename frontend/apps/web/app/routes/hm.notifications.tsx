@@ -67,7 +67,7 @@ export default function NotificationsRoute() {
             </Suspense>
           </ClientOnly>
         </NavigationLoadingContent>
-        <PageFooter className="w-full" hideDeviceLinkToast />
+        <PageFooter className="w-full" />
       </GeneralPageSurface>
     </WebSiteProvider>
   )

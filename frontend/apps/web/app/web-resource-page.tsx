@@ -454,7 +454,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   docId={docId}
                   resourceId={useLocalDraftShell ? null : docId}
                   CommentEditor={CommentEditor}
-                  pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+                  pageFooter={<PageFooter id={docId} />}
                   onEditProfile={onEditProfile}
                   profileHeaderButtons={profileHeaderButtons}
                   onFollowClick={onFollowClick}
@@ -498,7 +498,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <WebSitePageShell siteUid={docId.uid}>
-      <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />} />
+      <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} />} />
     </WebSitePageShell>
   )
 }

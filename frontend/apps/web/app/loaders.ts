@@ -754,7 +754,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
 }
 
 /**
- * Site header payload for utility pages (profile, device-link, connect, etc.)
+ * Site header payload for utility pages (profile, connect, etc.)
  * These pages need the home document and directory for navigation but don't
  * have their own document content.
  */

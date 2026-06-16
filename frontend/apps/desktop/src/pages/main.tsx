@@ -1,13 +1,11 @@
 import {useAppContext, useListen} from '@/app-context'
 
-import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
 import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
-import {useMyAccountIds} from '@/models/daemon'
 import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useCreateDraft} from '@/models/documents'
 import {useSelectedAccountId} from '@/selected-account'
@@ -16,15 +14,12 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
-import {useAccounts} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {windowContainerStyles} from '@shm/ui/container'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
@@ -242,7 +237,6 @@ export default function Main({className}: {className?: string}) {
 
               <AutoUpdater />
               <ConfirmConnectionDialog />
-              <DeviceLinkHandler />
               <HypermediaHighlight />
             </SidebarContextProvider>
           </div>
@@ -485,111 +479,6 @@ function getPageComponent(navRoute: NavRoute) {
         Fallback: BaseLoading,
       }
   }
-}
-
-function DeviceLinkHandler() {
-  const [origin, setOrigin] = useState<string | undefined>(undefined)
-  const [selectedAccount, setSelectedAccount] = useState<{
-    accountUid: string
-    accountName: string
-  } | null>(null)
-  const accountSelectorDialog = useAppDialog(AccountSelectorDialogContent)
-  const linkDeviceDialog = useAppDialog(LinkDeviceDialog)
-
-  useListenAppEvent('deviceLink', (payload) => {
-    setOrigin(payload.origin)
-    setSelectedAccount(null)
-    accountSelectorDialog.open({
-      origin: payload.origin,
-      onAccountSelected: (accountUid: string, accountName: string) => {
-        setSelectedAccount({accountUid, accountName})
-      },
-    })
-  })
-
-  useEffect(() => {
-    if (selectedAccount) {
-      linkDeviceDialog.open({
-        ...selectedAccount,
-        origin,
-      })
-      setSelectedAccount(null)
-    }
-  }, [selectedAccount, origin])
-
-  return (
-    <>
-      {accountSelectorDialog.content}
-      {linkDeviceDialog.content}
-    </>
-  )
-}
-
-function AccountSelectorDialogContent({
-  input,
-  onClose,
-}: {
-  input: {
-    origin?: string
-    onAccountSelected: (accountUid: string, accountName: string) => void
-  }
-  onClose: () => void
-}) {
-  const myAccountIds = useMyAccountIds()
-  const accountQueries = useAccounts(myAccountIds.data || [])
-  const [selectedAccountUid, setSelectedAccountUid] = useState<string | null>(null)
-
-  const accountOptions = accountQueries.map((q) => q.data).filter((d) => !!d)
-
-  const selectedAccountData = accountOptions.find((a) => a.id.uid === selectedAccountUid)
-
-  return (
-    <>
-      <DialogTitle>Select Account to Link</DialogTitle>
-      {input.origin && <p className="text-sm font-medium text-gray-600">Origin: {input.origin}</p>}
-      <p className="text-sm text-gray-600">Choose which account you want to link to the web browser.</p>
-      <ScrollArea className="h-full max-h-[300px] flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-2">
-          {accountOptions?.map((option) =>
-            option ? (
-              <div
-                key={option.id.uid}
-                className={cn(
-                  'hover:bg-sidebar-accent flex cursor-pointer flex-row items-center gap-4 rounded-md p-3',
-                  selectedAccountUid === option.id.uid ? 'bg-sidebar-accent' : '',
-                )}
-                onClick={() => setSelectedAccountUid(option.id.uid)}
-              >
-                {option.id ? (
-                  <HMIcon id={option?.id} name={option?.metadata?.name} icon={option?.metadata?.icon} />
-                ) : null}
-                <span className="flex-1">{option.metadata?.name || `?${option.id.uid?.slice(-8)}`}</span>
-              </div>
-            ) : null,
-          )}
-        </div>
-      </ScrollArea>
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={onClose} className="flex-1">
-          Cancel
-        </Button>
-        <Button
-          variant="default"
-          disabled={!selectedAccountUid}
-          onClick={() => {
-            if (selectedAccountUid) {
-              const accountName = selectedAccountData?.metadata?.name || 'Account'
-              input.onAccountSelected(selectedAccountUid, accountName)
-              onClose()
-            }
-          }}
-          className="flex-1"
-        >
-          Continue
-        </Button>
-      </div>
-    </>
-  )
 }
 
 function WindowClose() {

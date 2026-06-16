@@ -1,91 +1,210 @@
 package walletsql
 
 import (
-	"io/ioutil"
-	"seed/backend/storage"
+	"errors"
+	"fmt"
+
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlitegen"
-	"seed/backend/util/sqlitegen/qb"
 )
 
-var _ = generateQueries
+var _ = errors.New
 
 const (
 	// DefaultWalletKey is the column name of the meta table where the default wallet id is stored.
 	DefaultWalletKey = "default_wallets"
 )
 
-//go:generate gorun -tags codegen generateQueries
-func generateQueries() error {
-	code, err := sqlitegen.CodegenQueries("walletsql",
-		qb.MakeQuery(storage.Schema, "insertWallet", sqlitegen.QueryKindExec,
-			qb.Insert(storage.WalletsID, storage.WalletsAccount, storage.WalletsAddress,
-				storage.WalletsType, storage.WalletsLogin, storage.WalletsPassword,
-				storage.WalletsToken, storage.WalletsName),
-		),
+func insertWallet(conn *sqlite.Conn, walletsID string, walletsAccount int64, walletsAddress string, walletsType string, walletsLogin []byte, walletsPassword []byte, walletsToken []byte, walletsName string) error {
+	const query = `INSERT INTO wallets (id, account, address, type, login, password, token, name)
+VALUES (:walletsID, :walletsAccount, :walletsAddress, :walletsType, :walletsLogin, :walletsPassword, :walletsToken, :walletsName)`
 
-		qb.MakeQuery(storage.Schema, "getWallet", sqlitegen.QueryKindSingle,
-			"SELECT", qb.Results(
-				qb.ResultCol(storage.WalletsID),
-				qb.ResultCol(storage.WalletsAccount),
-				qb.ResultCol(storage.WalletsAddress),
-				qb.ResultCol(storage.WalletsName),
-				qb.ResultCol(storage.WalletsType),
-			), qb.Line,
-			"FROM", storage.Wallets,
-			"WHERE", storage.WalletsID, "=", qb.VarCol(storage.WalletsID),
-		),
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":walletsID", walletsID)
+		stmt.SetInt64(":walletsAccount", walletsAccount)
+		stmt.SetText(":walletsAddress", walletsAddress)
+		stmt.SetText(":walletsType", walletsType)
+		stmt.SetBytes(":walletsLogin", walletsLogin)
+		stmt.SetBytes(":walletsPassword", walletsPassword)
+		stmt.SetBytes(":walletsToken", walletsToken)
+		stmt.SetText(":walletsName", walletsName)
+	}
 
-		qb.MakeQuery(storage.Schema, "listWallets", sqlitegen.QueryKindMany,
-			"SELECT", qb.Results(
-				qb.ResultCol(storage.WalletsID),
-				qb.ResultCol(storage.WalletsAccount),
-				qb.ResultCol(storage.WalletsAddress),
-				qb.ResultCol(storage.WalletsName),
-				qb.ResultCol(storage.WalletsType),
-			),
-			"FROM", storage.Wallets,
-			"WHERE", storage.WalletsID, ">", qb.Var("cursor", sqlitegen.TypeText),
-			"LIMIT", qb.Var("limit", sqlitegen.TypeInt),
-		),
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
 
-		qb.MakeQuery(storage.Schema, "setLoginSignature", sqlitegen.QueryKindExec,
-			"INSERT OR REPLACE INTO", storage.KV, qb.ListColShort(
-				storage.KVKey,
-				storage.KVValue,
-			), qb.Line,
-			"VALUES", qb.List(
-				qb.VarCol(storage.KVKey),
-				qb.VarCol(storage.KVValue),
-			),
-		),
-
-		qb.MakeQuery(storage.Schema, "updateWalletName", sqlitegen.QueryKindExec,
-			"UPDATE", storage.Wallets, "SET", qb.ListColShort(
-				storage.WalletsName,
-			), qb.Line,
-			"=(", qb.VarCol(storage.WalletsName),
-			") WHERE", storage.WalletsID, "=", qb.VarCol(storage.WalletsID),
-		),
-
-		qb.MakeQuery(storage.Schema, "removeWallet", sqlitegen.QueryKindExec,
-			"DELETE FROM", storage.Wallets,
-			"WHERE", storage.WalletsID, "=", qb.VarCol(storage.WalletsID),
-		),
-
-		qb.MakeQuery(storage.Schema, "getWalletCount", sqlitegen.QueryKindSingle,
-			"SELECT", qb.Results(
-				qb.ResultExpr(qb.SQLFunc("COUNT", storage.WalletsID.String()), "count", sqlitegen.TypeInt),
-			),
-			"FROM", storage.Wallets,
-		),
-	)
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
 	if err != nil {
-		return err
+		err = fmt.Errorf("failed query: insertWallet: %w", err)
 	}
 
-	if err := ioutil.WriteFile("queries.gen.go", code, 0600); err != nil {
-		return err
+	return err
+}
+
+type getWalletResult struct {
+	WalletsID      string
+	WalletsAccount int64
+	WalletsAddress string
+	WalletsName    string
+	WalletsType    string
+}
+
+func getWallet(conn *sqlite.Conn, walletsID string) (getWalletResult, error) {
+	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.type
+FROM wallets WHERE wallets.id = :walletsID`
+
+	var out getWalletResult
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":walletsID", walletsID)
 	}
 
-	return nil
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("getWallet: more than one result return for a single-kind query")
+		}
+
+		out.WalletsID = stmt.ColumnText(0)
+		out.WalletsAccount = stmt.ColumnInt64(1)
+		out.WalletsAddress = stmt.ColumnText(2)
+		out.WalletsName = stmt.ColumnText(3)
+		out.WalletsType = stmt.ColumnText(4)
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: getWallet: %w", err)
+	}
+
+	return out, err
+}
+
+type listWalletsResult struct {
+	WalletsID      string
+	WalletsAccount int64
+	WalletsAddress string
+	WalletsName    string
+	WalletsType    string
+}
+
+func listWallets(conn *sqlite.Conn, cursor string, limit int64) ([]listWalletsResult, error) {
+	const query = `SELECT wallets.id, wallets.account, wallets.address, wallets.name, wallets.type FROM wallets WHERE wallets.id > :cursor LIMIT :limit`
+
+	var out []listWalletsResult
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":cursor", cursor)
+		stmt.SetInt64(":limit", limit)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		out = append(out, listWalletsResult{
+			WalletsID:      stmt.ColumnText(0),
+			WalletsAccount: stmt.ColumnInt64(1),
+			WalletsAddress: stmt.ColumnText(2),
+			WalletsName:    stmt.ColumnText(3),
+			WalletsType:    stmt.ColumnText(4),
+		})
+
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: listWallets: %w", err)
+	}
+
+	return out, err
+}
+
+func setLoginSignature(conn *sqlite.Conn, kvKey string, kvValue string) error {
+	const query = `INSERT OR REPLACE INTO kv (key, value)
+VALUES (:kvKey, :kvValue)`
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":kvKey", kvKey)
+		stmt.SetText(":kvValue", kvValue)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: setLoginSignature: %w", err)
+	}
+
+	return err
+}
+
+func updateWalletName(conn *sqlite.Conn, walletsName string, walletsID string) error {
+	const query = `UPDATE wallets SET (name)
+=( :walletsName ) WHERE wallets.id = :walletsID`
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":walletsName", walletsName)
+		stmt.SetText(":walletsID", walletsID)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: updateWalletName: %w", err)
+	}
+
+	return err
+}
+
+func removeWallet(conn *sqlite.Conn, walletsID string) error {
+	const query = `DELETE FROM wallets WHERE wallets.id = :walletsID`
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetText(":walletsID", walletsID)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: removeWallet: %w", err)
+	}
+
+	return err
+}
+
+type getWalletCountResult struct {
+	Count int64
+}
+
+func getWalletCount(conn *sqlite.Conn) (getWalletCountResult, error) {
+	const query = `SELECT COUNT(wallets.id) AS count FROM wallets`
+
+	var out getWalletCountResult
+
+	before := func(stmt *sqlite.Stmt) {
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("getWalletCount: more than one result return for a single-kind query")
+		}
+
+		out.Count = stmt.ColumnInt64(0)
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, query, before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: getWalletCount: %w", err)
+	}
+
+	return out, err
 }
