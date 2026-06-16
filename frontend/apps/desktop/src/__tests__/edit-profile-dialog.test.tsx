@@ -140,6 +140,7 @@ describe('EditProfileDialog', () => {
     expect(capturedFormProps.current.defaultValues).toEqual({
       name: 'Old Name',
       icon: 'ipfs://oldiconcid',
+      description: 'Existing description',
     })
 
     await act(async () => {

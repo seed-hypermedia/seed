@@ -61,10 +61,14 @@ vi.mock('@/utils/useNavigate', () => ({
   useNavigate: () => vi.fn(),
 }))
 
-vi.mock('@seed-hypermedia/client', () => ({
-  commentRecordIdFromBlob: vi.fn(),
-  createComment: vi.fn(),
-}))
+vi.mock('@seed-hypermedia/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@seed-hypermedia/client')>()
+  return {
+    ...actual,
+    commentRecordIdFromBlob: vi.fn(),
+    createComment: vi.fn(),
+  }
+})
 
 vi.mock('@shm/editor/comment-editor', () => ({
   CommentEditor: ({onContentChange}: {onContentChange?: (blocks: any[]) => void}) => {
