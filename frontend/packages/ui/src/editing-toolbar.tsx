@@ -11,7 +11,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-change-count'
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
-import {Check, ChevronRight, Clock, Copy, FileDiff, Trash, UploadCloud} from 'lucide-react'
+import {Check, ChevronRight, Clock, Copy, FileDiff, Trash} from 'lucide-react'
 import React, {forwardRef, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -325,10 +325,7 @@ const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onCli
         )}
         onClick={onClick}
       >
-        <span className="hidden sm:inline">Publish</span>
-        <span className="sm:hidden">
-          <UploadCloud className="size-4" />
-        </span>
+        <span>Publish</span>
       </Button>
     )
   },
@@ -414,7 +411,7 @@ export function PublishButtonWithPopover({
   }
 
   return (
-    <>
+    <div className="flex items-center gap-2">
       <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <PopoverAnchor asChild>
           <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
@@ -435,7 +432,7 @@ export function PublishButtonWithPopover({
         </PopoverContent>
       </Popover>
       <OptionsDropdown menuItems={allItems} align="end" side="bottom" />
-    </>
+    </div>
   )
 }
 

@@ -15,8 +15,8 @@ import {
   getDraftNodesOutline,
   hmId,
   NavRoute,
-  replaceRouteDocumentId,
   ProfileTab,
+  replaceRouteDocumentId,
   routeToHref,
   unpackHmId,
   useUniversalAppContext,
@@ -34,6 +34,7 @@ import type {
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
+import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
   useAccount,
   useAccountsMetadata,
@@ -63,17 +64,16 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
-import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
-import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {FilePen, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {AllDocumentsPage} from './all-documents-page'
 import {AccountPage} from './account-page'
+import {AllDocumentsPage} from './all-documents-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
@@ -132,6 +132,30 @@ export type ActiveView =
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
+
+/** Selects the action controls shown for document content. */
+export function getDocumentContentAction({
+  activeView,
+  isEditing,
+  hasDraft,
+  editingFloatingActions,
+  draftActions,
+  actionButtons,
+  allMenuItems,
+}: {
+  activeView: ActiveView
+  isEditing: boolean
+  hasDraft: boolean
+  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  actionButtons: ReactNode
+  allMenuItems: MenuItemType[]
+}) {
+  if (activeView !== 'content') return null
+  if (isEditing && editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
+  if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
+  return actionButtons
+}
 
 type CommentDraftTarget = {
   docId: string
@@ -1725,6 +1749,23 @@ function DocumentBody({
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
+  const documentContentAction = getDocumentContentAction({
+    activeView,
+    isEditing,
+    hasDraft: ctx.draftId !== null,
+    editingFloatingActions,
+    draftActions,
+    actionButtons,
+    allMenuItems,
+  })
+  const documentContentActionOverlay =
+    documentContentAction && !isMobile ? (
+      <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
+        {documentContentAction}
+      </div>
+    ) : null
+  const documentToolsRightAction = isMobile ? documentContentAction : null
+  const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
@@ -1892,6 +1933,7 @@ function DocumentBody({
             existingDraft={isEditing ? undefined : existingDraft}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
+            rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
                 ? undefined
@@ -1989,8 +2031,9 @@ function DocumentBody({
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
+          {floatingButtonsAction}
         </div>
-        {activeView === 'content' ? floatingButtons : null}
+
         {mobilePanelOpen && (
           <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
             <DiscussionsPageContent
@@ -2068,31 +2111,7 @@ function DocumentBody({
         {/* Floating action buttons — when editing, show editing toolbar;
             when a draft exists but not editing, show draft toolbar (publish + menu);
             otherwise show the options menu */}
-        {activeView === 'content' && isEditing && editingFloatingActions ? (
-          <div
-            className={cn(
-              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
-            )}
-          >
-            {editingFloatingActions({menuItems: allMenuItems})}
-          </div>
-        ) : activeView === 'content' && !isEditing && ctx.draftId !== null && draftActions ? (
-          <div
-            className={cn(
-              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
-            )}
-          >
-            {draftActions({menuItems: allMenuItems})}
-          </div>
-        ) : activeView === 'content' && actionButtons ? (
-          <div
-            className={cn(
-              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
-            )}
-          >
-            {actionButtons}
-          </div>
-        ) : null}
+        {documentContentActionOverlay}
         <ScrollArea
           id="scroll-page-wrapper"
           className="h-full"

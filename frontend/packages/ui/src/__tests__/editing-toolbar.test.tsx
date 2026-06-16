@@ -115,6 +115,22 @@ describe('editing-toolbar publish disabled states', () => {
     }
   })
 
+  it('always shows the Publish label and spaces it from the options trigger', () => {
+    const docId = hmId('acct-1', {path: ['my-doc']})
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover docId={docId} existingMenuItems={[]} unpublishedChildCount={0} />,
+    )
+
+    try {
+      const publishTrigger = findButtonByText(container, 'Publish')
+      expect(publishTrigger).toBeTruthy()
+      expect(publishTrigger?.querySelector('svg')).toBeNull()
+      expect(container.firstElementChild?.className).toContain('gap-2')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('keeps the trigger active when changes can be published', () => {
     unpublishedChangeCountMock.mockReturnValue(2)
     const docId = hmId('acct-1', {path: ['my-doc']})

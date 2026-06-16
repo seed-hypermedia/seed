@@ -1,5 +1,5 @@
 import {hmId} from '@shm/shared'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
   getCommentReplyPanelRoute,
@@ -7,6 +7,7 @@ import {
   shouldSuppressMainCommentEditor,
   getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
+  getDocumentContentAction,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -15,6 +16,68 @@ describe('getDocumentResourceRouteKey', () => {
     const versioned = hmId('alice', {path: ['doc'], version: 'version-1', latest: false})
 
     expect(getDocumentResourceRouteKey(latest)).not.toBe(getDocumentResourceRouteKey(versioned))
+  })
+})
+
+describe('getDocumentContentAction', () => {
+  const menuItems = [{key: 'options', label: 'Options', icon: null}]
+
+  it('uses editing actions on the content view while editing', () => {
+    const editingFloatingActions = vi.fn(() => 'editing-actions')
+
+    expect(
+      getDocumentContentAction({
+        activeView: 'content',
+        isEditing: true,
+        hasDraft: true,
+        allMenuItems: menuItems,
+        editingFloatingActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('editing-actions')
+    expect(editingFloatingActions).toHaveBeenCalledWith({menuItems})
+  })
+
+  it('uses draft actions on the content view when a draft exists and editing is inactive', () => {
+    const draftActions = vi.fn(() => 'draft-actions')
+
+    expect(
+      getDocumentContentAction({
+        activeView: 'content',
+        isEditing: false,
+        hasDraft: true,
+        allMenuItems: menuItems,
+        draftActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('draft-actions')
+    expect(draftActions).toHaveBeenCalledWith({menuItems})
+  })
+
+  it('falls back to options actions on the content view', () => {
+    expect(
+      getDocumentContentAction({
+        activeView: 'content',
+        isEditing: false,
+        hasDraft: false,
+        allMenuItems: menuItems,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('options-actions')
+  })
+
+  it('hides content actions outside the content view', () => {
+    expect(
+      getDocumentContentAction({
+        activeView: 'comments',
+        isEditing: true,
+        hasDraft: true,
+        allMenuItems: menuItems,
+        editingFloatingActions: () => 'editing-actions',
+        draftActions: () => 'draft-actions',
+        actionButtons: 'options-actions',
+      }),
+    ).toBeNull()
   })
 })
 
