@@ -46,7 +46,10 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-2025
+          # Keep Windows desktop builds on VS 2022 while the pinned Node
+          # 22/pnpm/electron node-gyp stack cannot detect VS 2026 (18.x) on
+          # windows-2025.
+          - os: windows-2022
             arch: x64
             goarch: amd64
             daemon_name: x86_64-pc-windows-gnu
@@ -64,7 +67,7 @@ jobs:
           enableCrossOsArchive: true
 
       - name: Download GGUF model (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: ${{ !startsWith(matrix.config.os, 'windows') }}
         run: |
           if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
             mkdir -p backend/llm/backends/llamacpp/models
@@ -89,7 +92,7 @@ jobs:
           # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: ${{ !startsWith(matrix.config.os, 'windows') }}
         run: |
           mkdir -p plz-out/bin/backend
           # GPU is enabled by default (no -tags needed)
@@ -101,7 +104,7 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
-        if: matrix.config.os == 'windows-2025'
+        if: startsWith(matrix.config.os, 'windows')
         run: |
           mkdir -p plz-out/bin/backend
           # GPU is enabled by default (no -tags needed)
@@ -120,7 +123,7 @@ jobs:
           VITE_VERSION: "100.0.0"
 
       - name: Build, package & make (Unix)
-        if: matrix.config.os != 'windows-2025'
+        if: ${{ !startsWith(matrix.config.os, 'windows') }}
         run: |
           pnpm desktop:package --arch=${{ matrix.config.arch }}
         env:
@@ -136,7 +139,7 @@ jobs:
           VITE_DESKTOP_HOSTNAME: "http://localhost"
 
       - name: Build, package and make (Win32)
-        if: matrix.config.os == 'windows-2025'
+        if: startsWith(matrix.config.os, 'windows')
         run: |
           $env:DEBUG='electron-osx-sign*,electron-notarize*'
           pnpm desktop:package --arch=${{ matrix.config.arch }}
