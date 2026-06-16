@@ -1,5 +1,4 @@
 import {MainWrapper} from '@/components/main-wrapper'
-import {CreateAccountBanner} from '@/components/onboarding'
 import {useMarkAsRead} from '@/models/documents'
 
 import {useExportDocuments} from '@/models/export-documents'
@@ -81,7 +80,6 @@ export default function LibraryPage() {
       <PanelContainer>
         <MainWrapper scrollable>
           <Container className="justify-center" centered>
-            <CreateAccountBanner />
             <div className="mb-4 flex">
               <DisplayModeTab
                 label="Subscribed"

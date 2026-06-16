@@ -13,9 +13,9 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {KeySquare, Plus, Settings} from 'lucide-react'
+import {KeySquare, LogIn, Plus, Settings} from 'lucide-react'
 import {useEffect, useState} from 'react'
-import {dispatchOnboardingDialog} from './onboarding'
+import {useCreateAccountDialog} from './create-account'
 
 export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: boolean}) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
@@ -32,20 +32,20 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
     .filter((d) => !!d)
 
   useEffect(() => {
-    // Check if current selected account is valid (exists in accountOptions)
-    const isSelectedAccountInvalid =
-      !!myAccounts.data && !myAccounts.data.some((option) => option === selectedIdentityValue)
+    if (!setSelectedIdentity || !myAccounts.data) return
 
-    // Get the first valid account from the filtered options
-    const firstValidAccount = myAccounts.data?.[0]
+    if (myAccounts.data.length === 0) {
+      if (selectedIdentityValue) setSelectedIdentity(null)
+      return
+    }
 
-    // Set selected identity if:
-    // 1. No account is selected, OR
-    // 2. The selected account is not in the valid options list
-    if (setSelectedIdentity && firstValidAccount && (!selectedIdentityValue || isSelectedAccountInvalid)) {
+    const isSelectedAccountInvalid = !myAccounts.data.some((option) => option === selectedIdentityValue)
+    const firstValidAccount = myAccounts.data[0]
+
+    if (firstValidAccount && (!selectedIdentityValue || isSelectedAccountInvalid)) {
       setSelectedIdentity(firstValidAccount)
     }
-  }, [setSelectedIdentity, myAccounts.data])
+  }, [setSelectedIdentity, selectedIdentityValue, myAccounts.data])
   const selectedAccountData = accountQueries.find((q) => q.data?.id?.uid === selectedIdentityValue)?.data
   const [isOpen, setIsOpen] = useState(false)
 
@@ -58,7 +58,8 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
 
   if (!selectedIdentityValue) {
     return (
-      <div className="flex w-full flex-row items-center justify-between gap-3 rounded-sm bg-white p-1 shadow-sm">
+      <div className="bg-background flex w-full flex-row items-center justify-between gap-2 rounded-sm p-1 shadow-sm">
+        <LoginButton />
         <CreateAccountButton />
         <AppSettingsButton />
       </div>
@@ -154,16 +155,37 @@ function LinkKeyButton() {
 }
 
 function CreateAccountButton({className}: {className?: string}) {
+  const createAccountDialog = useCreateAccountDialog()
+
+  return (
+    <>
+      <Button
+        variant="default"
+        className={cn('flex-1 border-none', className)}
+        onClick={() => {
+          createAccountDialog.open({})
+        }}
+      >
+        <Plus className="size-4" />
+        Create Account
+      </Button>
+      {createAccountDialog.content}
+    </>
+  )
+}
+
+function LoginButton() {
+  const navigate = useNavigate()
   return (
     <Button
-      variant="default"
-      className={cn('flex-1 border-none', className)}
+      variant="outline"
+      className="flex-1 border-none"
       onClick={() => {
-        dispatchOnboardingDialog(true)
+        navigate({key: 'settings', tab: 'sync'})
       }}
     >
-      <Plus className="size-4" />
-      Create Account
+      <LogIn className="size-4" />
+      Log in
     </Button>
   )
 }

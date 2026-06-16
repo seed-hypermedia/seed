@@ -88,29 +88,51 @@ export function useAppDialog<DialogInput>(
   DialogContentComponent: FC<{
     onClose: () => void
     input: DialogInput
+    setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
   }>,
   options?: {
     isAlert?: boolean
     onClose?: () => void
     className?: string // Dialog container styles (size, position, etc.)
     contentClassName?: string // Inner content wrapper styles (padding, layout, etc.)
+    showCloseButton?: boolean | ((input: DialogInput) => boolean)
+    preventClose?: boolean | ((input: DialogInput) => boolean)
     overrideNavigation?: NavigationContext
   },
 ) {
   const [openState, setOpenState] = useState<null | DialogInput>(null)
+  const [closeProtection, setCloseProtection] = useState<null | {preventClose: boolean; showCloseButton: boolean}>(null)
   const nav = useNavigation(options?.overrideNavigation)
 
   const Component = getComponent(options?.isAlert)
   const onClose = options?.onClose
   return useMemo(() => {
     function open(input: DialogInput) {
+      setCloseProtection(null)
       setOpenState(input)
     }
 
     function close() {
+      setCloseProtection(null)
       setOpenState(null)
       onClose?.()
     }
+
+    const optionClosePrevented =
+      typeof options?.preventClose === 'function'
+        ? openState
+          ? options.preventClose(openState)
+          : false
+        : !!options?.preventClose
+    const optionShowCloseButton =
+      typeof options?.showCloseButton === 'function'
+        ? openState
+          ? options.showCloseButton(openState)
+          : true
+        : options?.showCloseButton
+    const isClosePrevented = closeProtection?.preventClose ?? optionClosePrevented
+    const showCloseButton = closeProtection?.showCloseButton ?? optionShowCloseButton
+
     return {
       open,
       close,
@@ -119,6 +141,7 @@ export function useAppDialog<DialogInput>(
           modal
           onOpenChange={(isOpen: boolean) => {
             if (isOpen) throw new Error('Cannot open app dialog')
+            if (isClosePrevented) return
             close()
           }}
           open={!!openState}
@@ -127,12 +150,18 @@ export function useAppDialog<DialogInput>(
             {/* Stop React synthetic events from bubbling through portal to parent components */}
             <div onClick={(e) => e.stopPropagation()}>
               <NavContextProvider value={nav}>
-                <Component.Overlay onClick={close} />
-                <Component.Content className={options?.className} contentClassName={options?.contentClassName}>
+                <Component.Overlay onClick={isClosePrevented ? undefined : close} />
+                <Component.Content
+                  className={options?.className}
+                  contentClassName={options?.contentClassName}
+                  showCloseButton={showCloseButton}
+                >
                   {openState && (
                     <DialogContentComponent
                       input={openState}
+                      setDialogCloseProtection={setCloseProtection}
                       onClose={() => {
+                        setCloseProtection(null)
                         setOpenState(null)
                         onClose?.()
                       }}
@@ -145,5 +174,16 @@ export function useAppDialog<DialogInput>(
         </Component.Root>
       ),
     }
-  }, [Component, DialogContentComponent, nav, openState, onClose, options?.className, options?.contentClassName])
+  }, [
+    Component,
+    DialogContentComponent,
+    nav,
+    openState,
+    onClose,
+    options?.className,
+    options?.contentClassName,
+    options?.showCloseButton,
+    options?.preventClose,
+    closeProtection,
+  ])
 }

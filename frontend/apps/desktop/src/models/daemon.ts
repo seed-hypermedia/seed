@@ -10,7 +10,7 @@ import {
 } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {useResources} from '@shm/shared/models/entity'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, refetchQueriesByKey, setQueriesDataByKey} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {FetchQueryOptions, useMutation, UseMutationOptions, useQuery, UseQueryOptions} from '@tanstack/react-query'
@@ -31,6 +31,10 @@ const VAULT_STATUS_POLL_INTERVAL = 10_000
 export function invalidateVaultDependentQueries() {
   invalidateQueries([queryKeys.GET_VAULT_STATUS])
   invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+}
+
+function clearLocalAccountQueryData() {
+  setQueriesDataByKey([queryKeys.LOCAL_ACCOUNT_ID_LIST], [])
 }
 
 export function getVaultStatusCacheBustKey(status: GetVaultStatusResponse | null | undefined) {
@@ -168,6 +172,26 @@ export function useDisconnectVault(opts?: UseMutationOptions<void, unknown, void
     onSuccess: async (data, variables, context) => {
       invalidateVaultDependentQueries()
       opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+/** Logs out by disconnecting remote vault sync and deleting all local vault keys. */
+export function useLogout(opts?: UseMutationOptions<void, unknown, void>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async () => {
+      await grpcClient.daemon.disconnectVault({clearLocalVault: true})
+      clearLocalAccountQueryData()
+    },
+    onSuccess: async (data, variables, context) => {
+      clearLocalAccountQueryData()
+      invalidateVaultDependentQueries()
+      opts?.onSuccess?.(data, variables, context)
+    },
+    onError: async (error, variables, context) => {
+      await refetchQueriesByKey([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+      opts?.onError?.(error, variables, context)
     },
   })
 }

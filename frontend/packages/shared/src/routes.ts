@@ -18,6 +18,9 @@ export type ProfileTab = (typeof PROFILE_TABS)[number]
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
+export const onboardingRouteSchema = z.object({key: z.literal('onboarding')})
+export type OnboardingRoute = z.infer<typeof onboardingRouteSchema>
+
 export const contactsRouteSchema = z.object({key: z.literal('contacts')})
 export type ContactsRoute = z.infer<typeof contactsRouteSchema>
 
@@ -324,6 +327,7 @@ export const libraryRouteSchema = z.object({
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
 export const navRouteSchema = z.discriminatedUnion('key', [
+  onboardingRouteSchema,
   libraryRouteSchema,
   contactsRouteSchema,
   profileRouteSchema,

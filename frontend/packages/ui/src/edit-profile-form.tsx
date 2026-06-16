@@ -5,13 +5,14 @@ import {Control, FieldValues, Path, useController, useForm} from 'react-hook-for
 import {z} from 'zod'
 import {Button} from './button'
 import {Field} from './form-fields'
-import {FormInput} from './form-input'
+import {FormError, FormInput} from './form-input'
 import {getDaemonFileUrl} from './get-file-url'
 import {SizableText} from './text'
 
 export const siteMetaSchema = z.object({
-  name: z.string(),
+  name: z.string().trim().min(1, 'Name is required'),
   icon: z.string().or(z.instanceof(Blob)).nullable(),
+  description: z.string().optional(),
 })
 export type SiteMetaFields = z.infer<typeof siteMetaSchema>
 
@@ -32,6 +33,7 @@ export function EditProfileForm({
     defaultValues: defaultValues || {
       name: '',
       icon: null,
+      description: '',
     },
   })
   useEffect(() => {
@@ -44,6 +46,7 @@ export function EditProfileForm({
       <div className="flex flex-col gap-2">
         <Field id="name" label={tx('Account Name')}>
           <FormInput control={form.control} name="name" placeholder={tx('My New Public Name')} />
+          <FormError errors={form.formState.errors} name="name" />
         </Field>
         <Field id="icon" label={tx('Profile Icon')}>
           <ImageField control={form.control} name="icon" label={tx('Profile Icon')} processImage={processImage} />

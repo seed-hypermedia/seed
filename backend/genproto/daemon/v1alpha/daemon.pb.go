@@ -845,9 +845,12 @@ func (x *StartVaultConnectionResponse) GetExpireTime() *timestamppb.Timestamp {
 
 // Request to disconnect remote vault mode.
 type DisconnectVaultRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Optional. When true, clears local vault state after disconnecting without
+	// recording account delete tombstones.
+	ClearLocalVault bool `protobuf:"varint,1,opt,name=clear_local_vault,json=clearLocalVault,proto3" json:"clear_local_vault,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DisconnectVaultRequest) Reset() {
@@ -878,6 +881,13 @@ func (x *DisconnectVaultRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DisconnectVaultRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectVaultRequest) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *DisconnectVaultRequest) GetClearLocalVault() bool {
+	if x != nil {
+		return x.ClearLocalVault
+	}
+	return false
 }
 
 // Request to force the syncing process.
@@ -2477,8 +2487,9 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\tvault_url\x18\x01 \x01(\tR\bvaultUrl\x12#\n" +
 	"\rconnect_token\x18\x02 \x01(\tR\fconnectToken\x12;\n" +
 	"\vexpire_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expireTime\"\x18\n" +
-	"\x16DisconnectVaultRequest\"\x12\n" +
+	"expireTime\"D\n" +
+	"\x16DisconnectVaultRequest\x12*\n" +
+	"\x11clear_local_vault\x18\x01 \x01(\bR\x0fclearLocalVault\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +
 	"\x13ForceReindexRequest\"\x16\n" +
 	"\x14ForceReindexResponse\"\x16\n" +

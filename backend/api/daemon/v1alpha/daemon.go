@@ -698,13 +698,18 @@ func (srv *Server) clearVaultConnectionPoll(poll *vaultConnectionPoll) {
 }
 
 // DisconnectVault implements the corresponding gRPC method.
-func (srv *Server) DisconnectVault(context.Context, *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
+func (srv *Server) DisconnectVault(_ context.Context, req *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
 	vlt, err := srv.store.Vault()
 	if err != nil {
 		return nil, err
 	}
 
-	if err := vlt.Disconnect(); err != nil {
+	if req.ClearLocalVault {
+		err = vlt.DisconnectAndClear()
+	} else {
+		err = vlt.Disconnect()
+	}
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to disconnect vault: %v", err)
 	}
 

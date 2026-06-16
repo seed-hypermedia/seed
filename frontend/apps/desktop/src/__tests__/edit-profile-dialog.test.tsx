@@ -1,9 +1,9 @@
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
-;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 import {act} from 'react-dom/test-utils'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 
 const updateProfileMock = vi.hoisted(() => vi.fn())
 const fileUploadMock = vi.hoisted(() => vi.fn())
@@ -121,7 +121,7 @@ describe('EditProfileDialog', () => {
     document.body.innerHTML = ''
   })
 
-  it('calls UpdateProfile RPC with current name, existing ipfs icon, and preserved description on submit', async () => {
+  it('calls UpdateProfile RPC with current name, existing ipfs icon, and edited description on submit', async () => {
     useAccountMock.mockReturnValue({
       isLoading: false,
       data: {
@@ -143,7 +143,11 @@ describe('EditProfileDialog', () => {
     })
 
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'New Name', icon: 'ipfs://oldiconcid'})
+      await capturedFormProps.current.onSubmit({
+        name: 'New Name',
+        icon: 'ipfs://oldiconcid',
+        description: 'Updated description',
+      })
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()
@@ -153,7 +157,7 @@ describe('EditProfileDialog', () => {
       profile: {
         name: 'New Name',
         icon: 'ipfs://oldiconcid',
-        description: 'Existing description',
+        description: 'Updated description',
       },
       signingKeyName: ACCOUNT_UID,
     })
@@ -183,7 +187,7 @@ describe('EditProfileDialog', () => {
 
     const blob = new Blob([new Uint8Array([1, 2, 3])], {type: 'image/png'})
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Alice', icon: blob})
+      await capturedFormProps.current.onSubmit({name: 'Alice', icon: blob, description: 'Alice bio'})
     })
 
     expect(fileUploadMock).toHaveBeenCalledTimes(1)
@@ -196,7 +200,7 @@ describe('EditProfileDialog', () => {
       profile: {
         name: 'Alice',
         icon: 'ipfs://newcid123',
-        description: '',
+        description: 'Alice bio',
       },
       signingKeyName: ACCOUNT_UID,
     })
@@ -220,7 +224,7 @@ describe('EditProfileDialog', () => {
     const {container, root, queryClient} = renderDialog(onClose)
 
     await act(async () => {
-      await capturedFormProps.current.onSubmit({name: 'Bob', icon: null})
+      await capturedFormProps.current.onSubmit({name: 'Bob', icon: null, description: ''})
     })
 
     expect(fileUploadMock).not.toHaveBeenCalled()

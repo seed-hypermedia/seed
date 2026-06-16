@@ -15,10 +15,8 @@ import {onlineManager, QueryClientProvider, QueryKey} from '@tanstack/react-quer
 import React, {Suspense, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
-import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DebugDialogs} from './components/debug-dialogs'
-import {Onboarding, OnboardingDebugBox, OnboardingDialog, ResetOnboardingButton} from './components/onboarding'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -256,15 +254,6 @@ function MainApp({}: {}) {
   const isDarkMode = useDarkMode()
   const windowUtils = useWindowUtils(ipc)
 
-  // Initialize showOnboarding state with all checks to avoid flashing
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    const {hasCompletedOnboarding, hasSkippedOnboarding, initialAccountIdCount} = getOnboardingState()
-    // Don't show onboarding if it's already completed, skipped, or if there are accounts
-    const hasInitialAccountIds = initialAccountIdCount > 0
-    const shouldShowOnboarding = !hasCompletedOnboarding && !hasSkippedOnboarding && !hasInitialAccountIds
-    return shouldShowOnboarding
-  })
-
   useListenAppEvent('trigger_database_reindex', () => {
     toast.promise(grpcClient.daemon.forceReindex({}), {
       loading: 'Reindexing the database…',
@@ -275,10 +264,6 @@ function MainApp({}: {}) {
     })
   })
 
-  // Initialize the sync service when daemon is ready
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false)
-  }
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
     let disposed = false
@@ -297,20 +282,9 @@ function MainApp({}: {}) {
     }
   }, [])
 
-  let mainContent = showOnboarding ? (
+  const mainContent = (
     <>
-      <div className="fixed inset-0 size-full overflow-hidden overflow-y-scroll bg-red-500">
-        <Onboarding modal={false} onComplete={handleOnboardingComplete} />
-      </div>
-      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
-      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-    </>
-  ) : (
-    <>
-      <OnboardingDialog />
       <Main />
-      {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-      {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
       {!IS_PROD_DESKTOP && false && <DebugDialogs />}
     </>
   )
@@ -406,10 +380,7 @@ function MainApp({}: {}) {
                   window.location.reload()
                 }}
               >
-                <NavigationContainer>
-                  {mainContent}
-                  {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-                </NavigationContainer>
+                <NavigationContainer>{mainContent}</NavigationContainer>
 
                 <Toaster />
 

@@ -2,8 +2,9 @@ import {useBookmarks, useRemoveBookmark} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
+import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
-import {client} from '@/trpc'
+import {getOrCreateSiteHome} from '@/utils/create-site'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMAccountsMetadata,
@@ -14,11 +15,13 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useRouteLink} from '@shm/shared'
+import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
 import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -44,6 +47,7 @@ import {CircleOff} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
@@ -61,7 +65,6 @@ import {
   Quote,
   Users,
 } from 'lucide-react'
-import {nanoid} from 'nanoid'
 import React, {memo} from 'react'
 import {BookmarkOptionsMenu} from './bookmark-options-menu'
 import {CreateDocumentButton} from './create-doc-button'
@@ -74,10 +77,39 @@ export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
+  const selectedSite = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
+  const contacts = useSelectedAccountContacts()
+  const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
+  const joinedSiteCount = selectedAccountId
+    ? new Set(
+        (contacts.data ?? [])
+          .filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
+          .map((contact) => contact.subject),
+      ).size
+    : 1
+  const isCheckingOnboardingVisibility =
+    !!selectedAccountId && (contacts.isLoading || selectedSite.isInitialLoading || selectedSite.isDiscovering)
+  const shouldShowOnboarding = !isCheckingOnboardingVisibility && !hasSelectedSite && joinedSiteCount < 2
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => (
         <SidebarFooterLayout className="gap-0 p-0">
+          <SidebarMenu className="px-2 pb-3">
+            {shouldShowOnboarding ? (
+              <SidebarMenuItem>
+                <SmallListItem
+                  onClick={() => {
+                    navigate({key: 'onboarding'})
+                  }}
+                  title="Get Started with Seed"
+                  bold
+                  className="min-h-12 w-full border border-dashed border-neutral-400 bg-transparent py-2 hover:border-neutral-600 hover:bg-transparent dark:border-neutral-600 dark:hover:border-neutral-400 dark:hover:bg-transparent"
+                  icon={<span className="h-2 w-2 rounded-full bg-emerald-500" />}
+                  rightHover={[]}
+                />
+              </SidebarMenuItem>
+            ) : null}
+          </SidebarMenu>
           <SidebarSeparator />
           <SidebarMenu className="py-4">
             <SidebarMenuItem>
@@ -367,10 +399,36 @@ function SubscriptionsSection() {
   // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
 
-  // Filter contacts with site subscription, excluding own account
-  const siteSubscribedRaw = contacts.data?.filter(
-    (contact) => contact.subscribe?.site && contact.subject !== selectedAccountId,
-  )
+  const defaultJoinedSiteContact: HMContactRecord = {
+    id: `default-joined-site:${defaultJoinedSiteUid}`,
+    subject: defaultJoinedSiteUid,
+    name: '',
+    account: '',
+    signer: '',
+    subscribe: {site: true},
+  }
+
+  React.useEffect(() => {
+    if (selectedAccountId) return
+    grpcClient.subscriptions
+      .subscribe({
+        account: defaultJoinedSiteUid,
+        path: '',
+        recursive: true,
+      })
+      .then(() => {
+        invalidateQueries([queryKeys.SUBSCRIPTIONS])
+      })
+      .catch((error) => {
+        console.error('Failed to subscribe to default joined site', error)
+      })
+  }, [selectedAccountId])
+
+  // Filter contacts with site subscription, excluding own account. Before an
+  // account exists, show the default joined site so the sidebar isn't empty.
+  const siteSubscribedRaw = selectedAccountId
+    ? contacts.data?.filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
+    : [defaultJoinedSiteContact]
 
   // Deduplicate by subject — the same site may have been joined multiple times
   // (e.g. via delegated keys or repeated join actions), each creating a separate
@@ -432,9 +490,9 @@ function SubscriptionsSection() {
           const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
           const metadata: HMMetadata = {name, icon}
 
-          // Skip if no name and still loading
-          if (!name && siteResource?.isLoading) return null
-          if (!name) return null
+          // Skip if no name and still loading, except for the pre-account default site.
+          if (!name && siteResource?.isLoading && selectedAccountId) return null
+          if (!name && selectedAccountId) return null
 
           // Get activity data
           const docData = subscribedDocs.data?.get(id.id)
@@ -464,6 +522,7 @@ function SubscriptionsSection() {
                 activitySummary={activitySummary}
                 latestComment={latestComment}
                 accountsMetadata={accountsMetadata}
+                canLeave={!!selectedAccountId}
               />
             </SidebarMenuItem>
           )
@@ -489,6 +548,7 @@ function JoinedSiteListItem({
   activitySummary,
   latestComment,
   accountsMetadata,
+  canLeave = true,
 }: {
   id: UnpackedHypermediaId
   contact: HMContactRecord
@@ -498,6 +558,7 @@ function JoinedSiteListItem({
   activitySummary?: HMActivitySummary
   latestComment?: HMComment
   accountsMetadata?: HMAccountsMetadata
+  canLeave?: boolean
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   const navigate = useNavigate()
@@ -542,14 +603,18 @@ function JoinedSiteListItem({
             icon: <LayoutList className="size-4" />,
             onClick: () => navigate({key: 'all-documents', id}),
           },
-          {
-            key: 'leave',
-            label: 'Leave Site',
-            icon: <CircleOff className="size-4" />,
-            variant: 'destructive',
-            disabled: isPending,
-            onClick: () => leaveSite(),
-          },
+          ...(canLeave
+            ? [
+                {
+                  key: 'leave',
+                  label: 'Leave Site',
+                  icon: <CircleOff className="size-4" />,
+                  variant: 'destructive' as const,
+                  disabled: isPending,
+                  onClick: () => leaveSite(),
+                },
+              ]
+            : []),
         ]}
       />
     </>
@@ -686,6 +751,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
   const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
+  const [isCreatingSite, setIsCreatingSite] = React.useState(false)
 
   if (!selectedAccountId) return null
 
@@ -724,21 +790,21 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
         <Button
           className="w-full"
           variant="default"
+          disabled={isCreatingSite}
           onClick={async () => {
-            const draftId = nanoid(10)
-            await client.drafts.write.mutate({
-              id: draftId,
-              editUid: selectedAccountId,
-              editPath: [],
-              metadata: {},
-              content: [],
-              deps: [],
-              visibility: 'PUBLIC',
-            })
-            navigate({
-              key: 'document',
-              id: hmId(selectedAccountId, {path: []}),
-            })
+            setIsCreatingSite(true)
+            try {
+              const homeId = await getOrCreateSiteHome(selectedAccountId)
+              navigate({
+                key: 'document',
+                id: homeId,
+              })
+            } catch (error) {
+              console.error('Failed to verify site before creating draft:', error)
+              toast.error('Could not verify whether your site already exists. Please try again.')
+            } finally {
+              setIsCreatingSite(false)
+            }
           }}
         >
           Create my Site

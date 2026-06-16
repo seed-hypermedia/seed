@@ -196,7 +196,11 @@ message StartVaultConnectionResponse {
 }
 
 // Request to disconnect remote vault mode.
-message DisconnectVaultRequest {}
+message DisconnectVaultRequest {
+  // Optional. When true, clears local vault state after disconnecting without
+  // recording account delete tombstones.
+  bool clear_local_vault = 1;
+}
 
 // Request to force the syncing process.
 message ForceSyncRequest {}
