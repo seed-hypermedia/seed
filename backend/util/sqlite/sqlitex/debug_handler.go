@@ -121,6 +121,8 @@ type callerRow struct {
 	TotalP90Ms       float64
 	TotalP99Ms       float64
 	TotalP99Class    string
+	TotalMaxMs       float64
+	TotalMaxClass    string
 	PoolWaitP10Ms    float64
 	PoolWaitP50Ms    float64
 	PoolWaitP90Ms    float64
@@ -131,6 +133,8 @@ type callerRow struct {
 	HoldP90Ms        float64
 	HoldP99Ms        float64
 	HoldP99Class     string
+	HoldMaxMs        float64
+	HoldMaxClass     string
 	WaitP10Ms        float64
 	WaitP50Ms        float64
 	WaitP90Ms        float64
@@ -149,6 +153,8 @@ type readCallerRow struct {
 	HoldP90Ms    float64
 	HoldP99Ms    float64
 	HoldP99Class string
+	HoldMaxMs    float64
+	HoldMaxClass string
 }
 
 type recentRow struct {
@@ -276,6 +282,8 @@ func buildSQLitePage() sqlitePage {
 			TotalP90Ms:       s.TotalP90Ms,
 			TotalP99Ms:       s.TotalP99Ms,
 			TotalP99Class:    classForHoldMs(s.TotalP99Ms),
+			TotalMaxMs:       s.TotalMaxMs,
+			TotalMaxClass:    classForHoldMs(s.TotalMaxMs),
 			PoolWaitP10Ms:    s.PoolWaitP10Ms,
 			PoolWaitP50Ms:    s.PoolWaitP50Ms,
 			PoolWaitP90Ms:    s.PoolWaitP90Ms,
@@ -286,6 +294,8 @@ func buildSQLitePage() sqlitePage {
 			HoldP90Ms:        s.HoldP90Ms,
 			HoldP99Ms:        s.HoldP99Ms,
 			HoldP99Class:     classForHoldMs(s.HoldP99Ms),
+			HoldMaxMs:        s.HoldMaxMs,
+			HoldMaxClass:     classForHoldMs(s.HoldMaxMs),
 			WaitP10Ms:        s.WaitP10Ms,
 			WaitP50Ms:        s.WaitP50Ms,
 			WaitP90Ms:        s.WaitP90Ms,
@@ -332,6 +342,8 @@ func buildSQLitePage() sqlitePage {
 			HoldP90Ms:    s.HoldP90Ms,
 			HoldP99Ms:    s.HoldP99Ms,
 			HoldP99Class: classForHoldMs(s.HoldP99Ms),
+			HoldMaxMs:    s.HoldMaxMs,
+			HoldMaxClass: classForHoldMs(s.HoldMaxMs),
 		})
 	}
 	sort.Slice(page.ReadCallers, func(i, j int) bool {
@@ -680,6 +692,7 @@ th.grp{background:#ececec;text-align:center}
 <dt>begin_wait</dt><dd>Time spent inside <code>BEGIN IMMEDIATE</code> before it returned (includes SQLite's internal busy-handler backoff). Large values mean the writer slot was held by <em>someone else</em> while this caller waited.</dd>
 <dt>hold</dt><dd>Wall time from successful <code>BEGIN IMMEDIATE</code> to <code>COMMIT</code>/<code>ROLLBACK</code>. Large values mean <em>this caller</em> is doing too much work inside the transaction.</dd>
 <dt>total</dt><dd>Caller-visible end-to-end latency: <code>pool_wait + begin_wait + hold</code>. The single column an operator can use to spot "who is slow" without summing three percentile groups. The per-caller table is sorted by <code>total p99</code> for this reason.</dd>
+<dt>worst</dt><dd>All-time maximum since the daemon started, for the <em>hold</em> and <em>total</em> groups. Unlike <code>p99</code>, which is computed from the last 8192 samples and forgets older outliers when the reservoir wraps, <code>worst</code> is updated at record time and never decays. Use it to catch the rare stall that has already aged out of p99: <code>worst</code> ≥ <code>p99</code> always; <code>worst</code> ≫ <code>p99</code> means a one-off outlier has been forgotten by the reservoir.</dd>
 <dt>begin_busy</dt><dd>The busy_timeout expired before <code>BEGIN IMMEDIATE</code> could succeed; the gRPC client sees this as <code>SQLITE_BUSY: database is locked</code>. Each row carries a <em>held by</em> snapshot of whoever owned the writer slot at the moment of failure and a <em>drained during wait</em> list of holders that finished during the wait. <strong>For the aggregate "who caused all these busys" view see the <em>Begin-busy attribution</em> section below — usually the most useful starting point.</strong> begin_busy rows live in their own collapsed ring (separate from completed slow writes) so they can't evict real slow commits via their synthesised hold.</dd>
 <dt>begin_busy_timeout</dt><dd>SQLite returned <code>SQLITE_BUSY_TIMEOUT</code> — the unix VFS's fcntl-based busy_timeout path expired. A file-level lock byte was contested for the full busy_timeout. <strong>If <em>held by</em> is also empty for these rows, that means no instrumented WithTx/Save was holding the writer mutex; the kernel-level fcntl byte was nevertheless unavailable.</strong> Diagnostic: another process holds the same DB file (multi-process SQLite is not our intended mode), or a kernel-level contention pattern is in play.</dd>
 <dt>begin_busy_snapshot</dt><dd>SQLite returned <code>SQLITE_BUSY_SNAPSHOT</code> — a wal_index snapshot held by a reader couldn't be advanced past for the writer. Look at the Read operations table for callers with high <em>hold p99</em>; a long-held read transaction on the same connection blocks new writers from acquiring a fresh snapshot.</dd>
@@ -751,9 +764,9 @@ th.grp{background:#ececec;text-align:center}
 <th class="num" rowspan="2">busy</th>
 <th class="num" rowspan="2">Σ hold</th>
 <th class="num" rowspan="2">% wall</th>
-<th class="grp" colspan="4">total (caller-visible latency)</th>
+<th class="grp" colspan="5">total (caller-visible latency)</th>
 <th class="grp" colspan="4">pool_wait (queued for conn)</th>
-<th class="grp" colspan="4">hold (caller's own work)</th>
+<th class="grp" colspan="5">hold (caller's own work)</th>
 <th class="grp" colspan="4">begin_wait (queued for writer mutex)</th>
 </tr>
 <tr>
@@ -761,6 +774,7 @@ th.grp{background:#ececec;text-align:center}
 <th class="num">p50</th>
 <th class="num">p90</th>
 <th class="num">p99</th>
+<th class="num">worst</th>
 <th class="num">p10</th>
 <th class="num">p50</th>
 <th class="num">p90</th>
@@ -769,6 +783,7 @@ th.grp{background:#ececec;text-align:center}
 <th class="num">p50</th>
 <th class="num">p90</th>
 <th class="num">p99</th>
+<th class="num">worst</th>
 <th class="num">p10</th>
 <th class="num">p50</th>
 <th class="num">p90</th>
@@ -789,6 +804,7 @@ th.grp{background:#ececec;text-align:center}
 <td class="num">{{fmtMs .TotalP50Ms}}</td>
 <td class="num">{{fmtMs .TotalP90Ms}}</td>
 <td class="num {{.TotalP99Class}}">{{fmtMs .TotalP99Ms}}</td>
+<td class="num {{.TotalMaxClass}}">{{fmtMs .TotalMaxMs}}</td>
 <td class="num">{{fmtMs .PoolWaitP10Ms}}</td>
 <td class="num">{{fmtMs .PoolWaitP50Ms}}</td>
 <td class="num">{{fmtMs .PoolWaitP90Ms}}</td>
@@ -797,6 +813,7 @@ th.grp{background:#ececec;text-align:center}
 <td class="num">{{fmtMs .HoldP50Ms}}</td>
 <td class="num">{{fmtMs .HoldP90Ms}}</td>
 <td class="num {{.HoldP99Class}}">{{fmtMs .HoldP99Ms}}</td>
+<td class="num {{.HoldMaxClass}}">{{fmtMs .HoldMaxMs}}</td>
 <td class="num">{{fmtMs .WaitP10Ms}}</td>
 <td class="num">{{fmtMs .WaitP50Ms}}</td>
 <td class="num">{{fmtMs .WaitP90Ms}}</td>
@@ -837,13 +854,14 @@ th.grp{background:#ececec;text-align:center}
 <tr>
 <th rowspan="2">caller</th>
 <th class="num" rowspan="2">total</th>
-<th class="grp" colspan="4">hold (SHARED reader lock)</th>
+<th class="grp" colspan="5">hold (SHARED reader lock)</th>
 </tr>
 <tr>
 <th class="num">p10</th>
 <th class="num">p50</th>
 <th class="num">p90</th>
 <th class="num">p99</th>
+<th class="num">worst</th>
 </tr>
 </thead>
 <tbody>
@@ -855,6 +873,7 @@ th.grp{background:#ececec;text-align:center}
 <td class="num">{{fmtMs .HoldP50Ms}}</td>
 <td class="num">{{fmtMs .HoldP90Ms}}</td>
 <td class="num {{.HoldP99Class}}">{{fmtMs .HoldP99Ms}}</td>
+<td class="num {{.HoldMaxClass}}">{{fmtMs .HoldMaxMs}}</td>
 </tr>
 {{end}}
 </tbody>

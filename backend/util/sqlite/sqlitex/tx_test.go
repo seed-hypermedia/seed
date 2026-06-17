@@ -119,6 +119,45 @@ func TestPerCallerP99ReflectsRealHolds(t *testing.T) {
 		"p99 (or max-visible hold) must reflect the 150 ms commit, not be dragged below it by savepoint noise")
 }
 
+// TestWorstColumnRenders verifies the "worst" column renders on
+// /debug/sqlite for both the hold and total groups of the Write
+// operations table. The column header must appear (twice — once per
+// group), and a known-slow commit must surface in the rendered body
+// at a magnitude close to the actual hold. This guards against template
+// drift that would silently drop the new cells.
+func TestWorstColumnRenders(t *testing.T) {
+	pool := newMemPool(t)
+	defer pool.Close()
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, sqlitex.Exec(conn, "CREATE TABLE IF NOT EXISTS worsttest (x int);", nil))
+
+	// One slow commit to give the worst column something meaningful to
+	// show. The test only asserts magnitude (~120 ms range), not exact
+	// values, since the surrounding instrumentation adds a few ms.
+	require.NoError(t, sqlitex.WithTx(conn, func() error {
+		time.Sleep(120 * time.Millisecond)
+		return sqlitex.Exec(conn, "INSERT INTO worsttest (x) VALUES (1);", nil)
+	}))
+
+	body := renderDebugPage(t)
+
+	// The new column header must appear in both groups of the write
+	// table (total + hold) plus the read table = 3 occurrences min.
+	// strings.Count keeps the assertion robust to ordering changes.
+	require.GreaterOrEqual(t, strings.Count(body, `<th class="num">worst</th>`), 2,
+		"worst header must appear at least twice (total + hold groups) in the write table")
+
+	// The slow commit must be visible somewhere in this caller's row —
+	// fmtMs renders as "120.x ms" (or similar). Loose regex matches both
+	// the p99 and the worst cells; that's fine, the point is that the
+	// magnitude survived to render.
+	require.Contains(t, body, "TestWorstColumnRenders")
+	require.Regexp(t, `1[0-9]{2}\.[0-9] ms`, body,
+		"worst (or p99) cell must reflect the ~120 ms commit")
+}
+
 // TestWithTxRecordsBeginInterrupted verifies a non-busy BEGIN IMMEDIATE
 // failure (here SQLITE_INTERRUPT from a pre-cancelled ctx) is reported as
 // begin_interrupted, not begin_busy. Previously every non-nested BEGIN

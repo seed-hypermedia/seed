@@ -196,6 +196,15 @@ type writeStats struct {
 	// savepoint (nested — double-counts the outer scope), begin_busy,
 	// begin_interrupted, and savepoint_ro.
 	holdSumNs uint64
+	// holdMaxMs / totalMaxMs are the all-time maxima for hold and
+	// pool_wait+begin_wait+hold respectively, in ms. Tracked separately
+	// from the reservoirs so they survive ring eviction: hot callers can
+	// produce >8192 samples between snapshots, in which case a rare slow
+	// outlier disappears from p99 once the ring wraps. The "worst" column
+	// on /debug/sqlite reads these. Gated on the same outcome sets as the
+	// corresponding reservoirs.
+	holdMaxMs  float64
+	totalMaxMs float64
 }
 
 // readStats tracks observations from outcomeSavepointReadOnly: top-level
@@ -205,6 +214,10 @@ type writeStats struct {
 type readStats struct {
 	count      uint64
 	holdReserv []float64 // hold durations in ms; bounded
+	// holdMaxMs is the all-time maximum SHARED-lock hold for this caller,
+	// in ms — survives ring eviction so a rare slow read stays visible in
+	// the "worst" column even after the reservoir wraps past it.
+	holdMaxMs float64
 }
 
 // reservoirCap controls how many recent samples back each per-caller hold
@@ -227,6 +240,7 @@ func (s *callerStats) record(hold, wait, poolWait time.Duration, outcome txOutco
 		// SAVEPOINT statement itself never blocks on the writer slot).
 		s.read.count++
 		appendReservoir(&s.read.holdReserv, hold, s.read.count)
+		s.read.holdMaxMs = maxMs(s.read.holdMaxMs, hold)
 		return
 	}
 
@@ -260,6 +274,7 @@ func (s *callerStats) record(hold, wait, poolWait time.Duration, outcome txOutco
 	case outcomeCommit, outcomeRollback, outcomeSavepointTop:
 		appendReservoir(&w.holdReserv, hold, w.count)
 		w.holdSumNs += uint64(hold)
+		w.holdMaxMs = maxMs(w.holdMaxMs, hold)
 	}
 	// waitReserv tracks how long the caller queued for the writer slot.
 	// WithTx queues at BEGIN IMMEDIATE — that wait is real writer-mutex
@@ -295,6 +310,7 @@ func (s *callerStats) record(hold, wait, poolWait time.Duration, outcome txOutco
 		// adding them as-is here would double-count, but the result is
 		// still meaningful as "total time the caller was blocked".
 		appendReservoir(&w.totalReserv, poolWait+wait+hold, w.count)
+		w.totalMaxMs = maxMs(w.totalMaxMs, poolWait+wait+hold)
 	}
 }
 
@@ -307,12 +323,26 @@ func appendReservoir(r *[]float64, d time.Duration, count uint64) {
 	(*r)[count%reservoirCap] = ms
 }
 
-// writeHoldPercentilesMs returns p10, p50, p90, p99 of writer-slot hold
-// durations recorded under outcomes that owned the writer slot.
-func (s *callerStats) writeHoldPercentilesMs() (p10, p50, p90, p99 float64) {
+// maxMs returns the larger of cur and d (converted to ms). Used to track
+// the all-time max alongside each reservoir so a rare slow outlier
+// survives ring eviction and stays visible in the "worst" column.
+func maxMs(cur float64, d time.Duration) float64 {
+	ms := float64(d) / float64(time.Millisecond)
+	if ms > cur {
+		return ms
+	}
+	return cur
+}
+
+// writeHoldPercentilesMs returns p10, p50, p90, p99, max of writer-slot
+// hold durations recorded under outcomes that owned the writer slot. The
+// max is the all-time maximum since the tracker started; unlike p99 it
+// survives ring eviction.
+func (s *callerStats) writeHoldPercentilesMs() (p10, p50, p90, p99, max float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return percentilesNearestRank(s.write.holdReserv)
+	p10, p50, p90, p99 = percentilesNearestRank(s.write.holdReserv)
+	return p10, p50, p90, p99, s.write.holdMaxMs
 }
 
 // writeWaitPercentilesMs returns p10, p50, p90, p99 of begin_wait
@@ -334,22 +364,28 @@ func (s *callerStats) writePoolWaitPercentilesMs() (p10, p50, p90, p99 float64) 
 	return percentilesNearestRank(s.write.poolWaitReserv)
 }
 
-// writeTotalPercentilesMs returns p10, p50, p90, p99 of pool_wait +
+// writeTotalPercentilesMs returns p10, p50, p90, p99, max of pool_wait +
 // begin_wait + hold — the full caller-visible latency. Lets the
 // operator see "where did my latency go?" off one column without
-// summing three percentile groups in their head.
-func (s *callerStats) writeTotalPercentilesMs() (p10, p50, p90, p99 float64) {
+// summing three percentile groups in their head. The max is the
+// all-time maximum since the tracker started; unlike p99 it survives
+// ring eviction.
+func (s *callerStats) writeTotalPercentilesMs() (p10, p50, p90, p99, max float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return percentilesNearestRank(s.write.totalReserv)
+	p10, p50, p90, p99 = percentilesNearestRank(s.write.totalReserv)
+	return p10, p50, p90, p99, s.write.totalMaxMs
 }
 
-// readHoldPercentilesMs returns p10, p50, p90, p99 of SHARED-lock hold
-// durations recorded under outcomeSavepointReadOnly.
-func (s *callerStats) readHoldPercentilesMs() (p10, p50, p90, p99 float64) {
+// readHoldPercentilesMs returns p10, p50, p90, p99, max of SHARED-lock
+// hold durations recorded under outcomeSavepointReadOnly. The max is
+// the all-time maximum since the tracker started; unlike p99 it
+// survives ring eviction.
+func (s *callerStats) readHoldPercentilesMs() (p10, p50, p90, p99, max float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return percentilesNearestRank(s.read.holdReserv)
+	p10, p50, p90, p99 = percentilesNearestRank(s.read.holdReserv)
+	return p10, p50, p90, p99, s.read.holdMaxMs
 }
 
 // percentilesNearestRank uses the nearest-rank method: with n<100 samples,
@@ -1154,6 +1190,10 @@ type writeCallerSnapshot struct {
 	HoldP50Ms     float64
 	HoldP90Ms     float64
 	HoldP99Ms     float64
+	// HoldMaxMs is the all-time max writer-slot hold for this caller —
+	// survives ring eviction so a rare slow commit stays visible after the
+	// reservoir wraps past it.
+	HoldMaxMs     float64
 	WaitP10Ms     float64
 	WaitP50Ms     float64
 	WaitP90Ms     float64
@@ -1166,6 +1206,10 @@ type writeCallerSnapshot struct {
 	TotalP50Ms    float64
 	TotalP90Ms    float64
 	TotalP99Ms    float64
+	// TotalMaxMs is the all-time max of pool_wait+begin_wait+hold — same
+	// eviction-survival semantics as HoldMaxMs, for the caller-visible
+	// total latency.
+	TotalMaxMs float64
 	// TotalHoldMs is the Σ of writer-slot hold durations for this caller
 	// since the tracker started. Surfaces aggregate-volume offenders that
 	// fly under the slow-ring's 100ms threshold but collectively saturate
@@ -1188,6 +1232,9 @@ type readCallerSnapshot struct {
 	HoldP50Ms float64
 	HoldP90Ms float64
 	HoldP99Ms float64
+	// HoldMaxMs is the all-time max SHARED-lock hold — survives ring
+	// eviction so a rare slow read stays visible in the "worst" column.
+	HoldMaxMs float64
 }
 
 func (t *txTracker) snapshot() trackerSnapshot {
@@ -1254,10 +1301,10 @@ func (t *txTracker) snapshot() trackerSnapshot {
 		// activity at all are skipped — they'd render as blank rows of
 		// zeros and dilute whichever table the user is scanning.
 		if writeCount > 0 {
-			holdP10, holdP50, holdP90, holdP99 := st.writeHoldPercentilesMs()
+			holdP10, holdP50, holdP90, holdP99, holdMax := st.writeHoldPercentilesMs()
 			waitP10, waitP50, waitP90, waitP99 := st.writeWaitPercentilesMs()
 			poolWaitP10, poolWaitP50, poolWaitP90, poolWaitP99 := st.writePoolWaitPercentilesMs()
-			totalP10, totalP50, totalP90, totalP99 := st.writeTotalPercentilesMs()
+			totalP10, totalP50, totalP90, totalP99, totalMax := st.writeTotalPercentilesMs()
 			out.WriteCallers[name] = writeCallerSnapshot{
 				Count:         writeCount,
 				Commits:       commits,
@@ -1267,6 +1314,7 @@ func (t *txTracker) snapshot() trackerSnapshot {
 				HoldP50Ms:     holdP50,
 				HoldP90Ms:     holdP90,
 				HoldP99Ms:     holdP99,
+				HoldMaxMs:     holdMax,
 				PoolWaitP10Ms: poolWaitP10,
 				PoolWaitP50Ms: poolWaitP50,
 				PoolWaitP90Ms: poolWaitP90,
@@ -1275,6 +1323,7 @@ func (t *txTracker) snapshot() trackerSnapshot {
 				TotalP50Ms:    totalP50,
 				TotalP90Ms:    totalP90,
 				TotalP99Ms:    totalP99,
+				TotalMaxMs:    totalMax,
 				WaitP10Ms:     waitP10,
 				WaitP50Ms:     waitP50,
 				WaitP90Ms:     waitP90,
@@ -1284,13 +1333,14 @@ func (t *txTracker) snapshot() trackerSnapshot {
 			}
 		}
 		if readCount > 0 {
-			rHoldP10, rHoldP50, rHoldP90, rHoldP99 := st.readHoldPercentilesMs()
+			rHoldP10, rHoldP50, rHoldP90, rHoldP99, rHoldMax := st.readHoldPercentilesMs()
 			out.ReadCallers[name] = readCallerSnapshot{
 				Count:     readCount,
 				HoldP10Ms: rHoldP10,
 				HoldP50Ms: rHoldP50,
 				HoldP90Ms: rHoldP90,
 				HoldP99Ms: rHoldP99,
+				HoldMaxMs: rHoldMax,
 			}
 		}
 	}

@@ -344,3 +344,77 @@ func TestHoldSumNsAccumulatesOnlyWriterOwners(t *testing.T) {
 	require.Equal(t, want, s.write.holdSumNs,
 		"holdSumNs must equal the sum of commit + rollback + savepoint_top holds")
 }
+
+// TestWorstSurvivesReservoirEviction is the core regression guard for the
+// "worst" column on /debug/sqlite. The p99 reservoir is a ring of
+// reservoirCap=8192 samples, so a hot caller's rare slow outlier vanishes
+// from p99 once enough new samples push it out. The worst column must
+// continue to report the original outlier — that is the entire point of
+// tracking max separately at record time.
+//
+// Setup: record one large hold (1 s), then overflow the ring with many
+// tiny holds (1 µs). The reservoir now contains only the small samples,
+// so percentilesNearestRank's p99 must drop to ~µs magnitude — but the
+// max returned alongside must still be the 1 s outlier.
+func TestWorstSurvivesReservoirEviction(t *testing.T) {
+	var s callerStats
+	const outlier = 1 * time.Second
+	const small = 1 * time.Microsecond
+
+	s.record(outlier, 0, 0, outcomeCommit)
+	// Overflow the ring so the outlier's slot is overwritten. reservoirCap
+	// + a margin guarantees eviction regardless of where in the ring the
+	// outlier landed.
+	for i := 0; i < reservoirCap+100; i++ {
+		s.record(small, 0, 0, outcomeCommit)
+	}
+
+	_, _, _, holdP99, holdMax := s.writeHoldPercentilesMs()
+	_, _, _, totalP99, totalMax := s.writeTotalPercentilesMs()
+
+	outlierMs := float64(outlier) / float64(time.Millisecond)
+	smallMs := float64(small) / float64(time.Millisecond)
+
+	// p99 must reflect the post-eviction reservoir — i.e. the tiny holds,
+	// not the 1 s outlier. If it still reads ~outlierMs, the ring isn't
+	// actually overflowing and this test isn't exercising eviction.
+	require.Less(t, holdP99, outlierMs/2,
+		"hold p99 must drop after reservoir eviction; got %v ms (outlier was %v ms)", holdP99, outlierMs)
+	require.Less(t, totalP99, outlierMs/2,
+		"total p99 must drop after reservoir eviction; got %v ms (outlier was %v ms)", totalP99, outlierMs)
+
+	// worst (max) must still equal the 1 s outlier — the survival
+	// property that the whole feature exists for. Use Equal: maxMs does
+	// no rounding, so the exact ns→ms conversion must round-trip.
+	require.Equal(t, outlierMs, holdMax,
+		"hold max must survive reservoir eviction; got %v ms, want %v ms", holdMax, outlierMs)
+	require.Equal(t, outlierMs, totalMax,
+		"total max must survive reservoir eviction; got %v ms, want %v ms", totalMax, outlierMs)
+
+	// Sanity check the small-sample magnitude lines up — guards against a
+	// future refactor that silently changed the unit.
+	require.InDelta(t, smallMs, holdP99, smallMs*2,
+		"hold p99 should be in the small-sample magnitude band after eviction")
+}
+
+// TestReadWorstSurvivesReservoirEviction is the read-side counterpart of
+// TestWorstSurvivesReservoirEviction. read.holdMaxMs feeds the worst
+// column on the Read operations table.
+func TestReadWorstSurvivesReservoirEviction(t *testing.T) {
+	var s callerStats
+	const outlier = 500 * time.Millisecond
+	const small = 1 * time.Microsecond
+
+	s.record(outlier, 0, 0, outcomeSavepointReadOnly)
+	for i := 0; i < reservoirCap+100; i++ {
+		s.record(small, 0, 0, outcomeSavepointReadOnly)
+	}
+
+	_, _, _, p99, max := s.readHoldPercentilesMs()
+	outlierMs := float64(outlier) / float64(time.Millisecond)
+
+	require.Less(t, p99, outlierMs/2,
+		"read hold p99 must drop after reservoir eviction; got %v ms", p99)
+	require.Equal(t, outlierMs, max,
+		"read hold max must survive reservoir eviction; got %v ms, want %v ms", max, outlierMs)
+}
