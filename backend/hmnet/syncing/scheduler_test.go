@@ -577,6 +577,77 @@ func TestScheduler_PreemptOldestHotWhenSaturated(t *testing.T) {
 	close(blockCh)
 }
 
+// TestScheduler_NoPreemptWhileDownloading verifies the progress-aware guard:
+// a running hot task that has downloaded within progressGrace is protected from
+// preemption, while a stalled one (no download within the grace) is preemptible.
+// This is the roof fix — under a storm of concurrent discoveries a newer hot task
+// must not cancel an older one that is mid-download.
+func TestScheduler_NoPreemptWhileDownloading(t *testing.T) {
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int)}
+	s := newScheduler(disc, testConfig(10*time.Second, 6))
+	now := time.Now()
+
+	// Incoming hot task (freshest deadline) wanting a worker slot.
+	incoming := &taskHandle{key: DiscoveryKey{IRI: "hm://incoming"}, hotDeadline: now.Add(s.hotTTL)}
+
+	// A running hot task with an OLDER deadline (normally the victim) that is
+	// actively downloading.
+	cancelled := false
+	downloading := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://downloading"},
+		state:       TaskStateInProgress,
+		hotDeadline: now.Add(s.hotTTL - 10*time.Second),
+		cancelFunc:  func() { cancelled = true },
+		progress:    &Progress{},
+	}
+	downloading.progress.BlobsDownloaded.Store(100)
+	s.tasks[downloading.key] = downloading
+
+	// It just downloaded, so it must be protected.
+	require.False(t, s.preemptOldestHotLocked(incoming, now),
+		"a task downloading within progressGrace must not be preempted")
+	require.False(t, cancelled)
+
+	// With no further downloads, once progressGrace elapses it becomes preemptible.
+	require.True(t, s.preemptOldestHotLocked(incoming, now.Add(progressGrace+time.Second)),
+		"a stalled task (no download within progressGrace) must be preemptible")
+	require.True(t, cancelled, "the stalled task's cancelFunc must be called")
+}
+
+// TestScheduler_NoTTLCancelWhileDownloading verifies the 4th progress gate: a hot
+// task whose heartbeat expired is NOT cancelled by the cleanup while it's still
+// actively downloading (its heartbeat is extended so the deep fetch converges);
+// a stalled expired task is still reaped.
+func TestScheduler_NoTTLCancelWhileDownloading(t *testing.T) {
+	s := newScheduler(&mockDiscoverer{calls: make(map[blob.IRI]int)}, testConfig(10*time.Second, 6))
+	now := time.Now()
+
+	// Expired heartbeat, but actively downloading -> protected (extended).
+	cancelledDL := false
+	dl := &taskHandle{
+		key: DiscoveryKey{IRI: "hm://downloading"}, state: TaskStateInProgress,
+		hotDeadline: now.Add(-time.Second), cancelFunc: func() { cancelledDL = true }, progress: &Progress{},
+	}
+	dl.progress.BlobsDownloaded.Store(100)
+	s.tasks[dl.key] = dl
+
+	// Expired heartbeat and stalled (no recent download) -> reaped.
+	cancelledStalled := false
+	stalled := &taskHandle{
+		key: DiscoveryKey{IRI: "hm://stalled"}, state: TaskStateInProgress,
+		hotDeadline: now.Add(-time.Second), cancelFunc: func() { cancelledStalled = true },
+		progress: &Progress{}, lastDownloaded: 50, lastDownloadAt: now.Add(-time.Minute),
+	}
+	stalled.progress.BlobsDownloaded.Store(50) // unchanged since lastDownloaded
+	s.tasks[stalled.key] = stalled
+
+	s.cleanupExpiredHotTasksLocked(now)
+
+	require.False(t, cancelledDL, "a downloading expired hot task must not be TTL-cancelled")
+	require.True(t, dl.IsHot(now), "the downloading task's heartbeat should be extended")
+	require.True(t, cancelledStalled, "a stalled expired hot task must be reaped")
+}
+
 // TestScheduler_HeartbeatCleanupCancelsRunningHot verifies that an in-flight
 // ephemeral hot task whose heartbeat expires is cancelled and removed.
 func TestScheduler_HeartbeatCleanupCancelsRunningHot(t *testing.T) {

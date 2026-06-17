@@ -647,6 +647,61 @@ var gatewayPIDs = func() map[peer.ID]bool {
 	return m
 }()
 
+const (
+	// stragglerGrace is how long downloads must be idle before the straggler
+	// watcher considers cancelling the wave's remaining peers.
+	stragglerGrace = 5 * time.Second
+	// stragglerStallBackstop is the idle window after which the wave is cancelled
+	// even if a large reconciled backlog remains — at that point the outstanding
+	// content clearly isn't arriving from the connected peers, so re-run.
+	stragglerStallBackstop = 30 * time.Second
+	// stragglerNearDoneAbs is the absolute outstanding-want count below which a
+	// wave counts as "near done" (a genuine straggler tail) and is safe to cut on
+	// the short grace. Above it (or above maxReconciled/20) the bulk is still owed.
+	stragglerNearDoneAbs = 256
+
+	// maxIdleStrikes is how many consecutive idle windows a fetch tier tolerates
+	// while it still has a large backlog before abandoning it (each strike is one
+	// idleTimeout). Bounds the wait for a contention gap without hanging forever on
+	// a genuinely undeliverable tail.
+	maxIdleStrikes = 3
+	// tierIdleNearDone is the tier-backlog count at/below which an idle tier is
+	// abandoned immediately (a genuine tail) instead of waited on.
+	tierIdleNearDone = 64
+)
+
+// shouldDropStragglers reports whether a connected-sync wave should cancel its
+// remaining peers. It fires only once a quorum has finished AND downloads have
+// been idle for stragglerGrace — but NOT while a peer still owes us a large
+// reconciled backlog (the bulk still streaming from a complete peer, gapped
+// under load). In that case the wave keeps draining; it is cut only when the
+// backlog is nearly gone (a true straggler tail) or it has been idle for
+// stragglerStallBackstop (the remaining content isn't coming from these peers).
+// maxReconciled is the largest single-peer reconciled want-count seen this
+// discovery (≈ a complete peer's full set); downloaded is the discovery-wide
+// fetched count.
+func shouldDropStragglers(completed, quorum int64, idle time.Duration, maxReconciled, downloaded int32) bool {
+	if completed < quorum || idle < stragglerGrace {
+		return false
+	}
+	if idle >= stragglerStallBackstop {
+		return true
+	}
+	outstanding := int64(maxReconciled) - int64(downloaded)
+	nearDoneBand := max(int64(stragglerNearDoneAbs), int64(maxReconciled)/20)
+	return outstanding <= nearDoneBand
+}
+
+// shouldKeepDrainingTier reports whether a fetch tier that just hit its idle
+// timeout should keep waiting rather than abandon its remaining wants. A large
+// still-owed backlog within maxIdleStrikes consecutive idle windows is treated as
+// a contention gap (the shared bitswap session is busy with other discoveries) —
+// keep waiting. A small tail, or too many idle windows with no block, is a
+// genuine end and is abandoned.
+func shouldKeepDrainingTier(tierOutstanding int64, idleStrikes int) bool {
+	return tierOutstanding > tierIdleNearDone && idleStrikes < maxIdleStrikes
+}
+
 // syncWithManyPeers syncs with many peers in parallel, bounded by maxPeerConcurrency.
 // Gateways are synced first because they are better-connected and more likely to
 // have the requested content. blobTypes is an optional allowlist of structural
@@ -737,9 +792,8 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 	watcherDone := make(chan struct{})
 	go func() {
 		const (
-			stragglerGrace = 5 * time.Second
-			quorumNum      = 7
-			quorumDen      = 10
+			quorumNum = 7
+			quorumDen = 10
 		)
 		quorum := max(int64(total)*quorumNum/quorumDen, 1)
 		ticker := time.NewTicker(500 * time.Millisecond)
@@ -760,21 +814,24 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 					idleSince = now
 					continue
 				}
-				if completed.Load() >= quorum && !idleSince.IsZero() && now.Sub(idleSince) >= stragglerGrace {
-					// Diagnostic: outstanding = the most any single peer reconciled
-					// (≈ a complete peer's full set) minus what we've downloaded.
-					// If this is LARGE the cut is premature — a peer still had
-					// structure to give. emptyPeers shows how much of the quorum was
-					// satisfied by content-less peers.
-					maxRec := prog.MaxReconciledWants.Load()
-					dl := prog.BlobsDownloaded.Load()
-					markf(ctx, s.traceLog.With(zap.String("iri", iri)),
-						"straggler cancel: %d/%d peers done (empties=%d), no download for %s — outstanding=%d (maxReconciled=%d, downloaded=%d)",
-						completed.Load(), total, prog.EmptyPeers.Load(), now.Sub(idleSince).Round(time.Millisecond),
-						maxRec-dl, maxRec, dl)
-					cancel()
-					return
+				if idleSince.IsZero() {
+					continue
 				}
+				idle := now.Sub(idleSince)
+				maxRec := prog.MaxReconciledWants.Load()
+				// Keep the wave draining while a peer still owes us a large
+				// reconciled backlog (the bulk still streaming from a complete
+				// peer, gapped under load — not a straggler tail). Cut only when
+				// the backlog is nearly gone or the wave has genuinely stalled.
+				if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded) {
+					continue
+				}
+				markf(ctx, s.traceLog.With(zap.String("iri", iri)),
+					"straggler cancel: %d/%d peers done (empties=%d), idle %s — outstanding=%d (maxReconciled=%d, downloaded=%d)",
+					completed.Load(), total, prog.EmptyPeers.Load(), idle.Round(time.Millisecond),
+					int64(maxRec)-int64(lastDownloaded), maxRec, lastDownloaded)
+				cancel()
+				return
 			}
 		}
 	}()
@@ -1161,6 +1218,7 @@ func syncResources(
 		}
 
 		var tierDownloaded int64
+		idleStrikes := 0
 		keepGoing = true
 		t := time.NewTimer(idleTimeout)
 		defer t.Stop()
@@ -1178,6 +1236,7 @@ func syncResources(
 					break drain
 				}
 				t.Reset(idleTimeout)
+				idleStrikes = 0
 				if _, dup := claimedBlocks.LoadOrStore(string(blk.Cid().Hash()), struct{}{}); dup {
 					// Another peer goroutine already claimed this block for this
 					// task and owns its single PutMany. A block did arrive (real
@@ -1199,8 +1258,18 @@ func syncResources(
 					markf(ctx, traceLog, "bitswap progress: %d blobs in %s (tier %s)", downloadedTotal, time.Since(bitswapStart).Round(time.Millisecond), tierName)
 				}
 			case <-t.C:
+				// Per-tier sibling of the straggler gate: a gap with a large tier
+				// backlog still owed is a contention gap (the shared bitswap session
+				// busy with other discoveries), not the end of the data. Keep waiting
+				// for our blocks; abandon only when the tier is nearly drained or
+				// it's been idle for maxIdleStrikes windows (a genuine stall).
+				idleStrikes++
+				if shouldKeepDrainingTier(int64(len(wants))-tierDownloaded, idleStrikes) {
+					t.Reset(idleTimeout)
+					continue
+				}
 				bitswapOutcome = "idle_timeout"
-				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s) in tier %s: got %d/%d, abandoning %d [discovery-wide downloaded=%d maxReconciled=%d]", idleTimeout, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded, prog.BlobsDownloaded.Load(), prog.MaxReconciledWants.Load())
+				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s x%d) in tier %s: got %d/%d, abandoning %d [discovery-wide downloaded=%d maxReconciled=%d]", idleTimeout, idleStrikes, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded, prog.BlobsDownloaded.Load(), prog.MaxReconciledWants.Load())
 				keepGoing = false
 				break drain
 			}

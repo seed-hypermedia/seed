@@ -20,6 +20,13 @@ import (
 const (
 	defaultHotTTL      = 40 * time.Second
 	defaultHotCooldown = 20 * time.Second
+	// progressGrace is how recently a running task must have downloaded a block to
+	// be considered "actively progressing" and therefore protected from
+	// preemption. Under a discovery storm (many docs/cards discovered at once)
+	// LIFO preemption would otherwise let a newer hot task kill an older one that
+	// is mid-download — so nothing ever converges. Protecting in-flight
+	// progress lets running discoveries finish; newcomers queue instead.
+	progressGrace = 5 * time.Second
 )
 
 // Queue priority tiers. Lower value = higher priority.
@@ -63,6 +70,14 @@ type taskHandle struct {
 	// Cancellation. Set by dispatchReadyTasks under s.mu before dispatching, cleared in executeTask's unwind.
 	cancelFunc context.CancelFunc
 	runCtx     context.Context
+
+	// Progress watermark for preemption protection. lastDownloaded mirrors
+	// progress.BlobsDownloaded as last observed by the preemption check, and
+	// lastDownloadAt is when it last advanced. A task that downloaded within
+	// progressGrace is "actively progressing" and is not preempted. Sampled lazily
+	// (only when preemption is considered); guarded by scheduler.mu.
+	lastDownloaded int32
+	lastDownloadAt time.Time
 
 	// Observable fields.
 	state       TaskState
@@ -537,6 +552,22 @@ func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) 
 		if t.key == incoming.key {
 			continue
 		}
+		// Never preempt a task that is actively downloading. Sample its progress
+		// watermark; if it has fetched a block within progressGrace it is making
+		// real progress and must be allowed to converge. This is the core of the
+		// fix: under a storm of concurrent discoveries, LIFO preemption used to
+		// let a newer hot task (e.g. a card rendered after the home) cancel an
+		// older one mid-download, so nothing ever finished. Protected tasks stay;
+		// the newcomer queues until a slot frees.
+		if t.progress != nil {
+			if dl := t.progress.BlobsDownloaded.Load(); dl > t.lastDownloaded {
+				t.lastDownloaded = dl
+				t.lastDownloadAt = now
+			}
+			if !t.lastDownloadAt.IsZero() && now.Sub(t.lastDownloadAt) < progressGrace {
+				continue
+			}
+		}
 		// Victim must have a strictly older heartbeat than the incoming task;
 		// otherwise preempting just delays the user's most recent request.
 		if !t.hotDeadline.Before(incoming.hotDeadline) {
@@ -568,6 +599,24 @@ func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
 		}
 		switch t.state {
 		case TaskStateInProgress:
+			// The heartbeat lapsed (frontend stopped polling once the view
+			// rendered), but if the task is still actively downloading, the deep
+			// structure fetch it kicked off is still streaming and the content is
+			// still wanted — keep it alive (extend the heartbeat) so it converges
+			// instead of being killed mid-stream and re-queued behind the storm.
+			// This is the 4th and last cancellation path gated on progress
+			// (alongside preemption, the straggler watcher, and the per-tier idle).
+			// A stalled expired task (no download within progressGrace) is reaped.
+			if t.progress != nil {
+				if dl := t.progress.BlobsDownloaded.Load(); dl > t.lastDownloaded {
+					t.lastDownloaded = dl
+					t.lastDownloadAt = now
+				}
+				if !t.lastDownloadAt.IsZero() && now.Sub(t.lastDownloadAt) < progressGrace {
+					t.hotDeadline = now.Add(s.hotTTL)
+					continue
+				}
+			}
 			if t.cancelFunc != nil {
 				t.cancelFunc()
 			}
