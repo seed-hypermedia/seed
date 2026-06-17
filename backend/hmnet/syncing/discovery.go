@@ -68,6 +68,14 @@ func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version
 	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, depthOne, blobTypes, prog)
 }
 
+// docStructureTypes is the blob-type allowlist for the root-first discovery
+// phases: just the document itself (its version Refs and change history). It
+// deliberately excludes Comment so the page text assembles fast without dragging
+// in the thousands of comment blobs that share the dag-cbor structure tier; the
+// doc's display media still arrives via the media link-walk, and comments come
+// with the full recursive phase.
+var docStructureTypes = []string{"Ref", "Change"}
+
 // DiscoverObjectWithProgress is similar to DiscoverObject, but tracks the progress of the discovery process.
 func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (resultVersion blob.Version, resultErr error) {
 	if s.cfg.NoDiscovery {
@@ -122,7 +130,37 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 	}
 
-	blobTypesKey := BlobTypesString(blobTypes)
+	// Observability: the phase-boundary checks below only sample GetResource at
+	// coarse points (P0/P1/P2 ends, which include the straggler idle grace). Poll
+	// it directly so the log records when the resource first becomes renderable —
+	// the user-facing latency we care about — regardless of which phase delivered
+	// the closure. Cheap read; stops on first success, ctx end, function return,
+	// or a 60s cap. Recursive (subscription) discoveries only.
+	if recursive && s.resources != nil {
+		pollerDone := make(chan struct{})
+		defer close(pollerDone)
+		go func() {
+			tick := time.NewTicker(250 * time.Millisecond)
+			defer tick.Stop()
+			limit := time.NewTimer(60 * time.Second)
+			defer limit.Stop()
+			for {
+				select {
+				case <-pollerDone:
+					return
+				case <-ctx.Done():
+					return
+				case <-limit.C:
+					return
+				case <-tick.C:
+					if doc, gerr := s.resources.GetResource(ctx, &docspb.GetResourceRequest{Iri: string(entityID)}); gerr == nil {
+						markf(ctx, tlog, "home renderable %s after discover start (version=%s)", time.Since(discoverStart).Round(time.Millisecond), doc.Version)
+						return
+					}
+				}
+			}
+		}()
+	}
 
 	subsMap := make(subscriptionMap)
 	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
@@ -237,36 +275,41 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	markf(ctx, tlog, "peer_select: %d peers selected (%d fallback candidates) in %s",
 		len(allPeers), len(fallbackCandidates), time.Since(peerSelectStart).Round(time.Millisecond))
 
-	// Create RBSR store once for reuse across all peers.
-	dkeys := colx.HashSet[DiscoveryKey]{
-		DiscoveryKey{
-			IRI:       entityID,
-			Version:   version,
-			Recursive: recursive,
-			DepthOne:  depthOne,
-			BlobTypes: blobTypesKey,
-		}: {},
-	}
-
-	store := newAuthorizedStore()
-	{
-		ctx := ctxLocalPeers
+	// buildStore loads the local RBSR set (the blobs we already have) for a
+	// given scope, so each sync phase reconciles against the right slice of the
+	// subtree. Reused for the root-first depthOne phase and the full scope.
+	buildStore := func(ctx context.Context, scope entityScope, btypes []string) (*authorizedStore, error) {
+		dkeys := colx.HashSet[DiscoveryKey]{
+			DiscoveryKey{
+				IRI:       entityID,
+				Version:   version,
+				Recursive: scope.Recursive,
+				DepthOne:  scope.DepthOne,
+				BlobTypes: BlobTypesString(btypes),
+			}: {},
+		}
+		st := newAuthorizedStore()
 		// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables
-		// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces). These
-		// don't take the main-DB writer mutex, so this scope is
-		// excluded from /debug/sqlite's writer-slot sections — the
-		// real bitswap-write scopes that come later in
-		// DiscoverObjectWithProgress still use regular WithSave/WithTx
-		// and are tracked normally. See SaveTempOnly contract.
+		// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces). These don't take
+		// the main-DB writer mutex, so this scope is excluded from
+		// /debug/sqlite's writer-slot sections — the real bitswap-write scopes
+		// later in DiscoverObjectWithProgress still use WithSave/WithTx and are
+		// tracked normally. See SaveTempOnly contract.
 		if err := s.db.WithSaveTempOnly(ctx, func(conn *sqlite.Conn) error {
 			// Client-side RBSR: include all local blobs (nil = no filter).
-			return loadRBSRStore(conn, dkeys, store)
+			return loadRBSRStore(conn, dkeys, st)
 		}); err != nil {
-			return "", fmt.Errorf("failed to load RBSR store: %w", err)
+			return nil, fmt.Errorf("failed to load RBSR store: %w", err)
 		}
+		if err := st.Seal(); err != nil {
+			return nil, fmt.Errorf("failed to seal RBSR store: %w", err)
+		}
+		return st, nil
 	}
-	if err := store.Seal(); err != nil {
-		return "", fmt.Errorf("failed to seal RBSR store: %w", err)
+
+	store, err := buildStore(ctxLocalPeers, entityScope{Recursive: recursive, DepthOne: depthOne}, blobTypes)
+	if err != nil {
+		return "", err
 	}
 	markf(ctx, tlog, "rbsr store loaded: %d local items (the set we reconcile against peers)", store.Size())
 
@@ -276,27 +319,69 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
 
-	if len(allPeers) != 0 {
-		s.log.Debug("Discovering via already-connected peers first", zap.Error(err))
+	// syncConnected reconciles one scope against every connected + auth peer and
+	// records the phase timing. Used for the root-first depthOne pass and the
+	// full-scope pass below.
+	syncConnected := func(ctx context.Context, phase string, scope entityScope, btypes []string, st *authorizedStore) SyncResult {
+		eids := map[string]entityScope{string(entityID): scope}
+		peers := make(subscriptionMap, len(allPeers))
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
-			subsMap[pid] = eidsMap
+			peers[pid] = eids
 		}
-
-		// Include siteUrl peers into the map of all the peers to sync.
+		// Include siteUrl peers into the set we sync.
 		for pid := range auth.peerKeys {
-			if _, ok := subsMap[pid]; !ok {
-				subsMap[pid] = eidsMap
+			if _, ok := peers[pid]; !ok {
+				peers[pid] = eids
+			}
+		}
+		start := time.Now()
+		markf(ctx, tlog, "%s start: %d peers", phase, len(peers))
+		res := s.syncWithManyPeers(ctx, string(entityID), peers, st, prog, auth, btypes)
+		MDiscoverPhaseSeconds.WithLabelValues(phase).Observe(time.Since(start).Seconds())
+		markf(ctx, tlog, "%s done: ok=%d failed=%d of %d peers in %s",
+			phase, res.NumSyncOK, res.NumSyncFailed, len(peers), time.Since(start).Round(time.Millisecond))
+		return res
+	}
+
+	if len(allPeers) != 0 {
+		s.log.Debug("Discovering via already-connected peers first")
+
+		// Root-first directory pass: for a recursive discovery, first reconcile
+		// depthOne with only the document structure (docStructureTypes: Ref +
+		// Change) and no bulk media (StructureOnly). That is the home plus its
+		// direct children's titles/covers — a few hundred blobs — so the home AND
+		// its directory of cards (the actual home view) assemble in a few seconds,
+		// fetched structure-first and streamed, while the full subtree (comments,
+		// comment counts, deep descendants and GiBs of media) streams in P2 behind
+		// it. Excluding Comment matters: a busy home page carries 2k+ comments
+		// that share the dag-cbor structure tier and would otherwise bury the
+		// directory's blobs.
+		//
+		// We deliberately do NOT run a separate non-recursive pass before this:
+		// depthOne is a superset of the home, so a serial non-recursive phase only
+		// delayed the directory (the view the user is waiting for) by its own
+		// completion wait without making the page appear any sooner.
+		//
+		// Skipped when the caller already narrowed blobTypes (e.g. an avatar
+		// fetch); that path goes straight to its single scoped sync below.
+		if len(blobTypes) == 0 && recursive {
+			dirScope := entityScope{DepthOne: true, StructureOnly: true}
+			if dStore, derr := buildStore(ctxLocalPeers, dirScope, docStructureTypes); derr != nil {
+				markf(ctx, tlog, "root-first: directory store load failed: %v", derr)
+			} else {
+				syncConnected(ctxLocalPeers, "root_directory_sync", dirScope, docStructureTypes, dStore)
+				if s.resources != nil {
+					if doc, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{Iri: string(entityID)}); gerr == nil {
+						markf(ctx, tlog, "root-first: home + directory assembled (version=%s); full subtree streaming behind", doc.Version)
+					}
+				}
 			}
 		}
 
-		connectedSyncStart := time.Now()
-		markf(ctx, tlog, "connected_sync start: %d peers", len(subsMap))
-		res := s.syncWithManyPeers(ctxLocalPeers, string(entityID), subsMap, store, prog, auth, blobTypes)
-		MDiscoverPhaseSeconds.WithLabelValues("connected_sync").Observe(time.Since(connectedSyncStart).Seconds())
-		markf(ctx, tlog, "connected_sync done: ok=%d failed=%d of %d peers in %s",
-			res.NumSyncOK, res.NumSyncFailed, len(subsMap), time.Since(connectedSyncStart).Round(time.Millisecond))
+		// Full requested scope (all types: comments, comment counts, all media, bulk).
+		res := syncConnected(ctxLocalPeers, "connected_sync", entityScope{Recursive: recursive, DepthOne: depthOne}, blobTypes, store)
 		if ctxLocalPeers.Err() != nil {
 			markf(ctx, tlog, "TIMEOUT connected_sync phase (budget %s): %v", DefaultSyncingTimeout, ctxLocalPeers.Err())
 		}

@@ -14,10 +14,10 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"seed/backend/util/longrunning"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -248,7 +248,6 @@ var (
 		Buckets: []float64{1, 10, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000},
 	})
 
-
 	// Server-side ReconcileBlobs handler sub-phase timing. Our daemon serves
 	// reconcile requests from other peers; gateways run the same code so this
 	// is a structural proxy for what they spend per-request when we're the
@@ -369,6 +368,11 @@ type netDialFunc func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.Syn
 type entityScope struct {
 	Recursive bool
 	DepthOne  bool
+	// StructureOnly makes the fetch skip the bulk media tier (file payloads), so
+	// the root-first phases render the document and its directory without
+	// dragging in file bodies — those arrive with the full recursive phase. It's
+	// a local fetch-ordering hint only; it is never sent in the reconcile Filter.
+	StructureOnly bool
 }
 
 // subscriptionMap is a map of peer IDs to an IRI and the recursion scope to apply.
@@ -652,6 +656,20 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
+	// Straggler cancellation. Otherwise connected_sync blocks on g.Wait() for
+	// EVERY peer, so a single slow-reconciling laggard (observed: 11 RBSR rounds
+	// at 3-11s each ≈ 50s) dictates the whole attempt even when the fast peers
+	// already converged in ~2s with nothing left to download. Once a quorum of
+	// the dispatched peers has finished AND no blob has been downloaded for a
+	// grace window, we cancel the rest. The grace keeps this cold-safe: a cold
+	// sync's fast peers begin downloading within a couple seconds, and any
+	// download resets the idle timer (see the watcher below), so an actively
+	// downloading bulk fetch is never cut — we only drop stragglers when no new
+	// content is arriving (the warm case). Discovery is best-effort and reruns,
+	// so a straggler's unique content (if any) is picked up next cycle.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// One bitswap session for the entire discovery task instead of one per
 	// peer-sync. boxo bitswap allocates a session goroutine plus a handful
 	// of messagequeue / donthave-timeout goroutines per session, so with
@@ -659,15 +677,28 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 	// sessions per task. Sharing within a task drops that to 1.
 	bswap := s.bitswap.NewSession(ctx)
 
+	// claimedBlocks dedups the persist side across peer goroutines. The shared
+	// bitswap session above hands each fetched block to EVERY peer goroutine
+	// whose reconcile wanted it, so without this each block is PutMany'd once
+	// per peer that wanted it (observed ~90% of writes landing as "exists",
+	// saturating the single daemon-wide SQLite writer). Keyed by multihash (the
+	// blockstore's key): the first goroutine to claim a block persists it, the
+	// rest skip — each block is written exactly once per discovery task.
+	var claimedBlocks sync.Map
+
 	var g errgroup.Group
 	g.SetLimit(maxPeerConcurrency)
+
+	total := len(subsMap)
+	var completed atomic.Int64
 
 	dispatch := func(i int, pid peer.ID, eids map[string]entityScope) {
 		res.Peers[i] = pid
 		g.Go(func() error {
+			defer completed.Add(1)
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, iri, pid, eids, store, prog, auth, blobTypes, bswap); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, iri, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -700,12 +731,53 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 		}
 	}
 
+	// Straggler watcher (see the rationale at the top of the function). Drops
+	// the slow tail once a quorum has finished and downloads have gone idle for
+	// the grace window; the download-idle check makes it cold-safe.
+	watcherDone := make(chan struct{})
+	go func() {
+		const (
+			stragglerGrace = 5 * time.Second
+			quorumNum      = 7
+			quorumDen      = 10
+		)
+		quorum := max(int64(total)*quorumNum/quorumDen, 1)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		lastDownloaded := int32(-1)
+		var idleSince time.Time
+		for {
+			select {
+			case <-watcherDone:
+				return
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				if dl := prog.BlobsDownloaded.Load(); dl != lastDownloaded {
+					// New content arriving (or first sample) — reset idle timer
+					// so an actively-downloading (cold) sync is never cut.
+					lastDownloaded = dl
+					idleSince = now
+					continue
+				}
+				if completed.Load() >= quorum && !idleSince.IsZero() && now.Sub(idleSince) >= stragglerGrace {
+					markf(ctx, s.traceLog.With(zap.String("iri", iri)),
+						"straggler cancel: %d/%d peers done, no download for %s — dropping stragglers",
+						completed.Load(), total, stragglerGrace)
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
 	_ = g.Wait()
+	close(watcherDone)
 
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher, claimedBlocks *sync.Map) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -780,7 +852,7 @@ func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eid
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
 
-	return syncResources(ctx, pid, c, s.index, bswap, s.log, peerTraceLog, eids, blobTypes, filteredStore, prog, &lastPhase, connCachedBefore)
+	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, peerTraceLog, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -812,6 +884,7 @@ func syncResources(
 	pid peer.ID,
 	c p2p.SyncingClient,
 	idx Index,
+	classifyMedia mediaTierFunc,
 	sess exchange.Fetcher,
 	log *zap.Logger,
 	traceLog *zap.Logger,
@@ -819,6 +892,7 @@ func syncResources(
 	blobTypes []string,
 	store rbsr.Store,
 	prog *Progress,
+	claimedBlocks *sync.Map,
 	phase *string,
 	connCachedAtStart bool,
 ) (err error) {
@@ -854,8 +928,12 @@ func syncResources(
 	}
 
 	filters := make([]*p2p.Filter, 0, len(eids))
+	skipBulk := false
 	for eid, sc := range eids {
 		filters = append(filters, &p2p.Filter{Resource: eid, Recursive: sc.Recursive, DepthOne: sc.DepthOne, Types: blobTypes})
+		if sc.StructureOnly {
+			skipBulk = true
+		}
 	}
 
 	var (
@@ -1002,112 +1080,197 @@ func syncResources(
 
 	*phase = "bitswap_fetch"
 	bitswapStart := time.Now()
-	markf(ctx, traceLog, "bitswap fetch start: requesting %d blobs", len(allWants))
-	ch, err := sess.GetBlocks(ctx, allWants)
-	if err != nil {
-		MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(time.Since(bitswapStart).Seconds())
-		MSyncBitswapOutcome.WithLabelValues("ctx_done").Inc()
-		markf(ctx, traceLog, "bitswap fetch failed to start: %v", err)
-		return fmt.Errorf("failed to initiate bitswap session for syncing: %w", err)
-	}
 
-	// Streaming persist worker (per-peer). Bitswap is IO-bound (network),
-	// PutMany is CPU/disk-bound (SQLite write tx + indexBlob). Pre-fix these
-	// ran strictly sequentially: download all → accumulate → PutMany at the
-	// end. That held the entire wantlist in RAM and lost everything when the
-	// per-peer ctx fired before persist could begin. Streaming dispatches
+	// Streaming persist constants. Bitswap is IO-bound (network); PutMany is
+	// CPU/disk-bound (SQLite write tx + indexBlob). Each tier below streams
 	// small batches as they arrive and persists them on a detached ctx so
-	// already-fetched bytes always land on disk.
+	// already-fetched bytes land on disk even if the per-peer ctx fires.
 	const persistBatchSize = 10
 	const persistChCap = 4
 	// Emit a trace mark every N downloaded blobs so a long fetch shows forward
-	// progress (and a rate) without flooding the trace one-event-per-blob.
+	// progress without flooding the trace one-event-per-blob.
 	const bitswapProgressEvery = 100
 	persistCtx := context.WithoutCancel(ctx)
-	persistCh := make(chan []blocks.Block, persistChCap)
-	persistDone := make(chan struct{})
 
-	go func() {
-		defer close(persistDone)
-		for batch := range persistCh {
-			putmanyStart := time.Now()
-			err := idx.PutMany(persistCtx, batch)
-			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-			if err != nil {
-				MSyncPersistRollbackTotal.Inc()
-				MSyncPersistRollbackBlocks.Add(float64(len(batch)))
-				log.Warn("PutManyBatchRolledBack",
-					zap.String("peerID", pid.String()),
-					zap.Int("batchSize", len(batch)),
-					zap.Error(err),
-				)
-				continue
-			}
-		}
-	}()
-
-	// bitswapOutcome is set by the download closure below and consumed by the
-	// metric observations after it returns.
-	var bitswapOutcome string
-	// Tracks the wall-clock moment of the most recent received block so we
-	// can record the gap between "last block in" and "loop exited" —
-	// that gap distinguishes "channel closed right after last block"
-	// (productive exit) from "we sat on the idle timer" (dead wait).
+	// Shared across the per-tier fetches and consumed by the metrics afterwards:
+	// the moment of the most recent block, the running download total, and the
+	// terminal bitswap outcome.
 	lastBlockAt := bitswapStart
 	var downloadedTotal int64
-	batch := make([]blocks.Block, 0, persistBatchSize)
-	flushBatch := func() {
-		if len(batch) == 0 {
-			return
+	var bitswapOutcome string
+
+	// fetchTier downloads one priority tier's wants, streaming batches to a
+	// per-tier persist worker and indexing them before it returns — so the next
+	// tier's media classification sees this tier's blob_links. It returns false
+	// when the caller should stop (the per-peer ctx was cancelled, or the
+	// download stalled past idleTimeout); whatever landed is already banked and
+	// the next discovery cycle resumes the rest.
+	fetchTier := func(tierName string, wants []cid.Cid, idleTimeout time.Duration) (keepGoing bool) {
+		if len(wants) == 0 {
+			return true
 		}
-		// Hand off ownership; allocate a fresh slice for the next batch.
-		persistCh <- batch
-		batch = make([]blocks.Block, 0, persistBatchSize)
-	}
-	download := func() {
-		const idleTimeout = 10 * time.Second
+		tierStart := time.Now()
+		markf(ctx, traceLog, "tier %s: fetching %d blobs (idle %s)", tierName, len(wants), idleTimeout)
+		ch, gerr := sess.GetBlocks(ctx, wants)
+		if gerr != nil {
+			bitswapOutcome = "ctx_done"
+			markf(ctx, traceLog, "tier %s: bitswap fetch failed to start: %v", tierName, gerr)
+			return false
+		}
+
+		persistCh := make(chan []blocks.Block, persistChCap)
+		persistDone := make(chan struct{})
+		go func() {
+			defer close(persistDone)
+			for b := range persistCh {
+				putmanyStart := time.Now()
+				perr := idx.PutMany(persistCtx, b)
+				MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
+				if perr != nil {
+					MSyncPersistRollbackTotal.Inc()
+					MSyncPersistRollbackBlocks.Add(float64(len(b)))
+					log.Warn("PutManyBatchRolledBack",
+						zap.String("peerID", pid.String()),
+						zap.Int("batchSize", len(b)),
+						zap.Error(perr),
+					)
+					continue
+				}
+			}
+		}()
+
+		batch := make([]blocks.Block, 0, persistBatchSize)
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			persistCh <- batch
+			batch = make([]blocks.Block, 0, persistBatchSize)
+		}
+
+		var tierDownloaded int64
+		keepGoing = true
 		t := time.NewTimer(idleTimeout)
 		defer t.Stop()
-
+	drain:
 		for {
 			select {
 			case blk, ok := <-ch:
 				if !ok {
-					// Channel closed. If ctx is dead the session was torn down
-					// by cancellation; otherwise bitswap finished naturally.
+					// Channel closed: ctx cancellation tore down the session, or
+					// bitswap delivered everything available for this tier.
 					if ctx.Err() != nil {
 						bitswapOutcome = "ctx_done"
-					} else {
-						bitswapOutcome = "complete"
+						keepGoing = false
 					}
-					return
+					break drain
 				}
 				t.Reset(idleTimeout)
+				if _, dup := claimedBlocks.LoadOrStore(string(blk.Cid().Hash()), struct{}{}); dup {
+					// Another peer goroutine already claimed this block for this
+					// task and owns its single PutMany. A block did arrive (real
+					// progress) so reset the idle timer, but skip re-persisting:
+					// the shared bitswap session hands the same block to every
+					// peer that wanted it, and re-writing it across them is the
+					// ~90% "exists" churn that saturates the single SQLite writer.
+					continue
+				}
 				lastBlockAt = time.Now()
 				prog.BlobsDownloaded.Add(1)
 				downloadedTotal++
+				tierDownloaded++
 				batch = append(batch, blk)
 				if len(batch) >= persistBatchSize {
-					flushBatch()
+					flush()
 				}
 				if downloadedTotal%bitswapProgressEvery == 0 {
-					markf(ctx, traceLog, "bitswap progress: %d/%d blobs in %s", downloadedTotal, len(allWants), time.Since(bitswapStart).Round(time.Millisecond))
+					markf(ctx, traceLog, "bitswap progress: %d blobs in %s (tier %s)", downloadedTotal, time.Since(bitswapStart).Round(time.Millisecond), tierName)
 				}
 			case <-t.C:
-				prog.BlobsFailed.Add(int32(len(allWants)) - prog.BlobsDownloaded.Load()) //nolint:gosec
 				bitswapOutcome = "idle_timeout"
-				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s): got %d/%d, abandoning %d", idleTimeout, downloadedTotal, len(allWants), int64(len(allWants))-downloadedTotal)
-				return
+				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s) in tier %s: got %d/%d, abandoning %d", idleTimeout, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded)
+				keepGoing = false
+				break drain
 			}
+		}
+
+		flush()
+		close(persistCh)
+		<-persistDone // barrier: this tier is persisted+indexed before the next
+
+		markf(ctx, traceLog, "tier %s: got %d/%d in %s", tierName, tierDownloaded, len(wants), time.Since(tierStart).Round(time.Millisecond))
+		return keepGoing
+	}
+
+	// Fetch in render-priority order. Structure (dag-cbor) carries the document
+	// tree, titles and comment threads — index it first so the page can render.
+	// Media (raw / dag-pb) is then split by how the structure links to it:
+	// chrome (covers, icons, profile pictures) and inline body images make the
+	// page look complete, while bulk file payloads (video / PDF / hi-res chunks)
+	// are ~99% of the bytes and stream last under a tighter idle budget so a slow
+	// tail can't burn the foreground window. This only reorders the fetch of the
+	// same blocks; the reconcile set is unchanged.
+	var structural, media []cid.Cid
+	for _, wc := range allWants {
+		if wc.Type() == cid.DagCBOR {
+			structural = append(structural, wc)
+		} else {
+			media = append(media, wc)
 		}
 	}
 
-	download()
-	flushBatch()     // partial trailing batch
-	close(persistCh) // signal persist worker to drain and exit
+	const (
+		renderCriticalIdle = 10 * time.Second
+		bulkIdle           = 5 * time.Second
+	)
+
+	keepGoing := fetchTier("structure", structural, renderCriticalIdle)
+	if keepGoing && len(media) > 0 {
+		var chrome, inline, bulk []cid.Cid
+		if classifyMedia != nil {
+			mtiers, cerr := classifyMedia(ctx, media)
+			if cerr != nil {
+				markf(ctx, traceLog, "media tier classification failed (%v); fetching media as bulk", cerr)
+				bulk = media
+			} else {
+				for _, wc := range media {
+					switch mtiers[wc] {
+					case 2:
+						chrome = append(chrome, wc)
+					case 3:
+						inline = append(inline, wc)
+					default:
+						bulk = append(bulk, wc)
+					}
+				}
+				markf(ctx, traceLog, "media tiers: %d chrome, %d inline, %d bulk", len(chrome), len(inline), len(bulk))
+			}
+		} else {
+			bulk = media
+		}
+		if keepGoing {
+			keepGoing = fetchTier("chrome", chrome, renderCriticalIdle)
+		}
+		if keepGoing {
+			keepGoing = fetchTier("inline", inline, renderCriticalIdle)
+		}
+		switch {
+		case skipBulk:
+			// Root-first (structure-only) phase: defer file payloads to the full
+			// recursive phase so the doc/cards render without waiting on them.
+			if len(bulk) > 0 {
+				markf(ctx, traceLog, "structure-only phase: deferring %d bulk blobs to the recursive phase", len(bulk))
+			}
+		case keepGoing:
+			keepGoing = fetchTier("bulk", bulk, bulkIdle)
+		}
+	}
 
 	fetchDur := time.Since(bitswapStart)
 	fetchElapsed := fetchDur.Seconds()
+	if bitswapOutcome == "" {
+		bitswapOutcome = "complete"
+	}
 	MSyncPeerPhaseSeconds.WithLabelValues("bitswap_fetch").Observe(fetchElapsed)
 	MSyncBitswapFetchSeconds.WithLabelValues(bitswapOutcome).Observe(fetchElapsed)
 	MSyncBitswapOutcome.WithLabelValues(bitswapOutcome).Inc()
@@ -1115,26 +1278,98 @@ func syncResources(
 	if len(allWants) > 0 {
 		MSyncBitswapCompleteness.Observe(float64(downloadedTotal) / float64(len(allWants)))
 	}
+	// Per-peer unfulfilled wants. Uses this peer's own downloadedTotal — not the
+	// discovery-wide prog.BlobsDownloaded, which other peers also advance and
+	// which produced negative / inflated counts here before.
+	if int64(len(allWants)) > downloadedTotal {
+		prog.BlobsFailed.Add(int32(int64(len(allWants)) - downloadedTotal)) //nolint:gosec
+	}
 	markf(ctx, traceLog, "bitswap %s: got %d/%d blobs in %s (last block %s ago)",
 		bitswapOutcome, downloadedTotal, len(allWants), fetchDur.Round(time.Millisecond), time.Since(lastBlockAt).Round(time.Millisecond))
 
-	if downloadedTotal == 0 {
-		<-persistDone
-		return nil
+	return nil
+}
+
+// mediaTierFunc classifies media want CIDs into render-priority tiers by their
+// incoming blob_link types: 2 = chrome (covers / icons / profile pictures),
+// 3 = inline content images, 4 = bulk file payloads (the default). It may be
+// nil (e.g. in tests), in which case the caller fetches media as one tier.
+type mediaTierFunc func(ctx context.Context, cids []cid.Cid) (map[cid.Cid]int, error)
+
+// mediaTierQueryHead/Tail bucket blobs by the highest-priority (lowest-numbered)
+// tier among their incoming blob_links. A blob with no known incoming link (or
+// only bulk links such as dagpb/chunk) falls through to tier 4. The IN list of
+// multihash parameters is appended by classifyMediaTiers.
+const mediaTierQueryHead = `SELECT b.multihash, MIN(CASE
+	WHEN bl.type LIKE 'metadata/%' OR bl.type = 'profile/icon' THEN 2
+	WHEN bl.type IN ('doc/Image', 'comment/Image') THEN 3
+	ELSE 4
+END) AS tier
+FROM blobs b
+LEFT JOIN blob_links bl ON bl.target = b.id
+WHERE b.multihash IN (`
+
+const mediaTierQueryTail = `)
+GROUP BY b.id;`
+
+// classifyMediaTiers buckets media blobs into render-priority tiers based on how
+// the already-indexed structural blobs link to them, so a sync can fetch the
+// small render-critical media (document covers, icons, profile pictures, then
+// inline body images) ahead of the bulk file payloads that dominate the byte
+// count. Blobs with no known incoming link default to the bulk tier.
+//
+// It must run after the structural (dag-cbor) blobs of the synced resources are
+// indexed; otherwise blob_links is not yet populated and everything classifies
+// as bulk. indexBlob creates size<0 placeholder rows for not-yet-downloaded
+// link targets (ensureBlob), so they are queryable by multihash here even
+// before their bytes arrive.
+func (s *Service) classifyMediaTiers(ctx context.Context, cids []cid.Cid) (map[cid.Cid]int, error) {
+	tiers := make(map[cid.Cid]int, len(cids))
+	if len(cids) == 0 {
+		return tiers, nil
 	}
 
-	tracker := longrunning.Start(log, "ReconcileBlobsWrite", 30*time.Second,
-		zap.String("peerID", pid.String()),
-		zap.Int("wantedCount", len(allWants)),
-		zap.Int64("downloadedCount", downloadedTotal),
-	)
-	defer func() {
-		tracker.Finish(nil)
-	}()
+	// blobs are keyed by multihash; map it back to the full CID for the result.
+	byHash := make(map[string]cid.Cid, len(cids))
+	for _, c := range cids {
+		byHash[string(c.Hash())] = c
+	}
 
-	*phase = "putmany"
-	<-persistDone // wait for our per-peer persist worker to drain remaining batches
-	return nil
+	conn, release, err := s.db.ReadConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	// SQLite caps bound parameters per statement (~999), so classify in chunks.
+	const chunkSize = 800
+	for start := 0; start < len(cids); start += chunkSize {
+		end := min(start+chunkSize, len(cids))
+		batch := cids[start:end]
+
+		var q strings.Builder
+		q.WriteString(mediaTierQueryHead)
+		args := make([]any, len(batch))
+		for i, c := range batch {
+			if i > 0 {
+				q.WriteByte(',')
+			}
+			q.WriteByte('?')
+			args[i] = []byte(c.Hash())
+		}
+		q.WriteString(mediaTierQueryTail)
+
+		if err := sqlitex.Exec(conn, q.String(), func(stmt *sqlite.Stmt) error {
+			if c, ok := byHash[string(stmt.ColumnBytes(0))]; ok {
+				tiers[c] = stmt.ColumnInt(1)
+			}
+			return nil
+		}, args...); err != nil {
+			return nil, err
+		}
+	}
+
+	return tiers, nil
 }
 
 // computeAuthInfo pre-computes authentication information for syncing.
