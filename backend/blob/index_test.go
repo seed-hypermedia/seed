@@ -2,6 +2,7 @@ package blob
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
@@ -207,4 +208,100 @@ func TestWriterCheck_DirectWriter(t *testing.T) {
 	}
 	require.NoError(t, check())
 	require.Equal(t, []cid.Cid{change.CID}, got)
+}
+
+// TestWriterValidityCache covers the in-memory cache primitive used by
+// isValidWriter: nil-safety and get/put/clear semantics.
+func TestWriterValidityCache(t *testing.T) {
+	// A nil cache is a no-op: never panics, always misses.
+	var nilc *writerValidityCache
+	_, ok := nilc.get("k")
+	require.False(t, ok)
+	nilc.put("k", true)
+	nilc.clear()
+	_, ok = nilc.get("k")
+	require.False(t, ok)
+
+	c := newWriterValidityCache()
+	_, ok = c.get("k")
+	require.False(t, ok, "empty cache misses")
+
+	c.put("k", true)
+	v, ok := c.get("k")
+	require.True(t, ok)
+	require.True(t, v)
+
+	c.put("k2", false)
+	v, ok = c.get("k2")
+	require.True(t, ok)
+	require.False(t, v, "negative results are cached too")
+
+	c.clear()
+	_, ok = c.get("k")
+	require.False(t, ok, "clear drops all entries")
+	_, ok = c.get("k2")
+	require.False(t, ok)
+}
+
+// TestWriterCheck_CacheConsultedAndInvalidated verifies the isValidWriter cache
+// (a) never changes the computed result, (b) is actually consulted on a hit, and
+// (c) is dropped by clear() — the invalidation indexCapability performs whenever
+// a capability changes, which is what keeps the cache correct under a future
+// capability revocation.
+func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	aliceToBob, err := NewCapability(alice, bob.Principal(), alice.Principal(), "/shared", RoleWriter, "", clock.MustNow())
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{aliceToBob}))
+
+	conn, release, err := idx.db.ReadConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	aliceID, err := DbPublicKeysLookupID(conn, alice.Principal())
+	require.NoError(t, err)
+	bobID, err := DbPublicKeysLookupID(conn, bob.Principal())
+	require.NoError(t, err)
+
+	shared := must.Do2(NewIRI(alice.Principal(), "/shared")) // bob is a WRITER here
+	other := must.Do2(NewIRI(alice.Principal(), "/other"))   // bob has no capability here
+
+	// (a) Correct results with a live cache.
+	cache := newWriterValidityCache()
+	got, err := isValidWriter(conn, bobID, shared, cache)
+	require.NoError(t, err)
+	require.True(t, got, "bob holds a WRITER capability on /shared")
+	got, err = isValidWriter(conn, bobID, other, cache)
+	require.NoError(t, err)
+	require.False(t, got, "bob holds no capability on /other")
+
+	// (b) The cache is actually consulted: poison the /other entry and observe the
+	// stale value served without touching the DB.
+	otherKey := writerCacheKey(aliceID, bobID, string(must.Do2(json.Marshal(other.Breadcrumbs()))))
+	cache.put(otherKey, true)
+	got, err = isValidWriter(conn, bobID, other, cache)
+	require.NoError(t, err)
+	require.True(t, got, "poisoned cache entry is served (proves the cache is read)")
+
+	// (c) clear() restores correctness — this is what indexCapability does on any
+	// capability change, including a future revocation.
+	cache.clear()
+	got, err = isValidWriter(conn, bobID, other, cache)
+	require.NoError(t, err)
+	require.False(t, got, "after clear the result is recomputed from the DB")
+
+	// A nil cache disables memoization and yields identical results.
+	got, err = isValidWriter(conn, bobID, shared, nil)
+	require.NoError(t, err)
+	require.True(t, got)
+	got, err = isValidWriter(conn, bobID, other, nil)
+	require.NoError(t, err)
+	require.False(t, got)
 }

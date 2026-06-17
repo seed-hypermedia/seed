@@ -372,7 +372,12 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 		start := time.Now()
 		markf(ctx, tlog, "%s start: %d peers", phase, len(peers))
-		res := s.syncWithManyPeers(ctx, string(entityID), peers, st, prog, auth, btypes)
+		// The root-directory pass only needs to make the page renderable before
+		// handing off to connected_sync (which fetches the full recursive closure),
+		// so it drops stragglers at the grace instead of keep-draining a backlog the
+		// next phase will fetch anyway.
+		quickDrain := phase == "root_directory_sync"
+		res := s.syncWithManyPeers(ctx, string(entityID), peers, st, prog, auth, btypes, quickDrain)
 		MDiscoverPhaseSeconds.WithLabelValues(phase).Observe(time.Since(start).Seconds())
 		markf(ctx, tlog, "%s done: ok=%d failed=%d of %d peers in %s",
 			phase, res.NumSyncOK, res.NumSyncFailed, len(peers), time.Since(start).Round(time.Millisecond))
@@ -470,7 +475,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 
 	dhtSyncStart := time.Now()
 	markf(ctx, tlog, "dht_sync start: %d providers", len(subsMap))
-	res := s.syncWithManyPeers(ctxDHT, string(entityID), subsMap, store, prog, auth, blobTypes)
+	// DHT sync is the last-resort bulk phase (no follow-up), so it keeps draining.
+	res := s.syncWithManyPeers(ctxDHT, string(entityID), subsMap, store, prog, auth, blobTypes, false)
 	MDiscoverPhaseSeconds.WithLabelValues("dht_sync").Observe(time.Since(dhtSyncStart).Seconds())
 	markf(ctx, tlog, "dht_sync done: ok=%d failed=%d of %d providers in %s",
 		res.NumSyncOK, res.NumSyncFailed, len(subsMap), time.Since(dhtSyncStart).Round(time.Millisecond))

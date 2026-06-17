@@ -118,6 +118,13 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			uint64(multicodec.DagPb),
 		}
 
+		// One writer-validity cache for the whole reindex: the entire pass runs in
+		// this single transaction over one consistent snapshot, single-threaded, and
+		// indexCapability clears it whenever a capability is (re)indexed — so it is
+		// safe to share across every blob and collapses the repeated transitive
+		// writer query the same way the sync path does. See writerValidityCache.
+		reindexWriterCache := newWriterValidityCache()
+
 		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
 		if err := sqlitex.ExecTransient(conn, q, func(stmt *sqlite.Stmt) error {
 			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
@@ -140,7 +147,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
-			err = indexBlob(false, false, conn, id, c, data, idx.bs, idx.log)
+			err = indexBlob(false, false, conn, id, c, data, idx.bs, idx.log, reindexWriterCache)
 			blobsIndexed++
 
 			// We batch updates for progress reporting.

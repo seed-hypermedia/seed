@@ -71,13 +71,16 @@ type taskHandle struct {
 	cancelFunc context.CancelFunc
 	runCtx     context.Context
 
-	// Progress watermark for preemption protection. lastDownloaded mirrors
-	// progress.BlobsDownloaded as last observed by the preemption check, and
-	// lastDownloadAt is when it last advanced. A task that downloaded within
-	// progressGrace is "actively progressing" and is not preempted. Sampled lazily
-	// (only when preemption is considered); guarded by scheduler.mu.
-	lastDownloaded int32
-	lastDownloadAt time.Time
+	// Progress watermarks for cancellation protection (see isActivelyProgressing).
+	// lastDownloaded mirrors progress.BlobsDownloaded and lastReconciled mirrors
+	// progress.MaxReconciledWants, each with the time it last advanced. A task that
+	// downloaded OR reconciled within progressGrace is "actively progressing" and
+	// is protected from both preemption and the hot-TTL reaper. Sampled lazily
+	// (only when a cancellation is considered); guarded by scheduler.mu.
+	lastDownloaded  int32
+	lastDownloadAt  time.Time
+	lastReconciled  int32
+	lastReconcileAt time.Time
 
 	// Observable fields.
 	state       TaskState
@@ -89,6 +92,39 @@ type taskHandle struct {
 
 func (task *taskHandle) IsHot(now time.Time) bool {
 	return now.Before(task.hotDeadline)
+}
+
+// isActivelyProgressing reports whether the task has made discovery progress —
+// fetched a block OR grown a peer's reconciled want-count — within progressGrace,
+// advancing its watermarks as a side effect. It is the shared "don't cancel a
+// converging discovery" check used by all three cancellation paths — subscription
+// preemption (preemptSubscriptionLocked), hot preemption (preemptOldestHotLocked)
+// and the hot-TTL reaper (cleanupExpiredHotTasksLocked).
+//
+// Reconcile counts as progress, not just download: a recursive discovery spends
+// its first seconds reconciling want-lists with peers before any block arrives,
+// and the foreground site sync was being preempted in exactly that window (cut
+// with ok=0 downloaded=0, then a full re-cycle). MaxReconciledWants is monotonic,
+// so it advances only while new peers are still reconciling — once that settles,
+// download progress takes over the protection. A task with no progress tracker,
+// or one idle on both signals past the grace, is not protected. Caller must hold
+// scheduler.mu (the watermark fields are mutated here).
+func (task *taskHandle) isActivelyProgressing(now time.Time) bool {
+	if task.progress == nil {
+		return false
+	}
+	if dl := task.progress.BlobsDownloaded.Load(); dl > task.lastDownloaded {
+		task.lastDownloaded = dl
+		task.lastDownloadAt = now
+	}
+	if !task.lastDownloadAt.IsZero() && now.Sub(task.lastDownloadAt) < progressGrace {
+		return true
+	}
+	if rec := task.progress.MaxReconciledWants.Load(); rec > task.lastReconciled {
+		task.lastReconciled = rec
+		task.lastReconcileAt = now
+	}
+	return !task.lastReconcileAt.IsZero() && now.Sub(task.lastReconcileAt) < progressGrace
 }
 
 func (task *taskHandle) Info() TaskInfo {
@@ -450,7 +486,7 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		// its tail calls resetTimer so we get re-entered and retry.
 		preempted := false
 		if task.queueTier == tierHot {
-			if s.preemptSubscriptionLocked() {
+			if s.preemptSubscriptionLocked(now) {
 				preempted = true
 			} else if s.preemptOldestHotLocked(task, now) {
 				preempted = true
@@ -511,7 +547,7 @@ func (s *scheduler) enqueueLocked(task *taskHandle, now time.Time) {
 // preemptSubscriptionLocked cancels an in-flight subscription so its worker
 // slot can be reused by a higher-priority hot task. Returns true if a
 // subscription was cancelled. Caller must hold s.mu.
-func (s *scheduler) preemptSubscriptionLocked() bool {
+func (s *scheduler) preemptSubscriptionLocked(now time.Time) bool {
 	for _, t := range s.tasks {
 		if t.state != TaskStateInProgress {
 			continue
@@ -520,6 +556,18 @@ func (s *scheduler) preemptSubscriptionLocked() bool {
 			continue
 		}
 		if t.cancelFunc == nil {
+			continue
+		}
+		// Never preempt a subscription that is actively downloading — the same
+		// protection preemptOldestHotLocked gives hot tasks (672a978cb), which was
+		// never applied here. The foreground site sync is a recursive subscription;
+		// when a freshly-rendered card (a new hot task) needs a slot, killing the
+		// site sync mid-download throws away thousands of in-flight blobs AND
+		// reschedules it a full Interval later — the exact multi-cycle cold-sync
+		// stall (measured: connected_sync "context canceled" at 18s, then a ~1.7min
+		// dead gap). A stalled/idle subscription is still fair game; if every
+		// subscription is downloading, the hot task queues until a slot frees.
+		if t.isActivelyProgressing(now) {
 			continue
 		}
 		t.cancelFunc()
@@ -552,21 +600,13 @@ func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) 
 		if t.key == incoming.key {
 			continue
 		}
-		// Never preempt a task that is actively downloading. Sample its progress
-		// watermark; if it has fetched a block within progressGrace it is making
-		// real progress and must be allowed to converge. This is the core of the
-		// fix: under a storm of concurrent discoveries, LIFO preemption used to
-		// let a newer hot task (e.g. a card rendered after the home) cancel an
-		// older one mid-download, so nothing ever finished. Protected tasks stay;
-		// the newcomer queues until a slot frees.
-		if t.progress != nil {
-			if dl := t.progress.BlobsDownloaded.Load(); dl > t.lastDownloaded {
-				t.lastDownloaded = dl
-				t.lastDownloadAt = now
-			}
-			if !t.lastDownloadAt.IsZero() && now.Sub(t.lastDownloadAt) < progressGrace {
-				continue
-			}
+		// Never preempt a task that is actively downloading: under a storm of
+		// concurrent discoveries, LIFO preemption used to let a newer hot task
+		// (e.g. a card rendered after the home) cancel an older one mid-download, so
+		// nothing ever finished. Protected tasks stay; the newcomer queues until a
+		// slot frees.
+		if t.isActivelyProgressing(now) {
+			continue
 		}
 		// Victim must have a strictly older heartbeat than the incoming task;
 		// otherwise preempting just delays the user's most recent request.
@@ -604,18 +644,10 @@ func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
 			// structure fetch it kicked off is still streaming and the content is
 			// still wanted — keep it alive (extend the heartbeat) so it converges
 			// instead of being killed mid-stream and re-queued behind the storm.
-			// This is the 4th and last cancellation path gated on progress
-			// (alongside preemption, the straggler watcher, and the per-tier idle).
 			// A stalled expired task (no download within progressGrace) is reaped.
-			if t.progress != nil {
-				if dl := t.progress.BlobsDownloaded.Load(); dl > t.lastDownloaded {
-					t.lastDownloaded = dl
-					t.lastDownloadAt = now
-				}
-				if !t.lastDownloadAt.IsZero() && now.Sub(t.lastDownloadAt) < progressGrace {
-					t.hotDeadline = now.Add(s.hotTTL)
-					continue
-				}
+			if t.isActivelyProgressing(now) {
+				t.hotDeadline = now.Add(s.hotTTL)
+				continue
 			}
 			if t.cancelFunc != nil {
 				t.cancelFunc()

@@ -534,7 +534,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
-	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log); err != nil {
+	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log, ictx.writerCache); err != nil {
 		return err
 	}
 

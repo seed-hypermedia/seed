@@ -614,6 +614,74 @@ func TestScheduler_NoPreemptWhileDownloading(t *testing.T) {
 	require.True(t, cancelled, "the stalled task's cancelFunc must be called")
 }
 
+// TestScheduler_NoPreemptSubscriptionWhileDownloading verifies that the
+// subscription-preemption path honors the same download protection as the hot
+// path: a freshly-rendered card (a new hot task) must not cancel a recursive
+// subscription — e.g. the foreground site sync — while it is actively
+// downloading; a stalled subscription is still fair game. Without this guard the
+// site sync was killed mid-download and rescheduled a full Interval later, which
+// is the multi-cycle cold-sync stall.
+func TestScheduler_NoPreemptSubscriptionWhileDownloading(t *testing.T) {
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int)}
+	s := newScheduler(disc, testConfig(10*time.Second, 6))
+	now := time.Now()
+
+	cancelled := false
+	downloading := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://site/sub"},
+		state:        TaskStateInProgress,
+		subscription: true,
+		cancelFunc:   func() { cancelled = true },
+		progress:     &Progress{},
+	}
+	downloading.progress.BlobsDownloaded.Store(100)
+	s.tasks[downloading.key] = downloading
+
+	// Actively downloading -> protected.
+	require.False(t, s.preemptSubscriptionLocked(now),
+		"a subscription downloading within progressGrace must not be preempted")
+	require.False(t, cancelled)
+
+	// Stalled past progressGrace -> preemptible.
+	require.True(t, s.preemptSubscriptionLocked(now.Add(progressGrace+time.Second)),
+		"a stalled subscription must be preemptible")
+	require.True(t, cancelled, "the stalled subscription's cancelFunc must be called")
+}
+
+// TestScheduler_NoPreemptWhileReconciling verifies that a discovery still in its
+// reconcile ramp — growing a peer's reconciled want-count but with no block
+// downloaded yet — is protected from preemption. The foreground site sync was
+// being killed in exactly this window (connected_sync cut with ok=0 downloaded=0
+// under the startup storm, then a full re-cycle), because the old protection only
+// looked at downloads.
+func TestScheduler_NoPreemptWhileReconciling(t *testing.T) {
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int)}
+	s := newScheduler(disc, testConfig(10*time.Second, 6))
+	now := time.Now()
+
+	cancelled := false
+	reconciling := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://site/sub"},
+		state:        TaskStateInProgress,
+		subscription: true,
+		cancelFunc:   func() { cancelled = true },
+		progress:     &Progress{},
+	}
+	// Reconciling (want-list growing), nothing downloaded yet.
+	reconciling.progress.MaxReconciledWants.Store(5000)
+	s.tasks[reconciling.key] = reconciling
+
+	require.False(t, s.preemptSubscriptionLocked(now),
+		"a subscription reconciling within progressGrace must not be preempted")
+	require.False(t, cancelled)
+
+	// Reconcile stops advancing and still nothing downloads -> after progressGrace
+	// it is idle on both signals and becomes preemptible.
+	require.True(t, s.preemptSubscriptionLocked(now.Add(progressGrace+time.Second)),
+		"a subscription idle on both download and reconcile past the grace must be preemptible")
+	require.True(t, cancelled)
+}
+
 // TestScheduler_NoTTLCancelWhileDownloading verifies the 4th progress gate: a hot
 // task whose heartbeat expired is NOT cancelled by the cleanup while it's still
 // actively downloading (its heartbeat is extended so the deep fetch converges);

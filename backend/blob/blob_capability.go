@@ -160,5 +160,11 @@ func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error 
 		return err
 	}
 
-	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonPermissionDenied, v.Delegate.String(), ictx.blockStore, ictx.log)
+	// A new capability changes writer-validity outcomes, so drop the memoized
+	// isValidWriter results before re-validating the blobs it unstashes. Keyed on
+	// the Capability blob type, this invalidation also covers any future
+	// capability change (e.g. revocation) without further code changes.
+	ictx.writerCache.clear()
+
+	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonPermissionDenied, v.Delegate.String(), ictx.blockStore, ictx.log, ictx.writerCache)
 }

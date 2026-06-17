@@ -14,6 +14,7 @@ import (
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
 	"seed/backend/util/unsafeutil"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -155,7 +156,7 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 // skipped; the caller is responsible for running propagateVisibilityBatch
 // after the whole batch has been indexed. This is what PutMany uses to
 // coalesce many tiny CTE walks into one walk per space.
-func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
+func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -200,6 +201,7 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 
 	ictx := newCtx(conn, id, bs, log)
 	ictx.mustTrackUnreads = trackUnreads
+	ictx.writerCache = wc
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -696,7 +698,8 @@ func (idx *Index) IsValidWriter(ctx context.Context, space core.Principal, path 
 		return false, err
 	}
 
-	valid, err = isValidWriter(conn, writerID, iri)
+	// Standalone read path (no indexing transaction in flight): no cache.
+	valid, err = isValidWriter(conn, writerID, iri, nil)
 	return valid, err
 }
 
@@ -757,7 +760,62 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 	return out, nil
 }
 
-func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
+// writerValidityCache memoizes isValidWriter results within a single write
+// transaction (one PutMany batch plus the reindex cascade it triggers). During a
+// cold bulk sync, a capability that arrives after the blobs it authorizes
+// unstashes many Refs that share a writer, and each one re-runs the ~1000x
+// transitive AGENT-capability query for the very same (owner, writer,
+// breadcrumbs) tuple — profiled as the dominant cold-sync persist cost. The cache
+// collapses those repeats to a single query.
+//
+// Scope and safety: the cache is confined to one batch transaction, which runs
+// single-threaded over a consistent SQLite snapshot — so it needs no locking and
+// can never serve a result from another connection's uncommitted state. It is
+// cleared whenever a Capability blob is indexed in the same batch (see
+// indexCapability). That invalidation is keyed on the blob *type*, so it already
+// covers any future capability change — including revocation — meaning a cached
+// "valid" can never outlive the grant that justified it. A nil cache disables
+// memoization and is passed by the read-only / standalone validation paths.
+type writerValidityCache struct {
+	m map[string]bool
+}
+
+func newWriterValidityCache() *writerValidityCache {
+	return &writerValidityCache{m: make(map[string]bool)}
+}
+
+// writerCacheKey builds the writerValidityCache key from the exact inputs that
+// determine an isValidWriter result: the owner and writer DB ids and the
+// resource breadcrumbs JSON (all three are the bind args of the writer queries).
+func writerCacheKey(ownerID, writerID int64, parentsJSON string) string {
+	return strconv.FormatInt(ownerID, 10) + "|" + strconv.FormatInt(writerID, 10) + "|" + parentsJSON
+}
+
+func (c *writerValidityCache) get(key string) (valid bool, ok bool) {
+	if c == nil {
+		return false, false
+	}
+	v, ok := c.m[key]
+	return v, ok
+}
+
+func (c *writerValidityCache) put(key string, valid bool) {
+	if c == nil {
+		return
+	}
+	c.m[key] = valid
+}
+
+// clear drops all memoized results. Called when a Capability blob is indexed,
+// because that is the only event that can change a writer-validity outcome.
+func (c *writerValidityCache) clear() {
+	if c == nil {
+		return
+	}
+	clear(c.m)
+}
+
+func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI, wc *writerValidityCache) (valid bool, err error) {
 	owner, _, err := resource.SpacePath()
 	if err != nil {
 		return false, err
@@ -778,6 +836,13 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 		),
 	)
 
+	// (ownerID, writerID, parentsJSON) are exactly the bind args of both writer
+	// queries below, so they fully determine the result and form the cache key.
+	cacheKey := writerCacheKey(ownerID, writerID, parentsJSON)
+	if v, ok := wc.get(cacheKey); ok {
+		return v, nil
+	}
+
 	// Two-step instead of a single UNION. The direct-delegation branch
 	// (qIsValidWriterDirect) is one indexed seek and matches the common case (the
 	// space owner granted this writer directly). The transitive AGENT-chain branch
@@ -787,10 +852,17 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 	// direct first and only fall back on a miss; semantics are identical
 	// (valid = direct OR agent).
 	valid, err = capabilityRowExists(conn, qIsValidWriterDirect(), ownerID, writerID, parentsJSON)
-	if err != nil || valid {
-		return valid, err
+	if err != nil {
+		return false, err
 	}
-	return capabilityRowExists(conn, qIsValidWriterAgent(), ownerID, writerID, parentsJSON)
+	if !valid {
+		valid, err = capabilityRowExists(conn, qIsValidWriterAgent(), ownerID, writerID, parentsJSON)
+		if err != nil {
+			return false, err
+		}
+	}
+	wc.put(cacheKey, valid)
+	return valid, nil
 }
 
 // capabilityRowExists reports whether the capability lookup query (taking owner,
@@ -841,7 +913,7 @@ func IsValidWriterInDB(conn *sqlite.Conn, resource IRI, writer core.Principal) (
 	if err != nil {
 		return false, err
 	}
-	return isValidWriter(conn, writerID, resource)
+	return isValidWriter(conn, writerID, resource, nil)
 }
 
 // SQLCanWriteRootByOwnerID returns a SQL EXISTS expression that checks root write access.
@@ -1191,6 +1263,11 @@ type indexingCtx struct {
 	blobs     map[cid.Cid]blobsGetSizeResult
 
 	lookup *LookupCache
+
+	// writerCache memoizes isValidWriter across this transaction's indexBlob
+	// calls (including the reindex cascade); shared by every ictx derived from the
+	// same batch. May be nil (caching disabled). See writerValidityCache.
+	writerCache *writerValidityCache
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1810,7 +1887,7 @@ var qLookupRecordID = dqb.Str(`
 	LIMIT 1
 `)
 
-func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger) (err error) {
+func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
 	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match).All()
 	defer discard(&err)
 
@@ -1835,7 +1912,7 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 		c := cid.NewCidV1(uint64(codec), hash)
 
 		funcs = append(funcs, func() error {
-			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log)
+			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc)
 		})
 	}
 

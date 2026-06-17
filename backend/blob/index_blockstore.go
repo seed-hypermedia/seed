@@ -36,7 +36,8 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return nil
 		}
 
-		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log)
+		// Single-blob path: a fresh per-call cache (no cross-blob reuse to exploit).
+		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache())
 	})
 }
 
@@ -45,12 +46,16 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 // for too long, which would block other writers (e.g. document publish).
 func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	// Chunk size caps how long a single write transaction holds the RESERVED
-	// SQLite lock. indexBlob for a Change/Comment/Ref blob does several
-	// INSERT/UPDATEs each, so 100 blobs per tx regularly held the lock for
-	// multiple seconds and triggered SQLITE_BUSY on every other writer (peer
-	// INSERTs, domain tracking, bulk peer-exchange). Smaller batches finish
-	// in ~hundreds of ms so other writers drain quickly between chunks.
-	const batchSize = 10
+	// SQLite lock, and amortizes the per-tx overhead (BEGIN/COMMIT, WriteConn
+	// acquire, and the coalesced visibility-propagation pass) across more blobs.
+	// It was 10 when bulk sync ran many concurrent writers AND indexBlob cost
+	// ~20-30ms/blob (pre cap-check + writer-cache optimizations), so 100/tx held
+	// the lock for seconds and triggered SQLITE_BUSY everywhere. Now sync persists
+	// through a single daemon-wide feeder (the only heavy writer) and indexBlob is
+	// ~1.5ms/blob, so 100/tx holds the lock ~150ms — fewer commits, far less
+	// per-tx overhead, and no contention to starve. Other PutMany callers (publish,
+	// device-link, push) pass only a handful of blobs, so they're unaffected.
+	const batchSize = 100
 
 	trackUnreads := unreadsTrackingEnabled(ctx)
 
@@ -60,6 +65,12 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 			return err
 		}
 
+		// One writer-validity cache per batch transaction: shared across this
+		// batch's blobs and the reindex cascade they trigger, so a late capability
+		// that unstashes many same-writer Refs runs the costly transitive query
+		// once instead of per blob. Safe because the batch tx is single-threaded
+		// over a consistent snapshot. See writerValidityCache.
+		wc := newWriterValidityCache()
 		err = sqlitex.WithTx(conn, func() error {
 			// Track every blob we actually indexed in this batch so we can run
 			// one coalesced visibility propagation pass at the end instead of
@@ -76,7 +87,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 					continue
 				}
 
-				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log); err != nil {
+				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc); err != nil {
 					return err
 				}
 				indexed = append(indexed, id)

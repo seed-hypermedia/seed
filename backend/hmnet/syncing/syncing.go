@@ -440,6 +440,12 @@ type Service struct {
 	keyStore core.KeyStore
 
 	scheduler *scheduler
+
+	// persistFeeder is the daemon-wide single-writer persist queue, shared by all
+	// concurrent discoveries so block writes never contend on the SQLite write
+	// connection. Started lazily via globalPersistFeeder; lives for the process.
+	persistOnce   sync.Once
+	persistFeeder *persistFeeder
 }
 
 // authInfo holds pre-computed authentication information for syncing.
@@ -662,8 +668,8 @@ const (
 
 	// maxIdleStrikes is how many consecutive idle windows a fetch tier tolerates
 	// while it still has a large backlog before abandoning it (each strike is one
-	// idleTimeout). Bounds the wait for a contention gap without hanging forever on
-	// a genuinely undeliverable tail.
+	// idleTimeout). Bounds the wait for a delivery gap without hanging forever on a
+	// genuinely undeliverable tail.
 	maxIdleStrikes = 3
 	// tierIdleNearDone is the tier-backlog count at/below which an idle tier is
 	// abandoned immediately (a genuine tail) instead of waited on.
@@ -671,23 +677,49 @@ const (
 )
 
 // shouldDropStragglers reports whether a connected-sync wave should cancel its
-// remaining peers. It fires only once a quorum has finished AND downloads have
-// been idle for stragglerGrace — but NOT while a peer still owes us a large
-// reconciled backlog (the bulk still streaming from a complete peer, gapped
-// under load). In that case the wave keeps draining; it is cut only when the
-// backlog is nearly gone (a true straggler tail) or it has been idle for
-// stragglerStallBackstop (the remaining content isn't coming from these peers).
+// remaining peers. Once a quorum has finished, it cuts when either nothing
+// reconciled is still owed (the warm fast-path) or downloads have been idle for
+// stragglerGrace — but NOT while a complete peer still owes a large reconciled
+// backlog. Even with the persist feeder removing the old persist-backpressure
+// false-idle, real-app delivery is bursty: a >grace gap with a big backlog still
+// occurs (measured: cutting there loses ~11-15k blobs and forces refetch over
+// ~10min of cycles). So the wave keeps draining until the backlog is nearly gone
+// (a true straggler tail) or it has been idle for stragglerStallBackstop (the
+// content clearly isn't coming from these peers).
+//
+// quickDrain relaxes this for the root-directory render-handoff phase: that phase
+// only needs to make the page renderable and then hand off to connected_sync,
+// which fetches the full recursive closure regardless. So once a quorum is done
+// and downloads have been idle for the grace, cut immediately rather than burning
+// the keep-draining backstop on a straggler's backlog the next phase will fetch
+// anyway (measured: a ~30s dead wait at the very start of a cold sync).
+//
 // maxReconciled is the largest single-peer reconciled want-count seen this
 // discovery (≈ a complete peer's full set); downloaded is the discovery-wide
 // fetched count.
-func shouldDropStragglers(completed, quorum int64, idle time.Duration, maxReconciled, downloaded int32) bool {
-	if completed < quorum || idle < stragglerGrace {
+func shouldDropStragglers(completed, quorum int64, idle time.Duration, maxReconciled, downloaded int32, quickDrain bool) bool {
+	if completed < quorum {
 		return false
+	}
+	// Warm fast-path: quorum done and nothing reconciled still owed (everything
+	// found is already fetched) — cut now, no grace. The common "check for updates"
+	// discovery reconciles 0-few wants and fetches them instantly, so this avoids
+	// burning the full grace confirming silence.
+	outstanding := int64(maxReconciled) - int64(downloaded)
+	if outstanding <= 0 {
+		return true
+	}
+	if idle < stragglerGrace {
+		return false
+	}
+	// Render-handoff phase: quorum done and idle past the grace — cut now; the
+	// follow-up connected_sync fetches whatever this straggler still owes.
+	if quickDrain {
+		return true
 	}
 	if idle >= stragglerStallBackstop {
 		return true
 	}
-	outstanding := int64(maxReconciled) - int64(downloaded)
 	nearDoneBand := max(int64(stragglerNearDoneAbs), int64(maxReconciled)/20)
 	return outstanding <= nearDoneBand
 }
@@ -695,11 +727,20 @@ func shouldDropStragglers(completed, quorum int64, idle time.Duration, maxReconc
 // shouldKeepDrainingTier reports whether a fetch tier that just hit its idle
 // timeout should keep waiting rather than abandon its remaining wants. A large
 // still-owed backlog within maxIdleStrikes consecutive idle windows is treated as
-// a contention gap (the shared bitswap session is busy with other discoveries) —
-// keep waiting. A small tail, or too many idle windows with no block, is a
-// genuine end and is abandoned.
-func shouldKeepDrainingTier(tierOutstanding int64, idleStrikes int) bool {
-	return tierOutstanding > tierIdleNearDone && idleStrikes < maxIdleStrikes
+// a transient delivery gap (the peer/swarm paused but is still serving) — keep
+// waiting. A small tail (absolute or relative to the tier), or too many idle
+// windows with no block, is a genuine end and is abandoned.
+//
+// "Small tail" is max(tierIdleNearDone, 5% of the tier): a complete peer that
+// pauses on a few-percent tail is almost always done, so abandon on the first
+// idle window instead of burning all maxIdleStrikes (which otherwise costs a
+// ~30s dead zone on the structure phase's ~3%-of-tier tail).
+func shouldKeepDrainingTier(tierOutstanding, tierWants int64, idleStrikes int) bool {
+	nearDoneBand := max(int64(tierIdleNearDone), tierWants/20)
+	if tierOutstanding <= nearDoneBand {
+		return false
+	}
+	return idleStrikes < maxIdleStrikes
 }
 
 // syncWithManyPeers syncs with many peers in parallel, bounded by maxPeerConcurrency.
@@ -707,7 +748,79 @@ func shouldKeepDrainingTier(tierOutstanding int64, idleStrikes int) bool {
 // have the requested content. blobTypes is an optional allowlist of structural
 // blob types to reconcile; nil/empty disables the filter (all types). The same
 // filter is applied uniformly to every peer in this call.
-func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string) (res SyncResult) {
+// persistFeederCap bounds the shared persist queue. Peer goroutines block on a
+// full queue — natural backpressure to the single writer — rather than spawning
+// unbounded in-flight batches.
+const persistFeederCap = 16
+
+// persistJob is one batch of fetched blocks handed to the shared persist feeder,
+// together with the WaitGroup the submitting tier blocks on for its barrier.
+type persistJob struct {
+	blocks []blocks.Block
+	wg     *sync.WaitGroup
+	pid    peer.ID
+}
+
+// persistFeeder serializes ALL synced-block persistence — across every concurrent
+// discovery — through a single goroutine, and therefore a single SQLite writer.
+// Without it, each peer goroutine AND each concurrent discovery called
+// Index.PutMany independently and fought over the one daemon write connection;
+// under fan-out that lock thrash made each write ~7x slower (measured ~3ms/blob
+// uncontended vs ~20ms/blob contended) and backed receive loops up until bitswap
+// idle-timeouts abandoned already-downloaded blocks. Blocks are deduped across
+// peers via claimedBlocks, so funneling them through one daemon-wide feeder
+// removes the contention without changing what gets written. A single instance
+// lives on the Service for the process lifetime (see globalPersistFeeder); the
+// per-tier WaitGroup barriers handle each discovery's completion, so it is never
+// stopped.
+type persistFeeder struct {
+	ch chan persistJob
+}
+
+// startPersistFeeder launches the feeder goroutine. persistCtx is the daemon-wide
+// background context; it must carry unreads tracking so synced comments still
+// count as unread, and it outlives every discovery.
+func startPersistFeeder(persistCtx context.Context, idx Index, log *zap.Logger) *persistFeeder {
+	pf := &persistFeeder{ch: make(chan persistJob, persistFeederCap)}
+	go func() {
+		for job := range pf.ch {
+			putmanyStart := time.Now()
+			perr := idx.PutMany(persistCtx, job.blocks)
+			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
+			if perr != nil {
+				MSyncPersistRollbackTotal.Inc()
+				MSyncPersistRollbackBlocks.Add(float64(len(job.blocks)))
+				log.Warn("PutManyBatchRolledBack",
+					zap.String("peerID", job.pid.String()),
+					zap.Int("batchSize", len(job.blocks)),
+					zap.Error(perr),
+				)
+			}
+			job.wg.Done()
+		}
+	}()
+	return pf
+}
+
+// submit queues a batch and registers it on wg (the caller's per-tier barrier).
+// It blocks while the queue is full; the feeder drains continuously, so this is
+// backpressure, not a deadlock.
+func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, batch []blocks.Block) {
+	wg.Add(1)
+	pf.ch <- persistJob{blocks: batch, wg: wg, pid: pid}
+}
+
+// globalPersistFeeder returns the daemon-wide persist feeder, starting it on first
+// use. One feeder serializes every discovery's writes through a single SQLite
+// writer; see persistFeeder.
+func (s *Service) globalPersistFeeder() *persistFeeder {
+	s.persistOnce.Do(func() {
+		s.persistFeeder = startPersistFeeder(blob.ContextWithUnreadsTracking(context.Background()), s.index, s.log)
+	})
+	return s.persistFeeder
+}
+
+func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, quickDrain bool) (res SyncResult) {
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
@@ -741,6 +854,12 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 	// rest skip — each block is written exactly once per discovery task.
 	var claimedBlocks sync.Map
 
+	// Daemon-wide single-writer persist feeder, shared across every concurrent
+	// discovery so block writes never contend on the SQLite write connection.
+	// Per-tier WaitGroup barriers (in fetchTier) guarantee this discovery's blocks
+	// are persisted before it returns, so the shared feeder is never stopped here.
+	pf := s.globalPersistFeeder()
+
 	var g errgroup.Group
 	g.SetLimit(maxPeerConcurrency)
 
@@ -753,7 +872,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 			defer completed.Add(1)
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, iri, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, iri, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks, pf); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -823,7 +942,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 				// reconciled backlog (the bulk still streaming from a complete
 				// peer, gapped under load — not a straggler tail). Cut only when
 				// the backlog is nearly gone or the wave has genuinely stalled.
-				if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded) {
+				if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded, quickDrain) {
 					continue
 				}
 				markf(ctx, s.traceLog.With(zap.String("iri", iri)),
@@ -838,11 +957,15 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 
 	_ = g.Wait()
 	close(watcherDone)
+	// No feeder teardown here: it's the shared daemon-wide feeder. Each peer's
+	// per-tier WaitGroup barrier already waited for its batches to be persisted
+	// before the peer goroutine returned, so by g.Wait() this discovery's blocks
+	// are all on disk.
 
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher, claimedBlocks *sync.Map) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher, claimedBlocks *sync.Map, pf *persistFeeder) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -917,7 +1040,7 @@ func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eid
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
 
-	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, peerTraceLog, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore)
+	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, peerTraceLog, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore, pf)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -960,6 +1083,7 @@ func syncResources(
 	claimedBlocks *sync.Map,
 	phase *string,
 	connCachedAtStart bool,
+	pf *persistFeeder,
 ) (err error) {
 	ctx = blob.ContextWithUnreadsTracking(ctx)
 
@@ -1011,6 +1135,7 @@ func syncResources(
 		wants [][]byte
 	)
 	*phase = "reconcile_rpc"
+	reconcileStart := time.Now()
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
@@ -1084,7 +1209,7 @@ func syncResources(
 	}
 
 	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
-	markf(ctx, traceLog, "reconcile done: %d rounds, %d wants to fetch", rounds, len(allWants))
+	markf(ctx, traceLog, "reconcile done: %d rounds, %d wants to fetch in %s", rounds, len(allWants), time.Since(reconcileStart).Round(time.Millisecond))
 	// Diagnostic tally: record this peer's reconciled want-count (raw, pre-preflight
 	// = "what this peer has that we lack"). The straggler watcher and discover-end
 	// read the max/empties to attribute premature cuts. Trace-only.
@@ -1150,16 +1275,17 @@ func syncResources(
 	*phase = "bitswap_fetch"
 	bitswapStart := time.Now()
 
-	// Streaming persist constants. Bitswap is IO-bound (network); PutMany is
-	// CPU/disk-bound (SQLite write tx + indexBlob). Each tier below streams
-	// small batches as they arrive and persists them on a detached ctx so
-	// already-fetched bytes land on disk even if the per-peer ctx fires.
-	const persistBatchSize = 10
-	const persistChCap = 4
+	// Bitswap is IO-bound (network); persistence is CPU/disk-bound (SQLite write
+	// tx + indexBlob). Each tier streams batches as they arrive to the discovery's
+	// shared persist feeder (pf), which serializes all peers' writes through a
+	// single writer — see persistFeeder. Batch size matches PutMany's internal
+	// chunk so each submitted batch is one transaction (amortizing commit +
+	// visibility-CTE overhead across 100 blobs; safe now that the feeder is the
+	// only heavy writer).
+	const persistBatchSize = 100
 	// Emit a trace mark every N downloaded blobs so a long fetch shows forward
 	// progress without flooding the trace one-event-per-blob.
 	const bitswapProgressEvery = 100
-	persistCtx := context.WithoutCancel(ctx)
 
 	// Shared across the per-tier fetches and consumed by the metrics afterwards:
 	// the moment of the most recent block, the running download total, and the
@@ -1187,33 +1313,17 @@ func syncResources(
 			return false
 		}
 
-		persistCh := make(chan []blocks.Block, persistChCap)
-		persistDone := make(chan struct{})
-		go func() {
-			defer close(persistDone)
-			for b := range persistCh {
-				putmanyStart := time.Now()
-				perr := idx.PutMany(persistCtx, b)
-				MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
-				if perr != nil {
-					MSyncPersistRollbackTotal.Inc()
-					MSyncPersistRollbackBlocks.Add(float64(len(b)))
-					log.Warn("PutManyBatchRolledBack",
-						zap.String("peerID", pid.String()),
-						zap.Int("batchSize", len(b)),
-						zap.Error(perr),
-					)
-					continue
-				}
-			}
-		}()
+		// This tier's barrier: persistWG counts the batches we hand to the shared
+		// feeder; we Wait on it before returning so the next tier's media
+		// classification sees this tier's indexed blob_links.
+		var persistWG sync.WaitGroup
 
 		batch := make([]blocks.Block, 0, persistBatchSize)
 		flush := func() {
 			if len(batch) == 0 {
 				return
 			}
-			persistCh <- batch
+			pf.submit(&persistWG, pid, batch)
 			batch = make([]blocks.Block, 0, persistBatchSize)
 		}
 
@@ -1258,13 +1368,15 @@ func syncResources(
 					markf(ctx, traceLog, "bitswap progress: %d blobs in %s (tier %s)", downloadedTotal, time.Since(bitswapStart).Round(time.Millisecond), tierName)
 				}
 			case <-t.C:
-				// Per-tier sibling of the straggler gate: a gap with a large tier
-				// backlog still owed is a contention gap (the shared bitswap session
-				// busy with other discoveries), not the end of the data. Keep waiting
-				// for our blocks; abandon only when the tier is nearly drained or
-				// it's been idle for maxIdleStrikes windows (a genuine stall).
+				// No block arrived for idleTimeout. A gap with a large tier backlog
+				// still owed is a transient delivery gap (real-app delivery is bursty),
+				// not the end of the data — keep waiting for our blocks; abandon only
+				// when the tier is nearly drained or it's been idle for maxIdleStrikes
+				// windows (a genuine stall). The persist feeder removed persist-induced
+				// false-idles, but network gaps remain, so this gate still earns its
+				// keep (without it, a >grace gap loses ~11-15k blobs to refetch cycles).
 				idleStrikes++
-				if shouldKeepDrainingTier(int64(len(wants))-tierDownloaded, idleStrikes) {
+				if shouldKeepDrainingTier(int64(len(wants))-tierDownloaded, int64(len(wants)), idleStrikes) {
 					t.Reset(idleTimeout)
 					continue
 				}
@@ -1276,8 +1388,7 @@ func syncResources(
 		}
 
 		flush()
-		close(persistCh)
-		<-persistDone // barrier: this tier is persisted+indexed before the next
+		persistWG.Wait() // barrier: the shared feeder has persisted this tier before the next
 
 		markf(ctx, traceLog, "tier %s: got %d/%d in %s", tierName, tierDownloaded, len(wants), time.Since(tierStart).Round(time.Millisecond))
 		return keepGoing
