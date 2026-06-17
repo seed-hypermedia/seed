@@ -21,7 +21,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
-import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -208,6 +208,7 @@ export function AccountProfileButton() {
   const vaultStatus = useVaultStatus()
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const canLogOut = vaultStatus.data?.backendMode === VaultBackendMode.REMOTE
   const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
@@ -428,23 +429,27 @@ export function AccountProfileButton() {
             <Settings className="size-4" />
             App settings
           </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => {
-              setMenuOpen(false)
-              logoutDialog.open({
-                onSuccess: () => {
-                  authDialog.close()
-                  setSelectedIdentity?.(null)
-                  navigate({key: 'onboarding'})
-                },
-              })
-            }}
-          >
-            <LogOut className="size-4" />
-            Log out
-          </DropdownMenuItem>
+          {canLogOut ? (
+            <>
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => {
+                  setMenuOpen(false)
+                  logoutDialog.open({
+                    onSuccess: () => {
+                      authDialog.close()
+                      setSelectedIdentity?.(null)
+                      navigate({key: 'onboarding'})
+                    },
+                  })
+                }}
+              >
+                <LogOut className="size-4" />
+                Log out
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {logoutDialog.content}
