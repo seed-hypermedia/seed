@@ -923,9 +923,7 @@ function environmentPresets(env) {
       return { testnet: false };
   }
 }
-function defaultReleaseChannel(env) {
-  return env === "dev" ? "dev" : "latest";
-}
+var DEFAULT_RELEASE_CHANNEL = "latest";
 var CUSTOM_RELEASE_CHANNEL = "__custom__";
 function isPresetReleaseChannel(channel) {
   return channel === "latest" || channel === "dev";
@@ -942,7 +940,7 @@ function validateDockerImageTag(tag) {
   }
 }
 async function promptReleaseChannel(options) {
-  const initialTag = options.initialTag ?? defaultReleaseChannel(options.environment);
+  const initialTag = options.initialTag ?? DEFAULT_RELEASE_CHANNEL;
   const hasCustomTag = !isPresetReleaseChannel(initialTag);
   const selected = await de({
     message: "Release channel",
@@ -1272,9 +1270,8 @@ async function runMigrationWizard(old, paths, shell) {
         }
       ]
     }),
-    release_channel: ({ results }) => promptReleaseChannel({
-      initialTag: old.imageTag,
-      environment: results.environment
+    release_channel: () => promptReleaseChannel({
+      initialTag: old.imageTag
     }),
     log_level: () => de({
       message: "Log level",
@@ -1405,9 +1402,8 @@ async function runFreshWizard(paths, existing) {
         }
       ]
     }),
-    release_channel: ({ results }) => promptReleaseChannel({
-      initialTag: existing?.release_channel,
-      environment: results.environment
+    release_channel: () => promptReleaseChannel({
+      initialTag: existing?.release_channel
     }),
     log_level: () => de({
       message: "Log level for Seed services",
@@ -2595,7 +2591,6 @@ export {
   detectOldInstall,
   describeBindFailure,
   deploy,
-  defaultReleaseChannel,
   configExists,
   composeProjectName,
   cmd,
@@ -2616,6 +2611,7 @@ export {
   DEV_DEPLOY_SCRIPT_URL,
   DEFAULT_SEED_DIR,
   DEFAULT_REPO_URL,
+  DEFAULT_RELEASE_CHANNEL,
   DEFAULT_COMPOSE_URL,
   CURL_INSTALL_CMD,
   CLI_INSTALLED

@@ -34,7 +34,7 @@ import {
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
-  defaultReleaseChannel,
+  DEFAULT_RELEASE_CHANNEL,
   validateDockerImageTag,
   buildCrontab,
   parseArgs,
@@ -254,13 +254,11 @@ describe('environmentPresets', () => {
   })
 })
 
-describe('defaultReleaseChannel', () => {
-  test('prod defaults to stable', () => {
-    expect(defaultReleaseChannel('prod')).toBe('latest')
-  })
-
-  test('dev defaults to dev', () => {
-    expect(defaultReleaseChannel('dev')).toBe('dev')
+describe('DEFAULT_RELEASE_CHANNEL', () => {
+  test('defaults to stable, independent of environment', () => {
+    // The release channel must never derive from the environment: a missing
+    // stored channel always falls back to "latest" regardless of prod/dev.
+    expect(DEFAULT_RELEASE_CHANNEL).toBe('latest')
   })
 })
 

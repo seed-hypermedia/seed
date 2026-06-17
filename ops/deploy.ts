@@ -232,10 +232,8 @@ export function environmentPresets(env: SeedConfig['environment']): {
   }
 }
 
-/** Default release channel for a given environment (used as wizard initialValue). */
-export function defaultReleaseChannel(env: SeedConfig['environment']): string {
-  return env === 'dev' ? 'dev' : 'latest'
-}
+/** Default release channel when none is stored. Independent of environment. */
+export const DEFAULT_RELEASE_CHANNEL = 'latest'
 
 const CUSTOM_RELEASE_CHANNEL = '__custom__'
 
@@ -255,9 +253,8 @@ export function validateDockerImageTag(tag: string): string | undefined {
 
 async function promptReleaseChannel(options: {
   initialTag: string | null | undefined
-  environment: SeedConfig['environment']
 }): Promise<string | symbol> {
-  const initialTag = options.initialTag ?? defaultReleaseChannel(options.environment)
+  const initialTag = options.initialTag ?? DEFAULT_RELEASE_CHANNEL
   const hasCustomTag = !isPresetReleaseChannel(initialTag)
   const selected = await p.select<string>({
     message: 'Release channel',
@@ -724,10 +721,9 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
             },
           ],
         }),
-      release_channel: ({results}) =>
+      release_channel: () =>
         promptReleaseChannel({
           initialTag: old.imageTag,
-          environment: results.environment as SeedConfig['environment'],
         }),
       log_level: () =>
         p.select({
@@ -884,10 +880,9 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
             },
           ],
         }),
-      release_channel: ({results}) =>
+      release_channel: () =>
         promptReleaseChannel({
           initialTag: existing?.release_channel,
-          environment: results.environment as SeedConfig['environment'],
         }),
       log_level: () =>
         p.select({
