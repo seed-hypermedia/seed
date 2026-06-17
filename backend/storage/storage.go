@@ -30,8 +30,9 @@ type Store struct {
 
 	device *core.KeyPair
 
-	db  *sqlitex.Pool
-	kms core.KeyStore
+	db   *sqlitex.Pool
+	ckpt *walCheckpointer
+	kms  core.KeyStore
 }
 
 // Open initializes the storage directory.
@@ -63,6 +64,28 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, db.Close())
+		}
+	}()
+
+	// Move WAL checkpointing off the single pool writer. PRAGMA
+	// wal_autocheckpoint=0 stops the writer from stalling for seconds on inline
+	// checkpoint fsyncs during bulk sync; the walCheckpointer flushes the WAL
+	// from a dedicated connection instead. The two are a pair — see
+	// walCheckpointer. Started here (before migration/reindex) so the heavy
+	// first-run write path benefits too.
+	if err := db.ForWrite(func(conn *sqlite.Conn) error {
+		return sqlitex.ExecTransient(conn, "PRAGMA wal_autocheckpoint=0;", nil)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to disable wal autocheckpoint: %w", err)
+	}
+	ckpt, err := newWALCheckpointer(sqlitePath(dataDir), defaultCheckpointInterval, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start wal checkpointer: %w", err)
+	}
+	ckpt.start()
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, ckpt.Close())
 		}
 	}()
 
@@ -111,6 +134,7 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 		kms:    kms,
 		device: kp,
 		db:     db,
+		ckpt:   ckpt,
 	}
 
 	// TODO(hm24): This should probably be called from the outside somehow,
@@ -125,7 +149,12 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 
 // Close the storage.
 func (s *Store) Close() error {
-	return s.db.Close()
+	var err error
+	if s.ckpt != nil {
+		// Stop the checkpointer (final WAL flush) before closing the pool.
+		err = errors.Join(err, s.ckpt.Close())
+	}
+	return errors.Join(err, s.db.Close())
 }
 
 // DB returns the underlying database.

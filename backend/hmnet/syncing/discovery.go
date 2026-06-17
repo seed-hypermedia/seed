@@ -44,6 +44,32 @@ type Progress struct {
 	BlobsDiscovered atomic.Int32
 	BlobsDownloaded atomic.Int32
 	BlobsFailed     atomic.Int32
+
+	// Diagnostic counters (trace-only) for attributing why a discovery is cut
+	// before convergence. MaxReconciledWants is the largest single-peer reconciled
+	// want-count seen this discovery — against a complete peer (the gateway) this
+	// approximates the full set, so `MaxReconciledWants - BlobsDownloaded` is the
+	// outstanding work at any moment. EmptyPeers/ReconciledPeers expose whether the
+	// straggler quorum is being satisfied by content-less peers.
+	MaxReconciledWants atomic.Int32
+	EmptyPeers         atomic.Int32
+	ReconciledPeers    atomic.Int32
+}
+
+// recordReconcile folds one peer's reconciled want-count into the diagnostic
+// tally. Safe for concurrent callers (one per peer goroutine).
+func (p *Progress) recordReconcile(wants int) {
+	p.ReconciledPeers.Add(1)
+	if wants == 0 {
+		p.EmptyPeers.Add(1)
+	}
+	w := int32(wants) //nolint:gosec
+	for {
+		cur := p.MaxReconciledWants.Load()
+		if w <= cur || p.MaxReconciledWants.CompareAndSwap(cur, w) {
+			return
+		}
+	}
 }
 
 // NewDiscoveryProgress creates a progress tracker with an initialized notification channel.
@@ -101,8 +127,16 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 		dur := time.Since(discoverStart)
 		MDiscoverTotalSeconds.WithLabelValues(outcome).Observe(dur.Seconds())
-		markf(ctx, tlog, "discover end: outcome=%s dur=%s discovered=%d downloaded=%d failed=%d",
-			outcome, dur.Round(time.Millisecond), prog.BlobsDiscovered.Load(), prog.BlobsDownloaded.Load(), prog.BlobsFailed.Load())
+		// outcome=error with a canceled ctx ⇒ the discovery's own context was
+		// cancelled externally (scheduler preemption / parent), as opposed to a
+		// straggler/idle wave-cut, which lets the phase complete with
+		// outcome=notfound|connected. maxReconciled/outstanding say whether a peer
+		// still had structure to give when the run ended.
+		maxRec := prog.MaxReconciledWants.Load()
+		dl := prog.BlobsDownloaded.Load()
+		markf(ctx, tlog, "discover end: outcome=%s dur=%s discovered=%d downloaded=%d failed=%d maxReconciled=%d outstanding=%d reconciledPeers=%d emptyPeers=%d",
+			outcome, dur.Round(time.Millisecond), prog.BlobsDiscovered.Load(), dl, prog.BlobsFailed.Load(),
+			maxRec, maxRec-dl, prog.ReconciledPeers.Load(), prog.EmptyPeers.Load())
 	}()
 
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)

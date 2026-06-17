@@ -164,3 +164,47 @@ func TestWriterCheck_OwnersSessionKey(t *testing.T) {
 	require.NoError(t, check())
 	require.Equal(t, []cid.Cid{change.CID}, got)
 }
+
+// TestWriterCheck_DirectWriter covers the fast path of the split writer check: a
+// non-owner with a direct WRITER capability from the owner writing into the
+// owner's space. This is the common case isValidWriter optimizes (it must match
+// on qIsValidWriterDirect alone, never reaching the agent-chain branch).
+func TestWriterCheck_DirectWriter(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	aliceToBob, err := NewCapability(alice, bob.Principal(), alice.Principal(), "/shared", RoleWriter, "", clock.MustNow())
+	require.NoError(t, err)
+
+	change, err := NewChange(bob, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			must.Do2(NewOpSetKey("title", "Direct writer edit")),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	ref, err := NewRef(bob, 0, change.CID, alice.Principal(), "/shared", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{
+		aliceToBob,
+		change,
+		ref,
+	}))
+
+	require.Equal(t, 0, countStashedBlobs(t, db), "direct WRITER delegate should be allowed to write the owner's space")
+
+	iri := must.Do2(NewIRI(alice.Principal(), "/shared"))
+	changes, check := idx.iterChangesLatest(t.Context(), iri)
+	var got []cid.Cid
+	for c := range changes {
+		got = append(got, c.CID)
+	}
+	require.NoError(t, check())
+	require.Equal(t, []cid.Cid{change.CID}, got)
+}

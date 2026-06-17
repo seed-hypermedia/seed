@@ -761,9 +761,17 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 					continue
 				}
 				if completed.Load() >= quorum && !idleSince.IsZero() && now.Sub(idleSince) >= stragglerGrace {
+					// Diagnostic: outstanding = the most any single peer reconciled
+					// (≈ a complete peer's full set) minus what we've downloaded.
+					// If this is LARGE the cut is premature — a peer still had
+					// structure to give. emptyPeers shows how much of the quorum was
+					// satisfied by content-less peers.
+					maxRec := prog.MaxReconciledWants.Load()
+					dl := prog.BlobsDownloaded.Load()
 					markf(ctx, s.traceLog.With(zap.String("iri", iri)),
-						"straggler cancel: %d/%d peers done, no download for %s — dropping stragglers",
-						completed.Load(), total, stragglerGrace)
+						"straggler cancel: %d/%d peers done (empties=%d), no download for %s — outstanding=%d (maxReconciled=%d, downloaded=%d)",
+						completed.Load(), total, prog.EmptyPeers.Load(), now.Sub(idleSince).Round(time.Millisecond),
+						maxRec-dl, maxRec, dl)
 					cancel()
 					return
 				}
@@ -1020,6 +1028,10 @@ func syncResources(
 
 	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
 	markf(ctx, traceLog, "reconcile done: %d rounds, %d wants to fetch", rounds, len(allWants))
+	// Diagnostic tally: record this peer's reconciled want-count (raw, pre-preflight
+	// = "what this peer has that we lack"). The straggler watcher and discover-end
+	// read the max/empties to attribute premature cuts. Trace-only.
+	prog.recordReconcile(len(allWants))
 
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
@@ -1188,7 +1200,7 @@ func syncResources(
 				}
 			case <-t.C:
 				bitswapOutcome = "idle_timeout"
-				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s) in tier %s: got %d/%d, abandoning %d", idleTimeout, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded)
+				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s) in tier %s: got %d/%d, abandoning %d [discovery-wide downloaded=%d maxReconciled=%d]", idleTimeout, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded, prog.BlobsDownloaded.Load(), prog.MaxReconciledWants.Load())
 				keepGoing = false
 				break drain
 			}

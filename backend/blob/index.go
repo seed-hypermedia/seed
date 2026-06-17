@@ -778,15 +778,33 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 		),
 	)
 
-	rows, discard, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON).All()
+	// Two-step instead of a single UNION. The direct-delegation branch
+	// (qIsValidWriterDirect) is one indexed seek and matches the common case (the
+	// space owner granted this writer directly). The transitive AGENT-chain branch
+	// (qIsValidWriterAgent) is ~1000x more expensive, and a UNION would force
+	// SQLite to evaluate it on every call even when the direct branch already
+	// matched — which dominated cold structure-sync wall-clock (~6ms/Ref). Check
+	// direct first and only fall back on a miss; semantics are identical
+	// (valid = direct OR agent).
+	valid, err = capabilityRowExists(conn, qIsValidWriterDirect(), ownerID, writerID, parentsJSON)
+	if err != nil || valid {
+		return valid, err
+	}
+	return capabilityRowExists(conn, qIsValidWriterAgent(), ownerID, writerID, parentsJSON)
+}
+
+// capabilityRowExists reports whether the capability lookup query (taking owner,
+// writer, breadcrumbs as ?1,?2,?3) returns at least one row.
+func capabilityRowExists(conn *sqlite.Conn, query string, args ...any) (found bool, err error) {
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
 	for range rows {
-		valid = true
+		found = true
 		break
 	}
 
 	err = errors.Join(err, check())
-	return valid, err
+	return found, err
 }
 
 // CanWriteRootInDB checks whether writer is allowed to write to the root of space using an existing database connection.
@@ -909,7 +927,15 @@ var qCanWriteRootByID = dqb.Str(`
 	)
 `)
 
-var qIsValidWriter = dqb.Str(`
+// qIsValidWriter is split into a cheap direct-delegation check and an expensive
+// transitive AGENT-chain check (see isValidWriter for why). The two together are
+// equivalent to the previous single UNION query: valid = direct OR agent.
+
+// qIsValidWriterDirect matches when the space owner delegated WRITER/AGENT
+// directly to the writer, scoped to the resource or one of its ancestors. This
+// is a single seek on capabilities_by_delegate and covers the overwhelmingly
+// common case.
+var qIsValidWriterDirect = dqb.Str(`
 	-- owner, writer, breadcrumbs
 	SELECT 1 AS valid
 	FROM structural_blobs direct
@@ -922,9 +948,15 @@ var qIsValidWriter = dqb.Str(`
 		FROM resources r
 		JOIN json_each(?3) each ON each.value = r.iri
 	)
+`)
 
-	UNION
-
+// qIsValidWriterAgent matches the transitive case: an AGENT capability delegates
+// to the writer, and the agent's author is either the owner or itself holds a
+// WRITER/AGENT capability from the owner (the parent_writer chain). This is the
+// expensive branch (correlated subquery + json_each); it only runs when the
+// direct check misses.
+var qIsValidWriterAgent = dqb.Str(`
+	-- owner, writer, breadcrumbs
 	SELECT 1 AS valid
 	FROM structural_blobs agent
 	WHERE agent.type = 'Capability'
