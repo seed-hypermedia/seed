@@ -54,6 +54,38 @@ describe('getDocumentContentAction', () => {
     expect(draftActions).toHaveBeenCalledWith({menuItems})
   })
 
+  it('uses edit-capable actions on the content view while loaded without a draft', () => {
+    const editingFloatingActions = vi.fn(() => 'publish-actions')
+
+    expect(
+      getDocumentContentAction({
+        activeView: 'content',
+        isEditing: false,
+        hasDraft: false,
+        allMenuItems: menuItems,
+        editingFloatingActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('publish-actions')
+    expect(editingFloatingActions).toHaveBeenCalledWith({menuItems})
+  })
+
+  it('returns the shared edit-capable action for mobile header placement too', () => {
+    const editingFloatingActions = vi.fn(() => 'publish-actions')
+
+    const documentContentAction = getDocumentContentAction({
+      activeView: 'content',
+      isEditing: false,
+      hasDraft: false,
+      allMenuItems: menuItems,
+      editingFloatingActions,
+      actionButtons: 'options-actions',
+    })
+
+    expect(documentContentAction).toBe('publish-actions')
+    expect(editingFloatingActions).toHaveBeenCalledWith({menuItems})
+  })
+
   it('falls back to options actions on the content view', () => {
     expect(
       getDocumentContentAction({

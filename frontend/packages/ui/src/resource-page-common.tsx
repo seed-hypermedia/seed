@@ -152,7 +152,7 @@ export function getDocumentContentAction({
   allMenuItems: MenuItemType[]
 }) {
   if (activeView !== 'content') return null
-  if (isEditing && editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
+  if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
   return actionButtons
 }
