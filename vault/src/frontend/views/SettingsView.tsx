@@ -1,9 +1,9 @@
-import { Alert, AlertDescription } from '@/frontend/components/ui/alert'
+import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import * as navigation from '@/frontend/navigation'
-import { useActions, useAppState } from '@/frontend/store'
-import { Button } from '@shm/ui/button'
-import { Separator } from '@shm/ui/separator'
-import { SettingsRow, SettingsSection } from '@shm/ui/settings-list'
+import {useActions, useAppState} from '@/frontend/store'
+import {Button} from '@shm/ui/button'
+import {Separator} from '@shm/ui/separator'
+import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import * as icons from 'lucide-react'
 
 /**
@@ -11,16 +11,16 @@ import * as icons from 'lucide-react'
  * These settings apply to the entire vault, not individual Hypermedia accounts.
  */
 export function SettingsView() {
-  const { session, loading, passkeySupported, notificationServerUrl, vaultData } = useAppState()
+  const {session, loading, passkeySupported, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
   const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-semibold">Security</h1>
-        <p className="text-sm text-muted-foreground">Manage authentication and security for your vault</p>
+        <p className="text-muted-foreground text-sm">Manage authentication and security for your vault</p>
       </div>
 
       {/* Authentication Methods */}

@@ -1,14 +1,14 @@
 import logoUrl from '@/frontend/assets/hypermedia-logo.png'
-import { useActions, useAppState } from '@/frontend/store'
-import { ChevronDown, LogOut } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import {useActions, useAppState} from '@/frontend/store'
+import {ChevronDown, LogOut} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {Link} from 'react-router-dom'
 
 /**
  * Application header with user info and logout button.
  */
 export function Header() {
-  const { session } = useAppState()
+  const {session} = useAppState()
   const actions = useActions()
   return (
     <header className="border-border dark:bg-background z-20 flex w-full transform-gpu flex-row items-center border-b bg-white p-4 transition-transform duration-200">
@@ -32,7 +32,7 @@ export function Header() {
   )
 }
 
-function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+function AccountMenu({email, onSignOut}: {email: string; onSignOut: () => void}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 

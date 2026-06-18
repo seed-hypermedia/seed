@@ -1,36 +1,36 @@
-import { useEffect } from 'react'
-import { createBrowserRouter, Outlet } from 'react-router-dom'
-import { Divider } from './components/Divider'
-import { ErrorMessage } from './components/ErrorMessage'
-import { Header } from './components/Header'
-import { Button } from './components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card'
+import {useEffect} from 'react'
+import {createBrowserRouter, Outlet} from 'react-router-dom'
+import {Divider} from './components/Divider'
+import {ErrorMessage} from './components/ErrorMessage'
+import {Header} from './components/Header'
+import {Button} from './components/ui/button'
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import { getPendingFlowPath, useActions, useAppState } from './store'
-import { AddPasswordView } from './views/AddPasswordView'
-import { ChangeEmailPendingView } from './views/ChangeEmailPendingView'
-import { ChangeEmailView } from './views/ChangeEmailView'
-import { ChangeNotifyServerUrlView } from './views/ChangeNotifyServerUrlView'
-import { ChangePasswordView } from './views/ChangePasswordView'
-import { ChooseAuthView } from './views/ChooseAuthView'
-import { ConnectView } from './views/ConnectView'
-import { CreateProfileView } from './views/CreateProfileView'
-import { DelegateView } from './views/DelegateView'
-import { LoginView } from './views/LoginView'
-import { PreLoginView } from './views/PreLoginView'
-import { SetPasswordView } from './views/SetPasswordView'
-import { VaultView } from './views/VaultView'
-import { VerifyPendingView } from './views/VerifyPendingView'
+import {getPendingFlowPath, useActions, useAppState} from './store'
+import {AddPasswordView} from './views/AddPasswordView'
+import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
+import {ChangeEmailView} from './views/ChangeEmailView'
+import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
+import {ChangePasswordView} from './views/ChangePasswordView'
+import {ChooseAuthView} from './views/ChooseAuthView'
+import {ConnectView} from './views/ConnectView'
+import {CreateProfileView} from './views/CreateProfileView'
+import {DelegateView} from './views/DelegateView'
+import {LoginView} from './views/LoginView'
+import {PreLoginView} from './views/PreLoginView'
+import {SetPasswordView} from './views/SetPasswordView'
+import {VaultView} from './views/VaultView'
+import {VerifyPendingView} from './views/VerifyPendingView'
 
 /**
  * Redirects to `/` if the user is authenticated and vault keys are available.
  * Wrap auth routes that should not be visible when fully unlocked.
  */
 function RedirectIfUnlocked() {
-  const { session, decryptedDEK, delegationRequest, vaultConnectionRequest } = useAppState()
+  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest} = useAppState()
 
   if (session?.authenticated && decryptedDEK) {
-    const pendingPath = getPendingFlowPath({ delegationRequest, vaultConnectionRequest })
+    const pendingPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
     return <navigation.HashNavigate to={pendingPath} replace />
   }
 
@@ -43,7 +43,7 @@ function RedirectIfUnlocked() {
  * If not authenticated, redirects to home.
  */
 function LockedView() {
-  const { session, loading, error, passkeySupported } = useAppState()
+  const {session, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -85,7 +85,7 @@ function LockedView() {
  * If not authenticated, redirects to home.
  */
 function EnsureUnlocked() {
-  const { session, decryptedDEK, sessionChecked } = useAppState()
+  const {session, decryptedDEK, sessionChecked} = useAppState()
 
   if (!sessionChecked) {
     return null // Or a loading spinner
@@ -153,7 +153,7 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const { session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest } = useAppState()
+  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -168,7 +168,7 @@ function RootView() {
       )
     }
 
-    const pendingFlowPath = getPendingFlowPath({ delegationRequest, vaultConnectionRequest })
+    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
     if (pendingFlowPath !== '/') {
       return <navigation.HashNavigate to={pendingFlowPath} replace />
     }
@@ -188,7 +188,7 @@ function RootView() {
 }
 
 function ConnectRouteView() {
-  const { session, decryptedDEK, sessionChecked, vaultConnectionRequest } = useAppState()
+  const {session, decryptedDEK, sessionChecked, vaultConnectionRequest} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -307,6 +307,6 @@ export function createRouter() {
         ],
       },
     ],
-    { basename: '/vault' },
+    {basename: '/vault'},
   )
 }

@@ -9,6 +9,7 @@
     "test:build": "bun run build && bun scripts/smoke-build.ts",
     "test:docker": "bun scripts/smoke-docker.ts",
     "typecheck": "bun tsgo --noEmit",
+    "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "check": "conc 'bun typecheck' 'bun format:write'"
   },
@@ -41,7 +42,7 @@
     "@types/react-dom": "^19",
     "@typescript/native-preview": "^7.0.0-dev.20260224.1",
     "concurrently": "^9.2.1",
-    "prettier": "^3.0.2",
+    "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.6.13",
     "superjson": "2.2.1"
   }
