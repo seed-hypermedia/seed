@@ -1800,6 +1800,9 @@ importers:
       react-day-picker:
         specifier: ^9.8.1
         version: 9.13.0(react@18.2.0)
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
       react-hook-form:
         specifier: 7.46.1
         version: 7.46.1(react@18.2.0)

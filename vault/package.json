@@ -11,8 +11,13 @@
     "check": "conc 'bun typecheck' 'bun format:write'"
   },
   "overrides": {
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "@types/react": "18.2.64",
+    "@types/react-dom": "18.2.21",
+    "@seed-hypermedia/client": "file:../frontend/packages/client",
+    "@shm/shared": "file:../frontend/packages/shared",
+    "@shm/ui": "file:../frontend/packages/ui"
   },
   "dependencies": {
     "@bufbuild/protobuf": "1.10.0",
@@ -32,6 +37,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
+    "@shm/ui": "file:../frontend/packages/ui",
     "@simplewebauthn/browser": "^13.2.2",
     "@simplewebauthn/server": "^13.2.2",
     "bun-plugin-tailwind": "^0.1.2",
@@ -63,8 +69,8 @@
     "@types/bun": "latest",
     "@types/mjml": "^4.7.4",
     "@types/nodemailer": "^7.0.9",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "18.2.64",
+    "@types/react-dom": "18.2.21",
     "@typescript/native-preview": "^7.0.0-dev.20260224.1",
     "concurrently": "^9.2.1",
     "globals": "^16.5.0",

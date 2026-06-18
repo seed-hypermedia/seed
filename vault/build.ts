@@ -1,6 +1,7 @@
 import {rm} from 'node:fs/promises'
 import tailwind from 'bun-plugin-tailwind'
 import uglify from './uglify-js'
+import {reactSingletonPlugin} from './react-singleton-plugin'
 import * as path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import process from 'node:process'
@@ -24,7 +25,7 @@ const result = await Bun.build({
   },
   publicPath: '/vault/',
   root: './src',
-  plugins: [tailwind, uglify],
+  plugins: [reactSingletonPlugin, tailwind, uglify],
 })
 
 if (!result.success) {

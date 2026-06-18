@@ -11,6 +11,22 @@
     "types",
     "dist"
   ],
+  "exports": {
+    "./components/*": {
+      "bun": "./src/components/*.tsx",
+      "default": "./src/components/*.tsx"
+    },
+    "./utils": {
+      "bun": "./src/utils.ts",
+      "default": "./src/utils.ts"
+    },
+    "./*.css": "./src/*.css",
+    "./*": {
+      "bun": "./src/*.tsx",
+      "default": "./src/*.tsx"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "shadcn:add": "shadcn add",
     "format:check": "prettier --check .",
@@ -50,7 +66,6 @@
     "mermaid": "^11.4.0",
     "next-themes": "^0.4.6",
     "nostr-tools": "1.16.0",
-    "react": "18.2.0",
     "react-day-picker": "^9.8.1",
     "react-hook-form": "7.46.1",
     "react-icons": "4.9.0",
@@ -66,5 +81,9 @@
     "shadcn": "^2.6.3",
     "typescript": "5.8.3",
     "vitest": "4.1.8"
+  },
+  "peerDependencies": {
+    "react": ">=18.2.0 <20",
+    "react-dom": ">=18.2.0 <20"
   }
 }
