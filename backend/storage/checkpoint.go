@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -213,11 +215,8 @@ func (c *walCheckpointer) Close() error {
 	return c.connErr
 }
 
-// errClose closes conn and joins any close error with the original err, so a
+// errClose closes c and joins any close error with the original err, so a
 // failure during setup doesn't leak the connection (and trip its finalizer).
-func errClose(conn *sqlite.Conn, err error) error {
-	if cerr := conn.Close(); cerr != nil {
-		return cerr
-	}
-	return err
+func errClose(c io.Closer, err error) error {
+	return errors.Join(err, c.Close())
 }

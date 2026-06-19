@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -123,4 +124,31 @@ func TestWALCheckpointerLifecycle(t *testing.T) {
 	require.Equal(t, 0, busy)
 	require.Equal(t, 0, walFrames)
 	require.Equal(t, 0, checkpointed)
+}
+
+// closerFunc adapts a function to io.Closer so tests can force a close failure.
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }
+
+// TestErrClose verifies errClose joins (never drops) the original and close
+// errors. The "close fails AND original err" case is the regression: the old
+// implementation returned only the close error, silently dropping the original.
+func TestErrClose(t *testing.T) {
+	t.Parallel()
+
+	orig := errors.New("setup failed")
+	closeErr := errors.New("close failed")
+	ok := closerFunc(func() error { return nil })
+	bad := closerFunc(func() error { return closeErr })
+
+	require.NoError(t, errClose(ok, nil), "no errors -> nil")
+
+	require.ErrorIs(t, errClose(ok, orig), orig, "close ok -> original preserved")
+
+	require.ErrorIs(t, errClose(bad, nil), closeErr, "no original -> close error surfaced")
+
+	both := errClose(bad, orig)
+	require.ErrorIs(t, both, orig, "close failed -> original must NOT be dropped")
+	require.ErrorIs(t, both, closeErr, "close failed -> close error also reported")
 }
