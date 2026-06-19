@@ -13,112 +13,28 @@ import {draftsApi} from './app-drafts'
 import {t} from './app-trpc'
 import {dispatchAllWindowsAppEvent} from './app-windows'
 import * as log from './logger'
+import {createActor} from 'xstate'
+import {
+  CLEANUP_MACHINE_STORAGE_KEY,
+  CLEANUP_STORAGE_KEY,
+  cleanupJobId,
+  createDocumentCardCleanupCoordinatorMachine,
+  DocumentCardCleanupJob,
+  DocumentCardCleanupStore,
+  getPublicDocumentCardCleanupSnapshot,
+  normalizeDocumentCardCleanupStore,
+} from './app-document-card-cleanup-machine'
 
-const CLEANUP_STORAGE_KEY = 'DocumentCardCleanupState-v001'
 const CLEANUP_STATUS_QUERY_KEY = ['trpc.documentCardCleanup.getSnapshot']
-const RETRY_DELAYS_MS = [1_000, 5_000, 15_000]
 const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
-
-type CleanupCoordinatorState = 'idle' | 'running' | 'retryWaiting'
-
-export type DocumentCardCleanupJobState =
-  | 'idle'
-  | 'loadingParent'
-  | 'updating'
-  | 'publishing'
-  | 'verifying'
-  | 'done'
-  | 'skippedTerminal'
-  | 'retryScheduled'
-  | 'failedNeedsAttention'
-
-export type DocumentCardCleanupJob = {
-  id: string
-  deletedDocumentId: string
-  parentDocumentId: string
-  signingAccountUid: string
-  capabilityId?: string
-  isDraft?: boolean
-  parentDraftId?: string
-  state: DocumentCardCleanupJobState
-  attempts: number
-  maxRetries: number
-  nextRunAt?: number
-  lastError?: string
-  updatedAt: number
-  createdAt: number
-}
-
-type DocumentCardCleanupStore = {
-  coordinatorState: CleanupCoordinatorState
-  jobs: DocumentCardCleanupJob[]
-}
 
 type RunOptions = {
   now?: () => number
 }
 
-let state: DocumentCardCleanupStore = readStore()
 let scheduledRun: ReturnType<typeof setTimeout> | null = null
-let inFlight: Promise<void> | null = null
 let hasStarted = false
-
-function emptyStore(): DocumentCardCleanupStore {
-  return {coordinatorState: 'idle', jobs: []}
-}
-
-function readStore(): DocumentCardCleanupStore {
-  const raw = appStore.get(CLEANUP_STORAGE_KEY) as DocumentCardCleanupStore | undefined
-  if (!raw || !Array.isArray(raw.jobs)) return emptyStore()
-  return {
-    coordinatorState: raw.coordinatorState || 'idle',
-    jobs: raw.jobs.map((job) => ({...job, maxRetries: job.maxRetries ?? 3})),
-  }
-}
-
-function writeStore(next: DocumentCardCleanupStore) {
-  state = next
-  appStore.set(CLEANUP_STORAGE_KEY, next)
-  appInvalidateQueries(CLEANUP_STATUS_QUERY_KEY)
-}
-
-function updateJob(jobId: string, patch: Partial<DocumentCardCleanupJob>, now = Date.now()) {
-  writeStore({
-    ...state,
-    jobs: state.jobs.map((job) => (job.id === jobId ? {...job, ...patch, updatedAt: now} : job)),
-  })
-}
-
-function deriveCoordinatorState(now = Date.now()): CleanupCoordinatorState {
-  if (inFlight) return 'running'
-  const hasDue = state.jobs.some((job) => isJobDue(job, now))
-  if (hasDue) return 'idle'
-  const hasRetry = state.jobs.some((job) => job.state === 'retryScheduled')
-  return hasRetry ? 'retryWaiting' : 'idle'
-}
-
-function writeCoordinatorState(coordinatorState: CleanupCoordinatorState) {
-  if (state.coordinatorState === coordinatorState) return
-  writeStore({...state, coordinatorState})
-}
-
-function isJobDue(job: DocumentCardCleanupJob, now: number) {
-  if (job.state === 'idle') return !job.nextRunAt || job.nextRunAt <= now
-  if (job.state === 'retryScheduled') return !!job.nextRunAt && job.nextRunAt <= now
-  return false
-}
-
-function findNextDueJob(now: number) {
-  return state.jobs.find((job) => isJobDue(job, now)) || null
-}
-
-function getRetryDelayMs(attempts: number) {
-  return RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), RETRY_DELAYS_MS.length - 1)]
-}
-
-function cleanupJobId(input: {deletedDocumentId: string; parentDocumentId: string; signingAccountUid: string}) {
-  return `${input.deletedDocumentId}|${input.parentDocumentId}|${input.signingAccountUid}`
-}
+let cleanupActor: any | null = null
 
 function getParentDocumentId(deletedDocumentId: string) {
   const id = unpackHmId(deletedDocumentId)
@@ -335,167 +251,86 @@ async function publishParentUpdate(
   return 'published' as const
 }
 
-async function executeJob(job: DocumentCardCleanupJob, now: number) {
-  log.info(`${CLEANUP_LOG_PREFIX} job started`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    attempts: job.attempts,
-  })
-  updateJob(job.id, {state: 'loadingParent', lastError: undefined}, now)
-  const parentDraft = await loadParentDraft(job.parentDocumentId, job.id)
-  if (parentDraft) {
-    updateJob(job.id, {isDraft: true, parentDraftId: parentDraft.id}, now)
-  } else {
-    updateJob(job.id, {isDraft: false, parentDraftId: undefined}, now)
-  }
-  log.info(`${CLEANUP_LOG_PREFIX} target selected`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    target: parentDraft ? 'draft' : 'published-document',
-    parentDraftId: parentDraft?.id || null,
-  })
-  const parentDocument = parentDraft ? null : await loadParentDocument(job.parentDocumentId)
-
-  updateJob(job.id, {state: 'updating'}, now)
-  if (parentDraft) {
-    const removedBlockIds = await cleanupParentDraft(job, parentDraft)
-    if (removedBlockIds.length === 0) {
-      log.info(`${CLEANUP_LOG_PREFIX} draft skipped; no matching embeds`, {
+function createCleanupActor() {
+  const persistedSnapshot = appStore.get(CLEANUP_MACHINE_STORAGE_KEY)
+  const previousStore = normalizeDocumentCardCleanupStore(
+    appStore.get(CLEANUP_STORAGE_KEY) as DocumentCardCleanupStore | undefined,
+  )
+  const machine = createDocumentCardCleanupCoordinatorMachine({
+    now: () => Date.now(),
+    getParentDocumentId,
+    scheduleCleanup: scheduleDocumentCardCleanup,
+    loadParentDraft: (job) => loadParentDraft(job.parentDocumentId, job.id),
+    loadParentDocument: (job) => loadParentDocument(job.parentDocumentId),
+    cleanupParentDraft: (job, draft) => cleanupParentDraft(job, draft as any),
+    planPublishedParent: (job, parentDocument) => {
+      const plan = planDocumentCardRemoval(parentDocument as any, job.deletedDocumentId)
+      log.debug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
         jobId: job.id,
         deletedDocumentId: job.deletedDocumentId,
         parentDocumentId: job.parentDocumentId,
-        draftId: parentDraft.id,
+        changeCount: plan.changes.length,
+        removedBlockIds: plan.removedBlockIds,
       })
-      updateJob(job.id, {state: 'skippedTerminal', lastError: undefined}, now)
-      return
-    }
-
-    updateJob(job.id, {state: 'verifying'}, now)
-    invalidateParent(job.parentDocumentId)
-    updateJob(job.id, {state: 'done', lastError: undefined}, now)
-    log.info(`${CLEANUP_LOG_PREFIX} job done`, {
-      jobId: job.id,
-      deletedDocumentId: job.deletedDocumentId,
-      parentDocumentId: job.parentDocumentId,
-      target: 'draft',
-      parentDraftId: parentDraft.id,
-      removedBlockIds,
-    })
-    return
-  }
-
-  if (!parentDocument) {
-    log.info(`${CLEANUP_LOG_PREFIX} skipped; parent document missing and no draft found`, {
-      jobId: job.id,
-      deletedDocumentId: job.deletedDocumentId,
-      parentDocumentId: job.parentDocumentId,
-    })
-    updateJob(job.id, {state: 'skippedTerminal', lastError: undefined}, now)
-    return
-  }
-
-  const plan = planDocumentCardRemoval(parentDocument, job.deletedDocumentId)
-  log.debug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    changeCount: plan.changes.length,
-    removedBlockIds: plan.removedBlockIds,
+      return plan
+    },
+    publishParentUpdate: async (job, parentDocument, changes) => {
+      return publishParentUpdate(
+        job,
+        parentDocument as Awaited<ReturnType<typeof loadParentDocument>>,
+        changes as any[],
+      )
+    },
+    invalidateParent,
+    onJobProgress: (job) => {
+      log.debug(`${CLEANUP_LOG_PREFIX} job progress`, {
+        jobId: job.id,
+        deletedDocumentId: job.deletedDocumentId,
+        parentDocumentId: job.parentDocumentId,
+        state: job.state,
+        attempts: job.attempts,
+        nextRunAt: job.nextRunAt ?? null,
+      })
+    },
   })
-  if (plan.changes.length === 0) {
-    log.info(`${CLEANUP_LOG_PREFIX} published parent skipped; no matching embeds`, {
-      jobId: job.id,
-      deletedDocumentId: job.deletedDocumentId,
-      parentDocumentId: job.parentDocumentId,
-    })
-    updateJob(job.id, {state: 'skippedTerminal', lastError: undefined}, now)
-    return
-  }
 
-  updateJob(job.id, {state: 'publishing'}, now)
-  const publishResult = await publishParentUpdate(job, parentDocument, plan.changes)
-  if (publishResult === 'missing-parent') {
-    updateJob(job.id, {state: 'skippedTerminal', lastError: undefined}, now)
-    return
-  }
-
-  updateJob(job.id, {state: 'verifying'}, now)
-  invalidateParent(job.parentDocumentId)
-  updateJob(job.id, {state: 'done', lastError: undefined}, now)
-  log.info(`${CLEANUP_LOG_PREFIX} job done`, {
-    jobId: job.id,
-    deletedDocumentId: job.deletedDocumentId,
-    parentDocumentId: job.parentDocumentId,
-    target: 'published-document',
+  const actor = createActor(
+    machine as any,
+    persistedSnapshot
+      ? ({snapshot: persistedSnapshot as any, input: {jobs: previousStore.jobs}} as any)
+      : {input: {jobs: previousStore.jobs}},
+  )
+  actor.subscribe((snapshot) => {
+    const publicSnapshot = getPublicDocumentCardCleanupSnapshot(snapshot as any)
+    appStore.set(CLEANUP_MACHINE_STORAGE_KEY, actor.getPersistedSnapshot())
+    appStore.set(CLEANUP_STORAGE_KEY, publicSnapshot)
+    appInvalidateQueries(CLEANUP_STATUS_QUERY_KEY)
   })
+  actor.start()
+  return actor
 }
 
-function handleJobFailure(job: DocumentCardCleanupJob, error: unknown, now: number) {
-  const message = error instanceof Error ? error.message : String(error)
-  const attempts = job.attempts + 1
-  if (attempts <= job.maxRetries) {
-    const nextRunAt = now + getRetryDelayMs(attempts)
-    updateJob(job.id, {state: 'retryScheduled', attempts, nextRunAt, lastError: message}, now)
-    scheduleDocumentCardCleanup(nextRunAt - now)
-    log.warn(`${CLEANUP_LOG_PREFIX} retry scheduled`, {jobId: job.id, attempts, nextRunAt, error: message})
-    return
-  }
-
-  updateJob(job.id, {state: 'failedNeedsAttention', attempts, nextRunAt: undefined, lastError: message}, now)
-  log.error(`${CLEANUP_LOG_PREFIX} failed`, {jobId: job.id, attempts, error: message})
+function getCleanupActor() {
+  if (!cleanupActor) cleanupActor = createCleanupActor()
+  return cleanupActor
 }
 
-async function runNextDocumentCardCleanup(options: RunOptions = {}) {
-  const now = options.now?.() ?? Date.now()
-  if (inFlight) return inFlight
-
-  const job = findNextDueJob(now)
-  if (!job) {
-    writeCoordinatorState(deriveCoordinatorState(now))
-    return
-  }
-
-  inFlight = (async () => {
-    writeCoordinatorState('running')
-    try {
-      await executeJob(job, now)
-    } catch (error) {
-      handleJobFailure(job, error, now)
-    } finally {
-      inFlight = null
-      writeCoordinatorState(deriveCoordinatorState(options.now?.() ?? Date.now()))
-      scheduleDocumentCardCleanup()
-    }
-  })()
-
-  return inFlight
-}
-
-function nextDelayMs(now = Date.now()) {
-  const dueNow = state.jobs.some((job) => isJobDue(job, now))
-  if (dueNow) return 0
-  const nextRetry = state.jobs
-    .filter((job) => job.state === 'retryScheduled' && job.nextRunAt)
-    .map((job) => job.nextRunAt as number)
-    .sort((a, b) => a - b)[0]
-  if (!nextRetry) return null
-  return Math.max(nextRetry - now, 0)
+function getPublicSnapshot() {
+  const actor = getCleanupActor()
+  return getPublicDocumentCardCleanupSnapshot(actor.getSnapshot() as any)
 }
 
 function scheduleDocumentCardCleanup(delayMs?: number | null) {
   if (scheduledRun) clearTimeout(scheduledRun)
-  const delay = delayMs ?? nextDelayMs()
-  if (delay == null) return
+  if (delayMs == null) return
   scheduledRun = setTimeout(() => {
     scheduledRun = null
-    void runNextDocumentCardCleanup()
-  }, delay)
+    getCleanupActor().send({type: 'cleanup.tick'})
+  }, delayMs)
 }
 
 export const documentCardCleanupApi = t.router({
-  getSnapshot: t.procedure.query(() => state),
+  getSnapshot: t.procedure.query(() => getPublicSnapshot()),
   enqueue: t.procedure
     .input(
       z.object({
@@ -513,24 +348,16 @@ export const documentCardCleanupApi = t.router({
         parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
       })
-      const existing = state.jobs.find((job) => job.id === jobId)
-      if (existing) return {enqueued: false, reason: 'duplicate' as const, jobId}
+      if (getPublicSnapshot().jobs.some((job) => job.id === jobId)) {
+        return {enqueued: false, reason: 'duplicate' as const, jobId}
+      }
 
-      const now = Date.now()
-      const job: DocumentCardCleanupJob = {
-        id: jobId,
+      getCleanupActor().send({
+        type: 'cleanup.enqueue',
         deletedDocumentId: input.deletedDocumentId,
-        parentDocumentId: parent.id,
         signingAccountUid: input.signingAccountUid,
         capabilityId: input.capabilityId,
-        state: 'idle',
-        attempts: 0,
-        maxRetries: 3,
-        createdAt: now,
-        updatedAt: now,
-      }
-      writeStore({...state, jobs: [...state.jobs, job], coordinatorState: 'idle'})
-      scheduleDocumentCardCleanup(0)
+      } as any)
       return {enqueued: true, jobId}
     }),
 })
@@ -538,13 +365,23 @@ export const documentCardCleanupApi = t.router({
 export function startDocumentCardCleanupCoordinator() {
   if (hasStarted) return
   hasStarted = true
-  scheduleDocumentCardCleanup()
+  getCleanupActor().send({type: 'cleanup.tick'})
 }
 
 export function getDocumentCardCleanupSnapshotForTest() {
-  return state
+  return getPublicSnapshot()
 }
 
 export async function runNextDocumentCardCleanupForTest(options: RunOptions = {}) {
-  await runNextDocumentCardCleanup(options)
+  const actor = getCleanupActor()
+  actor.send({type: 'cleanup.tick', now: options.now?.() ?? Date.now()} as any)
+  if ((actor.getSnapshot() as any).value !== 'running') return
+  await new Promise<void>((resolve) => {
+    const sub = actor.subscribe((snapshot: any) => {
+      if ((snapshot as any).value !== 'running') {
+        sub.unsubscribe()
+        resolve()
+      }
+    })
+  })
 }

@@ -103,6 +103,15 @@ describe('document card cleanup actor', () => {
     vi.useRealTimers()
   })
 
+  it('models the coordinator and cleanup job as XState machines', async () => {
+    const {documentCardCleanupCoordinatorMachine, documentCardCleanupJobMachine} = await import(
+      '../app-document-card-cleanup-machine'
+    )
+
+    expect(documentCardCleanupCoordinatorMachine.id).toBe('documentCardCleanupCoordinator')
+    expect(documentCardCleanupJobMachine.id).toBe('documentCardCleanupJob')
+  })
+
   it('enqueues one idle cleanup job for the deleted document parent and dedupes repeats', async () => {
     const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest} = await loadCleanupModule()
     const caller = documentCardCleanupApi.createCaller({})
@@ -134,6 +143,35 @@ describe('document card cleanup actor', () => {
     expect(result.enqueued).toBe(false)
     expect(result.reason).toBe('no-parent')
     expect(getDocumentCardCleanupSnapshotForTest().jobs).toEqual([])
+  })
+
+  it('hydrates existing cleanup jobs from the legacy persisted store shape', async () => {
+    const deletedDocumentId = hmId('alice', {path: ['parent', 'child']}).id
+    storeData['DocumentCardCleanupState-v001'] = {
+      coordinatorState: 'idle',
+      jobs: [
+        {
+          id: `${deletedDocumentId}|hm://alice/parent|alice`,
+          deletedDocumentId,
+          parentDocumentId: hmId('alice', {path: ['parent']}).id,
+          signingAccountUid: 'alice',
+          state: 'idle',
+          attempts: 0,
+          maxRetries: 3,
+          createdAt: 1_000,
+          updatedAt: 1_000,
+        },
+      ],
+    }
+
+    const {getDocumentCardCleanupSnapshotForTest} = await loadCleanupModule()
+
+    expect(getDocumentCardCleanupSnapshotForTest().jobs).toHaveLength(1)
+    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      deletedDocumentId,
+      parentDocumentId: hmId('alice', {path: ['parent']}).id,
+      state: 'idle',
+    })
   })
 
   it('runs one cleanup at a time and publishes child-preserving link embed removal changes', async () => {
@@ -317,5 +355,50 @@ describe('document card cleanup actor', () => {
     expect(finalJob?.state).toBe('failedNeedsAttention')
     expect(finalJob?.attempts).toBe(4)
     expect(publishDocumentMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('blocks later queued cleanups while an earlier cleanup is waiting to retry', async () => {
+    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
+      await loadCleanupModule()
+    const caller = documentCardCleanupApi.createCaller({})
+    const firstDeletedId = hmId('alice', {path: ['parent', 'child']}).id
+    const secondDeletedId = hmId('alice', {path: ['parent', 'other']}).id
+    let now = 1_000
+
+    getDocumentMock.mockResolvedValue(
+      makeParentDocument([
+        {block: {id: 'card', type: 'Embed', link: firstDeletedId, attributes: {view: 'Card'}}, children: []},
+        {block: {id: 'other-card', type: 'Embed', link: secondDeletedId, attributes: {view: 'Card'}}, children: []},
+      ]),
+    )
+    publishDocumentMock.mockRejectedValueOnce(new Error('temporary publish failure'))
+
+    await caller.enqueue({deletedDocumentId: firstDeletedId, signingAccountUid: 'alice'})
+    await caller.enqueue({deletedDocumentId: secondDeletedId, signingAccountUid: 'alice'})
+
+    await runNextDocumentCardCleanupForTest({now: () => now})
+
+    let snapshot = getDocumentCardCleanupSnapshotForTest()
+    const retryingJob = snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)
+    expect(retryingJob?.state).toBe('retryScheduled')
+    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('idle')
+
+    await runNextDocumentCardCleanupForTest({now: () => now + 1})
+
+    snapshot = getDocumentCardCleanupSnapshotForTest()
+    expect(snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)?.state).toBe('retryScheduled')
+    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('idle')
+    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
+
+    now = retryingJob?.nextRunAt || now
+    publishDocumentMock.mockResolvedValue(undefined)
+
+    await runNextDocumentCardCleanupForTest({now: () => now})
+    await runNextDocumentCardCleanupForTest({now: () => now})
+
+    snapshot = getDocumentCardCleanupSnapshotForTest()
+    expect(snapshot.jobs.find((job) => job.deletedDocumentId === firstDeletedId)?.state).toBe('done')
+    expect(snapshot.jobs.find((job) => job.deletedDocumentId === secondDeletedId)?.state).toBe('done')
+    expect(publishDocumentMock).toHaveBeenCalledTimes(3)
   })
 })
