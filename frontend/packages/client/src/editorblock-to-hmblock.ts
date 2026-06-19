@@ -303,10 +303,18 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     blockTable.text = ''
   }
 
+  const blockTableRow = block.type === 'TableRow' ? block : undefined
+  if (blockTableRow && editorBlock.type == 'tableRow') {
+    blockTableRow.text = ''
+    if (editorBlock.props.isHeader) blockTableRow.attributes.isHeader = true
+  }
+
   const blockTableColumn = block.type === 'TableColumn' ? block : undefined
   if (blockTableColumn && editorBlock.type == 'tableColumn') {
+    blockTableColumn.text = ''
     const width = toNumber(editorBlock.props.width)
     if (width) blockTableColumn.attributes.width = width
+    if (editorBlock.props.isHeader) blockTableColumn.attributes.isHeader = true
   }
 
   const blockQuery = block.type === 'Query' ? block : undefined

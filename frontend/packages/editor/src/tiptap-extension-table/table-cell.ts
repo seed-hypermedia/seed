@@ -18,10 +18,17 @@ export const TableCell = Node.create<TableCellOptions>({
 
   addAttributes() {
     return {
-      // Cell-level block id. Carries the Paragraph block id for
-      // the cell's content so anchored data (comments, quote ranges) survives
-      // load/save. UniqueID generates one on first read if missing.
-      id: {default: null, keepOnSplit: true},
+      // Reference to the TableColumn block this cell belongs to. Stable across
+      // column reorders. The cell follows its column by id, not position.
+      columnId: {
+        default: null,
+        keepOnSplit: true,
+        parseHTML: (element) => element.getAttribute('data-column-id'),
+        renderHTML: (attributes) => {
+          if (!attributes.columnId) return {}
+          return {'data-column-id': attributes.columnId}
+        },
+      },
       colspan: {
         default: 1,
       },
