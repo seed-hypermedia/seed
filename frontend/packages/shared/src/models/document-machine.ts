@@ -12,6 +12,12 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {collectChildDraftIds} from '../utils/child-draft-refs'
 import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
 
+const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
+
+function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
+  return Array.isArray(blocks) ? blocks.length : 0
+}
+
 // -- Types --
 
 /**
@@ -176,6 +182,19 @@ export type DocumentMachineEvent =
       /** Block IDs the user previously touched in this draft (persisted across reloads). */
       mineTouchedIds?: string[] | null
       /** Three-way merge base captured when the draft was first started or last rebased. */
+      baseBlocks?: HMBlockNode[] | null
+    }
+  | {
+      type: 'draft.externallyModified'
+      draftId: string
+      source?: 'document-card-cleanup'
+      deletedDocumentId?: string
+      removedBlockIds?: string[]
+      content?: HMBlockNode[] | null
+      cursorPosition?: number | null
+      metadata?: HMMetadata | null
+      deps?: string[] | null
+      mineTouchedIds?: string[] | null
       baseBlocks?: HMBlockNode[] | null
     }
   | {type: '_save.started'}
@@ -659,6 +678,158 @@ export const documentMachine = setup({
         return context.editorBaseline
       },
     }),
+    applyExternalDraftState: assign({
+      draftContent: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.content
+        ) {
+          return event.content
+        }
+        return context.draftContent
+      },
+      draftCursorPosition: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.cursorPosition !== undefined
+        ) {
+          return event.cursorPosition
+        }
+        return context.draftCursorPosition
+      },
+      metadata: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.metadata
+        ) {
+          return event.metadata
+        }
+        return context.metadata
+      },
+      deps: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.deps
+        ) {
+          return event.deps
+        }
+        return context.deps
+      },
+      mineTouchedIds: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.mineTouchedIds
+        ) {
+          return event.mineTouchedIds
+        }
+        return context.mineTouchedIds
+      },
+      baseBlocks: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId &&
+          event.baseBlocks
+        ) {
+          return event.baseBlocks
+        }
+        return context.baseBlocks
+      },
+      hasChangedWhileSaving: ({context, event}) => {
+        if (
+          event.type === 'draft.externallyModified' &&
+          event.source === 'document-card-cleanup' &&
+          event.draftId === context.draftId
+        ) {
+          return false
+        }
+        return context.hasChangedWhileSaving
+      },
+    }),
+    logDraftResolved: ({context, event}) => {
+      if (event.type !== 'draft.resolved') return
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft.resolved`, {
+        documentId: context.documentId.id,
+        eventDraftId: event.draftId,
+        currentDraftId: context.draftId,
+        contentTopLevelBlockCount: getTopLevelBlockCount(event.content),
+        hasMetadata: !!event.metadata,
+        deps: event.deps ?? null,
+        mineTouchedIds: event.mineTouchedIds ?? null,
+        baseBlockCount: getTopLevelBlockCount(event.baseBlocks),
+      })
+    },
+    logEnterEditing: ({context}) => {
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine entering editing`, {
+        documentId: context.documentId.id,
+        draftId: context.draftId,
+        draftCreated: context.draftCreated,
+        shouldAutoEdit: context.shouldAutoEdit,
+        draftContentTopLevelBlockCount: getTopLevelBlockCount(context.draftContent),
+        documentTopLevelBlockCount: getTopLevelBlockCount(context.document?.content),
+        editorBaselineTopLevelBlockCount: getTopLevelBlockCount(context.editorBaseline),
+        contentSource: context.draftContent ? 'draft' : 'published-document',
+      })
+    },
+    logDraftExternallyModified: ({context, event}) => {
+      if (event.type !== 'draft.externallyModified') return
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft externally modified`, {
+        documentId: context.documentId.id,
+        eventDraftId: event.draftId,
+        currentDraftId: context.draftId,
+        matchesCurrentDraft: !!context.draftId && context.draftId === event.draftId,
+        source: event.source ?? null,
+        deletedDocumentId: event.deletedDocumentId ?? null,
+        removedBlockIds: event.removedBlockIds ?? null,
+        incomingContentTopLevelBlockCount: getTopLevelBlockCount(event.content),
+        stateStillUsesDraftContentTopLevelBlockCount: getTopLevelBlockCount(context.draftContent),
+        documentTopLevelBlockCount: getTopLevelBlockCount(context.document?.content),
+        hasPendingLocalSave: context.hasChangedWhileSaving,
+        draftCreated: context.draftCreated,
+      })
+    },
+    applyExternalDraftCleanupToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
+    logSaveStarted: ({context}) => {
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save started`, {
+        documentId: context.documentId.id,
+        draftId: context.draftId,
+        draftCreated: context.draftCreated,
+        hasChangedWhileSaving: context.hasChangedWhileSaving,
+        mineTouchedIds: context.mineTouchedIds,
+        baseBlockCount: getTopLevelBlockCount(context.baseBlocks),
+      })
+    },
+    logSaveCompleted: ({context}) => {
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save completed`, {
+        documentId: context.documentId.id,
+        draftId: context.draftId,
+        draftCreated: context.draftCreated,
+        hasChangedWhileSaving: context.hasChangedWhileSaving,
+      })
+    },
+    logRemoteUpdateWhileEditing: ({context, event}) => {
+      if (event.type !== 'document.remoteUpdate') return
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine remote update while editing`, {
+        documentId: context.documentId.id,
+        draftId: context.draftId,
+        incomingVersion: event.document.version,
+        currentPublishedVersion: context.publishedVersion,
+        incomingTopLevelBlockCount: getTopLevelBlockCount(event.document.content),
+        draftContentTopLevelBlockCount: getTopLevelBlockCount(context.draftContent),
+      })
+    },
   },
   guards: {
     canTransitionToEditing: ({context}) => {
@@ -722,6 +893,9 @@ export const documentMachine = setup({
     'resource.recovered': {
       actions: ['clearTransientResourceError'],
     },
+    'draft.externallyModified': {
+      actions: ['logDraftExternallyModified', 'applyExternalDraftState', 'applyExternalDraftCleanupToEditor'],
+    },
   },
   context: ({input}) => ({
     documentId: input.documentId,
@@ -771,7 +945,7 @@ export const documentMachine = setup({
           actions: ['setDocumentData', 'markDocumentReady'],
         },
         'draft.resolved': {
-          actions: ['setDraftResolved'],
+          actions: ['logDraftResolved', 'setDraftResolved'],
         },
         'document.error': {
           // Stay in loading — React Query retries in the background.
@@ -854,9 +1028,7 @@ export const documentMachine = setup({
     editing: {
       type: 'parallel',
       entry: [
-        () => {
-          //console.log('[DocMachine] enter editing')
-        },
+        'logEnterEditing',
         {type: 'setEditorEditable'},
         {type: 'applyInitialContentToEditor'},
         {type: 'placeCursorFromPendingOrDraft'},
@@ -900,7 +1072,10 @@ export const documentMachine = setup({
           actions: ['setAccountIds'],
         },
         'document.remoteUpdate': {
-          actions: ['setPendingRemoteVersion', 'setPendingRemoteDocument'],
+          actions: ['logRemoteUpdateWhileEditing', 'setPendingRemoteVersion', 'setPendingRemoteDocument'],
+        },
+        'document.loaded': {
+          actions: ['setDocumentData', 'markDocumentReady'],
         },
         'version.changed': {
           actions: ['setIsLatestVersion'],
@@ -997,7 +1172,7 @@ export const documentMachine = setup({
               },
             },
             creating: {
-              entry: ['resetChangeWhileSaving', raise({type: '_save.started'})],
+              entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
@@ -1040,6 +1215,7 @@ export const documentMachine = setup({
                         type: 'setDraftIdFromResult',
                         params: ({event}: {event: any}) => event.output,
                       },
+                      'logSaveCompleted',
                     ],
                     reenter: true,
                   },
@@ -1051,6 +1227,7 @@ export const documentMachine = setup({
                         type: 'setDraftIdFromResult',
                         params: ({event}: {event: any}) => event.output,
                       },
+                      'logSaveCompleted',
                       raise({type: '_save.completed'}),
                     ],
                   },
@@ -1059,7 +1236,9 @@ export const documentMachine = setup({
                   target: 'idle',
                   actions: [
                     ({event}: {event: any}) => {
-                      console.error('Draft create failed:', event.error)
+                      console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft create failed`, {
+                        error: event.error,
+                      })
                     },
                     raise({type: '_save.completed'}),
                   ],
@@ -1067,7 +1246,7 @@ export const documentMachine = setup({
               },
             },
             saving: {
-              entry: ['resetChangeWhileSaving', raise({type: '_save.started'})],
+              entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
@@ -1109,14 +1288,16 @@ export const documentMachine = setup({
                   },
                   {
                     target: 'idle',
-                    actions: [raise({type: '_save.completed'})],
+                    actions: ['logSaveCompleted', raise({type: '_save.completed'})],
                   },
                 ],
                 onError: {
                   target: 'idle',
                   actions: [
                     ({event}: {event: any}) => {
-                      console.error('Draft save failed:', event.error)
+                      console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save failed`, {
+                        error: event.error,
+                      })
                     },
                     raise({type: '_save.completed'}),
                   ],
@@ -1215,7 +1396,9 @@ export const documentMachine = setup({
         onError: {
           target: 'editing',
           actions: ({event}: {event: any}) => {
-            console.error('Draft discard failed:', event.error)
+            console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft discard failed`, {
+              error: event.error,
+            })
           },
         },
       },

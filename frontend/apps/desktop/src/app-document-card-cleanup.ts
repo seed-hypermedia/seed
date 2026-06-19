@@ -17,6 +17,7 @@ import * as log from './logger'
 const CLEANUP_STORAGE_KEY = 'DocumentCardCleanupState-v001'
 const CLEANUP_STATUS_QUERY_KEY = ['trpc.documentCardCleanup.getSnapshot']
 const RETRY_DELAYS_MS = [1_000, 5_000, 15_000]
+const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
 type CleanupCoordinatorState = 'idle' | 'running' | 'retryWaiting'
 
@@ -213,7 +214,7 @@ async function loadParentDraft(parentDocumentId: string, jobId?: string) {
 
   const drafts = draftsApi.createCaller({})
   const parentDraft = await drafts.findByEdit({editUid: parent.uid, editPath: parent.path || []})
-  log.debug('Document embed cleanup parent draft lookup', {
+  log.debug(`${CLEANUP_LOG_PREFIX} parent draft lookup`, {
     jobId,
     parentDocumentId,
     editUid: parent.uid,
@@ -223,7 +224,7 @@ async function loadParentDraft(parentDocumentId: string, jobId?: string) {
   if (!parentDraft) return null
 
   const draft = await drafts.get(parentDraft.id)
-  log.debug('Document embed cleanup parent draft load', {
+  log.debug(`${CLEANUP_LOG_PREFIX} parent draft load`, {
     jobId,
     parentDocumentId,
     draftId: parentDraft.id,
@@ -243,7 +244,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
     originalContent,
     job.deletedDocumentId,
   )
-  log.debug('Document embed cleanup draft scan', {
+  log.debug(`${CLEANUP_LOG_PREFIX} draft scan`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -255,12 +256,13 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
   })
   if (!removedBlockIds.length) return []
 
-  log.info('Document embed cleanup writing parent draft', {
+  log.info(`${CLEANUP_LOG_PREFIX} writing parent draft`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
     draftId: draft.id,
     removedBlockIds,
+    autoReload: true,
   })
 
   await drafts.write({
@@ -279,14 +281,33 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
     baseBlocks: draft.baseBlocks,
   })
   appInvalidateQueries([queryKeys.DRAFT, draft.id])
-  dispatchAllWindowsAppEvent({type: 'draft_externally_modified', draftId: draft.id})
-  log.info('Document embed cleanup parent draft written', {
+  log.info(`${CLEANUP_LOG_PREFIX} broadcasting draft externally modified`, {
+    jobId: job.id,
+    deletedDocumentId: job.deletedDocumentId,
+    parentDocumentId: job.parentDocumentId,
+    draftId: draft.id,
+    removedBlockIds,
+  })
+  dispatchAllWindowsAppEvent({
+    type: 'draft_externally_modified',
+    draftId: draft.id,
+    source: 'document-card-cleanup',
+    deletedDocumentId: job.deletedDocumentId,
+    removedBlockIds,
+    autoReload: true,
+  })
+  const writtenDraft = await drafts.get(draft.id)
+  const writtenContent = (writtenDraft?.content || []) as EditorBlockLike[]
+  const verifyScan = removeDeletedDocumentEmbedsFromDraftBlocks(writtenContent, job.deletedDocumentId)
+  log.info(`${CLEANUP_LOG_PREFIX} parent draft written`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
     draftId: draft.id,
     removedBlockIds,
     notifiedWindows: true,
+    topLevelBlockCountOnDisk: writtenContent.length,
+    stillMatchingBlockIdsOnDisk: verifyScan.removedBlockIds,
   })
   return removedBlockIds
 }
@@ -315,7 +336,7 @@ async function publishParentUpdate(
 }
 
 async function executeJob(job: DocumentCardCleanupJob, now: number) {
-  log.info('Document embed cleanup job started', {
+  log.info(`${CLEANUP_LOG_PREFIX} job started`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -328,7 +349,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
   } else {
     updateJob(job.id, {isDraft: false, parentDraftId: undefined}, now)
   }
-  log.info('Document embed cleanup target selected', {
+  log.info(`${CLEANUP_LOG_PREFIX} target selected`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -341,7 +362,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
   if (parentDraft) {
     const removedBlockIds = await cleanupParentDraft(job, parentDraft)
     if (removedBlockIds.length === 0) {
-      log.info('Document embed cleanup draft skipped; no matching embeds', {
+      log.info(`${CLEANUP_LOG_PREFIX} draft skipped; no matching embeds`, {
         jobId: job.id,
         deletedDocumentId: job.deletedDocumentId,
         parentDocumentId: job.parentDocumentId,
@@ -354,7 +375,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
     updateJob(job.id, {state: 'verifying'}, now)
     invalidateParent(job.parentDocumentId)
     updateJob(job.id, {state: 'done', lastError: undefined}, now)
-    log.info('Document embed cleanup job done', {
+    log.info(`${CLEANUP_LOG_PREFIX} job done`, {
       jobId: job.id,
       deletedDocumentId: job.deletedDocumentId,
       parentDocumentId: job.parentDocumentId,
@@ -366,7 +387,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
   }
 
   if (!parentDocument) {
-    log.info('Document embed cleanup skipped; parent document missing and no draft found', {
+    log.info(`${CLEANUP_LOG_PREFIX} skipped; parent document missing and no draft found`, {
       jobId: job.id,
       deletedDocumentId: job.deletedDocumentId,
       parentDocumentId: job.parentDocumentId,
@@ -376,7 +397,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
   }
 
   const plan = planDocumentCardRemoval(parentDocument, job.deletedDocumentId)
-  log.debug('Document embed cleanup published parent plan', {
+  log.debug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -384,7 +405,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
     removedBlockIds: plan.removedBlockIds,
   })
   if (plan.changes.length === 0) {
-    log.info('Document embed cleanup published parent skipped; no matching embeds', {
+    log.info(`${CLEANUP_LOG_PREFIX} published parent skipped; no matching embeds`, {
       jobId: job.id,
       deletedDocumentId: job.deletedDocumentId,
       parentDocumentId: job.parentDocumentId,
@@ -403,7 +424,7 @@ async function executeJob(job: DocumentCardCleanupJob, now: number) {
   updateJob(job.id, {state: 'verifying'}, now)
   invalidateParent(job.parentDocumentId)
   updateJob(job.id, {state: 'done', lastError: undefined}, now)
-  log.info('Document embed cleanup job done', {
+  log.info(`${CLEANUP_LOG_PREFIX} job done`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -418,12 +439,12 @@ function handleJobFailure(job: DocumentCardCleanupJob, error: unknown, now: numb
     const nextRunAt = now + getRetryDelayMs(attempts)
     updateJob(job.id, {state: 'retryScheduled', attempts, nextRunAt, lastError: message}, now)
     scheduleDocumentCardCleanup(nextRunAt - now)
-    log.warn('Document card cleanup retry scheduled', {jobId: job.id, attempts, nextRunAt, error: message})
+    log.warn(`${CLEANUP_LOG_PREFIX} retry scheduled`, {jobId: job.id, attempts, nextRunAt, error: message})
     return
   }
 
   updateJob(job.id, {state: 'failedNeedsAttention', attempts, nextRunAt: undefined, lastError: message}, now)
-  log.error('Document card cleanup failed', {jobId: job.id, attempts, error: message})
+  log.error(`${CLEANUP_LOG_PREFIX} failed`, {jobId: job.id, attempts, error: message})
 }
 
 async function runNextDocumentCardCleanup(options: RunOptions = {}) {

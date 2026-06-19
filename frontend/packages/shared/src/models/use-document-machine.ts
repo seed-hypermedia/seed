@@ -40,6 +40,11 @@ export type DocumentMachineProvidedActors = {
 // -- React context --
 
 const DocumentMachineContext_ = createContext<DocumentMachineActorRef | null>(null)
+const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
+
+function countTopLevelBlocks(blocks: unknown[] | null | undefined) {
+  return Array.isArray(blocks) ? blocks.length : 0
+}
 
 /** Props for `DocumentMachineProvider`. */
 export interface DocumentMachineProviderProps {
@@ -72,11 +77,76 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
     () =>
       (machine ?? documentMachine).provide({
         actions: {
-          setEditorEditable: () => editorHandlersRef.current?.setEditable(true),
-          setEditorReadOnly: () => editorHandlersRef.current?.setEditable(false),
-          applyInitialContentToEditor: () => editorHandlersRef.current?.applyInitialContent(),
-          placeCursorFromPendingOrDraft: ({context}) =>
-            editorHandlersRef.current?.placeCursor(context.pendingEditCursorPosition),
+          setEditorEditable: ({context}) => {
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor editable`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              hasEditorHandlers: !!editorHandlersRef.current,
+            })
+            editorHandlersRef.current?.setEditable(true)
+          },
+          setEditorReadOnly: ({context}) => {
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor read-only`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              hasEditorHandlers: !!editorHandlersRef.current,
+            })
+            editorHandlersRef.current?.setEditable(false)
+          },
+          applyInitialContentToEditor: ({context}) => {
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying initial editor content`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              hasEditorHandlers: !!editorHandlersRef.current,
+              contentSource: context.draftContent ? 'draft' : 'published-document',
+              draftContentTopLevelBlockCount: countTopLevelBlocks(context.draftContent),
+              documentTopLevelBlockCount: countTopLevelBlocks(context.document?.content),
+            })
+            editorHandlersRef.current?.applyInitialContent()
+            const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied initial editor content`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              editorTopLevelBlockCount: countTopLevelBlocks(currentBlocks),
+            })
+          },
+          placeCursorFromPendingOrDraft: ({context}) => {
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer placing cursor`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              pendingEditCursorPosition: context.pendingEditCursorPosition,
+              draftCursorPosition: context.draftCursorPosition,
+              hasEditorHandlers: !!editorHandlersRef.current,
+            })
+            editorHandlersRef.current?.placeCursor(context.pendingEditCursorPosition)
+          },
+          applyExternalDraftCleanupToEditor: ({context, event}) => {
+            if (
+              event.type !== 'draft.externallyModified' ||
+              event.source !== 'document-card-cleanup' ||
+              event.draftId !== context.draftId ||
+              !event.deletedDocumentId
+            ) {
+              return
+            }
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying cleanup to editor`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              deletedDocumentId: event.deletedDocumentId,
+              removedBlockIds: event.removedBlockIds ?? [],
+              hasEditorHandlers: !!editorHandlersRef.current,
+            })
+            editorHandlersRef.current?.applyDocumentCardCleanup?.({
+              deletedDocumentId: event.deletedDocumentId,
+              removedBlockIds: event.removedBlockIds,
+            })
+            const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied cleanup to editor`, {
+              documentId: context.documentId.id,
+              draftId: context.draftId,
+              editorTopLevelBlockCount: countTopLevelBlocks(currentBlocks),
+            })
+          },
         },
       }),
     [machine],
@@ -187,10 +257,33 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
 
     if (prevVersionRef.current === null) {
       // First time we have a document — transition from loading → loaded
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.loaded`, {
+        account: document.account,
+        path: document.path,
+        version: document.version,
+        topLevelBlockCount: countTopLevelBlocks(document.content),
+      })
+      actorRef.send({type: 'document.loaded', document})
+      prevVersionRef.current = document.version
+    } else if (prevVersionRef.current === '' && document.version) {
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending late document.loaded`, {
+        account: document.account,
+        path: document.path,
+        previousVersion: prevVersionRef.current,
+        nextVersion: document.version,
+        topLevelBlockCount: countTopLevelBlocks(document.content),
+      })
       actorRef.send({type: 'document.loaded', document})
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.remoteUpdate`, {
+        account: document.account,
+        path: document.path,
+        previousVersion: prevVersionRef.current,
+        nextVersion: document.version,
+        topLevelBlockCount: countTopLevelBlocks(document.content),
+      })
       actorRef.send({type: 'document.remoteUpdate', document})
       prevVersionRef.current = document.version
     }
@@ -280,6 +373,13 @@ export function useDraftResolutionSync(
   useEffect(() => {
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending draft.resolved`, {
+        draftId: resolved.draftId,
+        contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
+        deps: resolved.deps ?? null,
+        mineTouchedIds: resolved.mineTouchedIds ?? null,
+        baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
+      })
       actorRef.send({
         type: 'draft.resolved',
         draftId: resolved.draftId,
@@ -289,6 +389,14 @@ export function useDraftResolutionSync(
         deps: resolved.deps ?? null,
         mineTouchedIds: resolved.mineTouchedIds ?? null,
         baseBlocks: resolved.baseBlocks ?? null,
+      })
+    } else if (resolved !== undefined && sentRef.current) {
+      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer draft.resolved update ignored after initial sync`, {
+        draftId: resolved.draftId,
+        contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
+        deps: resolved.deps ?? null,
+        mineTouchedIds: resolved.mineTouchedIds ?? null,
+        baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
       })
     }
   }, [actorRef, resolved])

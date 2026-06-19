@@ -257,6 +257,10 @@ describe('document card cleanup actor', () => {
     expect(dispatchAllWindowsAppEventMock).toHaveBeenCalledWith({
       type: 'draft_externally_modified',
       draftId: 'draft-parent',
+      source: 'document-card-cleanup',
+      deletedDocumentId,
+      removedBlockIds: ['draft-link', 'draft-comments'],
+      autoReload: true,
     })
     expect(getDocumentMock).not.toHaveBeenCalled()
     expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({

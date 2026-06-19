@@ -182,6 +182,64 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('updates the active draft content from a cleanup-originated external draft write', () => {
+    const actor = createTestActor()
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'stale-card', type: 'Embed', link: 'hm://deleted', attributes: {}}, children: []}],
+      cursorPosition: null,
+      deps: ['old-dep'],
+    })
+    actor.send({type: 'document.loaded', document: mockDocument})
+
+    const cleanedContent = [{id: 'kept-paragraph', type: 'paragraph', props: {}, content: [], children: []}]
+    actor.send({
+      type: 'draft.externallyModified',
+      draftId: 'my-draft',
+      source: 'document-card-cleanup',
+      content: cleanedContent,
+      deps: ['old-dep'],
+      mineTouchedIds: ['kept-paragraph'],
+      baseBlocks: mockDocument.content,
+    } as any)
+
+    const ctx = actor.getSnapshot().context
+    expect(ctx.draftContent).toBe(cleanedContent)
+    expect(ctx.mineTouchedIds).toEqual(['kept-paragraph'])
+    expect(ctx.baseBlocks).toBe(mockDocument.content)
+    actor.stop()
+  })
+
+  it('late initial published document resolution while editing updates document data without entering rebase', () => {
+    const placeholderDocument = {
+      ...mockDocument,
+      version: '',
+      content: [],
+    } as unknown as HMDocument
+    const actor = createTestActor()
+    actor.start()
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'my-draft',
+      content: [{block: {id: 'draft-block', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []}],
+      cursorPosition: null,
+    })
+    actor.send({type: 'document.loaded', document: placeholderDocument})
+    expect(actor.getSnapshot().matches('editing')).toBe(true)
+
+    actor.send({type: 'document.loaded', document: mockDocument})
+
+    const ctx = actor.getSnapshot().context
+    expect(ctx.document).toBe(mockDocument)
+    expect(ctx.publishedVersion).toBe(mockDocument.version)
+    expect(ctx.pendingRemoteDocument).toBeNull()
+    expect(ctx.pendingRemoteVersion).toBeNull()
+    expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
+    actor.stop()
+  })
+
   it('loading → document.error → stays in loading (stores error)', () => {
     const actor = createTestActor()
     actor.start()
