@@ -43,6 +43,20 @@ export async function pushDeletedEntitiesBestEffort(
   })
 }
 
+export async function enqueueDeletedDocumentParentCardCleanup({
+  ids,
+  capabilityId,
+  signingAccountUid,
+}: DeleteEntitiesInput): Promise<void> {
+  const selectedDeletedDocument = ids[0]
+  if (!selectedDeletedDocument) return
+  await client.documentCardCleanup.enqueue.mutate({
+    deletedDocumentId: selectedDeletedDocument.id,
+    signingAccountUid,
+    capabilityId,
+  })
+}
+
 export function useDeleteEntities(opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>) {
   const push = usePushResource()
   const deleteRecent = useDeleteRecent()
@@ -72,6 +86,7 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
           await universalClient.publish(refInput)
         }),
       )
+      await enqueueDeletedDocumentParentCardCleanup({ids, capabilityId, signingAccountUid})
       void pushDeletedEntitiesBestEffort(push, ids).catch((error) => {
         console.error('Failed to push deleted entity updates', error)
       })
