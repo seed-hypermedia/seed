@@ -24,7 +24,30 @@ afterEach(() => {
 })
 
 describe('DeleteDocumentDialog', () => {
-  it('keeps the action footer outside the scrollable document list', () => {
+  it('uses concise destructive copy and removes the main document scroll list', () => {
+    act(() => {
+      root.render(
+        <DeleteDocumentDialog
+          document={{key: 'parent', title: '🔍 Design Analysis', path: ['design-analysis']}}
+          onConfirm={vi.fn()}
+        />,
+      )
+    })
+
+    expect(container.textContent).toContain('Delete "🔍 Design Analysis"?')
+    expect(container.textContent).toContain(
+      'This permanently removes the document and all its content. Links pointing to it from other documents will break.',
+    )
+    expect(container.textContent).not.toContain('This feature is a work-in-progress')
+    expect(container.querySelector('[data-testid="delete-document-scroll-list"]')).toBeNull()
+
+    const deleteButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Delete document',
+    )
+    expect(deleteButton).toBeTruthy()
+  })
+
+  it('shows and hides the bounded child document list without including the parent document', () => {
     const childDocuments = Array.from({length: 80}, (_, index) => ({
       key: `child-${index}`,
       title: `Child ${index}`,
@@ -41,14 +64,44 @@ describe('DeleteDocumentDialog', () => {
       )
     })
 
-    const scrollList = container.querySelector('[data-testid="delete-document-scroll-list"]') as HTMLElement
-    const footer = container.querySelector('[data-testid="delete-document-footer"]') as HTMLElement
+    expect(container.textContent).toContain('80 documents will also be deleted')
+    expect(container.querySelector('[data-testid="delete-document-child-list"]')).toBeNull()
 
-    expect(scrollList).toBeTruthy()
+    const showButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Show',
+    ) as HTMLButtonElement
+
+    expect(showButton.getAttribute('aria-expanded')).toBe('false')
+
+    act(() => {
+      showButton.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+
+    const childList = container.querySelector('[data-testid="delete-document-child-list"]') as HTMLElement
+    const footer = container.querySelector('[data-testid="delete-document-footer"]') as HTMLElement
+    const childRows = Array.from(container.querySelectorAll('[data-testid="delete-document-child-item"]'))
+
+    expect(childList).toBeTruthy()
     expect(footer).toBeTruthy()
-    expect(scrollList.contains(footer)).toBe(false)
-    expect(scrollList.className).toContain('overflow-y-auto')
-    expect(container.firstElementChild?.className).toContain('max-h-')
+    expect(childList.contains(footer)).toBe(false)
+    expect(childList.className).toContain('overflow-y-auto')
+    expect(childList.className).toContain('max-h-')
+    expect(childRows).toHaveLength(80)
+    expect(childRows[0]?.textContent).toContain('Child 0')
+    expect(childRows[0]?.textContent).toContain('parent/child-0')
+
+    const hideButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Hide',
+    ) as HTMLButtonElement
+
+    expect(hideButton.getAttribute('aria-expanded')).toBe('true')
+    expect(hideButton.getAttribute('aria-controls')).toBe(childList.id)
+
+    act(() => {
+      hideButton.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+
+    expect(container.querySelector('[data-testid="delete-document-child-list"]')).toBeNull()
   })
 
   it('calls the injected confirm function before success and close callbacks', async () => {
@@ -71,7 +124,7 @@ describe('DeleteDocumentDialog', () => {
     })
 
     const deleteButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Delete Document'),
+      (button) => button.textContent?.trim() === 'Delete document',
     ) as HTMLButtonElement
 
     await act(async () => {
