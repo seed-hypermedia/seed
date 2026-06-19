@@ -812,6 +812,10 @@ NESTED BLOCKS
   font-weight: 600;
 }
 
+:global(.dark) .blockContent[data-content-type='table'] th {
+  background-color: color-mix(in srgb, var(--muted) 85%, black);
+}
+
 /* The paragraph inside a cell carries its own block level margins from
  * .hm-prose. Clear them so cells stay compact. */
 .blockContent[data-content-type='table'] th > p,

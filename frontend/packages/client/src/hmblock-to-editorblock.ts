@@ -173,6 +173,17 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     if (typeof width === 'number') {
       ;(out.props as any).width = String(width)
     }
+    const isHeader = (block as any).attributes?.isHeader
+    if (isHeader === true) {
+      ;(out.props as any).isHeader = true
+    }
+  }
+
+  if (block.type === 'TableRow') {
+    const isHeader = (block as any).attributes?.isHeader
+    if (isHeader === true) {
+      ;(out.props as any).isHeader = true
+    }
   }
 
   if (block.type === 'Query') {

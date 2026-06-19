@@ -504,57 +504,99 @@ export function nodeToBlock<BSchema extends BlockSchema>(
 // Extract a PM table tree into the BlockNote block shape, preserving headers.
 function tableNodeToBlock<BSchema extends BlockSchema>(blockNode: Node, id: string, props: any): Block<BSchema> {
   const tableNode = blockNode.firstChild!
-  const children: Block<BSchema>[] = []
-  let headerExtracted = false
 
-  tableNode.content.forEach((rowNode, _offset, rowIdx) => {
+  // Collect rows and their cells from PM.
+  type PmRow = {node: Node; cells: Node[]}
+  const rows: PmRow[] = []
+  let maxCols = 0
+  tableNode.content.forEach((rowNode) => {
     if (rowNode.type.name !== 'tableRow') return
-
-    // Treat the first row as the header row if every cell is a tableHeader.
-    const isHeaderRow = rowIdx === 0 && !headerExtracted && isAllHeaderRow(rowNode)
-
-    if (isHeaderRow) {
-      rowNode.content.forEach((cellNode) => {
-        const inner = cellNode.firstChild
-        const inlineContent = inner ? contentNodeToInlineContent(inner) : []
-        // Set ID to the cell node if it has none.
-        children.push({
-          id: cellNode.attrs?.id || UniqueID.options.generateID(),
-          type: 'tableColumn',
-          props: {},
-          content: inlineContent,
-          children: [],
-        } as unknown as Block<BSchema>)
-      })
-      headerExtracted = true
-      return
-    }
-
-    const cellBlocks: Block<BSchema>[] = []
+    const cells: Node[] = []
     rowNode.content.forEach((cellNode) => {
-      // Expect a single paragraph per cell. If paste edge cases land more
-      // than one block in a cell, the first block's inline content is what
-      // is kept.
+      if (cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') {
+        cells.push(cellNode)
+      }
+    })
+    if (cells.length > maxCols) maxCols = cells.length
+    rows.push({node: rowNode, cells})
+  })
+
+  // Per-column metadata derived from PM cells at that column position.
+  type ColMeta = {id: string; isHeader: boolean; width?: number}
+  const columnMeta: ColMeta[] = []
+  for (let col = 0; col < maxCols; col++) {
+    let columnId: string | undefined
+    let allHeader = true
+    let any = false
+    let width: number | undefined
+    for (const row of rows) {
+      const cell = row.cells[col]
+      if (!cell) continue
+      any = true
+      if (!columnId && typeof cell.attrs?.columnId === 'string' && cell.attrs.columnId) {
+        columnId = cell.attrs.columnId
+      }
+      if (cell.type.name !== 'tableHeader') allHeader = false
+      if (width === undefined && Array.isArray(cell.attrs?.colwidth) && cell.attrs.colwidth[0]) {
+        width = cell.attrs.colwidth[0]
+      }
+    }
+    if (!any) continue
+    // Only the first column can be a header column.
+    columnMeta.push({
+      id: columnId || UniqueID.options.generateID(),
+      isHeader: col === 0 && allHeader,
+      width,
+    })
+  }
+
+  // TableColumn editor blocks.
+  const columnBlocks: Block<BSchema>[] = columnMeta.map((meta) => {
+    const colProps: Record<string, any> = {}
+    if (meta.isHeader) colProps.isHeader = true
+    if (meta.width !== undefined) colProps.width = String(meta.width)
+    return {
+      id: meta.id,
+      type: 'tableColumn',
+      props: colProps,
+      content: [],
+      children: [],
+    } as unknown as Block<BSchema>
+  })
+
+  // TableRow editor blocks with Paragraph cell children.
+  const rowBlocks: Block<BSchema>[] = rows.map(({node: rowNode, cells}, rowIdx) => {
+    const rowIsHeader = rowIdx === 0 && cells.length > 0 && cells.every((c) => c.type.name === 'tableHeader')
+    const cellBlocks: Block<BSchema>[] = cells.map((cellNode, idx) => {
       const inner = cellNode.firstChild
       const inlineContent = inner ? contentNodeToInlineContent(inner) : []
-      // Same as above — prefer the cell's stable PM `id` over a fresh one.
-      cellBlocks.push({
+      const cellColumnId =
+        typeof cellNode.attrs?.columnId === 'string' && cellNode.attrs.columnId
+          ? cellNode.attrs.columnId
+          : columnMeta[idx]?.id
+      const cellProps: Record<string, any> = {}
+      if (cellColumnId) cellProps.columnId = cellColumnId
+      return {
         id: cellNode.attrs?.id || UniqueID.options.generateID(),
         type: 'paragraph',
-        props: {},
+        props: cellProps,
         content: inlineContent,
         children: [],
-      } as unknown as Block<BSchema>)
+      } as unknown as Block<BSchema>
     })
-
-    children.push({
-      id: UniqueID.options.generateID(),
+    const rowProps: Record<string, any> = {}
+    if (rowIsHeader) rowProps.isHeader = true
+    return {
+      id: rowNode.attrs?.id || UniqueID.options.generateID(),
       type: 'tableRow',
-      props: {},
+      props: rowProps,
       content: [],
       children: cellBlocks,
-    } as unknown as Block<BSchema>)
+    } as unknown as Block<BSchema>
   })
+
+  // TableColumn blocks first, then TableRow blocks.
+  const children: Block<BSchema>[] = [...columnBlocks, ...rowBlocks]
 
   return {
     id,
@@ -565,15 +607,6 @@ function tableNodeToBlock<BSchema extends BlockSchema>(blockNode: Node, id: stri
   } as unknown as Block<BSchema>
 }
 
-function isAllHeaderRow(rowNode: Node): boolean {
-  if (rowNode.childCount === 0) return false
-  let all = true
-  rowNode.content.forEach((cell) => {
-    if (cell.type.name !== 'tableHeader') all = false
-  })
-  return all
-}
-
 // Rebuild a PM table tree from a BlockNote table block.
 function tableBlockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSchema>, schema: Schema, id: string): Node {
   const rowNodes: Node[] = []
@@ -581,42 +614,82 @@ function tableBlockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSche
   const columnBlocks = (block.children ?? []).filter((c) => c.type === 'tableColumn')
   const rowBlocks = (block.children ?? []).filter((c) => c.type === 'tableRow')
 
-  // Header row from TableColumn blocks. The TableColumn block's id
-  // translates into the tableHeader node's id attribute.
-  if (columnBlocks.length > 0) {
-    const headerCellNodes: Node[] = []
-    for (const colBlock of columnBlocks) {
-      const inlineNodes = colBlock.content ? inlineContentToNodes(colBlock.content as any, schema) : []
-      // @ts-ignore
-      const paragraphNode = schema.nodes['paragraph'].create(null, inlineNodes)
-      // @ts-ignore
-      headerCellNodes.push(schema.nodes['tableHeader'].createChecked({id: colBlock.id ?? null}, paragraphNode))
-    }
-    // @ts-ignore
-    rowNodes.push(schema.nodes['tableRow'].createChecked(null, headerCellNodes))
-  }
+  type ColMeta = {isHeader: boolean; width?: number; index: number; id: string}
+  const colMetaById = new Map<string, ColMeta>()
+  columnBlocks.forEach((colBlock, idx) => {
+    if (!colBlock.id) return
+    const isHeader = idx === 0 && (colBlock as any).props?.isHeader === true
+    const widthStr = (colBlock as any).props?.width
+    const width = widthStr ? Number(widthStr) : undefined
+    colMetaById.set(colBlock.id, {isHeader, width, index: idx, id: colBlock.id})
+  })
 
-  // Cell paragraph block ids translate into the tableCell PM
-  // node's id attribute.
+  let rowIdx = 0
   for (const rowBlock of rowBlocks) {
-    const cellNodes: Node[] = []
+    const rowIsHeader = rowIdx === 0 && (rowBlock as any).props?.isHeader === true
+    rowIdx++
+
+    // Group cells by their column index. Orphan cells where columnId doesn't match
+    // any TableColumn are dropped.
+    const cellsByIndex = new Map<number, any>()
     for (const cellBlock of rowBlock.children ?? []) {
-      const inlineNodes = cellBlock.content ? inlineContentToNodes(cellBlock.content as any, schema) : []
+      const cellColumnId = (cellBlock as any).props?.columnId
+      const meta = cellColumnId ? colMetaById.get(cellColumnId) : undefined
+      if (!meta) continue
+      cellsByIndex.set(meta.index, cellBlock)
+    }
+
+    // Build PM cells in column order, creating empty cells for missing positions.
+    const cellNodes: Node[] = []
+    for (let idx = 0; idx < columnBlocks.length; idx++) {
+      const columnBlock = columnBlocks[idx]
+      if (!columnBlock?.id) continue
+      const colMeta = colMetaById.get(columnBlock.id)!
+      const cellBlock = cellsByIndex.get(idx)
+      const useHeader = rowIsHeader || colMeta.isHeader
+      const nodeType = useHeader ? 'tableHeader' : 'tableCell'
+
+      const inlineNodes: Node[] =
+        cellBlock && cellBlock.content ? inlineContentToNodes(cellBlock.content as any, schema) : []
       // @ts-ignore
       const paragraphNode = schema.nodes['paragraph'].create(null, inlineNodes)
+
+      const cellAttrs: Record<string, any> = {
+        id: cellBlock?.id ?? null,
+        columnId: colMeta.id,
+      }
+      if (colMeta.width !== undefined) cellAttrs.colwidth = [colMeta.width]
+
       // @ts-ignore
-      cellNodes.push(schema.nodes['tableCell'].createChecked({id: cellBlock.id ?? null}, paragraphNode))
+      cellNodes.push(schema.nodes[nodeType].createChecked(cellAttrs, paragraphNode))
     }
+
     // @ts-ignore
-    rowNodes.push(schema.nodes['tableRow'].createChecked(null, cellNodes))
+    rowNodes.push(schema.nodes['tableRow'].createChecked({id: rowBlock.id ?? null}, cellNodes))
   }
 
-  // If there are no rows, fall back to createAndFill so PM
-  // produces a valid empty table instead of throwing.
   let tableNode: Node
   if (rowNodes.length > 0) {
     // @ts-ignore
     tableNode = schema.nodes['table'].createChecked(block.props, rowNodes)
+  } else if (columnBlocks.length > 0) {
+    // Create one empty row if there are none, so it's a valid PM table.
+    const emptyCells: Node[] = []
+    for (const columnBlock of columnBlocks) {
+      if (!columnBlock.id) continue
+      const colMeta = colMetaById.get(columnBlock.id)!
+      const nodeType = colMeta.isHeader ? 'tableHeader' : 'tableCell'
+      // @ts-ignore
+      const paragraphNode = schema.nodes['paragraph'].create(null, [])
+      const cellAttrs: Record<string, any> = {id: null, columnId: colMeta.id}
+      if (colMeta.width !== undefined) cellAttrs.colwidth = [colMeta.width]
+      // @ts-ignore
+      emptyCells.push(schema.nodes[nodeType].createChecked(cellAttrs, paragraphNode))
+    }
+    // @ts-ignore
+    const emptyRow = schema.nodes['tableRow'].createChecked(null, emptyCells)
+    // @ts-ignore
+    tableNode = schema.nodes['table'].createChecked(block.props, [emptyRow])
   } else {
     // @ts-ignore
     tableNode = schema.nodes['table'].createAndFill(block.props)!
