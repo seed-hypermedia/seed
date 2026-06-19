@@ -774,8 +774,13 @@ export const HMBlockTableRowSchema = z
   .object({
     type: z.literal('TableRow'),
     ...blockBaseProperties,
-    ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes).optional().default({}),
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        isHeader: z.boolean().optional(),
+      })
+      .optional()
+      .default({}),
   })
   .strict()
 
@@ -783,11 +788,11 @@ export const HMBlockTableColumnSchema = z
   .object({
     type: z.literal('TableColumn'),
     ...blockBaseProperties,
-    ...textBlockProperties,
     attributes: z
       .object({
         ...parentBlockAttributes,
         width: z.number().optional(),
+        isHeader: z.boolean().optional(),
       })
       .optional()
       .default({}),

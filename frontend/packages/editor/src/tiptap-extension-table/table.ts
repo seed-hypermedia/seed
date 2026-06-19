@@ -26,6 +26,7 @@ import {NodeView} from '@tiptap/pm/view'
 import {BlockNoteDOMAttributes, getBlockInfoFromSelection, mergeCSSClasses} from '../blocknote'
 import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {TableView} from './TableView'
+import {columnIdPlugin} from './table-cell-columnid-plugin'
 import {tablePasteCleanupPlugin} from './table-paste-cleanup'
 import {createTable} from './utilities/createTable'
 import {deleteFullySelectedTable} from './utilities/deleteFullySelectedTable'
@@ -422,6 +423,7 @@ export const Table = Node.create<TableOptions>({
         allowTableNodeSelection: this.options.allowTableNodeSelection,
       }),
       tablePasteCleanupPlugin,
+      columnIdPlugin,
     ]
   },
 

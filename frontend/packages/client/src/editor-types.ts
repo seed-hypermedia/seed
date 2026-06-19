@@ -162,19 +162,23 @@ export interface EditorTableBlock extends EditorBaseBlock {
   content: Array<HMInlineContent> // always empty
 }
 
-// A row in a table, where content is the row header. Children are cell blocks.
+// A row in a table. Children are cell blocks.
 export interface EditorTableRowBlock extends EditorBaseBlock {
   type: 'tableRow'
-  content: Array<HMInlineContent>
+  props: EditorBlockProps & {
+    isHeader?: boolean
+  }
+  content: Array<HMInlineContent> // always empty
 }
 
-// A column in a table, where content is the column header. No children.
+// A column in a table. Carries column metadata (width, isHeader). No children.
 export interface EditorTableColumnBlock extends EditorBaseBlock {
   type: 'tableColumn'
   props: EditorBlockProps & {
     width?: string
+    isHeader?: boolean
   }
-  content: Array<HMInlineContent>
+  content: Array<HMInlineContent> // always empty
 }
 
 export type EditorUnknownBlock = EditorBaseBlock & {
