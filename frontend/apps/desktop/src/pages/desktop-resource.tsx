@@ -72,6 +72,7 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
@@ -79,7 +80,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, Folder, Globe, History, LayoutList, Link, Link2, Split} from 'lucide-react'
+import {Copy, FileInput, Folder, History, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -187,7 +188,8 @@ export default function DesktopResourcePage() {
   useListenAppEvent('draft_externally_modified', handleDraftExternallyModified)
 
   // Developer tools: XState inspect callback + event store (when enabled)
-  const devTools = useUniversalAppContext().experiments?.developerTools
+  const experiments = useUniversalAppContext().experiments
+  const devTools = experiments?.developerTools
   const {inspect, store: inspectStore} = useDocumentInspector(!!devTools)
 
   // Editor ref for draft saving — captured via onEditorReady callback
@@ -574,37 +576,24 @@ export default function DesktopResourcePage() {
 
   const menuItems: MenuItemType[] = []
 
-  menuItems.push({
-    key: 'copy-link',
-    label: 'Copy Link',
-    icon: <Link className="size-4" />,
-    children: [
-      ...(siteUrl
-        ? [
-            {
-              key: 'copy-site',
-              label: `Copy ${displayHostname(siteUrl)} Link`,
-              icon: <Globe className="size-4" />,
-              onClick: () => onCopySiteUrl(route),
-            },
-          ]
-        : []),
-      {
-        key: 'copy-gateway',
+  menuItems.push(
+    createCopyLinkMenuItem({
+      advanced: experiments?.advancedCopyLinkOptions,
+      canonical: siteUrl
+        ? {
+            label: `Copy ${displayHostname(siteUrl)} Link`,
+            copy: () => onCopySiteUrl(route),
+          }
+        : null,
+      gateway: {
         label: `Copy ${displayHostname(gwUrl)} Link`,
-        icon: <Link className="size-4" />,
-        onClick: () => onCopyGateway(route),
+        copy: () => onCopyGateway(route),
       },
-      {
-        key: 'copy-hm',
-        label: 'Copy Hypermedia URL',
-        icon: <Link2 className="size-4" />,
-        onClick: async () => {
-          await copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia')
-        },
+      hypermedia: {
+        copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
       },
-    ],
-  })
+    }),
+  )
 
   if (newMenuItem) {
     menuItems.push(newMenuItem)

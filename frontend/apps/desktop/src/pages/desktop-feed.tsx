@@ -5,15 +5,16 @@ import {JoinButton} from '@/components/join-button'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
-import {hmId} from '@shm/shared'
+import {hmId, useUniversalAppContext} from '@shm/shared'
 import {CommentsProvider, isRouteEqualToCommentTarget} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMComment} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {displayHostname} from '@shm/shared/utils/entity-id-url'
+import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {FeedPage} from '@shm/ui/feed-page-common'
-import {Link} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {useCallback, useMemo} from 'react'
 
@@ -21,6 +22,7 @@ export default function DesktopFeedPage() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const replace = useNavigate('replace')
+  const experiments = useUniversalAppContext().experiments
 
   if (route.key !== 'feed') throw new Error('Not a feed route')
   const docId = route.id
@@ -37,23 +39,25 @@ export default function DesktopFeedPage() {
   )
 
   const menuItems: MenuItemType[] = useMemo(() => {
-    const items: MenuItemType[] = []
-    if (siteUrl) {
-      items.push({
-        key: 'link-site',
-        label: `Copy ${displayHostname(siteUrl)} Link`,
-        icon: <Link className="size-4" />,
-        onClick: () => onCopySiteUrl(route),
-      })
-    }
-    items.push({
-      key: 'link',
-      label: `Copy ${displayHostname(gwUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => onCopyGateway(route),
-    })
-    return items
-  }, [siteUrl, gwUrl, route, onCopySiteUrl, onCopyGateway])
+    return [
+      createCopyLinkMenuItem({
+        advanced: experiments?.advancedCopyLinkOptions,
+        canonical: siteUrl
+          ? {
+              label: `Copy ${displayHostname(siteUrl)} Link`,
+              copy: () => onCopySiteUrl(route),
+            }
+          : null,
+        gateway: {
+          label: `Copy ${displayHostname(gwUrl)} Link`,
+          copy: () => onCopyGateway(route),
+        },
+        hypermedia: {
+          copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
+        },
+      }),
+    ]
+  }, [siteUrl, gwUrl, route, onCopySiteUrl, onCopyGateway, experiments?.advancedCopyLinkOptions, docId])
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {

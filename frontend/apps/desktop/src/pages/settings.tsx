@@ -778,6 +778,7 @@ export function DeveloperSettings() {
   const writeExperiments = useWriteExperiments()
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
+  const enabledAdvancedCopyLinkOptions = experiments?.advancedCopyLinkOptions
   const embeddingEnabled = experiments?.embeddingEnabled
   const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
   const [pendingEmbeddingState, setPendingEmbeddingState] = useState(false)
@@ -836,6 +837,20 @@ export function DeveloperSettings() {
               onClick={() => writeExperiments.mutate({developerTools: !enabledDevTools})}
             >
               {enabledDevTools ? 'Disable Debug Tools' : 'Enable Debug Tools'}
+            </Button>
+          }
+        />
+        <Separator />
+        <SettingsRow
+          label="Advanced Copy Link Options"
+          description="Shows separate Canonical, Gateway, and Hypermedia URL choices in document menus."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => writeExperiments.mutate({advancedCopyLinkOptions: !enabledAdvancedCopyLinkOptions})}
+            >
+              {enabledAdvancedCopyLinkOptions ? 'Disable Advanced Copy Links' : 'Enable Advanced Copy Links'}
             </Button>
           }
         />

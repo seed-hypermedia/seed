@@ -14,6 +14,7 @@ import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,12 +38,9 @@ import {
   Bell,
   FilePlus2,
   Folder,
-  Globe,
   History,
   Import as ImportIcon,
   LayoutList,
-  Link,
-  Link2,
   Lock,
   LogOut,
   Search,
@@ -58,7 +56,7 @@ import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifi
 export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeInspect?: boolean}): MenuItemType[] {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const {onCopyReference, onPushReference, origin, originHomeId} = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin, originHomeId, experiments} = useUniversalAppContext()
   const includeInspect = options?.includeInspect !== false
   const inspectRoute = useMemo(() => {
     if (!includeInspect) return null
@@ -69,43 +67,24 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
 
   return useMemo(
     () => [
-      {
-        key: 'copy-link',
-        label: 'Copy Link',
-        icon: <Link className="size-4" />,
-        children: [
-          {
-            key: 'copy-canonical',
-            label: 'Copy Canonical URL',
-            icon: <Globe className="size-4" />,
-            onClick: async () => {
-              if (onCopyReference) {
-                await onCopyReference(docId)
-              } else if (typeof window !== 'undefined') {
-                await copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-              }
-            },
+      createCopyLinkMenuItem({
+        advanced: experiments?.advancedCopyLinkOptions,
+        canonical: {
+          copy:
+            (onCopyReference ? () => onCopyReference(docId) : null) ??
+            (typeof window !== 'undefined' ? () => copyUrlToClipboardWithFeedback(window.location.href, 'Link') : null),
+        },
+        gateway: {
+          copy: async () => {
+            const url = routeToUrl(route, {hostname: origin ?? DEFAULT_GATEWAY_URL, originHomeId})
+            if (url) await copyUrlToClipboardWithFeedback(url, 'Gateway')
+            onPushReference?.(docId)
           },
-          {
-            key: 'copy-gateway',
-            label: 'Copy Gateway URL',
-            icon: <Link className="size-4" />,
-            onClick: async () => {
-              const url = routeToUrl(route, {hostname: origin ?? DEFAULT_GATEWAY_URL, originHomeId})
-              if (url) await copyUrlToClipboardWithFeedback(url, 'Gateway')
-              onPushReference?.(docId)
-            },
-          },
-          {
-            key: 'copy-hm',
-            label: 'Copy Hypermedia URL',
-            icon: <Link2 className="size-4" />,
-            onClick: async () => {
-              await copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia')
-            },
-          },
-        ],
-      },
+        },
+        hypermedia: {
+          copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
+        },
+      }),
       {
         key: 'versions',
         label: 'Document Versions',
@@ -143,7 +122,18 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
           ]
         : []),
     ],
-    [allDocumentsId, docId, inspectRoute, navigate, onCopyReference, onPushReference, origin, originHomeId, route],
+    [
+      allDocumentsId,
+      docId,
+      inspectRoute,
+      navigate,
+      onCopyReference,
+      onPushReference,
+      origin,
+      originHomeId,
+      route,
+      experiments?.advancedCopyLinkOptions,
+    ],
   )
 }
 
