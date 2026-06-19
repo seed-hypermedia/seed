@@ -191,7 +191,8 @@ export function BlockEmbedCard({
       parentBlockId={parentBlockId}
       hideBorder
       route={{key: 'document', id}}
-      openOnClick={titleLinkOnly ? false : openOnClick}
+      openOnClick={false}
+      viewType="Card"
     >
       <DocumentCard
         entity={{
@@ -200,7 +201,7 @@ export function BlockEmbedCard({
         }}
         docId={id}
         accountsMetadata={accountsMetadata}
-        navigate={false}
+        navigate={openOnClick && !titleLinkOnly}
         titleLinkOnly={titleLinkOnly}
         hideInlineActions={hideInlineActions}
         showSummary

@@ -14,6 +14,10 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummary: () => ({data: null}),
 }))
 
+vi.mock('@shm/shared/models/entity', () => ({
+  useResource: () => ({data: null}),
+}))
+
 vi.mock('@shm/shared/utils/navigation', () => ({
   useNavigate: () => vi.fn(),
 }))
@@ -52,7 +56,18 @@ function renderDocumentCard({
     document: {
       metadata: {name: 'Embedded document'},
       authors: [],
-      content: [],
+      content: [
+        {
+          block: {
+            id: 'paragraph-1',
+            type: 'Paragraph',
+            text: 'Loaded text content',
+            annotations: [],
+            attributes: {},
+          },
+          children: [],
+        },
+      ],
       version: 'version-1',
       visibility: 'PUBLIC',
     },
