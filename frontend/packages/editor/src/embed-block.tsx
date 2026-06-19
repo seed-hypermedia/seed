@@ -399,7 +399,7 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const isLinkView = block.props.view === 'Link'
   // Card and Link views share the same floating action bar.
   const isAtomicEmbedView = isCardView || isLinkView
-  const showActions = canEdit && (isCardView || isLinkView) && !!block.props.url
+  const showActions = canEdit && isEditing && isAtomicEmbedView && !!block.props.url
   const content = (
     <MediaContainer editor={editor} block={block} mediaType="embed" assign={assign}>
       {block.props.url && (
@@ -407,7 +407,7 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
           openOnClick={!canEdit || !isEditing}
           titleLinkOnly={canEdit && !isEditing}
           parentBlockId={block.props.parentBlockId || null}
-          hideInlineActions={canEdit && isAtomicEmbedView}
+          hideInlineActions={isEditing && isAtomicEmbedView}
           block={{
             id: block.id,
             type: 'Embed',
