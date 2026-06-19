@@ -1,6 +1,11 @@
 ---
 name: report-issue
-description: Interactively investigate a bug by grilling the user, exploring the codebase for suspects and solutions, suggesting related test scenarios, and then creating a well-structured GitHub issue via `gh` CLI. Use when the user wants to report a bug, file an issue, create a GitHub issue, or says things like "file a bug", "create an issue", "report this bug", "open an issue", or "github issue". Also trigger when the user describes unexpected behavior and wants to track it formally.
+description:
+  Interactively investigate a bug by grilling the user, exploring the codebase for suspects and solutions, suggesting
+  related test scenarios, and then creating a well-structured GitHub issue via `gh` CLI. Use when the user wants to
+  report a bug, file an issue, create a GitHub issue, or says things like "file a bug", "create an issue", "report this
+  bug", "open an issue", or "github issue". Also trigger when the user describes unexpected behavior and wants to track
+  it formally.
 ---
 
 # GitHub Issue Creator
@@ -27,7 +32,8 @@ If not, ask the user which repo the issue should be filed against.
 
 ## Phase 1: Grill the user
 
-Interview the user one question at a time to build a complete picture of the bug. For each question, provide your recommended answer based on what you already know from context or the codebase.
+Interview the user one question at a time to build a complete picture of the bug. For each question, provide your
+recommended answer based on what you already know from context or the codebase.
 
 Walk through these areas, but adapt to what's already known — skip questions the user has already answered:
 
@@ -44,17 +50,21 @@ If a question can be answered by exploring the codebase, explore the codebase in
 
 Once you understand the bug, dig into the code:
 
-1. **Find suspects** — Search for the code paths most likely involved. Look at recent changes in those areas (`git log --oneline -10 -- <file>`). Summarize what you find for the user.
+1. **Find suspects** — Search for the code paths most likely involved. Look at recent changes in those areas
+   (`git log --oneline -10 -- <file>`). Summarize what you find for the user.
 2. **Propose possible causes** — Based on the code, suggest what might be going wrong and why.
-3. **Suggest fixes** — If a solution seems clear, describe the approach briefly. This goes into the issue body as context, not as a commitment.
+3. **Suggest fixes** — If a solution seems clear, describe the approach briefly. This goes into the issue body as
+   context, not as a commitment.
 
 Share your findings with the user and ask if they want to add or correct anything.
 
 ## Phase 3: Related test scenarios
 
-Before creating the issue, suggest 2-4 related scenarios the user should also verify. These are edge cases or adjacent behaviors that might be affected by the same root cause.
+Before creating the issue, suggest 2-4 related scenarios the user should also verify. These are edge cases or adjacent
+behaviors that might be affected by the same root cause.
 
 Ask the user:
+
 - Have you observed any of these?
 - Should any of them be included in the issue or filed separately?
 
