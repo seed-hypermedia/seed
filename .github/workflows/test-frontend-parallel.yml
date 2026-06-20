@@ -51,6 +51,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Install Bun workspace dependencies
+        run: |
+          cd agents && bun install --frozen-lockfile
+          cd ../vault && bun install --frozen-lockfile
+
       - name: Validate Code Formatting
         run: pnpm format:check
 
