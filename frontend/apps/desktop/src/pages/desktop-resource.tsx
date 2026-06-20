@@ -60,6 +60,7 @@ import {
   WriteDraftInput,
 } from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
+import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -72,6 +73,7 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
@@ -79,10 +81,12 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, Folder, Globe, History, LayoutList, Link, Link2, Split} from 'lucide-react'
+import {Copy, FileInput, Folder, History, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
+
+const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
 async function deleteDraftsForCleanup(parentDraftId: string, childDraftIds: string[]) {
   const ids = Array.from(new Set(childDraftIds.filter((id) => id && id !== parentDraftId)))
@@ -93,6 +97,92 @@ async function deleteDraftsForCleanup(parentDraftId: string, childDraftIds: stri
       console.error('Failed to delete removed child draft:', id, error)
     }
   }
+}
+
+function summarizeEditorBlocksForCleanup(blocks: any[]) {
+  const embedBlocks: Array<{id?: string; url?: string; view?: string; draftId?: string}> = []
+  const topLevelBlockIds = blocks.map((block) => block?.id).filter(Boolean)
+  const walk = (nodes: any[]) => {
+    for (const block of nodes) {
+      if (block?.type === 'embed') {
+        embedBlocks.push({
+          id: block.id,
+          url: block.props?.url,
+          view: block.props?.view,
+          draftId: block.props?.draftId,
+        })
+      }
+      if (Array.isArray(block?.children)) walk(block.children)
+    }
+  }
+  walk(blocks)
+  return {topLevelBlockIds, embedBlocks}
+}
+
+type DraftExternallyModifiedEvent = {
+  type: 'draft_externally_modified'
+  draftId: string
+  source?: 'document-card-cleanup'
+  deletedDocumentId?: string
+  removedBlockIds?: string[]
+  autoReload?: boolean
+}
+
+function DraftExternalModificationMachineLogger() {
+  const actorRef = useDocumentMachineRef()
+
+  const handleDraftExternallyModified = useCallback(
+    async (event: DraftExternallyModifiedEvent) => {
+      const snapshot = actorRef.getSnapshot()
+      const context = selectContext(snapshot)
+      console.info(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by document machine`, {
+        eventDraftId: event.draftId,
+        currentDraftId: context.draftId,
+        matchesCurrentDraft: !!context.draftId && context.draftId === event.draftId,
+        source: event.source ?? null,
+        deletedDocumentId: event.deletedDocumentId ?? null,
+        removedBlockIds: event.removedBlockIds ?? null,
+        autoReload: event.autoReload ?? false,
+        documentId: context.documentId.id,
+        machineState: snapshot.value,
+        draftContentTopLevelBlockCount: Array.isArray(context.draftContent) ? context.draftContent.length : 0,
+        hasChangedWhileSaving: context.hasChangedWhileSaving,
+        draftCreated: context.draftCreated,
+      })
+      if (event.source !== 'document-card-cleanup' || event.draftId !== context.draftId) {
+        actorRef.send({type: 'draft.externallyModified', draftId: event.draftId, source: event.source})
+        return
+      }
+
+      let draft: Awaited<ReturnType<typeof client.drafts.get.query>> | null = null
+      try {
+        draft = await client.drafts.get.query(event.draftId)
+      } catch (error) {
+        console.error(`${CLEANUP_LOG_PREFIX} renderer failed to load externally modified draft`, {
+          draftId: event.draftId,
+          error,
+        })
+      }
+
+      actorRef.send({
+        type: 'draft.externallyModified',
+        draftId: event.draftId,
+        source: event.source,
+        deletedDocumentId: event.deletedDocumentId,
+        removedBlockIds: event.removedBlockIds,
+        content: draft?.content ?? null,
+        cursorPosition: draft?.cursorPosition ?? null,
+        metadata: draft?.metadata ?? null,
+        deps: draft?.deps ?? null,
+        mineTouchedIds: draft?.mineTouchedIds ?? null,
+        baseBlocks: draft?.baseBlocks ?? null,
+      })
+    },
+    [actorRef],
+  )
+
+  useListenAppEvent('draft_externally_modified', handleDraftExternallyModified)
+  return null
 }
 
 export default function DesktopResourcePage() {
@@ -172,9 +262,27 @@ export default function DesktopResourcePage() {
   // When another window writes to this draft (e.g. an auto-link append),
   // the editor's in-memory ProseMirror state is stale. Show a persistent
   // toast that the user can click to reload the page.
-  const handleDraftExternallyModified = useCallback((event: {type: 'draft_externally_modified'; draftId: string}) => {
+  const handleDraftExternallyModified = useCallback((event: DraftExternallyModifiedEvent) => {
     const id = currentDraftIdRef.current
+    console.info(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by page`, {
+      eventDraftId: event.draftId,
+      currentDraftId: id || null,
+      matchesCurrentDraft: !!id && event.draftId === id,
+      source: event.source ?? null,
+      autoReload: event.autoReload ?? false,
+      routeDocumentId: docIdRef.current.id,
+    })
     if (!id || event.draftId !== id) return
+    if (event.autoReload) {
+      console.info(`${CLEANUP_LOG_PREFIX} renderer auto-reloading externally modified draft`, {
+        draftId: event.draftId,
+        source: event.source ?? null,
+        routeDocumentId: docIdRef.current.id,
+      })
+      window.location.reload()
+      return
+    }
+    if (event.source === 'document-card-cleanup') return
     toast.message('This draft was updated in another window', {
       id: `draft-externally-modified-${id}`,
       duration: Infinity,
@@ -187,7 +295,8 @@ export default function DesktopResourcePage() {
   useListenAppEvent('draft_externally_modified', handleDraftExternallyModified)
 
   // Developer tools: XState inspect callback + event store (when enabled)
-  const devTools = useUniversalAppContext().experiments?.developerTools
+  const experiments = useUniversalAppContext().experiments
+  const devTools = experiments?.developerTools
   const {inspect, store: inspectStore} = useDocumentInspector(!!devTools)
 
   // Editor ref for draft saving — captured via onEditorReady callback
@@ -271,6 +380,16 @@ export default function DesktopResourcePage() {
         const content = editor ? editor.topLevelBlocks : []
         const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const draftId = input.draftId || nanoid(10)
+        const contentSummary = summarizeEditorBlocksForCleanup(content)
+        console.info(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor reading editor content`, {
+          draftId,
+          inputDraftId: input.draftId,
+          hasEditor: !!editor,
+          topLevelBlockCount: content.length,
+          cursorPosition,
+          signingAccountId: input.signingAccountId,
+          ...contentSummary,
+        })
         // console.log('[writeDraft] saving:', {
         //   draftId,
         //   blocksCount: content.length,
@@ -316,6 +435,12 @@ export default function DesktopResourcePage() {
         invalidateQueries([queryKeys.DRAFT, result.id])
         invalidateQueries([queryKeys.DRAFTS_LIST])
         invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+        console.info(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor saved draft`, {
+          draftId: result.id,
+          inputDraftId: input.draftId,
+          wroteTopLevelBlockCount: content.length,
+          wroteEmbedBlocks: contentSummary.embedBlocks,
+        })
         // console.log('[writeDraft] saved successfully:', {draftId: result.id})
         return result
       }),
@@ -574,37 +699,24 @@ export default function DesktopResourcePage() {
 
   const menuItems: MenuItemType[] = []
 
-  menuItems.push({
-    key: 'copy-link',
-    label: 'Copy Link',
-    icon: <Link className="size-4" />,
-    children: [
-      ...(siteUrl
-        ? [
-            {
-              key: 'copy-site',
-              label: `Copy ${displayHostname(siteUrl)} Link`,
-              icon: <Globe className="size-4" />,
-              onClick: () => onCopySiteUrl(route),
-            },
-          ]
-        : []),
-      {
-        key: 'copy-gateway',
+  menuItems.push(
+    createCopyLinkMenuItem({
+      advanced: experiments?.advancedCopyLinkOptions,
+      canonical: siteUrl
+        ? {
+            label: `Copy ${displayHostname(siteUrl)} Link`,
+            copy: () => onCopySiteUrl(route),
+          }
+        : null,
+      gateway: {
         label: `Copy ${displayHostname(gwUrl)} Link`,
-        icon: <Link className="size-4" />,
-        onClick: () => onCopyGateway(route),
+        copy: () => onCopyGateway(route),
       },
-      {
-        key: 'copy-hm',
-        label: 'Copy Hypermedia URL',
-        icon: <Link2 className="size-4" />,
-        onClick: async () => {
-          await copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia')
-        },
+      hypermedia: {
+        copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
       },
-    ],
-  })
+    }),
+  )
 
   if (newMenuItem) {
     menuItems.push(newMenuItem)
@@ -897,7 +1009,7 @@ export default function DesktopResourcePage() {
                     DocumentContentComponent={DocumentEditorWithImport}
                     machine={machine}
                     onEditorReady={handleEditorReady}
-                    machineExtras={null}
+                    machineExtras={<DraftExternalModificationMachineLogger />}
                     editingFloatingActions={editingFloatingActions}
                     signingAccountId={selectedAccountId || undefined}
                     publishAccountUid={selectedAccount?.id?.uid || undefined}

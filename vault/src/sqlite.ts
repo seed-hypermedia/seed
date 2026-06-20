@@ -1,7 +1,7 @@
 import {Database} from 'bun:sqlite'
-import schemaSQL from './sqlite-schema.sql' with {type: 'text'}
 import fs from 'node:fs'
 import path from 'node:path'
+import schemaSQL from './sqlite-schema.sql' with {type: 'text'}
 
 export const LEGACY_SCHEMA_VERSION_KEY = 'schema_version'
 export const SCHEMA_MIGRATION_VERSION_KEY = 'schema_migration_version'

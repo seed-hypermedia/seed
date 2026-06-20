@@ -16,6 +16,14 @@
 - `vault/AGENTS.md` for `vault/**`.
 - `agents/docs/readme.md` for `agents/**`
 
+## Agent Assets
+
+- Keep durable repo instructions in `AGENTS.md` and subtree `AGENTS.md` files.
+- Keep reusable workflows and task-specific expertise in repo-local `.agents/skills/` so they can be shared by the team.
+- Keep provider-specific folders such as `.cursor/` and `.codex/` as thin adapters only; do not duplicate canonical
+  instructions there.
+- Do not rely on personal home-directory skills such as `~/.agents/skills` for team workflows.
+
 ## Repo Rules
 
 - Use `pnpm` for main repo, `bun` for `vault/**`.
@@ -32,8 +40,8 @@
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
-- This repo uses `mise` + `direnv` for toolchain setup. Always run commands with the `direnv` environment activated.
-  In non-interactive shells, run `eval "$(direnv export <shell>)"` first, using the current shell name; for example,
+- This repo uses `mise` + `direnv` for toolchain setup. Always run commands with the `direnv` environment activated. In
+  non-interactive shells, run `eval "$(direnv export <shell>)"` first, using the current shell name; for example,
   `eval "$(direnv export zsh)"`.
 
 ## Local CI

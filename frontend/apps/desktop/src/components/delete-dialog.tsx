@@ -35,12 +35,12 @@ export function DeleteDocumentDialog({
   onClose?: () => void
 }) {
   const list = useListSite(id)
+  const parentPath = id.path ?? []
   const childDocs =
     list.data?.filter((item) => {
       if (!item.path?.length) return false
-      if (!id.path) return false
-      if (id.path.length === item.path.length) return false
-      return id.path.every((segment, index) => item.path[index] === segment)
+      if (parentPath.length === item.path.length) return false
+      return parentPath.every((segment, index) => item.path[index] === segment)
     }) || []
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)

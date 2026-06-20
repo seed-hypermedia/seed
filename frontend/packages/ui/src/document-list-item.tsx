@@ -21,11 +21,12 @@ import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, ChevronRight, Copy, Forward, GitFork, Globe, Link, Link2, MessageSquare, Pencil} from 'lucide-react'
+import {Bookmark, ChevronRight, Copy, Forward, GitFork, MessageSquare, Pencil} from 'lucide-react'
 import {Fragment, useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {createCopyLinkMenuItem} from './copy-link-menu'
 import {FacePile} from './face-pile'
 import {DraftBadge} from './draft-badge'
 import {useHighlighter} from './highlight-context'
@@ -107,7 +108,7 @@ export function DocumentListItem({
   }
 
   const highlighter = useHighlighter()
-  const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin, experiments} = useUniversalAppContext()
   const navigate = useNavigate()
 
   const summaryId = useMemo(() => hmId(id.uid, {path: id.path}), [id.uid, id.path])
@@ -150,55 +151,31 @@ export function DocumentListItem({
       })
     }
     if (actions.onCopyLink) {
-      items.push({
-        key: 'copy-link',
-        label: 'Copy Link',
-        icon: <Link className="size-3.5" />,
-        children: [
-          {
-            key: 'copy-canonical',
-            label: 'Copy Canonical URL',
-            icon: <Globe className="size-3.5" />,
-            onClick: (e) => {
-              e?.stopPropagation()
-              if (onCopyReference) {
-                onCopyReference(id)
-              } else if (typeof window !== 'undefined') {
-                copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-              }
-            },
+      const copyCanonical = onCopyReference ? () => onCopyReference(id) : null
+      const copyGateway = async () => {
+        const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+        const url = createWebHMUrl(id.uid, {
+          path: id.path,
+          version: id.version,
+          latest: id.latest,
+          blockRef: id.blockRef,
+          blockRange: id.blockRange,
+          hostname: gwUrl,
+        })
+        await copyUrlToClipboardWithFeedback(url, 'Gateway')
+        onPushReference?.(id)
+      }
+      items.push(
+        createCopyLinkMenuItem({
+          advanced: experiments?.advancedCopyLinkOptions,
+          iconClassName: 'size-3.5',
+          canonical: {copy: copyCanonical},
+          gateway: {copy: copyGateway},
+          hypermedia: {
+            copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(id), 'Hypermedia'),
           },
-          {
-            key: 'copy-gateway',
-            label: 'Copy Gateway URL',
-            icon: <Link className="size-3.5" />,
-            onClick: async (e) => {
-              e?.stopPropagation()
-              const gwUrl = origin ?? DEFAULT_GATEWAY_URL
-              const url = createWebHMUrl(id.uid, {
-                path: id.path,
-                version: id.version,
-                latest: id.latest,
-                blockRef: id.blockRef,
-                blockRange: id.blockRange,
-                hostname: gwUrl,
-              })
-              await copyUrlToClipboardWithFeedback(url, 'Gateway')
-              onPushReference?.(id)
-            },
-          },
-          {
-            key: 'copy-hm',
-            label: 'Copy Hypermedia URL',
-            icon: <Link2 className="size-3.5" />,
-            onClick: async (e) => {
-              e?.stopPropagation()
-              const url = hmIdToURL(id)
-              await copyUrlToClipboardWithFeedback(url, 'Hypermedia')
-            },
-          },
-        ],
-      })
+        }),
+      )
     }
     if (actions.onMoveDocument && isOwner && hasPath) {
       items.push({
@@ -263,6 +240,7 @@ export function DocumentListItem({
     onCopyReference,
     onPushReference,
     origin,
+    experiments?.advancedCopyLinkOptions,
   ])
 
   const hasActions = !!actions.onBookmarkToggle || commentCount > 0 || menuItems.length > 0

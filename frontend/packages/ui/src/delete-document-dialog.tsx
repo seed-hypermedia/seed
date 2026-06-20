@@ -33,10 +33,12 @@ export function DeleteDocumentDialog({
   className,
 }: DeleteDocumentDialogProps) {
   const [isDeleting, setIsDeleting] = React.useState(false)
+  const [showChildDocuments, setShowChildDocuments] = React.useState(false)
+  const childDocumentListId = React.useId()
   const deletedDocumentCount = childDocuments.length + 1
   const documentLabel = deletedDocumentCount === 1 ? 'document' : 'documents'
   const hasChildren = childDocuments.length > 0
-  const items = [document, ...childDocuments]
+  const childDocumentLabel = childDocuments.length === 1 ? 'document' : 'documents'
 
   async function handleConfirm() {
     if (!canDelete) {
@@ -72,40 +74,63 @@ export function DeleteDocumentDialog({
   }
 
   return (
-    <div className={cn(className)}>
-      <div className="flex shrink-0 flex-col gap-3 p-4 pb-3">
-        <Text className="text-lg font-semibold">Delete &quot;{document.title}&quot;</Text>
-        <Text className="text-muted-foreground text-sm">
-          Are you sure you want to delete {hasChildren ? 'these documents' : 'this document'}? This may break links that
-          refer to the current {hasChildren ? 'versions' : 'version'}.
-        </Text>
-        <Text className="text-muted-foreground text-sm">
-          {hasChildren ? 'They' : 'It'} will be removed from your directory but the content will remain on your
-          computer, and other people may still have it saved.
-        </Text>
-        <Text className="text-muted-foreground text-sm">
-          Note: This feature is a work-in-progress. For now, the raw document data will continue to be synced with other
-          peers. Soon we will avoid that. Eventually, you will be able to recover deleted documents.
-        </Text>
-      </div>
-
-      <div
-        className="border-border min-h-0 flex-1 overflow-y-auto border-y px-4 py-3"
-        data-testid="delete-document-scroll-list"
-      >
-        <div className="flex flex-col gap-3">
-          {items.map((item) => (
-            <DeletionListItem key={item.key} item={item} />
-          ))}
+    <div className={cn('flex flex-col gap-7', className)}>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <span className="bg-destructive/15 flex size-8 shrink-0 items-center justify-center rounded-full">
+            <span className="bg-destructive text-destructive-foreground flex size-6 items-center justify-center rounded-full text-base leading-none font-bold">
+              !
+            </span>
+          </span>
+          <Text className="min-w-0 text-2xl leading-tight font-semibold">Delete &quot;{document.title}&quot;?</Text>
         </div>
+        <Text className="text-muted-foreground text-base leading-7">
+          This permanently removes the document and all its content. Links pointing to it from other documents will
+          break.
+        </Text>
       </div>
 
-      <div className="bg-background flex shrink-0 justify-end gap-3 p-4" data-testid="delete-document-footer">
+      {hasChildren ? (
+        <div
+          className="border-destructive/20 bg-destructive/[0.03] overflow-hidden rounded-lg border"
+          data-testid="delete-document-child-section"
+        >
+          <div className="flex items-center justify-between gap-4 px-4 py-3">
+            <Text className="text-base font-semibold">
+              {childDocuments.length} {childDocumentLabel} will also be deleted
+            </Text>
+            <button
+              type="button"
+              aria-controls={showChildDocuments ? childDocumentListId : undefined}
+              aria-expanded={showChildDocuments}
+              className="text-primary hover:text-primary/80 focus-visible:ring-ring/50 rounded-sm text-sm font-medium transition-colors outline-none focus-visible:ring-[3px]"
+              onClick={() => setShowChildDocuments((visible) => !visible)}
+            >
+              {showChildDocuments ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showChildDocuments ? (
+            <div
+              id={childDocumentListId}
+              className="border-border max-h-56 overflow-y-auto border-t px-4 py-3"
+              data-testid="delete-document-child-list"
+            >
+              <div className="flex flex-col divide-y">
+                {childDocuments.map((item) => (
+                  <DeletionListItem key={item.key} item={item} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex shrink-0 justify-end gap-3" data-testid="delete-document-footer">
         <Button onClick={onClose} variant="outline" disabled={isDeleting}>
           Cancel
         </Button>
         <Button variant="destructive" onClick={handleConfirm} disabled={isDeleting}>
-          {hasChildren ? 'Delete Documents' : 'Delete Document'}
+          Delete document
         </Button>
       </div>
     </div>
@@ -114,9 +139,9 @@ export function DeleteDocumentDialog({
 
 function DeletionListItem({item}: {item: DeleteDocumentDialogItem}) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <Text className="text-destructive min-w-0 flex-1 truncate line-through">{item.title}</Text>
-      <Text className="text-destructive/70 shrink-0 line-through">{item.path?.join('/') || '?'}</Text>
+    <div className="flex min-w-0 flex-col gap-1 py-3" data-testid="delete-document-child-item">
+      <Text className="truncate text-sm font-medium">{item.title}</Text>
+      <Text className="text-muted-foreground truncate text-xs">{item.path?.join('/') || 'Unknown path'}</Text>
     </div>
   )
 }

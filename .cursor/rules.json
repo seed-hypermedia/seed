@@ -1,14 +1,9 @@
 {
-  "commands": {
-    "web:test": {
-      "description": "Run web tests",
-      "command": "pnpm web:test run ${testFile}",
-      "variables": {
-        "testFile": {
-          "type": "string",
-          "description": "Name of the test file to run"
-        }
-      }
+  "rules": [
+    {
+      "name": "Run web test file",
+      "description": "Run a single web test file with the repo pnpm command.",
+      "command": "pnpm web:test -- run ${testFile}"
     }
-  }
+  ]
 }

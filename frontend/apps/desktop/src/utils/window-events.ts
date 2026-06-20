@@ -16,7 +16,14 @@ export type AppWindowEvent =
   | {type: 'hypermediaHoverIn'; id: string}
   | {type: 'hypermediaHoverOut'; id: string}
   | {type: 'selectedIdentityChanged'; selectedIdentity: string | null}
-  | {type: 'draft_externally_modified'; draftId: string}
+  | {
+      type: 'draft_externally_modified'
+      draftId: string
+      source?: 'document-card-cleanup'
+      deletedDocumentId?: string
+      removedBlockIds?: string[]
+      autoReload?: boolean
+    }
   | {type: 'document_path_changed'; oldId: string; newId: string}
   | {type: 'create_new_document'}
 

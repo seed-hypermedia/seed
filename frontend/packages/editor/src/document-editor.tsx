@@ -13,6 +13,7 @@ import {
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
 import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
+import {hmLinkTargetsDocument} from '@shm/shared/utils/document-card-cleanup'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
@@ -107,6 +108,32 @@ function setEditorRootChildrenType(
       listLevel: '1',
     }),
   )
+}
+
+function removeDeletedDocumentEmbedsFromEditorBlocks(
+  blocks: any[],
+  input: {deletedDocumentId: string; removedBlockIds?: string[]},
+) {
+  const removed = new Set(input.removedBlockIds ?? [])
+  const actualRemovedBlockIds: string[] = []
+
+  const expandBlock = (block: any): any[] => {
+    const children = Array.isArray(block?.children) ? block.children : []
+    const url = block?.props?.url
+    const matchesUrl =
+      block?.type === 'embed' && typeof url === 'string' && hmLinkTargetsDocument(url, input.deletedDocumentId)
+    const matchesRemovedId = !!block?.id && removed.has(block.id)
+    if (matchesUrl || matchesRemovedId) {
+      if (block?.id) actualRemovedBlockIds.push(block.id)
+      return children.flatMap(expandBlock)
+    }
+    return [{...block, children: children.flatMap(expandBlock)}]
+  }
+
+  return {
+    content: blocks.flatMap(expandBlock),
+    removedBlockIds: actualRemovedBlockIds,
+  }
 }
 
 /**
@@ -523,6 +550,20 @@ export function DocumentEditor({
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
       getCurrentBlocks: () => editor.topLevelBlocks as any,
+      applyDocumentCardCleanup: (input) => {
+        const {content, removedBlockIds} = removeDeletedDocumentEmbedsFromEditorBlocks(editor.topLevelBlocks, input)
+        if (!removedBlockIds.length) return
+
+        suppressChangeRef.current = true
+        try {
+          editor.replaceBlocks(editor.topLevelBlocks, content)
+        } finally {
+          suppressChangeRef.current = false
+        }
+        lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
+        actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
+        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
+      },
       placeCursor: (position) => {
         const view = editor._tiptapEditor?.view
         if (!view) {

@@ -4,8 +4,9 @@ import {act} from 'react-dom/test-utils'
 import {describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
-const {deleteMutateAsyncMock, toastErrorMock, toastPromiseMock} = vi.hoisted(() => ({
+const {deleteMutateAsyncMock, listSiteDataMock, toastErrorMock, toastPromiseMock} = vi.hoisted(() => ({
   deleteMutateAsyncMock: vi.fn(),
+  listSiteDataMock: [] as any[],
   toastErrorMock: vi.fn(),
   toastPromiseMock: vi.fn(),
 }))
@@ -24,7 +25,7 @@ vi.mock('@/models/daemon', () => ({
 }))
 
 vi.mock('@/models/documents', () => ({
-  useListSite: () => ({data: []}),
+  useListSite: () => ({data: listSiteDataMock}),
 }))
 
 vi.mock('../../models/entities', () => ({
@@ -102,7 +103,7 @@ describe('DeleteDocumentDialog', () => {
       onClose,
     })
 
-    const deleteButton = findButtonExact(container, 'Delete Document')
+    const deleteButton = findButtonExact(container, 'Delete document')
 
     await act(async () => {
       deleteButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
@@ -135,5 +136,51 @@ describe('DeleteDocumentDialog', () => {
     expect(onSuccess).toHaveBeenCalledTimes(1)
 
     cleanupRendered(root, container)
+  })
+
+  it('includes every listed child document when deleting the home document', async () => {
+    const deletePromise = Promise.resolve()
+    const onClose = vi.fn()
+    const id = {...hmId('alice'), path: null}
+
+    listSiteDataMock.splice(
+      0,
+      listSiteDataMock.length,
+      {
+        id: hmId('alice', {path: ['child']}),
+        path: ['child'],
+        metadata: {name: 'Child'},
+      },
+      {
+        id: hmId('alice', {path: ['child', 'grandchild']}),
+        path: ['child', 'grandchild'],
+        metadata: {name: 'Grandchild'},
+      },
+    )
+    deleteMutateAsyncMock.mockReset()
+    toastErrorMock.mockReset()
+    toastPromiseMock.mockReset()
+    deleteMutateAsyncMock.mockReturnValue(deletePromise)
+
+    const {container, root} = renderDialog({
+      input: {id},
+      onClose,
+    })
+
+    const deleteButton = findButtonExact(container, 'Delete document')
+
+    await act(async () => {
+      deleteButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await deletePromise
+    })
+
+    expect(deleteMutateAsyncMock).toHaveBeenCalledWith({
+      ids: [id, hmId('alice', {path: ['child']}), hmId('alice', {path: ['child', 'grandchild']})],
+      signingAccountUid: 'alice',
+      capabilityId: 'cap-1',
+    })
+
+    cleanupRendered(root, container)
+    listSiteDataMock.splice(0, listSiteDataMock.length)
   })
 })

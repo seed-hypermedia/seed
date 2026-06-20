@@ -40,11 +40,21 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.10'
+
       - name: Install native build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install Bun workspace dependencies
+        run: |
+          cd agents && bun install --frozen-lockfile
+          cd ../vault && bun install --frozen-lockfile
 
       - name: Validate Code Formatting
         run: pnpm format:check

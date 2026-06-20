@@ -13,24 +13,11 @@ import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {
-  Bookmark,
-  Copy,
-  FilePen,
-  FileText,
-  Forward,
-  Globe,
-  History,
-  Layers,
-  Link,
-  Link2,
-  MessageSquare,
-  Pencil,
-  Split,
-} from 'lucide-react'
+import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {createCopyLinkMenuItem} from './copy-link-menu'
 import {createDocumentVersionsPanelRoute} from './document-versions-panel'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
@@ -52,7 +39,7 @@ export function useDocumentCardMenuItems(
   const actions = useDocumentActions()
   const draft = actions.getDraft?.(docId)
   const navigate = useNavigate()
-  const {onCopyReference, onPushReference, origin} = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin, experiments} = useUniversalAppContext()
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const isOwner = actions.selectedAccountUid === docId.uid
   const isLoggedIn = !!actions.myAccountIds?.length
@@ -96,55 +83,31 @@ export function useDocumentCardMenuItems(
       })
     }
     if (actions.onCopyLink) {
-      items.push({
-        key: 'copy-link',
-        label: 'Share link',
-        icon: <Link className="size-4" />,
-        children: [
-          {
-            key: 'copy-canonical',
-            label: 'Copy Canonical URL',
-            icon: <Globe className="size-4" />,
-            onClick: (e) => {
-              e?.stopPropagation()
-              if (onCopyReference) {
-                onCopyReference(docId)
-              } else if (typeof window !== 'undefined') {
-                copyUrlToClipboardWithFeedback(window.location.href, 'Link')
-              }
-            },
+      const copyCanonical = onCopyReference ? () => onCopyReference(docId) : null
+      const copyGateway = async () => {
+        const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+        const url = createWebHMUrl(docId.uid, {
+          path: docId.path,
+          version: docId.version,
+          latest: docId.latest,
+          blockRef: docId.blockRef,
+          blockRange: docId.blockRange,
+          hostname: gwUrl,
+        })
+        await copyUrlToClipboardWithFeedback(url, 'Gateway')
+        onPushReference?.(docId)
+      }
+      items.push(
+        createCopyLinkMenuItem({
+          advanced: experiments?.advancedCopyLinkOptions,
+          label: 'Share link',
+          canonical: {copy: copyCanonical},
+          gateway: {copy: copyGateway},
+          hypermedia: {
+            copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
           },
-          {
-            key: 'copy-gateway',
-            label: 'Copy Gateway URL',
-            icon: <Link className="size-4" />,
-            onClick: async (e) => {
-              e?.stopPropagation()
-              const gwUrl = origin ?? DEFAULT_GATEWAY_URL
-              const url = createWebHMUrl(docId.uid, {
-                path: docId.path,
-                version: docId.version,
-                latest: docId.latest,
-                blockRef: docId.blockRef,
-                blockRange: docId.blockRange,
-                hostname: gwUrl,
-              })
-              await copyUrlToClipboardWithFeedback(url, 'Gateway')
-              onPushReference?.(docId)
-            },
-          },
-          {
-            key: 'copy-hm',
-            label: 'Copy Hypermedia URL',
-            icon: <Link2 className="size-4" />,
-            onClick: async (e) => {
-              e?.stopPropagation()
-              const url = hmIdToURL(docId)
-              await copyUrlToClipboardWithFeedback(url, 'Hypermedia')
-            },
-          },
-        ],
-      })
+        }),
+      )
     }
     if (actions.onMoveDocument && isOwner && hasPath) {
       items.push({
@@ -212,7 +175,20 @@ export function useDocumentCardMenuItems(
       })
     }
     return items
-  }, [actions, docId, doc, isOwner, isLoggedIn, hasPath, navigate, onCopyReference, onPushReference, origin, draftId])
+  }, [
+    actions,
+    docId,
+    doc,
+    isOwner,
+    isLoggedIn,
+    hasPath,
+    navigate,
+    onCopyReference,
+    onPushReference,
+    origin,
+    experiments?.advancedCopyLinkOptions,
+    draftId,
+  ])
 }
 
 export function DocumentCard({

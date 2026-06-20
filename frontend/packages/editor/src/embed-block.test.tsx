@@ -78,6 +78,7 @@ vi.mock('@shm/ui/embed-views', () => ({
       data-testid="block-embed-card"
       data-open-on-click={String(props.openOnClick)}
       data-title-link-only={String(props.titleLinkOnly)}
+      data-hide-inline-actions={String(props.hideInlineActions)}
     />
   ),
   BlockEmbedComments: () => <div data-testid="block-embed-comments" />,
@@ -218,9 +219,16 @@ describe('EmbedBlock card navigation mode', () => {
     expect(card).toBeTruthy()
     expect(card?.dataset.titleLinkOnly).toBe('true')
     expect(card?.dataset.openOnClick).toBe('true')
+    expect(card?.dataset.hideInlineActions).toBe('false')
     expect((container.querySelector('[data-testid="media-container"]') as HTMLElement | null)?.dataset.hasOnPress).toBe(
       'false',
     )
+  })
+
+  it('does not render the editor floating actions for card embeds outside active editing', () => {
+    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card'})
+
+    expect(container.querySelector('[aria-label="View comments"]')).toBeNull()
   })
 
   it('disables title-only navigation while editing so the first click can select the block', () => {
@@ -230,6 +238,7 @@ describe('EmbedBlock card navigation mode', () => {
     expect(card).toBeTruthy()
     expect(card?.dataset.titleLinkOnly).toBe('false')
     expect(card?.dataset.openOnClick).toBe('false')
+    expect(card?.dataset.hideInlineActions).toBe('true')
   })
 
   it('keeps whole-card navigation for card embeds when the user cannot edit', () => {

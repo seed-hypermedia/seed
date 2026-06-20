@@ -18,6 +18,7 @@ import {aiConfigApi} from './app-ai-config'
 import {chatApi} from './app-chat'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
+import {documentCardCleanupApi, startDocumentCardCleanupCoordinator} from './app-document-card-cleanup'
 import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
 import {bookmarksApi} from './app-bookmarks'
@@ -134,6 +135,7 @@ function startNotificationServicesWhenReady() {
   if (getDaemonState().t === 'ready') {
     startNotificationReadBackgroundSync()
     startNotificationInboxBackgroundIngestor()
+    startDocumentCardCleanupCoordinator()
     return
   }
   const unsub = subscribeDaemonState((state) => {
@@ -141,6 +143,7 @@ function startNotificationServicesWhenReady() {
       unsub()
       startNotificationReadBackgroundSync()
       startNotificationInboxBackgroundIngestor()
+      startDocumentCardCleanupCoordinator()
     }
   })
 }
@@ -240,6 +243,7 @@ export const router = t.router({
   drafts: draftsApi,
   experiments: experimentsApi,
   diagnosis: diagnosisApi,
+  documentCardCleanup: documentCardCleanupApi,
   welcoming: welcomingApi,
   webImporting: webImportingApi,
   sync: syncApi,

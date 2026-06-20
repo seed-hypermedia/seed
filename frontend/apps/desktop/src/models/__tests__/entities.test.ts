@@ -1,13 +1,21 @@
-import {describe, expect, it, vi} from 'vitest'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {pushDeletedEntitiesBestEffort} from '../entities'
+import {enqueueDeletedDocumentParentCardCleanup, pushDeletedEntitiesBestEffort} from '../entities'
 
 vi.mock('@/grpc-client', () => ({
   grpcClient: {},
 }))
 
+const cleanupEnqueueMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
+
 vi.mock('@/trpc', () => ({
-  client: {},
+  client: {
+    documentCardCleanup: {
+      enqueue: {
+        mutate: cleanupEnqueueMock,
+      },
+    },
+  },
 }))
 
 vi.mock('../documents', () => ({
@@ -35,5 +43,35 @@ describe('pushDeletedEntitiesBestEffort', () => {
     } finally {
       consoleError.mockRestore()
     }
+  })
+})
+
+describe('enqueueDeletedDocumentParentCardCleanup', () => {
+  beforeEach(() => {
+    cleanupEnqueueMock.mockClear()
+  })
+
+  it('enqueues cleanup only for the selected deleted document after tombstones publish', async () => {
+    const selectedId = hmId('alice', {path: ['parent', 'child']})
+    const descendantId = hmId('alice', {path: ['parent', 'child', 'grandchild']})
+
+    await enqueueDeletedDocumentParentCardCleanup({
+      ids: [selectedId, descendantId],
+      signingAccountUid: 'alice',
+      capabilityId: 'cap-1',
+    })
+
+    expect(cleanupEnqueueMock).toHaveBeenCalledTimes(1)
+    expect(cleanupEnqueueMock).toHaveBeenCalledWith({
+      deletedDocumentId: selectedId.id,
+      signingAccountUid: 'alice',
+      capabilityId: 'cap-1',
+    })
+  })
+
+  it('does not enqueue cleanup when there is no selected deleted document', async () => {
+    await enqueueDeletedDocumentParentCardCleanup({ids: [], signingAccountUid: 'alice'})
+
+    expect(cleanupEnqueueMock).not.toHaveBeenCalled()
   })
 })

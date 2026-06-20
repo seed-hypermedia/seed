@@ -31,6 +31,7 @@ export const appExperimentsSchema = z
     newLibrary: z.boolean().optional(),
     embeddingEnabled: z.boolean().optional(),
     notifications: z.boolean().optional(),
+    advancedCopyLinkOptions: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>
