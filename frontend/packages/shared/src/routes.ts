@@ -50,6 +50,7 @@ const INSPECT_TARGET_VIEW_KEYS = [
   'comments',
   'collaborators',
   'directory',
+  'board',
   'feed',
   'all-documents',
   ...SITE_PROFILE_TABS,
@@ -108,6 +109,12 @@ export const directoryRouteSchema = z.object({
   panel: directoryPagePanelSchema.nullable().optional(),
 })
 export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
+
+export const boardRouteSchema = z.object({
+  key: z.literal('board'),
+  id: unpackedHmIdSchema,
+})
+export type BoardRoute = z.infer<typeof boardRouteSchema>
 
 export const allDocumentsRouteSchema = z.object({
   key: z.literal('all-documents'),
@@ -347,6 +354,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentSessionRouteSchema,
   apiInspectorRouteSchema,
   feedRouteSchema,
+  boardRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
@@ -447,6 +455,7 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
         panel: replacePanelDocumentId(route.panel as DocumentPanelRoute | null, targetId) as any,
       }
     case 'all-documents':
+    case 'board':
       return {
         ...route,
         id: targetId,
@@ -559,6 +568,8 @@ export function createDocumentNavRoute(
       return {key: 'comments', id: docId, panel}
     case 'directory':
       return {key: 'directory', id: docId, panel}
+    case 'board':
+      return {key: 'board', id: docId}
     case 'collaborators':
       return {key: 'collaborators', id: docId, panel}
     case 'feed':
@@ -648,6 +659,8 @@ export function createRouteFromInspectNavRoute(route: InspectRoute, inspectTab?:
       return {key: 'feed', id: route.id, panel: null}
     case 'directory':
       return {key: 'directory', id: route.id, panel: null}
+    case 'board':
+      return {key: 'board', id: route.id}
     case 'collaborators':
       return {key: 'collaborators', id: route.id, panel: null}
     case 'comments':
@@ -704,6 +717,8 @@ export function createInspectNavRouteFromRoute(route: NavRoute): InspectRoute | 
       return createInspectNavRoute(route.id, 'feed')
     case 'directory':
       return createInspectNavRoute(route.id, 'directory')
+    case 'board':
+      return createInspectNavRoute(route.id, 'board')
     case 'collaborators':
       return createInspectNavRoute(route.id, 'collaborators')
     case 'comments':

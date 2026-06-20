@@ -47,6 +47,7 @@ export const VIEW_TERMS = [
   ':discussions',
   ':collaborators',
   ':directory',
+  ':board',
   ':feed',
   ':all-documents',
   ...SITE_PROFILE_VIEW_TERMS,
@@ -59,6 +60,7 @@ export type ViewRouteKey =
   | 'comments'
   | 'collaborators'
   | 'directory'
+  | 'board'
   | 'feed'
   | 'all-documents'
   | SiteProfileTab
@@ -162,6 +164,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':discussions': 'comments', // backward compat
     ':collaborators': 'collaborators',
     ':directory': 'directory',
+    ':board': 'board',
     ':feed': 'feed',
     ':all-documents': 'all-documents',
     ':profile': 'profile',
@@ -560,6 +563,7 @@ export function routeToUrl(
     route.key === 'feed' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
+    route.key === 'board' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents'
@@ -635,6 +639,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
     route.key === 'feed' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
+    route.key === 'board' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents'
@@ -688,6 +693,7 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'feed' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
+    route.key === 'board' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents'

@@ -88,6 +88,21 @@ describe('createDocumentNavRoute', () => {
     })
   })
 
+  describe('board view', () => {
+    test('creates board route from view term', () => {
+      expect(createDocumentNavRoute(testDocId, 'board')).toEqual({key: 'board', id: testDocId})
+    })
+
+    test('accepts board in nav route schema', () => {
+      expect(navRouteSchema.parse({key: 'board', id: testDocId})).toEqual({key: 'board', id: testDocId})
+    })
+
+    test('creates board hrefs for site and gateway contexts', () => {
+      expect(routeToHref({key: 'board', id: testDocId}, {originHomeId: testDocId})).toBe('/:board')
+      expect(routeToHref({key: 'board', id: testDocId}, {originHomeId: hmId('home')})).toBe('/hm/testuid123/:board')
+    })
+  })
+
   describe('no panel param', () => {
     test('returns document route without panel', () => {
       const route = createDocumentNavRoute(testDocId)

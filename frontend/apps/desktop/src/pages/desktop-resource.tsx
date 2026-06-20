@@ -81,7 +81,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, Folder, History, LayoutList, Split} from 'lucide-react'
+import {Copy, FileInput, Folder, History, LayoutDashboard, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -645,7 +645,11 @@ export default function DesktopResourcePage() {
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
   const canCreateChildDocs = canCreateChildDocuments(doc?.visibility, draftData?.visibility)
-  const {menuItem: newMenuItem, content: newMenuContent} = useCreateDocumentMenuItem({
+  const {
+    menuItem: newMenuItem,
+    content: newMenuContent,
+    createPublicDocument: createBoardCardDocument,
+  } = useCreateDocumentMenuItem({
     locationId: docId,
     canCreateChildren: canCreateChildDocs,
   })
@@ -835,6 +839,13 @@ export default function DesktopResourcePage() {
   })
 
   menuItems.push({
+    key: 'board',
+    label: 'Board',
+    icon: <LayoutDashboard className="size-4" />,
+    onClick: () => navigate({key: 'board', id: docId}),
+  })
+
+  menuItems.push({
     key: 'directory',
     label: 'Directory',
     icon: <Folder className="size-4" />,
@@ -1016,6 +1027,8 @@ export default function DesktopResourcePage() {
                     perspectiveAccountUid={selectedAccountId}
                     linkExtensionOptions={linkExtensionOptions}
                     fileUpload={fileUpload}
+                    canCreateChildDocument={!!createBoardCardDocument}
+                    onCreateChildDocument={createBoardCardDocument ?? undefined}
                     editNavPane={
                       canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined
                     }

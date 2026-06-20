@@ -46,6 +46,7 @@ function getSiteContextUid(route: NavRoute | null): string | null {
     case 'activity':
     case 'comments':
     case 'directory':
+    case 'board':
     case 'collaborators':
     case 'site-profile':
     case 'profile':

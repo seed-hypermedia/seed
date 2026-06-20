@@ -539,6 +539,8 @@ function getInspectorOpenTarget(
       return {label: route.targetOpenComment ? 'Open Comment' : 'Open Document Comments', route: openRoute}
     case 'directory':
       return {label: 'Open Directory', route: openRoute}
+    case 'board':
+      return {label: 'Open Board', route: openRoute}
     case 'collaborators':
       return {label: 'Open People', route: openRoute}
     case 'feed':

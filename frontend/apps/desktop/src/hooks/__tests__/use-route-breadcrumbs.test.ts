@@ -89,6 +89,9 @@ describe('getWindowTitle', () => {
   it('inspect with name', () => {
     expect(getWindowTitle('inspect', 'My Doc')).toBe('My Doc')
   })
+  it('board with name', () => {
+    expect(getWindowTitle('board', 'My Doc')).toBe('My Doc')
+  })
   it('unknown key -> null', () => {
     expect(getWindowTitle('settings')).toBeNull()
   })

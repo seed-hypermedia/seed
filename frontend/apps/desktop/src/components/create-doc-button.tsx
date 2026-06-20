@@ -26,6 +26,7 @@ export function useCreateDocumentMenuItem({
 }): {
   menuItem: MenuItemType | null
   content: ReactNode
+  createPublicDocument: (() => void) | null
 } {
   const capability = useSelectedAccountCapability(locationId)
   const canEdit = roleCanWrite(capability?.role)
@@ -85,6 +86,12 @@ export function useCreateDocumentMenuItem({
 
   return {
     menuItem,
+    createPublicDocument:
+      myAccountIds.data?.length && canEdit && canCreateChildren
+        ? () => {
+            void createDraft()
+          }
+        : null,
     content: (
       <>
         {importDialog.content}

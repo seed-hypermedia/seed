@@ -322,7 +322,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   const canCreateChildDocs = canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
-  const {menuItem: newMenuItem, content: newMenuContent} = useWebCreateDocumentMenuItem({
+  const {
+    menuItem: newMenuItem,
+    content: newMenuContent,
+    createPublicDocument: createBoardCardDocument,
+  } = useWebCreateDocumentMenuItem({
     locationId: docId,
     signingAccountId: signingAccountId ?? undefined,
     canCreate: effectiveCanEdit && !!signingAccountId,
@@ -479,6 +483,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                   editingFloatingActions={editingFloatingActions}
                   fileUpload={fileUpload}
+                  canCreateChildDocument={!!createBoardCardDocument}
+                  onCreateChildDocument={createBoardCardDocument ?? undefined}
                 />
               </WebDraftBreadcrumbProvider>
             </QueryBlockDraftsProvider>

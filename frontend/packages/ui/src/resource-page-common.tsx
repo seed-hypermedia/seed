@@ -74,6 +74,7 @@ import {FilePen, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
+import {BoardPage} from './board-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
@@ -129,6 +130,7 @@ export type ActiveView =
   | 'activity'
   | 'comments'
   | 'directory'
+  | 'board'
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
@@ -325,6 +327,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'comments'
     case 'directory':
       return 'directory'
+    case 'board':
+      return 'board'
     case 'collaborators':
       return 'collaborators'
     case 'all-documents':
@@ -427,6 +431,10 @@ export interface ResourcePageProps {
   linkExtensionOptions?: LinkExtensionOptions
   /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
+  /** Whether this surface can create child documents from app views such as Board. */
+  canCreateChildDocument?: boolean
+  /** Platform-specific child document creation action used by app views such as Board. */
+  onCreateChildDocument?: () => void
 }
 
 /** Get panel title for display */
@@ -438,6 +446,8 @@ function getPanelTitle(panelKey: string | null): string {
       return 'Discussions'
     case 'directory':
       return 'Directory'
+    case 'board':
+      return 'Board'
     case 'collaborators':
       return 'Collaborators'
     case 'all-documents':
@@ -488,6 +498,8 @@ export function ResourcePage({
   perspectiveAccountUid,
   linkExtensionOptions,
   editNavPane,
+  canCreateChildDocument,
+  onCreateChildDocument,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
@@ -850,6 +862,8 @@ export function ResourcePage({
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={onEditorReady}
           canEdit={effectiveCanEdit}
+          canCreateChildDocument={canCreateChildDocument}
+          onCreateChildDocument={onCreateChildDocument}
           editingFloatingActions={editingFloatingActions}
           draftActions={draftActions}
           signingAccountId={signingAccountId}
@@ -1057,6 +1071,8 @@ function DocumentBody({
   DocumentContentComponent,
   onEditorReady,
   canEdit = false,
+  canCreateChildDocument,
+  onCreateChildDocument,
   editingFloatingActions,
   draftActions,
   signingAccountId,
@@ -1098,6 +1114,10 @@ function DocumentBody({
   onEditorReady?: (editor: any) => void
   /** Whether the current user can edit this document */
   canEdit?: boolean
+  /** Whether this surface can create child documents from app views such as Board. */
+  canCreateChildDocument?: boolean
+  /** Platform-specific child document creation action used by app views such as Board. */
+  onCreateChildDocument?: () => void
   /** Render prop for floating overlay when editing */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing */
@@ -1441,6 +1461,7 @@ function DocumentBody({
       comments: 'Comments',
       collaborators: 'People',
       directory: 'Directory',
+      board: 'Board',
       activity: 'Activity',
       'all-documents': 'All Documents',
     }
@@ -1724,6 +1745,7 @@ function DocumentBody({
       'duplicate',
       'branch',
       'export',
+      'board',
       'directory',
       'all-documents',
     ]
@@ -1785,13 +1807,14 @@ function DocumentBody({
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {isHomeDoc &&
               activeView !== 'all-documents' &&
+              activeView !== 'board' &&
               !siteMembers.isInitialLoading &&
               siteMembers.members.length > 0 && (
                 <div className="pt-4">
                   <MembersFacepile members={siteMembers.members} siteId={siteId} />
                 </div>
               )}
-            {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
+            {isHomeDoc && !showActivity && activeView !== 'all-documents' && activeView !== 'board' && (
               <div className="mt-4 px-6">
                 <Breadcrumbs
                   breadcrumbs={[
@@ -1806,6 +1829,7 @@ function DocumentBody({
                                   collaborators: 'People',
                                   activity: 'Activity',
                                   directory: 'Directory',
+                                  board: 'Board',
                                   'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
                                 } as Record<string, string>
@@ -1846,13 +1870,14 @@ function DocumentBody({
         <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
           {isHomeDoc &&
             activeView !== 'all-documents' &&
+            activeView !== 'board' &&
             !siteMembers.isInitialLoading &&
             siteMembers.members.length > 0 && (
               <div className="pt-4">
                 <MembersFacepile members={siteMembers.members} siteId={siteId} />
               </div>
             )}
-          {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
+          {isHomeDoc && !showActivity && activeView !== 'all-documents' && activeView !== 'board' && (
             <div className="mt-4 px-6">
               <Breadcrumbs
                 breadcrumbs={[
@@ -1867,6 +1892,7 @@ function DocumentBody({
                                 collaborators: 'People',
                                 activity: 'Activity',
                                 directory: 'Directory',
+                                board: 'Board',
                                 'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
                               } as Record<string, string>
@@ -1924,6 +1950,7 @@ function DocumentBody({
                 ? 'citations'
                 : activeView === 'activity' ||
                   activeView === 'directory' ||
+                  activeView === 'board' ||
                   activeView === 'site-profile' ||
                   activeView === 'all-documents'
                 ? undefined
@@ -1945,14 +1972,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'board' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'board'
+                          >,
                           id: docId,
                         }
                   }
@@ -2001,6 +2034,8 @@ function DocumentBody({
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
           draftVersionEntry={draftVersionEntry}
+          canCreateChildDocument={canCreateChildDocument}
+          onCreateChildDocument={onCreateChildDocument}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -2490,6 +2525,8 @@ function MainContent({
   linkExtensionOptions,
   fileUpload,
   draftVersionEntry,
+  canCreateChildDocument,
+  onCreateChildDocument,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2539,6 +2576,8 @@ function MainContent({
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
+  canCreateChildDocument?: boolean
+  onCreateChildDocument?: () => void
 }) {
   const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
@@ -2568,6 +2607,30 @@ function MainContent({
 
     case 'directory':
       return <DirectoryPageContent docId={docId} showTitle contentMaxWidth={contentMaxWidth} />
+
+    case 'board':
+      return (
+        <BoardPage
+          boardId={docId}
+          items={directory}
+          isLoading={directory === undefined}
+          canAddCard={canCreateChildDocument}
+          onAddCard={onCreateChildDocument}
+          onNavigateToDocument={(id, opts) => {
+            const route = {key: 'document' as const, id}
+            if (opts?.newWindow) {
+              if (openRouteNewWindow) {
+                openRouteNewWindow(route)
+              } else {
+                const href = routeToHref(route, {originHomeId})
+                if (href) window.open(href, '_blank')
+              }
+              return
+            }
+            navigate(route)
+          }}
+        />
+      )
 
     case 'collaborators':
       return (

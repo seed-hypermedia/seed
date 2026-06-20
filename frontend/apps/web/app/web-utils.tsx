@@ -40,6 +40,7 @@ import {
   Folder,
   History,
   Import as ImportIcon,
+  LayoutDashboard,
   LayoutList,
   Lock,
   LogOut,
@@ -98,6 +99,12 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
         },
       },
       {
+        key: 'board',
+        label: 'Board',
+        icon: <LayoutDashboard className="size-4" />,
+        onClick: () => navigate({key: 'board', id: docId}),
+      },
+      {
         key: 'directory',
         label: 'Directory',
         icon: <Folder className="size-4" />,
@@ -153,6 +160,7 @@ export function useWebCreateDocumentMenuItem({
 }): {
   menuItem: MenuItemType | null
   content: ReactNode
+  createPublicDocument: (() => void) | null
 } {
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
@@ -208,6 +216,12 @@ export function useWebCreateDocumentMenuItem({
 
   return {
     menuItem,
+    createPublicDocument:
+      canCreate && canCreateChildren && signingAccountId
+        ? () => {
+            createDraft('PUBLIC')
+          }
+        : null,
     content:
       canCreate && canCreateChildren && signingAccountId ? (
         <input

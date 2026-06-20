@@ -94,6 +94,7 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
     case 'document':
     case 'feed':
     case 'directory':
+    case 'board':
     case 'collaborators':
     case 'activity':
     case 'comments':

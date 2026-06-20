@@ -271,12 +271,13 @@ export function routeToHref(
     return `${basePath}/ipfs/${route.ipfsPath}`
   }
 
-  // Handle view routes (activity, comments, directory, collaborators, feed, all-documents)
+  // Handle view routes (activity, comments, directory, board, collaborators, feed, all-documents)
   if (
     typeof route !== 'string' &&
     (route.key === 'activity' ||
       route.key === 'comments' ||
       route.key === 'directory' ||
+      route.key === 'board' ||
       route.key === 'collaborators' ||
       route.key === 'feed' ||
       route.key === 'all-documents')

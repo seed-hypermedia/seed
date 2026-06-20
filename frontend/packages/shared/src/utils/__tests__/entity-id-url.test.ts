@@ -1404,3 +1404,22 @@ describe('all documents view urls', () => {
     expect(routeToUrl({key: 'all-documents', id: hmId('abc')})).toBe(`${DEFAULT_GATEWAY_URL}/hm/abc/:all-documents`)
   })
 })
+
+describe('board view urls', () => {
+  test('extracts board view term', () => {
+    expect(extractViewTermFromUrl('https://example.com/projects/:board')).toMatchObject({
+      url: 'https://example.com/projects',
+      viewTerm: ':board',
+    })
+  })
+
+  test('serializes board route to site, gateway, and hm urls', () => {
+    expect(
+      routeToUrl({key: 'board', id: hmId('site')}, {hostname: 'https://example.com', originHomeId: hmId('site')}),
+    ).toBe('https://example.com/:board')
+    expect(routeToUrl({key: 'board', id: hmId('abc', {path: ['projects']})})).toBe(
+      `${DEFAULT_GATEWAY_URL}/hm/abc/projects/:board`,
+    )
+    expect(routeToHmUrl({key: 'board', id: hmId('abc', {path: ['projects']})})).toBe('hm://abc/projects/:board')
+  })
+})
