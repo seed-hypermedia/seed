@@ -36,6 +36,7 @@ describe('isSiteDocumentsActiveRoute', () => {
   })
 
   it('marks document views for the site active', () => {
+    expect(isSiteDocumentsActiveRoute({key: 'board', id: siteId}, siteId)).toBe(true)
     expect(isSiteDocumentsActiveRoute({key: 'all-documents', id: siteId}, siteId)).toBe(true)
     expect(isSiteDocumentsActiveRoute({key: 'comments', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
     expect(isSiteDocumentsActiveRoute({key: 'activity', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)

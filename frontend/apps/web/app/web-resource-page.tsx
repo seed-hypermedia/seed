@@ -483,8 +483,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
                   editingFloatingActions={editingFloatingActions}
                   fileUpload={fileUpload}
-                  canCreateChildDocument={!!createBoardCardDocument}
-                  onCreateChildDocument={createBoardCardDocument ?? undefined}
                 />
               </WebDraftBreadcrumbProvider>
             </QueryBlockDraftsProvider>

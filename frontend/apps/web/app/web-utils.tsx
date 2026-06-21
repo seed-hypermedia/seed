@@ -40,7 +40,6 @@ import {
   Folder,
   History,
   Import as ImportIcon,
-  LayoutDashboard,
   LayoutList,
   Lock,
   LogOut,
@@ -97,12 +96,6 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
             panel: createDocumentVersionsPanelRoute(docId),
           })
         },
-      },
-      {
-        key: 'board',
-        label: 'Board',
-        icon: <LayoutDashboard className="size-4" />,
-        onClick: () => navigate({key: 'board', id: docId}),
       },
       {
         key: 'directory',

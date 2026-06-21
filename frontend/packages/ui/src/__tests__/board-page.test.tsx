@@ -131,7 +131,7 @@ describe('BoardPage', () => {
     const {onAddCard} = renderBoard({items: []})
 
     expect(container.textContent).toContain('No cards yet.')
-    expect(container.textContent).toContain('Add a child document to start this board.')
+    expect(container.textContent).toContain('No documents match the board query yet.')
 
     const addCard = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Add Card')
     expect(addCard).toBeTruthy()
@@ -140,6 +140,20 @@ describe('BoardPage', () => {
       addCard?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
     })
     expect(onAddCard).toHaveBeenCalled()
+  })
+
+  it('explains that a query block is required when none exists', () => {
+    renderBoard({items: [], hasQuery: false})
+
+    expect(container.textContent).toContain('Configure the Board query to choose which documents appear here.')
+  })
+
+  it('renders a board-owned query action', () => {
+    const queryAction = <button type="button">Edit Query</button>
+    renderBoard({queryAction, queryDescription: 'All descendants in this site'})
+
+    expect(container.textContent).toContain('All descendants in this site')
+    expect(container.textContent).toContain('Edit Query')
   })
 
   it('assigns documents to stable deterministic columns', () => {

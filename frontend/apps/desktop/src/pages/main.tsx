@@ -57,6 +57,7 @@ var AgentSession = lazy(() => import('./agents/session'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
+var Board = lazy(() => import('./board'))
 
 /**
  * Redirect persisted `key: 'draft'` routes (from before draft-route removal)
@@ -431,6 +432,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'directory':
       return {
         PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'board':
+      return {
+        PageComponent: Board,
         Fallback: DocumentPlaceholder,
       }
     case 'inspect':

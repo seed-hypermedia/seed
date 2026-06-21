@@ -57,6 +57,7 @@ import {
   File,
   Folder,
   History,
+  LayoutDashboard,
   LayoutList,
   Library,
   Lock,
@@ -597,6 +598,12 @@ function JoinedSiteListItem({
           </SidebarMenuAction>
         }
         menuItems={[
+          {
+            key: 'board',
+            label: 'Board',
+            icon: <LayoutDashboard className="size-4" />,
+            onClick: () => navigate({key: 'board', id}),
+          },
           {
             key: 'all-documents',
             label: 'All Documents',

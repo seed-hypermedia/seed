@@ -262,6 +262,16 @@ vi.mock('../pages/desktop-resource', async () => {
   }
 })
 
+vi.mock('../pages/board', async () => {
+  const React = await import('react')
+
+  return {
+    default: function BoardMock() {
+      return React.createElement('div', {'data-testid': 'board-page'})
+    },
+  }
+})
+
 vi.mock('../pages/polyfills', () => ({}))
 
 import Main from '../pages/main'
@@ -408,6 +418,23 @@ describe('Main assistant visibility', () => {
 
     expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
     expect(mockState.assistantPanelProps?.initialSessionId).toBe('session-1')
+
+    cleanupRendered(root, container)
+  })
+
+  it('renders the independent board page for board routes', async () => {
+    mockState.currentRoute = {
+      key: 'board',
+      id: {uid: 'site-1', path: ['issues']},
+    }
+
+    const {container, root} = renderMain()
+
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="board-page"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="desktop-resource"]')).toBeNull()
+    expect(container.querySelector('[data-testid="not-found"]')).toBeNull()
 
     cleanupRendered(root, container)
   })

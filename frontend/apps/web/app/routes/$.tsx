@@ -15,6 +15,7 @@ import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
+import {WebBoardPage} from '@/web-board-page'
 import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
@@ -433,6 +434,8 @@ export default function UnifiedDocumentPage() {
     >
       {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
         <WebFeedPage docId={siteData.id} />
+      ) : siteData.viewTerm === 'board' && !siteData.isInspect ? (
+        <InnerBoardPage siteId={hmId(siteData.id.uid)} />
       ) : siteData.isInspect ? (
         <InnerInspectorPage docId={siteData.id} />
       ) : (
@@ -445,6 +448,10 @@ export default function UnifiedDocumentPage() {
 /** Inner component that can use hooks after providers are mounted */
 function InnerResourcePage({docId, ssrContentHTML}: {docId: UnpackedHypermediaId; ssrContentHTML?: string | null}) {
   return <WebResourcePage docId={docId} CommentEditor={WebCommenting} ssrContentHTML={ssrContentHTML} />
+}
+
+function InnerBoardPage({siteId}: {siteId: UnpackedHypermediaId}) {
+  return <WebBoardPage siteId={siteId} />
 }
 
 /** Inner component that renders the dedicated inspector after providers are mounted. */

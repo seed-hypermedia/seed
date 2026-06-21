@@ -74,7 +74,7 @@ import {FilePen, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
-import {BoardPage} from './board-page'
+import {BoardAppViewPage} from './board-page'
 import {CollaboratorsPage} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
@@ -431,10 +431,6 @@ export interface ResourcePageProps {
   linkExtensionOptions?: LinkExtensionOptions
   /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
-  /** Whether this surface can create child documents from app views such as Board. */
-  canCreateChildDocument?: boolean
-  /** Platform-specific child document creation action used by app views such as Board. */
-  onCreateChildDocument?: () => void
 }
 
 /** Get panel title for display */
@@ -498,8 +494,6 @@ export function ResourcePage({
   perspectiveAccountUid,
   linkExtensionOptions,
   editNavPane,
-  canCreateChildDocument,
-  onCreateChildDocument,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
@@ -862,8 +856,6 @@ export function ResourcePage({
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={onEditorReady}
           canEdit={effectiveCanEdit}
-          canCreateChildDocument={canCreateChildDocument}
-          onCreateChildDocument={onCreateChildDocument}
           editingFloatingActions={editingFloatingActions}
           draftActions={draftActions}
           signingAccountId={signingAccountId}
@@ -1071,8 +1063,6 @@ function DocumentBody({
   DocumentContentComponent,
   onEditorReady,
   canEdit = false,
-  canCreateChildDocument,
-  onCreateChildDocument,
   editingFloatingActions,
   draftActions,
   signingAccountId,
@@ -1114,10 +1104,6 @@ function DocumentBody({
   onEditorReady?: (editor: any) => void
   /** Whether the current user can edit this document */
   canEdit?: boolean
-  /** Whether this surface can create child documents from app views such as Board. */
-  canCreateChildDocument?: boolean
-  /** Platform-specific child document creation action used by app views such as Board. */
-  onCreateChildDocument?: () => void
   /** Render prop for floating overlay when editing */
   editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing */
@@ -2034,8 +2020,6 @@ function DocumentBody({
           linkExtensionOptions={linkExtensionOptions}
           fileUpload={fileUpload}
           draftVersionEntry={draftVersionEntry}
-          canCreateChildDocument={canCreateChildDocument}
-          onCreateChildDocument={onCreateChildDocument}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -2525,8 +2509,6 @@ function MainContent({
   linkExtensionOptions,
   fileUpload,
   draftVersionEntry,
-  canCreateChildDocument,
-  onCreateChildDocument,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -2576,8 +2558,6 @@ function MainContent({
   linkExtensionOptions?: LinkExtensionOptions
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
-  canCreateChildDocument?: boolean
-  onCreateChildDocument?: () => void
 }) {
   const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
@@ -2610,12 +2590,8 @@ function MainContent({
 
     case 'board':
       return (
-        <BoardPage
-          boardId={docId}
-          items={directory}
-          isLoading={directory === undefined}
-          canAddCard={canCreateChildDocument}
-          onAddCard={onCreateChildDocument}
+        <BoardAppViewPage
+          siteId={hmId(docId.uid)}
           onNavigateToDocument={(id, opts) => {
             const route = {key: 'document' as const, id}
             if (opts?.newWindow) {

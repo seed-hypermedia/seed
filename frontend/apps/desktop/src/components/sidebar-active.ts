@@ -5,6 +5,7 @@ import type {NavRoute} from '@shm/shared/routes'
 export function isSiteDocumentsActiveRoute(route: NavRoute, siteId: UnpackedHypermediaId) {
   switch (route.key) {
     case 'document':
+    case 'board':
     case 'all-documents':
     case 'comments':
     case 'activity':

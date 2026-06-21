@@ -1,16 +1,27 @@
-import type {HMAccountsMetadata, HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getMetadataName} from '@shm/shared'
-import {useAccountsMetadata} from '@shm/shared/models/entity'
+import type {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  HMQuery,
+  HMQuerySort,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {getMetadataName, hmId} from '@shm/shared'
+import {useAccountsMetadata, useDirectory} from '@shm/shared/models/entity'
+import {queryQueryBlock} from '@shm/shared/models/queries'
+import {useUniversalClient} from '@shm/shared/routing'
 import {formattedDate} from '@shm/shared/utils/date'
-import {CalendarDays, Flag, MessageSquare, Plus, Search, Sparkles} from 'lucide-react'
-import {useMemo, useState} from 'react'
+import {CalendarDays, ChevronDown, Flag, MessageSquare, Pencil, Plus, Search, Sparkles} from 'lucide-react'
+import {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Badge} from './components/badge'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Input} from './components/input'
 import {FacePile} from './face-pile'
+import {SelectField, SwitchField} from './form-fields'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {cn} from './utils'
+import {useQuery} from '@tanstack/react-query'
 
 export const BOARD_COLUMNS = [
   {id: 'backlog', title: 'Backlog', tint: 'from-slate-500/10 to-slate-500/0'},
@@ -27,6 +38,7 @@ const BOARD_LABELS = ['Product', 'Protocol', 'UI', 'Research', 'Docs', 'Ops'] as
 const BOARD_DUE_BADGES = ['Today', 'This week', 'Later'] as const
 const BOARD_PRIORITIES: BoardPriority[] = ['High', 'Medium', 'Low']
 const PLACEHOLDER_ASSIGNEES = ['Ada', 'Bea', 'Cal', 'Dee', 'Eli'] as const
+const BOARD_ROOT_TARGET = '__site_root__'
 
 export type BoardCardModel = {
   doc: HMDocumentInfo
@@ -48,7 +60,14 @@ export interface BoardPageProps {
   canAddCard?: boolean
   onAddCard?: () => void
   onNavigateToDocument: (id: UnpackedHypermediaId, opts?: {newWindow?: boolean}) => void
+  hasQuery?: boolean
+  queryCount?: number
+  queryDescription?: string
+  queryAction?: ReactNode
 }
+
+type BoardQueryMode = 'Children' | 'AllDescendants'
+type BoardQuerySortTerm = HMQuerySort['term']
 
 function stableHash(input: string): number {
   let hash = 2166136261
@@ -218,6 +237,7 @@ function BoardColumn({
   cards,
   accountsMetadata,
   isEmptyBoard,
+  hasQuery,
   canAddCard,
   onAddCard,
   onNavigateToDocument,
@@ -226,6 +246,7 @@ function BoardColumn({
   cards: BoardCardModel[]
   accountsMetadata: HMAccountsMetadata
   isEmptyBoard: boolean
+  hasQuery?: boolean
   canAddCard?: boolean
   onAddCard?: () => void
   onNavigateToDocument: BoardPageProps['onNavigateToDocument']
@@ -258,7 +279,11 @@ function BoardColumn({
             <Sparkles className="size-8" />
             <div>
               <div className="text-foreground font-medium">No cards yet.</div>
-              <div>Add a child document to start this board.</div>
+              <div>
+                {hasQuery
+                  ? 'No documents match the board query yet.'
+                  : 'Configure the Board query to choose which documents appear here.'}
+              </div>
             </div>
             {onAddCard ? (
               <Button size="sm" variant="outline" disabled={!canAddCard} onClick={onAddCard}>
@@ -277,7 +302,117 @@ function BoardColumn({
   )
 }
 
-export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onNavigateToDocument}: BoardPageProps) {
+function BoardQueryEditor({
+  targetValue,
+  targetOptions,
+  mode,
+  sortTerm,
+  reverse,
+  limitEnabled,
+  limitValue,
+  onTargetValue,
+  onMode,
+  onSortTerm,
+  onReverse,
+  onLimitEnabled,
+  onLimitValue,
+}: {
+  targetValue: string
+  targetOptions: Array<{value: string; label: string}>
+  mode: BoardQueryMode
+  sortTerm: BoardQuerySortTerm
+  reverse: boolean
+  limitEnabled: boolean
+  limitValue: string
+  onTargetValue: (value: string) => void
+  onMode: (mode: BoardQueryMode) => void
+  onSortTerm: (term: BoardQuerySortTerm) => void
+  onReverse: (reverse: boolean) => void
+  onLimitEnabled: (enabled: boolean) => void
+  onLimitValue: (value: string) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline">
+          <Pencil className="size-4" />
+          Edit Query
+          <ChevronDown className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="flex w-80 flex-col gap-4 p-4"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div>
+          <div className="font-medium">Board Query</div>
+          <div className="text-muted-foreground text-xs">Choose which documents this site-level Board computes.</div>
+        </div>
+        <SelectField
+          value={targetValue}
+          onValue={onTargetValue}
+          label="Document"
+          id="board-query-document"
+          options={targetOptions}
+        />
+        <SelectField
+          value={mode}
+          onValue={(value) => onMode(value as BoardQueryMode)}
+          label="Scope"
+          id="board-query-scope"
+          options={[
+            {label: 'Direct children', value: 'Children'},
+            {label: 'All descendants', value: 'AllDescendants'},
+          ]}
+        />
+        <SelectField
+          value={sortTerm}
+          onValue={(value) => onSortTerm(value as BoardQuerySortTerm)}
+          label="Sort by"
+          id="board-query-sort"
+          options={[
+            {label: 'Update time', value: 'UpdateTime'},
+            {label: 'Create time', value: 'CreateTime'},
+            {label: 'Display time', value: 'DisplayTime'},
+            {label: 'Latest activity', value: 'ActivityTime'},
+            {label: 'Title', value: 'Title'},
+          ]}
+        />
+        <SwitchField label="Reverse" id="board-query-reverse" checked={reverse} onCheckedChange={onReverse} />
+        <SwitchField
+          label="Limit result count"
+          id="board-query-limit-enabled"
+          checked={limitEnabled}
+          onCheckedChange={onLimitEnabled}
+        />
+        {limitEnabled ? (
+          <Input
+            type="number"
+            min={1}
+            value={limitValue}
+            onChangeText={onLimitValue}
+            placeholder="Item count"
+            aria-label="Board query item count"
+          />
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function BoardPage({
+  boardId,
+  items,
+  isLoading,
+  canAddCard,
+  onAddCard,
+  onNavigateToDocument,
+  hasQuery = true,
+  queryCount = hasQuery ? 1 : 0,
+  queryDescription,
+  queryAction,
+}: BoardPageProps) {
   const [filter, setFilter] = useState('')
   const cards = useMemo(() => (items ?? []).map(getBoardCardModel), [items])
   const authorUids = useMemo(() => Array.from(new Set(cards.flatMap((card) => card.doc.authors ?? []))), [cards])
@@ -293,9 +428,10 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
     for (const card of filteredCards) result.get(card.columnId)?.push(card)
     return result
   }, [filteredCards])
-  const boardName = boardId.path?.at(-1) || 'Home'
+  const boardName = boardId.path?.at(-1) || 'Site'
   const isEmptyBoard = !isLoading && cards.length === 0
   const noFilterResults = !isLoading && cards.length > 0 && filteredCards.length === 0
+  const queryLabel = queryCount === 1 ? '1 query' : `${queryCount} queries`
 
   return (
     <div className="bg-background flex h-full min-h-[620px] flex-col overflow-hidden">
@@ -308,6 +444,7 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
               <span>
                 {filteredCards.length} of {cards.length} cards
               </span>
+              <span className="tracking-normal normal-case">{hasQuery ? queryLabel : 'No query'}</span>
               {items?.length ? (
                 <span className="tracking-normal normal-case">Updated {formattedDate(items[0]?.updateTime)}</span>
               ) : null}
@@ -321,9 +458,11 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
               </Badge>
             </div>
             <p className="text-muted-foreground max-w-3xl text-sm">
-              Workflow columns, card placement, labels, assignees, due dates, and priorities are placeholder data until
-              board-owned workflow state is persisted.
+              Cards are computed from this Board AppView query, independent of the site home document. Workflow columns,
+              card placement, labels, assignees, due dates, and priorities are placeholder data until board-owned
+              workflow state is persisted.
             </p>
+            {queryDescription ? <p className="text-muted-foreground text-xs">{queryDescription}</p> : null}
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
             <div className="relative min-w-0 flex-1 xl:w-80 xl:flex-none">
@@ -336,14 +475,17 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
                 className="pl-9"
               />
             </div>
-            <Button
-              disabled={!canAddCard || !onAddCard}
-              onClick={onAddCard}
-              title={canAddCard ? undefined : 'Sign in with edit permission to add cards'}
-            >
-              <Plus className="size-4" />
-              Add Card
-            </Button>
+            {queryAction}
+            {onAddCard ? (
+              <Button
+                disabled={!canAddCard}
+                onClick={onAddCard}
+                title={canAddCard ? undefined : 'Sign in with edit permission to add cards'}
+              >
+                <Plus className="size-4" />
+                Add Card
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -367,6 +509,7 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
                 cards={cardsByColumn.get(column.id) ?? []}
                 accountsMetadata={accountsMetadata.data}
                 isEmptyBoard={isEmptyBoard}
+                hasQuery={hasQuery}
                 canAddCard={canAddCard}
                 onAddCard={onAddCard}
                 onNavigateToDocument={onNavigateToDocument}
@@ -376,5 +519,83 @@ export function BoardPage({boardId, items, isLoading, canAddCard, onAddCard, onN
         </div>
       )}
     </div>
+  )
+}
+
+export function BoardAppViewPage({
+  siteId,
+  onNavigateToDocument,
+}: {
+  siteId: UnpackedHypermediaId
+  onNavigateToDocument: BoardPageProps['onNavigateToDocument']
+}) {
+  const client = useUniversalClient()
+  const directory = useDirectory(hmId(siteId.uid), {mode: 'AllDescendants'})
+  const [targetValue, setTargetValue] = useState(BOARD_ROOT_TARGET)
+  const [mode, setMode] = useState<BoardQueryMode>('AllDescendants')
+  const [sortTerm, setSortTerm] = useState<BoardQuerySortTerm>('UpdateTime')
+  const [reverse, setReverse] = useState(true)
+  const [limitEnabled, setLimitEnabled] = useState(false)
+  const [limitValue, setLimitValue] = useState('50')
+  const limit = limitEnabled ? parseInt(limitValue, 10) : undefined
+  const targetPath = targetValue === BOARD_ROOT_TARGET ? '' : targetValue
+  const targetOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const options = [{value: BOARD_ROOT_TARGET, label: 'Site root'}]
+    for (const doc of directory.data ?? []) {
+      const path = doc.path?.join('/') ?? ''
+      if (!path || seen.has(path)) continue
+      seen.add(path)
+      const name = getMetadataName(doc.metadata) || doc.path?.at(-1) || 'Untitled'
+      options.push({value: path, label: `${name} — /${path}`})
+    }
+    return options
+  }, [directory.data])
+  const targetLabel = useMemo(() => {
+    if (targetValue === BOARD_ROOT_TARGET) return 'site root'
+    return targetOptions.find((option) => option.value === targetValue)?.label ?? `/${targetValue}`
+  }, [targetOptions, targetValue])
+  const query = useMemo<HMQuery>(
+    () => ({
+      includes: [{space: siteId.uid, path: targetPath, mode}],
+      sort: [{term: sortTerm, reverse}],
+      limit: limit && limit > 0 ? limit : undefined,
+    }),
+    [siteId.uid, targetPath, mode, sortTerm, reverse, limit],
+  )
+  const queryResult = useQuery(queryQueryBlock(client, {query}))
+  const queryDescription = `${
+    mode === 'AllDescendants' ? 'All descendants' : 'Direct children'
+  } of ${targetLabel} · sorted by ${sortTerm}${reverse ? ' descending' : ' ascending'}${
+    limitEnabled && limit && limit > 0 ? ` · limited to ${limit}` : ''
+  }`
+
+  return (
+    <BoardPage
+      boardId={{...siteId, path: null}}
+      items={queryResult.data?.results ?? []}
+      isLoading={queryResult.isLoading}
+      hasQuery
+      queryCount={1}
+      queryDescription={queryDescription}
+      queryAction={
+        <BoardQueryEditor
+          targetValue={targetValue}
+          targetOptions={targetOptions}
+          mode={mode}
+          sortTerm={sortTerm}
+          reverse={reverse}
+          limitEnabled={limitEnabled}
+          limitValue={limitValue}
+          onTargetValue={setTargetValue}
+          onMode={setMode}
+          onSortTerm={setSortTerm}
+          onReverse={setReverse}
+          onLimitEnabled={setLimitEnabled}
+          onLimitValue={setLimitValue}
+        />
+      }
+      onNavigateToDocument={onNavigateToDocument}
+    />
   )
 }
