@@ -10,7 +10,18 @@ import {useAccountsMetadata, useDirectory} from '@shm/shared/models/entity'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {formattedDate} from '@shm/shared/utils/date'
-import {CalendarDays, ChevronDown, Flag, MessageSquare, Pencil, Plus, Search, Sparkles} from 'lucide-react'
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  FileText,
+  Flag,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+} from 'lucide-react'
 import {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Badge} from './components/badge'
@@ -68,6 +79,99 @@ export interface BoardPageProps {
 
 type BoardQueryMode = 'Children' | 'AllDescendants'
 type BoardQuerySortTerm = HMQuerySort['term']
+export type BoardTargetOption = {
+  value: string
+  label: string
+  title: string
+  pathLabel: string
+  searchText: string
+}
+
+function boardTargetOption(value: string, title: string, pathLabel: string): BoardTargetOption {
+  return {
+    value,
+    label: `${title} — ${pathLabel}`,
+    title,
+    pathLabel,
+    searchText: `${title} ${pathLabel}`.toLowerCase(),
+  }
+}
+
+export function createBoardTargetOptions(docs: HMDocumentInfo[]): BoardTargetOption[] {
+  const byPath = new Map<string, BoardTargetOption>()
+
+  for (const doc of docs) {
+    const parts = doc.path ?? []
+    for (let index = 1; index < parts.length; index += 1) {
+      const path = parts.slice(0, index).join('/')
+      if (!byPath.has(path)) {
+        const name = parts[index - 1] || path
+        byPath.set(path, boardTargetOption(path, name, `/${path}`))
+      }
+    }
+
+    const path = parts.join('/')
+    if (!path) continue
+    const name = getMetadataName(doc.metadata) || parts.at(-1) || 'Untitled'
+    byPath.set(path, boardTargetOption(path, name, `/${path}`))
+  }
+
+  return [
+    {
+      value: BOARD_ROOT_TARGET,
+      label: 'Site root',
+      title: 'Site root',
+      pathLabel: '/',
+      searchText: 'site root /',
+    },
+    ...Array.from(byPath.values()).sort((a, b) => {
+      const title = a.title.localeCompare(b.title)
+      if (title) return title
+      return a.value.localeCompare(b.value)
+    }),
+  ]
+}
+
+export function getBoardTargetSearchTerms(input: string): string[] {
+  const path = getBoardTargetPathFromInput(input)
+  if (path) return path.toLowerCase().split('/').filter(Boolean)
+
+  const normalized = input.trim().toLowerCase()
+  if (!normalized) return []
+
+  return normalized.split(/\s+/).filter(Boolean)
+}
+
+export function getBoardTargetPathFromInput(input: string): string | null {
+  const normalized = input.trim()
+  if (!normalized) return null
+
+  try {
+    const url = new URL(normalized)
+    const segments = url.pathname
+      .split('/')
+      .map((segment) => decodeURIComponent(segment))
+      .filter(Boolean)
+
+    const pathSegments =
+      segments[0] === 'hm' && segments[1] === 'inspect'
+        ? segments.slice(3)
+        : segments[0] === 'hm'
+        ? segments.slice(2)
+        : segments[0] === 'inspect'
+        ? segments.slice(1)
+        : segments
+    const documentSegments = pathSegments.filter((segment) => !segment.startsWith(':'))
+    return documentSegments.length ? documentSegments.join('/') : null
+  } catch {
+    if (!normalized.startsWith('/')) return null
+    return normalized
+      .split('/')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment && !segment.startsWith(':'))
+      .join('/')
+  }
+}
 
 function stableHash(input: string): number {
   let hash = 2166136261
@@ -318,7 +422,7 @@ function BoardQueryEditor({
   onLimitValue,
 }: {
   targetValue: string
-  targetOptions: Array<{value: string; label: string}>
+  targetOptions: BoardTargetOption[]
   mode: BoardQueryMode
   sortTerm: BoardQuerySortTerm
   reverse: boolean
@@ -331,6 +435,45 @@ function BoardQueryEditor({
   onLimitEnabled: (enabled: boolean) => void
   onLimitValue: (value: string) => void
 }) {
+  const [targetSearch, setTargetSearch] = useState('')
+  const searchTerms = getBoardTargetSearchTerms(targetSearch)
+  const targetPathFromSearch = getBoardTargetPathFromInput(targetSearch)
+  const customTarget =
+    targetPathFromSearch && !targetOptions.some((option) => option.value === targetPathFromSearch)
+      ? {
+          value: targetPathFromSearch,
+          label: `Use /${targetPathFromSearch}`,
+          title: `Use /${targetPathFromSearch}`,
+          pathLabel: 'Custom target path',
+          searchText: targetPathFromSearch.toLowerCase(),
+        }
+      : null
+  const selectedTarget =
+    targetOptions.find((option) => option.value === targetValue) ??
+    (targetValue !== BOARD_ROOT_TARGET
+      ? {
+          value: targetValue,
+          label: `/${targetValue}`,
+          title: `/${targetValue}`,
+          pathLabel: 'Custom target path',
+          searchText: targetValue.toLowerCase(),
+        }
+      : targetOptions[0])
+  const matchedTargets = searchTerms.length
+    ? targetOptions
+        .filter((option) => searchTerms.every((term) => option.searchText.includes(term)))
+        .sort((a, b) => {
+          const queryPath = searchTerms.join('/')
+          const score = (option: BoardTargetOption) =>
+            option.value.toLowerCase() === queryPath || option.title.toLowerCase() === searchTerms.join(' ') ? 0 : 1
+          const scoreDiff = score(a) - score(b)
+          if (scoreDiff) return scoreDiff
+          return a.title.localeCompare(b.title)
+        })
+        .slice(0, 20)
+    : targetOptions.slice(0, 12)
+  const visibleTargets = customTarget ? [customTarget, ...matchedTargets] : matchedTargets
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -342,20 +485,62 @@ function BoardQueryEditor({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="flex w-80 flex-col gap-4 p-4"
+        className="flex w-96 flex-col gap-4 p-4"
         onClick={(event) => event.stopPropagation()}
       >
         <div>
           <div className="font-medium">Board Query</div>
           <div className="text-muted-foreground text-xs">Choose which documents this site-level Board computes.</div>
         </div>
-        <SelectField
-          value={targetValue}
-          onValue={onTargetValue}
-          label="Document"
-          id="board-query-document"
-          options={targetOptions}
-        />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-muted-foreground text-sm font-medium">Document</div>
+            <div className="text-muted-foreground max-w-56 truncate text-right text-xs">
+              {selectedTarget?.label ?? 'Site root'}
+            </div>
+          </div>
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              value={targetSearch}
+              onChangeText={setTargetSearch}
+              placeholder="Search by title or path…"
+              aria-label="Search board query documents"
+              className="pl-9"
+              onKeyDown={(event) => event.stopPropagation()}
+            />
+          </div>
+          <div className="border-border/70 bg-muted/30 max-h-56 overflow-y-auto rounded-lg border p-1">
+            {visibleTargets.length ? (
+              visibleTargets.map((option) => {
+                const selected = option.value === targetValue
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={cn(
+                      'hover:bg-background focus-visible:bg-background flex w-full items-start gap-2 rounded-md px-2 py-2 text-left outline-none',
+                      selected && 'bg-background shadow-xs',
+                    )}
+                    onClick={() => {
+                      onTargetValue(option.value)
+                      setTargetSearch('')
+                    }}
+                  >
+                    <FileText className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{option.title}</span>
+                      <span className="text-muted-foreground block truncate text-xs">{option.pathLabel}</span>
+                    </span>
+                    {selected ? <Check className="text-primary mt-0.5 size-4 shrink-0" /> : null}
+                  </button>
+                )
+              })
+            ) : (
+              <div className="text-muted-foreground px-2 py-4 text-center text-sm">No documents match this search.</div>
+            )}
+          </div>
+        </div>
         <SelectField
           value={mode}
           onValue={(value) => onMode(value as BoardQueryMode)}
@@ -539,18 +724,7 @@ export function BoardAppViewPage({
   const [limitValue, setLimitValue] = useState('50')
   const limit = limitEnabled ? parseInt(limitValue, 10) : undefined
   const targetPath = targetValue === BOARD_ROOT_TARGET ? '' : targetValue
-  const targetOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const options = [{value: BOARD_ROOT_TARGET, label: 'Site root'}]
-    for (const doc of directory.data ?? []) {
-      const path = doc.path?.join('/') ?? ''
-      if (!path || seen.has(path)) continue
-      seen.add(path)
-      const name = getMetadataName(doc.metadata) || doc.path?.at(-1) || 'Untitled'
-      options.push({value: path, label: `${name} — /${path}`})
-    }
-    return options
-  }, [directory.data])
+  const targetOptions = useMemo(() => createBoardTargetOptions(directory.data ?? []), [directory.data])
   const targetLabel = useMemo(() => {
     if (targetValue === BOARD_ROOT_TARGET) return 'site root'
     return targetOptions.find((option) => option.value === targetValue)?.label ?? `/${targetValue}`

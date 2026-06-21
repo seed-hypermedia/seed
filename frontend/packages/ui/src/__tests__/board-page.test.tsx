@@ -5,7 +5,14 @@ import {act} from 'react-dom/test-utils'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {BOARD_COLUMNS, BoardPage, getBoardColumnIdForDocument} from '../board-page'
+import {
+  BOARD_COLUMNS,
+  BoardPage,
+  createBoardTargetOptions,
+  getBoardColumnIdForDocument,
+  getBoardTargetPathFromInput,
+  getBoardTargetSearchTerms,
+} from '../board-page'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -159,5 +166,20 @@ describe('BoardPage', () => {
   it('assigns documents to stable deterministic columns', () => {
     const document = makeDoc(['board', 'stories'], 'Board Stories')
     expect(getBoardColumnIdForDocument(document)).toBe(getBoardColumnIdForDocument(document))
+  })
+
+  it('searches query targets by pasted web document URLs', () => {
+    expect(getBoardTargetSearchTerms('https://seedteamtalks.hyper.media/design')).toEqual(['design'])
+    expect(getBoardTargetSearchTerms('https://gateway.example/hm/siteuid/design/:board')).toEqual(['design'])
+    expect(getBoardTargetSearchTerms('/design')).toEqual(['design'])
+    expect(getBoardTargetPathFromInput('/design')).toBe('design')
+  })
+
+  it('adds missing parent paths to query target options', () => {
+    const options = createBoardTargetOptions([
+      makeDoc(['design', 'misc', 'product-map', 'tags', 'newfeature'], '#NewFeature'),
+    ])
+
+    expect(options.some((option) => option.value === 'design' && option.pathLabel === '/design')).toBe(true)
   })
 })
