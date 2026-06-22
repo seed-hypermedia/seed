@@ -373,21 +373,14 @@ function BookmarkListItem({
   const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (
     <>
-      <SmallListItem
-        key={id.id}
-        docId={id.id}
-        active={active}
-        title={metadata?.name || 'Untitled'}
-        icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
-        accessory={
-          <>
-            {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground" /> : null}
-            {visibility === 'PRIVATE' ? <Lock size={12} /> : null}
-          </>
-        }
-        className="pr-8"
-        {...linkProps}
-      />
+      <SidebarMenuButton isActive={active} className="min-h-10 items-center pr-8" onClick={linkProps.onClick}>
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <span className="truncate text-left text-sm select-none">{metadata?.name || 'Untitled'}</span>
+        </div>
+        {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground shrink-0" /> : null}
+        {visibility === 'PRIVATE' ? <Lock size={12} className="shrink-0" /> : null}
+      </SidebarMenuButton>
       <BookmarkOptionsMenu onDeleteBookmark={onDeleteBookmark} disabled={deletingBookmark} />
     </>
   )
