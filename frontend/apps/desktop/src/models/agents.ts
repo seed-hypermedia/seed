@@ -225,7 +225,11 @@ export function useProviderModels(
       return res.models
     },
     enabled: !!serverUrl && !!accountUid && !!provider,
-    staleTime: 5 * 60 * 1000,
+    // Provider model catalogs change rarely, so keep them fresh for a while and
+    // retain them in cache across dialog open/close so reopening a model
+    // dropdown is instant instead of re-fetching the full list every time.
+    staleTime: 60 * 60 * 1000,
+    cacheTime: 24 * 60 * 60 * 1000,
     retry: false,
     useErrorBoundary: false,
   })

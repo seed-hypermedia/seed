@@ -19,6 +19,7 @@ import {
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTrigger,
+  useModelProviders,
   useProviderModels,
   useSigningIdentities,
   useUpdateAgent,
@@ -51,6 +52,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {KeyRound, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
+import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 
 function AgentDetailPage({
@@ -78,7 +80,10 @@ function AgentDetailPage({
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
-  const providerModels = useProviderModels(serverUrl, selectedAccountId, agent.data?.agent.definition.modelProvider)
+  const modelProviderName = agent.data?.agent.definition.modelProvider
+  const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProviderName)
+  const modelProviders = useModelProviders(serverUrl, selectedAccountId)
+  const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProviderName)?.type
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
   const [name, setName] = useState('')
   const [model, setModel] = useState('')
@@ -370,35 +375,18 @@ function AgentDetailPage({
                       <SizableText size="sm" weight="bold">
                         Model
                       </SizableText>
-                      <select
-                        className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+                      <ModelSelect
+                        models={providerModels.data}
+                        providerType={selectedProviderType}
                         value={model}
-                        onChange={(event) => {
-                          setModel(event.target.value)
+                        onChange={(nextModel) => {
+                          setModel(nextModel)
                           setNameModelDirty(true)
                         }}
-                        disabled={providerModels.isLoading || !providerModels.data?.length}
-                      >
-                        {providerModels.isLoading ? <option value="">Loading models…</option> : null}
-                        {!providerModels.isLoading &&
-                        !providerModels.data?.some((providerModel) => providerModel.id === model) ? (
-                          <option value={model}>{model || 'No model selected'}</option>
-                        ) : null}
-                        {(providerModels.data || []).map((providerModel) => (
-                          <option key={providerModel.id} value={providerModel.id}>
-                            {providerModel.name === providerModel.id
-                              ? providerModel.id
-                              : `${providerModel.name} (${providerModel.id})`}
-                          </option>
-                        ))}
-                      </select>
-                      {providerModels.isError ? (
-                        <SizableText size="xs" className="text-destructive">
-                          {providerModels.error instanceof Error
-                            ? providerModels.error.message
-                            : 'Could not load models'}
-                        </SizableText>
-                      ) : null}
+                        isLoading={providerModels.isLoading}
+                        isError={providerModels.isError}
+                        error={providerModels.error}
+                      />
                     </label>
                   </div>
                   <div className="grid gap-3 text-sm md:grid-cols-2">

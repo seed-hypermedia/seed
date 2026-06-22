@@ -25,6 +25,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
+import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 
 export function ModelProvidersDialog({
@@ -386,6 +387,7 @@ export function CreateAgentDialog({
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
+  const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
   const [name, setName] = useState('Desktop Test Agent')
   const [model, setModel] = useState('')
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
@@ -454,9 +456,7 @@ export function CreateAgentDialog({
       <div className="flex min-w-[520px] flex-col gap-5">
         <div>
           <DialogTitle>Create Agent</DialogTitle>
-          <DialogDescription>
-            Add a model provider on this server before creating an agent.
-          </DialogDescription>
+          <DialogDescription>Add a model provider on this server before creating an agent.</DialogDescription>
         </div>
         {serverSelector}
         <AddModelProviderForm
@@ -503,29 +503,16 @@ export function CreateAgentDialog({
           <SizableText size="sm" weight="bold">
             Model
           </SizableText>
-          <select
-            className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          <ModelSelect
+            models={providerModels.data}
+            providerType={selectedProviderType}
             value={model}
-            onChange={(event) => setModel(event.target.value)}
-            disabled={!providerName || providerModels.isLoading || !providerModels.data?.length}
-          >
-            {providerModels.isLoading ? <option value="">Loading models…</option> : null}
-            {!providerModels.isLoading && !providerModels.data?.length ? (
-              <option value="">No models found</option>
-            ) : null}
-            {(providerModels.data || []).map((providerModel) => (
-              <option key={providerModel.id} value={providerModel.id}>
-                {providerModel.name === providerModel.id
-                  ? providerModel.id
-                  : `${providerModel.name} (${providerModel.id})`}
-              </option>
-            ))}
-          </select>
-          {providerModels.isError ? (
-            <SizableText size="xs" className="text-destructive">
-              {providerModels.error instanceof Error ? providerModels.error.message : 'Could not load models'}
-            </SizableText>
-          ) : null}
+            onChange={setModel}
+            isLoading={providerModels.isLoading}
+            isError={providerModels.isError}
+            error={providerModels.error}
+            disabled={!providerName}
+          />
         </label>
       </div>
       <div className="flex flex-col gap-1">
