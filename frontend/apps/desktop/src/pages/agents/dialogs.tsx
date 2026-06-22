@@ -97,7 +97,40 @@ function AddModelProviderDialog({
   input: {serverUrl: string; selectedAccountId: string | null | undefined}
   onClose: () => void
 }) {
-  const saveProvider = useSaveModelProvider(input.serverUrl, input.selectedAccountId)
+  return (
+    <div className="flex min-w-[420px] flex-col gap-5">
+      <div>
+        <DialogTitle>Add model provider</DialogTitle>
+        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
+      </div>
+      <AddModelProviderForm
+        serverUrl={input.serverUrl}
+        selectedAccountId={input.selectedAccountId}
+        onSaved={onClose}
+        onCancel={onClose}
+      />
+    </div>
+  )
+}
+
+/**
+ * Provider type/name/API-key fields plus save logic, shared by the standalone
+ * "Add model provider" dialog and the inline provider step of agent creation.
+ */
+function AddModelProviderForm({
+  serverUrl,
+  selectedAccountId,
+  onSaved,
+  onCancel,
+  submitLabel = 'Save provider',
+}: {
+  serverUrl: string
+  selectedAccountId: string | null | undefined
+  onSaved?: () => void
+  onCancel: () => void
+  submitLabel?: string
+}) {
+  const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
   const [type, setType] = useState<ModelProviderType>('openai')
   const [name, setName] = useState('openai')
   const [apiKey, setApiKey] = useState('')
@@ -111,7 +144,7 @@ function AddModelProviderDialog({
       await saveProvider.mutateAsync({type, name, apiKey})
       setApiKey('')
       toast.success('Model provider saved')
-      onClose()
+      onSaved?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save model provider')
     }
@@ -119,17 +152,13 @@ function AddModelProviderDialog({
 
   return (
     <form
-      className="flex min-w-[420px] flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
         if (saveProvider.isLoading || !apiKey.trim()) return
         void handleSave()
       }}
     >
-      <div>
-        <DialogTitle>Add model provider</DialogTitle>
-        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
-      </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Provider type
@@ -157,11 +186,11 @@ function AddModelProviderDialog({
         <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
       </label>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={saveProvider.isLoading || !apiKey.trim()}>
-          Save provider
+          {submitLabel}
         </Button>
       </div>
     </form>
@@ -396,28 +425,57 @@ export function CreateAgentDialog({
     }
   }
 
+  const serverSelector = (
+    <label className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        Agent server
+      </SizableText>
+      <select
+        className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        value={selectedServerUrl}
+        onChange={(event) => setSelectedServerUrl(event.target.value)}
+      >
+        {input.serverUrls.map((serverUrl) => (
+          <option key={serverUrl} value={serverUrl}>
+            {serverUrl}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+
+  // Force provider setup before agent creation when the selected server has
+  // none configured. Saving one refetches `providers`, which transitions this
+  // dialog to the regular agent creation form automatically.
+  const needsProvider = !providers.isLoading && !providers.data?.length
+
+  if (needsProvider) {
+    return (
+      <div className="flex min-w-[520px] flex-col gap-5">
+        <div>
+          <DialogTitle>Create Agent</DialogTitle>
+          <DialogDescription>
+            Add a model provider on this server before creating an agent.
+          </DialogDescription>
+        </div>
+        {serverSelector}
+        <AddModelProviderForm
+          serverUrl={selectedServerUrl}
+          selectedAccountId={input.selectedAccountId}
+          onCancel={onClose}
+          submitLabel="Add provider"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-w-[520px] flex-col gap-5">
       <div>
         <DialogTitle>Create Agent</DialogTitle>
         <DialogDescription>Choose a model provider, model, and system prompt for the new agent.</DialogDescription>
       </div>
-      <label className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Agent server
-        </SizableText>
-        <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-          value={selectedServerUrl}
-          onChange={(event) => setSelectedServerUrl(event.target.value)}
-        >
-          {input.serverUrls.map((serverUrl) => (
-            <option key={serverUrl} value={serverUrl}>
-              {serverUrl}
-            </option>
-          ))}
-        </select>
-      </label>
+      {serverSelector}
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Model provider
@@ -433,11 +491,6 @@ export function CreateAgentDialog({
             </option>
           ))}
         </select>
-        {!providers.isLoading && !providers.data?.length ? (
-          <SizableText size="xs" color="muted">
-            Configure a model provider on this server before creating an agent.
-          </SizableText>
-        ) : null}
       </label>
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">

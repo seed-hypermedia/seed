@@ -3,7 +3,6 @@ import {
   useAgentServerHealths,
   useAgentServerUrls,
   useAgentWebSocketSubscription,
-  useModelProviderLists,
 } from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
@@ -24,7 +23,6 @@ function AgentsListPage() {
   const serverUrls = serverUrlsQuery.data || []
   const agentQueries = useAgentLists(serverUrls, selectedAccountId)
   const healthQueries = useAgentServerHealths(serverUrls)
-  const providerQueries = useModelProviderLists(serverUrls, selectedAccountId)
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   const createAgentDialog = useAppDialog(CreateAgentDialog)
@@ -38,16 +36,11 @@ function AgentsListPage() {
   )
   const isLoadingAgents = !!selectedAccountId && agentQueries.some((query) => query.isFetching && !query.data)
   const agentError = agentQueries.find((query) => query.isError)?.error
-  const providersLoading = providerQueries.some((query) => query.isLoading)
-  const hasCreatableProvider = providerQueries.some((query) => !!query.data?.length)
-  const needsModelProvider = !!selectedAccountId && !!serverUrls.length && !providersLoading && !hasCreatableProvider
   const createAgentDisabledReason = !selectedAccountId
     ? 'Select an account before creating an agent.'
     : !serverUrls.length
       ? 'Configure an agent server before creating an agent.'
-      : providersLoading
-        ? 'Checking model providers…'
-        : null
+      : null
 
   return (
     <PanelContainer className="overflow-y-auto">
@@ -74,7 +67,6 @@ function AgentsListPage() {
           </div>
           {serverUrls.map((serverUrl, index) => {
             const health = healthQueries[index]
-            const providers = providerQueries[index]
             const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Offline' : 'Online'
             return (
               <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId}>
@@ -138,25 +130,14 @@ function AgentsListPage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
             <SizableText weight="bold">All Agents</SizableText>
-            <Tooltip
-              content={
-                createAgentDisabledReason ||
-                (needsModelProvider ? 'Add a model provider before creating an agent.' : 'Create Agent')
-              }
-            >
+            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
               <span>
                 <Button
-                  onClick={() => {
-                    if (needsModelProvider) {
-                      providersDialog.open({serverUrl: serverUrls[0], selectedAccountId})
-                      return
-                    }
-                    createAgentDialog.open({serverUrls, selectedAccountId})
-                  }}
+                  onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
                   disabled={!!createAgentDisabledReason}
                 >
-                  {needsModelProvider ? <Settings className="size-4" /> : <Bot className="size-4" />}
-                  {needsModelProvider ? 'Add Model Provider' : 'Create Agent'}
+                  <Bot className="size-4" />
+                  Create Agent
                 </Button>
               </span>
             </Tooltip>

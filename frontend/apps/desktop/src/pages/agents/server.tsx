@@ -42,12 +42,7 @@ function AgentServerContent({routeServerUrl}: {routeServerUrl: string}) {
   )
 
   const status = health.isLoading ? 'Checking…' : health.isError ? 'Offline' : 'Online'
-  const needsModelProvider = !!selectedAccountId && !providers.isLoading && !providers.data?.length
-  const createAgentDisabledReason = !selectedAccountId
-    ? 'Select an account before creating an agent.'
-    : providers.isLoading
-      ? 'Checking model providers…'
-      : null
+  const createAgentDisabledReason = !selectedAccountId ? 'Select an account before creating an agent.' : null
 
   return (
     <PanelContainer className="overflow-y-auto">
@@ -73,25 +68,14 @@ function AgentServerContent({routeServerUrl}: {routeServerUrl: string}) {
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Tooltip
-              content={
-                createAgentDisabledReason ||
-                (needsModelProvider ? 'Add a model provider before creating an agent.' : 'Create Agent')
-              }
-            >
+            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
               <span>
                 <Button
-                  onClick={() => {
-                    if (needsModelProvider) {
-                      providersDialog.open({serverUrl, selectedAccountId})
-                      return
-                    }
-                    createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})
-                  }}
+                  onClick={() => createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})}
                   disabled={!!createAgentDisabledReason}
                 >
-                  {needsModelProvider ? <Settings className="size-4" /> : <Bot className="size-4" />}
-                  {needsModelProvider ? 'Add Model Provider' : 'Create Agent'}
+                  <Bot className="size-4" />
+                  Create Agent
                 </Button>
               </span>
             </Tooltip>
