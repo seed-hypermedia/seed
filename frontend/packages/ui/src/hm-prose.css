@@ -488,18 +488,20 @@
  * The <video>/<iframe> player fills an absolutely-positioned 16:9 box,
  * so its own width/height are owned by the block component — applying
  * image-style `height: auto` here breaks that and overflows the frame.
- * The corner radius, clip, and shadow ride on the block element so the
- * square-cornered player is masked to the rounded frame. */
-.hm-prose [data-content-type='video'] {
+ * The corner radius and shadow belong on the real player element, not the
+ * BlockNote wrapper, so resized videos get chrome only around the media. */
+.hm-prose [data-content-type='video'] video,
+.hm-prose [data-content-type='video'] iframe {
   border-radius: 0.75rem;
-  overflow: hidden;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.04),
     0 12px 28px rgba(0, 0, 0, 0.08);
 }
 
-.dark .hm-prose [data-content-type='video'],
-[data-theme='dark'] .hm-prose [data-content-type='video'] {
+.dark .hm-prose [data-content-type='video'] video,
+.dark .hm-prose [data-content-type='video'] iframe,
+[data-theme='dark'] .hm-prose [data-content-type='video'] video,
+[data-theme='dark'] .hm-prose [data-content-type='video'] iframe {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.4),
     0 16px 32px rgba(0, 0, 0, 0.45);
