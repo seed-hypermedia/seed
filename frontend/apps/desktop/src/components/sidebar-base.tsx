@@ -109,6 +109,33 @@ export function GenericSidebarContainer({
     prevMediaGtSm.current = media.gtSm
   }, [media.gtSm])
 
+  useLayoutEffect(() => {
+    const element = panelContentRef.current
+    if (!element) return
+
+    const updateSidebarWidthPx = () => {
+      if (!isLocked) return
+      const width = element.getBoundingClientRect().width
+      if (width > 0) ctx.onSidebarWidthPxChange(width)
+    }
+
+    updateSidebarWidthPx()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateSidebarWidthPx)
+      return () => {
+        window.removeEventListener('resize', updateSidebarWidthPx)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(updateSidebarWidthPx)
+    resizeObserver.observe(element)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [ctx, isLocked])
+
   return (
     <>
       {isFocused && !isLocked && !isWindowTooNarrowForHoverSidebar ? (

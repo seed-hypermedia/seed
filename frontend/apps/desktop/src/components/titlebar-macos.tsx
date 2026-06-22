@@ -1,11 +1,15 @@
-import {useSidebarWidth} from '@/sidebar-context'
+import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
+import {useStream} from '@shm/shared/use-stream'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
 import {NavMenuButton, NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
+import {TitlebarMainRow} from './titlebar-layout'
 
 export default function TitleBarMacos(props: TitleBarProps) {
   const {clean, cleanTitle, ...restProps} = props
   const sidebarWidth = useSidebarWidth()
+  const sidebarContext = useSidebarContext()
+  const isSidebarLocked = !!useStream(sidebarContext.isLocked)
   if (clean) {
     return (
       <TitlebarWrapper className="min-h-0" {...restProps}>
@@ -18,31 +22,24 @@ export default function TitleBarMacos(props: TitleBarProps) {
 
   return (
     <TitlebarWrapper {...restProps}>
-      <div className="window-drag flex w-full items-center justify-between pr-2">
-        <div className="flex-basis-0 window-drag flex min-w-min items-center">
-          <div
-            className="window-drag flex flex-1 items-center gap-2 px-0"
-            style={{
-              minWidth: `calc(${sidebarWidth})`,
-            }}
-          >
-            <NavMenuButton
-              left={
+      <TitlebarMainRow
+        sidebarLocked={isSidebarLocked}
+        sidebarWidth={sidebarWidth}
+        sidebarControl={
+          <NavMenuButton
+            left={
+              isSidebarLocked ? undefined : (
                 <div
                   className="w-[72px]" // this width to stay away from the macOS window traffic lights
                 />
-              }
-            />
-            <NavigationButtons />
-          </div>
-        </div>
-        <div className="flex flex-1 items-center gap-2 overflow-x-hidden px-2">
-          <Omnibar />
-        </div>
-        <div className="flex-basis-0 window-drag flex min-w-min items-center justify-end">
-          <PageActionButtons {...restProps} />
-        </div>
-      </div>
+              )
+            }
+          />
+        }
+        navigation={<NavigationButtons />}
+        omnibar={<Omnibar />}
+        actions={<PageActionButtons {...restProps} />}
+      />
     </TitlebarWrapper>
   )
 }

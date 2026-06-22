@@ -497,13 +497,13 @@ export function NavigationButtons() {
   const dispatch = useNavigationDispatch()
   if (!state) return null
   return (
-    <div className="no-window-drag flex">
+    <div className="no-window-drag flex shrink-0">
       <Button
         size="icon"
         onClick={() => dispatch({type: 'pop'})}
         variant="ghost"
         disabled={state.routeIndex <= 0}
-        className="rounded-tl-0 rounded-bl-0"
+        className="rounded-tl-0 rounded-bl-0 shrink-0"
       >
         <Back className="size-4" />
       </Button>
@@ -512,7 +512,7 @@ export function NavigationButtons() {
         size="icon"
         onClick={() => dispatch({type: 'forward'})}
         disabled={state.routeIndex >= state.routes.length - 1}
-        className="rounded-tr-0 rounded-br-0"
+        className="rounded-tr-0 rounded-br-0 shrink-0"
       >
         <Forward className="size-4" />
       </Button>
@@ -556,7 +556,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   }
 
   return (
-    <div className="ml-2 flex flex-1 items-center">
+    <div className="flex shrink-0 items-center">
       {left || <div />}
       {ctx && (
         <div className="no-window-drag relative z-10">
@@ -567,6 +567,8 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             <Button
               size="icon"
               key={key}
+              aria-label={tooltip}
+              className="shrink-0"
               // onMouseEnter={ctx.onMenuHover}
               // onMouseLeave={ctx.onMenuHoverLeave}
               onClick={handleClick}
