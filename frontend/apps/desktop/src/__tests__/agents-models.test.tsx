@@ -126,6 +126,35 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
+  it('seeds the configured server list with the built-in default in development', async () => {
+    process.env.NODE_ENV = 'development'
+
+    vi.resetModules()
+    const mod = await import('../models/agents')
+    const rendered = renderHook(() => mod.useAgentServerUrls())
+
+    await waitForCondition(() => rendered.result().data !== undefined)
+
+    expect(rendered.result().data).toEqual(['http://localhost:3050'])
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+  })
+
+  it('does not re-seed the built-in default after the list is emptied in development', async () => {
+    process.env.NODE_ENV = 'development'
+    storeData['agent-server-urls'] = []
+
+    vi.resetModules()
+    const mod = await import('../models/agents')
+    const rendered = renderHook(() => mod.useAgentServerUrls())
+
+    await waitForCondition(() => rendered.result().data !== undefined)
+
+    expect(rendered.result().data).toEqual([])
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+  })
+
   it('clears the stored default when the configured server list becomes empty', async () => {
     storeData['agent-server-url'] = 'http://localhost:3050'
     storeData['agent-server-urls'] = ['http://localhost:3050']
