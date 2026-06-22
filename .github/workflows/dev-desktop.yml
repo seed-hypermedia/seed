@@ -60,18 +60,18 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-15-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-15-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
-          - os: ubuntu-latest
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-unknown-linux-gnu
+          # - os: macos-15-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          # - os: macos-15-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
+          # - os: ubuntu-latest
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-unknown-linux-gnu
           # Keep Windows desktop builds on VS 2022 while the pinned Node
           # 22/pnpm/electron node-gyp stack cannot detect VS 2026 (18.x) on
           # windows-2025.
@@ -271,6 +271,24 @@ jobs:
             Write-Host "Installed and added 7-Zip to PATH"
           }
 
+      - name: Setup DigiCert KeyLocker client certificate (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
+
+      - name: Setup DigiCert KeyLocker signing tools (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        uses: digicert/code-signing-software-trust-action@v1
+        with:
+          simple-signing-mode: true
+        env:
+          SM_HOST: ${{ vars.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         shell: powershell
@@ -304,87 +322,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: eu-west-2
           SEED_P2P_TESTNET_NAME: 'dev'
-
-      # - name: Sign Windows application with KeyLocker
-      #   if: startsWith(matrix.config.os, 'windows')
-      #   uses: digicert/keylocker-signing@v1
-      #   with:
-      #     api_key: ${{ secrets.KEYLOCKER_API_KEY }}
-      #     client_cert: ${{ secrets.KEYLOCKER_CERT }}
-      #     client_cert_password: ${{ secrets.KEYLOCKER_CERT_PASSWORD }}
-      #     keypair_alias: ${{ secrets.KEYLOCKER_KEYPAIR_ALIAS }}
-      #     input_file: frontend/apps/desktop/out/make/squirrel.windows/x64/seed-dev-${{ needs.build-info.outputs.version }}-win32-x64-setup.exe
-      #     timestamp_url: http://timestamp.digicert.com
-
-      - name: Create test certificate for signing (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Create a test certificate for signing
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Test Code Signing" -KeyAlgorithm RSA -KeyLength 2048 -Provider "Microsoft Enhanced RSA and AES Cryptographic Provider" -KeyExportPolicy Exportable -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My
-
-          # Export the certificate to a PFX file
-          $password = ConvertTo-SecureString -String "testpassword" -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath "test-cert.pfx" -Password $password
-
-          echo "Test certificate created: test-cert.pfx"
-
-      - name: Sign Windows application with test certificate
-        if: startsWith(matrix.config.os, 'windows')
-        shell: powershell
-        run: |
-          # Find the .exe installer file
-          $exeFile = Get-ChildItem -Path "frontend/apps/desktop/out/make" -Filter "*.exe" -Recurse | Select-Object -First 1
-
-          if ($exeFile) {
-            Write-Host "Signing: $($exeFile.FullName)"
-            
-            # Sign with the test certificate
-            $signResult = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" sign /f "test-cert.pfx" /p "testpassword" /t "http://timestamp.digicert.com" /fd sha256 /v "$($exeFile.FullName)"
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✅ Successfully signed: $($exeFile.FullName)"
-              
-              # Verify the signature (this will fail for self-signed certs, but that's expected)
-              Write-Host "Verifying signature (note: self-signed test certificates will show trust warnings)..."
-              
-              # Capture verification output without failing the script
-              $ErrorActionPreference = "Continue"
-              $verifyOutput = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify /v "$($exeFile.FullName)" 2>&1
-              $verifyExitCode = $LASTEXITCODE
-              Write-Host $verifyOutput
-              
-              # Check if the file has a signature (ignore exit codes for verification)
-              $signatureCheck = & "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe" verify "$($exeFile.FullName)" 2>&1
-              $signatureCheckExitCode = $LASTEXITCODE
-              
-              # For test certificates, we expect "terminated in a root certificate which is not trusted"
-              # This means the file IS signed, just not with a trusted certificate
-              if ($signatureCheck -match "terminated in a root certificate which is not trusted" -or 
-                  $signatureCheck -match "SignTool Error: A certificate chain processed") {
-                Write-Host "✅ File is signed with test certificate (trust warnings are expected and normal)"
-                # Reset exit code to success since this is expected behavior
-                $global:LASTEXITCODE = 0
-              } elseif ($signatureCheck -match "No signature found") {
-                Write-Host "❌ File does not appear to be signed"
-                exit 1
-              } else {
-                Write-Host "✅ File appears to be signed (verification output: $signatureCheck)"
-                # Reset exit code to success
-                $global:LASTEXITCODE = 0
-              }
-              
-              Write-Host "🎉 Test signing workflow completed successfully!"
-              # Explicitly exit with success code
-              exit 0
-            } else {
-              Write-Host "❌ Failed to sign the file"
-              exit 1
-            }
-          } else {
-            Write-Host "No .exe file found to sign"
-            exit 1
-          }
+          WINDOWS_CODE_SIGNING: 'true'
+          SM_HOST: ${{ vars.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+          SM_KEYPAIR_ALIAS: ${{ vars.SM_DEV_KEYPAIR_ALIAS || vars.SM_KEYPAIR_ALIAS }}
 
       - name: Upload daemon debug info to Sentry (Unix)
         if: ${{ !startsWith(matrix.config.os, 'windows') && env.SENTRY_AUTH_TOKEN != '' }}

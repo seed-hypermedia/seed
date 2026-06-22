@@ -12,6 +12,7 @@ import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
+import {signWindowsMakeResults, signWindowsPackagePaths} from './scripts/windows-signing'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -252,6 +253,7 @@ const config: ForgeConfig = {
   hooks: {
     postPackage: async (_config, options) => {
       console.info('PostPackage output paths:', options.outputPaths)
+      await signWindowsPackagePaths(options.outputPaths)
 
       for (const outputPath of options.outputPaths) {
         console.info(`\nListing contents of: ${outputPath}`)
@@ -264,6 +266,7 @@ const config: ForgeConfig = {
     },
     postMake: async (_config, results) => {
       console.info('PostMake results:', results)
+      return signWindowsMakeResults(results)
     },
   },
 }
