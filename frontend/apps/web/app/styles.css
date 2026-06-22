@@ -266,9 +266,32 @@ body {
   margin: 3px 0;
 }
 
+/* === UNKNOWN / UNSUPPORTED BLOCK === */
+.ssr-content-placeholder .hm-unknown-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  border: 1px solid #fca5a5;
+  background-color: #fee2e2;
+  padding: 8px;
+  margin: 3px 0;
+}
+.ssr-content-placeholder .hm-unknown-block-label {
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
 /* === DARK MODE === */
 .dark .ssr-content-placeholder .blockContent[data-content-type='code-block'] {
   background-color: rgba(0, 0, 0, 0.5);
+}
+.dark .ssr-content-placeholder .hm-unknown-block {
+  border-color: #991b1b;
+  background-color: #450a0a;
+}
+.dark .ssr-content-placeholder .hm-unknown-block-label {
+  color: #fca5a5;
 }
 .dark .ssr-content-placeholder .blockChildren[data-list-type='Blockquote'] {
   border-left-color: rgb(255 255 255 / 0.3);

@@ -34,12 +34,11 @@ function UnknownBlockRender({block, editor}: {block: Block<HMBlockSchema>; edito
   }
 
   return (
-    <div className="block-content block-unknown flex flex-1 flex-col gap-2">
-      <div
-        className="flex cursor-pointer items-center gap-2 rounded-md border border-red-300 bg-red-100 p-2 dark:border-red-800 dark:bg-red-950"
-        onClick={() => setExpanded(!expanded)}
-        contentEditable={false}
-      >
+    <div
+      className="block-content block-unknown flex flex-1 flex-col overflow-hidden rounded-md border border-red-300 bg-red-100 dark:border-red-800 dark:bg-red-950"
+      contentEditable={false}
+    >
+      <div className="flex cursor-pointer items-center gap-2 p-2" onClick={() => setExpanded(!expanded)}>
         <AlertCircle className="size-4 text-red-600 dark:text-red-400" />
         <span className="flex-1 font-sans text-sm text-red-700 dark:text-red-300">
           Unsupported Block: {originalType}
@@ -51,11 +50,10 @@ function UnknownBlockRender({block, editor}: {block: Block<HMBlockSchema>; edito
         )}
       </div>
       {expanded && (
-        <pre
-          className="rounded-md border border-gray-200 bg-gray-100 p-2 dark:border-gray-700 dark:bg-gray-800"
-          contentEditable={false}
-        >
-          <code className="font-mono text-xs wrap-break-word">{JSON.stringify(parsedData, null, 2)}</code>
+        <pre className="mx-2 mb-2 overflow-auto rounded-md border border-red-200 bg-red-50/60 p-2 dark:border-red-900 dark:bg-red-950/60">
+          <code className="font-mono text-xs text-red-900 wrap-break-word dark:text-red-200">
+            {JSON.stringify(parsedData, null, 2)}
+          </code>
         </pre>
       )}
     </div>

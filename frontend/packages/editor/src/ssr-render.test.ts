@@ -176,4 +176,32 @@ describe('renderDocumentToHTML', () => {
     expect(html).not.toContain('data-text-color')
     expect(html).toContain('hello')
   })
+
+  // Issue #807: an unknown block type must surface as an error block while the
+  // rest of the document keeps rendering.
+  it('renders an error block for an unknown block type and still renders siblings/children', () => {
+    const html = renderDocumentToHTML([
+      {
+        block: {id: 'empty', type: '', text: '', link: '', annotations: []},
+        children: [{block: {id: 'a', type: 'Paragraph', text: 'Abierto', annotations: []}, children: []}],
+      },
+      {block: {id: 'b', type: 'Paragraph', text: 'Debates', annotations: []}, children: []},
+    ] as HMBlockNode[])
+
+    expect(html).toContain('block-unknown')
+    expect(html).toContain('data-content-type="unknown"')
+    expect(html).toContain('Unsupported Block:')
+    // Children of the corrupt block and sibling blocks still render.
+    expect(html).toContain('Abierto')
+    expect(html).toContain('Debates')
+  })
+
+  it('keeps the text fallback for known-but-SSR-unhandled types (e.g. Nostr)', () => {
+    const html = renderDocumentToHTML([
+      {block: {id: 'n', type: 'Nostr', text: 'nostr text', annotations: []}, children: []},
+    ] as HMBlockNode[])
+
+    expect(html).not.toContain('block-unknown')
+    expect(html).toContain('nostr text')
+  })
 })
