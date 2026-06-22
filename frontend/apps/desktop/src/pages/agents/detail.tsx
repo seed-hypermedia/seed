@@ -51,9 +51,12 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {KeyRound, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {AddModelProviderDialog} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {ModelSelect} from './model-select'
+import {curateProviderModels} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {ProviderSelect} from './provider-select'
 
 function AgentDetailPage({
   agentId,
@@ -80,13 +83,14 @@ function AgentDetailPage({
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
-  const modelProviderName = agent.data?.agent.definition.modelProvider
-  const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProviderName)
   const modelProviders = useModelProviders(serverUrl, selectedAccountId)
-  const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProviderName)?.type
+  const addProviderDialog = useAppDialog(AddModelProviderDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
   const [name, setName] = useState('')
+  const [modelProvider, setModelProvider] = useState('')
   const [model, setModel] = useState('')
+  const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider)
+  const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProvider)?.type
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>([])
   const [promptEditorKey, setPromptEditorKey] = useState(0)
   const [nameModelDirty, setNameModelDirty] = useState(false)
@@ -102,6 +106,7 @@ function AgentDetailPage({
     if (!nameModelDirty) {
       setName(agent.data.agent.definition.name)
       setModel(agent.data.agent.definition.model)
+      setModelProvider(agent.data.agent.definition.modelProvider)
     }
     if (!promptDirty) {
       const nextPromptKey = agentPromptStableKey(agent.data.agent.definition.systemPrompt)
@@ -112,6 +117,22 @@ function AgentDetailPage({
       }
     }
   }, [agent.data, nameModelDirty, promptDirty])
+
+  // After the user switches provider (which clears the model), pick a sensible
+  // default from the new provider's curated list once it loads.
+  useEffect(() => {
+    if (!nameModelDirty || model || !providerModels.data?.length) return
+    const {recommended, all} = curateProviderModels(providerModels.data, selectedProviderType)
+    const nextModel = recommended[0]?.id || all[0]?.id
+    if (nextModel) setModel(nextModel)
+  }, [nameModelDirty, model, providerModels.data, selectedProviderType])
+
+  function handleProviderChange(nextProvider: string) {
+    if (nextProvider === modelProvider) return
+    setModelProvider(nextProvider)
+    setModel('') // belongs to the previous provider; the effect above picks a new default
+    setNameModelDirty(true)
+  }
 
   async function handleCreateSession() {
     try {
@@ -127,11 +148,12 @@ function AgentDetailPage({
   useEffect(() => {
     if (!agent.data) return
     const draftName = name.trim()
-    if (!draftName || !model) return
+    if (!draftName || !model || !modelProvider) return
     const currentDefinition = agent.data.agent.definition
     const persistedName = currentDefinition.name
     const persistedModel = currentDefinition.model
-    if (draftName === persistedName && model === persistedModel) {
+    const persistedProvider = currentDefinition.modelProvider
+    if (draftName === persistedName && model === persistedModel && modelProvider === persistedProvider) {
       setSettingsSaveState('idle')
       return
     }
@@ -144,13 +166,14 @@ function AgentDetailPage({
         void updateAgent
           .mutateAsync({
             agentId,
-            definition: {...currentDefinition, name: draftName, model},
+            definition: {...currentDefinition, name: draftName, model, modelProvider},
           })
           .then((result) => {
             if (settingsSaveIdRef.current !== saveId) return
             if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
             setName(result.agent.definition.name)
             setModel(result.agent.definition.model)
+            setModelProvider(result.agent.definition.modelProvider)
             if (!promptDirty) {
               loadedPromptKeyRef.current = agentPromptStableKey(result.agent.definition.systemPrompt)
               setSystemPrompt(agentPromptToBlocks(result.agent.definition.systemPrompt))
@@ -171,7 +194,7 @@ function AgentDetailPage({
       model === persistedModel ? 600 : 0,
     )
     return () => clearTimeout(timer)
-  }, [agent.data, agentId, model, name, promptDirty, updateAgent.mutateAsync])
+  }, [agent.data, agentId, model, modelProvider, name, promptDirty, updateAgent.mutateAsync])
 
   const promptEditorDisabled = !selectedAccountId || serverHealth.isError || agent.isError
 
@@ -264,6 +287,7 @@ function AgentDetailPage({
 
               {createTriggerDialog.content}
               {deleteAgentDialog.content}
+              {addProviderDialog.content}
 
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
@@ -373,31 +397,34 @@ function AgentDetailPage({
                     </label>
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">
-                        Model
+                        Provider
                       </SizableText>
-                      <ModelSelect
-                        models={providerModels.data}
-                        providerType={selectedProviderType}
-                        value={model}
-                        onChange={(nextModel) => {
-                          setModel(nextModel)
-                          setNameModelDirty(true)
-                        }}
-                        isLoading={providerModels.isLoading}
-                        isError={providerModels.isError}
-                        error={providerModels.error}
+                      <ProviderSelect
+                        providers={modelProviders.data}
+                        value={modelProvider}
+                        onChange={handleProviderChange}
+                        onAddProvider={() => addProviderDialog.open({serverUrl, selectedAccountId})}
                       />
                     </label>
                   </div>
+                  <label className="flex flex-col gap-1">
+                    <SizableText size="sm" weight="bold">
+                      Model
+                    </SizableText>
+                    <ModelSelect
+                      models={providerModels.data}
+                      providerType={selectedProviderType}
+                      value={model}
+                      onChange={(nextModel) => {
+                        setModel(nextModel)
+                        setNameModelDirty(true)
+                      }}
+                      isLoading={providerModels.isLoading}
+                      isError={providerModels.isError}
+                      error={providerModels.error}
+                    />
+                  </label>
                   <div className="grid gap-3 text-sm md:grid-cols-2">
-                    <div>
-                      <SizableText size="sm" weight="bold">
-                        Provider
-                      </SizableText>
-                      <SizableText size="sm" color="muted">
-                        {agent.data.agent.definition.modelProvider}
-                      </SizableText>
-                    </div>
                     <div>
                       <SizableText size="sm" weight="bold">
                         Status

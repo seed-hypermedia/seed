@@ -27,6 +27,7 @@ import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {ProviderSelect} from './provider-select'
 
 export function ModelProvidersDialog({
   input,
@@ -91,7 +92,7 @@ export function ModelProvidersDialog({
   )
 }
 
-function AddModelProviderDialog({
+export function AddModelProviderDialog({
   input,
   onClose,
 }: {
@@ -388,6 +389,7 @@ export function CreateAgentDialog({
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
   const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
+  const addProviderDialog = useAppDialog(AddModelProviderDialog)
   const [name, setName] = useState('Desktop Test Agent')
   const [model, setModel] = useState('')
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
@@ -480,18 +482,16 @@ export function CreateAgentDialog({
         <SizableText size="sm" weight="bold">
           Model provider
         </SizableText>
-        <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        <ProviderSelect
+          providers={providers.data}
           value={providerName}
-          onChange={(event) => setProviderName(event.target.value)}
-        >
-          {(providers.data || []).map((provider) => (
-            <option key={provider.id} value={provider.name}>
-              {provider.name} ({provider.type})
-            </option>
-          ))}
-        </select>
+          onChange={setProviderName}
+          onAddProvider={() =>
+            addProviderDialog.open({serverUrl: selectedServerUrl, selectedAccountId: input.selectedAccountId})
+          }
+        />
       </label>
+      {addProviderDialog.content}
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
