@@ -13,7 +13,9 @@ type SidebarContextValue = {
   isHoverVisible: StateStream<boolean>
   isLocked: StateStream<boolean>
   sidebarWidth: StateStream<number>
+  sidebarWidthPx: StateStream<number | null>
   onSidebarResize: (width: number) => void
+  onSidebarWidthPxChange: (width: number) => void
   widthStorage: {
     getItem: (name: string) => string
     setItem: (name: string, value: string) => void
@@ -23,6 +25,17 @@ type SidebarContextValue = {
 export const SidebarContext = createContext<SidebarContextValue | null>(null)
 
 export const SidebarWidth = 220
+
+export function getSidebarTitlebarWidth({
+  isLocked,
+  sidebarWidthPx,
+}: {
+  isLocked: boolean
+  sidebarWidthPx: number | null | undefined
+}) {
+  if (!isLocked || !sidebarWidthPx || sidebarWidthPx <= 0) return undefined
+  return `${Math.round(sidebarWidthPx)}px`
+}
 
 export function SidebarContextProvider(props: PropsWithChildren<{}>) {
   const state = useNavigationState()
@@ -36,6 +49,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           typeof state?.sidebarLocked === 'boolean' ? state.sidebarLocked : true,
         )
         const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(state?.sidebarWidth || 15)
+        const [setSidebarWidthPx, sidebarWidthPx] = writeableStateStream<number | null>(null)
         let closeTimeout: null | NodeJS.Timeout = null
         let hoverOpenTimeout: null | NodeJS.Timeout = null
         function onMenuHover() {
@@ -84,6 +98,9 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           dispatch({type: 'sidebarWidth', value: width})
           setSidebarWidth(width)
         }
+        function onSidebarWidthPxChange(width: number) {
+          setSidebarWidthPx(width)
+        }
 
         const widthStorage = {
           getItem(name: string) {
@@ -117,6 +134,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           isHoverVisible,
           isLocked,
           sidebarWidth,
+          sidebarWidthPx,
           onMenuHover,
           onMenuHoverDelayed,
           onMenuHoverLeave,
@@ -124,6 +142,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           onLockSidebarOpen,
           onCloseSidebar,
           onSidebarResize,
+          onSidebarWidthPxChange,
           widthStorage,
         }
       }, [])}
@@ -141,11 +160,12 @@ export function useSidebarContext() {
 
 export function useSidebarWidth() {
   const sidebarContext = useSidebarContext()
-  const sidebarWidth = useStream(sidebarContext.sidebarWidth)
+  const isLocked = !!useStream(sidebarContext.isLocked)
+  const sidebarWidthPx = useStream(sidebarContext.sidebarWidthPx)
 
   const minWidth = useMemo(() => {
-    return `calc(${sidebarWidth}vw)`
-  }, [sidebarWidth])
+    return getSidebarTitlebarWidth({isLocked, sidebarWidthPx})
+  }, [isLocked, sidebarWidthPx])
 
   return minWidth
 }
