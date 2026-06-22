@@ -39,6 +39,7 @@ import {
   useAccount,
   useAccountsMetadata,
   useDirectory,
+  useDocumentCollaborators,
   useIsLatest,
   useResource,
   useResources,
@@ -74,7 +75,7 @@ import {FilePen, Search} from 'lucide-react'
 import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
-import {CollaboratorsPage} from './collaborators-page'
+import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
@@ -1301,6 +1302,11 @@ function DocumentBody({
   const siteMembers = useSiteMembers(siteId)
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
+  const collaborators = useDocumentCollaborators(docId)
+  const peopleCount = useMemo(
+    () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
+    [collaborators.data, isHomeDoc],
+  )
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
@@ -1933,6 +1939,7 @@ function DocumentBody({
             existingDraft={isEditing ? undefined : existingDraft}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
+            collabsCount={peopleCount}
             rightAction={documentToolsRightAction}
             layoutProps={
               isMobile

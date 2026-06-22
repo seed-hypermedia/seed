@@ -2,6 +2,7 @@ import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {
   HMCapability,
+  HMListDocumentCollaboratorsOutput,
   HMMetadata,
   HMMetadataPayload,
   HMSiteMember,
@@ -36,6 +37,29 @@ type SearchResult = {
   label: string
   unresolved?: boolean
   metadata?: HMMetadata
+}
+
+/** Returns the number of people rows rendered by the document People tab. */
+export function getRenderedCollaboratorsCount(
+  collaborators: HMListDocumentCollaboratorsOutput | null | undefined,
+  isSiteRoot: boolean,
+) {
+  if (!collaborators) return 0
+
+  const {accounts} = collaborators
+  if (isSiteRoot) {
+    return (
+      1 +
+      collaborators.grantedMembers.filter((member) => accounts[member.account.uid]).length +
+      collaborators.members.filter((member) => accounts[member.account.uid]).length
+    )
+  }
+
+  return (
+    1 +
+    collaborators.parentCapabilities.filter((capability) => accounts[capability.accountUid]).length +
+    collaborators.grantedCapabilities.filter((capability) => accounts[capability.accountUid]).length
+  )
 }
 
 function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
