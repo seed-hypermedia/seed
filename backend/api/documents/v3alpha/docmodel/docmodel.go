@@ -636,9 +636,10 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			}
 
 			// If we got some moves but no block state
-			// we just skip them, we don't want to blow up here.
+			// we keep a dummy block to preserve the tree shape
+			// and make the corruption visible to clients.
 			if blkpb == nil {
-				continue
+				blkpb = &documents.Block{Id: pair.Child}
 			}
 
 			child := &documents.BlockNode{Block: blkpb}

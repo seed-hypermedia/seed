@@ -16,3 +16,5 @@
 - For coding periodic background work — avoid using `time.Ticker`. Prefer using `time.Timer`, set initial interval to 0
   if you need it to fire immediately, and then use `Reset` to reschedule it.
 - Use `t.Context()` when you need a `context.Context` inside test code.
+- Never try to work around the sandboxing issues when running tests or code. No custom `GOCACHE` and alike, unless
+  requested.

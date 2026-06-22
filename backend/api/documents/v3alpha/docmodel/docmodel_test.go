@@ -246,3 +246,41 @@ func TestBug_BlockReordering(t *testing.T) {
 		}
 	}
 }
+
+func TestBug_HydratePreservesStructuralParentWithoutBlockState(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+
+	doc := must.Do2(New("mydoc", cclock.New()))
+
+	must.Do(doc.MoveBlock("table", "", ""))
+
+	must.Do(doc.MoveBlock("row", "table", ""))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "row",
+		Type: "TableRow",
+	}))
+
+	must.Do(doc.MoveBlock("after", "", "table"))
+	must.Do(doc.ReplaceBlock(&documents.Block{
+		Id:   "after",
+		Type: "Paragraph",
+		Text: "after table",
+	}))
+
+	c1 := must.Do2(doc.SignChange(alice))
+
+	doc = must.Do2(New("mydoc", cclock.New()))
+	must.Do(doc.ApplyChange(c1.CID, c1.Decoded))
+
+	hdoc, err := doc.Hydrate(t.Context())
+	require.NoError(t, err)
+	require.Len(t, hdoc.Content, 2)
+
+	require.Equal(t, "table", hdoc.Content[0].Block.Id)
+	require.Empty(t, hdoc.Content[0].Block.Type)
+	require.Empty(t, hdoc.Content[0].Block.Text)
+	require.Len(t, hdoc.Content[0].Children, 1)
+	require.Equal(t, "row", hdoc.Content[0].Children[0].Block.Id)
+
+	require.Equal(t, "after", hdoc.Content[1].Block.Id)
+}

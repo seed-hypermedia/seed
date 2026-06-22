@@ -191,7 +191,7 @@ func (state *blockTreeState) walk(parent string, yield func(blockPair) bool) boo
 		}
 
 		if !yield(blockPair{Parent: parent, Child: slot.Value}) {
-			break
+			return false
 		}
 
 		if !state.walk(slot.Value, yield) {
