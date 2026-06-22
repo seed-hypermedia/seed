@@ -367,8 +367,8 @@ function BookmarkListItem({
     bookmarkKey === 'profile'
       ? {key: 'profile' as const, id, tab: profileTabFromViewTerm(viewTerm)}
       : viewTerm
-      ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
-      : {key: 'document' as const, id}
+        ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
+        : {key: 'document' as const, id}
   const linkProps = useRouteLink(navRoute)
   const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
   return (

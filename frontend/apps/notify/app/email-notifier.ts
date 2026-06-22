@@ -160,8 +160,8 @@ function logTriggeredNotification(
     'authorAccountId' in notif
       ? notif.authorAccountId
       : 'comment' in notif && notif.comment
-      ? notif.comment.author
-      : null
+        ? notif.comment.author
+        : null
 
   logNotifVerbose('notification triggered', {
     deliveryKind,

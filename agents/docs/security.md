@@ -17,7 +17,7 @@ Every HTTP action is a signed `SignedActionEnvelope`:
 
 ```ts
 {
-  type: ('AgentsAction', signer, sig, account, action)
+  type: 'AgentsAction', signer, sig, account, action
 }
 ```
 

@@ -117,28 +117,25 @@ async function derivePasswordCredential(
 
 function getPasswordCredentialRow(userId: string) {
   return db
-    .query<
-      {metadata: string; encrypted_dek: Uint8Array},
-      [string, string]
-    >(`SELECT metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
+    .query<{metadata: string; encrypted_dek: Uint8Array}, [string, string]>(
+      `SELECT metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
+    )
     .get(userId, 'password')
 }
 
 function getSecretCredentialRow(userId: string) {
   return db
-    .query<
-      {id: string; metadata: string; encrypted_dek: Uint8Array},
-      [string, string]
-    >(`SELECT id, metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
+    .query<{id: string; metadata: string; encrypted_dek: Uint8Array}, [string, string]>(
+      `SELECT id, metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
+    )
     .get(userId, 'secret')
 }
 
 function getEmailChallenge(email: string) {
   return db
-    .query<
-      {email: string; binding_hash: string; code_hash: string; new_email: string | null},
-      [string]
-    >(`SELECT email, binding_hash, code_hash, new_email FROM email_challenges WHERE email = ?`)
+    .query<{email: string; binding_hash: string; code_hash: string; new_email: string | null}, [string]>(
+      `SELECT email, binding_hash, code_hash, new_email FROM email_challenges WHERE email = ?`,
+    )
     .get(email.toLowerCase())
 }
 
@@ -576,10 +573,9 @@ describe('vault auth service', () => {
     expect(second.credentialId).not.toBe(first.credentialId)
 
     const rows = db
-      .query<
-        {id: string; encrypted_dek: Uint8Array},
-        [string, string]
-      >(`SELECT id, encrypted_dek FROM credentials WHERE user_id = ? AND type = ? ORDER BY create_time ASC, id ASC`)
+      .query<{id: string; encrypted_dek: Uint8Array}, [string, string]>(
+        `SELECT id, encrypted_dek FROM credentials WHERE user_id = ? AND type = ? ORDER BY create_time ASC, id ASC`,
+      )
       .all(userId, 'secret')
 
     expect(rows).toHaveLength(2)
@@ -776,10 +772,9 @@ describe('vault auth service', () => {
     ).rejects.toMatchObject({statusCode: 409} as Partial<APIError>)
 
     const rows = db
-      .query<
-        {id: string; metadata: string; encrypted_dek: Uint8Array},
-        [string, string]
-      >(`SELECT id, metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
+      .query<{id: string; metadata: string; encrypted_dek: Uint8Array}, [string, string]>(
+        `SELECT id, metadata, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
+      )
       .all(userId, 'password')
 
     expect(rows).toHaveLength(1)
@@ -853,10 +848,9 @@ describe('vault auth service', () => {
       )
 
       const rows = db
-        .query<
-          {id: string; encrypted_dek: Uint8Array},
-          [string, string]
-        >(`SELECT id, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`)
+        .query<{id: string; encrypted_dek: Uint8Array}, [string, string]>(
+          `SELECT id, encrypted_dek FROM credentials WHERE user_id = ? AND type = ?`,
+        )
         .all(userId, 'passkey')
 
       expect(inlineResult.success).toBe(true)
@@ -1076,10 +1070,9 @@ describe('vault auth service', () => {
     ).resolves.toEqual({success: true})
 
     const user = db
-      .query<
-        {encrypted_data: Uint8Array; version: number},
-        [string]
-      >(`SELECT encrypted_data, version FROM users WHERE id = ?`)
+      .query<{encrypted_data: Uint8Array; version: number}, [string]>(
+        `SELECT encrypted_data, version FROM users WHERE id = ?`,
+      )
       .get(userId)
 
     expect(user).not.toBeNull()

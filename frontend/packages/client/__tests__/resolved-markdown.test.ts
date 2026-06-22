@@ -33,8 +33,8 @@ function client(responses: Record<string, unknown>) {
         typeof input === 'string'
           ? `hm://${input}`
           : input?.path?.length
-          ? `hm://${input.uid}/${input.path.join('/')}`
-          : `hm://${input.uid}`
+            ? `hm://${input.uid}/${input.path.join('/')}`
+            : `hm://${input.uid}`
       const version = typeof input === 'string' ? '' : input?.version ? `?v=${input.version}` : ''
       const lookup = `${key}:${packed}${version}`
       if (!(lookup in responses)) throw new Error(`No response for ${lookup}`)

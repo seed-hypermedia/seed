@@ -219,10 +219,10 @@ export default function DesktopResourcePage() {
     hasLocationOnlyDraft && existingDraftRecord?.locationUid
       ? hmId(existingDraftRecord.locationUid, {path: existingDraftRecord.locationPath})
       : placeholderDraftId
-      ? hmId(docId.uid, {
-          path: isPrivateDraftPathSegment(docId.path?.at(-1)) ? [] : (docId.path ?? []).slice(0, -1),
-        })
-      : docId
+        ? hmId(docId.uid, {
+            path: isPrivateDraftPathSegment(docId.path?.at(-1)) ? [] : (docId.path ?? []).slice(0, -1),
+          })
+        : docId
 
   const capability = useSelectedAccountCapability(capabilityId)
   const canEdit = roleCanWrite(capability?.role)

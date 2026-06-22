@@ -8,8 +8,8 @@ export function resolveChatStreamError(error: unknown, streamError?: unknown): E
     NoOutputGeneratedError.isInstance(error) && streamError != null
       ? streamError
       : NoOutputGeneratedError.isInstance(error) && error.cause != null
-      ? error.cause
-      : error
+        ? error.cause
+        : error
 
   if (preferredError instanceof Error) {
     return preferredError

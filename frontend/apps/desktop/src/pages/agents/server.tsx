@@ -46,8 +46,8 @@ function AgentServerContent({routeServerUrl}: {routeServerUrl: string}) {
   const createAgentDisabledReason = !selectedAccountId
     ? 'Select an account before creating an agent.'
     : providers.isLoading
-    ? 'Checking model providers…'
-    : null
+      ? 'Checking model providers…'
+      : null
 
   return (
     <PanelContainer className="overflow-y-auto">

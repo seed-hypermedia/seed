@@ -326,8 +326,8 @@ const SearchInput = ({
               type === 'inline-embed'
                 ? packReferenceUrl({...item.id, latest: !item.id.blockRef})
                 : type === 'link' || type === 'button'
-                ? packReferenceUrl(item.id)
-                : item.id.id
+                  ? packReferenceUrl(item.id)
+                  : item.id.id
             setLink(packedUrl)
             setSearchDraft(null)
             updateLink(packedUrl, newText, true)

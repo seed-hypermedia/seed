@@ -43,9 +43,8 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 }
 
 export default function NotificationsRoute() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} = unwrap<NotificationsPagePayload>(
-    useLoaderData(),
-  )
+  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} =
+    unwrap<NotificationsPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }

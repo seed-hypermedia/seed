@@ -608,8 +608,8 @@ export function useOpenUrlWeb() {
     let newUrl = parsedRoute
       ? routeToHref(parsedRoute, {originHomeId})
       : unpacked
-      ? idToUrl(unpacked, {originHomeId})
-      : url
+        ? idToUrl(unpacked, {originHomeId})
+        : url
 
     if (!newUrl) {
       console.error('URL is empty', newUrl)
@@ -622,8 +622,8 @@ export function useOpenUrlWeb() {
         unpacked?.hostname && unpacked?.scheme
           ? `${unpacked.scheme}://${unpacked.hostname}`
           : routeId.hostname && routeId.scheme
-          ? `${routeId.scheme}://${routeId.hostname}`
-          : null
+            ? `${routeId.scheme}://${routeId.hostname}`
+            : null
       const account =
         explicitOrigin || !routeId.uid ? null : await queryClient.fetchQuery(queryAccount(client, routeId.uid))
       const candidateOrigin = explicitOrigin || account?.metadata?.siteUrl || null

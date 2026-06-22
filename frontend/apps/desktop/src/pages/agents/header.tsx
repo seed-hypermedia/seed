@@ -131,8 +131,8 @@ export function AgentSubpageHeader({
                 saveState === 'saving'
                   ? 'bg-muted-foreground/50'
                   : saveState === 'saved'
-                  ? 'bg-green-500'
-                  : 'bg-destructive'
+                    ? 'bg-green-500'
+                    : 'bg-destructive'
               }`}
             />
           ) : null}
@@ -252,10 +252,10 @@ export function AgentHeader({
               {agentNameSaveState === 'saving'
                 ? ' · Saving…'
                 : agentNameSaveState === 'saved'
-                ? ' · Saved'
-                : agentNameSaveState === 'error'
-                ? ' · Save failed'
-                : ''}
+                  ? ' · Saved'
+                  : agentNameSaveState === 'error'
+                    ? ' · Save failed'
+                    : ''}
             </SizableText>
           </div>
           {activeTab === 'sessions' && onCreateSession ? (

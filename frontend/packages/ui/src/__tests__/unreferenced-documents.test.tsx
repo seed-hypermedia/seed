@@ -17,8 +17,8 @@ vi.mock('@shm/shared', async () => {
         route?.key === 'draft'
           ? `/draft/${route.id}`
           : route?.key === 'document'
-          ? `/doc/${route.id.path?.join('/') ?? ''}`
-          : '/',
+            ? `/doc/${route.id.path?.join('/') ?? ''}`
+            : '/',
       onClick: undefined,
     }),
   }

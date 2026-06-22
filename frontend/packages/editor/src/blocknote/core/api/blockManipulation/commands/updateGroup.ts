@@ -195,8 +195,8 @@ export const updateGroupChildrenCommand = (
                     ? -3
                     : -1
                   : group.lastChild && childContainer.eq(group.lastChild) && !childContainer.eq(group.firstChild!)
-                  ? 1
-                  : 0
+                    ? 1
+                    : 0
 
               if (
                 childContainer.eq(maybeContainer) &&

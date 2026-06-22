@@ -200,9 +200,9 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
             : hasPastedLink
-            ? // @ts-ignore
-              pastedLinkMarks[0].attrs.href
-            : link?.href || null
+              ? // @ts-ignore
+                pastedLinkMarks[0].attrs.href
+              : link?.href || null
           if (pastedLink) {
             if (unpackedHmId) {
               options.editor

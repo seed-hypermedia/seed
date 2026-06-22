@@ -326,12 +326,12 @@ function AgentDetailPage({
                       {promptSaveState === 'saving'
                         ? ' Saving…'
                         : promptSaveState === 'saved'
-                        ? ' Saved.'
-                        : promptSaveState === 'error'
-                        ? hasPromptContent(systemPrompt)
-                          ? ' Save failed.'
-                          : ' System prompt is required.'
-                        : ''}
+                          ? ' Saved.'
+                          : promptSaveState === 'error'
+                            ? hasPromptContent(systemPrompt)
+                              ? ' Save failed.'
+                              : ' System prompt is required.'
+                            : ''}
                     </SizableText>
                   </div>
                   {promptEditorDisabled ? (
@@ -432,8 +432,8 @@ function AgentDetailPage({
                         {settingsSaveState === 'saving'
                           ? 'Saving settings…'
                           : settingsSaveState === 'saved'
-                          ? 'Settings saved'
-                          : 'Settings save failed'}
+                            ? 'Settings saved'
+                            : 'Settings save failed'}
                       </SizableText>
                     ) : null}
                     <Button
@@ -1072,10 +1072,10 @@ function AgentTriggersTab({
                     {detailsSaveState === 'saving'
                       ? 'Saving…'
                       : detailsSaveState === 'saved'
-                      ? 'Saved.'
-                      : detailsSaveState === 'error'
-                      ? 'Save failed.'
-                      : ''}
+                        ? 'Saved.'
+                        : detailsSaveState === 'error'
+                          ? 'Save failed.'
+                          : ''}
                   </SizableText>
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-3">
@@ -1804,8 +1804,8 @@ function SessionStatusDot({status}: {status: SessionInfo['status']}) {
     status === 'error'
       ? 'bg-destructive'
       : status === 'streaming'
-      ? 'bg-muted-foreground animate-pulse'
-      : 'bg-green-500'
+        ? 'bg-muted-foreground animate-pulse'
+        : 'bg-green-500'
   return <span className={`${className} size-2.5 flex-none rounded-full`} aria-label={status} title={status} />
 }
 

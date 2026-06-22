@@ -412,10 +412,9 @@ export class Service implements api.ServerInterface {
     }
 
     const passwordCredential = this.db
-      .query<
-        Pick<Credential, 'id' | 'metadata'>,
-        [string, string]
-      >(`SELECT id, metadata FROM credentials WHERE user_id = ? AND type = ?`)
+      .query<Pick<Credential, 'id' | 'metadata'>, [string, string]>(
+        `SELECT id, metadata FROM credentials WHERE user_id = ? AND type = ?`,
+      )
       .get(user.id, 'password')
 
     const passwordMetadata = passwordCredential?.metadata
@@ -488,10 +487,9 @@ export class Service implements api.ServerInterface {
 
     const now = Date.now()
     const existingChallenge = this.db
-      .query<
-        Pick<Challenge, 'create_time'>,
-        [string, number]
-      >(`SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .query<Pick<Challenge, 'create_time'>, [string, number]>(
+        `SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`,
+      )
       .get(normalizedEmail, now)
 
     if (existingChallenge) {
@@ -843,10 +841,9 @@ export class Service implements api.ServerInterface {
 
     const access = this.requireVaultAccess(ctx)
     const user = this.db
-      .query<
-        Pick<User, 'email' | 'encrypted_data' | 'version'>,
-        [string]
-      >(`SELECT email, encrypted_data, version FROM users WHERE id = ?`)
+      .query<Pick<User, 'email' | 'encrypted_data' | 'version'>, [string]>(
+        `SELECT email, encrypted_data, version FROM users WHERE id = ?`,
+      )
       .get(access.userId)
 
     if (!user) {
@@ -989,10 +986,9 @@ export class Service implements api.ServerInterface {
 
     const now = Date.now()
     const existingChallenge = this.db
-      .query<
-        Pick<Challenge, 'create_time'>,
-        [string, number]
-      >(`SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .query<Pick<Challenge, 'create_time'>, [string, number]>(
+        `SELECT create_time FROM email_challenges WHERE email = ? AND expire_time > ?`,
+      )
       .get(user.email, now)
 
     if (existingChallenge) {
@@ -1284,10 +1280,9 @@ export class Service implements api.ServerInterface {
     }
 
     const passkeys = this.db
-      .query<
-        Credential,
-        [string, string]
-      >(`SELECT * FROM credentials WHERE user_id = ? AND type = ? AND encrypted_dek IS NOT NULL`)
+      .query<Credential, [string, string]>(
+        `SELECT * FROM credentials WHERE user_id = ? AND type = ? AND encrypted_dek IS NOT NULL`,
+      )
       .all(user.id, 'passkey')
 
     if (passkeys.length === 0) {

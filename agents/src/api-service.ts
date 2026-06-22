@@ -274,7 +274,9 @@ export class Service {
       .query<
         {id: string; name: string; type: string; config_cbor: Uint8Array; created_at: number; updated_at: number},
         [string]
-      >(`SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`)
+      >(
+        `SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`,
+      )
       .all(accountId)
     return {
       _: 'ListModelProvidersResponse',
@@ -295,10 +297,9 @@ export class Service {
   async #listProviderModels(accountId: string, rawProviderName: string): Promise<api.ListProviderModelsResponse> {
     const providerName = normalizeBoundedString(rawProviderName, 'Model provider', MAX_NAME_BYTES)
     const row = this.#db
-      .query<
-        {config_cbor: Uint8Array},
-        [string, string]
-      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, providerName)
     if (!row) throw new APIError(404, 'Model provider not found')
 
@@ -320,7 +321,9 @@ export class Service {
       .query<
         {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
         [string]
-      >(`SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY updated_at DESC`)
+      >(
+        `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY updated_at DESC`,
+      )
       .all(accountId)
 
     return {
@@ -444,10 +447,9 @@ export class Service {
   #deleteSigningIdentity(accountId: string, rawName: string): api.DeleteSigningIdentityResponse {
     const name = normalizeBoundedString(rawName, 'Signing key', MAX_NAME_BYTES)
     const row = this.#db
-      .query<
-        {metadata_cbor: Uint8Array | null},
-        [string, string]
-      >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, name)
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -465,10 +467,9 @@ export class Service {
     const provider = normalizeProvider(rawProvider)
     const now = Date.now()
     const existing = this.#db
-      .query<
-        {id: string; created_at: number},
-        [string, string]
-      >(`SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{id: string; created_at: number}, [string, string]>(
+        `SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
@@ -500,10 +501,9 @@ export class Service {
   #deleteModelProvider(accountId: string, rawName: string): api.DeleteModelProviderResponse {
     const name = normalizeBoundedString(rawName, 'Provider name', MAX_NAME_BYTES)
     const row = this.#db
-      .query<
-        {config_cbor: Uint8Array},
-        [string, string]
-      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, name)
     if (!row) throw new APIError(404, 'Model provider not found')
 
@@ -529,10 +529,9 @@ export class Service {
     const ciphertext = await encryptSecret(this.#db, value)
     const now = Date.now()
     const existing = this.#db
-      .query<
-        {id: string; created_at: number},
-        [string, string]
-      >(`SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`)
+      .query<{id: string; created_at: number}, [string, string]>(
+        `SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
@@ -558,10 +557,9 @@ export class Service {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     for (const signingKey of signingKeys) {
       const row = this.#db
-        .query<
-          {metadata_cbor: Uint8Array | null},
-          [string, string]
-        >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
+        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+        )
         .get(accountId, signingKey)
       if (!row?.metadata_cbor) throw new APIError(400, 'Signing key not found')
       const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -733,7 +731,7 @@ export class Service {
         ? undefined
         : patch.cooldownMs === null
           ? undefined
-          : (patch.cooldownMs ?? existing.cooldownMs)
+          : patch.cooldownMs ?? existing.cooldownMs
     const next: api.AgentTriggerInfo = {...existing, ...patch, cooldownMs, updatedAt: Date.now()}
     this.#db.run(
       `UPDATE agent_triggers
@@ -836,10 +834,9 @@ export class Service {
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
     const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const existing = this.#db
-      .query<
-        {title_source: string},
-        [string, string]
-      >(`SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`)
+      .query<{title_source: string}, [string, string]>(
+        `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
+      )
       .get(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
 
@@ -879,10 +876,9 @@ export class Service {
     const requestCBOR = normalizedId === undefined ? undefined : cbor.encode({sessionId, content})
     if (normalizedId !== undefined && requestCBOR !== undefined) {
       const existing = this.#db
-        .query<
-          {request_cbor: Uint8Array; response_cbor: Uint8Array},
-          [string, string, string]
-        >(`SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`)
+        .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+        )
         .get(accountId, 'MessageSession', normalizedId)
       if (existing) {
         if (!bytesEqual(existing.request_cbor, requestCBOR))
@@ -1030,10 +1026,9 @@ export class Service {
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
-        .query<
-          {metadata_cbor: Uint8Array | null},
-          [string, string]
-        >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
+        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+        )
         .get(accountId, name)
       if (!row?.metadata_cbor) return []
       const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -1061,10 +1056,9 @@ export class Service {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     const providerRow = this.#db
-      .query<
-        {config_cbor: Uint8Array},
-        [string, string]
-      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, definition.modelProvider)
     if (!providerRow) throw new APIError(400, 'Model provider not found')
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
@@ -1275,10 +1269,9 @@ export class Service {
 
   #piMessages(sessionId: string): unknown[] {
     const events = this.#db
-      .query<
-        SessionEventRow,
-        [string, number]
-      >(`SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`)
+      .query<SessionEventRow, [string, number]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
+      )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
 
@@ -1353,10 +1346,9 @@ export class Service {
 
   async #getSecretPlaintext(accountId: string, name: string): Promise<Uint8Array> {
     const row = this.#db
-      .query<
-        {ciphertext: Uint8Array},
-        [string, string]
-      >(`SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`)
+      .query<{ciphertext: Uint8Array}, [string, string]>(
+        `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, name)
     if (!row) throw new APIError(400, 'Required secret is not configured')
     return decryptSecret(this.#db, row.ciphertext)
@@ -1371,10 +1363,9 @@ export class Service {
   ): api.SessionEvent {
     const seq =
       this.#db
-        .query<
-          {seq: number},
-          [string]
-        >(`SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`)
+        .query<{seq: number}, [string]>(
+          `SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`,
+        )
         .get(sessionId)?.seq ?? 1
     const id = crypto.randomUUID()
     this.#db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
@@ -1459,10 +1450,9 @@ export class Service {
     try {
       if (normalizedId !== undefined && requestCBOR !== undefined) {
         const existing = this.#db
-          .query<
-            {request_cbor: Uint8Array; response_cbor: Uint8Array},
-            [string, string, string]
-          >(`SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`)
+          .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+            `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+          )
           .get(accountId, action, normalizedId)
         if (existing) {
           if (!bytesEqual(existing.request_cbor, requestCBOR))
@@ -2778,10 +2768,9 @@ async function resolveWriteSigner(
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
   const row = context.db
-    .query<
-      {ciphertext: Uint8Array},
-      [string, string]
-    >(`SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`)
+    .query<{ciphertext: Uint8Array}, [string, string]>(
+      `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+    )
     .get(context.accountId, selected.secretName)
   if (!row) throw new APIError(400, 'Signing identity secret not found')
   const keyPair = blobs.nobleKeyPairFromSeed(await decryptSecret(context.db, row.ciphertext))
@@ -2804,10 +2793,9 @@ async function listWriteSigningIdentities(
   const identities = []
   for (const secretName of deduped) {
     const row = db
-      .query<
-        {metadata_cbor: Uint8Array | null},
-        [string, string]
-      >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, secretName)
     if (!row?.metadata_cbor) continue
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -2834,10 +2822,9 @@ async function writeProfileUpdate(
   const published = await client.publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
   const now = Date.now()
   const row = context.db
-    .query<
-      {metadata_cbor: Uint8Array | null},
-      [string, string]
-    >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
+    .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    )
     .get(context.accountId, signer.secretName)
   if (row?.metadata_cbor) {
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)

@@ -44,10 +44,10 @@ function AgentsListPage() {
   const createAgentDisabledReason = !selectedAccountId
     ? 'Select an account before creating an agent.'
     : !serverUrls.length
-    ? 'Configure an agent server before creating an agent.'
-    : providersLoading
-    ? 'Checking model providers…'
-    : null
+      ? 'Configure an agent server before creating an agent.'
+      : providersLoading
+        ? 'Checking model providers…'
+        : null
 
   return (
     <PanelContainer className="overflow-y-auto">
@@ -92,8 +92,8 @@ function AgentsListPage() {
                           health?.isLoading
                             ? 'bg-muted-foreground/40'
                             : health?.isError
-                            ? 'bg-destructive'
-                            : 'bg-green-500'
+                              ? 'bg-destructive'
+                              : 'bg-green-500'
                         } `}
                       />
                     </Tooltip>

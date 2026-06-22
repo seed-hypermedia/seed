@@ -229,8 +229,8 @@ function InspectorOpenButton({
         nested
           ? 'h-9 rounded-l-none rounded-r-full px-3 hover:bg-black/5 dark:hover:bg-white/10'
           : accent
-          ? 'rounded-full'
-          : undefined
+            ? 'rounded-full'
+            : undefined
       }
     >
       <a {...linkProps}>{label}</a>

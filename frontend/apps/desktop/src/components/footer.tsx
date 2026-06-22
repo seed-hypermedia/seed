@@ -172,8 +172,8 @@ function SubscriptionItem({subscriptionKey}: {subscriptionKey: string}) {
             discoveryState?.isTombstone
               ? 'bg-destructive'
               : discoveryState?.isNotFound
-              ? 'bg-muted-foreground'
-              : 'bg-green-500',
+                ? 'bg-muted-foreground'
+                : 'bg-green-500',
           )}
         />
       )}

@@ -841,8 +841,8 @@ async function listGeminiModels(apiKey: string): Promise<string[]> {
             typeof model.baseModelId === 'string' && model.baseModelId
               ? model.baseModelId
               : typeof model.name === 'string'
-              ? model.name.replace(/^models\//, '')
-              : null
+                ? model.name.replace(/^models\//, '')
+                : null
 
           const supportedGenerationMethods = Array.isArray(model.supportedGenerationMethods)
             ? model.supportedGenerationMethods.filter((method): method is string => typeof method === 'string')

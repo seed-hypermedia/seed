@@ -246,8 +246,8 @@ export const MediaContainer = ({
               onPress(e)
             }
           : canAuthor
-          ? selectBlock
-          : undefined
+            ? selectBlock
+            : undefined
       }
     >
       {drag && !isEmbed && (
@@ -267,8 +267,8 @@ export const MediaContainer = ({
           drag
             ? 'border-foreground/20 dark:border-foreground/30 border-2 border-dashed'
             : mediaType === 'image' || mediaType === 'video'
-            ? ''
-            : 'border-border border-2',
+              ? ''
+              : 'border-border border-2',
           editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
           className ?? block.type,
         )}

@@ -362,7 +362,9 @@ function AccountPicker({
             return (
               <button
                 key={principal}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${isSelected ? 'bg-accent' : 'hover:bg-accent'}`}
+                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${
+                  isSelected ? 'bg-accent' : 'hover:bg-accent'
+                }`}
                 onClick={() => {
                   onSelect(index)
                   setOpen(false)

@@ -101,10 +101,10 @@ function StatePill({onClick, isOpen}: {onClick: () => void; isOpen: boolean}) {
           backgroundColor: label.startsWith('error')
             ? '#ef4444'
             : label.startsWith('editing')
-            ? '#22c55e'
-            : label.startsWith('publishing')
-            ? '#eab308'
-            : '#3b82f6',
+              ? '#22c55e'
+              : label.startsWith('publishing')
+                ? '#eab308'
+                : '#3b82f6',
         }}
       />
       {label}
@@ -274,10 +274,10 @@ function StateBadge({label}: {label: string}) {
         backgroundColor: label.startsWith('error')
           ? '#fecaca'
           : label.startsWith('editing')
-          ? '#bbf7d0'
-          : label.startsWith('publishing')
-          ? '#fef08a'
-          : '#bfdbfe',
+            ? '#bbf7d0'
+            : label.startsWith('publishing')
+              ? '#fef08a'
+              : '#bfdbfe',
         color: '#1e293b',
       }}
     >

@@ -41,8 +41,8 @@ export function useSubscription(id: UnpackedHypermediaId) {
         ? 'space'
         : 'document'
       : parentSubscription
-      ? 'parent'
-      : 'none',
+        ? 'parent'
+        : 'none',
     setSubscription: (type: 'none' | 'document' | 'space') => {
       setSubscription.mutate({
         id,

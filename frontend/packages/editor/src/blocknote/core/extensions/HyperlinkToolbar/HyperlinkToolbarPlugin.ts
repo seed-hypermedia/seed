@@ -125,8 +125,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
             this.hyperlinkToolbarState.type === 'card'
               ? 'Card'
               : this.hyperlinkToolbarState.type === 'embed-link'
-              ? 'Link'
-              : 'Content',
+                ? 'Link'
+                : 'Content',
         })
       } else {
         const newText = text.length ? text : ' '
@@ -306,8 +306,8 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
               this.selectedNode.attrs.view === 'Card'
                 ? 'card'
                 : this.selectedNode.attrs.view === 'Link'
-                ? 'embed-link'
-                : 'embed',
+                  ? 'embed-link'
+                  : 'embed',
             id: container ? container.attrs.id : '',
           }
         }

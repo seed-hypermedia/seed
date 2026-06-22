@@ -182,8 +182,8 @@ export const SearchInput = forwardRef<
           item.type === 'contact'
             ? ({key: 'profile', id: item.id} as NavRoute)
             : item.type === 'comment' && item.commentId
-            ? ({key: 'comments', id: item.id, openComment: item.commentId} as NavRoute)
-            : appRouteOfId(item.id)
+              ? ({key: 'comments', id: item.id, openComment: item.commentId} as NavRoute)
+              : appRouteOfId(item.id)
         const subtitle = item.type === 'contact' ? 'Contact' : item.type === 'comment' ? 'Comment' : 'Document'
         return {
           key: item.commentId ? `${packHmId(item.id)}:comments/${item.commentId}` : packHmId(item.id),

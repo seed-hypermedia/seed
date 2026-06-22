@@ -1241,8 +1241,8 @@ function DocumentBody({
           rootReplyCommentVersion: route.rootReplyCommentVersion,
         }
       : openComment
-      ? {openComment}
-      : undefined
+        ? {openComment}
+        : undefined
   const suppressMainCommentEditor = shouldSuppressMainCommentEditor({
     docId,
     activeView,
@@ -1268,8 +1268,8 @@ function DocumentBody({
       'start' in fragment && 'end' in fragment
         ? {start: fragment.start, end: fragment.end}
         : 'expanded' in fragment && fragment.expanded
-        ? {expanded: true}
-        : null
+          ? {expanded: true}
+          : null
     // For comments routes, sync fragment into blockId/blockRange (comment block selection)
     if (route.key === 'comments') {
       if (route.blockId) return // already have block selection
@@ -1419,10 +1419,10 @@ function DocumentBody({
         isCurrent && currentDraftName
           ? {...(document.metadata || {}), name: currentDraftName}
           : isCurrent
-          ? document.metadata || {}
-          : data?.type === 'document'
-          ? data.document?.metadata || {}
-          : {}
+            ? document.metadata || {}
+            : data?.type === 'document'
+              ? data.document?.metadata || {}
+              : {}
       return {
         id,
         metadata,
@@ -1598,8 +1598,8 @@ function DocumentBody({
         opts && 'start' in opts && 'end' in opts
           ? {start: opts.start, end: opts.end}
           : opts && 'expanded' in opts && opts.expanded
-          ? {expanded: true}
-          : null
+            ? {expanded: true}
+            : null
       const blockRoute = {
         ...route,
         id: {
@@ -1923,11 +1923,11 @@ function DocumentBody({
               activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                 ? 'citations'
                 : activeView === 'activity' ||
-                  activeView === 'directory' ||
-                  activeView === 'site-profile' ||
-                  activeView === 'all-documents'
-                ? undefined
-                : activeView
+                    activeView === 'directory' ||
+                    activeView === 'site-profile' ||
+                    activeView === 'all-documents'
+                  ? undefined
+                  : activeView
             }
             currentPanel={panelRoute}
             existingDraft={isEditing ? undefined : existingDraft}

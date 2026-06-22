@@ -27,8 +27,8 @@ export type TipTapNodeConfig<
   [K in keyof NodeConfig<Options, Storage>]: K extends 'name'
     ? Name
     : K extends 'group'
-    ? never
-    : NodeConfig<Options, Storage>[K]
+      ? never
+      : NodeConfig<Options, Storage>[K]
 }
 
 // A TipTap node with stricter type constraints on the "name" and "group"

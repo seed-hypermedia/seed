@@ -321,8 +321,8 @@ function AgentServerSettingsRow({
           {health.isLoading
             ? 'Checking…'
             : health.isError
-            ? 'Offline or unreachable'
-            : `Online · uptime ${Math.floor((health.data?.uptime || 0) / 60)}m`}
+              ? 'Offline or unreachable'
+              : `Online · uptime ${Math.floor((health.data?.uptime || 0) / 60)}m`}
         </SizableText>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -2381,8 +2381,8 @@ function ProviderForm({
         form.type === 'openai' && form.authMode === 'login'
           ? 'Finish Setup'
           : draftProviderId
-          ? 'Finish Setup'
-          : 'Add Provider'
+            ? 'Finish Setup'
+            : 'Add Provider'
       }
       saveDisabled={form.type === 'openai' && form.authMode === 'login' && !form.openaiAuth}
       isSaving={addProvider.isLoading || updateProvider.isLoading || deleteProvider.isLoading}
@@ -2576,52 +2576,52 @@ function ProviderFormFields({
         ? isOpenAILoginPending
         : openaiModelsApiKey.isFetching
       : form.type === 'anthropic'
-      ? anthropicModels.isFetching
-      : form.type === 'gemini'
-      ? geminiModels.isFetching
-      : ollamaModels.isFetching)
+        ? anthropicModels.isFetching
+        : form.type === 'gemini'
+          ? geminiModels.isFetching
+          : ollamaModels.isFetching)
   const isAddProviderConnectionConfirmed = !isAddProviderFlow
     ? true
     : form.type === 'openai'
-    ? isOpenAIAuthModeChoicePending
-      ? false
-      : form.authMode === 'login'
-      ? !!form.openaiAuth
-      : hasOpenAIApiKey && !!openaiModelsApiKey.data?.length
-    : form.type === 'anthropic'
-    ? hasAnthropicApiKey && !!anthropicModels.data?.length
-    : form.type === 'gemini'
-    ? hasGeminiApiKey && !!geminiModels.data?.length
-    : hasOllamaBaseUrl && !!ollamaModels.data?.length
+      ? isOpenAIAuthModeChoicePending
+        ? false
+        : form.authMode === 'login'
+          ? !!form.openaiAuth
+          : hasOpenAIApiKey && !!openaiModelsApiKey.data?.length
+      : form.type === 'anthropic'
+        ? hasAnthropicApiKey && !!anthropicModels.data?.length
+        : form.type === 'gemini'
+          ? hasGeminiApiKey && !!geminiModels.data?.length
+          : hasOllamaBaseUrl && !!ollamaModels.data?.length
   const shouldShowModelSection = !isAddProviderFlow || isAddProviderConnectionConfirmed
   const addProviderConnectionHint = isAddProviderFlow
     ? form.type === 'openai'
       ? isOpenAIAuthModeChoicePending
         ? null
         : form.authMode === 'login'
-        ? 'Complete ChatGPT Pro sign-in first. Seed will show model options after the connection is confirmed.'
-        : !hasOpenAIApiKey
-        ? 'Enter an OpenAI API key to confirm the connection before choosing a model.'
-        : openaiModelsApiKey.isFetching
-        ? 'Confirming the OpenAI connection…'
-        : 'Seed could not confirm the OpenAI connection yet. Check the API key and try again.'
+          ? 'Complete ChatGPT Pro sign-in first. Seed will show model options after the connection is confirmed.'
+          : !hasOpenAIApiKey
+            ? 'Enter an OpenAI API key to confirm the connection before choosing a model.'
+            : openaiModelsApiKey.isFetching
+              ? 'Confirming the OpenAI connection…'
+              : 'Seed could not confirm the OpenAI connection yet. Check the API key and try again.'
       : form.type === 'anthropic'
-      ? !hasAnthropicApiKey
-        ? 'Enter an Anthropic API key to confirm the connection before choosing a model.'
-        : anthropicModels.isFetching
-        ? 'Confirming the Anthropic connection…'
-        : 'Seed could not confirm the Anthropic connection yet. Check the API key and try again.'
-      : form.type === 'gemini'
-      ? !hasGeminiApiKey
-        ? 'Enter a Gemini API key to confirm the connection before choosing a model.'
-        : geminiModels.isFetching
-        ? 'Confirming the Gemini connection…'
-        : 'Seed could not confirm the Gemini connection yet. Check the API key and try again.'
-      : !hasOllamaBaseUrl
-      ? 'Enter an Ollama base URL to confirm the connection before choosing a model.'
-      : ollamaModels.isFetching
-      ? 'Confirming the Ollama connection…'
-      : 'Seed could not confirm the Ollama connection yet. Check the server URL and try again.'
+        ? !hasAnthropicApiKey
+          ? 'Enter an Anthropic API key to confirm the connection before choosing a model.'
+          : anthropicModels.isFetching
+            ? 'Confirming the Anthropic connection…'
+            : 'Seed could not confirm the Anthropic connection yet. Check the API key and try again.'
+        : form.type === 'gemini'
+          ? !hasGeminiApiKey
+            ? 'Enter a Gemini API key to confirm the connection before choosing a model.'
+            : geminiModels.isFetching
+              ? 'Confirming the Gemini connection…'
+              : 'Seed could not confirm the Gemini connection yet. Check the API key and try again.'
+          : !hasOllamaBaseUrl
+            ? 'Enter an Ollama base URL to confirm the connection before choosing a model.'
+            : ollamaModels.isFetching
+              ? 'Confirming the Ollama connection…'
+              : 'Seed could not confirm the Ollama connection yet. Check the server URL and try again.'
     : null
   const modelSectionDescription =
     form.type === 'openai'
@@ -2629,10 +2629,10 @@ function ProviderFormFields({
         ? 'Models are loaded live from OpenAI after sign-in and refreshed whenever you reopen the picker.'
         : 'Choose the OpenAI model this provider should use.'
       : form.type === 'anthropic'
-      ? 'Choose the Claude model this provider should use.'
-      : form.type === 'gemini'
-      ? 'Choose the Gemini model this provider should use.'
-      : 'Choose the local Ollama model. If Seed cannot fetch the list, type the model name manually.'
+        ? 'Choose the Claude model this provider should use.'
+        : form.type === 'gemini'
+          ? 'Choose the Gemini model this provider should use.'
+          : 'Choose the local Ollama model. If Seed cannot fetch the list, type the model name manually.'
 
   function startOpenaiLoginFlow() {
     setOpenaiLoginError(null)
@@ -2793,17 +2793,17 @@ function ProviderFormFields({
       ? openaiModels.data?.length
         ? openaiModels.data
         : form.authMode === 'login'
-        ? [...OPENAI_LOGIN_MODELS]
-        : OPENAI_API_KEY_FALLBACK_MODELS
+          ? [...OPENAI_LOGIN_MODELS]
+          : OPENAI_API_KEY_FALLBACK_MODELS
       : form.type === 'anthropic'
-      ? anthropicModels.data?.length
-        ? anthropicModels.data
-        : ANTHROPIC_MODELS_FALLBACK
-      : form.type === 'gemini'
-      ? geminiModels.data?.length
-        ? geminiModels.data
-        : GEMINI_MODELS_FALLBACK
-      : ollamaModels.data || []
+        ? anthropicModels.data?.length
+          ? anthropicModels.data
+          : ANTHROPIC_MODELS_FALLBACK
+        : form.type === 'gemini'
+          ? geminiModels.data?.length
+            ? geminiModels.data
+            : GEMINI_MODELS_FALLBACK
+          : ollamaModels.data || []
 
   return (
     <div className="flex flex-col gap-4">
@@ -2839,10 +2839,10 @@ function ProviderFormFields({
               ? 'Choose whether Seed should use ChatGPT Pro sign-in or a standard OpenAI API key.'
               : null
             : form.type === 'anthropic'
-            ? 'Anthropic providers use an API key stored on this device.'
-            : form.type === 'gemini'
-            ? 'Gemini providers use a Google AI API key stored on this device.'
-            : 'Point Seed at the Ollama server that hosts your local models.'
+              ? 'Anthropic providers use an API key stored on this device.'
+              : form.type === 'gemini'
+                ? 'Gemini providers use a Google AI API key stored on this device.'
+                : 'Point Seed at the Ollama server that hosts your local models.'
         }
         action={
           form.type === 'openai' && requireExplicitOpenAIAuthModeSelection && isOpenAIAuthModeCommitted ? (

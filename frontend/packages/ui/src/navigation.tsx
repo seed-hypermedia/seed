@@ -352,8 +352,8 @@ function CollapsedOutlineNode({node, level = 1}: {node: NodeOutline; level?: num
     !node.children?.length || node.children.length < 2
       ? undefined
       : node.children.length < 8
-      ? node.children
-      : node.children.slice(0, 8)
+        ? node.children
+        : node.children.slice(0, 8)
   return (
     <>
       <div key={node.id} className="bg-muted-foreground/40 h-0.5 w-full rounded-full" />

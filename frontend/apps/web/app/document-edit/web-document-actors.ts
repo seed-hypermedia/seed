@@ -113,8 +113,8 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
         (isReservedPrivateDraft
           ? 'PRIVATE'
           : currentPath.some((segment) => segment.startsWith('-'))
-          ? 'PUBLIC'
-          : undefined),
+            ? 'PUBLIC'
+            : undefined),
       cursorPosition,
     }
     await putWebDocDraft(record)
@@ -193,10 +193,10 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const publishPath = isPrivate
     ? currentPath
     : input.pathOverride
-    ? input.pathOverride
-    : !editDocument && isPlaceholderPath
-    ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
-    : currentPath
+      ? input.pathOverride
+      : !editDocument && isPlaceholderPath
+        ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
+        : currentPath
   const path = hmIdPathToEntityQueryPath(publishPath)
 
   if (!deps.client.publishDocument) {

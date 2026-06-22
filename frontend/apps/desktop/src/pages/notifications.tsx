@@ -255,8 +255,8 @@ function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
                   {verificationSendTime && !verificationExpired
                     ? 'Email verification is pending. Click the link in your inbox to activate notification emails.'
                     : verificationExpired
-                    ? 'Your verification link expired. Request a new verification email.'
-                    : 'Notification emails are paused until you verify this email address.'}
+                      ? 'Your verification link expired. Request a new verification email.'
+                      : 'Notification emails are paused until you verify this email address.'}
                 </p>
                 {canResendVerification ? (
                   <div className="mt-2">

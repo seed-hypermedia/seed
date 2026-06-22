@@ -346,8 +346,8 @@ function OverflowMenuItem({
     item.draftId
       ? {key: 'draft', id: item.draftId}
       : item.id
-      ? {key: 'document', id: {...item.id, latest: true, version: null}}
-      : item.webUrl || '',
+        ? {key: 'document', id: {...item.id, latest: true, version: null}}
+        : item.webUrl || '',
   )
   return (
     <DropdownMenuItem {...linkProps}>
@@ -383,11 +383,11 @@ function HeaderLinkItem({
           // panel: {key: 'options'},
         }
       : id
-      ? {
-          key: 'document',
-          id: {...id, latest: true, version: null},
-        }
-      : webUrl || null,
+        ? {
+            key: 'document',
+            id: {...id, latest: true, version: null},
+          }
+        : webUrl || null,
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} {...highlighter(id)}>

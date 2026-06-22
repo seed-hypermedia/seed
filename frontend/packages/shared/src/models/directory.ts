@@ -19,8 +19,8 @@ function createDirectoryResolver(client: GRPCClient) {
       sortTerm === 'ActivityTime'
         ? {attribute: SortAttribute.ACTIVITY_TIME, descending: !reverse}
         : sortTerm === 'Title'
-        ? {attribute: SortAttribute.NAME, descending: reverse}
-        : undefined
+          ? {attribute: SortAttribute.NAME, descending: reverse}
+          : undefined
 
     const listResult = await client.documents.listDirectory({
       account: id.uid,

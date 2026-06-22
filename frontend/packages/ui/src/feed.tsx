@@ -616,10 +616,10 @@ function EventHeaderContent({
       event.contact.subscribe?.site && event.contact.subscribe?.profile
         ? 'followed and joined'
         : event.contact.subscribe?.profile
-        ? 'followed'
-        : event.contact.subscribe?.site
-        ? 'joined'
-        : 'added'
+          ? 'followed'
+          : event.contact.subscribe?.site
+            ? 'joined'
+            : 'added'
     const contactName = event.contact.name?.trim() || null
 
     return (
@@ -913,8 +913,8 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
     resource.data.type === 'document'
       ? resource.data.document?.content
       : resource.data.type === 'comment'
-      ? resource.data.comment?.content
-      : undefined
+        ? resource.data.comment?.content
+        : undefined
 
   if (!content || !sourceId.blockRef) {
     return null

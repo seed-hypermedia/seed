@@ -400,14 +400,14 @@ function NewCommentSummary({item}: {item: ChatToolPart}) {
   const commentUrl = isCommentUrlForRecordId(rawCommentUrl)
     ? rawCommentUrl
     : targetUrl && commentRecordId
-    ? buildCommentUrl(targetUrl, commentRecordId)
-    : undefined
+      ? buildCommentUrl(targetUrl, commentRecordId)
+      : undefined
   const authorPublicKey = getToolString(output, 'authorUrl') || getToolString(output, 'signer.publicKey')
   const authorUrl = authorPublicKey?.startsWith('hm://')
     ? authorPublicKey
     : authorPublicKey
-    ? `hm://${authorPublicKey}`
-    : undefined
+      ? `hm://${authorPublicKey}`
+      : undefined
   const authorName =
     getToolString(output, 'authorName') || getToolString(output, 'signer.profileName') || authorPublicKey || 'Author'
   const targetName = getToolString(output, 'targetName') || targetUrl || 'document'

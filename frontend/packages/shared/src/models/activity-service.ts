@@ -568,8 +568,8 @@ export async function loadCitationEvent(
       sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref'
         ? 'd'
         : sourceTypeLower.startsWith('comment/') || sourceTypeLower === 'comment'
-        ? 'c'
-        : null
+          ? 'c'
+          : null
 
     if (!citationType) {
       console.error('Event: Could not determine citationType from sourceType:', sourceTypeLower)
