@@ -43,8 +43,48 @@ type MutableBlock = {
   attributes: Record<string, unknown>
 }
 
+/**
+ * Reconstruct the original HMBlock for an unknown/unsupported editor block.
+ *
+ * Unknown blocks carry their untouched server representation (JSON-stringified)
+ * in `props.originalData`. We round-trip that verbatim so corrupt blocks — or
+ * blocks of a type this client version simply doesn't understand yet — survive
+ * an edit/publish cycle without being mutated or dropped. The block `id` is
+ * taken from the editor block so it stays in sync if it was regenerated during
+ * de-duplication.
+ */
+function unknownEditorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
+  const props = (editorBlock.props ?? {}) as {originalData?: string; originalType?: string}
+
+  if (props.originalData) {
+    try {
+      const parsed = JSON.parse(props.originalData)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return {...parsed, id: editorBlock.id} as unknown as HMBlock
+      }
+    } catch {
+      // Unparseable original data — fall through to a minimal reconstruction.
+    }
+  }
+
+  // No recoverable original data: emit a minimal block that still preserves the
+  // original type string so nothing downstream crashes.
+  return {
+    id: editorBlock.id,
+    type: props.originalType || 'unknown',
+    text: '',
+    annotations: [],
+    attributes: {},
+  } as unknown as HMBlock
+}
+
 /** Convert a single BlockNote EditorBlock into an HMBlock. */
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
+  // Unknown blocks are preserved as-is from their original server data.
+  if (editorBlock.type === 'unknown') {
+    return unknownEditorBlockToHMBlock(editorBlock)
+  }
+
   const blockType = toHMBlockType(editorBlock.type)
   if (!blockType) throw new Error('Unsupported block type ' + editorBlock.type)
 

@@ -182,4 +182,35 @@ describe('compareBlocksWithMap (publish-diff path)', () => {
 
     expect(selfMoves).toEqual([])
   })
+
+  // Regression for issue #807: an unknown/corrupt block type used to throw
+  // "Unsupported block type unknown" here, crashing the publish/change-count UI.
+  it('does not crash and emits no replaceBlock for an unchanged unknown block', () => {
+    const unknownServerBlock = {
+      id: 'empty',
+      type: '',
+      revision: '',
+      text: '',
+      link: '',
+      annotations: [],
+    }
+    const base: HMBlockNode[] = [{block: unknownServerBlock as HMBlockNode['block'], children: []}]
+    const unknownEditorBlock = {
+      id: 'empty',
+      type: 'unknown',
+      props: {originalType: '', originalData: JSON.stringify(unknownServerBlock)},
+      content: [],
+      children: [],
+    } as unknown as EditorBlock
+
+    const blocksMap = createBlocksMap(base, '')
+
+    let changes: ReturnType<typeof compareBlocksWithMap>['changes'] = []
+    expect(() => {
+      changes = compareBlocksWithMap(blocksMap, [unknownEditorBlock], '').changes
+    }).not.toThrow()
+
+    const replaces = changes.filter((change) => change.op?.case === 'replaceBlock')
+    expect(replaces).toEqual([])
+  })
 })

@@ -1298,4 +1298,100 @@ describe('EditorBlock to HMBlock', () => {
       expect(textColor).toEqual({type: 'TextColor', attributes: {value: 'red'}, link: '', starts: [0], ends: [4]})
     })
   })
+
+  describe('unknown blocks', () => {
+    test('round-trips an unknown block from originalData without mutating it', () => {
+      // The exact corrupt block from issue #807 (an empty-string block type).
+      const original = {
+        type: '',
+        id: 'empty',
+        revision: '',
+        annotations: [],
+        text: '',
+        link: '',
+      }
+      const editorBlock = {
+        id: 'empty',
+        type: 'unknown',
+        children: [],
+        content: [],
+        props: {
+          originalType: '',
+          originalData: JSON.stringify(original),
+        },
+      } as unknown as EditorBlock
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(original)
+    })
+
+    test('preserves an unknown future block type and its attributes verbatim', () => {
+      const original = {
+        type: 'Spreadsheet',
+        id: 'abc123',
+        text: '',
+        annotations: [],
+        attributes: {rows: 4, columns: 3, data: {a: 1}},
+        link: 'hm://example',
+      }
+      const editorBlock = {
+        id: 'abc123',
+        type: 'unknown',
+        children: [],
+        content: [],
+        props: {
+          originalType: 'Spreadsheet',
+          originalData: JSON.stringify(original),
+        },
+      } as unknown as EditorBlock
+
+      expect(editorBlockToHMBlock(editorBlock)).toEqual(original)
+    })
+
+    test('syncs the block id with the editor block when it was regenerated', () => {
+      const original = {type: 'Whatever', id: 'oldId', text: '', annotations: [], attributes: {}}
+      const editorBlock = {
+        id: 'newId',
+        type: 'unknown',
+        children: [],
+        content: [],
+        props: {originalType: 'Whatever', originalData: JSON.stringify(original)},
+      } as unknown as EditorBlock
+
+      const val = editorBlockToHMBlock(editorBlock) as unknown as {id: string; type: string}
+      expect(val.id).toBe('newId')
+      expect(val.type).toBe('Whatever')
+    })
+
+    test('falls back to a minimal block when originalData is unparseable', () => {
+      const editorBlock = {
+        id: 'broken',
+        type: 'unknown',
+        children: [],
+        content: [],
+        props: {originalType: 'Mystery', originalData: 'not json{'},
+      } as unknown as EditorBlock
+
+      expect(editorBlockToHMBlock(editorBlock)).toEqual({
+        id: 'broken',
+        type: 'Mystery',
+        text: '',
+        annotations: [],
+        attributes: {},
+      })
+    })
+
+    test('does not throw for an unknown block (regression for issue #807)', () => {
+      const editorBlock = {
+        id: 'empty',
+        type: 'unknown',
+        children: [],
+        content: [],
+        props: {originalType: '', originalData: '{"type":"","id":"empty"}'},
+      } as unknown as EditorBlock
+
+      expect(() => editorBlockToHMBlock(editorBlock)).not.toThrow()
+    })
+  })
 })

@@ -1,4 +1,5 @@
 import type {HMAnnotation, HMBlockChildrenType, HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {isKnownBlockType} from '@seed-hypermedia/client/hm-types'
 import {annotationContains} from '@seed-hypermedia/client/hmblock-to-editorblock'
 
 /** Version-keyed cache: document versions are immutable so entries never go stale. */
@@ -238,6 +239,13 @@ function renderBlockContent(
     }
 
     default: {
+      // Genuinely unknown block types render an error block matching the
+      // editor's UnknownBlock component, instead of silently degrading to a
+      // paragraph. Known-but-SSR-unhandled types (e.g. Nostr) keep the
+      // text fallback below.
+      if (!isKnownBlockType(block.type)) {
+        return renderUnknownBlock(block)
+      }
       if (text) {
         const inlineHtml = renderAnnotatedText(text, annotations, renderHref)
         return `<p class="blockContent inlineContent block-paragraph" data-content-type="paragraph">${inlineHtml}</p>`
@@ -245,6 +253,22 @@ function renderBlockContent(
       return `<div class="blockContent" data-content-type="paragraph"></div>`
     }
   }
+}
+
+/**
+ * Render an error block for an unknown/unsupported block type.
+ * Mirrors the editor's UnknownBlock component so the SSR placeholder looks the
+ * same before hydration replaces it with the interactive version.
+ */
+function renderUnknownBlock(block: any): string {
+  const originalType: string = block.type || 'Unknown'
+  return (
+    `<div class="blockContent block-unknown" data-content-type="unknown">` +
+    `<div class="hm-unknown-block">` +
+    `<span class="hm-unknown-block-label">Unsupported Block: ${esc(originalType)}</span>` +
+    `</div>` +
+    `</div>`
+  )
 }
 
 /**
