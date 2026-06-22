@@ -289,6 +289,21 @@ jobs:
           SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
           SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
 
+      - name: List DigiCert keypairs visible to CI (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          Write-Host "Listing all DigiCert keypairs visible to the GitHub Actions credentials"
+          smctl keypair list
+          Write-Host "Filtering for configured alias: $env:SM_KEYPAIR_ALIAS"
+          smctl keypair list --filter "alias=$env:SM_KEYPAIR_ALIAS"
+        env:
+          SM_HOST: ${{ vars.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+          SM_KEYPAIR_ALIAS: ${{ vars.SM_DEV_KEYPAIR_ALIAS || vars.SM_KEYPAIR_ALIAS }}
+
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         shell: powershell
