@@ -6,6 +6,7 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection} from 'prosemirror-state'
+import type {ElementType} from 'react'
 import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
@@ -204,6 +205,27 @@ export const MediaContainer = ({
     view.focus()
   }
 
+  const handleImageCaptionKeyDown = (event: React.KeyboardEvent<ElementType>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const cursorPosition = editor.getTextCursorPosition()
+    if (cursorPosition.block.id !== block.id) return
+
+    if (cursorPosition.nextBlock) {
+      editor.setTextCursorPosition(cursorPosition.nextBlock, 'start')
+    } else {
+      editor.insertBlocks([{type: 'paragraph', content: ''}], block.id, 'after')
+      const nextBlock = editor.getTextCursorPosition().nextBlock
+      if (nextBlock) editor.setTextCursorPosition(nextBlock, 'start')
+    }
+
+    ;(event.currentTarget as unknown as HTMLElement).blur()
+    editor.focus()
+  }
+
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
@@ -324,7 +346,14 @@ export const MediaContainer = ({
         )}
         {children}
       </div>
-      {mediaType === 'image' && <InlineContent className="image-caption" contentEditable={editor.isEditable} />}
+      {mediaType === 'image' && (
+        <InlineContent
+          className="image-caption"
+          contentEditable={editor.isEditable}
+          data-media-container-ignore-select
+          onKeyDown={handleImageCaptionKeyDown}
+        />
+      )}
     </div>
   )
 }

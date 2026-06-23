@@ -51,7 +51,7 @@ function UnknownBlockRender({block, editor}: {block: Block<HMBlockSchema>; edito
       </div>
       {expanded && (
         <pre className="mx-2 mb-2 overflow-auto rounded-md border border-red-200 bg-red-50/60 p-2 dark:border-red-900 dark:bg-red-950/60">
-          <code className="font-mono text-xs text-red-900 wrap-break-word dark:text-red-200">
+          <code className="font-mono text-xs wrap-break-word text-red-900 dark:text-red-200">
             {JSON.stringify(parsedData, null, 2)}
           </code>
         </pre>
