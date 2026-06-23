@@ -138,17 +138,16 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
   }
 
   const options = () => new Response(null, {status: 204, headers: corsHeaders()})
+  const health = () =>
+    Response.json(
+      {status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl, webTools: svc.webToolCapabilities()},
+      {headers: corsHeaders()},
+    )
   return {
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
-    '/api/health': {
-      GET: () =>
-        Response.json({status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl}, {headers: corsHeaders()}),
-    },
-    '/agents/api/health': {
-      GET: () =>
-        Response.json({status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl}, {headers: corsHeaders()}),
-    },
+    '/api/health': {GET: health},
+    '/agents/api/health': {GET: health},
   }
 }
 

@@ -48,10 +48,15 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {KeyRound, Plus, Trash2} from 'lucide-react'
+import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
-import {AGENT_READ_TOOL_GROUP, AGENT_WEB_TOOL_GROUP} from './agent-tools'
+import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
+import {
+  AGENT_READ_TOOL_GROUP,
+  AGENT_WEB_TOOL_GROUP,
+  getToolAvailability,
+  type AgentServerWebCapabilities,
+} from './agent-tools'
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
@@ -377,6 +382,7 @@ function AgentDetailPage({
                   definition={agent.data.agent.definition}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
+                  webCapabilities={serverHealth.data?.webTools}
                   onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
                   onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
                   saving={updateAgent.isLoading || createSigningIdentity.isLoading}
@@ -588,24 +594,77 @@ function DeleteAgentDialog({
   )
 }
 
+/** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
+function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
+  const meta = getSeedToolMetadata(input.toolName)
+  if (!meta) {
+    return (
+      <div className="flex flex-col gap-3">
+        <DialogTitle>Unknown tool</DialogTitle>
+        <SizableText size="sm" color="muted">
+          No metadata is registered for "{input.toolName}".
+        </SizableText>
+      </div>
+    )
+  }
+  return (
+    <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+      <div className="flex flex-col gap-1">
+        <DialogTitle>{meta.label}</DialogTitle>
+        <SizableText size="xs" color="muted" className="font-mono">
+          {meta.name}
+        </SizableText>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Description sent to the model
+        </SizableText>
+        <SizableText size="sm" color="muted">
+          {meta.description}
+        </SizableText>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Input schema
+        </SizableText>
+        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+          {JSON.stringify(meta.inputSchema, null, 2)}
+        </pre>
+      </div>
+      {meta.outputSchema ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Output schema
+          </SizableText>
+          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+            {JSON.stringify(meta.outputSchema, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+      <div className="flex justify-end">
+        <Button variant="ghost" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 const AGENT_TOOL_OPTIONS = [
   {
     names: AGENT_READ_TOOL_GROUP,
     title: 'Read, search, and browse activity',
     description: 'Find and read Seed content.',
-    available: true,
   },
   {
     names: AGENT_WEB_TOOL_GROUP,
     title: 'Search and read the web',
     description: 'Search the public web and read web pages as markdown. Requires server web backends.',
-    available: true,
   },
   {
     names: [seedToolRegistry.write.name],
     title: seedToolRegistry.write.label,
     description: 'Create and publish Seed content.',
-    available: true,
   },
 ]
 
@@ -613,6 +672,7 @@ function AgentToolsTab({
   definition,
   identities,
   identitiesLoading,
+  webCapabilities,
   onSave,
   onCreateIdentity,
   saving,
@@ -620,10 +680,12 @@ function AgentToolsTab({
   definition: AgentDefinition
   identities: SigningIdentity[]
   identitiesLoading: boolean
+  webCapabilities: AgentServerWebCapabilities | undefined
   onSave: (definition: AgentDefinition) => Promise<unknown>
   onCreateIdentity: (label: string) => Promise<unknown>
   saving: boolean
 }) {
+  const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const defaultTools = AGENT_READ_TOOL_GROUP
   const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
@@ -685,44 +747,87 @@ function AgentToolsTab({
       </div>
 
       <div className="grid gap-3">
-        {AGENT_TOOL_OPTIONS.map((tool) => {
-          const checked = tool.names.some((name) => enabledTools.includes(name))
+        {AGENT_TOOL_OPTIONS.map((group) => {
+          const members = group.names.map((name) => ({
+            name,
+            label: getSeedToolMetadata(name)?.label ?? name,
+            ...getToolAvailability(name, webCapabilities),
+          }))
+          const groupAvailable = members.some((member) => member.available)
+          const checked = group.names.some((name) => enabledTools.includes(name))
           return (
-            <label
-              key={tool.names.join('|')}
-              className="border-border bg-card flex items-start gap-3 rounded-xl border p-4"
+            <div
+              key={group.names.join('|')}
+              className={`border-border bg-card flex flex-col gap-3 rounded-xl border p-4 ${
+                groupAvailable ? '' : 'opacity-60'
+              }`}
             >
-              <input
-                type="checkbox"
-                className="mt-1 size-4"
-                checked={checked}
-                disabled={!tool.available}
-                onChange={(event) => {
-                  const nextTools = event.target.checked
-                    ? Array.from(new Set([...enabledTools, ...tool.names]))
-                    : enabledTools.filter((item) => !tool.names.includes(item))
-                  void saveTools(nextTools, signingKeys)
-                }}
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <SizableText size="sm" weight="bold">
-                    {tool.title}
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4"
+                  checked={checked}
+                  disabled={!groupAvailable}
+                  onChange={(event) => {
+                    const nextTools = event.target.checked
+                      ? Array.from(new Set([...enabledTools, ...group.names]))
+                      : enabledTools.filter((item) => !group.names.includes(item))
+                    void saveTools(nextTools, signingKeys)
+                  }}
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <SizableText size="sm" weight="bold">
+                      {group.title}
+                    </SizableText>
+                    {!groupAvailable ? (
+                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                        Unavailable
+                      </span>
+                    ) : null}
+                  </div>
+                  <SizableText size="sm" color="muted">
+                    {group.description}
                   </SizableText>
-                  {!tool.available ? (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                      Planned
-                    </span>
-                  ) : null}
                 </div>
-                <SizableText size="sm" color="muted">
-                  {tool.description}
-                </SizableText>
+              </label>
+
+              <div className="border-border/60 ml-7 flex flex-col gap-1.5 border-l pl-3">
+                {members.map((member) => (
+                  <div key={member.name} className={`flex items-start gap-2 ${member.available ? '' : 'opacity-60'}`}>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex items-center gap-2">
+                        <SizableText size="xs" weight="bold" className="font-mono">
+                          {member.name}
+                        </SizableText>
+                        {!member.available ? (
+                          <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                            Unavailable
+                          </span>
+                        ) : null}
+                      </div>
+                      {member.note ? (
+                        <SizableText size="xs" color="muted">
+                          {member.note}
+                        </SizableText>
+                      ) : null}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="iconSm"
+                      aria-label={`About the ${member.label} tool`}
+                      onClick={() => toolInfoDialog.open({toolName: member.name})}
+                    >
+                      <Info className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
               </div>
-            </label>
+            </div>
           )
         })}
       </div>
+      {toolInfoDialog.content}
 
       {writeEnabled ? (
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
