@@ -1,14 +1,10 @@
 # Local development backends for the agents web_search / web_read tools.
 #
 #   cd agents/dev/web-backends && docker compose up -d
+#   cd ../.. && bun run dev   # the dev script already targets these endpoints by default
 #
-# Then run the agents service with:
-#   SEED_AGENTS_SEARXNG_URL=http://127.0.0.1:8899 \
-#   SEED_AGENTS_CRAWLER_URL=http://127.0.0.1:11235 \
-#   SEED_AGENTS_CRAWLER_TOKEN=dev-crawl-token \
-#   bun src/main.ts
-#
-# These are dev defaults bound to loopback. Do not reuse this token/secret in production.
+# `bun run dev` defaults SEED_AGENTS_SEARXNG_URL / SEED_AGENTS_CRAWLER_URL / SEED_AGENTS_CRAWLER_TOKEN to the values
+# below; export those env vars to override. These are dev defaults bound to loopback — do not reuse them in production.
 services:
   searxng:
     image: searxng/searxng:latest

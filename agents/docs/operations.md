@@ -75,15 +75,19 @@ configuration the tools are simply unavailable (`web_search` errors; `web_read` 
 in-process static tiers). To enable them, run the backends as sidecar containers on the same internal network and point
 the agents service at them.
 
-For local development a ready-to-run compose and SearXNG config live at `agents/dev/web-backends/`:
+For local development a ready-to-run compose and SearXNG config live at `agents/dev/web-backends/`. Start the
+containers, then run the service — `bun run dev` already points at these dev endpoints by default:
 
 ```bash
-cd agents/dev/web-backends && docker compose up -d
-# then run the service with:
-#   SEED_AGENTS_SEARXNG_URL=http://127.0.0.1:8899 \
-#   SEED_AGENTS_CRAWLER_URL=http://127.0.0.1:11235 \
-#   SEED_AGENTS_CRAWLER_TOKEN=dev-crawl-token bun src/main.ts
+cd agents/dev/web-backends && docker compose up -d   # SearXNG on :8899, Crawl4AI on :11235
+cd ../.. && bun run dev                               # auto-targets the dev backends
 ```
+
+The `dev` script defaults `SEED_AGENTS_SEARXNG_URL` (`http://127.0.0.1:8899`), `SEED_AGENTS_CRAWLER_URL`
+(`http://127.0.0.1:11235`), and `SEED_AGENTS_CRAWLER_TOKEN` (`dev-crawl-token`) to the compose values; export those env
+vars to override. The startup log prints `Web tools: search=on reader=static+crawl4ai` when wired. `web_read`'s
+MediaWiki and static tiers still work if the containers are not running; only `web_search` and the browser escalation
+need them. Stop the backends with `docker compose down` in `agents/dev/web-backends/`.
 
 For production the same two containers run as internal sidecars:
 
