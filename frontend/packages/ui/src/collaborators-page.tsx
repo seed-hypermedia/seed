@@ -322,6 +322,9 @@ export function CollaboratorsPage({
 
 function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
   const {accounts, grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
+  const myCapability = useSelectedAccountCapability(docId, 'owner')
+  const addCapabilities = useAddCapabilities(docId)
+  const [promotingAccountUid, setPromotingAccountUid] = useState<string | null>(null)
   if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -330,6 +333,29 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
     )
   }
   const hasNoMembers = grantedMembers.length === 0 && members.length === 0
+  const promoteMember = (accountUid: string) => {
+    if (!myCapability) return
+    setPromotingAccountUid(accountUid)
+    addCapabilities.mutate(
+      {
+        myCapability,
+        collaboratorAccountIds: [accountUid],
+        role: 'WRITER',
+      },
+      {
+        onSuccess: () => {
+          toast.success('Writer access granted')
+        },
+        onError: () => {
+          toast.error('Failed to grant writer access')
+        },
+        onSettled: () => {
+          setPromotingAccountUid(null)
+        },
+      },
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
@@ -342,6 +368,7 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
               siteUid={docId.uid}
               account={accounts[member.account.uid]}
               key={member.account.uid}
+              canAddAsWriter={false}
             />
           ))}
         </div>
@@ -354,6 +381,9 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
               siteUid={docId.uid}
               account={accounts[member.account.uid]}
               key={member.account.uid}
+              canAddAsWriter={!!myCapability}
+              isPromoting={promotingAccountUid === member.account.uid && addCapabilities.isLoading}
+              onAddAsWriter={promoteMember}
             />
           ))}
         </div>
@@ -371,10 +401,16 @@ function MemberListItem({
   member,
   siteUid,
   account,
+  canAddAsWriter,
+  isPromoting,
+  onAddAsWriter,
 }: {
   member: HMSiteMember
   siteUid: string
   account?: HMMetadataPayload
+  canAddAsWriter?: boolean
+  isPromoting?: boolean
+  onAddAsWriter?: (accountUid: string) => void
 }) {
   const linkProps = useRouteLink({
     key: 'site-profile',
@@ -384,19 +420,39 @@ function MemberListItem({
   })
 
   const metadata = account?.metadata
+  const showAddAsWriter = canAddAsWriter && member.role === 'member'
 
   return (
-    <a {...linkProps} className="hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
+    <div className="group hover:bg-muted flex items-center gap-3 rounded-md p-3 transition-colors">
       <HMIcon id={member.account} name={metadata?.name} icon={metadata?.icon} size={32} />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
-          {metadata?.name || abbreviateUid(member.account.uid)}
-        </SizableText>
-        <SizableText size="xs" color="muted" className="ml-auto shrink-0">
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+        <a
+          {...linkProps}
+          className={`focus-visible:ring-ring min-w-0 flex-1 truncate rounded-sm outline-none hover:underline focus-visible:ring-2 ${
+            metadata?.name ? '' : 'text-muted-foreground'
+          }`}
+        >
+          <SizableText size="sm" className="truncate">
+            {metadata?.name || abbreviateUid(member.account.uid)}
+          </SizableText>
+        </a>
+        {showAddAsWriter ? (
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            loading={isPromoting}
+            className="[@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:transition-opacity [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+            onClick={() => onAddAsWriter?.(member.account.uid)}
+          >
+            Add as writer
+          </Button>
+        ) : null}
+        <SizableText size="xs" color="muted" className="shrink-0">
           {getRoleDisplayName(member.role)}
         </SizableText>
       </div>
-    </a>
+    </div>
   )
 }
 
