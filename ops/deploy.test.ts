@@ -34,6 +34,7 @@ import {
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
+  configWarnings,
   DEFAULT_RELEASE_CHANNEL,
   validateDockerImageTag,
   buildCrontab,
@@ -254,6 +255,37 @@ describe('environmentPresets', () => {
   })
 })
 
+describe('configWarnings', () => {
+  test('no warnings for a stable mainnet production config', () => {
+    expect(configWarnings(makeTestConfig({testnet: false, release_channel: 'latest'}))).toEqual([])
+  })
+
+  test('warns loudly when on the testnet/devnet network', () => {
+    const warnings = configWarnings(makeTestConfig({testnet: true, release_channel: 'dev'}))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('TESTNET')
+    expect(warnings[0]).toContain('reconfigure')
+  })
+
+  test('warns about non-stable image channel on mainnet without changing the network', () => {
+    const warnings = configWarnings(makeTestConfig({testnet: false, release_channel: 'dev'}))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('mainnet')
+    expect(warnings[0]).toContain('never change your P2P network')
+  })
+
+  test('custom image channel on mainnet is treated like dev channel', () => {
+    expect(configWarnings(makeTestConfig({testnet: false, release_channel: 'feature-branch'}))).toHaveLength(1)
+  })
+
+  test('testnet warning takes precedence over channel warning (single, network-focused message)', () => {
+    // On testnet we only emit the network warning, not the channel one.
+    const warnings = configWarnings(makeTestConfig({testnet: true, release_channel: 'latest'}))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('TESTNET')
+  })
+})
+
 describe('DEFAULT_RELEASE_CHANNEL', () => {
   test('defaults to stable, independent of environment', () => {
     // The release channel must never derive from the environment: a missing
@@ -464,8 +496,10 @@ describe('inferEnvironment', () => {
     expect(inferEnvironment(makeOldInstall({testnet: true, imageTag: 'dev'}))).toBe('dev')
   })
 
-  test("returns 'dev' when not testnet and image tag is 'dev'", () => {
-    expect(inferEnvironment(makeOldInstall({testnet: false, imageTag: 'dev'}))).toBe('dev')
+  test("returns 'prod' when not testnet even with dev image tag (network is independent of image channel)", () => {
+    // Regression: a site on mainnet that ran the `dev` image channel must NOT
+    // be inferred onto the devnet network during migration.
+    expect(inferEnvironment(makeOldInstall({testnet: false, imageTag: 'dev'}))).toBe('prod')
   })
 
   test("returns 'prod' when not testnet and image tag is 'latest'", () => {

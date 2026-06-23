@@ -5,29 +5,15 @@ var __getProtoOf = Object.getPrototypeOf;
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
 var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
   const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
   for (let key of __getOwnPropNames(mod))
     if (!__hasOwnProp.call(to, key))
       __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
+        get: () => mod[key],
         enumerable: true
       });
-  if (canCache)
-    cache.set(mod, to);
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
@@ -923,6 +909,16 @@ function environmentPresets(env) {
       return { testnet: false };
   }
 }
+function configWarnings(config) {
+  const warnings = [];
+  if (config.testnet) {
+    warnings.push("This node is on the TESTNET (devnet) P2P network \u2014 it will NOT see or sync mainnet content. " + `If this is a production site, run '${cmd("deploy --reconfigure")}' and choose Mainnet.`);
+  }
+  if (!config.testnet && config.release_channel !== "latest") {
+    warnings.push(`Tracking the '${config.release_channel}' image channel on mainnet (bleeding-edge images, stable network). ` + "New images here update the code only \u2014 they never change your P2P network.");
+  }
+  return warnings;
+}
 var DEFAULT_RELEASE_CHANNEL = "latest";
 var CUSTOM_RELEASE_CHANNEL = "__custom__";
 function isPresetReleaseChannel(channel) {
@@ -1006,11 +1002,7 @@ Run '${cmd()}' to resume installation at any time.
 `;
 var MANAGE_HINT = `Manage your node anytime with '${cmd()}'. Run '${cmd("--help")}' for options.`;
 function inferEnvironment(old) {
-  if (old.testnet)
-    return "dev";
-  if (old.imageTag === "dev")
-    return "dev";
-  return "prod";
+  return old.testnet ? "dev" : "prod";
 }
 function parseDaemonEnv(envJson) {
   let logLevel = null;
@@ -1254,19 +1246,19 @@ async function runMigrationWizard(old, paths, shell) {
           return "Must start with https:// or http://";
       }
     }),
-    environment: () => de({
-      message: "Environment",
-      initialValue: inferEnvironment(old),
+    network: () => de({
+      message: "P2P network",
+      initialValue: inferEnvironment(old) === "dev" ? "testnet" : "mainnet",
       options: [
         {
-          value: "prod",
-          label: "Production",
-          hint: "stable releases, mainnet network \u2014 recommended"
+          value: "mainnet",
+          label: "Mainnet",
+          hint: "the public Seed network \u2014 recommended for production"
         },
         {
-          value: "dev",
-          label: "Development",
-          hint: "development builds, testnet network"
+          value: "testnet",
+          label: "Testnet (devnet)",
+          hint: "isolated development network; will NOT see mainnet content"
         }
       ]
     }),
@@ -1318,8 +1310,8 @@ async function runMigrationWizard(old, paths, shell) {
   } else {
     v2.warn(`No existing registration secret found. Generated a new one.`);
   }
-  const env = answers.environment;
-  const presets = environmentPresets(env);
+  const testnet = answers.network === "testnet";
+  const env = testnet ? "dev" : "prod";
   const config = {
     domain: answers.domain,
     email: answers.email || "",
@@ -1331,7 +1323,7 @@ async function runMigrationWizard(old, paths, shell) {
     },
     environment: env,
     release_channel: answers.release_channel,
-    testnet: presets.testnet,
+    testnet,
     link_secret: secret,
     analytics: old.trafficStats,
     gateway: answers.gateway,
@@ -1386,19 +1378,19 @@ async function runFreshWizard(paths, existing) {
           return "Must start with https:// or http://";
       }
     }),
-    environment: () => de({
-      message: "Environment",
-      initialValue: existing?.environment ?? "prod",
+    network: () => de({
+      message: "P2P network",
+      initialValue: existing?.testnet ? "testnet" : "mainnet",
       options: [
         {
-          value: "prod",
-          label: "Production",
-          hint: "stable releases, mainnet network \u2014 recommended"
+          value: "mainnet",
+          label: "Mainnet",
+          hint: "the public Seed network \u2014 recommended for production"
         },
         {
-          value: "dev",
-          label: "Development",
-          hint: "development builds, testnet network"
+          value: "testnet",
+          label: "Testnet (devnet)",
+          hint: "isolated development network; will NOT see mainnet content"
         }
       ]
     }),
@@ -1443,8 +1435,8 @@ async function runFreshWizard(paths, existing) {
     }
   });
   const secret = existing?.link_secret ?? generateSecret();
-  const env = answers.environment;
-  const presets = environmentPresets(env);
+  const testnet = answers.network === "testnet";
+  const env = testnet ? "dev" : "prod";
   const config = {
     domain: answers.domain,
     email: answers.email || "",
@@ -1456,7 +1448,7 @@ async function runFreshWizard(paths, existing) {
     },
     environment: env,
     release_channel: answers.release_channel,
-    testnet: presets.testnet,
+    testnet,
     link_secret: secret,
     analytics: existing?.analytics ?? false,
     gateway: answers.gateway,
@@ -1465,7 +1457,7 @@ async function runFreshWizard(paths, existing) {
   const userFields = [
     ["domain", config.domain],
     ["email", config.email],
-    ["environment", config.environment],
+    ["network", config.testnet ? "testnet (devnet)" : "mainnet"],
     ["release_channel", config.release_channel],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["gateway", String(config.gateway)]
@@ -1473,7 +1465,7 @@ async function runFreshWizard(paths, existing) {
   const oldFields = existing ? {
     domain: existing.domain,
     email: existing.email,
-    environment: existing.environment,
+    network: existing.testnet ? "testnet (devnet)" : "mainnet",
     release_channel: existing.release_channel,
     log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
     gateway: String(existing.gateway)
@@ -1695,6 +1687,12 @@ async function deploy(config, paths, shell) {
   };
   if (isInteractive) {
     v2.step("Starting deployment...");
+  }
+  for (const warning of configWarnings(config)) {
+    if (isInteractive)
+      v2.warn(warning);
+    else
+      log(`WARNING: ${warning}`);
   }
   spinner?.start("Fetching docker-compose.yml...");
   step("Fetching docker-compose.yml...");
@@ -2054,10 +2052,13 @@ Seed Node Doctor v${VERSION}`);
     console.log(`
 Configuration:`);
     console.log(`  Domain:      ${config.domain}`);
-    console.log(`  Environment: ${{ prod: "Production", dev: "Development" }[config.environment]}`);
+    console.log(`  Network:     ${config.testnet ? "Testnet (devnet)" : "Mainnet"}`);
     console.log(`  Channel:     ${config.release_channel}`);
     console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
     console.log(`  Config:      ${paths.configPath}`);
+    for (const warning of configWarnings(config)) {
+      console.log(`  \u26A0 ${warning}`);
+    }
   } else {
     console.log(`
 No config found at ${paths.configPath}. Node is not set up.`);
@@ -2089,10 +2090,9 @@ Containers:`);
   Tip: Check logs with '${cmd("logs daemon|web|proxy")}'`);
   }
   if (config) {
-    const presets = environmentPresets(config.environment);
     const expectedTag = config.release_channel;
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET;
-    const expectedTestnetName = presets.testnet ? "dev" : "";
+    const expectedTestnetName = config.testnet ? "dev" : "";
     const checks = [
       { container: "seed-daemon", envVar: "SEED_P2P_TESTNET_NAME", expected: expectedTestnetName, label: expectedTestnetName || "(empty, mainnet)" },
       { container: "seed-daemon", envVar: "LIGHTNING_API_URL", expected: expectedLightning },
@@ -2591,6 +2591,7 @@ export {
   detectOldInstall,
   describeBindFailure,
   deploy,
+  configWarnings,
   configExists,
   composeProjectName,
   cmd,

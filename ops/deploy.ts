@@ -201,11 +201,22 @@ export interface SeedConfig {
   compose_envs: {
     LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error'
   }
-  /** Deployment environment label */
+  /**
+   * Deployment environment label. Cosmetic/derived only — it is kept in sync
+   * with `testnet` (`dev` ⇒ testnet, `prod` ⇒ mainnet) for display and
+   * backwards compatibility. It does NOT independently control the network.
+   */
   environment: 'dev' | 'prod'
-  /** Docker image tag to pull: "latest" for stable, "dev" for main branch */
+  /**
+   * Docker image tag to pull: "latest" for stable, "dev" for main branch.
+   * Orthogonal to `testnet`: the image channel never changes the P2P network.
+   */
   release_channel: 'latest' | 'dev' | string
-  /** Whether to connect to the testnet P2P network instead of mainnet */
+  /**
+   * Whether to connect to the testnet (devnet) P2P network instead of mainnet.
+   * This is the sole source of truth for the network and is chosen explicitly
+   * by the operator — never inferred from the image tag / release channel.
+   */
   testnet: boolean
   /** Random secret used for the initial site registration URL */
   link_secret: string
@@ -230,6 +241,31 @@ export function environmentPresets(env: SeedConfig['environment']): {
     default:
       return {testnet: false}
   }
+}
+
+/**
+ * Operator-facing warnings for config combinations that are easy to set
+ * unintentionally and have caused confusion. These are notices, not errors —
+ * the configuration is honored as-is. The two cases:
+ *  - on testnet/devnet (often set by accident), so the node never sees mainnet;
+ *  - tracking a non-stable image channel on mainnet, which churns images but,
+ *    importantly, does NOT change the network (a common misconception).
+ */
+export function configWarnings(config: SeedConfig): string[] {
+  const warnings: string[] = []
+  if (config.testnet) {
+    warnings.push(
+      'This node is on the TESTNET (devnet) P2P network — it will NOT see or sync mainnet content. ' +
+        `If this is a production site, run '${cmd('deploy --reconfigure')}' and choose Mainnet.`,
+    )
+  }
+  if (!config.testnet && config.release_channel !== 'latest') {
+    warnings.push(
+      `Tracking the '${config.release_channel}' image channel on mainnet (bleeding-edge images, stable network). ` +
+        'New images here update the code only — they never change your P2P network.',
+    )
+  }
+  return warnings
 }
 
 /** Default release channel when none is stored. Independent of environment. */
@@ -344,11 +380,16 @@ export interface OldInstallInfo {
   trafficStats: boolean
 }
 
-/** Infer the environment preset from the old installation's state. */
+/**
+ * Infer the network label from the old installation's state.
+ *
+ * The network is inferred SOLELY from the previously detected testnet setting.
+ * It must never be inferred from the image tag: running the `dev` image channel
+ * on mainnet is a legitimate setup, and treating `imageTag === 'dev'` as
+ * "devnet" silently moved production sites onto the testnet during migration.
+ */
 export function inferEnvironment(old: OldInstallInfo): 'prod' | 'dev' {
-  if (old.testnet) return 'dev'
-  if (old.imageTag === 'dev') return 'dev'
-  return 'prod'
+  return old.testnet ? 'dev' : 'prod'
 }
 
 export function parseDaemonEnv(envJson: string): {
@@ -704,20 +745,20 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
             if (!v.startsWith('https://') && !v.startsWith('http://')) return 'Must start with https:// or http://'
           },
         }),
-      environment: () =>
+      network: () =>
         p.select({
-          message: 'Environment',
-          initialValue: inferEnvironment(old),
+          message: 'P2P network',
+          initialValue: inferEnvironment(old) === 'dev' ? 'testnet' : 'mainnet',
           options: [
             {
-              value: 'prod',
-              label: 'Production',
-              hint: 'stable releases, mainnet network — recommended',
+              value: 'mainnet',
+              label: 'Mainnet',
+              hint: 'the public Seed network — recommended for production',
             },
             {
-              value: 'dev',
-              label: 'Development',
-              hint: 'development builds, testnet network',
+              value: 'testnet',
+              label: 'Testnet (devnet)',
+              hint: 'isolated development network; will NOT see mainnet content',
             },
           ],
         }),
@@ -776,8 +817,8 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
     p.log.warn(`No existing registration secret found. Generated a new one.`)
   }
 
-  const env = answers.environment as SeedConfig['environment']
-  const presets = environmentPresets(env)
+  const testnet = answers.network === 'testnet'
+  const env: SeedConfig['environment'] = testnet ? 'dev' : 'prod'
 
   const config: SeedConfig = {
     domain: answers.domain as string,
@@ -790,7 +831,7 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
     },
     environment: env,
     release_channel: answers.release_channel as string,
-    testnet: presets.testnet,
+    testnet,
     link_secret: secret,
     analytics: old.trafficStats,
     gateway: answers.gateway as boolean,
@@ -863,20 +904,20 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
             if (!v.startsWith('https://') && !v.startsWith('http://')) return 'Must start with https:// or http://'
           },
         }),
-      environment: () =>
+      network: () =>
         p.select({
-          message: 'Environment',
-          initialValue: existing?.environment ?? 'prod',
+          message: 'P2P network',
+          initialValue: existing?.testnet ? 'testnet' : 'mainnet',
           options: [
             {
-              value: 'prod',
-              label: 'Production',
-              hint: 'stable releases, mainnet network — recommended',
+              value: 'mainnet',
+              label: 'Mainnet',
+              hint: 'the public Seed network — recommended for production',
             },
             {
-              value: 'dev',
-              label: 'Development',
-              hint: 'development builds, testnet network',
+              value: 'testnet',
+              label: 'Testnet (devnet)',
+              hint: 'isolated development network; will NOT see mainnet content',
             },
           ],
         }),
@@ -928,8 +969,8 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
 
   const secret = existing?.link_secret ?? generateSecret()
 
-  const env = answers.environment as SeedConfig['environment']
-  const presets = environmentPresets(env)
+  const testnet = answers.network === 'testnet'
+  const env: SeedConfig['environment'] = testnet ? 'dev' : 'prod'
 
   const config: SeedConfig = {
     domain: answers.domain as string,
@@ -942,7 +983,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
     },
     environment: env,
     release_channel: answers.release_channel as string,
-    testnet: presets.testnet,
+    testnet,
     link_secret: secret,
     // TODO: When re-enabling wizard analytics, publish a post/changelog
     // so self-hosters know how analytics works and when it is active again.
@@ -954,7 +995,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
   const userFields: [string, string][] = [
     ['domain', config.domain],
     ['email', config.email],
-    ['environment', config.environment],
+    ['network', config.testnet ? 'testnet (devnet)' : 'mainnet'],
     ['release_channel', config.release_channel],
     ['log_level', config.compose_envs.LOG_LEVEL],
     ['gateway', String(config.gateway)],
@@ -963,7 +1004,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
     ? {
         domain: existing.domain,
         email: existing.email,
-        environment: existing.environment,
+        network: existing.testnet ? 'testnet (devnet)' : 'mainnet',
         release_channel: existing.release_channel,
         log_level: existing.compose_envs?.LOG_LEVEL ?? 'info',
         gateway: String(existing.gateway),
@@ -1254,6 +1295,13 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
 
   if (isInteractive) {
     p.log.step('Starting deployment...')
+  }
+
+  // Surface risky/confusing config (unintended devnet, dev images on mainnet)
+  // on every deploy so it is visible in the cron deploy log, not silent.
+  for (const warning of configWarnings(config)) {
+    if (isInteractive) p.log.warn(warning)
+    else log(`WARNING: ${warning}`)
   }
 
   spinner?.start('Fetching docker-compose.yml...')
@@ -1728,10 +1776,13 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     config = await readConfig(paths)
     console.log(`\nConfiguration:`)
     console.log(`  Domain:      ${config.domain}`)
-    console.log(`  Environment: ${{prod: 'Production', dev: 'Development'}[config.environment]}`)
+    console.log(`  Network:     ${config.testnet ? 'Testnet (devnet)' : 'Mainnet'}`)
     console.log(`  Channel:     ${config.release_channel}`)
     console.log(`  Gateway:     ${config.gateway ? 'Yes' : 'No'}`)
     console.log(`  Config:      ${paths.configPath}`)
+    for (const warning of configWarnings(config)) {
+      console.log(`  ⚠ ${warning}`)
+    }
   } else {
     console.log(`\nNo config found at ${paths.configPath}. Node is not set up.`)
   }
@@ -1769,10 +1820,9 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
 
   // Configuration sync — compare running container state against config
   if (config) {
-    const presets = environmentPresets(config.environment)
     const expectedTag = config.release_channel
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET
-    const expectedTestnetName = presets.testnet ? 'dev' : ''
+    const expectedTestnetName = config.testnet ? 'dev' : ''
 
     const checks: Array<{container: string; envVar: string; expected: string; label?: string}> = [
       {container: 'seed-daemon', envVar: 'SEED_P2P_TESTNET_NAME', expected: expectedTestnetName, label: expectedTestnetName || '(empty, mainnet)'},
