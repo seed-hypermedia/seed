@@ -33,7 +33,6 @@ type TriggerInfo = {
   name: string
   enabled: boolean
   source: TriggerSource
-  cooldownMs?: number
   updatedAt: number
   lastCheckedAt?: number
   lastFiredAt?: number
@@ -364,7 +363,6 @@ function TriggerCard(props: {trigger: TriggerInfo}) {
         <span>
           {props.trigger.firingCount} firings
           {props.trigger.errorCount ? ` · ${props.trigger.errorCount} errors` : ''}
-          {props.trigger.cooldownMs ? ` · ${formatDuration(props.trigger.cooldownMs)} cooldown` : ''}
         </span>
         <span>{formatTime(props.trigger.lastFiringAt ?? props.trigger.lastFiredAt)}</span>
       </div>
@@ -537,12 +535,6 @@ function CodeBlock(props: {value: unknown}) {
 
 function formatTime(value?: number): string {
   return value ? dateFormatter.format(new Date(value)) : '—'
-}
-
-function formatDuration(ms: number): string {
-  if (ms >= 3_600_000) return `${Math.round(ms / 3_600_000)}h`
-  if (ms >= 60_000) return `${Math.round(ms / 60_000)}m`
-  return `${Math.round(ms / 1000)}s`
 }
 
 function formatUptime(value?: number): string {

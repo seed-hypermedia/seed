@@ -409,6 +409,10 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     hidden: true,
   },
+  // write_file: {},
+  // read_file: {},
+  // exexcute_bash: {},
+  // search_web: {}
 }
 
 export type SeedToolName = keyof typeof seedToolRegistry

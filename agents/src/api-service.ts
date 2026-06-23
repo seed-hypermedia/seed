@@ -653,7 +653,7 @@ export class Service {
     this.#requireAgent(accountId, agentId)
     const rows = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, cooldown_ms, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND agent_id = ?
@@ -700,8 +700,8 @@ export class Service {
     const now = Date.now()
     const id = crypto.randomUUID()
     this.#db.run(
-      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, cooldown_ms, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         accountId,
@@ -710,7 +710,6 @@ export class Service {
         trigger.enabled ? 1 : 0,
         cbor.encode(trigger.source),
         serializePromptBlocksForStorage(trigger.prompt),
-        trigger.cooldownMs ?? null,
         now,
         now,
       ],
@@ -729,24 +728,16 @@ export class Service {
     const existing = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!existing) throw new APIError(404, 'Agent trigger not found')
     const patch = normalizeAgentTriggerPatch(rawPatch)
-    const nextSource = patch.source ?? existing.source
-    const cooldownMs =
-      nextSource.type === 'schedule'
-        ? undefined
-        : patch.cooldownMs === null
-          ? undefined
-          : (patch.cooldownMs ?? existing.cooldownMs)
-    const next: api.AgentTriggerInfo = {...existing, ...patch, cooldownMs, updatedAt: Date.now()}
+    const next: api.AgentTriggerInfo = {...existing, ...patch, updatedAt: Date.now()}
     this.#db.run(
       `UPDATE agent_triggers
-       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, cooldown_ms = ?, updated_at = ?, last_error = NULL
+       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, updated_at = ?, last_error = NULL
        WHERE account_id = ? AND id = ?`,
       [
         next.name,
         next.enabled ? 1 : 0,
         cbor.encode(next.source),
         serializePromptBlocksForStorage(next.prompt),
-        next.cooldownMs ?? null,
         next.updatedAt,
         accountId,
         triggerId,
@@ -1634,7 +1625,7 @@ export class Service {
   #getAgentTriggerInfo(accountId: string, triggerId: string): api.AgentTriggerInfo | null {
     const trigger = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, cooldown_ms, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers WHERE account_id = ? AND id = ?`,
       )
@@ -1699,7 +1690,7 @@ export class Service {
   async processScheduledTriggers(now = Date.now()): Promise<TriggerProcessingResult> {
     const rows = this.#db
       .query<AgentTriggerRow, []>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, cooldown_ms, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE enabled = 1
@@ -1798,7 +1789,7 @@ export class Service {
     }
     const rows = this.#db
       .query<AgentTriggerRow, [string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, cooldown_ms, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND enabled = 1
@@ -1843,22 +1834,6 @@ export class Service {
           accountId,
           triggerId: trigger.id,
           activityKey,
-        })
-        skipped += 1
-        continue
-      }
-      if (trigger.cooldownMs && trigger.lastFiredAt && now - trigger.lastFiredAt < trigger.cooldownMs) {
-        this.#db.run(`UPDATE trigger_firings SET status = ? WHERE account_id = ? AND id = ?`, [
-          'skipped',
-          accountId,
-          firingId,
-        ])
-        console.log('[Agents Trigger] Skipping trigger firing during cooldown', {
-          accountId,
-          triggerId: trigger.id,
-          activityKey,
-          cooldownMs: trigger.cooldownMs,
-          lastFiredAt: trigger.lastFiredAt,
         })
         skipped += 1
         continue
@@ -1943,7 +1918,6 @@ type AgentTriggerRow = {
   enabled: number
   source_cbor: Uint8Array
   prompt: string
-  cooldown_ms: number | null
   created_at: number
   updated_at: number
   last_checked_at: number | null
@@ -2061,7 +2035,6 @@ function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
     enabled: row.enabled !== 0,
     source: cbor.decode<api.AgentTriggerSource>(row.source_cbor),
     prompt: parseStoredPromptBlocks(row.prompt),
-    ...(row.cooldown_ms === null ? {} : {cooldownMs: row.cooldown_ms}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_checked_at === null ? {} : {lastCheckedAt: row.last_checked_at}),
@@ -2320,9 +2293,6 @@ function normalizeAgentTriggerInput(
     enabled: raw.enabled === undefined ? true : normalizeBoolean(raw.enabled, 'Trigger enabled'),
     source,
     prompt: normalizePromptBlocks(raw.prompt, 'Trigger prompt'),
-    ...(raw.cooldownMs === undefined || source.type === 'schedule'
-      ? {}
-      : {cooldownMs: normalizeOptionalPositiveInteger(raw.cooldownMs, 'Trigger cooldown')}),
   }
 }
 
@@ -2335,10 +2305,6 @@ function normalizeAgentTriggerPatch(
   if (raw.enabled !== undefined) patch.enabled = normalizeBoolean(raw.enabled, 'Trigger enabled')
   if (raw.source !== undefined) patch.source = normalizeAgentTriggerSource(raw.source)
   if (raw.prompt !== undefined) patch.prompt = normalizePromptBlocks(raw.prompt, 'Trigger prompt')
-  if (raw.cooldownMs !== undefined) {
-    patch.cooldownMs =
-      raw.cooldownMs === null ? null : normalizeOptionalPositiveInteger(raw.cooldownMs, 'Trigger cooldown')
-  }
   if (Object.keys(patch).length === 0) throw new APIError(400, 'Agent trigger patch is empty')
   return patch
 }

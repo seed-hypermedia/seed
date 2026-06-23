@@ -232,7 +232,6 @@ export type AgentTriggerInput = {
   enabled?: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
-  cooldownMs?: number
 }
 
 /** Patch used to edit an activity trigger. */
@@ -241,7 +240,6 @@ export type AgentTriggerPatch = {
   enabled?: boolean
   source?: AgentTriggerSource
   prompt?: string | AgentPromptBlock[]
-  cooldownMs?: number | null
 }
 
 /** Activity source/filter that decides when an agent trigger fires. */
@@ -334,7 +332,6 @@ export type AgentTriggerInfo = {
   enabled: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
-  cooldownMs?: number
   createdAt: number
   updatedAt: number
   lastCheckedAt?: number

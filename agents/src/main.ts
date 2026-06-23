@@ -51,7 +51,6 @@ type AgentTriggerRow = {
   enabled: number
   source_cbor: Uint8Array | ArrayBuffer
   prompt: string
-  cooldown_ms: number | null
   created_at: number
   updated_at: number
   last_checked_at: number | null
@@ -218,7 +217,7 @@ function getDebugOverview(db: Database): {
     .all()
   const triggerRows = db
     .query<DebugTriggerRow, []>(
-      `SELECT t.id, t.account_id, t.agent_id, t.name, t.enabled, t.source_cbor, t.prompt, t.cooldown_ms,
+      `SELECT t.id, t.account_id, t.agent_id, t.name, t.enabled, t.source_cbor, t.prompt,
               t.created_at, t.updated_at, t.last_checked_at, t.last_fired_at, t.last_error,
               COUNT(f.id) AS firing_count,
               SUM(CASE WHEN f.status = 'error' THEN 1 ELSE 0 END) AS error_count,
@@ -310,7 +309,6 @@ function debugTriggerRowToInfo(row: DebugTriggerRow): DebugTrigger {
     enabled: row.enabled !== 0,
     source: cbor.decode<api.AgentTriggerSource>(toBytes(row.source_cbor)),
     prompt: row.prompt,
-    ...(row.cooldown_ms === null ? {} : {cooldownMs: row.cooldown_ms}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_checked_at === null ? {} : {lastCheckedAt: row.last_checked_at}),

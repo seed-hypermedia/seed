@@ -864,7 +864,6 @@ function AgentTriggersTab({
   const nameSaveIdRef = useRef(0)
   const [enabled, setEnabled] = useState(true)
   const [prompt, setPrompt] = useState<HMBlockNode[]>([])
-  const [cooldownMinutes, setCooldownMinutes] = useState('')
   const [source, setSource] = useState<AgentTriggerSource>({ type: 'document-comment', resource: '' })
   const [detailsDirty, setDetailsDirty] = useState(false)
   const [detailsSaveState, setDetailsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -872,10 +871,8 @@ function AgentTriggersTab({
   const selectedTriggerRef = useRef<string | null>(null)
   const lastSavedDetailsKeyRef = useRef('')
   const currentDetailsKey = useMemo(() => {
-    const cooldownMs =
-      source.type === 'schedule' ? null : cooldownMinutes.trim() ? Number(cooldownMinutes) * 60_000 : null
-    return JSON.stringify({ prompt, source, cooldownMs })
-  }, [cooldownMinutes, prompt, source])
+    return JSON.stringify({ prompt, source })
+  }, [prompt, source])
   const currentDetailsKeyRef = useRef(currentDetailsKey)
   currentDetailsKeyRef.current = currentDetailsKey
   const nextScheduledFire = useMemo(
@@ -894,15 +891,12 @@ function AgentTriggersTab({
     if (!triggerChanged) return
     const nextPrompt = agentPromptToBlocks(selected.prompt)
     const nextSource = selected.source
-    const nextCooldownMinutes = selected.cooldownMs ? String(Math.round(selected.cooldownMs / 60_000)) : ''
     setEnabled(selected.enabled)
     setPrompt(nextPrompt)
-    setCooldownMinutes(nextCooldownMinutes)
     setSource(nextSource)
     lastSavedDetailsKeyRef.current = JSON.stringify({
       prompt: nextPrompt,
       source: nextSource,
-      cooldownMs: nextSource.type === 'schedule' ? null : selected.cooldownMs ?? null,
     })
     setDetailsDirty(false)
     setDetailsSaveState('idle')
@@ -957,8 +951,6 @@ function AgentTriggersTab({
 
   useEffect(() => {
     if (!selectedTriggerId || !selected || !detailsDirty || detailsSaveState === 'saving') return
-    const cooldownMs =
-      source.type === 'schedule' ? null : cooldownMinutes.trim() ? Number(cooldownMinutes) * 60_000 : null
     const detailsKey = currentDetailsKey
     if (detailsKey === lastSavedDetailsKeyRef.current) {
       setDetailsDirty(false)
@@ -972,7 +964,7 @@ function AgentTriggersTab({
       void updateTrigger
         .mutateAsync({
           triggerId: selectedTriggerId,
-          patch: { prompt: promptBlocksToMarkdown(prompt), source, cooldownMs },
+          patch: { prompt: promptBlocksToMarkdown(prompt), source },
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
@@ -996,7 +988,7 @@ function AgentTriggersTab({
         })
     }, 800)
     return () => clearTimeout(timer)
-  }, [cooldownMinutes, currentDetailsKey, detailsDirty, detailsSaveState, prompt, selected, selectedTriggerId, source])
+  }, [currentDetailsKey, detailsDirty, detailsSaveState, prompt, selected, selectedTriggerId, source])
 
   async function handleDeleteTrigger() {
     if (!selectedTriggerId) return
@@ -1070,23 +1062,6 @@ function AgentTriggersTab({
                     setDetailsDirty(true)
                   }}
                 />
-                {source.type !== 'schedule' ? (
-                  <label className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      Cooldown minutes
-                    </SizableText>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={cooldownMinutes}
-                      onChange={(event) => {
-                        setCooldownMinutes(event.target.value)
-                        setDetailsDirty(true)
-                      }}
-                      placeholder="optional"
-                    />
-                  </label>
-                ) : null}
                 <div className="flex flex-col gap-1">
                   <SizableText size="sm" weight="bold">
                     Prompt
@@ -1175,7 +1150,6 @@ function AgentTriggersTab({
           </SizableText>
           <SizableText size="xs" color="muted">
             Updated {new Date(item.updatedAt).toLocaleString()}
-            {item.cooldownMs ? ` · ${Math.round(item.cooldownMs / 60_000)}m cooldown` : ''}
           </SizableText>
         </button>
       ))}
@@ -1210,7 +1184,6 @@ function CreateAgentTriggerDialog({
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Read the related Seed context and summarize what needs attention.'),
   )
-  const [cooldownMinutes, setCooldownMinutes] = useState('')
 
   async function handleCreateTrigger() {
     try {
@@ -1219,7 +1192,6 @@ function CreateAgentTriggerDialog({
         enabled,
         source,
         prompt: promptBlocksToMarkdown(prompt),
-        ...(source.type !== 'schedule' && cooldownMinutes.trim() ? { cooldownMs: Number(cooldownMinutes) * 60_000 } : {}),
       }
       const result = await createTrigger.mutateAsync({ agentId: input.agentId, trigger })
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
@@ -1247,20 +1219,6 @@ function CreateAgentTriggerDialog({
         <Input value={name} onChange={(event) => setName(event.target.value)} />
       </label>
       <TriggerSourceFields source={source} onChange={setSource} />
-      {source.type !== 'schedule' ? (
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Cooldown minutes
-          </SizableText>
-          <Input
-            type="number"
-            min="1"
-            value={cooldownMinutes}
-            onChange={(event) => setCooldownMinutes(event.target.value)}
-            placeholder="optional"
-          />
-        </label>
-      ) : null}
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Prompt
