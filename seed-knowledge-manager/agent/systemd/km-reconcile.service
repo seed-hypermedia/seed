@@ -1,0 +1,17 @@
+[Unit]
+Description=Knowledge Manager — force-sync local daemon (capability blob hot-pull)
+After=seed-daemon.service
+Requires=seed-daemon.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/home/km/.nanobot/secrets.env
+Environment=PATH=/home/km/.local/bin:/usr/bin:/usr/local/bin
+# ForceSync triggers the daemon's smart-sync immediately. Used as a band-aid
+# until backend/hmnet/syncing/scheduler.go promotes capability blobs into the
+# hot tier (see workstream A6). When that lands this timer can be removed.
+ExecStart=/home/km/.local/bin/seed-cli -s ${SEED_LOCAL_DAEMON_URL} site reconcile -q
+TimeoutStartSec=30
+
+[Install]
+WantedBy=default.target

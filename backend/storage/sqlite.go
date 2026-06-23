@@ -26,6 +26,12 @@ func OpenSQLite(uri string, flags sqlite.OpenFlags, poolSize int) (*sqlitex.Pool
 		"PRAGMA synchronous = NORMAL;",
 		"PRAGMA journal_mode = WAL;",
 		"PRAGMA cache_size = -262144;",
+		// Wait up to 5s when another writer holds the lock instead of
+		// returning SQLITE_BUSY immediately. Without this, headless
+		// agent daemons running on small VMs frequently lose reconcile
+		// transactions to peer-store/connect writes that grab the lock
+		// for a few ms at a time.
+		"PRAGMA busy_timeout = 5000;",
 		"PRAGMA temp_store = MEMORY;",
 	}
 	readPrelude := []string{

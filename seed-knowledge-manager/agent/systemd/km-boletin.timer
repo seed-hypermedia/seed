@@ -1,0 +1,11 @@
+[Unit]
+Description=Knowledge Manager — weekly bulletin schedule
+
+[Timer]
+# Mondays 09:00 UTC.
+OnCalendar=Mon *-*-* 09:00:00 UTC
+Persistent=true
+Unit=km-boletin.service
+
+[Install]
+WantedBy=timers.target

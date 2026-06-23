@@ -1,0 +1,11 @@
+[Unit]
+Description=Knowledge Manager — network-health schedule
+
+[Timer]
+# 1st of each month 09:00 UTC.
+OnCalendar=*-*-01 09:00:00 UTC
+Persistent=true
+Unit=km-health.service
+
+[Install]
+WantedBy=timers.target
