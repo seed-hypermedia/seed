@@ -370,8 +370,40 @@ function getToolString(value: unknown, path: string): string | undefined {
 }
 
 function getToolCustomView(item: ChatToolPart) {
-  const command = getToolString(item.args, 'command')
+  const command = getToolString(item.args, 'command') || getToolString(item.rawOutput, 'command')
   return getSeedToolMetadata(item.name)?.render.customViews?.find((view) => view.command === command)
+}
+
+function getFirstToolString(value: unknown, paths: string[]): string | undefined {
+  for (const path of paths) {
+    const found = getToolString(value, path)
+    if (found) return found
+  }
+  return undefined
+}
+
+function getFirstToolValue(value: unknown, paths: string[]): unknown {
+  for (const path of paths) {
+    const found = getPathValues(value, path)[0]
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+function isHMBlockNodeArray(value: unknown): value is HMBlockNode[] {
+  return Array.isArray(value) && value.every((item) => isRecord(item) && isRecord(item.block))
+}
+
+function parseToolBlocks(value: unknown, format?: string): HMBlockNode[] | undefined {
+  if (isHMBlockNodeArray(value)) return value
+  if (typeof value !== 'string' || format !== 'json') return undefined
+
+  try {
+    const parsed = JSON.parse(value)
+    return isHMBlockNodeArray(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function buildCommentUrl(targetUrl: string, commentId: string): string {
@@ -390,55 +422,675 @@ function isCommentUrlForRecordId(value: string | undefined): value is string {
   return Boolean(value && /\/:comments\/[^/?#]+\/[^?#]+/.test(value))
 }
 
-function NewCommentSummary({item}: {item: ChatToolPart}) {
-  const output = item.rawOutput
-  const targetUrl = getToolString(output, 'targetUrl') || getToolString(output, 'target')
-  const commentRecordId = [getToolString(output, 'commentRecordId'), getToolString(output, 'commentId')].find(
-    isCommentRecordId,
+function commentInfoFromRecordId(recordId: string | undefined): {targetUrl: string; commentUrl: string} | undefined {
+  if (!isCommentRecordId(recordId)) return undefined
+  const normalized = recordId.replace(/^hm:\/\//, '')
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts.length < 2) return undefined
+  const targetUrl = `hm://${parts.slice(0, -1).join('/')}`
+  return {targetUrl, commentUrl: buildCommentUrl(targetUrl, normalized)}
+}
+
+function buildProfileUrl(publicKey: string | undefined): string | undefined {
+  if (!publicKey) return undefined
+  if (publicKey.startsWith('hm://')) return publicKey
+  return `hm://${publicKey}/:profile`
+}
+
+function labelFromUrl(url: string | undefined, fallback = 'document'): string {
+  if (!url) return fallback
+  const normalized = url.replace(/^hm:\/\//, '').split(/[?#]/)[0]
+  const parts = normalized.split('/').filter(Boolean)
+  if (parts[1] === ':profile') return parts[0] || fallback
+  return parts.at(-1) || fallback
+}
+
+function getWriteCommand(item: ChatToolPart): string | undefined {
+  return getFirstToolString(item.args, ['command']) || getFirstToolString(item.rawOutput, ['command'])
+}
+
+function getWriteDocumentName(item: ChatToolPart, fallback = 'Untitled'): string {
+  return (
+    getFirstToolString(item.rawOutput, ['metadata.name', 'title']) ||
+    getFirstToolString(item.args, ['input.name', 'input.title', 'name', 'title', 'input.path', 'path']) ||
+    fallback
   )
-  const rawCommentUrl = getToolString(output, 'commentUrl')
-  const commentUrl = isCommentUrlForRecordId(rawCommentUrl)
-    ? rawCommentUrl
-    : targetUrl && commentRecordId
-      ? buildCommentUrl(targetUrl, commentRecordId)
-      : undefined
-  const authorPublicKey = getToolString(output, 'authorUrl') || getToolString(output, 'signer.publicKey')
-  const authorUrl = authorPublicKey?.startsWith('hm://')
-    ? authorPublicKey
-    : authorPublicKey
-      ? `hm://${authorPublicKey}`
-      : undefined
-  const authorName =
-    getToolString(output, 'authorName') || getToolString(output, 'signer.profileName') || authorPublicKey || 'Author'
-  const targetName = getToolString(output, 'targetName') || targetUrl || 'document'
+}
+
+function getWriteContent(item: ChatToolPart): {label: string; markdown?: string; blocks?: HMBlockNode[]} | undefined {
+  const command = getWriteCommand(item)
+  const label = command?.startsWith('comment.') ? 'Comment' : 'Content'
+  const outputMarkdown = getFirstToolString(item.rawOutput, ['markdown'])
+  if (outputMarkdown) return {label, markdown: outputMarkdown}
+
+  const format = getFirstToolString(item.args, ['input.format', 'format'])
+  const rawInputContent =
+    getFirstToolValue(item.args, ['input.body', 'input.text', 'body', 'text', 'input.content', 'content']) ??
+    getFirstToolValue(item.rawOutput, ['content'])
+  const blocks = parseToolBlocks(rawInputContent, format)
+  if (blocks) return {label, blocks}
+  if (typeof rawInputContent === 'string' && rawInputContent) return {label, markdown: rawInputContent}
+  return undefined
+}
+
+function getWriteMetadata(item: ChatToolPart): unknown {
+  return getFirstToolValue(item.rawOutput, ['metadata']) ?? getFirstToolValue(item.args, ['input.metadata', 'metadata'])
+}
+
+function getWritePrimaryDocumentUrl(item: ChatToolPart): string | undefined {
+  const command = getWriteCommand(item)
+  if (command === 'document.move') {
+    return (
+      getFirstToolString(item.rawOutput, ['destination', 'ref.id']) ||
+      getFirstToolString(item.args, [
+        'input.destination',
+        'input.destinationId',
+        'destination',
+        'destinationId',
+        'input.to',
+        'to',
+      ])
+    )
+  }
+  if (command === 'document.redirect') {
+    return (
+      getFirstToolString(item.rawOutput, ['target']) ||
+      getFirstToolString(item.args, ['input.to', 'to', 'input.target', 'target'])
+    )
+  }
+  if (command === 'draft.publish') {
+    return getFirstToolString(item.rawOutput, ['id'])
+  }
+  return (
+    getFirstToolString(item.rawOutput, ['url', 'resourceUrl', 'id', 'destination', 'target']) ||
+    getFirstToolString(item.args, ['input.edit', 'edit', 'input.id', 'id', 'input.target', 'target'])
+  )
+}
+
+function getWriteSourceDocumentUrl(item: ChatToolPart): string | undefined {
+  return (
+    getFirstToolString(item.rawOutput, ['redirect.id']) ||
+    getFirstToolString(item.args, ['input.source', 'input.sourceId', 'source', 'sourceId', 'input.id', 'id'])
+  )
+}
+
+function getWriteDestinationDocumentUrl(item: ChatToolPart): string | undefined {
+  return (
+    getFirstToolString(item.rawOutput, ['destination', 'ref.id', 'target']) ||
+    getFirstToolString(item.args, [
+      'input.destination',
+      'input.destinationId',
+      'destination',
+      'destinationId',
+      'input.to',
+      'to',
+      'input.target',
+      'target',
+    ])
+  )
+}
+
+function getCommentLinks(item: ChatToolPart) {
+  const output = item.rawOutput
+  const targetUrl = getFirstToolString(output, ['targetUrl', 'target'])
+  const commentRecordId = [
+    getFirstToolString(output, ['commentUrl']),
+    getFirstToolString(output, ['commentRecordId', 'commentId']),
+    getFirstToolString(item.args, ['input.comment', 'input.commentId', 'comment', 'commentId']),
+  ]
+  const rawCommentUrl = isCommentUrlForRecordId(commentRecordId[0]) ? commentRecordId[0] : undefined
+  const fallbackRecord = commentInfoFromRecordId(commentRecordId[1]) || commentInfoFromRecordId(commentRecordId[2])
+  const commentUrl =
+    rawCommentUrl ||
+    (targetUrl && isCommentRecordId(commentRecordId[1])
+      ? buildCommentUrl(targetUrl, commentRecordId[1])
+      : fallbackRecord?.commentUrl)
+  const resolvedTargetUrl = targetUrl || fallbackRecord?.targetUrl
+  return {commentUrl, targetUrl: resolvedTargetUrl}
+}
+
+function ToolDetailSection({label, children}: {label: string; children: React.ReactNode}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">{label}</div>
+      {children}
+    </div>
+  )
+}
+
+function ToolDetailCard({children}: {children: React.ReactNode}) {
+  return <div className="bg-background/60 text-foreground rounded-md border px-2.5 py-2">{children}</div>
+}
+
+function ToolDetailList({children}: {children: React.ReactNode}) {
+  return <div className="grid gap-1.5 sm:grid-cols-2">{children}</div>
+}
+
+function ToolDetailItem({label, children}: {label: string; children: React.ReactNode}) {
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <div className="text-muted-foreground text-[10px]">{label}</div>
+      <div className="min-w-0 text-[12px] break-words">{children}</div>
+    </div>
+  )
+}
+
+function ToolEntityText({url, label}: {url?: string; label: string}) {
+  return url ? <ToolTextLink url={url}>{label}</ToolTextLink> : <span>{label}</span>
+}
+
+function ToolRenderedContent({content}: {content: {markdown?: string; blocks?: HMBlockNode[]}}) {
+  if (content.blocks?.length) {
+    return (
+      <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
+        <Suspense fallback={<pre className="text-[11px] whitespace-pre-wrap">Loading rich content…</pre>}>
+          <RichMessageBlocks blocks={content.blocks} />
+        </Suspense>
+      </div>
+    )
+  }
+
+  return <Markdown>{content.markdown || ''}</Markdown>
+}
+
+function ReadToolSummary({item}: {item: ChatToolPart}) {
+  const output = item.rawOutput
+  const resourceUrl = getFirstToolString(output, ['resourceUrl', 'id']) || getFirstToolString(item.args, ['id'])
+  const title =
+    getFirstToolString(output, ['title', 'displayLabel']) ||
+    getFirstToolString(item.args, ['id']) ||
+    labelFromUrl(resourceUrl, 'Document')
 
   return (
     <span className="text-foreground/80 min-w-0 truncate">
-      {commentUrl ? (
-        <ToolTextLink url={commentUrl}>New Comment</ToolTextLink>
-      ) : (
-        <span className="font-medium">New Comment</span>
-      )}{' '}
-      by {authorUrl ? <ToolTextLink url={authorUrl}>{authorName}</ToolTextLink> : <span>{authorName}</span>} on{' '}
-      {targetUrl ? <ToolTextLink url={targetUrl}>{targetName}</ToolTextLink> : <span>{targetName}</span>}
+      <span className="font-medium">Read document:</span> <ToolEntityText url={resourceUrl} label={title} />
     </span>
   )
 }
 
-function NewCommentDetails({item}: {item: ChatToolPart}) {
-  const markdown =
-    getToolString(item.rawOutput, 'markdown') ||
-    getToolString(item.args, 'input.body') ||
-    getToolString(item.args, 'input.content') ||
-    getToolString(item.args, 'body') ||
-    getToolString(item.args, 'content')
+function ReadToolDetails({item}: {item: ChatToolPart}) {
+  const output = item.rawOutput
+  const resourceUrl = getFirstToolString(output, ['resourceUrl', 'id']) || getFirstToolString(item.args, ['id'])
+  const requestedUrl = getFirstToolString(output, ['requestedId']) || getFirstToolString(item.args, ['id'])
+  const title = getFirstToolString(output, ['title', 'displayLabel']) || labelFromUrl(resourceUrl, 'Document')
+  const server = getFirstToolString(output, ['server'])
+  const markdown = getFirstToolString(output, ['markdown'])
 
   return (
-    <div className="space-y-1">
-      <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Comment</div>
-      <div className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border px-2.5 py-2">
-        <Markdown>{markdown || item.result || ''}</Markdown>
-      </div>
+    <div className="space-y-3">
+      <ToolDetailSection label="Document">
+        <ToolDetailCard>
+          <ToolDetailList>
+            <ToolDetailItem label="Title">
+              <ToolEntityText url={resourceUrl} label={title} />
+            </ToolDetailItem>
+            {server ? <ToolDetailItem label="Server">{server}</ToolDetailItem> : null}
+            {requestedUrl && requestedUrl !== resourceUrl ? (
+              <ToolDetailItem label="Requested">{requestedUrl}</ToolDetailItem>
+            ) : null}
+          </ToolDetailList>
+        </ToolDetailCard>
+      </ToolDetailSection>
+      {markdown ? (
+        <ToolDetailSection label="Content">
+          <ToolDetailCard>
+            <div className="max-h-72 overflow-auto">
+              <Markdown>{markdown}</Markdown>
+            </div>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+    </div>
+  )
+}
+
+function WriteCommandSummary({item}: {item: ChatToolPart}) {
+  const command = getWriteCommand(item)
+  const output = item.rawOutput
+  const documentUrl = getWritePrimaryDocumentUrl(item)
+  const documentName = getWriteDocumentName(item, labelFromUrl(documentUrl, 'Untitled'))
+  const sourceUrl = getWriteSourceDocumentUrl(item)
+  const destinationUrl = getWriteDestinationDocumentUrl(item)
+  const sourceName = labelFromUrl(sourceUrl, 'source')
+  const destinationName = labelFromUrl(destinationUrl, 'destination')
+  const draftTitle =
+    getFirstToolString(output, ['title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
+  const draftId =
+    getFirstToolString(output, ['draftId']) ||
+    getFirstToolString(item.args, ['input.draftId', 'draftId', 'input.draft', 'draft'])
+  const profileName =
+    getFirstToolString(output, ['profile.name', 'signer.profileName']) ||
+    getFirstToolString(item.args, ['input.name', 'name']) ||
+    'Profile'
+  const profilePublicKey = getFirstToolString(output, ['profile.publicKey', 'signer.publicKey'])
+  const profileUrl = buildProfileUrl(profilePublicKey)
+  const alias =
+    getFirstToolString(output, ['alias']) || getFirstToolString(item.args, ['input.alias', 'alias']) || 'alias'
+  const contactName =
+    getFirstToolString(output, ['name']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Contact'
+  const contactSubject =
+    getFirstToolString(output, ['subject']) || getFirstToolString(item.args, ['input.subject', 'subject'])
+  const contactSubjectUrl = buildProfileUrl(contactSubject)
+  const capabilityRole =
+    getFirstToolString(output, ['role']) || getFirstToolString(item.args, ['input.role', 'role']) || 'Capability'
+  const capabilityDelegate =
+    getFirstToolString(output, ['delegate']) ||
+    getFirstToolString(item.args, ['input.delegate', 'delegate', 'input.delegateUid', 'delegateUid'])
+  const capabilityDelegateUrl = buildProfileUrl(capabilityDelegate)
+  const {commentUrl, targetUrl} = getCommentLinks(item)
+  const authorPublicKey = getFirstToolString(output, ['authorUrl', 'signer.publicKey'])
+  const authorUrl = authorPublicKey?.startsWith('hm://') ? authorPublicKey : buildProfileUrl(authorPublicKey)
+  const authorName = getFirstToolString(output, ['authorName', 'signer.profileName']) || authorPublicKey || 'Author'
+  const targetName = getFirstToolString(output, ['targetName']) || labelFromUrl(targetUrl, 'document')
+
+  switch (command) {
+    case 'comment.create':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          {commentUrl ? (
+            <ToolTextLink url={commentUrl}>New Comment</ToolTextLink>
+          ) : (
+            <span className="font-medium">New Comment</span>
+          )}{' '}
+          by <ToolEntityText url={authorUrl} label={authorName} /> on{' '}
+          <ToolEntityText url={targetUrl} label={targetName} />
+        </span>
+      )
+    case 'comment.update':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Update comment</span>
+          {targetUrl ? (
+            <>
+              {' '}
+              on <ToolEntityText url={targetUrl} label={targetName} />
+            </>
+          ) : null}
+        </span>
+      )
+    case 'comment.delete':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Delete comment</span>
+          {targetUrl ? (
+            <>
+              {' '}
+              on <ToolEntityText url={targetUrl} label={targetName} />
+            </>
+          ) : null}
+        </span>
+      )
+    case 'document.create':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Create document:</span>{' '}
+          <ToolEntityText url={documentUrl} label={documentName} />
+        </span>
+      )
+    case 'document.update':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Update document:</span>{' '}
+          <ToolEntityText url={documentUrl} label={documentName} />
+        </span>
+      )
+    case 'document.delete':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Delete document:</span>{' '}
+          <ToolEntityText url={documentUrl} label={documentName} />
+        </span>
+      )
+    case 'document.fork':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Copy document:</span>{' '}
+          <ToolEntityText url={destinationUrl || documentUrl} label={destinationName} />
+        </span>
+      )
+    case 'document.ref':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Reference document:</span>{' '}
+          <ToolEntityText url={destinationUrl || documentUrl} label={destinationName} />
+        </span>
+      )
+    case 'document.move':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Move document:</span> <ToolEntityText url={sourceUrl} label={sourceName} /> →{' '}
+          <ToolEntityText url={destinationUrl} label={destinationName} />
+        </span>
+      )
+    case 'document.redirect':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Redirect document:</span> <ToolEntityText url={sourceUrl} label={sourceName} />{' '}
+          → <ToolEntityText url={destinationUrl} label={destinationName} />
+        </span>
+      )
+    case 'draft.create':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Create draft:</span> {draftTitle}
+        </span>
+      )
+    case 'draft.update':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Update draft:</span> {draftTitle}
+        </span>
+      )
+    case 'draft.get':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Open draft:</span> {draftTitle}
+        </span>
+      )
+    case 'draft.list':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">List drafts</span>
+        </span>
+      )
+    case 'draft.delete':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Delete draft:</span> {draftTitle || draftId || 'Draft'}
+        </span>
+      )
+    case 'draft.publish':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Publish draft:</span> {draftTitle}
+          {documentUrl ? (
+            <>
+              {' '}
+              → <ToolEntityText url={documentUrl} label={documentName} />
+            </>
+          ) : null}
+        </span>
+      )
+    case 'profile.update':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Update profile:</span> <ToolEntityText url={profileUrl} label={profileName} />
+        </span>
+      )
+    case 'profile.alias':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Alias profile:</span> {alias}
+        </span>
+      )
+    case 'contact.create':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Create contact:</span>{' '}
+          <ToolEntityText url={contactSubjectUrl} label={contactName} />
+        </span>
+      )
+    case 'contact.delete':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Delete contact:</span> {contactName}
+        </span>
+      )
+    case 'capability.create':
+    case 'capability.grant':
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">Grant {capabilityRole} capability</span>
+          {capabilityDelegate ? (
+            <>
+              {' '}
+              to <ToolEntityText url={capabilityDelegateUrl} label={capabilityDelegate} />
+            </>
+          ) : null}
+        </span>
+      )
+    default:
+      return (
+        <span className="text-foreground/80 min-w-0 truncate">
+          <span className="font-medium">{command || 'Write'}</span>
+          {documentUrl ? (
+            <>
+              : <ToolEntityText url={documentUrl} label={documentName} />
+            </>
+          ) : null}
+        </span>
+      )
+  }
+}
+
+function WriteCommandDetails({item}: {item: ChatToolPart}) {
+  const command = getWriteCommand(item)
+  const content = getWriteContent(item)
+  const metadata = getWriteMetadata(item)
+  const output = item.rawOutput
+  const warning = getFirstToolString(output, ['warning'])
+  const dryRun = getFirstToolValue(output, ['dryRun']) === true
+  const documentUrl = getWritePrimaryDocumentUrl(item)
+  const documentName = getWriteDocumentName(item, labelFromUrl(documentUrl, 'Untitled'))
+  const sourceUrl = getWriteSourceDocumentUrl(item)
+  const destinationUrl = getWriteDestinationDocumentUrl(item)
+  const sourceName = labelFromUrl(sourceUrl, 'source')
+  const destinationName = labelFromUrl(destinationUrl, 'destination')
+  const draftId =
+    getFirstToolString(output, ['draftId']) ||
+    getFirstToolString(item.args, ['input.draftId', 'draftId', 'input.draft', 'draft'])
+  const draftTitle =
+    getFirstToolString(output, ['title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
+  const profileName =
+    getFirstToolString(output, ['profile.name', 'signer.profileName']) ||
+    getFirstToolString(item.args, ['input.name', 'name']) ||
+    'Profile'
+  const profilePublicKey = getFirstToolString(output, ['profile.publicKey', 'signer.publicKey'])
+  const profileUrl = buildProfileUrl(profilePublicKey)
+  const alias = getFirstToolString(output, ['alias']) || getFirstToolString(item.args, ['input.alias', 'alias'])
+  const contactId =
+    getFirstToolString(output, ['contactId']) || getFirstToolString(item.args, ['input.contactId', 'contactId'])
+  const contactName =
+    getFirstToolString(output, ['name']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Contact'
+  const contactSubject =
+    getFirstToolString(output, ['subject']) || getFirstToolString(item.args, ['input.subject', 'subject'])
+  const contactSubjectUrl = buildProfileUrl(contactSubject)
+  const capabilityRole = getFirstToolString(output, ['role']) || getFirstToolString(item.args, ['input.role', 'role'])
+  const capabilityDelegate =
+    getFirstToolString(item.args, ['input.delegate', 'delegate', 'input.delegateUid', 'delegateUid']) ||
+    getFirstToolString(output, ['delegate'])
+  const capabilityDelegateUrl = buildProfileUrl(capabilityDelegate)
+  const capabilityPath = getFirstToolString(output, ['path']) || getFirstToolString(item.args, ['input.path', 'path'])
+  const capabilityLabel =
+    getFirstToolString(output, ['label']) || getFirstToolString(item.args, ['input.label', 'label'])
+  const version = getFirstToolString(output, ['version'])
+  const status = getFirstToolString(output, ['status'])
+  const {commentUrl, targetUrl} = getCommentLinks(item)
+  const targetName = getFirstToolString(output, ['targetName']) || labelFromUrl(targetUrl, 'document')
+  const authorPublicKey = getFirstToolString(output, ['authorUrl', 'signer.publicKey'])
+  const authorUrl = authorPublicKey?.startsWith('hm://') ? authorPublicKey : buildProfileUrl(authorPublicKey)
+  const authorName = getFirstToolString(output, ['authorName', 'signer.profileName']) || authorPublicKey || 'Author'
+  const drafts = getPathValues(output, 'drafts[]').filter((draft) => isRecord(draft)) as Record<string, unknown>[]
+
+  return (
+    <div className="space-y-3">
+      {dryRun || warning ? (
+        <ToolDetailSection label="Status">
+          <ToolDetailCard>
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
+              {dryRun ? <ToolChip>Dry run</ToolChip> : null}
+              {status ? <ToolChip>{status}</ToolChip> : null}
+              {warning ? <span className="text-amber-700 dark:text-amber-300">{warning}</span> : null}
+            </div>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'comment.create' || command === 'comment.update' || command === 'comment.delete' ? (
+        <ToolDetailSection label="Comment">
+          <ToolDetailCard>
+            <ToolDetailList>
+              <ToolDetailItem label="Comment">
+                {commentUrl ? <ToolTextLink url={commentUrl}>{commentUrl}</ToolTextLink> : 'Comment thread'}
+              </ToolDetailItem>
+              <ToolDetailItem label="Document">
+                <ToolEntityText url={targetUrl} label={targetName} />
+              </ToolDetailItem>
+              {command === 'comment.create' ? (
+                <ToolDetailItem label="Author">
+                  <ToolEntityText url={authorUrl} label={authorName} />
+                </ToolDetailItem>
+              ) : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'document.create' || command === 'document.update' || command === 'document.delete' ? (
+        <ToolDetailSection label="Document">
+          <ToolDetailCard>
+            <ToolDetailList>
+              <ToolDetailItem label="Document">
+                <ToolEntityText url={documentUrl} label={documentName} />
+              </ToolDetailItem>
+              {version ? <ToolDetailItem label="Version">{version}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'document.fork' ||
+      command === 'document.ref' ||
+      command === 'document.move' ||
+      command === 'document.redirect' ? (
+        <ToolDetailSection label="Document change">
+          <ToolDetailCard>
+            <ToolDetailList>
+              {sourceUrl ? (
+                <ToolDetailItem label="Source">
+                  <ToolEntityText url={sourceUrl} label={sourceName} />
+                </ToolDetailItem>
+              ) : null}
+              {destinationUrl ? (
+                <ToolDetailItem label={command === 'document.redirect' ? 'Target' : 'Destination'}>
+                  <ToolEntityText url={destinationUrl} label={destinationName} />
+                </ToolDetailItem>
+              ) : null}
+              {version ? <ToolDetailItem label="Version">{version}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'draft.create' ||
+      command === 'draft.update' ||
+      command === 'draft.get' ||
+      command === 'draft.delete' ||
+      command === 'draft.publish' ? (
+        <ToolDetailSection label="Draft">
+          <ToolDetailCard>
+            <ToolDetailList>
+              <ToolDetailItem label="Title">{draftTitle}</ToolDetailItem>
+              {draftId ? <ToolDetailItem label="Draft ID">{draftId}</ToolDetailItem> : null}
+              {documentUrl && command === 'draft.publish' ? (
+                <ToolDetailItem label="Published document">
+                  <ToolEntityText url={documentUrl} label={documentName} />
+                </ToolDetailItem>
+              ) : null}
+              {status ? <ToolDetailItem label="Status">{status}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'draft.list' && drafts.length ? (
+        <ToolDetailSection label="Drafts">
+          <div className="space-y-2">
+            {drafts.map((draft) => (
+              <ToolDetailCard key={String(draft.id || draft.title || Math.random())}>
+                <ToolDetailList>
+                  <ToolDetailItem label="Title">
+                    {typeof draft.title === 'string' && draft.title ? draft.title : 'Untitled draft'}
+                  </ToolDetailItem>
+                  <ToolDetailItem label="Status">
+                    {typeof draft.status === 'string' ? draft.status : 'idle'}
+                  </ToolDetailItem>
+                  {typeof draft.edit_target === 'string' && draft.edit_target ? (
+                    <ToolDetailItem label="Edit target">{draft.edit_target}</ToolDetailItem>
+                  ) : null}
+                  {typeof draft.location_target === 'string' && draft.location_target ? (
+                    <ToolDetailItem label="Location">{draft.location_target}</ToolDetailItem>
+                  ) : null}
+                </ToolDetailList>
+              </ToolDetailCard>
+            ))}
+          </div>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'profile.update' || command === 'profile.alias' ? (
+        <ToolDetailSection label="Profile">
+          <ToolDetailCard>
+            <ToolDetailList>
+              <ToolDetailItem label="Profile">
+                <ToolEntityText url={profileUrl} label={profileName} />
+              </ToolDetailItem>
+              {alias ? <ToolDetailItem label="Alias">{alias}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'contact.create' || command === 'contact.delete' ? (
+        <ToolDetailSection label="Contact">
+          <ToolDetailCard>
+            <ToolDetailList>
+              <ToolDetailItem label="Contact">{contactName}</ToolDetailItem>
+              {contactSubject ? (
+                <ToolDetailItem label="Profile">
+                  <ToolEntityText url={contactSubjectUrl} label={contactSubject} />
+                </ToolDetailItem>
+              ) : null}
+              {contactId ? <ToolDetailItem label="Contact ID">{contactId}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {command === 'capability.create' || command === 'capability.grant' ? (
+        <ToolDetailSection label="Capability">
+          <ToolDetailCard>
+            <ToolDetailList>
+              {capabilityRole ? <ToolDetailItem label="Role">{capabilityRole}</ToolDetailItem> : null}
+              {capabilityDelegate ? (
+                <ToolDetailItem label="Delegate">
+                  <ToolEntityText url={capabilityDelegateUrl} label={capabilityDelegate} />
+                </ToolDetailItem>
+              ) : null}
+              {capabilityPath ? <ToolDetailItem label="Path">{capabilityPath}</ToolDetailItem> : null}
+              {capabilityLabel ? <ToolDetailItem label="Label">{capabilityLabel}</ToolDetailItem> : null}
+            </ToolDetailList>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {content ? (
+        <ToolDetailSection label={content.label}>
+          <ToolDetailCard>
+            <div className="max-h-72 overflow-auto">
+              <ToolRenderedContent content={content} />
+            </div>
+          </ToolDetailCard>
+        </ToolDetailSection>
+      ) : null}
+
+      {metadata && isRecord(metadata) && Object.keys(metadata).length > 0 ? (
+        <ToolDetailSection label="Metadata">
+          <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+            {formatToolDebugValue(metadata)}
+          </pre>
+        </ToolDetailSection>
+      ) : null}
     </div>
   )
 }
@@ -490,8 +1142,10 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
             {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
           </button>
           {isPending ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Icon className="size-3 shrink-0" />}
-          {customView?.kind === 'new-comment' ? (
-            <NewCommentSummary item={item} />
+          {item.name === 'read' ? (
+            <ReadToolSummary item={item} />
+          ) : customView?.kind === 'write-command' ? (
+            <WriteCommandSummary item={item} />
           ) : (
             <>
               <span className="shrink-0 font-medium">{render?.label || item.name}</span>
@@ -504,6 +1158,7 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
             </>
           )}
           {isPending ? <ToolChip>{render?.pendingLabel || 'Running'}</ToolChip> : null}
+          {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
           <button
             type="button"
             title="View raw tool input/output"
@@ -515,8 +1170,10 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
         </div>
         {expanded ? (
           <div className="mt-2 space-y-2 border-t pt-2">
-            {customView?.kind === 'new-comment' ? (
-              <NewCommentDetails item={item} />
+            {item.name === 'read' ? (
+              <ReadToolDetails item={item} />
+            ) : customView?.kind === 'write-command' ? (
+              <WriteCommandDetails item={item} />
             ) : (
               details.map((detail) => (
                 <div key={`${detail.label}:${detail.path || detail.source}`} className="space-y-1">

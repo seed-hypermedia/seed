@@ -25,7 +25,10 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
+import {DEFAULT_AGENT_TOOLS} from './agent-tools'
+import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {ProviderSelect} from './provider-select'
 
 export function ModelProvidersDialog({
   input,
@@ -90,14 +93,47 @@ export function ModelProvidersDialog({
   )
 }
 
-function AddModelProviderDialog({
+export function AddModelProviderDialog({
   input,
   onClose,
 }: {
   input: {serverUrl: string; selectedAccountId: string | null | undefined}
   onClose: () => void
 }) {
-  const saveProvider = useSaveModelProvider(input.serverUrl, input.selectedAccountId)
+  return (
+    <div className="flex min-w-[420px] flex-col gap-5">
+      <div>
+        <DialogTitle>Add model provider</DialogTitle>
+        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
+      </div>
+      <AddModelProviderForm
+        serverUrl={input.serverUrl}
+        selectedAccountId={input.selectedAccountId}
+        onSaved={onClose}
+        onCancel={onClose}
+      />
+    </div>
+  )
+}
+
+/**
+ * Provider type/name/API-key fields plus save logic, shared by the standalone
+ * "Add model provider" dialog and the inline provider step of agent creation.
+ */
+function AddModelProviderForm({
+  serverUrl,
+  selectedAccountId,
+  onSaved,
+  onCancel,
+  submitLabel = 'Save provider',
+}: {
+  serverUrl: string
+  selectedAccountId: string | null | undefined
+  onSaved?: () => void
+  onCancel: () => void
+  submitLabel?: string
+}) {
+  const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
   const [type, setType] = useState<ModelProviderType>('openai')
   const [name, setName] = useState('openai')
   const [apiKey, setApiKey] = useState('')
@@ -111,7 +147,7 @@ function AddModelProviderDialog({
       await saveProvider.mutateAsync({type, name, apiKey})
       setApiKey('')
       toast.success('Model provider saved')
-      onClose()
+      onSaved?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save model provider')
     }
@@ -119,17 +155,13 @@ function AddModelProviderDialog({
 
   return (
     <form
-      className="flex min-w-[420px] flex-col gap-5"
+      className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
         if (saveProvider.isLoading || !apiKey.trim()) return
         void handleSave()
       }}
     >
-      <div>
-        <DialogTitle>Add model provider</DialogTitle>
-        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
-      </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Provider type
@@ -157,11 +189,11 @@ function AddModelProviderDialog({
         <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
       </label>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={saveProvider.isLoading || !apiKey.trim()}>
-          Save provider
+          {submitLabel}
         </Button>
       </div>
     </form>
@@ -355,8 +387,13 @@ export function CreateAgentDialog({
   const [selectedServerUrl, setSelectedServerUrl] = useState(input.serverUrls[0] || DEFAULT_AGENT_SERVER_URL)
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
+  const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
+  const deleteSigningIdentity = useDeleteSigningIdentity(selectedServerUrl, input.selectedAccountId)
+  const navigate = useNavigate()
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
+  const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
+  const addProviderDialog = useAppDialog(AddModelProviderDialog)
   const [name, setName] = useState('Desktop Test Agent')
   const [model, setModel] = useState('')
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
@@ -378,67 +415,112 @@ export function CreateAgentDialog({
   }, [model, providerModels.data])
 
   async function handleCreateAgent() {
+    const agentName = name.trim()
+    if (!agentName) {
+      toast.error('Agent name is required')
+      return
+    }
+    // Auto-create a dedicated account for the agent so it can publish without the
+    // user setting up a signing identity by hand. The account is named after the
+    // agent and wired in as its signing key with write tooling enabled.
+    let signingKeyName: string | undefined
+    try {
+      const identityResult = await createSigningIdentity.mutateAsync(agentName)
+      if (identityResult._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
+      signingKeyName = identityResult.identity.name
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create the agent account')
+      return
+    }
     try {
       const definition: AgentDefinition = {
-        name,
+        name: agentName,
         systemPrompt: promptBlocksToMarkdown(systemPrompt),
         modelProvider: providerName,
         model,
-        tools: ['read'],
+        tools: DEFAULT_AGENT_TOOLS,
+        signingKey: signingKeyName,
+        signingKeys: [signingKeyName],
         metadata: {createdFrom: 'desktop-agents-page'},
       }
       const result = await createAgent.mutateAsync(definition)
       if (result._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
       toast.success('Agent created')
       onClose()
+      navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
     } catch (error) {
+      // Roll back the just-created account so a failed agent create doesn't leave an orphan.
+      void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
       toast.error(error instanceof Error ? error.message : 'Could not create agent')
     }
+  }
+
+  const serverSelector = (
+    <label className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        Agent server
+      </SizableText>
+      <select
+        className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        value={selectedServerUrl}
+        onChange={(event) => setSelectedServerUrl(event.target.value)}
+      >
+        {input.serverUrls.map((serverUrl) => (
+          <option key={serverUrl} value={serverUrl}>
+            {serverUrl}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+
+  // Force provider setup before agent creation when the selected server has
+  // none configured. Saving one refetches `providers`, which transitions this
+  // dialog to the regular agent creation form automatically.
+  const needsProvider = !providers.isLoading && !providers.data?.length
+
+  if (needsProvider) {
+    return (
+      <div className="flex min-w-[520px] flex-col gap-5">
+        <div>
+          <DialogTitle>Create Agent</DialogTitle>
+          <DialogDescription>Add a model provider on this server before creating an agent.</DialogDescription>
+        </div>
+        {serverSelector}
+        <AddModelProviderForm
+          serverUrl={selectedServerUrl}
+          selectedAccountId={input.selectedAccountId}
+          onCancel={onClose}
+          submitLabel="Add provider"
+        />
+      </div>
+    )
   }
 
   return (
     <div className="flex min-w-[520px] flex-col gap-5">
       <div>
         <DialogTitle>Create Agent</DialogTitle>
-        <DialogDescription>Choose a model provider, model, and system prompt for the new agent.</DialogDescription>
+        <DialogDescription>
+          Choose a model provider, model, and system prompt. An account named after the agent is created automatically
+          so it can publish Seed content.
+        </DialogDescription>
       </div>
-      <label className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Agent server
-        </SizableText>
-        <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-          value={selectedServerUrl}
-          onChange={(event) => setSelectedServerUrl(event.target.value)}
-        >
-          {input.serverUrls.map((serverUrl) => (
-            <option key={serverUrl} value={serverUrl}>
-              {serverUrl}
-            </option>
-          ))}
-        </select>
-      </label>
+      {serverSelector}
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Model provider
         </SizableText>
-        <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        <ProviderSelect
+          providers={providers.data}
           value={providerName}
-          onChange={(event) => setProviderName(event.target.value)}
-        >
-          {(providers.data || []).map((provider) => (
-            <option key={provider.id} value={provider.name}>
-              {provider.name} ({provider.type})
-            </option>
-          ))}
-        </select>
-        {!providers.isLoading && !providers.data?.length ? (
-          <SizableText size="xs" color="muted">
-            Configure a model provider on this server before creating an agent.
-          </SizableText>
-        ) : null}
+          onChange={setProviderName}
+          onAddProvider={() =>
+            addProviderDialog.open({serverUrl: selectedServerUrl, selectedAccountId: input.selectedAccountId})
+          }
+        />
       </label>
+      {addProviderDialog.content}
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
@@ -450,29 +532,16 @@ export function CreateAgentDialog({
           <SizableText size="sm" weight="bold">
             Model
           </SizableText>
-          <select
-            className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          <ModelSelect
+            models={providerModels.data}
+            providerType={selectedProviderType}
             value={model}
-            onChange={(event) => setModel(event.target.value)}
-            disabled={!providerName || providerModels.isLoading || !providerModels.data?.length}
-          >
-            {providerModels.isLoading ? <option value="">Loading models…</option> : null}
-            {!providerModels.isLoading && !providerModels.data?.length ? (
-              <option value="">No models found</option>
-            ) : null}
-            {(providerModels.data || []).map((providerModel) => (
-              <option key={providerModel.id} value={providerModel.id}>
-                {providerModel.name === providerModel.id
-                  ? providerModel.id
-                  : `${providerModel.name} (${providerModel.id})`}
-              </option>
-            ))}
-          </select>
-          {providerModels.isError ? (
-            <SizableText size="xs" className="text-destructive">
-              {providerModels.error instanceof Error ? providerModels.error.message : 'Could not load models'}
-            </SizableText>
-          ) : null}
+            onChange={setModel}
+            isLoading={providerModels.isLoading}
+            isError={providerModels.isError}
+            error={providerModels.error}
+            disabled={!providerName}
+          />
         </label>
       </div>
       <div className="flex flex-col gap-1">
@@ -485,10 +554,84 @@ export function CreateAgentDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleCreateAgent()} disabled={createAgent.isLoading || !providerName || !model}>
+        <Button
+          onClick={() => void handleCreateAgent()}
+          disabled={createAgent.isLoading || createSigningIdentity.isLoading || !providerName || !model}
+        >
           Create Agent
         </Button>
       </div>
     </div>
+  )
+}
+
+/** Describes how the agent's account relates to the rename so the dialog can explain what happens. */
+export type AgentAccountRenameStatus =
+  | {kind: 'own'} // a dedicated account that will be renamed alongside the agent
+  | {kind: 'shared'} // an account used by other agents, left untouched
+  | {kind: 'none'} // no signing account linked
+
+export function EditAgentNameDialog({
+  input,
+  onClose,
+}: {
+  input: {currentName: string; accountStatus: AgentAccountRenameStatus; onRename: (name: string) => Promise<void>}
+  onClose: () => void
+}) {
+  const [name, setName] = useState(input.currentName)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      toast.error('Agent name is required')
+      return
+    }
+    setSaving(true)
+    try {
+      await input.onRename(trimmed)
+      toast.success('Agent renamed')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not rename agent')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form
+      className="flex min-w-[420px] flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (saving) return
+        void handleSave()
+      }}
+    >
+      <div>
+        <DialogTitle>Rename agent</DialogTitle>
+        <DialogDescription>
+          {input.accountStatus.kind === 'own'
+            ? "The agent's account is renamed to match."
+            : input.accountStatus.kind === 'shared'
+              ? 'This agent shares its account with other agents, so the account keeps its name. Rename it separately from Manage accounts.'
+              : 'This agent has no linked account to rename.'}
+        </DialogDescription>
+      </div>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Name
+        </SizableText>
+        <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Agent" />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving || !name.trim()}>
+          Save
+        </Button>
+      </div>
+    </form>
   )
 }

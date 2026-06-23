@@ -35,9 +35,10 @@ export function verifyEnvelope(db: Database, envelope: api.SignedActionEnvelope)
 /** Returns whether a non-account signer has an AGENT authorization for the account. */
 export function isAuthorizedSigner(db: Database, accountId: string, signerId: string): boolean {
   const row = db
-    .query<{role: string}, [string, string]>(
-      `SELECT role FROM account_authorizations WHERE account_id = ? AND signer = ? LIMIT 1`,
-    )
+    .query<
+      {role: string},
+      [string, string]
+    >(`SELECT role FROM account_authorizations WHERE account_id = ? AND signer = ? LIMIT 1`)
     .get(accountId, signerId)
   return row?.role === 'AGENT' || row?.role === 'OWNER'
 }

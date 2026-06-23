@@ -232,7 +232,6 @@ export type AgentTriggerInput = {
   enabled?: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
-  cooldownMs?: number
 }
 
 /** Patch used to edit an activity trigger. */
@@ -241,7 +240,6 @@ export type AgentTriggerPatch = {
   enabled?: boolean
   source?: AgentTriggerSource
   prompt?: string | AgentPromptBlock[]
-  cooldownMs?: number | null
 }
 
 /** Activity source/filter that decides when an agent trigger fires. */
@@ -334,7 +332,6 @@ export type AgentTriggerInfo = {
   enabled: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
-  cooldownMs?: number
   createdAt: number
   updatedAt: number
   lastCheckedAt?: number
@@ -398,12 +395,48 @@ export type SessionEventPayload =
   | {type: 'error'; message: string}
   | Record<string, unknown>
 
+/** Cumulative token usage for the current agent run, updated as turns complete. */
+export type AgentRunUsage = {
+  /** Input/prompt tokens billed so far in this run. */
+  input: number
+  /** Output/completion tokens generated so far in this run. */
+  output: number
+  /** Cached input tokens read so far in this run. */
+  cacheRead: number
+  /** Input tokens written to cache so far in this run. */
+  cacheWrite: number
+  /** Sum of all token categories above. */
+  total: number
+}
+
+/** What the agent is actively doing right now, surfaced live to the UI. */
+export type AgentRunActivity = {
+  /**
+   * Coarse phase of the current run:
+   * - `starting`: the run was accepted and the model request is being prepared
+   * - `thinking`: waiting on the model before any text/tool output
+   * - `responding`: assistant text is streaming in
+   * - `tool`: a tool call is executing (see `toolName`)
+   * - `finalizing`: the run is wrapping up
+   */
+  phase: 'starting' | 'thinking' | 'responding' | 'tool' | 'finalizing'
+  /** Tool currently executing, when `phase` is `tool`. */
+  toolName?: string
+  /** Optional short human-readable detail (e.g. tool argument summary). */
+  detail?: string
+}
+
 /** Server-sent WebSocket event after a signed subscription. */
 export type AgentWSEvent =
   | {_: 'connected'; connectedAt: number}
   | {_: 'subscribed'; key: string; accountId: string}
   | {_: 'append'; key: `sessions/${string}`; event: SessionEvent}
-  | {_: 'appendPartial'; key: `sessions/${string}`; partialId: string; patch: {textDelta?: string; done?: boolean}}
+  | {
+      _: 'appendPartial'
+      key: `sessions/${string}`
+      partialId: string
+      patch: {textDelta?: string; done?: boolean; usage?: AgentRunUsage; activity?: AgentRunActivity}
+    }
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}

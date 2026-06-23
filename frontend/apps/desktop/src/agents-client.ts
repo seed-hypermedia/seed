@@ -32,6 +32,10 @@ export type SessionEvent = AgentsProtocol.SessionEvent
 export type SessionEventPayload = AgentsProtocol.SessionEventPayload
 /** Server-sent WebSocket event after a signed subscription. */
 export type AgentWSEvent = AgentsProtocol.AgentWSEvent
+/** Cumulative token usage for the current agent run. */
+export type AgentRunUsage = AgentsProtocol.AgentRunUsage
+/** What the agent is actively doing right now. */
+export type AgentRunActivity = AgentsProtocol.AgentRunActivity
 /** Redacted provider metadata returned by the agents service. */
 export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
 /** Public model metadata returned by the agents service. */

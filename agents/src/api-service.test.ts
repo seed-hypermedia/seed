@@ -586,7 +586,6 @@ describe('api service', () => {
             trigger: {
               name: ' Comments on spec ',
               prompt: ' Please triage this comment. ',
-              cooldownMs: 60000,
               source: {type: 'document-comment', resource: ' hm://z6Mkdoc/spec ', author: ' z6Mkauthor '},
             },
           },
@@ -598,7 +597,6 @@ describe('api service', () => {
         agentId: createdAgent.agentId,
         name: 'Comments on spec',
         enabled: true,
-        cooldownMs: 60000,
         source: {type: 'document-comment', resource: 'hm://z6Mkdoc/spec', author: 'z6Mkauthor'},
       })
       expect(agentPromptText(createdTrigger.trigger.prompt)).toBe('Please triage this comment.')
@@ -612,7 +610,6 @@ describe('api service', () => {
             trigger: {
               name: ' Comments on spec ',
               prompt: ' Please triage this comment. ',
-              cooldownMs: 60000,
               source: {type: 'document-comment', resource: ' hm://z6Mkdoc/spec ', author: ' z6Mkauthor '},
             },
           },
@@ -634,7 +631,6 @@ describe('api service', () => {
             triggerId: createdTrigger.trigger.id,
             patch: {
               enabled: false,
-              cooldownMs: null,
               source: {type: 'user-mention', mentionedAccount: ' z6Mkmentioned ', resourcePrefix: ' hm://z6Mksite '},
             },
           },
@@ -846,7 +842,6 @@ describe('api service', () => {
                   children: [],
                 },
               ],
-              cooldownMs: 60000,
               source: {type: 'document-comment', resource: 'hm://z6Mkdoc/spec'},
             },
           },
@@ -877,10 +872,7 @@ describe('api service', () => {
       }
       expect(processed).toMatchObject({checked: 1, matched: 1, fired: 1, skipped: 0, errors: 0})
       await expect(
-        svc.processActivityEvent(blobs.principalToString(account.principal), {
-          ...event,
-          newBlob: {...event.newBlob, cid: 'bafycomment2'},
-        }),
+        svc.processActivityEvent(blobs.principalToString(account.principal), event),
       ).resolves.toMatchObject({
         checked: 1,
         matched: 1,
@@ -1350,7 +1342,12 @@ describe('api service', () => {
       expect(openAICallCount).toBeGreaterThanOrEqual(2)
       expect(
         events.flatMap((event) => {
-          if (event.type === 'session-partial') return [event.done ? 'partial_done' : `partial:${event.textDelta}`]
+          if (event.type === 'session-partial') {
+            if (event.done) return ['partial_done']
+            // Ignore progress-only partials (activity/token-usage updates carry no text delta).
+            if (typeof event.textDelta !== 'string') return []
+            return [`partial:${event.textDelta}`]
+          }
           if (event.type !== 'session-event') return []
           const payload = event.event.event as {type?: string; role?: string}
           if (!['message', 'tool_call', 'tool_result'].includes(payload.type || '')) return []

@@ -34,7 +34,7 @@ export type ToolRenderDetail = {
 
 export type ToolRenderCustomView = {
   command: string
-  kind: 'new-comment'
+  kind: 'write-command'
 }
 
 export type ToolRenderMetadata = {
@@ -361,7 +361,30 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Input', source: 'input'},
         {label: 'Output', source: 'output'},
       ],
-      customViews: [{command: 'comment.create', kind: 'new-comment'}],
+      customViews: [
+        {command: 'draft.create', kind: 'write-command'},
+        {command: 'draft.update', kind: 'write-command'},
+        {command: 'draft.get', kind: 'write-command'},
+        {command: 'draft.list', kind: 'write-command'},
+        {command: 'draft.delete', kind: 'write-command'},
+        {command: 'draft.publish', kind: 'write-command'},
+        {command: 'document.create', kind: 'write-command'},
+        {command: 'document.update', kind: 'write-command'},
+        {command: 'document.delete', kind: 'write-command'},
+        {command: 'document.fork', kind: 'write-command'},
+        {command: 'document.move', kind: 'write-command'},
+        {command: 'document.redirect', kind: 'write-command'},
+        {command: 'document.ref', kind: 'write-command'},
+        {command: 'comment.create', kind: 'write-command'},
+        {command: 'comment.update', kind: 'write-command'},
+        {command: 'comment.delete', kind: 'write-command'},
+        {command: 'capability.create', kind: 'write-command'},
+        {command: 'capability.grant', kind: 'write-command'},
+        {command: 'contact.create', kind: 'write-command'},
+        {command: 'contact.delete', kind: 'write-command'},
+        {command: 'profile.update', kind: 'write-command'},
+        {command: 'profile.alias', kind: 'write-command'},
+      ],
     },
     runtimes: ['agent-service'],
     userConfigurable: true,
@@ -386,6 +409,10 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     hidden: true,
   },
+  // write_file: {},
+  // read_file: {},
+  // exexcute_bash: {},
+  // search_web: {}
 }
 
 export type SeedToolName = keyof typeof seedToolRegistry
