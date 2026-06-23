@@ -177,4 +177,37 @@ describe('executeWebRead tiers', () => {
   test('rejects non-http(s) URLs', async () => {
     await expect(executeWebRead({}, {url: 'ftp://x'})).rejects.toThrow(/http/)
   })
+
+  test('uses a human-readable source label in the summary', async () => {
+    mockFetch((url) => {
+      if (url === 'https://blog.test/post') return htmlResponse(ARTICLE_HTML)
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    const out = await executeWebRead({}, {url: 'https://blog.test/post'})
+    expect(out.source).toBe('static')
+    expect(String(out.summary)).toContain('via direct fetch')
+    expect(String(out.summary)).not.toContain('via static')
+  })
+
+  test('raw mode returns the verbatim body without extraction', async () => {
+    const code = 'export function add(a, b) {\n  return a + b\n}\n'
+    mockFetch((url) => {
+      if (url === 'https://raw.githubusercontent.com/o/r/main/add.ts')
+        return new Response(code, {status: 200, headers: {'content-type': 'text/plain; charset=utf-8'}})
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    const out = await executeWebRead({}, {url: 'https://raw.githubusercontent.com/o/r/main/add.ts', raw: true})
+    expect(out.source).toBe('raw')
+    expect(out.contentType).toBe('text/plain')
+    expect(out.markdown).toBe(code)
+  })
+
+  test('raw mode rejects binary content', async () => {
+    mockFetch((url) => {
+      if (url === 'https://files.test/x.png')
+        return new Response('\x89PNG', {status: 200, headers: {'content-type': 'image/png'}})
+      throw new Error(`unexpected fetch ${url}`)
+    })
+    await expect(executeWebRead({}, {url: 'https://files.test/x.png', raw: true})).rejects.toThrow(/text responses/)
+  })
 })

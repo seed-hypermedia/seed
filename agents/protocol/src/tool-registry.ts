@@ -385,7 +385,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'web_read',
     label: 'Web Read',
     description:
-      'Fetch a single public web page (any http(s) URL) and return its main content as clean markdown. Use this to read articles, documentation, wikis, and other internet pages — including results from web_search or links the user pastes. MediaWiki/Wikipedia pages are read through the wiki API automatically. This is NOT for Seed Hypermedia resources: use read for hm:// URLs and Seed site web URLs.',
+      'Fetch a single public web page (any http(s) URL) and return its main content as clean markdown. Use this to read articles, documentation, wikis, and other internet pages — including results from web_search or links the user pastes. MediaWiki/Wikipedia pages are read through the wiki API automatically. Set raw=true to return the verbatim response body instead of extracted markdown — use this for source code (e.g. raw.githubusercontent.com URLs), JSON APIs, or config files where extraction would lose information. This is NOT for Seed Hypermedia resources: use read for hm:// URLs and Seed site web URLs.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -395,6 +395,11 @@ export const seedToolRegistry: SeedToolRegistry = {
           type: 'string',
           description:
             'Optional focus query. When the page requires browser rendering, the content is filtered for relevance to this query.',
+        },
+        raw: {
+          type: 'boolean',
+          description:
+            'Set true to return the raw response body (HTML, JSON, source code, plain text) verbatim with no main-content extraction or markdown conversion. Best for code files, JSON APIs, and config files.',
         },
       },
       required: ['url'],
