@@ -199,7 +199,9 @@ Benefits:
   share URL of the form `<server>/agents/<agentId>/sessions/<sessionId>#event=<eventId>`;
 - in-app `hm://` link handling;
 - same streaming cursor treatment;
-- same tool-call bubbles, including raw-debug details and `read` document links;
+- same tool-call bubbles, including raw-debug details, richer `read` summaries that prefer document titles over raw
+  `hm://` URLs, and richer write summaries/detail cards such as linked `Create document: <title>` rows for
+  `document.create`;
 - tool bubble selection is driven by the unified registry at `agents/protocol/src/tool-registry.ts`, shared with the
   model-facing tool descriptions and schemas.
 

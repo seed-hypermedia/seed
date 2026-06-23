@@ -269,7 +269,7 @@ describe('AssistantPanel', () => {
     cleanupRendered(root, container)
   })
 
-  it('renders resource links for read tool bubbles', () => {
+  it('renders a user-facing read tool bubble', () => {
     mockState.chatSession = {
       providerId: 'provider-1',
       messages: [
@@ -300,12 +300,11 @@ describe('AssistantPanel', () => {
 
     const {container, root} = renderAssistantPanel()
     const openResourceButton = Array.from(container.querySelectorAll('button')).find(
-      (element) => element.textContent?.includes('Seed Notes in Seed'),
+      (element) => element.textContent === 'Seed Notes',
     )
 
-    expect(container.textContent).toContain('Read')
-    expect(container.textContent).toContain('Seed Notes in Seed')
-    expect(container.textContent).toContain('Read "Seed Notes".')
+    expect(container.textContent).toContain('Read document: Seed Notes')
+    expect(container.textContent).not.toContain('hm://z6Mkabc/projects/seed')
     expect(container.textContent).not.toContain('Project status and notes.')
 
     act(() => {
@@ -313,6 +312,15 @@ describe('AssistantPanel', () => {
     })
 
     expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkabc/projects/seed', false)
+
+    const expandButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.getAttribute('title') === 'Show tool details',
+    )
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(container.textContent).toContain('Project status and notes.')
 
     cleanupRendered(root, container)
   })
@@ -368,7 +376,7 @@ describe('AssistantPanel', () => {
     })
 
     expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkdoc/spec/:comments/z6Mkdoc/spec/comment-1', false)
-    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkauthor', false)
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkauthor/:profile', false)
     expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkdoc/spec', false)
 
     const expandButton = Array.from(container.querySelectorAll('button')).find(
@@ -389,6 +397,107 @@ describe('AssistantPanel', () => {
 
     expect(document.body.textContent).toContain('Raw tool call payload captured during the assistant response.')
     expect(document.body.textContent).toContain('comment.create')
+
+    cleanupRendered(root, container)
+  })
+
+  it('renders the registry-defined document.create write UI', () => {
+    mockState.chatSession = {
+      providerId: 'provider-1',
+      messages: [
+        {
+          role: 'assistant',
+          content: '',
+          parts: [
+            {
+              type: 'tool',
+              id: 'tool-document',
+              name: 'write',
+              args: {
+                command: 'document.create',
+                input: {path: '/product-brief', name: 'Product Brief', body: '# Product Brief\n\nShip it.'},
+              },
+              result: 'document.create completed',
+              rawOutput: {
+                command: 'document.create',
+                id: 'hm://z6Mkdoc/product-brief',
+                signer: {profileName: 'Alice', publicKey: 'z6Mkauthor'},
+              },
+            },
+          ],
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      ],
+    }
+
+    const {container, root} = renderAssistantPanel()
+
+    expect(container.textContent).toContain('Create document: Product Brief')
+    expect(container.textContent).not.toContain('Write')
+    expect(container.textContent).not.toContain('document.create completed')
+
+    const documentButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.textContent === 'Product Brief',
+    )
+
+    act(() => {
+      documentButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkdoc/product-brief', false)
+
+    cleanupRendered(root, container)
+  })
+
+  it('renders the registry-defined document.update write UI with rendered content details', () => {
+    mockState.chatSession = {
+      providerId: 'provider-1',
+      messages: [
+        {
+          role: 'assistant',
+          content: '',
+          parts: [
+            {
+              type: 'tool',
+              id: 'tool-document-update',
+              name: 'write',
+              args: {
+                command: 'document.update',
+                input: {
+                  edit: 'hm://z6Mkdoc/product-brief',
+                  name: 'Product Brief',
+                  body: '# Product Brief\n\nUpdated plan.',
+                },
+              },
+              result: 'document.update completed',
+              rawOutput: {
+                command: 'document.update',
+                id: 'hm://z6Mkdoc/product-brief',
+                version: 'bafyupdate',
+              },
+            },
+          ],
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      ],
+    }
+
+    const {container, root} = renderAssistantPanel()
+
+    expect(container.textContent).toContain('Update document: Product Brief')
+    expect(container.textContent).not.toContain('document.update completed')
+    expect(container.textContent).not.toContain('Updated plan.')
+
+    const expandButton = Array.from(container.querySelectorAll('button')).find(
+      (element) => element.getAttribute('title') === 'Show tool details',
+    )
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(container.textContent).toContain('Updated plan.')
+    expect(container.textContent).not.toContain('"input"')
+    expect(container.textContent).not.toContain('"output"')
 
     cleanupRendered(root, container)
   })
