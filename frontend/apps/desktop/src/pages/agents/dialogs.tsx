@@ -389,6 +389,7 @@ export function CreateAgentDialog({
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
   const deleteSigningIdentity = useDeleteSigningIdentity(selectedServerUrl, input.selectedAccountId)
+  const navigate = useNavigate()
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
   const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
@@ -446,6 +447,7 @@ export function CreateAgentDialog({
       if (result._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
       toast.success('Agent created')
       onClose()
+      navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
     } catch (error) {
       // Roll back the just-created account so a failed agent create doesn't leave an orphan.
       void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
