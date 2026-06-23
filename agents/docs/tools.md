@@ -19,6 +19,8 @@ User-configurable tools:
 ```text
 read
 list_activity_feed
+web_search
+web_read
 write
 ```
 
@@ -134,6 +136,71 @@ Supported filters mirror `ListEvents`:
 
 The result includes a summary, loaded/resolved events where supported by the runtime, and `nextPageToken` for
 pagination.
+
+## Web research tools (`web_search`, `web_read`)
+
+`web_search` and `web_read` give agents access to the public web. They are fully self-hosted and use no third-party API
+keys. Implementation lives in `agents/src/web-tools.ts`; configuration lives in `agents/src/config.ts` under `web`
+(`SEED_AGENTS_SEARXNG_URL`, `SEED_AGENTS_CRAWLER_URL`, `SEED_AGENTS_CRAWLER_TOKEN`). The config is threaded through
+`Service` into the tool context, exactly like `hmServerUrl`.
+
+These are distinct from the Hypermedia `search`/`read` tools: `search`/`read` operate on the Seed network, while
+`web_search`/`web_read` operate on the public internet. Tool descriptions instruct the model to use the Seed tools for
+`hm://` and Seed site URLs and the web tools for arbitrary internet pages.
+
+### `web_search`
+
+Input:
+
+```ts
+type WebSearchInput = {
+  query: string
+  count?: number // default 10, max 25
+  category?: 'general' | 'news' | 'science' | 'it'
+  time_range?: 'day' | 'week' | 'month' | 'year'
+  language?: string // default 'en'
+}
+```
+
+Backend: a self-hosted **SearXNG** instance queried at `GET /search?format=json`. SearXNG has no index of its own; it
+federates public search engines. Because engines rate-limit datacenter IPs, the tool inspects `unresponsive_engines`
+and, when the first query returns no results but engines were unavailable, retries once with a different engine set. The
+result includes a `degraded` flag and `unavailableEngines` so the model knows when coverage was partial. `web_search`
+throws (becomes `tool_result.error`) when no `searxngUrl` is configured.
+
+Output: `{summary, query, results: [{title, url, snippet, engine}], degraded, unavailableEngines, markdown}`.
+
+### `web_read`
+
+Input:
+
+```ts
+type WebReadInput = {
+  url: string // http(s) only
+  query?: string // optional focus; enables BM25 filtering when browser rendering is used
+}
+```
+
+`web_read` uses a tiered, cheapest-first reader chain and returns the first tier that yields substantial content
+(`>= 200` characters):
+
+1. **MediaWiki API** — when the URL looks like a wiki page (`/wiki/Title` or `?title=Title`), the host is probed once
+   via `api.php?meta=siteinfo` (cached per host) and, if it is MediaWiki, the page is fetched as Parsoid HTML from the
+   REST endpoint `{scriptpath}/rest.php/v1/page/{title}/html` and converted to markdown. No browser, highest quality for
+   wikis.
+2. **In-process static extraction** — a plain `fetch` of the URL, then Mozilla Readability (`@mozilla/readability` on a
+   `linkedom` DOM) extracts the main article and Turndown converts it to markdown. Runs entirely inside the Bun process;
+   no extra container. Readability throwing or returning thin content escalates to the next tier.
+3. **Crawl4AI** — when configured (`SEED_AGENTS_CRAWLER_URL`), the URL is rendered by a self-hosted Crawl4AI headless
+   browser via `POST /md` (Bearer `SEED_AGENTS_CRAWLER_TOKEN`). This is the reliability backstop for JS-heavy/SPA and
+   anti-bot pages, and for hosts where Bun's `fetch` fails. One retry covers transient browser hiccups.
+
+If the crawler is not configured, `web_read` relies on the MediaWiki and static tiers only. When every tier fails it
+throws a clean error naming the tiers tried.
+
+Output: `{summary, url, finalUrl, title, source: 'mediawiki' | 'static' | 'crawl4ai', truncated, success, markdown}`.
+Markdown is bounded to 200 KiB (under the 256 KiB tool-result cap); oversized content is truncated on a byte boundary
+with `truncated: true`.
 
 ## `write`
 

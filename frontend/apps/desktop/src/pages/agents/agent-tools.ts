@@ -7,6 +7,9 @@ export const AGENT_READ_TOOL_GROUP = [
   seedToolRegistry.list_activity_feed.name,
 ]
 
+/** Tools that let an agent search and read the public web. Requires server-side web backends. */
+export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolRegistry.web_read.name]
+
 /** Tool that lets an agent create, sign, and publish Seed content. */
 export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
 

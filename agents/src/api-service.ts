@@ -5,6 +5,7 @@ import * as activityTriggers from '@/activity-triggers'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
+import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
 import {
   blocksToMarkdown,
@@ -112,17 +113,19 @@ export class Service {
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
+  readonly #web: WebToolsConfig
   readonly #runningSessions = new Map<string, RunningSession>()
 
   constructor(
     db: Database,
     dataDir: string,
-    options: {onEvent?: (event: ServiceEvent) => void; hmServerUrl?: string} = {},
+    options: {onEvent?: (event: ServiceEvent) => void; hmServerUrl?: string; web?: WebToolsConfig} = {},
   ) {
     this.#db = db
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
+    this.#web = options.web ?? {}
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -1136,6 +1139,7 @@ export class Service {
         agentId: session.agentId,
         definition,
         hmServerUrl: this.#hmServerUrl,
+        web: this.#web,
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
@@ -1144,6 +1148,8 @@ export class Service {
             tool === seedToolRegistry.search.name ||
             tool === seedToolRegistry.read.name ||
             tool === seedToolRegistry.list_activity_feed.name ||
+            tool === seedToolRegistry.web_search.name ||
+            tool === seedToolRegistry.web_read.name ||
             tool === seedToolRegistry.write.name,
         ),
         seedToolRegistry.set_session_title.name,
@@ -2646,6 +2652,7 @@ type WriteToolContext = {
 
 type AgentServicePiToolContext = WriteToolContext & {
   setSessionTitle: (title: string) => api.SessionInfo
+  web: WebToolsConfig
 }
 
 type ResolvedAgentSigner = {
@@ -2764,6 +2771,8 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
   return [
     defineSeedPiTool(seedToolRegistry.search, (params) => executeAgentServiceSearch(context, params)),
     defineSeedPiTool(seedToolRegistry.read, (params) => readHypermedia(params)),
+    defineSeedPiTool(seedToolRegistry.web_search, (params) => executeWebSearch(context.web, params)),
+    defineSeedPiTool(seedToolRegistry.web_read, (params) => executeWebRead(context.web, params)),
     defineSeedPiTool(seedToolRegistry.list_activity_feed, async (params) => {
       const input: Record<string, unknown> = isRecord(params) ? params : {}
       const client = createSeedClient(context.hmServerUrl)

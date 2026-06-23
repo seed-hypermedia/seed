@@ -449,7 +449,11 @@ async function main(): Promise<void> {
       }
     }
   }
-  const svc = new apisvc.Service(db, cfg.dataDir, {onEvent: publish, hmServerUrl: cfg.activity.hmServerUrl})
+  const svc = new apisvc.Service(db, cfg.dataDir, {
+    onEvent: publish,
+    hmServerUrl: cfg.activity.hmServerUrl,
+    web: cfg.web,
+  })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
   activityMonitor.start()
@@ -559,6 +563,11 @@ async function main(): Promise<void> {
   console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}/agents/ws`)
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
   console.log(`  Activity feed: ${cfg.activity.hmServerUrl}`)
+  console.log(
+    `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
+      cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'
+    }`,
+  )
 }
 
 function isCBORRequest(req: Request): boolean {
