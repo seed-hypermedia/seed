@@ -52,6 +52,8 @@ type AgentsResponse = AgentsProtocol.AgentResponse
 export type AgentServerHealth = {
   status: string
   uptime: number
+  /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
+  webTools?: {search: boolean; readBrowser: boolean}
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */

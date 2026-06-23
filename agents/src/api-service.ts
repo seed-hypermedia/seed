@@ -128,6 +128,11 @@ export class Service {
     this.#web = options.web ?? {}
   }
 
+  /** Reports which optional web-tool backends this server has configured, for client capability display. */
+  webToolCapabilities(): {search: boolean; readBrowser: boolean} {
+    return {search: Boolean(this.#web.searxngUrl), readBrowser: Boolean(this.#web.crawlerUrl)}
+  }
+
   /** Verifies and dispatches a signed action envelope. */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
     let verified: auth.VerifiedEnvelope

@@ -131,6 +131,10 @@ environment:
 Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the
 host accordingly. The SearXNG + in-process static reader path is lightweight; Crawl4AI is the heavy escalation tier.
 
+The health endpoints (`/api/health`, `/agents/api/health`) report which optional web backends are configured via a
+`webTools: {search, readBrowser}` capability object (derived from `SEED_AGENTS_SEARXNG_URL` / `SEED_AGENTS_CRAWLER_URL`).
+The desktop Tools tab reads this to grey out tools the server cannot run.
+
 ## Local files
 
 Default local files:
