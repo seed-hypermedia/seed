@@ -25,6 +25,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
+import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
@@ -386,6 +387,8 @@ export function CreateAgentDialog({
   const [selectedServerUrl, setSelectedServerUrl] = useState(input.serverUrls[0] || DEFAULT_AGENT_SERVER_URL)
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
+  const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
+  const deleteSigningIdentity = useDeleteSigningIdentity(selectedServerUrl, input.selectedAccountId)
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
   const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
@@ -411,13 +414,32 @@ export function CreateAgentDialog({
   }, [model, providerModels.data])
 
   async function handleCreateAgent() {
+    const agentName = name.trim()
+    if (!agentName) {
+      toast.error('Agent name is required')
+      return
+    }
+    // Auto-create a dedicated account for the agent so it can publish without the
+    // user setting up a signing identity by hand. The account is named after the
+    // agent and wired in as its signing key with write tooling enabled.
+    let signingKeyName: string | undefined
+    try {
+      const identityResult = await createSigningIdentity.mutateAsync(agentName)
+      if (identityResult._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
+      signingKeyName = identityResult.identity.name
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create the agent account')
+      return
+    }
     try {
       const definition: AgentDefinition = {
-        name,
+        name: agentName,
         systemPrompt: promptBlocksToMarkdown(systemPrompt),
         modelProvider: providerName,
         model,
-        tools: ['read'],
+        tools: DEFAULT_AGENT_TOOLS,
+        signingKey: signingKeyName,
+        signingKeys: [signingKeyName],
         metadata: {createdFrom: 'desktop-agents-page'},
       }
       const result = await createAgent.mutateAsync(definition)
@@ -425,6 +447,8 @@ export function CreateAgentDialog({
       toast.success('Agent created')
       onClose()
     } catch (error) {
+      // Roll back the just-created account so a failed agent create doesn't leave an orphan.
+      void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
       toast.error(error instanceof Error ? error.message : 'Could not create agent')
     }
   }
@@ -475,7 +499,10 @@ export function CreateAgentDialog({
     <div className="flex min-w-[520px] flex-col gap-5">
       <div>
         <DialogTitle>Create Agent</DialogTitle>
-        <DialogDescription>Choose a model provider, model, and system prompt for the new agent.</DialogDescription>
+        <DialogDescription>
+          Choose a model provider, model, and system prompt. An account named after the agent is created automatically
+          so it can publish Seed content.
+        </DialogDescription>
       </div>
       {serverSelector}
       <label className="flex flex-col gap-1">
@@ -525,10 +552,84 @@ export function CreateAgentDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleCreateAgent()} disabled={createAgent.isLoading || !providerName || !model}>
+        <Button
+          onClick={() => void handleCreateAgent()}
+          disabled={createAgent.isLoading || createSigningIdentity.isLoading || !providerName || !model}
+        >
           Create Agent
         </Button>
       </div>
     </div>
+  )
+}
+
+/** Describes how the agent's account relates to the rename so the dialog can explain what happens. */
+export type AgentAccountRenameStatus =
+  | {kind: 'own'} // a dedicated account that will be renamed alongside the agent
+  | {kind: 'shared'} // an account used by other agents, left untouched
+  | {kind: 'none'} // no signing account linked
+
+export function EditAgentNameDialog({
+  input,
+  onClose,
+}: {
+  input: {currentName: string; accountStatus: AgentAccountRenameStatus; onRename: (name: string) => Promise<void>}
+  onClose: () => void
+}) {
+  const [name, setName] = useState(input.currentName)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      toast.error('Agent name is required')
+      return
+    }
+    setSaving(true)
+    try {
+      await input.onRename(trimmed)
+      toast.success('Agent renamed')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not rename agent')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form
+      className="flex min-w-[420px] flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (saving) return
+        void handleSave()
+      }}
+    >
+      <div>
+        <DialogTitle>Rename agent</DialogTitle>
+        <DialogDescription>
+          {input.accountStatus.kind === 'own'
+            ? "The agent's account is renamed to match."
+            : input.accountStatus.kind === 'shared'
+              ? 'This agent shares its account with other agents, so the account keeps its name. Rename it separately from Manage accounts.'
+              : 'This agent has no linked account to rename.'}
+        </DialogDescription>
+      </div>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Name
+        </SizableText>
+        <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Agent" />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving || !name.trim()}>
+          Save
+        </Button>
+      </div>
+    </form>
   )
 }

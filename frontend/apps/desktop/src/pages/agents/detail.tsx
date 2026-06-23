@@ -9,6 +9,7 @@ import {
 import {
   DEFAULT_AGENT_SERVER_URL,
   useAgentDetail,
+  useAgentList,
   useAgentServerHealth,
   useAgentServerUrl,
   useAgentTrigger,
@@ -24,6 +25,7 @@ import {
   useSigningIdentities,
   useUpdateAgent,
   useUpdateAgentTrigger,
+  useUpdateSigningIdentity,
 } from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
@@ -51,7 +53,8 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {KeyRound, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {AddModelProviderDialog} from './dialogs'
+import {AGENT_READ_TOOL_GROUP} from './agent-tools'
+import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {ModelSelect} from './model-select'
 import {curateProviderModels} from './model-utils'
@@ -79,11 +82,14 @@ function AgentDetailPage({
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
+  const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
   const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
+  const editNameDialog = useAppDialog(EditAgentNameDialog)
   const modelProviders = useModelProviders(serverUrl, selectedAccountId)
+  const allAgents = useAgentList(serverUrl, selectedAccountId)
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
   const [name, setName] = useState('')
@@ -132,6 +138,37 @@ function AgentDetailPage({
     setModelProvider(nextProvider)
     setModel('') // belongs to the previous provider; the effect above picks a new default
     setNameModelDirty(true)
+  }
+
+  // The agent's primary signing account, and whether other agents also use it.
+  const agentSigningKey =
+    agent.data?.agent.definition.signingKeys?.[0] || agent.data?.agent.definition.signingKey || undefined
+  const isAccountShared =
+    !!agentSigningKey &&
+    (allAgents.data || []).some((other) => {
+      if (other.id === agentId) return false
+      const otherKeys =
+        other.definition.signingKeys || (other.definition.signingKey ? [other.definition.signingKey] : [])
+      return otherKeys.includes(agentSigningKey)
+    })
+  const agentAccountStatus: AgentAccountRenameStatus = !agentSigningKey
+    ? {kind: 'none'}
+    : isAccountShared
+      ? {kind: 'shared'}
+      : {kind: 'own'}
+
+  async function handleRenameAgent(nextName: string) {
+    if (!agent.data) throw new Error('Agent not loaded')
+    const trimmed = nextName.trim()
+    if (!trimmed) throw new Error('Agent name is required')
+    const definition = agent.data.agent.definition
+    const result = await updateAgent.mutateAsync({agentId, definition: {...definition, name: trimmed}})
+    if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
+    // Keep the dedicated account's profile name in sync; leave shared accounts alone.
+    if (agentSigningKey && !isAccountShared) {
+      await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
+    }
+    if (!nameModelDirty) setName(trimmed)
   }
 
   async function handleCreateSession() {
@@ -268,11 +305,13 @@ function AgentDetailPage({
               <AgentHeader
                 agent={agent.data.agent}
                 agentName={name}
-                agentNameSaveState={settingsSaveState}
-                onAgentNameChange={(value) => {
-                  setName(value)
-                  setNameModelDirty(true)
-                }}
+                onEditName={() =>
+                  editNameDialog.open({
+                    currentName: name,
+                    accountStatus: agentAccountStatus,
+                    onRename: handleRenameAgent,
+                  })
+                }
                 agentId={agentId}
                 serverUrl={serverUrl}
                 activeTab={tab}
@@ -288,6 +327,7 @@ function AgentDetailPage({
               {createTriggerDialog.content}
               {deleteAgentDialog.content}
               {addProviderDialog.content}
+              {editNameDialog.content}
 
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
@@ -385,18 +425,6 @@ function AgentDetailPage({
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">
-                        Name
-                      </SizableText>
-                      <Input
-                        value={name}
-                        onChange={(event) => {
-                          setName(event.target.value)
-                          setNameModelDirty(true)
-                        }}
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                      <SizableText size="sm" weight="bold">
                         Provider
                       </SizableText>
                       <ProviderSelect
@@ -406,24 +434,24 @@ function AgentDetailPage({
                         onAddProvider={() => addProviderDialog.open({serverUrl, selectedAccountId})}
                       />
                     </label>
+                    <label className="flex flex-col gap-1">
+                      <SizableText size="sm" weight="bold">
+                        Model
+                      </SizableText>
+                      <ModelSelect
+                        models={providerModels.data}
+                        providerType={selectedProviderType}
+                        value={model}
+                        onChange={(nextModel) => {
+                          setModel(nextModel)
+                          setNameModelDirty(true)
+                        }}
+                        isLoading={providerModels.isLoading}
+                        isError={providerModels.isError}
+                        error={providerModels.error}
+                      />
+                    </label>
                   </div>
-                  <label className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      Model
-                    </SizableText>
-                    <ModelSelect
-                      models={providerModels.data}
-                      providerType={selectedProviderType}
-                      value={model}
-                      onChange={(nextModel) => {
-                        setModel(nextModel)
-                        setNameModelDirty(true)
-                      }}
-                      isLoading={providerModels.isLoading}
-                      isError={providerModels.isError}
-                      error={providerModels.error}
-                    />
-                  </label>
                   <div className="grid gap-3 text-sm md:grid-cols-2">
                     <div>
                       <SizableText size="sm" weight="bold">
@@ -561,12 +589,6 @@ function DeleteAgentDialog({
     </div>
   )
 }
-
-const AGENT_READ_TOOL_GROUP = [
-  seedToolRegistry.read.name,
-  seedToolRegistry.search.name,
-  seedToolRegistry.list_activity_feed.name,
-]
 
 const AGENT_TOOL_OPTIONS = [
   {

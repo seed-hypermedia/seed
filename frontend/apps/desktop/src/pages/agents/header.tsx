@@ -6,7 +6,16 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {Button} from '@shm/ui/button'
 import {PageTab} from '@shm/ui/page-tabs'
 import {SizableText} from '@shm/ui/text'
-import {ArrowLeft, GitBranch, MessageSquarePlus, MessagesSquare, ScrollText, Settings, Wrench} from 'lucide-react'
+import {
+  ArrowLeft,
+  GitBranch,
+  MessageSquarePlus,
+  MessagesSquare,
+  Pencil,
+  ScrollText,
+  Settings,
+  Wrench,
+} from 'lucide-react'
 import {Fragment, type ReactNode, useRef, useState} from 'react'
 
 export type AgentPageTab = 'sessions' | 'triggers' | 'tools' | 'prompt' | 'settings'
@@ -150,6 +159,7 @@ export function AgentHeader({
   agentName,
   agentNameSaveState = 'idle',
   onAgentNameChange,
+  onEditName,
   serverUrl,
   activeTab,
   sessionsCount,
@@ -165,6 +175,7 @@ export function AgentHeader({
   agentName?: string
   agentNameSaveState?: AgentTitleSaveState
   onAgentNameChange?: (value: string) => void
+  onEditName?: () => void
   serverUrl: string
   activeTab: AgentPageTab
   sessionsCount?: number
@@ -232,7 +243,19 @@ export function AgentHeader({
       <section className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
-            {onAgentNameChange ? (
+            {onEditName ? (
+              <button
+                type="button"
+                aria-label="Rename agent"
+                onClick={onEditName}
+                className="hover:bg-muted/60 group -mx-1 flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left"
+              >
+                <SizableText size="2xl" weight="bold" className="min-w-0 truncate">
+                  {currentAgentName}
+                </SizableText>
+                <Pencil className="text-muted-foreground size-4 flex-none opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            ) : onAgentNameChange ? (
               <input
                 aria-label="Agent name"
                 className="focus:ring-primary/25 -mx-1 min-w-0 truncate rounded-md bg-transparent px-1 py-0.5 text-2xl font-bold outline-none focus:ring-2"
