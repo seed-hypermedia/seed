@@ -374,6 +374,31 @@ export const seedToolRegistry: SeedToolRegistry = {
       },
       required: ['query'],
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string', description: 'One-line summary of the search outcome.'},
+        query: {type: 'string'},
+        results: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: {type: 'string'},
+              url: {type: 'string'},
+              snippet: {type: 'string'},
+              engine: {type: 'string', description: 'Upstream engine that produced the result.'},
+            },
+          },
+        },
+        degraded: {
+          type: 'boolean',
+          description: 'True when some engines were unavailable and coverage may be partial.',
+        },
+        unavailableEngines: {type: 'array', items: {type: 'string'}},
+        markdown: {type: 'string', description: 'Human-readable rendering of the results.'},
+      },
+    },
     render: {
       kind: 'search',
       label: 'Web Search',
@@ -413,6 +438,24 @@ export const seedToolRegistry: SeedToolRegistry = {
         },
       },
       required: ['url'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string', description: 'One-line summary describing how the page was read.'},
+        url: {type: 'string', description: 'The requested URL.'},
+        finalUrl: {type: 'string', description: 'The URL actually read, after redirects.'},
+        title: {type: 'string'},
+        source: {
+          type: 'string',
+          enum: ['mediawiki', 'static', 'crawl4ai', 'raw'],
+          description: 'Which reader tier produced the result.',
+        },
+        contentType: {type: 'string', description: 'Response content type. Present for raw reads.'},
+        truncated: {type: 'boolean', description: 'True when the content was cut to the size limit.'},
+        success: {type: 'boolean'},
+        markdown: {type: 'string', description: 'The extracted markdown, or the verbatim body for raw reads.'},
+      },
     },
     render: {
       kind: 'read',
