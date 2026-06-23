@@ -1,0 +1,32 @@
+# Local development backends for the agents web_search / web_read tools.
+#
+#   cd agents/dev/web-backends && docker compose up -d
+#
+# Then run the agents service with:
+#   SEED_AGENTS_SEARXNG_URL=http://127.0.0.1:8899 \
+#   SEED_AGENTS_CRAWLER_URL=http://127.0.0.1:11235 \
+#   SEED_AGENTS_CRAWLER_TOKEN=dev-crawl-token \
+#   bun src/main.ts
+#
+# These are dev defaults bound to loopback. Do not reuse this token/secret in production.
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: seed-agents-dev-searxng
+    ports:
+      - '127.0.0.1:8899:8080'
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_SECRET_KEY=dev-secret-key-change-me
+    restart: unless-stopped
+
+  crawl4ai:
+    image: unclecode/crawl4ai:0.9.0
+    container_name: seed-agents-dev-crawl4ai
+    ports:
+      - '127.0.0.1:11235:11235'
+    shm_size: '1g'
+    environment:
+      - CRAWL4AI_API_TOKEN=dev-crawl-token
+    restart: unless-stopped

@@ -53,7 +53,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
-import {AGENT_READ_TOOL_GROUP} from './agent-tools'
+import {AGENT_READ_TOOL_GROUP, AGENT_WEB_TOOL_GROUP} from './agent-tools'
 import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {ModelSelect} from './model-select'
@@ -595,6 +595,12 @@ const AGENT_TOOL_OPTIONS = [
     names: AGENT_READ_TOOL_GROUP,
     title: 'Read, search, and browse activity',
     description: 'Find and read Seed content.',
+    available: true,
+  },
+  {
+    names: AGENT_WEB_TOOL_GROUP,
+    title: 'Search and read the web',
+    description: 'Search the public web and read web pages as markdown. Requires server web backends.',
     available: true,
   },
   {

@@ -1,0 +1,13 @@
+# Minimal SearXNG config for local agent web_search development.
+# The JSON format is OFF by default and the limiter blocks API calls; both are adjusted here.
+# limiter: false is safe only because this instance is bound to loopback for development.
+use_default_settings: true
+server:
+  secret_key: 'dev-secret-key-change-me'
+  limiter: false
+  public_instance: false
+  method: 'GET'
+search:
+  formats:
+    - html
+    - json

@@ -114,7 +114,9 @@ Features:
   detail view;
 - trigger detail shows operational metadata plus the sessions created by that trigger;
 - Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
-  publishing tools;
+  publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
+  (`web_search`/`web_read`, which require server-side web backends), and the write group. Tool groups come from
+  `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
 - Tools tab offers a **New account** workflow that generates a server-side HM account key, publishes its profile, and
   creates an account home document stating that it is an agentic account;
 - Prompt tab views/edits the main system prompt with the rich Seed block editor; prompt edits autosave when connected to

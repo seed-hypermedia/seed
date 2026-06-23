@@ -1395,6 +1395,137 @@ describe('api service', () => {
     }
   })
 
+  test('runs web_search tool calls against SearXNG and persists tool events', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {
+        onEvent: (event) => events.push(event),
+        web: {searxngUrl: 'http://searxng:8080'},
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'prompt',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['web_search'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      let searxngCalls = 0
+      let searxngHref = ''
+      let openAICallCount = 0
+      const openAIBodies: Array<Record<string, unknown>> = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('searxng:8080/search')) {
+          searxngCalls += 1
+          searxngHref = href
+          return Response.json({
+            results: [{url: 'https://hyper.media/', title: 'Hypermedia', content: 'snippet', engine: 'google'}],
+            unresponsive_engines: [],
+          })
+        }
+
+        openAICallCount += 1
+        const body = JSON.parse(await fetchBodyText(url, init))
+        openAIBodies.push(body)
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {id: 'chat-1', choices: [{delta: {content: 'Searching.\n'}}]},
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {name: 'web_search', arguments: JSON.stringify({query: 'hypermedia'})},
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat-2', choices: [{delta: {content: 'Found it.'}}]},
+          {id: 'chat-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Search the web'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      expect(searxngCalls).toBe(1)
+      expect(searxngHref).toContain('format=json')
+      expect(openAICallCount).toBeGreaterThanOrEqual(2)
+      // First provider request advertises exactly the enabled web tool plus the hidden title tool.
+      expect(
+        (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
+      ).toEqual(['web_search', 'set_session_title'])
+      // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
+      const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
+      expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
+      expect(JSON.stringify(followUpMessages)).toContain('hyper.media')
+      expect(JSON.stringify(followUpMessages)).toContain('web_search')
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const toolEvents = session.events
+        .map((event) => event.event as {type?: string; name?: string})
+        .filter((event) => event.type === 'tool_call' || event.type === 'tool_result')
+      expect(toolEvents.map((event) => `${event.type}:${event.name}`)).toEqual([
+        'tool_call:web_search',
+        'tool_result:web_search',
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('runs write profile and draft tool calls with selected signing identities', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
