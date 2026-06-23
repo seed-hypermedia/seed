@@ -15,6 +15,7 @@ import {
   PendingRebase,
   PublishInput,
   TransientResourceError,
+  WriteDraftOutput,
   WriteDraftInput,
 } from './document-machine'
 import {EditorHandlers, EditorHandlersContext} from './editor-handlers-context'
@@ -32,7 +33,7 @@ export type DocumentMachineSnapshot = SnapshotFrom<typeof documentMachine>
 
 /** Actors that must be provided via `.provide()` before instantiating the machine. */
 export type DocumentMachineProvidedActors = {
-  writeDraft: (input: WriteDraftInput) => Promise<{id: string}>
+  writeDraft: (input: WriteDraftInput) => Promise<WriteDraftOutput>
   publishDocument: (input: PublishInput) => Promise<HMDocument>
   discardDraft: (input: DiscardDraftInput) => Promise<void>
 }

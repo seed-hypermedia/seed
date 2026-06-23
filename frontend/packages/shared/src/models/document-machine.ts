@@ -225,6 +225,13 @@ export type WriteDraftInput = {
   baseBlocks: HMBlockNode[] | null
 }
 
+/** Output returned by draft writers after the saved draft hits local storage. */
+export type WriteDraftOutput = {
+  id: string
+  content?: HMBlockNode[] | null
+  cursorPosition?: number | null
+}
+
 /** Input for the publishDocument actor. */
 export type PublishInput = {
   documentId: UnpackedHypermediaId
@@ -343,6 +350,16 @@ export const documentMachine = setup({
     }),
     setDraftIdFromResult: assign({
       draftId: (_, params: {id: string}) => params.id,
+    }),
+    setDraftSavedSnapshotFromResult: assign({
+      draftContent: ({context}, params: WriteDraftOutput) => {
+        if (params.content !== undefined) return params.content ?? null
+        return context.draftContent
+      },
+      draftCursorPosition: ({context}, params: WriteDraftOutput) => {
+        if (params.cursorPosition !== undefined) return params.cursorPosition ?? null
+        return context.draftCursorPosition
+      },
     }),
     setDraftCreated: assign({
       draftCreated: true,
@@ -855,7 +872,7 @@ export const documentMachine = setup({
     hasPendingPublish: ({context}) => context.pendingPublish,
   },
   actors: {
-    writeDraft: fromPromise<{id: string}, WriteDraftInput>(async () => {
+    writeDraft: fromPromise<WriteDraftOutput, WriteDraftInput>(async () => {
       throw new Error('writeDraft actor must be provided via .provide()')
     }),
     publishDocument: fromPromise<HMDocument, PublishInput>(async () => {
@@ -1215,6 +1232,10 @@ export const documentMachine = setup({
                         type: 'setDraftIdFromResult',
                         params: ({event}: {event: any}) => event.output,
                       },
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
                       'logSaveCompleted',
                     ],
                     reenter: true,
@@ -1225,6 +1246,10 @@ export const documentMachine = setup({
                       'setDraftCreated',
                       {
                         type: 'setDraftIdFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
                         params: ({event}: {event: any}) => event.output,
                       },
                       'logSaveCompleted',
@@ -1284,11 +1309,24 @@ export const documentMachine = setup({
                   {
                     target: 'saving',
                     guard: 'didChangeWhileSaving',
+                    actions: [
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                    ],
                     reenter: true,
                   },
                   {
                     target: 'idle',
-                    actions: ['logSaveCompleted', raise({type: '_save.completed'})],
+                    actions: [
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                      'logSaveCompleted',
+                      raise({type: '_save.completed'}),
+                    ],
                   },
                 ],
                 onError: {

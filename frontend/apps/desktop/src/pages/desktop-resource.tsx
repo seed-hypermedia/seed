@@ -58,6 +58,7 @@ import {
   PublishInput,
   PushDocumentInput,
   WriteDraftInput,
+  WriteDraftOutput,
 } from '@shm/shared/models/document-machine'
 import {useDocumentInspector} from '@shm/shared/models/document-machine-inspect'
 import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
@@ -375,7 +376,7 @@ export default function DesktopResourcePage() {
   // Account ID flows through machine context → actor input (no closure deps).
   const writeDraftActor = useMemo(
     () =>
-      fromPromise<{id: string}, WriteDraftInput>(async ({input}) => {
+      fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
         const editor = editorRef.current
         const content = editor ? editor.topLevelBlocks : []
         const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
@@ -442,7 +443,7 @@ export default function DesktopResourcePage() {
           wroteEmbedBlocks: contentSummary.embedBlocks,
         })
         // console.log('[writeDraft] saved successfully:', {draftId: result.id})
-        return result
+        return {...result, content, cursorPosition}
       }),
     [],
   )

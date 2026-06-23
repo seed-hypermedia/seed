@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
-import {documentMachine, DocumentMachineInput, PushDocumentInput} from '../document-machine'
-import {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {documentMachine, DocumentMachineInput, PushDocumentInput, WriteDraftOutput} from '../document-machine'
+import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 
 const mockDocumentId = {
   id: 'hm://z6Mktest/doc',
@@ -237,6 +237,36 @@ describe('DocumentLifecycle machine', () => {
     expect(ctx.pendingRemoteDocument).toBeNull()
     expect(ctx.pendingRemoteVersion).toBeNull()
     expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
+    actor.stop()
+  })
+
+  it('updates draftContent after an autosave returns the saved content', async () => {
+    const savedContent: HMBlockNode[] = [
+      {block: {id: 'saved', type: 'Paragraph', text: 'latest draft', attributes: {}}, children: []},
+    ]
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async () => ({
+          id: 'draft-123',
+          content: savedContent,
+          cursorPosition: 7,
+        })),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    })
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change'})
+    await new Promise((r) => setTimeout(r, 30))
+
+    expect(actor.getSnapshot().context.draftContent).toEqual(savedContent)
+    expect(actor.getSnapshot().context.draftCursorPosition).toBe(7)
     actor.stop()
   })
 

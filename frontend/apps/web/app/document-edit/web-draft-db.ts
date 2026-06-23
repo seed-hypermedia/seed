@@ -44,12 +44,26 @@ export interface WebDocDraft {
 }
 
 const DB_NAME = 'web-doc-drafts-01'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'drafts-01'
+const SNAPSHOT_STORE = 'draft-snapshots-01'
 const INDEX_DOC = 'docId'
 const INDEX_UPDATED = 'updatedAt'
+const INDEX_DRAFT_ID = 'draftId'
 
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+const MAX_SNAPSHOTS_PER_DRAFT = 20
+
+export interface WebDocDraftSnapshot {
+  /** Primary key for this recoverable snapshot. */
+  snapshotId: string
+  /** Draft id this snapshot can restore. */
+  draftId: string
+  /** Wall-clock timestamp when the snapshot was created. */
+  createdAt: number
+  /** Full draft record before it was overwritten or deleted. */
+  draft: WebDocDraft
+}
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -69,6 +83,11 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex(INDEX_DOC, 'docId', {unique: false})
         store.createIndex(INDEX_UPDATED, 'updatedAt', {unique: false})
       }
+      if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) {
+        const store = db.createObjectStore(SNAPSHOT_STORE, {keyPath: 'snapshotId'})
+        store.createIndex(INDEX_DRAFT_ID, 'draftId', {unique: false})
+        store.createIndex(INDEX_UPDATED, 'createdAt', {unique: false})
+      }
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -76,8 +95,8 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise
 }
 
-function tx(mode: IDBTransactionMode): Promise<IDBObjectStore> {
-  return openDB().then((db) => db.transaction(STORE, mode).objectStore(STORE))
+function tx(mode: IDBTransactionMode, storeName: string = STORE): Promise<IDBObjectStore> {
+  return openDB().then((db) => db.transaction(storeName, mode).objectStore(storeName))
 }
 
 function reqToPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -104,6 +123,8 @@ export async function getWebDocDraft(draftId: string): Promise<WebDocDraft | nul
 export async function putWebDocDraft(draft: Omit<WebDocDraft, 'updatedAt'> & {updatedAt?: number}): Promise<void> {
   if (!isBrowser()) return
   const record: WebDocDraft = {...draft, updatedAt: draft.updatedAt ?? Date.now()}
+  const existing = await getWebDocDraft(record.draftId)
+  if (existing) await saveDraftSnapshot(existing)
   const store = await tx('readwrite')
   await reqToPromise(store.put(record))
 }
@@ -111,8 +132,56 @@ export async function putWebDocDraft(draft: Omit<WebDocDraft, 'updatedAt'> & {up
 /** Delete a draft by id. Idempotent. */
 export async function deleteWebDocDraft(draftId: string): Promise<void> {
   if (!isBrowser()) return
+  const existing = await getWebDocDraft(draftId)
+  if (existing) await saveDraftSnapshot(existing)
   const store = await tx('readwrite')
   await reqToPromise(store.delete(draftId))
+}
+
+async function saveDraftSnapshot(draft: WebDocDraft): Promise<void> {
+  const createdAt = Date.now()
+  const snapshot: WebDocDraftSnapshot = {
+    snapshotId: `${draft.draftId}:${createdAt}:${Math.random().toString(36).slice(2)}`,
+    draftId: draft.draftId,
+    createdAt,
+    draft,
+  }
+  const store = await tx('readwrite', SNAPSHOT_STORE)
+  await reqToPromise(store.put(snapshot))
+  await pruneDraftSnapshots(draft.draftId)
+}
+
+async function pruneDraftSnapshots(draftId: string): Promise<void> {
+  const snapshots = await listWebDocDraftSnapshots(draftId)
+  const old = snapshots.slice(MAX_SNAPSHOTS_PER_DRAFT)
+  if (!old.length) return
+  const store = await tx('readwrite', SNAPSHOT_STORE)
+  for (const snapshot of old) {
+    await reqToPromise(store.delete(snapshot.snapshotId))
+  }
+}
+
+/** Return recoverable snapshots for a draft, newest first. */
+export async function listWebDocDraftSnapshots(draftId: string): Promise<WebDocDraftSnapshot[]> {
+  if (!isBrowser()) return []
+  try {
+    const store = await tx('readonly', SNAPSHOT_STORE)
+    const index = store.index(INDEX_DRAFT_ID)
+    const results = await reqToPromise<WebDocDraftSnapshot[]>(index.getAll(draftId))
+    return results.sort((a, b) => b.createdAt - a.createdAt)
+  } catch (err) {
+    console.warn('listWebDocDraftSnapshots failed', err)
+    return []
+  }
+}
+
+/** Restore a recoverable draft snapshot by writing it back to the active draft store. */
+export async function restoreWebDocDraftSnapshot(snapshotId: string): Promise<void> {
+  if (!isBrowser()) return
+  const store = await tx('readonly', SNAPSHOT_STORE)
+  const snapshot = await reqToPromise<WebDocDraftSnapshot | undefined>(store.get(snapshotId))
+  if (!snapshot) throw new Error(`web draft snapshot ${snapshotId} not found`)
+  await putWebDocDraft({...snapshot.draft, updatedAt: Date.now()})
 }
 
 /**
@@ -219,7 +288,8 @@ export async function cleanupOldWebDocDrafts(maxAgeMs: number = DEFAULT_MAX_AGE_
     const oldKeys = await reqToPromise<IDBValidKey[]>(index.getAllKeys(range))
     let deleted = 0
     for (const key of oldKeys) {
-      await reqToPromise(store.delete(key))
+      if (typeof key !== 'string') continue
+      await deleteWebDocDraft(key)
       deleted += 1
     }
     return deleted
