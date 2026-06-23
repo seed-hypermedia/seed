@@ -10,11 +10,7 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
-import {InlineDraftCard} from '@shm/ui/inline-draft-card'
-import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
 import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
-import {NewDocumentCard} from '@shm/ui/new-document-card'
-import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
 import {SizableText} from '@shm/ui/text'
@@ -24,11 +20,12 @@ import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {Node as PMNode} from 'prosemirror-model'
 import {NodeSelection} from 'prosemirror-state'
-import {FocusEvent, Profiler, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
+import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
@@ -148,7 +145,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner)
+    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
     return (
       <QueryBlockContent
         items={sortedItems}
@@ -223,73 +220,6 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       </div>
     </BlockSelectionWrapper>
   )
-}
-
-function buildSlotItems(
-  slot: QueryBlockDraftSlotData | null,
-  style: 'Card' | 'List',
-  banner: boolean,
-): {prependItems?: ReactNode[]; bannerContent?: ReactNode} {
-  if (!slot) return {}
-  const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onUpdateDraftName} = slot
-
-  const createButton = onCreateDraft ? (
-    style === 'Card' ? (
-      <NewDocumentCard key="new-doc-btn" onCreateDraft={onCreateDraft} />
-    ) : (
-      <NewDocumentListItem key="new-doc-btn" onCreateDraft={onCreateDraft} />
-    )
-  ) : null
-
-  const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
-  if (!hasDrafts) {
-    return createButton ? {prependItems: [createButton]} : {}
-  }
-
-  if (style === 'Card') {
-    const cards = drafts.map(({draft, autoFocus}) => (
-      <InlineDraftCard
-        key={`draft-${draft.id}`}
-        draft={draft}
-        autoFocus={autoFocus}
-        onOpenDraft={onOpenDraft!}
-        onDeleteDraft={onDeleteDraft!}
-        onUpdateDraftName={onUpdateDraftName!}
-      />
-    ))
-    if (banner && cards.length > 0) {
-      const bannerDraft = drafts[0]!
-      const bannerEl = (
-        <InlineDraftCard
-          key={`draft-banner-${bannerDraft.draft.id}`}
-          draft={bannerDraft.draft}
-          autoFocus={bannerDraft.autoFocus}
-          banner
-          onOpenDraft={onOpenDraft!}
-          onDeleteDraft={onDeleteDraft!}
-          onUpdateDraftName={onUpdateDraftName!}
-        />
-      )
-      const remainingCards = cards.slice(1)
-      return {
-        prependItems: createButton ? [createButton, ...remainingCards] : remainingCards,
-        bannerContent: bannerEl,
-      }
-    }
-    return {prependItems: createButton ? [createButton, ...cards] : cards}
-  }
-
-  const listItems = drafts.map(({draft, autoFocus}) => (
-    <InlineDraftListItem
-      key={`draft-${draft.id}`}
-      draft={draft}
-      autoFocus={autoFocus}
-      onOpenDraft={onOpenDraft!}
-      onDeleteDraft={onDeleteDraft!}
-      onUpdateDraftName={onUpdateDraftName!}
-    />
-  ))
-  return {prependItems: createButton ? [createButton, ...listItems] : listItems}
 }
 
 function QuerySettings({
