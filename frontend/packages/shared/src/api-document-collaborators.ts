@@ -13,6 +13,8 @@ import {hmIdPathToEntityQueryPath, entityQueryPathToHmIdPath} from './utils/path
 import {getErrorMessage, HMRedirectError} from './models/entity'
 import {toPlainMessage} from '@bufbuild/protobuf'
 
+type AccountsByUid = HMListDocumentCollaboratorsRequest['output']['accounts']
+
 function rawRoleToHMRole(role?: string): HMCapability['role'] {
   if (role === 'WRITER') return 'writer'
   if (role === 'AGENT') return 'agent'
@@ -36,6 +38,65 @@ function rawCapabilityToHMCapability(raw: any): HMCapability | null {
     }),
     label: raw.label,
     createTime: parseTimestamp(raw.createTime),
+  }
+}
+
+function getCanonicalAccountUid(accounts: AccountsByUid, uid: string) {
+  return accounts[uid]?.id.uid || uid
+}
+
+function addCanonicalAccountEntries(accounts: AccountsByUid) {
+  const out = {...accounts}
+  Object.values(accounts).forEach((account) => {
+    out[account.id.uid] = out[account.id.uid] || account
+  })
+  return out
+}
+
+function canonicalizeCapability(capability: HMCapability, accounts: AccountsByUid): HMCapability {
+  return {
+    ...capability,
+    accountUid: getCanonicalAccountUid(accounts, capability.accountUid),
+  }
+}
+
+/** Deduplicates site member rows by canonical/root account, keeping writer rows over member rows. */
+export function dedupeSiteMembersByCanonicalAccount({
+  accounts,
+  capabilities,
+  members,
+}: {
+  accounts: AccountsByUid
+  capabilities: HMCapability[]
+  members: HMSiteMember[]
+}) {
+  const seenMembers = new Set<string>()
+  const grantedMembers: HMSiteMember[] = []
+  const dedupedMembers: HMSiteMember[] = []
+
+  capabilities.forEach((capability) => {
+    const accountUid = getCanonicalAccountUid(accounts, capability.accountUid)
+    if (seenMembers.has(accountUid)) return
+    seenMembers.add(accountUid)
+    grantedMembers.push({
+      account: hmId(accountUid),
+      role: capability.role === 'writer' ? 'writer' : 'member',
+    })
+  })
+
+  members.forEach((member) => {
+    const accountUid = getCanonicalAccountUid(accounts, member.account.uid)
+    if (seenMembers.has(accountUid)) return
+    seenMembers.add(accountUid)
+    dedupedMembers.push({
+      account: hmId(accountUid),
+      role: 'member',
+    })
+  })
+
+  return {
+    grantedMembers,
+    members: dedupedMembers,
   }
 }
 
@@ -67,6 +128,27 @@ export const ListDocumentCollaborators: HMRequestImplementation<HMListDocumentCo
           (capability) => capability.role !== 'agent' && capability.role !== 'owner' && capability.role !== 'none',
         )
 
+      const contactMembers: HMSiteMember[] = []
+
+      contactsResult?.contacts.forEach((contact) => {
+        const plain = toPlainMessage(contact)
+        const metadata = contact.metadata?.toJson() as Record<string, unknown> | undefined
+        const subscribe = metadata?.subscribe as {site?: boolean} | undefined
+        if (!subscribe?.site) return
+        contactMembers.push({
+          account: hmId(plain.account),
+          role: 'member',
+        })
+      })
+
+      const rawAccountUids = new Set<string>([input.targetId.uid])
+      capabilities.forEach((capability) => rawAccountUids.add(capability.accountUid))
+      contactMembers.forEach((member) => rawAccountUids.add(member.account.uid))
+
+      const accounts = addCanonicalAccountEntries(await loadAccounts(grpcClient, Array.from(rawAccountUids)))
+
+      const canonicalCapabilities = capabilities.map((capability) => canonicalizeCapability(capability, accounts))
+
       const seenCapabilities = new Set<string>()
       const dedupeCapabilities = (list: HMCapability[]) =>
         list.filter((capability) => {
@@ -76,36 +158,16 @@ export const ListDocumentCollaborators: HMRequestImplementation<HMListDocumentCo
         })
 
       const parentCapabilities = dedupeCapabilities(
-        capabilities.filter((capability) => capability.grantId.id !== input.targetId.id),
+        canonicalCapabilities.filter((capability) => capability.grantId.id !== input.targetId.id),
       )
       const grantedCapabilities = dedupeCapabilities(
-        capabilities.filter((capability) => capability.grantId.id === input.targetId.id),
+        canonicalCapabilities.filter((capability) => capability.grantId.id === input.targetId.id),
       )
 
-      const seenMembers = new Set<string>()
-      const grantedMembers: HMSiteMember[] = []
-      const members: HMSiteMember[] = []
-
-      capabilities.forEach((capability) => {
-        if (seenMembers.has(capability.accountUid)) return
-        seenMembers.add(capability.accountUid)
-        grantedMembers.push({
-          account: hmId(capability.accountUid),
-          role: capability.role === 'writer' ? 'writer' : 'member',
-        })
-      })
-
-      contactsResult?.contacts.forEach((contact) => {
-        const plain = toPlainMessage(contact)
-        const metadata = contact.metadata?.toJson() as Record<string, unknown> | undefined
-        const subscribe = metadata?.subscribe as {site?: boolean} | undefined
-        if (!subscribe?.site) return
-        if (seenMembers.has(plain.account)) return
-        seenMembers.add(plain.account)
-        members.push({
-          account: hmId(plain.account),
-          role: 'member',
-        })
+      const {grantedMembers, members} = dedupeSiteMembersByCanonicalAccount({
+        accounts,
+        capabilities: canonicalCapabilities,
+        members: contactMembers,
       })
 
       const accountUids = new Set<string>([input.targetId.uid])
@@ -113,8 +175,9 @@ export const ListDocumentCollaborators: HMRequestImplementation<HMListDocumentCo
       grantedCapabilities.forEach((capability) => accountUids.add(capability.accountUid))
       grantedMembers.forEach((member) => accountUids.add(member.account.uid))
       members.forEach((member) => accountUids.add(member.account.uid))
-
-      const accounts = await loadAccounts(grpcClient, Array.from(accountUids))
+      accountUids.forEach((uid) => {
+        if (!accounts[uid]) accounts[uid] = {id: hmId(uid), metadata: null}
+      })
 
       return {
         publisherUid: input.targetId.uid,
