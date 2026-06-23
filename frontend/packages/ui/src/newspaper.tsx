@@ -11,6 +11,7 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {canShowMoveDocumentAction, canShowRepublishDocumentAction} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
@@ -42,8 +43,8 @@ export function useDocumentCardMenuItems(
   const {onCopyReference, onPushReference, origin, experiments} = useUniversalAppContext()
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const isOwner = actions.selectedAccountUid === docId.uid
-  const isLoggedIn = !!actions.myAccountIds?.length
   const hasPath = !!docId.path?.length
+  const selectedAccountCanWriteSource = isOwner || !!actions.canWriteDocument?.(docId)
 
   return useMemo(() => {
     const items: MenuItemType[] = []
@@ -109,7 +110,14 @@ export function useDocumentCardMenuItems(
         }),
       )
     }
-    if (actions.onMoveDocument && isOwner && hasPath) {
+    if (
+      actions.onMoveDocument &&
+      canShowMoveDocumentAction({
+        id: docId,
+        selectedAccountUid: actions.selectedAccountUid,
+        canWriteSource: selectedAccountCanWriteSource,
+      })
+    ) {
       items.push({
         key: 'move',
         label: 'Move',
@@ -120,7 +128,7 @@ export function useDocumentCardMenuItems(
         },
       })
     }
-    if (actions.onDuplicateDocument && isOwner && hasPath) {
+    if (actions.onDuplicateDocument && isOwner && !!docId.path?.length) {
       items.push({
         key: 'duplicate',
         label: 'Duplicate document',
@@ -131,14 +139,17 @@ export function useDocumentCardMenuItems(
         },
       })
     }
-    if (actions.onBranchDocument && isLoggedIn) {
+    if (
+      actions.onRepublishDocument &&
+      canShowRepublishDocumentAction({id: docId, selectedAccountUid: actions.selectedAccountUid})
+    ) {
       items.push({
-        key: 'branch',
+        key: 'republish',
         label: 'Republish',
         icon: <Split className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
-          actions.onBranchDocument!(docId)
+          actions.onRepublishDocument!(docId)
         },
       })
     }
@@ -178,10 +189,10 @@ export function useDocumentCardMenuItems(
   }, [
     actions,
     docId,
+    selectedAccountCanWriteSource,
+    hasPath,
     doc,
     isOwner,
-    isLoggedIn,
-    hasPath,
     navigate,
     onCopyReference,
     onPushReference,

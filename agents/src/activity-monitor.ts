@@ -170,10 +170,9 @@ export class ActivityMonitor {
 
   #getWatermark(accountId: string): Watermark | null {
     const row = this.#db
-      .query<
-        {cursor_cbor: Uint8Array; last_success_at: number | null},
-        [string, string]
-      >(`SELECT cursor_cbor, last_success_at FROM activity_watermarks WHERE account_id = ? AND server_url = ?`)
+      .query<{cursor_cbor: Uint8Array; last_success_at: number | null}, [string, string]>(
+        `SELECT cursor_cbor, last_success_at FROM activity_watermarks WHERE account_id = ? AND server_url = ?`,
+      )
       .get(accountId, this.#options.hmServerUrl)
     if (!row) return null
     const decoded = cbor.decode<Watermark>(row.cursor_cbor)

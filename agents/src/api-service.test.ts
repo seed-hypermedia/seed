@@ -871,9 +871,7 @@ describe('api service', () => {
         throw new Error(firing?.error || 'unknown trigger processing error')
       }
       expect(processed).toMatchObject({checked: 1, matched: 1, fired: 1, skipped: 0, errors: 0})
-      await expect(
-        svc.processActivityEvent(blobs.principalToString(account.principal), event),
-      ).resolves.toMatchObject({
+      await expect(svc.processActivityEvent(blobs.principalToString(account.principal), event)).resolves.toMatchObject({
         checked: 1,
         matched: 1,
         fired: 0,

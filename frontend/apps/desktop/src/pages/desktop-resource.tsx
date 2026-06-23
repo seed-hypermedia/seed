@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {BranchDialog} from '@/components/branch-dialog'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCreateDocumentMenuItem} from '@/components/create-doc-button'
@@ -14,7 +13,7 @@ import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/edi
 // import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {JoinButton} from '@/components/join-button'
-import {MoveDialog} from '@/components/move-dialog'
+import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {ParentUpdateToast} from '@/components/parent-update-toast'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
@@ -695,8 +694,7 @@ export default function DesktopResourcePage() {
 
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
-  const branchDialog = useAppDialog(BranchDialog)
-  const moveDialog = useAppDialog(MoveDialog)
+  const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
 
   const menuItems: MenuItemType[] = []
 
@@ -723,12 +721,12 @@ export default function DesktopResourcePage() {
     menuItems.push(newMenuItem)
   }
 
-  if (canEdit && myAccountIds.data?.length && docId.path?.length) {
+  if (canEdit && selectedAccountId && docId.path?.length) {
     menuItems.push({
       key: 'move',
       label: 'Move',
       icon: <FileInput className="size-4" />,
-      onClick: () => moveDialog.open({id: docId}),
+      onClick: () => destinationDialog.open({id: docId, mode: 'move'}),
     })
   }
 
@@ -812,13 +810,13 @@ export default function DesktopResourcePage() {
     },
   })
 
-  if (myAccountIds.data?.length) {
+  if (selectedAccountId && docId.path?.length) {
     menuItems.push({
-      key: 'branch',
+      key: 'republish',
       label: 'Republish',
       icon: <Split className="size-4" />,
       tooltip: 'Republish means creating an independent copy that you can modify and keeps the original attribution.',
-      onClick: () => branchDialog.open(docId),
+      onClick: () => destinationDialog.open({id: docId, mode: 'republish'}),
     })
   }
 
@@ -1031,8 +1029,7 @@ export default function DesktopResourcePage() {
       {copyGatewayContent}
       {copySiteUrlContent}
       {deleteEntity.content}
-      {branchDialog.content}
-      {moveDialog.content}
+      {destinationDialog.content}
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}
