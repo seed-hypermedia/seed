@@ -271,23 +271,6 @@ jobs:
             Write-Host "Installed and added 7-Zip to PATH"
           }
 
-      - name: Setup DigiCert KeyLocker client certificate (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
-
-      - name: Setup DigiCert KeyLocker signing tools (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        uses: digicert/code-signing-software-trust-action@v1
-        with:
-          simple-signing-mode: true
-        env:
-          SM_HOST: ${{ vars.SM_HOST }}
-          SM_API_KEY: ${{ secrets.SM_API_KEY }}
-          SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
-          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
 
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
@@ -322,12 +305,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: eu-west-2
           SEED_P2P_TESTNET_NAME: 'dev'
-          WINDOWS_CODE_SIGNING: 'true'
-          SM_HOST: ${{ vars.SM_HOST }}
-          SM_API_KEY: ${{ secrets.SM_API_KEY }}
-          SM_CLIENT_CERT_FILE: 'D:\Certificate_pkcs12.p12'
-          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
-          SM_KEYPAIR_ALIAS: ${{ vars.SM_DEV_KEYPAIR_ALIAS || vars.SM_KEYPAIR_ALIAS }}
 
       - name: Upload daemon debug info to Sentry (Unix)
         if: ${{ !startsWith(matrix.config.os, 'windows') && env.SENTRY_AUTH_TOKEN != '' }}
