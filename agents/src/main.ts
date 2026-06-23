@@ -163,6 +163,8 @@ function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
       partialId: event.partialId,
       textDeltaBytes: event.patch.textDelta ? new TextEncoder().encode(event.patch.textDelta).byteLength : 0,
       done: event.patch.done === true,
+      activity: event.patch.activity?.phase,
+      totalTokens: event.patch.usage?.total,
     }
   }
   if (event._ === 'append') return {type: event._, key: event.key, seq: event.event.seq}
@@ -399,6 +401,10 @@ async function main(): Promise<void> {
         partialId: event.partialId,
         textDeltaBytes: event.textDelta ? new TextEncoder().encode(event.textDelta).byteLength : 0,
         done: event.done === true,
+        activity: event.activity
+          ? event.activity.phase + (event.activity.toolName ? `:${event.activity.toolName}` : '')
+          : undefined,
+        totalTokens: event.usage?.total,
         clients: clients.size,
       })
     }
@@ -415,7 +421,7 @@ async function main(): Promise<void> {
           _: 'appendPartial',
           key: `sessions/${event.sessionId}`,
           partialId: event.partialId,
-          patch: {textDelta: event.textDelta, done: event.done},
+          patch: {textDelta: event.textDelta, done: event.done, usage: event.usage, activity: event.activity},
         })
       } else if (event.type === 'session-change') {
         sendIfSubscribed(ws, `sessions/${event.session.id}`, {

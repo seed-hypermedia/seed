@@ -1,4 +1,6 @@
 import {
+  type AgentRunActivity,
+  type AgentRunUsage,
   type AgentSessionTriggerContext,
   type AgentTriggerSource,
   type SessionEvent,
@@ -48,7 +50,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, ScrollText, Send, Square, Trash2} from 'lucide-react'
+import {ArrowDown, ExternalLink, Info, Loader2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
 import {promptBlocksToMarkdown} from './prompt-editor'
@@ -238,12 +240,8 @@ function AgentSessionPage({
   const deleteSessionDialog = useAppDialog(DeleteAgentSessionDialog, {isAlert: true})
   const systemPromptDialog = useAppDialog(SystemPromptDialog)
   const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
-  const partialAssistantText = useAgentWebSocketSubscription(
-    serverUrl,
-    selectedAccountId,
-    `sessions/${sessionId}`,
-    lastSeq,
-  )
+  const liveState = useAgentWebSocketSubscription(serverUrl, selectedAccountId, `sessions/${sessionId}`, lastSeq)
+  const partialAssistantText = liveState.text
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaveState, setTitleSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -261,7 +259,12 @@ function AgentSessionPage({
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
-  const showThinkingIndicator = Boolean(!partialAssistantText && isAgentBusy)
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
+  useEffect(() => {
+    // Start the elapsed timer when the agent begins working; clear it when it finishes.
+    if (isAgentBusy) setRunStartedAt((prev) => prev ?? Date.now())
+    else setRunStartedAt(null)
+  }, [isAgentBusy])
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
@@ -367,10 +370,10 @@ function AgentSessionPage({
     if (isNearBottom) {
       const container = messagesContainerRef.current
       if (container) container.scrollTop = container.scrollHeight
-    } else if (partialAssistantText || showThinkingIndicator || chatRows.length) {
+    } else if (partialAssistantText || isAgentBusy || chatRows.length) {
       setShowScrollButton(true)
     }
-  }, [chatRows.length, partialAssistantText, showThinkingIndicator, isNearBottom])
+  }, [chatRows.length, partialAssistantText, isAgentBusy, isNearBottom])
 
   useEffect(() => {
     const eventId = getSharedEventIdFromHash(window.location.hash)
@@ -544,7 +547,9 @@ function AgentSessionPage({
                   </div>
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
-                {showThinkingIndicator ? <AssistantThinkingIndicator /> : null}
+                {isAgentBusy ? (
+                  <AgentRunStatusBar startedAt={runStartedAt} activity={liveState.activity} usage={liveState.usage} />
+                ) : null}
                 <div ref={messagesEndRef} />
                 {showScrollButton ? (
                   <div className="pointer-events-none sticky bottom-2 flex justify-center">
@@ -720,10 +725,66 @@ const PartialAssistantRow = React.memo(function PartialAssistantRow({text}: {tex
   return <AssistantMessageParts parts={parts} isStreaming />
 })
 
-function AssistantThinkingIndicator() {
+/** Formats elapsed milliseconds as m:ss for the live run timer. */
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+/** Formats a token count compactly (e.g. 1234 → "1.2k"). */
+function formatTokenCount(count: number): string {
+  if (count >= 10_000) return `${Math.round(count / 1000)}k`
+  if (count >= 1_000) return `${(count / 1000).toFixed(1)}k`
+  return String(count)
+}
+
+/** Human-readable label for the agent's current activity phase. */
+function activityLabel(activity?: AgentRunActivity): string {
+  switch (activity?.phase) {
+    case 'starting':
+      return 'Starting…'
+    case 'responding':
+      return 'Responding…'
+    case 'tool':
+      return activity.toolName ? `Running ${activity.toolName}…` : 'Running tool…'
+    case 'finalizing':
+      return 'Finishing…'
+    case 'thinking':
+      return 'Thinking…'
+    default:
+      return 'Working…'
+  }
+}
+
+/** Live status row shown while the agent is working: activity, elapsed time, and token count. */
+function AgentRunStatusBar({
+  startedAt,
+  activity,
+  usage,
+}: {
+  startedAt: number | null
+  activity?: AgentRunActivity
+  usage?: AgentRunUsage
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (startedAt === null) return
+    setNow(Date.now())
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [startedAt])
+  const elapsed = startedAt === null ? 0 : Math.max(0, now - startedAt)
   return (
-    <div className="text-muted-foreground flex items-center gap-2 py-2" aria-label="Assistant is thinking">
-      <span className="bg-muted-foreground inline-block size-2 animate-pulse rounded-full" />
+    <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs" aria-live="polite">
+      <Loader2 className="size-3.5 shrink-0 animate-spin" />
+      <span className="font-medium">{activityLabel(activity)}</span>
+      {activity?.detail ? <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span> : null}
+      <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
+        <span aria-label="Elapsed time">{formatElapsed(elapsed)}</span>
+        {usage && usage.total > 0 ? <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span> : null}
+      </span>
     </div>
   )
 }

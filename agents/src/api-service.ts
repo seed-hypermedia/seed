@@ -82,6 +82,8 @@ export type ServiceEvent =
       partialId: string
       textDelta?: string
       done?: boolean
+      usage?: api.AgentRunUsage
+      activity?: api.AgentRunActivity
     }
   | {type: 'account-change'; accountId: string; reason: string; agentId?: string; sessionId?: string}
 
@@ -274,9 +276,7 @@ export class Service {
       .query<
         {id: string; name: string; type: string; config_cbor: Uint8Array; created_at: number; updated_at: number},
         [string]
-      >(
-        `SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`,
-      )
+      >(`SELECT id, name, type, config_cbor, created_at, updated_at FROM model_providers WHERE account_id = ? ORDER BY updated_at DESC`)
       .all(accountId)
     return {
       _: 'ListModelProvidersResponse',
@@ -297,9 +297,10 @@ export class Service {
   async #listProviderModels(accountId: string, rawProviderName: string): Promise<api.ListProviderModelsResponse> {
     const providerName = normalizeBoundedString(rawProviderName, 'Model provider', MAX_NAME_BYTES)
     const row = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {config_cbor: Uint8Array},
+        [string, string]
+      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, providerName)
     if (!row) throw new APIError(404, 'Model provider not found')
 
@@ -321,9 +322,7 @@ export class Service {
       .query<
         {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
         [string]
-      >(
-        `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY updated_at DESC`,
-      )
+      >(`SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY updated_at DESC`)
       .all(accountId)
 
     return {
@@ -447,9 +446,10 @@ export class Service {
   #deleteSigningIdentity(accountId: string, rawName: string): api.DeleteSigningIdentityResponse {
     const name = normalizeBoundedString(rawName, 'Signing key', MAX_NAME_BYTES)
     const row = this.#db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {metadata_cbor: Uint8Array | null},
+        [string, string]
+      >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
       .get(accountId, name)
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -467,9 +467,10 @@ export class Service {
     const provider = normalizeProvider(rawProvider)
     const now = Date.now()
     const existing = this.#db
-      .query<{id: string; created_at: number}, [string, string]>(
-        `SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {id: string; created_at: number},
+        [string, string]
+      >(`SELECT id, created_at FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
@@ -501,9 +502,10 @@ export class Service {
   #deleteModelProvider(accountId: string, rawName: string): api.DeleteModelProviderResponse {
     const name = normalizeBoundedString(rawName, 'Provider name', MAX_NAME_BYTES)
     const row = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {config_cbor: Uint8Array},
+        [string, string]
+      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, name)
     if (!row) throw new APIError(404, 'Model provider not found')
 
@@ -529,9 +531,10 @@ export class Service {
     const ciphertext = await encryptSecret(this.#db, value)
     const now = Date.now()
     const existing = this.#db
-      .query<{id: string; created_at: number}, [string, string]>(
-        `SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {id: string; created_at: number},
+        [string, string]
+      >(`SELECT id, created_at FROM secrets WHERE account_id = ? AND name = ?`)
       .get(accountId, name)
     const id = existing?.id ?? crypto.randomUUID()
     const createdAt = existing?.created_at ?? now
@@ -557,9 +560,10 @@ export class Service {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     for (const signingKey of signingKeys) {
       const row = this.#db
-        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-        )
+        .query<
+          {metadata_cbor: Uint8Array | null},
+          [string, string]
+        >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
         .get(accountId, signingKey)
       if (!row?.metadata_cbor) throw new APIError(400, 'Signing key not found')
       const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -731,7 +735,7 @@ export class Service {
         ? undefined
         : patch.cooldownMs === null
           ? undefined
-          : patch.cooldownMs ?? existing.cooldownMs
+          : (patch.cooldownMs ?? existing.cooldownMs)
     const next: api.AgentTriggerInfo = {...existing, ...patch, cooldownMs, updatedAt: Date.now()}
     this.#db.run(
       `UPDATE agent_triggers
@@ -834,9 +838,10 @@ export class Service {
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
     const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const existing = this.#db
-      .query<{title_source: string}, [string, string]>(
-        `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
-      )
+      .query<
+        {title_source: string},
+        [string, string]
+      >(`SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`)
       .get(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
 
@@ -876,9 +881,10 @@ export class Service {
     const requestCBOR = normalizedId === undefined ? undefined : cbor.encode({sessionId, content})
     if (normalizedId !== undefined && requestCBOR !== undefined) {
       const existing = this.#db
-        .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-        )
+        .query<
+          {request_cbor: Uint8Array; response_cbor: Uint8Array},
+          [string, string, string]
+        >(`SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`)
         .get(accountId, 'MessageSession', normalizedId)
       if (existing) {
         if (!bytesEqual(existing.request_cbor, requestCBOR))
@@ -1026,9 +1032,10 @@ export class Service {
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
-        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-        )
+        .query<
+          {metadata_cbor: Uint8Array | null},
+          [string, string]
+        >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
         .get(accountId, name)
       if (!row?.metadata_cbor) return []
       const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -1056,9 +1063,10 @@ export class Service {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     const providerRow = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {config_cbor: Uint8Array},
+        [string, string]
+      >(`SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, definition.modelProvider)
     if (!providerRow) throw new APIError(400, 'Model provider not found')
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
@@ -1139,6 +1147,39 @@ export class Service {
     let finalError: string | undefined
     let assistantEvent: api.SessionEvent | undefined
     const appendedToolCalls = new Set<string>()
+    const toolStartedAt = new Map<string, number>()
+
+    const runStartedAt = Date.now()
+    let turnCount = 0
+    let streamingLogOpen = false
+    const runUsage: api.AgentRunUsage = {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}
+    const logRun = (message: string, fields: Record<string, unknown> = {}): void => {
+      console.info(`[agents/runtime] ${message}`, {
+        sessionId,
+        agentId: session.agentId,
+        provider: providerName,
+        model: definition.model,
+        ...fields,
+      })
+    }
+    const logRunError = (message: string, fields: Record<string, unknown> = {}): void => {
+      console.error(`[agents/runtime] ${message}`, {
+        sessionId,
+        agentId: session.agentId,
+        provider: providerName,
+        model: definition.model,
+        ...fields,
+      })
+    }
+    const endStreamingLog = (): void => {
+      if (!streamingLogOpen) return
+      process.stdout.write('\n')
+      streamingLogOpen = false
+    }
+    /** Emits a non-text progress patch (activity and/or cumulative token usage) for the current partial. */
+    const emitProgress = (patch: {activity?: api.AgentRunActivity; usage?: api.AgentRunUsage}): void => {
+      this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, ...patch})
+    }
 
     const appendAssistantMessage = (content: string): void => {
       if (!content.trim()) return
@@ -1161,7 +1202,14 @@ export class Service {
 
     const unsubscribe = piSession.subscribe((event) => {
       if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-        partialText += event.assistantMessageEvent.delta
+        const delta = event.assistantMessageEvent.delta
+        if (!currentAssistantHadDelta) {
+          logRun('assistant text streaming', {partialId})
+          emitProgress({activity: {phase: 'responding'}})
+          streamingLogOpen = true
+        }
+        process.stdout.write(delta)
+        partialText += delta
         currentAssistantHadDelta = true
         this.#emit({
           type: 'session-partial',
@@ -1169,14 +1217,36 @@ export class Service {
           agentId: session.agentId,
           sessionId,
           partialId,
-          textDelta: event.assistantMessageEvent.delta,
+          textDelta: delta,
         })
         return
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
-        const assistantMessage = event.message as {stopReason?: string; errorMessage?: string}
+        endStreamingLog()
+        const assistantMessage = event.message as {
+          stopReason?: string
+          errorMessage?: string
+          usage?: {input?: number; output?: number; cacheRead?: number; cacheWrite?: number}
+        }
+        turnCount += 1
+        const turnUsage = assistantMessage.usage
+        if (turnUsage) {
+          runUsage.input += turnUsage.input ?? 0
+          runUsage.output += turnUsage.output ?? 0
+          runUsage.cacheRead += turnUsage.cacheRead ?? 0
+          runUsage.cacheWrite += turnUsage.cacheWrite ?? 0
+          runUsage.total = runUsage.input + runUsage.output + runUsage.cacheRead + runUsage.cacheWrite
+        }
+        logRun('assistant turn complete', {
+          turn: turnCount,
+          stopReason: assistantMessage.stopReason,
+          textChars: partialText.length || piAssistantText(event.message).length,
+          tokens: {...runUsage},
+        })
+        emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
           finalError = assistantMessage.errorMessage || 'Agent run failed'
+          logRunError('assistant turn reported error', {stopReason: assistantMessage.stopReason, error: finalError})
           return
         }
         if (currentAssistantHadDelta) flushPartialAssistantMessage()
@@ -1186,10 +1256,20 @@ export class Service {
       }
       if (event.type === 'tool_execution_start') {
         if (event.toolName === seedToolRegistry.set_session_title.name) return
+        endStreamingLog()
         if (currentAssistantHadDelta) {
           flushPartialAssistantMessage()
           suppressCurrentAssistantEndFallback = true
         }
+        toolStartedAt.set(event.toolCallId, Date.now())
+        logRun('tool call start', {
+          tool: event.toolName,
+          toolCallId: event.toolCallId,
+          input: summarizeForLog(event.args),
+        })
+        emitProgress({
+          activity: {phase: 'tool', toolName: event.toolName, detail: summarizeToolArgs(event.args)},
+        })
         appendedToolCalls.add(event.toolCallId)
         this.#appendSessionEvent(
           accountId,
@@ -1202,6 +1282,15 @@ export class Service {
       }
       if (event.type === 'tool_execution_end') {
         if (event.toolName === seedToolRegistry.set_session_title.name) return
+        const startedAt = toolStartedAt.get(event.toolCallId)
+        toolStartedAt.delete(event.toolCallId)
+        logRun(event.isError ? 'tool call failed' : 'tool call end', {
+          tool: event.toolName,
+          toolCallId: event.toolCallId,
+          durationMs: startedAt ? Date.now() - startedAt : undefined,
+          result: summarizeForLog(event.isError ? piToolResultText(event.result) : piToolResultOutput(event.result)),
+        })
+        emitProgress({activity: {phase: 'thinking'}})
         if (!appendedToolCalls.has(event.toolCallId)) {
           this.#appendSessionEvent(
             accountId,
@@ -1233,6 +1322,7 @@ export class Service {
         return
       }
       if (event.type === 'agent_end') {
+        endStreamingLog()
         const lastAssistant = [...event.messages].reverse().find((message) => message.role === 'assistant') as
           | {stopReason?: string; errorMessage?: string}
           | undefined
@@ -1248,13 +1338,28 @@ export class Service {
     runningSession.abort = () => piSession.abort()
     this.#runningSessions.set(runningSessionKey, runningSession)
 
+    logRun('agent run starting', {activeTools: piSession.getActiveToolNames()})
+    emitProgress({activity: {phase: 'starting'}, usage: {...runUsage}})
+
     try {
       if (runningSession.stopped) throw new SessionStoppedError()
       await piSession.agent.continue()
+    } catch (error) {
+      endStreamingLog()
+      logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
+      throw error
     } finally {
+      endStreamingLog()
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
+      logRun('agent run finished', {
+        durationMs: Date.now() - runStartedAt,
+        turns: turnCount,
+        tokens: {...runUsage},
+        stopped: runningSession.stopped,
+        error: finalError,
+      })
     }
 
     if (runningSession.stopped) {
@@ -1269,9 +1374,10 @@ export class Service {
 
   #piMessages(sessionId: string): unknown[] {
     const events = this.#db
-      .query<SessionEventRow, [string, number]>(
-        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
-      )
+      .query<
+        SessionEventRow,
+        [string, number]
+      >(`SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`)
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
 
@@ -1346,9 +1452,10 @@ export class Service {
 
   async #getSecretPlaintext(accountId: string, name: string): Promise<Uint8Array> {
     const row = this.#db
-      .query<{ciphertext: Uint8Array}, [string, string]>(
-        `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {ciphertext: Uint8Array},
+        [string, string]
+      >(`SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`)
       .get(accountId, name)
     if (!row) throw new APIError(400, 'Required secret is not configured')
     return decryptSecret(this.#db, row.ciphertext)
@@ -1363,9 +1470,10 @@ export class Service {
   ): api.SessionEvent {
     const seq =
       this.#db
-        .query<{seq: number}, [string]>(
-          `SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`,
-        )
+        .query<
+          {seq: number},
+          [string]
+        >(`SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`)
         .get(sessionId)?.seq ?? 1
     const id = crypto.randomUUID()
     this.#db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
@@ -1450,9 +1558,10 @@ export class Service {
     try {
       if (normalizedId !== undefined && requestCBOR !== undefined) {
         const existing = this.#db
-          .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
-            `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
-          )
+          .query<
+            {request_cbor: Uint8Array; response_cbor: Uint8Array},
+            [string, string, string]
+          >(`SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`)
           .get(accountId, action, normalizedId)
         if (existing) {
           if (!bytesEqual(existing.request_cbor, requestCBOR))
@@ -1994,6 +2103,32 @@ function sessionEventRowToInfo(row: SessionEventRow): api.SessionEvent {
     event: cbor.decode(row.event_cbor),
     createdAt: row.created_at,
   }
+}
+
+/** Collapses any value into a short single-line string for verbose server logs. */
+function summarizeForLog(value: unknown, maxLength = 600): string {
+  let text: string
+  if (typeof value === 'string') text = value
+  else if (value === undefined) text = ''
+  else {
+    try {
+      text = JSON.stringify(value)
+    } catch {
+      text = String(value)
+    }
+  }
+  text = text.replace(/\s+/g, ' ').trim()
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…(+${text.length - maxLength} chars)` : text
+}
+
+/** Builds a compact one-line description of tool arguments for the live activity indicator. */
+function summarizeToolArgs(args: unknown): string | undefined {
+  if (!isRecord(args)) return typeof args === 'string' ? summarizeForLog(args, 80) : undefined
+  for (const key of ['id', 'url', 'query', 'path', 'command', 'name', 'title']) {
+    const value = args[key]
+    if (typeof value === 'string' && value.trim()) return summarizeForLog(value, 80)
+  }
+  return undefined
 }
 
 async function triggerPromptMessage(
@@ -2768,9 +2903,10 @@ async function resolveWriteSigner(
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
   const row = context.db
-    .query<{ciphertext: Uint8Array}, [string, string]>(
-      `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-    )
+    .query<
+      {ciphertext: Uint8Array},
+      [string, string]
+    >(`SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`)
     .get(context.accountId, selected.secretName)
   if (!row) throw new APIError(400, 'Signing identity secret not found')
   const keyPair = blobs.nobleKeyPairFromSeed(await decryptSecret(context.db, row.ciphertext))
@@ -2793,9 +2929,10 @@ async function listWriteSigningIdentities(
   const identities = []
   for (const secretName of deduped) {
     const row = db
-      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-      )
+      .query<
+        {metadata_cbor: Uint8Array | null},
+        [string, string]
+      >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
       .get(accountId, secretName)
     if (!row?.metadata_cbor) continue
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
@@ -2822,9 +2959,10 @@ async function writeProfileUpdate(
   const published = await client.publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
   const now = Date.now()
   const row = context.db
-    .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-    )
+    .query<
+      {metadata_cbor: Uint8Array | null},
+      [string, string]
+    >(`SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`)
     .get(context.accountId, signer.secretName)
   if (row?.metadata_cbor) {
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)

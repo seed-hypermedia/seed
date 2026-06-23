@@ -27,16 +27,15 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from '@/models/agents'
-import {useSelectedAccountId} from '@/selected-account'
-import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
-import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
-import {seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {useSearch} from '@shm/shared/models/search'
-import {formattedDateMedium} from '@shm/shared/utils/date'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {Button} from '@shm/ui/button'
+import { useSelectedAccountId } from '@/selected-account'
+import { useClickNavigate, useNavigate } from '@/utils/useNavigate'
+import { markdownBlockNodesToHMBlockNodes, parseMarkdown } from '@seed-hypermedia/client'
+import type { HMBlockNode } from '@seed-hypermedia/client/hm-types'
+import { useSearch } from '@shm/shared/models/search'
+import { formattedDateMedium } from '@shm/shared/utils/date'
+import { packHmId } from '@shm/shared/utils/entity-id-url'
+import { useNavRoute } from '@shm/shared/utils/navigation'
+import { Button } from '@shm/ui/button'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -44,22 +43,23 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
-import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {Input} from '@shm/ui/components/input'
-import {Container, PanelContainer} from '@shm/ui/container'
-import {OptionsDropdown} from '@shm/ui/options-dropdown'
-import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {KeyRound, Trash2} from 'lucide-react'
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {AGENT_READ_TOOL_GROUP} from './agent-tools'
-import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
-import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
-import {ModelSelect} from './model-select'
-import {curateProviderModels} from './model-utils'
-import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
-import {ProviderSelect} from './provider-select'
+import { DialogDescription, DialogTitle } from '@shm/ui/components/dialog'
+import { Input } from '@shm/ui/components/input'
+import { Container, PanelContainer } from '@shm/ui/container'
+import { OptionsDropdown } from '@shm/ui/options-dropdown'
+import { SizableText } from '@shm/ui/text'
+import { toast } from '@shm/ui/toast'
+import { useAppDialog } from '@shm/ui/universal-dialog'
+import { KeyRound, Plus, Trash2 } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { seedToolRegistry } from '../../../../../../agents/protocol/src/tool-registry'
+import { AGENT_READ_TOOL_GROUP } from './agent-tools'
+import { AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus } from './dialogs'
+import { AgentHeader, AgentSubpageHeader, type AgentPageTab } from './header'
+import { ModelSelect } from './model-select'
+import { curateProviderModels } from './model-utils'
+import { AgentPromptEditor, promptBlocksToMarkdown } from './prompt-editor'
+import { ProviderSelect } from './provider-select'
 
 function AgentDetailPage({
   agentId,
@@ -83,7 +83,7 @@ function AgentDetailPage({
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
   const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
-  const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
+  const deleteAgentDialog = useAppDialog(DeleteAgentDialog, { isAlert: true })
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
@@ -128,7 +128,7 @@ function AgentDetailPage({
   // default from the new provider's curated list once it loads.
   useEffect(() => {
     if (!nameModelDirty || model || !providerModels.data?.length) return
-    const {recommended, all} = curateProviderModels(providerModels.data, selectedProviderType)
+    const { recommended, all } = curateProviderModels(providerModels.data, selectedProviderType)
     const nextModel = recommended[0]?.id || all[0]?.id
     if (nextModel) setModel(nextModel)
   }, [nameModelDirty, model, providerModels.data, selectedProviderType])
@@ -152,30 +152,30 @@ function AgentDetailPage({
       return otherKeys.includes(agentSigningKey)
     })
   const agentAccountStatus: AgentAccountRenameStatus = !agentSigningKey
-    ? {kind: 'none'}
+    ? { kind: 'none' }
     : isAccountShared
-      ? {kind: 'shared'}
-      : {kind: 'own'}
+      ? { kind: 'shared' }
+      : { kind: 'own' }
 
   async function handleRenameAgent(nextName: string) {
     if (!agent.data) throw new Error('Agent not loaded')
     const trimmed = nextName.trim()
     if (!trimmed) throw new Error('Agent name is required')
     const definition = agent.data.agent.definition
-    const result = await updateAgent.mutateAsync({agentId, definition: {...definition, name: trimmed}})
+    const result = await updateAgent.mutateAsync({ agentId, definition: { ...definition, name: trimmed } })
     if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
     // Keep the dedicated account's profile name in sync; leave shared accounts alone.
     if (agentSigningKey && !isAccountShared) {
-      await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
+      await updateSigningIdentity.mutateAsync({ name: agentSigningKey, label: trimmed })
     }
     if (!nameModelDirty) setName(trimmed)
   }
 
   async function handleCreateSession() {
     try {
-      const result = await createSession.mutateAsync({agentId, title: 'Untitled session'})
+      const result = await createSession.mutateAsync({ agentId, title: 'Untitled session' })
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
-      navigate({key: 'agent-session', agentId, sessionId: result.sessionId, serverUrl})
+      navigate({ key: 'agent-session', agentId, sessionId: result.sessionId, serverUrl })
       // toast.success('Session created')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not create session')
@@ -203,7 +203,7 @@ function AgentDetailPage({
         void updateAgent
           .mutateAsync({
             agentId,
-            definition: {...currentDefinition, name: draftName, model, modelProvider},
+            definition: { ...currentDefinition, name: draftName, model, modelProvider },
           })
           .then((result) => {
             if (settingsSaveIdRef.current !== saveId) return
@@ -257,7 +257,7 @@ function AgentDetailPage({
       void updateAgent
         .mutateAsync({
           agentId,
-          definition: {...currentDefinition, systemPrompt: promptBlocksToMarkdown(systemPrompt)},
+          definition: { ...currentDefinition, systemPrompt: promptBlocksToMarkdown(systemPrompt) },
         })
         .then((result) => {
           if (promptSaveIdRef.current !== saveId) return
@@ -283,16 +283,16 @@ function AgentDetailPage({
   const isTriggerDetail = tab === 'triggers' && !!triggerId
   const breadcrumbItems = isTriggerDetail
     ? [
-        {label: 'Triggers', route: {key: 'agent' as const, agentId, serverUrl, tab: 'triggers' as const}},
-        {label: selectedTriggerName || 'Trigger'},
-      ]
+      { label: 'Triggers', route: { key: 'agent' as const, agentId, serverUrl, tab: 'triggers' as const } },
+      { label: selectedTriggerName || 'Trigger' },
+    ]
     : undefined
 
   return (
-    <PanelContainer className="flex flex-col overflow-hidden">
-      <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
+    <PanelContainer className="flex overflow-hidden flex-col">
+      <div className={isTriggerDetail ? 'flex-none border-b border-border' : 'contents'}>
         <Container
-          className={isTriggerDetail ? 'max-w-4xl gap-4 pt-4 pb-4' : 'min-h-0 max-w-4xl flex-1 gap-4 pt-4 pb-0'}
+          className={isTriggerDetail ? 'gap-4 pt-4 pb-4 max-w-4xl' : 'flex-1 gap-4 pt-4 pb-0 max-w-4xl min-h-0'}
         >
           {agent.isLoading ? <SizableText color="muted">Loading agent…</SizableText> : null}
           {agent.isError ? (
@@ -319,7 +319,7 @@ function AgentDetailPage({
                 triggersCount={triggers.data?.length}
                 onCreateSession={() => void handleCreateSession()}
                 creatingSession={createSession.isLoading}
-                onCreateTrigger={() => createTriggerDialog.open({serverUrl, selectedAccountId, agentId})}
+                onCreateTrigger={() => createTriggerDialog.open({ serverUrl, selectedAccountId, agentId })}
                 canCreateTrigger={!!selectedAccountId}
                 breadcrumbItems={breadcrumbItems}
               />
@@ -330,8 +330,8 @@ function AgentDetailPage({
               {editNameDialog.content}
 
               {tab === 'sessions' ? (
-                <section className="flex min-h-0 flex-1 flex-col">
-                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+                <section className="flex flex-col flex-1 min-h-0">
+                  <div className="flex overflow-y-auto flex-col flex-1 gap-2 pr-1 min-h-0">
                     {!agent.data.sessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
                     {agent.data.sessions.map((session) => (
                       <SessionListItem
@@ -339,17 +339,17 @@ function AgentDetailPage({
                         session={session}
                         serverUrl={serverUrl}
                         onOpen={(event) =>
-                          clickNavigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl}, event)
+                          clickNavigate({ key: 'agent-session', agentId, sessionId: session.id, serverUrl }, event)
                         }
                         onOpenTrigger={() =>
                           session.startedByTrigger
                             ? navigate({
-                                key: 'agent',
-                                agentId,
-                                serverUrl,
-                                tab: 'triggers',
-                                triggerId: session.startedByTrigger.triggerId,
-                              })
+                              key: 'agent',
+                              agentId,
+                              serverUrl,
+                              tab: 'triggers',
+                              triggerId: session.startedByTrigger.triggerId,
+                            })
                             : undefined
                         }
                       />
@@ -379,14 +379,14 @@ function AgentDetailPage({
                   definition={agent.data.agent.definition}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
-                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
+                  onSave={(definition) => updateAgent.mutateAsync({ agentId, definition })}
                   onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
                   saving={updateAgent.isLoading || createSigningIdentity.isLoading}
                 />
               ) : null}
 
               {tab === 'prompt' ? (
-                <section className="flex min-h-0 flex-1 flex-col gap-3">
+                <section className="flex flex-col flex-1 gap-3 min-h-0">
                   <div>
                     <SizableText weight="bold">System prompt</SizableText>
                     <SizableText size="sm" color="muted" className="block">
@@ -404,7 +404,7 @@ function AgentDetailPage({
                     </SizableText>
                   </div>
                   {promptEditorDisabled ? (
-                    <div className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm">
+                    <div className="p-4 text-sm rounded-lg border border-input bg-muted/40 text-muted-foreground min-h-80">
                       Connect to the agent server to edit this prompt.
                     </div>
                   ) : (
@@ -421,7 +421,7 @@ function AgentDetailPage({
               ) : null}
 
               {tab === 'settings' ? (
-                <section className="flex max-w-2xl flex-col gap-4">
+                <section className="flex flex-col gap-4 max-w-2xl">
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">
@@ -431,7 +431,7 @@ function AgentDetailPage({
                         providers={modelProviders.data}
                         value={modelProvider}
                         onChange={handleProviderChange}
-                        onAddProvider={() => addProviderDialog.open({serverUrl, selectedAccountId})}
+                        onAddProvider={() => addProviderDialog.open({ serverUrl, selectedAccountId })}
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -465,7 +465,7 @@ function AgentDetailPage({
                   <SizableText size="xs" color="muted" className="font-mono">
                     {agent.data.agent.id}
                   </SizableText>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap gap-2 items-center">
                     {settingsSaveState !== 'idle' ? (
                       <SizableText
                         size="xs"
@@ -488,7 +488,7 @@ function AgentDetailPage({
                           selectedAccountId: selectedAccountId ?? null,
                           agentId,
                           agentName: name,
-                          onDeleted: () => navigate({key: 'agents'}),
+                          onDeleted: () => navigate({ key: 'agents' }),
                         })
                       }
                       disabled={!selectedAccountId}
@@ -528,7 +528,7 @@ function agentPromptStableKey(prompt: AgentDefinition['systemPrompt']): string {
 
 function hasPromptContent(blocks: HMBlockNode[]): boolean {
   return blocks.some((node) => {
-    const block = node.block as {text?: unknown; type?: unknown; link?: unknown; url?: unknown}
+    const block = node.block as { text?: unknown; type?: unknown; link?: unknown; url?: unknown }
     const type = typeof block.type === 'string' ? block.type.toLowerCase() : ''
     if (typeof block.text === 'string' && block.text.trim()) return true
     if (typeof block.link === 'string' && block.link.trim()) return true
@@ -567,7 +567,7 @@ function DeleteAgentDialog({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg p-4">
+    <div className="flex flex-col gap-4 p-4 rounded-lg">
       <AlertDialogTitle>Delete agent?</AlertDialogTitle>
       <AlertDialogDescription>
         This will permanently delete “{input.agentName}” and its sessions, triggers, and drafts from the agent server.
@@ -661,7 +661,7 @@ function AgentToolsTab({
         '_' in response &&
         response._ === 'CreateSigningIdentityResponse'
       ) {
-        const identityName = (response as unknown as {identity: SigningIdentity}).identity.name
+        const identityName = (response as unknown as { identity: SigningIdentity }).identity.name
         await saveTools(enabledTools, Array.from(new Set([...signingKeys, identityName])))
       }
       setNewIdentityName('Agent publisher')
@@ -675,7 +675,7 @@ function AgentToolsTab({
   const writeEnabled = enabledTools.includes(seedToolRegistry.write.name)
 
   return (
-    <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pr-1">
+    <section className="flex overflow-y-auto flex-col flex-1 gap-5 pr-1 max-w-3xl min-h-0">
       <div>
         <SizableText weight="bold">Tools</SizableText>
       </div>
@@ -686,7 +686,7 @@ function AgentToolsTab({
           return (
             <label
               key={tool.names.join('|')}
-              className="border-border bg-card flex items-start gap-3 rounded-xl border p-4"
+              className="flex gap-3 items-start p-4 rounded-xl border border-border bg-card"
             >
               <input
                 type="checkbox"
@@ -700,8 +700,8 @@ function AgentToolsTab({
                   void saveTools(nextTools, signingKeys)
                 }}
               />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col flex-1 gap-1 min-w-0">
+                <div className="flex gap-2 items-center">
                   <SizableText size="sm" weight="bold">
                     {tool.title}
                   </SizableText>
@@ -721,18 +721,14 @@ function AgentToolsTab({
       </div>
 
       {writeEnabled ? (
-        <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
-          <div className="flex items-start gap-3">
-            <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
+        <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-card">
+          <div className="flex gap-3 items-start">
+            <div className="flex justify-center items-center rounded-lg bg-primary/10 text-primary size-9">
               <KeyRound className="size-5" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="flex-1 min-w-0">
               <SizableText size="sm" weight="bold">
                 Signing identity
-              </SizableText>
-              <SizableText size="sm" color="muted">
-                Select uploaded HM account keys this agent may use to create, sign, and publish Seed content. The agent
-                is told both each profile name and public key ID.
               </SizableText>
             </div>
           </div>
@@ -742,7 +738,7 @@ function AgentToolsTab({
               return (
                 <label
                   key={identity.id}
-                  className="border-border bg-background flex items-start gap-3 rounded-lg border px-3 py-2"
+                  className="flex gap-3 items-start px-3 py-2 rounded-lg border border-border bg-background"
                 >
                   <input
                     type="checkbox"
@@ -756,12 +752,9 @@ function AgentToolsTab({
                       void saveTools(enabledTools, nextSigningKeys)
                     }}
                   />
-                  <div className="min-w-0 flex-1">
+                  <div className="flex-1 min-w-0">
                     <SizableText size="sm" weight="bold" className="block truncate">
                       {identity.label || identity.accountId || identity.name}
-                    </SizableText>
-                    <SizableText size="xs" color="muted" className="block truncate font-mono">
-                      {identity.accountId || identity.name}
                     </SizableText>
                   </div>
                 </label>
@@ -769,7 +762,7 @@ function AgentToolsTab({
             })}
           </div>
           {!identitiesLoading && identities.length === 0 ? (
-            <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
+            <div className="flex flex-col gap-3 p-3 rounded-lg border border-dashed border-border bg-background">
               <SizableText size="sm" color="muted">
                 No agent accounts are available on this server yet. Create a new server-side HM account key, then enable
                 it for this agent.
@@ -791,7 +784,8 @@ function AgentToolsTab({
             />
           ) : (
             <Button className="w-fit" variant="ghost" onClick={() => setShowNewIdentityPanel(true)} disabled={saving}>
-              New account
+              <Plus className="size-4" />
+              New Agent Account
             </Button>
           )}
         </div>
@@ -820,7 +814,7 @@ function NewAgentAccountPanel({
   disabled: boolean
 }) {
   return (
-    <div className="border-border bg-background flex flex-col gap-3 rounded-lg border p-3">
+    <div className="flex flex-col gap-3 p-3 rounded-lg border border-border bg-background">
       <div>
         <SizableText size="sm" weight="bold">
           New agent account
@@ -830,7 +824,7 @@ function NewAgentAccountPanel({
         </SizableText>
       </div>
       <Input value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="Profile name" />
-      <div className="flex justify-end gap-2">
+      <div className="flex gap-2 justify-end">
         {onCancel ? (
           <Button variant="ghost" onClick={onCancel} disabled={disabled}>
             Cancel
@@ -871,7 +865,7 @@ function AgentTriggersTab({
   const [enabled, setEnabled] = useState(true)
   const [prompt, setPrompt] = useState<HMBlockNode[]>([])
   const [cooldownMinutes, setCooldownMinutes] = useState('')
-  const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [source, setSource] = useState<AgentTriggerSource>({ type: 'document-comment', resource: '' })
   const [detailsDirty, setDetailsDirty] = useState(false)
   const [detailsSaveState, setDetailsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const detailsSaveIdRef = useRef(0)
@@ -880,14 +874,14 @@ function AgentTriggersTab({
   const currentDetailsKey = useMemo(() => {
     const cooldownMs =
       source.type === 'schedule' ? null : cooldownMinutes.trim() ? Number(cooldownMinutes) * 60_000 : null
-    return JSON.stringify({prompt, source, cooldownMs})
+    return JSON.stringify({ prompt, source, cooldownMs })
   }, [cooldownMinutes, prompt, source])
   const currentDetailsKeyRef = useRef(currentDetailsKey)
   currentDetailsKeyRef.current = currentDetailsKey
   const nextScheduledFire = useMemo(
     () =>
       selected
-        ? nextScheduleFire({source, createdAt: selected.createdAt, lastFiredAt: selected.lastFiredAt, enabled})
+        ? nextScheduleFire({ source, createdAt: selected.createdAt, lastFiredAt: selected.lastFiredAt, enabled })
         : null,
     [enabled, selected, source],
   )
@@ -928,7 +922,7 @@ function AgentTriggersTab({
     const timer = setTimeout(() => {
       setNameSaveState('saving')
       void updateTrigger
-        .mutateAsync({triggerId: selectedTriggerId, patch: {name: draftName}})
+        .mutateAsync({ triggerId: selectedTriggerId, patch: { name: draftName } })
         .then((result) => {
           if (nameSaveIdRef.current !== saveId) return
           if (result._ !== 'UpdateAgentTriggerResponse') throw new Error('Unexpected trigger update response')
@@ -953,7 +947,7 @@ function AgentTriggersTab({
     const previousEnabled = enabled
     setEnabled(nextEnabled)
     try {
-      const result = await updateTrigger.mutateAsync({triggerId: selectedTriggerId, patch: {enabled: nextEnabled}})
+      const result = await updateTrigger.mutateAsync({ triggerId: selectedTriggerId, patch: { enabled: nextEnabled } })
       if (result._ !== 'UpdateAgentTriggerResponse') throw new Error('Unexpected trigger update response')
     } catch (error) {
       setEnabled(previousEnabled)
@@ -978,7 +972,7 @@ function AgentTriggersTab({
       void updateTrigger
         .mutateAsync({
           triggerId: selectedTriggerId,
-          patch: {prompt: promptBlocksToMarkdown(prompt), source, cooldownMs},
+          patch: { prompt: promptBlocksToMarkdown(prompt), source, cooldownMs },
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
@@ -1010,7 +1004,7 @@ function AgentTriggersTab({
       const result = await deleteTrigger.mutateAsync(selectedTriggerId)
       if (result._ !== 'DeleteAgentTriggerResponse') throw new Error('Unexpected trigger delete response')
       toast.success('Trigger deleted')
-      navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})
+      navigate({ key: 'agent', agentId, serverUrl, tab: 'triggers' })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not delete trigger')
     }
@@ -1029,7 +1023,7 @@ function AgentTriggersTab({
           saveState={nameSaveState}
           disabled={!selected}
           backLabel="Back to agent triggers"
-          onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})}
+          onBack={() => navigate({ key: 'agent', agentId, serverUrl, tab: 'triggers' })}
           actions={
             <OptionsDropdown
               align="end"
@@ -1045,7 +1039,7 @@ function AgentTriggersTab({
             />
           }
         />
-        <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
+        <div className="flex overflow-y-auto flex-col flex-1 gap-5 px-4 py-4 mx-auto w-full max-w-4xl min-h-0">
           {trigger.isLoading ? <SizableText color="muted">Loading trigger…</SizableText> : null}
           {trigger.isError ? (
             <SizableText className="text-destructive">
@@ -1054,12 +1048,12 @@ function AgentTriggersTab({
           ) : null}
           {selected ? (
             <>
-              <div className="border-border grid gap-4 rounded-xl border p-4">
-                <div className="flex items-center justify-between gap-3">
+              <div className="grid gap-4 p-4 rounded-xl border border-border">
+                <div className="flex gap-3 justify-between items-center">
                   <div>
                     <SizableText weight="bold">Trigger details</SizableText>
                   </div>
-                  <label className="flex items-center gap-2 text-sm">
+                  <label className="flex gap-2 items-center text-sm">
                     <input
                       type="checkbox"
                       checked={enabled}
@@ -1139,9 +1133,9 @@ function AgentTriggersTab({
                     key={session.id}
                     session={session}
                     serverUrl={serverUrl}
-                    onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
+                    onOpen={() => navigate({ key: 'agent-session', agentId, sessionId: session.id, serverUrl })}
                     onOpenTrigger={() =>
-                      navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
+                      navigate({ key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id })
                     }
                   />
                 ))}
@@ -1157,7 +1151,7 @@ function AgentTriggersTab({
     <section className="flex flex-col gap-2">
       {isLoading ? <SizableText color="muted">Loading triggers…</SizableText> : null}
       {!isLoading && !triggers.length ? (
-        <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
+        <div className="flex flex-col gap-2 p-6 rounded-xl border border-dashed border-border">
           <SizableText weight="bold">No triggers yet.</SizableText>
           <SizableText size="sm" color="muted">
             Create a trigger to start sessions when matching Seed activity appears.
@@ -1167,10 +1161,10 @@ function AgentTriggersTab({
       {triggers.map((item) => (
         <button
           key={item.id}
-          className="hover:bg-muted/60 flex cursor-pointer flex-col items-start rounded-lg px-3 py-2 text-left transition-colors"
-          onClick={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: item.id})}
+          className="flex flex-col items-start px-3 py-2 text-left rounded-lg transition-colors cursor-pointer hover:bg-muted/60"
+          onClick={() => navigate({ key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: item.id })}
         >
-          <div className="flex w-full items-center justify-between gap-3">
+          <div className="flex gap-3 justify-between items-center w-full">
             <SizableText weight="bold">{item.name}</SizableText>
             <SizableText size="xs" color={item.enabled ? undefined : 'muted'}>
               {item.enabled ? 'Enabled' : 'Disabled'}
@@ -1189,7 +1183,7 @@ function AgentTriggersTab({
   )
 }
 
-function TriggerMeta({label, value}: {label: string; value?: number | string | null}) {
+function TriggerMeta({ label, value }: { label: string; value?: number | string | null }) {
   return (
     <div>
       <SizableText size="sm" weight="bold">
@@ -1206,13 +1200,13 @@ function CreateAgentTriggerDialog({
   input,
   onClose,
 }: {
-  input: {serverUrl: string; selectedAccountId: string | null | undefined; agentId: string}
+  input: { serverUrl: string; selectedAccountId: string | null | undefined; agentId: string }
   onClose: () => void
 }) {
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
   const [name, setName] = useState('New activity trigger')
   const [enabled, setEnabled] = useState(true)
-  const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [source, setSource] = useState<AgentTriggerSource>({ type: 'document-comment', resource: '' })
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Read the related Seed context and summarize what needs attention.'),
   )
@@ -1225,9 +1219,9 @@ function CreateAgentTriggerDialog({
         enabled,
         source,
         prompt: promptBlocksToMarkdown(prompt),
-        ...(source.type !== 'schedule' && cooldownMinutes.trim() ? {cooldownMs: Number(cooldownMinutes) * 60_000} : {}),
+        ...(source.type !== 'schedule' && cooldownMinutes.trim() ? { cooldownMs: Number(cooldownMinutes) * 60_000 } : {}),
       }
-      const result = await createTrigger.mutateAsync({agentId: input.agentId, trigger})
+      const result = await createTrigger.mutateAsync({ agentId: input.agentId, trigger })
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
       toast.success('Trigger created')
       onClose()
@@ -1242,7 +1236,7 @@ function CreateAgentTriggerDialog({
         <DialogTitle>New trigger</DialogTitle>
         <DialogDescription>Start a new agent session when matching Seed activity appears.</DialogDescription>
       </div>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex gap-2 items-center text-sm">
         <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
         Enabled
       </label>
@@ -1273,7 +1267,7 @@ function CreateAgentTriggerDialog({
         </SizableText>
         <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
       </div>
-      <div className="flex justify-end gap-2">
+      <div className="flex gap-2 justify-end">
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
@@ -1299,7 +1293,7 @@ function TriggerSourceFields({
           Trigger Session on:
         </SizableText>
         <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          className="px-3 py-2 text-sm rounded-md border border-input bg-background"
           value={source.type}
           onChange={(event) => onChange(defaultSourceForType(event.target.value as AgentTriggerSource['type']))}
         >
@@ -1314,7 +1308,7 @@ function TriggerSourceFields({
           <DocumentAutocompleteField
             label="Document"
             value={source.resource}
-            onChange={(value) => onChange({...source, resource: value})}
+            onChange={(value) => onChange({ ...source, resource: value })}
             placeholder="Search documents or enter hm:// URL"
           />
           <label className="flex flex-col gap-1">
@@ -1323,7 +1317,7 @@ function TriggerSourceFields({
             </SizableText>
             <Input
               value={source.author || ''}
-              onChange={(event) => onChange({...source, author: event.target.value || undefined})}
+              onChange={(event) => onChange({ ...source, author: event.target.value || undefined })}
               placeholder="optional account ID"
             />
           </label>
@@ -1334,14 +1328,14 @@ function TriggerSourceFields({
           <AccountAutocompleteField
             label="Mentioned account"
             value={source.mentionedAccount}
-            onChange={(value) => onChange({...source, mentionedAccount: value})}
+            onChange={(value) => onChange({ ...source, mentionedAccount: value })}
             placeholder="Search users or enter account ID"
             valueFormat="uid"
           />
           <AccountAutocompleteField
             label="Resource/site prefix"
             value={source.resourcePrefix || ''}
-            onChange={(value) => onChange({...source, resourcePrefix: value || undefined})}
+            onChange={(value) => onChange({ ...source, resourcePrefix: value || undefined })}
             placeholder="Search site/account or enter hm:// prefix"
             valueFormat="hm-url"
           />
@@ -1352,7 +1346,7 @@ function TriggerSourceFields({
           <AccountAutocompleteField
             label="Resource/site prefix"
             value={source.resourcePrefix}
-            onChange={(value) => onChange({...source, resourcePrefix: value})}
+            onChange={(value) => onChange({ ...source, resourcePrefix: value })}
             placeholder="Search site/account or enter hm:// prefix"
             valueFormat="hm-url"
           />
@@ -1385,13 +1379,13 @@ function ScheduleTriggerFields({
   source,
   onChange,
 }: {
-  source: Extract<AgentTriggerSource, {type: 'schedule'}>
+  source: Extract<AgentTriggerSource, { type: 'schedule' }>
   onChange: (source: AgentTriggerSource) => void
 }) {
   const schedule = source.schedule
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  const setSchedule = (next: Extract<AgentTriggerSource, {type: 'schedule'}>['schedule']) =>
-    onChange({type: 'schedule', schedule: next})
+  const setSchedule = (next: Extract<AgentTriggerSource, { type: 'schedule' }>['schedule']) =>
+    onChange({ type: 'schedule', schedule: next })
   return (
     <div className="grid gap-3">
       <label className="flex flex-col gap-1">
@@ -1399,13 +1393,13 @@ function ScheduleTriggerFields({
           Schedule mode
         </SizableText>
         <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          className="px-3 py-2 text-sm rounded-md border border-input bg-background"
           value={schedule.kind}
           onChange={(event) => {
             const kind = event.target.value
-            if (kind === 'weekly') setSchedule({kind, daysOfWeek: [1, 2, 3, 4, 5], timeOfDay: '09:00', timezone})
-            else if (kind === 'once') setSchedule({kind, runAt: Date.now() + 60 * 60 * 1000, timezone})
-            else setSchedule({kind: 'interval', every: 1, unit: 'hours'})
+            if (kind === 'weekly') setSchedule({ kind, daysOfWeek: [1, 2, 3, 4, 5], timeOfDay: '09:00', timezone })
+            else if (kind === 'once') setSchedule({ kind, runAt: Date.now() + 60 * 60 * 1000, timezone })
+            else setSchedule({ kind: 'interval', every: 1, unit: 'hours' })
           }}
         >
           <option value="interval">Every interval</option>
@@ -1423,7 +1417,7 @@ function ScheduleTriggerFields({
               type="number"
               min={1}
               value={schedule.every}
-              onChange={(event) => setSchedule({...schedule, every: Number(event.target.value) || 1})}
+              onChange={(event) => setSchedule({ ...schedule, every: Number(event.target.value) || 1 })}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -1431,9 +1425,9 @@ function ScheduleTriggerFields({
               Unit
             </SizableText>
             <select
-              className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+              className="px-3 py-2 text-sm rounded-md border border-input bg-background"
               value={schedule.unit}
-              onChange={(event) => setSchedule({...schedule, unit: event.target.value as 'minutes' | 'hours'})}
+              onChange={(event) => setSchedule({ ...schedule, unit: event.target.value as 'minutes' | 'hours' })}
             >
               <option value="minutes">Minutes</option>
               <option value="hours">Hours</option>
@@ -1453,7 +1447,7 @@ function ScheduleTriggerFields({
               ['Sat', 6],
               ['Sun', 0],
             ].map(([day, dayIndex]) => (
-              <label key={day} className="border-border flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+              <label key={day} className="flex gap-2 items-center px-3 py-2 text-sm rounded-md border border-border">
                 <input
                   type="checkbox"
                   checked={schedule.daysOfWeek.includes(dayIndex as number)}
@@ -1462,7 +1456,7 @@ function ScheduleTriggerFields({
                     const daysOfWeek = event.target.checked
                       ? [...schedule.daysOfWeek, dayNumber].sort()
                       : schedule.daysOfWeek.filter((item) => item !== dayNumber)
-                    setSchedule({...schedule, daysOfWeek})
+                    setSchedule({ ...schedule, daysOfWeek })
                   }}
                 />
                 {day}
@@ -1477,7 +1471,7 @@ function ScheduleTriggerFields({
               <Input
                 type="time"
                 value={schedule.timeOfDay}
-                onChange={(event) => setSchedule({...schedule, timeOfDay: event.target.value})}
+                onChange={(event) => setSchedule({ ...schedule, timeOfDay: event.target.value })}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -1486,7 +1480,7 @@ function ScheduleTriggerFields({
               </SizableText>
               <Input
                 value={schedule.timezone}
-                onChange={(event) => setSchedule({...schedule, timezone: event.target.value})}
+                onChange={(event) => setSchedule({ ...schedule, timezone: event.target.value })}
               />
             </label>
           </div>
@@ -1501,7 +1495,7 @@ function ScheduleTriggerFields({
             <Input
               type="datetime-local"
               value={dateTimeLocalValue(schedule.runAt)}
-              onChange={(event) => setSchedule({...schedule, runAt: new Date(event.target.value).getTime(), timezone})}
+              onChange={(event) => setSchedule({ ...schedule, runAt: new Date(event.target.value).getTime(), timezone })}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -1510,7 +1504,7 @@ function ScheduleTriggerFields({
             </SizableText>
             <Input
               value={schedule.timezone || timezone}
-              onChange={(event) => setSchedule({...schedule, timezone: event.target.value})}
+              onChange={(event) => setSchedule({ ...schedule, timezone: event.target.value })}
             />
           </label>
         </div>
@@ -1541,7 +1535,7 @@ function DocumentAutocompleteField({
   )
 
   return (
-    <label className="relative flex flex-col gap-1">
+    <label className="flex relative flex-col gap-1">
       <SizableText size="sm" weight="bold">
         {label}
       </SizableText>
@@ -1553,14 +1547,14 @@ function DocumentAutocompleteField({
         placeholder={placeholder}
       />
       {focused && documents.length ? (
-        <div className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
+        <div className="overflow-auto absolute right-0 left-0 top-full z-20 p-1 mt-1 max-h-64 rounded-md border shadow-lg border-border bg-popover">
           {documents.map((document) => {
             const nextValue = packHmId(document.id)
             return (
               <button
                 key={document.id.id}
                 type="button"
-                className="hover:bg-muted flex w-full flex-col rounded px-2 py-2 text-left"
+                className="flex flex-col px-2 py-2 w-full text-left rounded hover:bg-muted"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   onChange(nextValue)
@@ -1570,7 +1564,7 @@ function DocumentAutocompleteField({
                 <SizableText size="sm" weight="bold" className="truncate">
                   {document.title || nextValue}
                 </SizableText>
-                <SizableText size="xs" color="muted" className="truncate font-mono">
+                <SizableText size="xs" color="muted" className="font-mono truncate">
                   {nextValue}
                 </SizableText>
               </button>
@@ -1606,7 +1600,7 @@ function AccountAutocompleteField({
   )
 
   return (
-    <label className="relative flex flex-col gap-1">
+    <label className="flex relative flex-col gap-1">
       <SizableText size="sm" weight="bold">
         {label}
       </SizableText>
@@ -1618,14 +1612,14 @@ function AccountAutocompleteField({
         placeholder={placeholder}
       />
       {focused && accounts.length ? (
-        <div className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
+        <div className="overflow-auto absolute right-0 left-0 top-full z-20 p-1 mt-1 max-h-64 rounded-md border shadow-lg border-border bg-popover">
           {accounts.map((account) => {
             const nextValue = valueFormat === 'hm-url' ? `hm://${account.id.uid}` : account.id.uid
             return (
               <button
                 key={`${account.id.id}:${account.type}`}
                 type="button"
-                className="hover:bg-muted flex w-full flex-col rounded px-2 py-2 text-left"
+                className="flex flex-col px-2 py-2 w-full text-left rounded hover:bg-muted"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
                   onChange(nextValue)
@@ -1635,7 +1629,7 @@ function AccountAutocompleteField({
                 <SizableText size="sm" weight="bold" className="truncate">
                   {account.title || account.id.uid}
                 </SizableText>
-                <SizableText size="xs" color="muted" className="truncate font-mono">
+                <SizableText size="xs" color="muted" className="font-mono truncate">
                   {nextValue}
                 </SizableText>
               </button>
@@ -1648,10 +1642,10 @@ function AccountAutocompleteField({
 }
 
 function defaultSourceForType(type: AgentTriggerSource['type']): AgentTriggerSource {
-  if (type === 'user-mention') return {type, mentionedAccount: ''}
-  if (type === 'site-update') return {type, resourcePrefix: '', eventTypes: ['doc-update', 'comment']}
-  if (type === 'schedule') return {type, schedule: {kind: 'interval', every: 1, unit: 'hours'}}
-  return {type: 'document-comment', resource: ''}
+  if (type === 'user-mention') return { type, mentionedAccount: '' }
+  if (type === 'site-update') return { type, resourcePrefix: '', eventTypes: ['doc-update', 'comment'] }
+  if (type === 'schedule') return { type, schedule: { kind: 'interval', every: 1, unit: 'hours' } }
+  return { type: 'document-comment', resource: '' }
 }
 
 function triggerSourceSummary(source: AgentTriggerSource): string {
@@ -1666,9 +1660,8 @@ function triggerSourceSummary(source: AgentTriggerSource): string {
   }
   if (source.schedule.kind === 'interval') return `Every ${source.schedule.every} ${source.schedule.unit}`
   if (source.schedule.kind === 'once') return `Once at ${formattedDateMedium(new Date(source.schedule.runAt))}`
-  return `${source.schedule.daysOfWeek.map(dayName).join(', ')} at ${source.schedule.timeOfDay} ${
-    source.schedule.timezone
-  }`
+  return `${source.schedule.daysOfWeek.map(dayName).join(', ')} at ${source.schedule.timeOfDay} ${source.schedule.timezone
+    }`
 }
 
 function nextScheduleFire(input: {
@@ -1691,7 +1684,7 @@ function nextScheduleFire(input: {
 }
 
 function nextWeeklyScheduleFire(
-  schedule: Extract<Extract<AgentTriggerSource, {type: 'schedule'}>['schedule'], {kind: 'weekly'}>,
+  schedule: Extract<Extract<AgentTriggerSource, { type: 'schedule' }>['schedule'], { kind: 'weekly' }>,
   now: number,
   after: number,
 ): number | null {
@@ -1735,7 +1728,7 @@ function zonedTimeToUtcMs(
 function zonedParts(
   ms: number,
   timeZone: string,
-): {year: number; month: number; day: number; hour: number; minute: number; weekday: number} {
+): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     weekday: 'short',
@@ -1810,10 +1803,10 @@ function SessionListItem({
   onOpenTrigger?: () => void
 }) {
   return (
-    <div className="hover:bg-muted flex flex-col items-start rounded-lg px-3 py-2 transition-colors">
-      <button type="button" className="flex w-full items-center gap-3 text-left" onClick={onOpen}>
+    <div className="flex flex-col items-start px-3 py-2 rounded-lg transition-colors hover:bg-muted">
+      <button type="button" className="flex gap-3 items-center w-full text-left" onClick={onOpen}>
         <SessionStatusDot status={session.status} />
-        <SizableText weight="bold" className="min-w-0 flex-1 truncate">
+        <SizableText weight="bold" className="flex-1 min-w-0 truncate">
           {session.title || 'Untitled session'}
         </SizableText>
         <SizableText size="sm" color="muted" className="flex-none whitespace-nowrap">
@@ -1836,7 +1829,7 @@ function SessionListItem({
   )
 }
 
-function SessionStatusDot({status}: {status: SessionInfo['status']}) {
+function SessionStatusDot({ status }: { status: SessionInfo['status'] }) {
   const className =
     status === 'error'
       ? 'bg-destructive'

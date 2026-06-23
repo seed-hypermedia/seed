@@ -1350,7 +1350,12 @@ describe('api service', () => {
       expect(openAICallCount).toBeGreaterThanOrEqual(2)
       expect(
         events.flatMap((event) => {
-          if (event.type === 'session-partial') return [event.done ? 'partial_done' : `partial:${event.textDelta}`]
+          if (event.type === 'session-partial') {
+            if (event.done) return ['partial_done']
+            // Ignore progress-only partials (activity/token-usage updates carry no text delta).
+            if (typeof event.textDelta !== 'string') return []
+            return [`partial:${event.textDelta}`]
+          }
           if (event.type !== 'session-event') return []
           const payload = event.event.event as {type?: string; role?: string}
           if (!['message', 'tool_call', 'tool_result'].includes(payload.type || '')) return []

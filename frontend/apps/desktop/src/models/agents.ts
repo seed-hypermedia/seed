@@ -8,6 +8,8 @@ import {
   type AgentDefinition,
   type AgentInfo,
   type AgentMessageBlock,
+  type AgentRunActivity,
+  type AgentRunUsage,
   type AgentTriggerInput,
   type AgentTriggerPatch,
   type AgentWSEvent,
@@ -653,14 +655,26 @@ export function useStopAgentSession(serverUrl: string | undefined, accountUid: s
   })
 }
 
+/** Live, in-flight state for one agent session streamed over the WebSocket. */
+export type AgentSessionLiveState = {
+  /** Assistant text streamed so far for the current (uncommitted) partial. */
+  text: string
+  /** Cumulative token usage for the current run, if reported. */
+  usage?: AgentRunUsage
+  /** What the agent is doing right now, if reported. */
+  activity?: AgentRunActivity
+}
+
+const EMPTY_SESSION_LIVE_STATE: AgentSessionLiveState = {text: ''}
+
 /** Subscribes to signed agent-server WebSocket updates and refreshes cached data. */
 export function useAgentWebSocketSubscription(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   key: `account/${string}` | `agents/${string}` | `sessions/${string}` | undefined,
   afterSeq?: number,
-) {
-  const [partials, setPartials] = useState<Record<string, string>>({})
+): AgentSessionLiveState {
+  const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
 
   useEffect(() => {
     if (!serverUrl || !accountUid || !key) return
@@ -713,10 +727,12 @@ export function useAgentWebSocketSubscription(
               log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
               const eventPayload = event.event.event as {type?: string; role?: string; content?: string}
               if (eventPayload.type === 'message' && eventPayload.role === 'assistant') {
+                // The streamed text is now a durable message, but the run may continue
+                // (more turns after tool calls), so keep usage/activity until idle.
                 setPartials((current) => {
-                  const next = {...current}
-                  delete next[event.event.sessionId]
-                  return next
+                  const existing = current[event.event.sessionId]
+                  if (!existing) return current
+                  return {...current, [event.event.sessionId]: {...existing, text: ''}}
                 })
               }
               const sessionId = event.event.sessionId
@@ -748,20 +764,28 @@ export function useAgentWebSocketSubscription(
                 partialId: event.partialId,
                 textDeltaLength,
                 done: event.patch.done === true,
+                activity: event.patch.activity?.phase,
+                totalTokens: event.patch.usage?.total,
               })
               setPartials((current) => {
-                const existing = current[sessionId] || ''
+                const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
+                // Usage and activity updates always apply, even on the `done` patch.
+                const next: AgentSessionLiveState = {
+                  ...existing,
+                  ...(event.patch.usage ? {usage: event.patch.usage} : {}),
+                  ...(event.patch.activity ? {activity: event.patch.activity} : {}),
+                }
                 if (event.patch.done) {
                   log('partial marked done; keeping visible until durable append', {
                     sessionId,
                     partialId: event.partialId,
-                    totalLength: existing.length,
+                    totalLength: existing.text.length,
                   })
-                  return current
+                  return {...current, [sessionId]: next}
                 }
-                const nextText = existing + (event.patch.textDelta || '')
-                log('partial state updated', {sessionId, partialId: event.partialId, totalLength: nextText.length})
-                return {...current, [sessionId]: nextText}
+                next.text = existing.text + (event.patch.textDelta || '')
+                log('partial state updated', {sessionId, partialId: event.partialId, totalLength: next.text.length})
+                return {...current, [sessionId]: next}
               })
             } else if (event._ === 'error') {
               log('server error event', {message: event.message})
@@ -800,8 +824,8 @@ export function useAgentWebSocketSubscription(
     }
   }, [serverUrl, accountUid, key])
 
-  if (!key?.startsWith('sessions/')) return ''
-  return partials[key.slice('sessions/'.length)] || ''
+  if (!key?.startsWith('sessions/')) return EMPTY_SESSION_LIVE_STATE
+  return partials[key.slice('sessions/'.length)] ?? EMPTY_SESSION_LIVE_STATE
 }
 
 /** Adds an optimistic user message to the cached session while the signed request is in flight. */
