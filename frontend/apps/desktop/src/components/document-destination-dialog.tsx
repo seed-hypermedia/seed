@@ -1,10 +1,10 @@
-import {HMWritableDocument, useSelectedAccountWritableDocuments} from '@/models/access-control'
-import {useMoveDocument, useRepublishDocument} from '@/models/documents'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {useSelectedAccount} from '@/selected-account'
-import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
-import {HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import { HMWritableDocument, useSelectedAccountWritableDocuments } from '@/models/access-control'
+import { useMoveDocument, useRepublishDocument } from '@/models/documents'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { useSelectedAccount } from '@/selected-account'
+import { pathNameify } from '@/utils/path'
+import { useNavigate } from '@/utils/useNavigate'
+import { HMMetadataPayload, UnpackedHypermediaId } from '@seed-hypermedia/client/hm-types'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -13,22 +13,22 @@ import {
   isIdParentOfOrEqual,
   useSearch,
 } from '@shm/shared'
-import {getMetadataName} from '@shm/shared/content'
-import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
-import {canUseDocumentAsDestinationParent, isMoveTargetParentBlocked} from '@shm/shared/utils/document-actions'
-import {validatePath} from '@shm/shared/utils/document-path'
-import {Button} from '@shm/ui/button'
-import {DialogTitle} from '@shm/ui/components/dialog'
-import {Input} from '@shm/ui/components/input'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Back, FileText, Forward, Help, Search as SearchIcon} from '@shm/ui/icons'
-import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {cn} from '@shm/ui/utils'
-import {useEffect, useMemo, useState} from 'react'
+import { getMetadataName } from '@shm/shared/content'
+import { useDirectory, useResource, useResources } from '@shm/shared/models/entity'
+import { canUseDocumentAsDestinationParent, isMoveTargetParentBlocked } from '@shm/shared/utils/document-actions'
+import { validatePath } from '@shm/shared/utils/document-path'
+import { Button } from '@shm/ui/button'
+import { DialogTitle } from '@shm/ui/components/dialog'
+import { Input } from '@shm/ui/components/input'
+import { ScrollArea } from '@shm/ui/components/scroll-area'
+import { HMIcon } from '@shm/ui/hm-icon'
+import { Back, FileText, Forward, Help, Search as SearchIcon } from '@shm/ui/icons'
+import { Spinner } from '@shm/ui/spinner'
+import { SizableText } from '@shm/ui/text'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { cn } from '@shm/ui/utils'
+import { useEffect, useMemo, useState } from 'react'
 
 export type DocumentDestinationMode = 'move' | 'republish'
 
@@ -37,9 +37,9 @@ export type DocumentDestinationDialogInput = {
   mode: DocumentDestinationMode
 }
 
-const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
-  move: {eyebrow: 'Move', action: 'Move', success: 'Document moved'},
-  republish: {eyebrow: 'Republish', action: 'Republish', success: 'Document republished'},
+const modeCopy: Record<DocumentDestinationMode, { eyebrow: string; action: string; success: string }> = {
+  move: { eyebrow: 'Move', action: 'Move', success: 'Document moved' },
+  republish: { eyebrow: 'Republish', action: 'Republish', success: 'Document republished' },
 }
 
 export function DocumentDestinationDialog({
@@ -51,7 +51,7 @@ export function DocumentDestinationDialog({
 }) {
   const selectedAccount = useSelectedAccount()
   const selectedAccountUid = selectedAccount?.id.uid
-  const {data: resource, isLoading, isError, error} = useResource(input.id)
+  const { data: resource, isLoading, isError, error } = useResource(input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
   const sourceId = resource?.type === 'document' ? resource.id : input.id
   const sourceTitle = document ? getMetadataName(document.metadata) : 'Untitled'
@@ -71,7 +71,7 @@ export function DocumentDestinationDialog({
 
   const destinationId = useMemo(() => {
     if (!targetParent || !slug) return null
-    return hmId(targetParent.uid, {path: [...(targetParent.path || []), slug]})
+    return hmId(targetParent.uid, { path: [...(targetParent.path || []), slug] })
   }, [targetParent, slug])
   const targetParentResource = useResource(targetParent)
   const destinationResource = useResource(destinationId)
@@ -204,9 +204,9 @@ export function DocumentDestinationDialog({
           onClick={async () => {
             if (!destinationId || !canSubmit) return
             try {
-              await mutation.mutateAsync({from: sourceId, to: destinationId, signingAccountId: selectedAccountUid})
+              await mutation.mutateAsync({ from: sourceId, to: destinationId, signingAccountId: selectedAccountUid })
               onClose()
-              navigate({key: 'document', id: destinationId})
+              navigate({ key: 'document', id: destinationId })
               toast.success(modeCopy[input.mode].success)
             } catch (error) {
               toast.error(
@@ -286,7 +286,7 @@ function SearchResults({
       const resource = resultResources[index]?.data
       return resource?.type === 'document' && canUseDocumentAsDestinationParent(resource.document)
     })
-    .map((item) => ({id: item.id, metadata: {name: item.title}}))
+    .map((item) => ({ id: item.id, metadata: { name: item.title } }))
   const loadingLabel =
     search.isLoading || resultResources.some((result) => result.isLoading)
       ? 'Loading locations…'
@@ -326,8 +326,8 @@ function ChildLocations({
   onSelect: (location: UnpackedHypermediaId) => void
   onClear: () => void
 }) {
-  const {data: directory, isLoading} = useDirectory(parent, {mode: 'Children'})
-  const parentLocation = parent.path?.length ? hmId(parent.uid, {path: parent.path.slice(0, -1)}) : null
+  const { data: directory, isLoading } = useDirectory(parent, { mode: 'Children' })
+  const parentLocation = parent.path?.length ? hmId(parent.uid, { path: parent.path.slice(0, -1) }) : null
   return (
     <LocationList emptyLabel={isLoading ? 'Loading locations…' : 'No subdocuments in this location.'}>
       <div className="bg-muted/30 border-border border-b p-4">
@@ -351,7 +351,7 @@ function ChildLocations({
   )
 }
 
-function LocationList({children, emptyLabel}: {children: React.ReactNode; emptyLabel: string}) {
+function LocationList({ children, emptyLabel }: { children: React.ReactNode; emptyLabel: string }) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : !!children
   return (
     <ScrollArea className="border-border -mx-5 h-60 border-y">
@@ -380,7 +380,7 @@ function LocationRow({
       className="hover:bg-muted/70 focus-visible:ring-ring border-border flex min-h-14 items-center gap-3 border-b px-5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
       <HMIcon id={id} name={title} size={28} />
-      <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden bg-red-300">
+      <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <SizableText className="truncate text-base font-medium">{title}</SizableText>
         {suffix ? <SizableText className="text-muted-foreground truncate text-xs">{suffix}</SizableText> : null}
       </div>
@@ -396,11 +396,11 @@ function LocationBreadcrumb({
   location: UnpackedHypermediaId
   onSelect: (id: UnpackedHypermediaId) => void
 }) {
-  const siteId = hmId(location.uid, {latest: true})
-  const {data: siteResource} = useResource(siteId)
+  const siteId = hmId(location.uid, { latest: true })
+  const { data: siteResource } = useResource(siteId)
   const siteTitle = siteResource?.type === 'document' ? getMetadataName(siteResource.document.metadata) : location.uid
   const ancestorIds = useMemo(
-    () => location.path?.map((_, index) => hmId(location.uid, {path: location.path?.slice(0, index + 1)})) || [],
+    () => location.path?.map((_, index) => hmId(location.uid, { path: location.path?.slice(0, index + 1) })) || [],
     [location.id],
   )
   const ancestors = useResources(ancestorIds)
@@ -432,16 +432,16 @@ function LocationBreadcrumb({
 
 function useDestinationUrl(location: UnpackedHypermediaId | null) {
   const gatewayUrl = useGatewayUrl()
-  const {data: siteResource} = useResource(location ? hmId(location.uid, {latest: true}) : null)
+  const { data: siteResource } = useResource(location ? hmId(location.uid, { latest: true }) : null)
   if (!location) return null
   const siteDocument = siteResource?.type === 'document' ? siteResource.document : undefined
   const siteUrl = siteDocument?.metadata.siteUrl
-  if (siteUrl) return createSiteUrl({path: location.path, hostname: siteUrl})
+  if (siteUrl) return createSiteUrl({ path: location.path, hostname: siteUrl })
   if (!gatewayUrl.data) return null
-  return createWebHMUrl(location.uid, {path: location.path, hostname: gatewayUrl.data})
+  return createWebHMUrl(location.uid, { path: location.path, hostname: gatewayUrl.data })
 }
 
-function DialogError({message}: {message: string}) {
+function DialogError({ message }: { message: string }) {
   return (
     <div className="border-destructive/30 bg-destructive/10 flex min-h-32 items-center gap-3 rounded-lg border p-4">
       <FileText className="text-destructive size-5" />
