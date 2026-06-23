@@ -39,9 +39,11 @@ can resolve a signer by either profile name or public key.
 ### Draft persistence
 
 - `agents/src/sqlite-schema.sql`
+
   - Adds the `agent_drafts` table and indexes.
 
 - `agents/src/sqlite.ts`
+
   - Adds a migration for `agent_drafts`.
 
 - `agents/src/sqlite.test.ts`
@@ -63,9 +65,11 @@ can resolve a signer by either profile name or public key.
 ### Docs
 
 - `agents/docs/write-tool-cli-parity-plan.md`
+
   - Detailed planning/design document for CLI parity and future work.
 
 - `agents/docs/write-tool-implementation-notes.md`
+
   - This file.
 
 - Existing docs updated to stop describing signing/publishing tools as purely future work.

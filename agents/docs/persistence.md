@@ -248,7 +248,7 @@ Current scheme:
 
 ```ts
 {
-  _: ('GetSession', sessionId, afterSeq)
+  _: 'GetSession', sessionId, afterSeq
 }
 ```
 
