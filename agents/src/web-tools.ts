@@ -39,7 +39,15 @@ const SEARCH_CATEGORIES = new Set(['general', 'news', 'science', 'it'])
 const SEARCH_TIME_RANGES = new Set(['day', 'week', 'month', 'year'])
 
 /** Reader tier that produced a `web_read` result. */
-export type WebReadSource = 'mediawiki' | 'static' | 'crawl4ai'
+export type WebReadSource = 'mediawiki' | 'static' | 'crawl4ai' | 'raw'
+
+/** Human-readable phrase for each reader source, used in the user-facing summary. */
+const WEB_READ_SOURCE_LABEL: Record<WebReadSource, string> = {
+  mediawiki: 'the wiki API',
+  static: 'direct fetch',
+  crawl4ai: 'a browser',
+  raw: 'direct fetch (raw)',
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -342,6 +350,24 @@ async function readCrawl4ai(
   return null
 }
 
+/** Content types web_read raw mode will return verbatim; anything else is treated as binary. */
+const RAW_TEXT_CONTENT_TYPE = /(^$)|text|json|xml|javascript|ecmascript|csv|yaml|x-sh|x-www-form/i
+
+/** Fetches a URL and returns its body verbatim (no extraction/conversion). Throws on failure or binary content. */
+async function readRaw(url: string): Promise<{body: string; finalUrl: string; contentType: string}> {
+  let res: Response
+  try {
+    res = await fetchWithTimeout(url, {headers: {'User-Agent': USER_AGENT}, redirect: 'follow'}, FETCH_TIMEOUT_MS)
+  } catch (error) {
+    throw new Error(`Could not fetch ${url} (raw): ${error instanceof Error ? error.message : 'request failed'}`)
+  }
+  if (!res.ok) throw new Error(`Could not fetch ${url} (raw): HTTP ${res.status}`)
+  const contentType = (res.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? ''
+  if (!RAW_TEXT_CONTENT_TYPE.test(contentType))
+    throw new Error(`web_read raw mode only supports text responses; got content-type "${contentType}"`)
+  return {body: await res.text(), finalUrl: res.url || url, contentType}
+}
+
 export async function executeWebRead(config: WebToolsConfig, raw: unknown): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
   const rawUrl = boundedString(input.url, 2048)
@@ -355,6 +381,23 @@ export async function executeWebRead(config: WebToolsConfig, raw: unknown): Prom
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
     throw new Error('web_read only supports http(s) URLs')
   const query = boundedString(input.query, 512)
+
+  // Raw mode: return the response body verbatim (source code, JSON APIs, config files) with no extraction.
+  if (input.raw === true) {
+    const fetched = await readRaw(rawUrl)
+    const {markdown, truncated} = boundMarkdown(fetched.body)
+    return {
+      summary: `Fetched ${fetched.finalUrl} via ${WEB_READ_SOURCE_LABEL.raw}${truncated ? ' (truncated)' : ''}.`,
+      url: rawUrl,
+      finalUrl: fetched.finalUrl,
+      title: hostnameOf(rawUrl),
+      source: 'raw' satisfies WebReadSource,
+      contentType: fetched.contentType,
+      truncated,
+      success: true,
+      markdown,
+    }
+  }
 
   const attempts: string[] = []
   let result: {title: string; markdown: string; source: WebReadSource; finalUrl: string} | null = null
@@ -386,7 +429,7 @@ export async function executeWebRead(config: WebToolsConfig, raw: unknown): Prom
 
   const {markdown, truncated} = boundMarkdown(result.markdown)
   return {
-    summary: `Read ${result.title} via ${result.source}${truncated ? ' (truncated)' : ''}.`,
+    summary: `Read ${result.title} via ${WEB_READ_SOURCE_LABEL[result.source]}${truncated ? ' (truncated)' : ''}.`,
     url: rawUrl,
     finalUrl: result.finalUrl,
     title: result.title,

@@ -178,8 +178,14 @@ Input:
 type WebReadInput = {
   url: string // http(s) only
   query?: string // optional focus; enables BM25 filtering when browser rendering is used
+  raw?: boolean // return the verbatim response body instead of extracted markdown
 }
 ```
+
+When `raw` is true, `web_read` skips the tiered reader entirely: it does a single direct fetch and returns the response
+body verbatim (HTML, JSON, source code, plain text), bounded to the size limit. Binary content types are rejected. This
+is the path for reading source files (e.g. `raw.githubusercontent.com`), JSON APIs, and config files where main-content
+extraction would lose information. `source` is `raw` and the result includes `contentType`.
 
 `web_read` uses a tiered, cheapest-first reader chain and returns the first tier that yields substantial content
 (`>= 200` characters):
@@ -198,9 +204,11 @@ type WebReadInput = {
 If the crawler is not configured, `web_read` relies on the MediaWiki and static tiers only. When every tier fails it
 throws a clean error naming the tiers tried.
 
-Output: `{summary, url, finalUrl, title, source: 'mediawiki' | 'static' | 'crawl4ai', truncated, success, markdown}`.
-Markdown is bounded to 200 KiB (under the 256 KiB tool-result cap); oversized content is truncated on a byte boundary
-with `truncated: true`.
+Output:
+`{summary, url, finalUrl, title, source: 'mediawiki' | 'static' | 'crawl4ai' | 'raw', truncated, success, markdown}`
+(plus `contentType` for `raw`). The `summary` describes the source in plain language ("via the wiki API", "via direct
+fetch", "with a browser"). Markdown is bounded to 200 KiB (under the 256 KiB tool-result cap); oversized content is
+truncated on a byte boundary with `truncated: true`.
 
 ## `write`
 
