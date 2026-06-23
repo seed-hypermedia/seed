@@ -182,13 +182,8 @@ type WebReadInput = {
 }
 ```
 
-When `raw` is true, `web_read` skips the tiered reader entirely: it does a single direct fetch and returns the response
-body verbatim (HTML, JSON, source code, plain text), bounded to the size limit. Binary content types are rejected. This
-is the path for reading source files (e.g. `raw.githubusercontent.com`), JSON APIs, and config files where main-content
-extraction would lose information. `source` is `raw` and the result includes `contentType`.
-
-`web_read` uses a tiered, cheapest-first reader chain and returns the first tier that yields substantial content
-(`>= 200` characters):
+By default `web_read` uses a tiered, cheapest-first reader chain and returns the first tier that yields substantial
+content (`>= 200` characters):
 
 1. **MediaWiki API** — when the URL looks like a wiki page (`/wiki/Title` or `?title=Title`), the host is probed once
    via `api.php?meta=siteinfo` (cached per host) and, if it is MediaWiki, the page is fetched as Parsoid HTML from the
@@ -204,11 +199,23 @@ extraction would lose information. `source` is `raw` and the result includes `co
 If the crawler is not configured, `web_read` relies on the MediaWiki and static tiers only. When every tier fails it
 throws a clean error naming the tiers tried.
 
+When `raw` is true, `web_read` skips the tiered reader entirely: it does a single direct fetch and returns the response
+body verbatim (HTML, JSON, source code, plain text), bounded to the size limit. Binary content types are rejected. This
+is the path for reading source files (e.g. `raw.githubusercontent.com`), JSON APIs, and config files where main-content
+extraction would lose information. `source` is then `raw` and the result includes `contentType`.
+
 Output:
 `{summary, url, finalUrl, title, source: 'mediawiki' | 'static' | 'crawl4ai' | 'raw', truncated, success, markdown}`
 (plus `contentType` for `raw`). The `summary` describes the source in plain language ("via the wiki API", "via direct
 fetch", "with a browser"). Markdown is bounded to 200 KiB (under the 256 KiB tool-result cap); oversized content is
 truncated on a byte boundary with `truncated: true`.
+
+### Server capability and desktop visibility
+
+Both web tools declare an `outputSchema` in the registry in addition to `inputSchema`. The server advertises which web
+backends are configured through its health response (`webTools: {search, readBrowser}`; see `operations.md`). The
+desktop Tools tab uses this to grey out tools the server cannot run, and exposes each tool's exact model-facing
+description and input/output schemas through a per-tool info dialog (see `desktop-ui.md`).
 
 ## `write`
 
