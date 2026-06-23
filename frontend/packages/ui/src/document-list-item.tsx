@@ -19,6 +19,7 @@ import {
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {canShowMoveDocumentAction, canShowRepublishDocumentAction} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, ChevronRight, Copy, Forward, GitFork, MessageSquare, Pencil} from 'lucide-react'
@@ -122,8 +123,8 @@ export function DocumentListItem({
 
   const bookmarked = actions.isBookmarked?.(id) ?? false
   const isOwner = actions.selectedAccountUid === id.uid
-  const isLoggedIn = !!actions.myAccountIds?.length
   const hasPath = !!id.path?.length
+  const selectedAccountCanWriteSource = isOwner || !!actions.canWriteDocument?.(id)
   const doc = 'document' in item ? (item as any).document : undefined
 
   const menuItems = useMemo(() => {
@@ -177,7 +178,14 @@ export function DocumentListItem({
         }),
       )
     }
-    if (actions.onMoveDocument && isOwner && hasPath) {
+    if (
+      actions.onMoveDocument &&
+      canShowMoveDocumentAction({
+        id,
+        selectedAccountUid: actions.selectedAccountUid,
+        canWriteSource: selectedAccountCanWriteSource,
+      })
+    ) {
       items.push({
         key: 'move',
         label: 'Move Document',
@@ -188,14 +196,17 @@ export function DocumentListItem({
         },
       })
     }
-    if (actions.onBranchDocument && isLoggedIn) {
+    if (
+      actions.onRepublishDocument &&
+      canShowRepublishDocumentAction({id, selectedAccountUid: actions.selectedAccountUid})
+    ) {
       items.push({
-        key: 'branch',
-        label: 'Create Document Branch',
+        key: 'republish',
+        label: 'Republish',
         icon: <GitFork className="size-3.5" />,
         onClick: (e) => {
           e?.stopPropagation()
-          actions.onBranchDocument!(id)
+          actions.onRepublishDocument!(id)
         },
       })
     }
@@ -228,14 +239,14 @@ export function DocumentListItem({
     actions.onDuplicateDocument,
     actions.onCopyLink,
     actions.onMoveDocument,
-    actions.onBranchDocument,
+    actions.onRepublishDocument,
     actions.onExportDocument,
     actions.onDeleteDocument,
     id,
     doc,
     draftId,
     isOwner,
-    isLoggedIn,
+    selectedAccountCanWriteSource,
     hasPath,
     onCopyReference,
     onPushReference,

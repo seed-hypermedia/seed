@@ -5,6 +5,7 @@ export type DocumentActionsContextValue = {
   // Account info — card checks ownership/capabilities itself
   selectedAccountUid?: string
   myAccountIds?: string[]
+  canWriteDocument?: (id: UnpackedHypermediaId) => boolean
 
   // Bookmark
   isBookmarked?: (id: UnpackedHypermediaId) => boolean
@@ -14,7 +15,7 @@ export type DocumentActionsContextValue = {
   onEditDocument?: (id: UnpackedHypermediaId, existingDraftId?: string) => void
   onMoveDocument?: (id: UnpackedHypermediaId) => void
   onDeleteDocument?: (id: UnpackedHypermediaId, onSuccess?: () => void) => void
-  onBranchDocument?: (id: UnpackedHypermediaId) => void
+  onRepublishDocument?: (id: UnpackedHypermediaId) => void
   onDuplicateDocument?: (id: UnpackedHypermediaId) => void
   onRestoreDocumentVersion?: (id: UnpackedHypermediaId, selectedVersion: HMDocument) => Promise<void> | void
   onExportDocument?: (doc: HMDocument) => void
@@ -33,12 +34,13 @@ export function DocumentActionsProvider({children, ...value}: PropsWithChildren<
     [
       value.selectedAccountUid,
       value.myAccountIds,
+      value.canWriteDocument,
       value.isBookmarked,
       value.onBookmarkToggle,
       value.onEditDocument,
       value.onMoveDocument,
       value.onDeleteDocument,
-      value.onBranchDocument,
+      value.onRepublishDocument,
       value.onDuplicateDocument,
       value.onRestoreDocumentVersion,
       value.onExportDocument,

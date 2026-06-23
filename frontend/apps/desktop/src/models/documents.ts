@@ -59,6 +59,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
+import {createRepublishRefOperation, getMovedChildPath, isChildDocumentPath} from './document-relocation'
 
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
@@ -1090,14 +1091,6 @@ export function useForkDocument() {
   })
 }
 
-function isChildDocumentPath(path: string[], parentPath: string[]) {
-  return path.length > parentPath.length && parentPath.every((segment, index) => path[index] === segment)
-}
-
-function getMovedChildPath(childPath: string[], fromPath: string[], toPath: string[]) {
-  return [...toPath, ...childPath.slice(fromPath.length)]
-}
-
 type PlannedMove = {
   from: UnpackedHypermediaId
   to: UnpackedHypermediaId
@@ -1166,12 +1159,16 @@ async function createDocumentMoveRefs({
   isSubdocumentMove,
   doc,
   signer,
+  sourceCapabilityId,
+  targetCapabilityId,
 }: {
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
   isSubdocumentMove: boolean
   doc: HMDocument
   signer: HMSigner
+  sourceCapabilityId?: string
+  targetCapabilityId?: string
 }): Promise<MoveRefBundle> {
   // console.log(`[move-document] creating move refs`, {
   //   moveScope: moveScopeLabel(isSubdocumentMove),
@@ -1188,6 +1185,7 @@ async function createDocumentMoveRefs({
     genesis: doc.generationInfo.genesis,
     version: doc.version,
     generation,
+    capability: targetCapabilityId || undefined,
   }
   const versionRefInput = await createVersionRef(versionRefOperation, signer)
   logMoveRefBlob({
@@ -1206,6 +1204,7 @@ async function createDocumentMoveRefs({
     generation,
     targetSpace: targetId.uid,
     targetPath: hmIdPathToEntityQueryPath(targetId.path),
+    capability: sourceCapabilityId || undefined,
   }
   const redirectRefInput = await createRedirectRef(redirectRefOperation, signer)
   logMoveRefBlob({
@@ -1228,6 +1227,18 @@ async function createDocumentMoveRefs({
   }
 }
 
+async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHypermediaId) {
+  if (signingAccountId === id.uid) return ''
+  const capabilities = await grpcClient.accessControl.listCapabilities({
+    account: id.uid,
+    path: hmIdPathToEntityQueryPath(id.path || []),
+    pageSize: BIG_INT,
+  })
+  const capability = capabilities.capabilities.find((cap) => cap.delegate === signingAccountId)
+  if (!capability?.id) throw new Error('Could not find write capability for selected account')
+  return capability.id
+}
+
 export function useMoveDocument() {
   const push = usePushResource()
   const universalClient = useUniversalClient()
@@ -1243,6 +1254,8 @@ export function useMoveDocument() {
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const signer = universalClient.getSigner(signingAccountId)
+      const sourceCapabilityId = await resolveWriteCapabilityId(signingAccountId, from)
+      const targetCapabilityId = await resolveWriteCapabilityId(signingAccountId, to)
       const fromPath = from.path || []
       const toPath = to.path || []
       const listedDocs = await grpcClient.documents.listDocuments({
@@ -1289,7 +1302,15 @@ export function useMoveDocument() {
       // console.log(`[move-document] creating ref bundles`, {count: moveResources.length})
       const moveRefBundles = []
       for (const {from: sourceId, to: targetId, isSubdocumentMove, doc} of moveResources) {
-        const moveRefs = await createDocumentMoveRefs({sourceId, targetId, isSubdocumentMove, doc, signer})
+        const moveRefs = await createDocumentMoveRefs({
+          sourceId,
+          targetId,
+          isSubdocumentMove,
+          doc,
+          signer,
+          sourceCapabilityId,
+          targetCapabilityId,
+        })
         moveRefBundles.push(moveRefs)
       }
 
@@ -1366,6 +1387,57 @@ export function useMoveDocument() {
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
+      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
+    },
+  })
+}
+
+export function useRepublishDocument() {
+  const push = usePushResource()
+  const universalClient = useUniversalClient()
+  return useMutation({
+    mutationFn: async ({
+      from,
+      to,
+      signingAccountId,
+    }: {
+      from: UnpackedHypermediaId
+      to: UnpackedHypermediaId
+      signingAccountId: string
+    }) => {
+      if (!universalClient.getSigner) throw new Error('Signing not available')
+      const signer = universalClient.getSigner(signingAccountId)
+      const resource = await universalClient.request('Resource', from)
+      if (resource.type !== 'document') throw new Error(`Cannot republish: resource is ${resource.type}`)
+      const doc = resource.document
+      if (!doc.generationInfo) throw new Error('No generation info for document')
+      const capabilityId = await resolveWriteCapabilityId(signingAccountId, to)
+      const refOperation = createRepublishRefOperation({
+        sourceId: from,
+        destinationId: to,
+        sourceDocument: doc,
+        capabilityId,
+      })
+      const refInput = await createRedirectRef(refOperation, signer)
+      await universalClient.publish(refInput)
+      push(from)
+      push(to)
+      return {from, to}
+    },
+    onSuccess: ({from, to}) => {
+      invalidateQueries([queryKeys.ENTITY, from.id])
+      invalidateQueries([queryKeys.ENTITY, to.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, from.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, to.id])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, from.id])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, to.id])
+      getParentPaths(to.path).forEach((path) => {
+        const parentId = hmId(to.uid, {path})
+        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+      })
+      invalidateQueries([queryKeys.SEARCH])
+      invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
     },
   })

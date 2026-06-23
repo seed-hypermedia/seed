@@ -1,10 +1,10 @@
 import {useAppContext} from '@/app-context'
-import {BranchDialog} from '@/components/branch-dialog'
 import {useDeleteDialog} from '@/components/delete-dialog'
-import {MoveDialog} from '@/components/move-dialog'
+import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {useBookmarks} from '@/models/bookmarks'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList} from '@/models/documents'
+import {useSelectedAccountWritableDocuments} from '@/models/access-control'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -16,7 +16,7 @@ import {queryResource} from '@shm/shared/models/queries'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
-import {hmId, latestId, pathMatches} from '@shm/shared/utils/entity-id-url'
+import {hmId, isIdParentOfOrEqual, latestId, pathMatches} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -38,9 +38,9 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const {onCopyReference} = useUniversalAppContext()
   const universalClient = useUniversalClient()
   const drafts = useAccountDraftList(selectedAccountId ?? undefined)
+  const writableDocuments = useSelectedAccountWritableDocuments()
 
-  const moveDialog = useAppDialog(MoveDialog)
-  const branchDialog = useAppDialog(BranchDialog)
+  const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
   const deleteDialog = useDeleteDialog()
 
   const setBookmark = useMutation({
@@ -55,6 +55,18 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
       return bookmarks?.some((bookmark) => bookmark.url === id.id) ?? false
     },
     [bookmarks],
+  )
+
+  const canWriteDocument = useCallback(
+    (id: UnpackedHypermediaId) => {
+      if (!selectedAccountId) return false
+      if (selectedAccountId === id.uid) return true
+      return writableDocuments.some(
+        (document) =>
+          isIdParentOfOrEqual(document.entity.id, id) && document.accountsWithWrite.includes(selectedAccountId),
+      )
+    },
+    [selectedAccountId, writableDocuments],
   )
 
   const onBookmarkToggle = useCallback(
@@ -88,9 +100,9 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
 
   const onMoveDocument = useCallback(
     (id: UnpackedHypermediaId) => {
-      moveDialog.open({id})
+      destinationDialog.open({id, mode: 'move'})
     },
-    [moveDialog],
+    [destinationDialog],
   )
 
   const onDeleteDocument = useCallback(
@@ -100,11 +112,11 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
     [deleteDialog],
   )
 
-  const onBranchDocument = useCallback(
+  const onRepublishDocument = useCallback(
     (id: UnpackedHypermediaId) => {
-      branchDialog.open(id)
+      destinationDialog.open({id, mode: 'republish'})
     },
-    [branchDialog],
+    [destinationDialog],
   )
 
   const onExportDocument = useCallback(
@@ -277,12 +289,13 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
     () => ({
       selectedAccountUid: selectedAccountId ?? undefined,
       myAccountIds: myAccountIds.data,
+      canWriteDocument,
       isBookmarked,
       onBookmarkToggle,
       onEditDocument,
       onMoveDocument,
       onDeleteDocument,
-      onBranchDocument,
+      onRepublishDocument,
       onDuplicateDocument,
       onRestoreDocumentVersion,
       onExportDocument,
@@ -293,12 +306,13 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
     [
       selectedAccountId,
       myAccountIds.data,
+      canWriteDocument,
       isBookmarked,
       onBookmarkToggle,
       onEditDocument,
       onMoveDocument,
       onDeleteDocument,
-      onBranchDocument,
+      onRepublishDocument,
       onDuplicateDocument,
       onRestoreDocumentVersion,
       onExportDocument,
@@ -311,8 +325,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   return (
     <DocumentActionsProvider {...value}>
       {children}
-      {moveDialog.content}
-      {branchDialog.content}
+      {destinationDialog.content}
       {deleteDialog.content}
     </DocumentActionsProvider>
   )
