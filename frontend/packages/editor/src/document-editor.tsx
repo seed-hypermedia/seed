@@ -9,6 +9,7 @@ import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {
   selectCanEdit,
   selectIsEditing,
+  selectSaveStatus,
   useDocumentMachineRef,
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
@@ -81,6 +82,11 @@ export function shouldRequirePublishForBlockAction({
 }): boolean {
   if (isBlockInPublishedVersion) return !isBlockInPublishedVersion(blockId)
   return !!isUnpublishedDraft
+}
+
+/** Return whether an outside pointer should exit edit mode for the current autosave state. */
+export function shouldCancelEditOnOutsidePointer(saveStatus: 'idle' | 'changed' | 'saving' | 'saved'): boolean {
+  return saveStatus !== 'changed' && saveStatus !== 'saving'
 }
 
 function shouldClearBlockHighlightOnMouseDown(target: EventTarget | null): boolean {
@@ -824,6 +830,7 @@ export function DocumentEditor({
 
     const handlePointerDown = (e: PointerEvent) => {
       if (shouldKeepEditModeForPointerTarget(e.target, domRoot)) return
+      if (!shouldCancelEditOnOutsidePointer(selectSaveStatus(actorRef.getSnapshot()))) return
       actorRef.send({type: 'edit.cancel'})
     }
 

@@ -8,9 +8,11 @@ import {
   deleteWebDocDraft,
   getLatestWebDocDraftForDoc,
   getWebDocDraft,
+  listWebDocDraftSnapshots,
   listWebDocDraftsForAccount,
   listWebDocDraftsForDoc,
   putWebDocDraft,
+  restoreWebDocDraftSnapshot,
   type WebDocDraft,
 } from './web-draft-db'
 
@@ -97,6 +99,34 @@ describe('web-draft-db', () => {
     await deleteWebDocDraft('gone')
     expect(await getWebDocDraft('gone')).toBeNull()
     await deleteWebDocDraft('gone') // no throw on second delete
+  })
+
+  it('keeps recoverable snapshots before overwriting a draft', async () => {
+    await putWebDocDraft(
+      makeDraft({draftId: 'safe', content: [{block: {id: 'b1', type: 'Paragraph', text: 'first'}} as any]}),
+    )
+    await putWebDocDraft(
+      makeDraft({draftId: 'safe', content: [{block: {id: 'b1', type: 'Paragraph', text: 'second'}} as any]}),
+    )
+
+    const snapshots = await listWebDocDraftSnapshots('safe')
+    expect(snapshots).toHaveLength(1)
+    expect((snapshots[0]?.draft.content[0]?.block as any)?.text).toBe('first')
+  })
+
+  it('can restore a draft snapshot', async () => {
+    await putWebDocDraft(
+      makeDraft({draftId: 'restore', content: [{block: {id: 'b1', type: 'Paragraph', text: 'first'}} as any]}),
+    )
+    await putWebDocDraft(
+      makeDraft({draftId: 'restore', content: [{block: {id: 'b1', type: 'Paragraph', text: 'second'}} as any]}),
+    )
+    const [snapshot] = await listWebDocDraftSnapshots('restore')
+
+    await restoreWebDocDraftSnapshot(snapshot!.snapshotId)
+
+    const restored = await getWebDocDraft('restore')
+    expect((restored?.content[0]?.block as any)?.text).toBe('first')
   })
 
   it('cleanupOldWebDocDrafts prunes only old entries', async () => {

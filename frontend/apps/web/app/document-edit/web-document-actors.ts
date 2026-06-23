@@ -24,6 +24,7 @@ import {
   type PublishInput,
   type PushDocumentInput,
   type WriteDraftInput,
+  type WriteDraftOutput,
 } from '@shm/shared/models/document-machine'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, refetchQueriesByKey} from '@shm/shared/models/query-client'
@@ -80,7 +81,7 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
 }
 
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
-  return fromPromise<{id: string}, WriteDraftInput>(async ({input}) => {
+  return fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
     const editor = deps.getEditor()
     const editorBlocks = editor?.getTopLevelBlocks() ?? []
     const cursorPosition = editor?.getCursorPosition?.() ?? null
@@ -118,7 +119,8 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       cursorPosition,
     }
     await putWebDocDraft(record)
-    return {id: draftId}
+    invalidateQueries(['web-doc-draft', deps.docId.id])
+    return {id: draftId, content, cursorPosition}
   })
 }
 

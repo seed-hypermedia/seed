@@ -60,6 +60,8 @@ import {error} from './logger'
 
 const draftsDir = join(userDataPath, 'drafts')
 const draftIndexPath = join(draftsDir, 'index.json')
+const draftBackupsDir = join(draftsDir, '.history')
+const MAX_DRAFT_BACKUPS = 20
 
 let draftIndex: HMListedDraft[] | undefined = undefined
 
@@ -353,6 +355,38 @@ async function saveDraftIndex() {
   await fs.writeFile(draftIndexPath, JSON.stringify(draftIndex, null, 2))
 }
 
+async function snapshotDraftFile(draftId: string, reason: 'overwrite' | 'delete') {
+  const file = await resolveDraftFile(draftId)
+  if (!file) return
+  try {
+    await fs.mkdir(draftBackupsDir, {recursive: true})
+    const raw = await fs.readFile(file.path, 'utf-8')
+    const backupName = `${draftId}-${Date.now()}-${reason}${file.ext}`
+    await fs.writeFile(join(draftBackupsDir, backupName), raw)
+    await pruneDraftBackups(draftId)
+  } catch (err) {
+    console.warn(`Failed to snapshot draft ${draftId} before ${reason}:`, err)
+  }
+}
+
+async function pruneDraftBackups(draftId: string) {
+  let files: string[]
+  try {
+    files = await fs.readdir(draftBackupsDir)
+  } catch {
+    return
+  }
+  const backups = files
+    .filter((file) => file.startsWith(`${draftId}-`))
+    .sort()
+    .reverse()
+  for (const old of backups.slice(MAX_DRAFT_BACKUPS)) {
+    try {
+      await fs.unlink(join(draftBackupsDir, old))
+    } catch {}
+  }
+}
+
 /**
  * Resolve the filename on disk for a given draft ID.
  * Checks the file map first, then falls back to scanning common patterns.
@@ -527,6 +561,7 @@ export const draftsApi = t.router({
       }
 
       const draftId = input.id || nanoid(10)
+      await snapshotDraftFile(draftId, 'overwrite')
 
       // Build the index entry with deps and navigation included
       const newDraft = {
@@ -577,6 +612,7 @@ export const draftsApi = t.router({
       }
     }),
   delete: t.procedure.input(z.string()).mutation(async ({input}) => {
+    await snapshotDraftFile(input, 'delete')
     draftIndex = draftIndex?.filter((d) => d.id !== input)
     await saveDraftIndex()
 

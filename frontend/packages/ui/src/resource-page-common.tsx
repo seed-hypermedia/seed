@@ -49,6 +49,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectBlocks,
   selectContext,
   selectIsEditing,
   selectIsUnpublishedDraft,
@@ -1174,6 +1175,8 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  const savedDraftContent = useDocumentSelector(selectBlocks)
+  const effectiveContent = ctx.draftId ? savedDraftContent : existingDraftContent
   // Set of block ids present in the currently published version of the document.
   const publishedBlockIds = useMemo(() => {
     const ids = new Set<string>()
@@ -2001,7 +2004,7 @@ function DocumentBody({
           inlineInsert={inlineInsert}
           DocumentContentComponent={DocumentContentComponent}
           onEditorReady={handleEditorReadyWrapped}
-          existingDraftContent={existingDraftContent}
+          existingDraftContent={effectiveContent}
           existingDraftCursorPosition={existingDraftCursorPosition}
           ssrContentHTML={ssrContentHTML}
           perspectiveAccountUid={perspectiveAccountUid}
