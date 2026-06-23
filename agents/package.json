@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/main.ts",
+    "dev": "SEED_AGENTS_SEARXNG_URL=${SEED_AGENTS_SEARXNG_URL:-http://127.0.0.1:8899} SEED_AGENTS_CRAWLER_URL=${SEED_AGENTS_CRAWLER_URL:-http://127.0.0.1:11235} SEED_AGENTS_CRAWLER_TOKEN=${SEED_AGENTS_CRAWLER_TOKEN:-dev-crawl-token} bun --hot src/main.ts",
     "build": "NODE_ENV=production bun build.ts",
     "test:build": "bun run build && bun scripts/smoke-build.ts",
     "test:docker": "bun scripts/smoke-docker.ts",
