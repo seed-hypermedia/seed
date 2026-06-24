@@ -171,6 +171,8 @@ export type SeedToolRegistry = {
   navigate: SeedToolMetadata
   list_activity_feed: SeedToolMetadata
   read: SeedToolMetadata
+  web_search: SeedToolMetadata
+  web_read: SeedToolMetadata
   write: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
@@ -347,6 +349,134 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
+  web_search: {
+    name: 'web_search',
+    label: 'Web Search',
+    description:
+      'Search the public web via a self-hosted SearXNG metasearch engine. Returns ranked results with titles, URLs, and snippets. Use this for general internet/web research when you do not already have a URL. This is NOT for Seed Hypermedia content: use search for Hypermedia documents and contacts. To read a specific web page found here, call web_read with its URL.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        query: {type: 'string', minLength: 1, description: 'The web search query.'},
+        count: {type: 'integer', minimum: 1, description: 'Maximum number of results to return. Default 10, max 25.'},
+        category: {
+          type: 'string',
+          enum: ['general', 'news', 'science', 'it'],
+          description: 'Result category. Use news for recent events, general otherwise. Defaults to general.',
+        },
+        time_range: {
+          type: 'string',
+          enum: ['day', 'week', 'month', 'year'],
+          description: 'Optional recency filter for time-sensitive queries.',
+        },
+        language: {type: 'string', description: 'Optional language code such as en. Defaults to en.'},
+      },
+      required: ['query'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string', description: 'One-line summary of the search outcome.'},
+        query: {type: 'string'},
+        results: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: {type: 'string'},
+              url: {type: 'string'},
+              snippet: {type: 'string'},
+              engine: {type: 'string', description: 'Upstream engine that produced the result.'},
+            },
+          },
+        },
+        degraded: {
+          type: 'boolean',
+          description: 'True when some engines were unavailable and coverage may be partial.',
+        },
+        unavailableEngines: {type: 'array', items: {type: 'string'}},
+        markdown: {type: 'string', description: 'Human-readable rendering of the results.'},
+      },
+    },
+    render: {
+      kind: 'search',
+      label: 'Web Search',
+      color: 'sky',
+      primaryArg: 'query',
+      summaryArg: 'query',
+      summaryOutputPath: 'summary',
+      links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
+      details: [
+        {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  web_read: {
+    name: 'web_read',
+    label: 'Web Read',
+    description:
+      'Fetch a single public web page (any http(s) URL) and return its main content as clean markdown. Use this to read articles, documentation, wikis, and other internet pages — including results from web_search or links the user pastes. MediaWiki/Wikipedia pages are read through the wiki API automatically. Set raw=true to return the verbatim response body instead of extracted markdown — use this for source code (e.g. raw.githubusercontent.com URLs), JSON APIs, or config files where extraction would lose information. This is NOT for Seed Hypermedia resources: use read for hm:// URLs and Seed site web URLs.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: {type: 'string', description: 'The public http(s) URL of the page to read.'},
+        query: {
+          type: 'string',
+          description:
+            'Optional focus query. When the page requires browser rendering, the content is filtered for relevance to this query.',
+        },
+        raw: {
+          type: 'boolean',
+          description:
+            'Set true to return the raw response body (HTML, JSON, source code, plain text) verbatim with no main-content extraction or markdown conversion. Best for code files, JSON APIs, and config files.',
+        },
+      },
+      required: ['url'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string', description: 'One-line summary describing how the page was read.'},
+        url: {type: 'string', description: 'The requested URL.'},
+        finalUrl: {type: 'string', description: 'The URL actually read, after redirects.'},
+        title: {type: 'string'},
+        source: {
+          type: 'string',
+          enum: ['mediawiki', 'static', 'crawl4ai', 'raw'],
+          description: 'Which reader tier produced the result.',
+        },
+        contentType: {type: 'string', description: 'Response content type. Present for raw reads.'},
+        truncated: {type: 'boolean', description: 'True when the content was cut to the size limit.'},
+        success: {type: 'boolean'},
+        markdown: {type: 'string', description: 'The extracted markdown, or the verbatim body for raw reads.'},
+      },
+    },
+    render: {
+      kind: 'read',
+      label: 'Web Read',
+      color: 'emerald',
+      resourceArg: 'url',
+      summaryArg: 'url',
+      summaryOutputPath: 'summary',
+      links: [
+        {source: 'output', path: 'finalUrl', labelPath: 'title'},
+        {source: 'input', path: 'url', label: 'Requested URL'},
+      ],
+      details: [
+        {label: 'Content', source: 'output', path: 'markdown', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
   write: {
     name: 'write',
     label: 'Write',
@@ -430,7 +560,6 @@ export const seedToolRegistry: SeedToolRegistry = {
   // write_file: {},
   // read_file: {},
   // exexcute_bash: {},
-  // search_web: {}
 }
 
 export type SeedToolName = keyof typeof seedToolRegistry

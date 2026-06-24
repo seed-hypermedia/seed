@@ -127,6 +127,32 @@ Future mitigations:
 - explicit separation between read-only query keys and future write/action tools;
 - audit and least-privilege checks for future signing/publishing tools that consume uploaded HM account keys.
 
+## Web tools safety (`web_search`, `web_read`)
+
+`web_read` fetches model- or user-supplied public web URLs (`agents/src/web-tools.ts`). Both tools are self-hosted and
+carry no third-party API keys.
+
+Risks:
+
+- **SSRF / private-network access.** `web_read` performs server-side `fetch` of an arbitrary URL (the static tier) and,
+  when configured, has Crawl4AI fetch it (the browser tier). On a host with access to a private network or cloud
+  metadata endpoint, a model could request internal addresses. This shares the `read` SSRF concern and is currently
+  **unmitigated** beyond requiring `http(s)` scheme. Before exposing these tools on a sensitive network, add a
+  private-network/metadata blocklist and an outbound allow/deny policy (tracked with the `read` future mitigations).
+- Model-driven retrieval of arbitrary web content into the conversation (prompt-injection surface): treat fetched page
+  text as untrusted input, never as instructions.
+- Crawl4AI executes a real browser; keep it on the internal network only, never published to the host or internet.
+
+Mitigations present:
+
+- `http`/`https` scheme enforcement and URL validation;
+- bounded markdown output (200 KiB, truncated on a byte boundary);
+- the Crawl4AI shared token (`SEED_AGENTS_CRAWLER_TOKEN`) gates access to the crawler so only the agents service can use
+  it; Crawl4AI 0.9.x is secure-by-default and refuses tokenless non-loopback access;
+- per-agent opt-in: web tools are not granted by default and must be enabled per agent in the Tools tab;
+- failures degrade to `tool_result.error` (or a `degraded` flag for partial search), never silent fabrication;
+- no third-party API keys or outbound calls beyond SearXNG, the target site, and the optional Crawl4AI container.
+
 ## Replay protection status
 
 Implemented:

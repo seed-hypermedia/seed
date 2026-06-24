@@ -54,6 +54,8 @@ export type AgentServerHealth = {
   uptime: number
   /** The Seed HM server the agent publishes to; desktop connects its local node to this for discovery. */
   hmServerUrl?: string
+  /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
+  webTools?: {search: boolean; readBrowser: boolean}
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */

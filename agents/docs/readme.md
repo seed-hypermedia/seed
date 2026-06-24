@@ -38,6 +38,8 @@ Completed and usable locally:
   before signed submissions;
 - visible durable tool call/result events;
 - `read` using shared Seed Hypermedia URL resolution;
+- `web_search` and `web_read` web research tools: self-hosted SearXNG search plus a tiered MediaWiki → in-process static
+  (Readability + Turndown) → Crawl4AI reader, with no third-party API keys;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
@@ -86,6 +88,8 @@ Agents service:
 - `agents/src/api.ts` — compatibility re-export of the shared protocol package for service-local imports.
 - `agents/src/api-service.ts` — business logic, persistence operations, Pi SDK-backed model execution, tools,
   subscription verification.
+- `agents/src/web-tools.ts` — self-hosted `web_search` (SearXNG) and tiered `web_read` (MediaWiki/static/Crawl4AI)
+  implementations.
 - `agents/src/auth.ts` — signed envelope verification and local account authorization.
 - `agents/src/sqlite.ts` — open/schema validation/migration gate.
 - `agents/src/sqlite-schema.sql` — canonical schema.

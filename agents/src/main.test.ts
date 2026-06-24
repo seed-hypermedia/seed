@@ -99,6 +99,37 @@ describe('main routes', () => {
       cleanup()
     }
   })
+
+  test('GET health advertises web tool capabilities from server config', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const off = getGetHandler(createAPIRoutes(new apisvc.Service(db, dataDir)), '/agents/api/health')
+      const offBody = await (await off()).json()
+      expect(offBody.status).toBe('ok')
+      expect(offBody.webTools).toEqual({search: false, readBrowser: false})
+
+      const on = getGetHandler(
+        createAPIRoutes(
+          new apisvc.Service(db, dataDir, {
+            web: {searxngUrl: 'http://searxng:8080', crawlerUrl: 'http://crawl4ai:11235'},
+          }),
+        ),
+        '/agents/api/health',
+      )
+      const onBody = await (await on()).json()
+      expect(onBody.webTools).toEqual({search: true, readBrowser: true})
+
+      const searchOnly = getGetHandler(
+        createAPIRoutes(new apisvc.Service(db, dataDir, {web: {searxngUrl: 'http://searxng:8080'}})),
+        '/agents/api/health',
+      )
+      const searchOnlyBody = await (await searchOnly()).json()
+      expect(searchOnlyBody.webTools).toEqual({search: true, readBrowser: false})
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
 })
 
 function createTestState(): {db: Database; dataDir: string; cleanup: () => void} {
@@ -116,6 +147,12 @@ function getPostHandler(
   const entry = routes[route] as {POST?: (req: Request) => Promise<Response>} | undefined
   if (!entry?.POST) throw new Error(`missing route ${route}`)
   return entry.POST
+}
+
+function getGetHandler(routes: Bun.Serve.Routes<undefined, string>, route: string): () => Response | Promise<Response> {
+  const entry = routes[route] as {GET?: () => Response | Promise<Response>} | undefined
+  if (!entry?.GET) throw new Error(`missing route ${route}`)
+  return entry.GET
 }
 
 async function bytes(res: Response): Promise<Uint8Array> {

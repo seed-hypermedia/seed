@@ -118,7 +118,17 @@ Features:
   detail view;
 - trigger detail shows operational metadata plus the sessions created by that trigger;
 - Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
-  publishing tools;
+  publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
+  (`web_search`/`web_read`, which require server-side web backends), and the write group. Tool groups come from
+  `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
+- the Tools tab reflects the connected server's abilities: each group lists its individual member tools, and tools the
+  server cannot run are greyed out with an explanation. Availability is read from the server health response (`webTools`
+  capability flags) via `getToolAvailability`; for example `web_search` is greyed when no SearXNG backend is configured,
+  and `web_read` notes when browser rendering is unavailable. A group's toggle is disabled only when none of its tools
+  can run;
+- each tool row has an info (ⓘ) button opening a dialog with the exact model-facing description and the input/output
+  JSON schemas (`ToolInfoDialog`, sourced from the shared tool registry), so an agent owner can see precisely what
+  prompting and context each tool passes to the model;
 - Tools tab offers a **New account** workflow that generates a server-side HM account key, publishes its profile, and
   creates an account home document stating that it is an agentic account;
 - Prompt tab views/edits the main system prompt with the rich Seed block editor; prompt edits autosave when connected to

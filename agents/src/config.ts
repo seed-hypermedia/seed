@@ -23,6 +23,14 @@ export type Config = {
     pageSize: number
     maxPagesPerPoll: number
   }
+  web: {
+    /** Self-hosted SearXNG base URL for web_search. Undefined disables web_search. */
+    searxngUrl?: string
+    /** Optional self-hosted Crawl4AI base URL for web_read browser-render escalation. */
+    crawlerUrl?: string
+    /** Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). */
+    crawlerToken?: string
+  }
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -35,6 +43,9 @@ export type Flags = {
   'activity-poll-interval-ms': number
   'activity-page-size': number
   'activity-max-pages': number
+  'searxng-url': string
+  'crawler-url': string
+  'crawler-token': string
 }
 
 /** Creates default flag values from the current environment. */
@@ -48,6 +59,9 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
     'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
     'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,
+    'searxng-url': env.SEED_AGENTS_SEARXNG_URL || '',
+    'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
+    'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
   }
 }
 
@@ -104,7 +118,17 @@ export function create(pflags: Flags): Config {
       pageSize: parsePositiveInteger(String(pflags['activity-page-size']), 'activity-page-size'),
       maxPagesPerPoll: parsePositiveInteger(String(pflags['activity-max-pages']), 'activity-max-pages'),
     },
+    web: {
+      searxngUrl: optionalHttpUrl(pflags['searxng-url'], 'SearXNG URL'),
+      crawlerUrl: optionalHttpUrl(pflags['crawler-url'], 'Crawler URL'),
+      crawlerToken: pflags['crawler-token'].trim() || undefined,
+    },
   }
+}
+
+/** Normalizes an optional http(s) URL flag; returns undefined when unset. */
+function optionalHttpUrl(value: string, label: string): string | undefined {
+  return value.trim() ? normalizeHttpUrl(value, label) : undefined
 }
 
 function normalizeHttpUrl(value: string, label: string): string {

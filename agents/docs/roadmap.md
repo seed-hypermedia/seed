@@ -22,6 +22,7 @@ The following are complete enough for local use and should be treated as baselin
 - desktop streaming markdown rendering;
 - `read` tool using shared URL resolution;
 - per-agent Tools tab for toggling Seed-approved tools;
+- self-hosted `web_search` (SearXNG) and tiered `web_read` (MediaWiki/static/Crawl4AI) web research tools;
 - redacted HM account-key creation/listing and per-agent signing key selection for future write tools;
 - built-in `/agents` session inspector;
 - streaming/subscription diagnostics;
