@@ -1,52 +1,42 @@
 import type * as apisvc from '@/api-service'
+import {PollLoop} from '@/poll-loop'
 
 /** Options for the background schedule trigger monitor. */
 export type ScheduleMonitorOptions = {
   pollIntervalMs: number
+  /** Safety-net timeout for a whole poll cycle, enforced by {@link PollLoop}. Default 60s. */
+  pollTimeoutMs?: number
 }
+
+const DEFAULT_POLL_TIMEOUT_MS = 60_000
 
 /** Polls saved schedule triggers and asks the agent service to fire due occurrences. */
 export class ScheduleMonitor {
   readonly #service: apisvc.Service
-  readonly #options: ScheduleMonitorOptions
-  #timer: ReturnType<typeof setTimeout> | null = null
-  #running = false
-  #stopped = true
+  readonly #loop: PollLoop
 
   constructor(service: apisvc.Service, options: ScheduleMonitorOptions) {
     this.#service = service
-    this.#options = options
+    this.#loop = new PollLoop({
+      label: 'Agents Schedule',
+      intervalMs: options.pollIntervalMs,
+      timeoutMs: options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS,
+      run: () => this.pollOnce(),
+    })
   }
 
   /** Starts polling until `stop()` is called. */
   start(): void {
-    if (!this.#stopped) return
-    this.#stopped = false
-    this.#schedule(0)
+    this.#loop.start()
   }
 
   /** Stops future polls. An in-flight poll is allowed to finish. */
   stop(): void {
-    this.#stopped = true
-    if (this.#timer) clearTimeout(this.#timer)
-    this.#timer = null
+    this.#loop.stop()
   }
 
   /** Runs one polling cycle for due schedule triggers. */
   async pollOnce(): Promise<void> {
-    if (this.#running) return
-    this.#running = true
-    try {
-      await this.#service.processScheduledTriggers(Date.now())
-    } finally {
-      this.#running = false
-    }
-  }
-
-  #schedule(delayMs: number): void {
-    if (this.#stopped) return
-    this.#timer = setTimeout(() => {
-      void this.pollOnce().finally(() => this.#schedule(this.#options.pollIntervalMs))
-    }, delayMs)
+    await this.#service.processScheduledTriggers(Date.now())
   }
 }

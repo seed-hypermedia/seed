@@ -854,6 +854,7 @@ describe('api service', () => {
       expect(due).toMatchObject({matched: 1, fired: 1, skipped: 0, errors: 0})
       const repeated = await svc.processScheduledTriggers(createdTrigger.trigger.createdAt + 60 * 60 * 1000)
       expect(repeated).toMatchObject({matched: 0, fired: 0, skipped: 0, errors: 0})
+      await svc.drainTriggerSessions() // the agent run is dispatched in the background; await it before asserting
       expect(openAICallCount).toBe(1)
 
       const loaded = await svc.message(
@@ -961,6 +962,7 @@ describe('api service', () => {
         skipped: 1,
         errors: 0,
       })
+      await svc.drainTriggerSessions() // the agent run is dispatched in the background; await it before asserting
       expect(openAICallCount).toBe(1)
 
       const loaded = await svc.message(

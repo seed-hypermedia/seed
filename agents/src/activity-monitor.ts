@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import type * as apisvc from '@/api-service'
 import * as activityTriggers from '@/activity-triggers'
 import * as cbor from '@/cbor'
+import {PollLoop} from '@/poll-loop'
 import {createSeedClient, type SeedClient} from '@seed-hypermedia/client'
 import type {Database} from 'bun:sqlite'
 
@@ -11,10 +12,16 @@ export type ActivityMonitorOptions = {
   pollIntervalMs: number
   pageSize: number
   maxPagesPerPoll: number
+  /** Per-request timeout for ListEvents; a hung fetch is aborted so it can't wedge the loop. Default 20s. */
+  requestTimeoutMs?: number
+  /** Safety-net timeout for a whole poll cycle, enforced by {@link PollLoop}. Default 60s. */
+  pollTimeoutMs?: number
   client?: Pick<SeedClient, 'request'>
 }
 
 const ACTIVITY_BACKFILL_MS = 60 * 60 * 1000
+const DEFAULT_REQUEST_TIMEOUT_MS = 20_000
+const DEFAULT_POLL_TIMEOUT_MS = 60_000
 
 type Watermark = {seenKeys: string[]; lastSuccessAt?: number}
 
@@ -25,40 +32,34 @@ export class ActivityMonitor {
   readonly #db: Database
   readonly #service: apisvc.Service
   readonly #options: ActivityMonitorOptions
-  #timer: ReturnType<typeof setTimeout> | null = null
-  #running = false
-  #stopped = true
+  readonly #loop: PollLoop
 
   constructor(db: Database, service: apisvc.Service, options: ActivityMonitorOptions) {
     this.#db = db
     this.#service = service
     this.#options = options
+    this.#loop = new PollLoop({
+      label: 'Agents Activity',
+      intervalMs: options.pollIntervalMs,
+      timeoutMs: options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS,
+      run: () => this.pollOnce(),
+    })
   }
 
   /** Starts polling until `stop()` is called. */
   start(): void {
-    if (!this.#stopped) return
-    this.#stopped = false
-    this.#schedule(0)
+    this.#loop.start()
   }
 
   /** Stops future polls. An in-flight poll is allowed to finish. */
   stop(): void {
-    this.#stopped = true
-    if (this.#timer) clearTimeout(this.#timer)
-    this.#timer = null
+    this.#loop.stop()
   }
 
   /** Runs one polling cycle for all accounts that have enabled triggers. */
   async pollOnce(): Promise<void> {
-    if (this.#running) return
-    this.#running = true
-    try {
-      for (const accountId of this.#enabledTriggerAccounts()) {
-        await this.#pollAccount(accountId)
-      }
-    } finally {
-      this.#running = false
+    for (const accountId of this.#enabledTriggerAccounts()) {
+      await this.#pollAccount(accountId)
     }
   }
 
@@ -78,11 +79,15 @@ export class ActivityMonitor {
         previousSuccessAt: previous?.lastSuccessAt,
       })
       for (let page = 0; page < this.#options.maxPagesPerPoll; page += 1) {
-        const response = await client.request('ListEvents', {
-          pageSize: this.#options.pageSize,
-          pageToken,
-          currentAccount: accountId,
-        })
+        const response = await client.request(
+          'ListEvents',
+          {
+            pageSize: this.#options.pageSize,
+            pageToken,
+            currentAccount: accountId,
+          },
+          {signal: AbortSignal.timeout(this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS)},
+        )
         const events = Array.isArray(response.events) ? (response.events as activityTriggers.ActivityFeedEvent[]) : []
         fetched.push(...events)
         console.log('[Agents Activity] Feed page received', {
@@ -206,13 +211,6 @@ export class ActivityMonitor {
          last_error = excluded.last_error`,
       [accountId, this.#options.hmServerUrl, cbor.encode({seenKeys: []} satisfies Watermark), lastPollAt, error],
     )
-  }
-
-  #schedule(delayMs: number): void {
-    if (this.#stopped) return
-    this.#timer = setTimeout(() => {
-      void this.pollOnce().finally(() => this.#schedule(this.#options.pollIntervalMs))
-    }, delayMs)
   }
 }
 

@@ -1,6 +1,7 @@
 import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
+import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
@@ -549,6 +550,9 @@ async function main(): Promise<void> {
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     await server.stop()
+    // Let in-flight background trigger runs finish their writes before closing the DB (bounded so a
+    // stuck session can't block shutdown).
+    await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})
     db.close()
     process.exit(0)
   }

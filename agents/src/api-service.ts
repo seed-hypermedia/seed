@@ -115,6 +115,8 @@ export class Service {
   readonly #hmServerUrl: string
   readonly #web: WebToolsConfig
   readonly #runningSessions = new Map<string, RunningSession>()
+  /** In-flight background trigger session runs, awaited by {@link drainTriggerSessions} (tests + shutdown). */
+  readonly #pendingTriggerSessions = new Set<Promise<void>>()
 
   constructor(
     db: Database,
@@ -1788,16 +1790,15 @@ export class Service {
           trigger.account,
           firingId,
         ])
-        await this.#messageSessionOnce(
-          trigger.account,
-          session.sessionId,
-          await triggerPromptMessage(trigger, firingId, occurrence.activity, createSeedClient(this.#hmServerUrl)),
-        )
+        // Disable a 'once' schedule at fire time (session created), not after the run, so a slow run
+        // can't let the same occurrence fire twice.
         this.#db.run(
           `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL, enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
           [Date.now(), trigger.source.schedule.kind === 'once' ? 1 : 0, trigger.account, trigger.id],
         )
         fired += 1
+        // Run the agent in the background; the session already exists for this occurrence.
+        this.#dispatchTriggerSession(trigger.account, trigger, firingId, session.sessionId, occurrence.activity)
       } catch (error) {
         errors += 1
         const message = error instanceof Error ? error.message : 'Trigger firing failed'
@@ -1892,23 +1893,21 @@ export class Service {
           accountId,
           firingId,
         ])
-        await this.#messageSessionOnce(
-          accountId,
-          session.sessionId,
-          await triggerPromptMessage(trigger, firingId, event, createSeedClient(this.#hmServerUrl)),
-        )
         this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
           Date.now(),
           accountId,
           trigger.id,
         ])
+        fired += 1
         console.log('[Agents Trigger] Fired trigger and created session', {
           accountId,
           triggerId: trigger.id,
           activityKey,
           sessionId: session.sessionId,
         })
-        fired += 1
+        // Run the agent in the background: the session already exists (so every matching trigger has a
+        // session), and a slow/hung agent run must not block the poll loop or other triggers.
+        this.#dispatchTriggerSession(accountId, trigger, firingId, session.sessionId, event)
       } catch (error) {
         errors += 1
         const message = error instanceof Error ? error.message : 'Trigger firing failed'
@@ -1932,6 +1931,66 @@ export class Service {
       }
     }
     return {checked, matched, fired, skipped, errors}
+  }
+
+  /**
+   * Builds the trigger prompt and runs the agent for an already-created session, in the BACKGROUND.
+   *
+   * Never awaited by the poll loop, so a slow or hung agent run (a "session taking a long time to
+   * respond") can't stall trigger polling or other triggers. It runs at most once per firing: the
+   * caller only reaches here after winning the firing's `INSERT OR IGNORE`, and {@link #messageSessionOnce}
+   * rejects a second concurrent run of the same session — so we never create duplicate work for one
+   * matching trigger. A failure records the error on the firing/trigger but leaves the already-created
+   * session in place.
+   */
+  #dispatchTriggerSession(
+    accountId: string,
+    trigger: api.AgentTriggerInfo,
+    firingId: string,
+    sessionId: string,
+    activity: activityTriggers.ActivityFeedEvent,
+  ): void {
+    const run = (async () => {
+      try {
+        const content = await triggerPromptMessage(trigger, firingId, activity, createSeedClient(this.#hmServerUrl))
+        await this.#messageSessionOnce(accountId, sessionId, content)
+        console.log('[Agents Trigger] Trigger session run completed', {
+          accountId,
+          triggerId: trigger.id,
+          sessionId,
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Trigger session run failed'
+        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+          'error',
+          message,
+          accountId,
+          firingId,
+        ])
+        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+          message,
+          accountId,
+          trigger.id,
+        ])
+        console.error('[Agents Trigger] Trigger session run failed', {
+          accountId,
+          triggerId: trigger.id,
+          sessionId,
+          error: message,
+        })
+      }
+    })()
+    this.#pendingTriggerSessions.add(run)
+    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+  }
+
+  /**
+   * Awaits all in-flight background trigger session runs started by {@link #dispatchTriggerSession}.
+   * Used by tests for determinism and by graceful shutdown so runs aren't cut off mid-write. Does not
+   * start new work; runs added after the snapshot are not awaited.
+   */
+  async drainTriggerSessions(): Promise<void> {
+    await Promise.allSettled([...this.#pendingTriggerSessions])
   }
 
   #ensureAccount(accountId: string, now: number): void {
