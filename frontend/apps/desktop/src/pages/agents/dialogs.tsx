@@ -10,6 +10,7 @@ import {
   useSaveModelProvider,
   useSigningIdentities,
   useUpdateSigningIdentity,
+  prefetchAgentDetail,
 } from '@/models/agents'
 import {useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -20,20 +21,32 @@ import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ExternalLink, Trash2} from 'lucide-react'
+import {ExternalLink, Plus, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
+import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {pickDefaultProviderModel} from './model-utils'
 import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
 
+const PROVIDER_TYPE_OPTIONS: {value: ModelProviderType; label: string}[] = [
+  {value: 'openai', label: 'OpenAI'},
+  {value: 'anthropic', label: 'Anthropic'},
+  {value: 'google', label: 'Google'},
+]
+
+function providerTypeLabel(type: ModelProviderType): string {
+  return PROVIDER_TYPE_OPTIONS.find((option) => option.value === type)?.label || type
+}
+
 export function ModelProvidersDialog({
   input,
-  onClose,
 }: {
   input: {serverUrl: string; selectedAccountId: string | null | undefined}
   onClose: () => void
@@ -54,9 +67,12 @@ export function ModelProvidersDialog({
 
   return (
     <div className="flex min-w-[460px] flex-col gap-5">
-      <div>
+      <div className="flex flex-col gap-3">
         <DialogTitle>Model providers</DialogTitle>
-        <DialogDescription>Save API keys as encrypted server-side secrets for reusable providers.</DialogDescription>
+        <DialogDescription>
+          Model providers connect your agents to AI models like Claude, GPT, and Gemini. Add a provider to make its
+          models available when configuring agents.
+        </DialogDescription>
       </div>
       <div className="grid gap-3">
         {providers.data?.map((provider) => (
@@ -64,10 +80,10 @@ export function ModelProvidersDialog({
             key={provider.id}
             className="border-border flex items-center justify-between gap-3 rounded-lg border p-3"
           >
-            <div>
+            <div className="flex flex-col gap-1.5">
               <SizableText weight="bold">{provider.name}</SizableText>
               <SizableText size="sm" color="muted">
-                {provider.type} · {provider.hasSecrets ? 'secret saved' : 'no secret'}
+                {provider.type}
               </SizableText>
             </div>
             <Button
@@ -84,10 +100,10 @@ export function ModelProvidersDialog({
         {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
       </div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>
-          Close
+        <Button onClick={() => addProviderDialog.open(input)}>
+          <Plus className="size-4" />
+          Add provider
         </Button>
-        <Button onClick={() => addProviderDialog.open(input)}>Add provider</Button>
       </div>
       {addProviderDialog.content}
     </div>
@@ -103,7 +119,7 @@ export function AddModelProviderDialog({
 }) {
   return (
     <div className="flex min-w-[420px] flex-col gap-5">
-      <div>
+      <div className="flex flex-col gap-3">
         <DialogTitle>Add model provider</DialogTitle>
         <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
       </div>
@@ -131,16 +147,16 @@ function AddModelProviderForm({
   serverUrl: string
   selectedAccountId: string | null | undefined
   onSaved?: () => void
-  onCancel: () => void
+  onCancel?: () => void
   submitLabel?: string
 }) {
   const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
   const [type, setType] = useState<ModelProviderType>('openai')
-  const [name, setName] = useState('openai')
+  const [name, setName] = useState(providerTypeLabel('openai'))
   const [apiKey, setApiKey] = useState('')
 
   useEffect(() => {
-    setName(type)
+    setName(providerTypeLabel(type))
   }, [type])
 
   async function handleSave() {
@@ -165,23 +181,19 @@ function AddModelProviderForm({
     >
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          Provider type
+          Provider
         </SizableText>
-        <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+        <SelectDropdown
+          options={PROVIDER_TYPE_OPTIONS}
           value={type}
-          onChange={(event) => setType(event.target.value as ModelProviderType)}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="google">Google</option>
-        </select>
+          onValue={(value) => setType(value as ModelProviderType)}
+        />
       </label>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          Provider name
+          Provider Label
         </SizableText>
-        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="openai" />
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="OpenAI" />
       </label>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
@@ -190,9 +202,11 @@ function AddModelProviderForm({
         <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
       </label>
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
+        {onCancel ? (
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
         <Button type="submit" disabled={saveProvider.isLoading || !apiKey.trim()}>
           {submitLabel}
         </Button>
@@ -280,7 +294,7 @@ export function ManageAgentAccountsDialog({
 
   return (
     <div className="flex min-w-[560px] flex-col gap-5">
-      <div>
+      <div className="flex flex-col gap-3">
         <DialogTitle>Manage agent accounts</DialogTitle>
         <DialogDescription>
           Create server-side HM account keys, publish profile names, and initialize home documents for agents on this
@@ -395,11 +409,12 @@ export function CreateAgentDialog({
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
   const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
-  const [name, setName] = useState('Desktop Test Agent')
+  const [name, setName] = useState(generateAgentName)
   const [model, setModel] = useState('')
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
     markdownBlockNodesToHMBlockNodes(parseMarkdown('You are a helpful agent.').tree),
   )
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     setSelectedServerUrl(input.serverUrls[0] || DEFAULT_AGENT_SERVER_URL)
@@ -424,6 +439,7 @@ export function CreateAgentDialog({
     // Auto-create a dedicated account for the agent so it can publish without the
     // user setting up a signing identity by hand. The account is named after the
     // agent and wired in as its signing key with write tooling enabled.
+    setCreating(true)
     let signingKeyName: string | undefined
     try {
       const identityResult = await createSigningIdentity.mutateAsync(agentName)
@@ -431,6 +447,7 @@ export function CreateAgentDialog({
       signingKeyName = identityResult.identity.name
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not create the agent account')
+      setCreating(false)
       return
     }
     try {
@@ -446,6 +463,9 @@ export function CreateAgentDialog({
       }
       const result = await createAgent.mutateAsync(definition)
       if (result._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
+      // Pre-load the agent detail into the query cache so the agent page renders
+      // immediately instead of flashing a loading state after navigation.
+      await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
       toast.success('Agent created')
       onClose()
       navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
@@ -453,6 +473,7 @@ export function CreateAgentDialog({
       // Roll back the just-created account so a failed agent create doesn't leave an orphan.
       void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
       toast.error(error instanceof Error ? error.message : 'Could not create agent')
+      setCreating(false)
     }
   }
 
@@ -461,17 +482,14 @@ export function CreateAgentDialog({
       <SizableText size="sm" weight="bold">
         Agent server
       </SizableText>
-      <select
-        className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+      <SelectDropdown
+        options={input.serverUrls.map((serverUrl) => ({
+          value: serverUrl,
+          label: serverUrl.replace(/^https?:\/\//, ''),
+        }))}
         value={selectedServerUrl}
-        onChange={(event) => setSelectedServerUrl(event.target.value)}
-      >
-        {input.serverUrls.map((serverUrl) => (
-          <option key={serverUrl} value={serverUrl}>
-            {serverUrl}
-          </option>
-        ))}
-      </select>
+        onValue={setSelectedServerUrl}
+      />
     </label>
   )
 
@@ -483,24 +501,23 @@ export function CreateAgentDialog({
   if (needsProvider) {
     return (
       <div className="flex min-w-[520px] flex-col gap-5">
-        <div>
-          <DialogTitle>Create Agent</DialogTitle>
-          <DialogDescription>Add a model provider on this server before creating an agent.</DialogDescription>
-        </div>
+        <DialogTitle>Create Agent</DialogTitle>
         {serverSelector}
-        <AddModelProviderForm
-          serverUrl={selectedServerUrl}
-          selectedAccountId={input.selectedAccountId}
-          onCancel={onClose}
-          submitLabel="Add provider"
-        />
+        <div className="border-border bg-muted flex flex-col gap-4 rounded-lg border p-4">
+          <DialogDescription>Add a model provider on this server before creating an agent.</DialogDescription>
+          <AddModelProviderForm
+            serverUrl={selectedServerUrl}
+            selectedAccountId={input.selectedAccountId}
+            submitLabel="Add provider"
+          />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="flex min-w-[520px] flex-col gap-5">
-      <div>
+      <div className="flex flex-col gap-3">
         <DialogTitle>Create Agent</DialogTitle>
         <DialogDescription>
           Choose a model provider, model, and system prompt. An account named after the agent is created automatically
@@ -510,24 +527,23 @@ export function CreateAgentDialog({
       {serverSelector}
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          Model provider
+          Name
         </SizableText>
-        <ProviderSelect
-          providers={providers.data}
-          value={providerName}
-          onChange={setProviderName}
-          onAddProvider={() =>
-            addProviderDialog.open({serverUrl: selectedServerUrl, selectedAccountId: input.selectedAccountId})
-          }
-        />
+        <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} />
       </label>
-      {addProviderDialog.content}
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
-            Name
+            Model provider
           </SizableText>
-          <Input value={name} onChange={(event) => setName(event.target.value)} />
+          <ProviderSelect
+            providers={providers.data}
+            value={providerName}
+            onChange={setProviderName}
+            onAddProvider={() =>
+              addProviderDialog.open({serverUrl: selectedServerUrl, selectedAccountId: input.selectedAccountId})
+            }
+          />
         </label>
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
@@ -545,20 +561,16 @@ export function CreateAgentDialog({
           />
         </label>
       </div>
+      {addProviderDialog.content}
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           System prompt
         </SizableText>
-        <AgentPromptEditor initialBlocks={systemPrompt} onChange={setSystemPrompt} />
+        <AgentPromptEditor initialBlocks={systemPrompt} onChange={setSystemPrompt} focusOnMount={false} />
       </div>
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          onClick={() => void handleCreateAgent()}
-          disabled={createAgent.isLoading || createSigningIdentity.isLoading || !providerName || !model}
-        >
+        <Button onClick={() => void handleCreateAgent()} disabled={creating || !providerName || !model}>
+          {creating ? <Spinner /> : null}
           Create Agent
         </Button>
       </div>
@@ -609,7 +621,7 @@ export function EditAgentNameDialog({
         void handleSave()
       }}
     >
-      <div>
+      <div className="flex flex-col gap-3">
         <DialogTitle>Rename agent</DialogTitle>
         <DialogDescription>
           {input.accountStatus.kind === 'own'

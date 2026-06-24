@@ -14,14 +14,16 @@ export function promptBlocksToMarkdown(blocks: HMBlockNode[]): string {
 export function AgentPromptEditor({
   initialBlocks,
   onChange,
+  focusOnMount = true,
 }: {
   initialBlocks: HMBlockNode[]
   onChange: (blocks: HMBlockNode[]) => void
+  focusOnMount?: boolean
 }) {
   return (
-    <div className="border-input bg-background min-h-80 rounded-lg border p-3">
+    <div className="border-border bg-background min-h-80 rounded-md border p-3">
       <CommentEditor
-        focusOnMount
+        focusOnMount={focusOnMount}
         hideAvatar
         initialBlocks={initialBlocks}
         onContentChange={(blocks) => onChange(blocks)}

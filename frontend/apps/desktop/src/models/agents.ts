@@ -598,6 +598,22 @@ export function useDeleteAgent(serverUrl: string | undefined, accountUid: string
   })
 }
 
+/**
+ * Fetches one agent's detail and primes the react-query cache so the agent page
+ * renders immediately after navigation instead of flashing a loading state.
+ */
+export async function prefetchAgentDetail(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  if (!serverUrl || !accountUid || !agentId) return
+  const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'GetAgent', agentId}})
+  if (res._ !== 'GetAgentResponse') throw new Error('Unexpected GetAgent response')
+  queryClient.setQueryData(['agents', 'detail', serverUrl, accountUid, agentId], res)
+  return res
+}
+
 /** Loads one agent and its sessions from the configured server. */
 export function useAgentDetail(
   serverUrl: string | undefined,

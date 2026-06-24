@@ -13,6 +13,14 @@ Read before editing:
 
 ## Commands
 
+Full dev stack (docker web backends + desktop + web + agents server) in one mprocs TUI, one pane per process:
+
+```bash
+./dev up
+```
+
+The backends (SearXNG :8899, crawl4ai :11235) run inline as the `backends` pane via `agents/dev/web-backends/docker-compose.yml` and stop when you quit mprocs (`q`). Config: `mprocs.yaml` at the repo root.
+
 Agents:
 
 ```bash

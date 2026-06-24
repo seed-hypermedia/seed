@@ -2,6 +2,7 @@ import {type AgentSessionTriggerContext, type AgentTriggerSource} from '@/agents
 import {useNavigate} from '@/utils/useNavigate'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Input} from '@shm/ui/components/input'
+import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import type {LoadedEvent} from '@shm/shared/models/activity-service'
 import {useSearch} from '@shm/shared/models/search'
@@ -28,6 +29,17 @@ export const TRIGGER_TYPE_OPTIONS: {value: AgentTriggerSource['type']; label: st
   {value: 'site-update', label: 'Site update'},
   {value: 'schedule', label: 'Schedule'},
 ]
+
+const SCHEDULE_MODE_OPTIONS = [
+  {value: 'interval', label: 'Every interval'},
+  {value: 'weekly', label: 'Days of week'},
+  {value: 'once', label: 'One time'},
+] as const
+
+const SCHEDULE_UNIT_OPTIONS = [
+  {value: 'minutes', label: 'Minutes'},
+  {value: 'hours', label: 'Hours'},
+] as const
 
 export function defaultSourceForType(type: AgentTriggerSource['type']): AgentTriggerSource {
   if (type === 'user-mention') return {type, mentionedAccounts: []}
@@ -69,28 +81,27 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
 export function TriggerSourceFields({
   source,
   onChange,
+  trailing,
 }: {
   source: AgentTriggerSource
   onChange: (source: AgentTriggerSource) => void
+  trailing?: React.ReactNode
 }) {
   return (
     <div className="grid gap-3">
-      <label className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Trigger Session on:
-        </SizableText>
-        <select
-          className="border-border bg-input rounded-md border px-3 py-2 text-sm"
-          value={source.type}
-          onChange={(event) => onChange(defaultSourceForType(event.target.value as AgentTriggerSource['type']))}
-        >
-          {TRIGGER_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex items-end justify-between gap-3">
+        <label className="flex flex-1 flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Trigger Session on:
+          </SizableText>
+          <SelectDropdown
+            options={TRIGGER_TYPE_OPTIONS}
+            value={source.type}
+            onValue={(value) => onChange(defaultSourceForType(value as AgentTriggerSource['type']))}
+          />
+        </label>
+        {trailing}
+      </div>
       {source.type === 'document-comment' ? (
         <div className="grid gap-3 md:grid-cols-2">
           <DocumentAutocompleteField
@@ -170,20 +181,15 @@ function ScheduleTriggerFields({
         <SizableText size="sm" weight="bold">
           Schedule mode
         </SizableText>
-        <select
-          className="border-border bg-input rounded-md border px-3 py-2 text-sm"
+        <SelectDropdown
+          options={SCHEDULE_MODE_OPTIONS}
           value={schedule.kind}
-          onChange={(event) => {
-            const kind = event.target.value
+          onValue={(kind) => {
             if (kind === 'weekly') setSchedule({kind, daysOfWeek: [1, 2, 3, 4, 5], timeOfDay: '09:00', timezone})
             else if (kind === 'once') setSchedule({kind, runAt: Date.now() + 60 * 60 * 1000, timezone})
             else setSchedule({kind: 'interval', every: 1, unit: 'hours'})
           }}
-        >
-          <option value="interval">Every interval</option>
-          <option value="weekly">Days of week</option>
-          <option value="once">One time</option>
-        </select>
+        />
       </label>
       {schedule.kind === 'interval' ? (
         <div className="grid gap-3 md:grid-cols-2">
@@ -202,14 +208,11 @@ function ScheduleTriggerFields({
             <SizableText size="sm" weight="bold">
               Unit
             </SizableText>
-            <select
-              className="border-border bg-input rounded-md border px-3 py-2 text-sm"
+            <SelectDropdown
+              options={SCHEDULE_UNIT_OPTIONS}
               value={schedule.unit}
-              onChange={(event) => setSchedule({...schedule, unit: event.target.value as 'minutes' | 'hours'})}
-            >
-              <option value="minutes">Minutes</option>
-              <option value="hours">Hours</option>
-            </select>
+              onValue={(value) => setSchedule({...schedule, unit: value as 'minutes' | 'hours'})}
+            />
           </label>
         </div>
       ) : null}

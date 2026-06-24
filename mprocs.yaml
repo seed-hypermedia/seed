@@ -1,0 +1,50 @@
+# Unified dev stack for Agents development. Launch with:  ./dev up
+#
+# Each process gets its own pane — pick one in the left list (↑/↓ or j/k), its
+# logs fill the right pane with independent scrollback. Restart the focused
+# process with <r>, stop it with <s>, start it with <x>, quit everything with <q>.
+#
+# Containers (searxng + crawl4ai) run INLINE here — no `-d`. Their logs stream
+# into the `backends` pane and the containers stop when you quit mprocs.
+# Everything else runs native to keep Metal-GPU (daemon) + HMR (web) + hot
+# reload (agents) intact. mprocs inherits the direnv/mise env from `./dev up`,
+# so each command is just what you'd type by hand.
+scrollback: 10000
+procs:
+  # Search (SearXNG :8899) + crawler (crawl4ai :11235) behind web_search/web_read.
+  # The containers are owned by the docker daemon, not the `compose up` process,
+  # so a signal won't reliably stop them. mprocs's `stop: {cmd}` form runs an
+  # actual command on quit/stop: `docker compose down` stops AND removes them,
+  # which makes the foreground `up` exit cleanly.
+  backends:
+    shell: 'docker compose -f agents/dev/web-backends/docker-compose.yml up'
+    stop:
+      cmd: 'docker compose -f agents/dev/web-backends/docker-compose.yml down'
+    autostart: true
+
+  # Agents server (:3050), bun --hot. Defaults to the backends above.
+  # Separate Bun workspace — install its deps before starting (fast if satisfied).
+  agents:
+    shell: 'cd agents && bun install && bun run dev'
+    autostart: true
+
+  # Remix/Vite web app (:3000). Talks to the daemon the desktop app spawns (:58001).
+  web:
+    shell: 'pnpm web'
+    autostart: true
+
+  # Notify server (Remix/Vite :3060). Backs the vault's email/notification flow.
+  notify:
+    shell: 'pnpm notify'
+    autostart: true
+
+  # Vault (:3030), bun --hot. Points at the notify server above (:3060).
+  # Separate Bun workspace — install its deps before starting (fast if satisfied).
+  vault:
+    shell: 'cd vault && bun install && bun run dev'
+    autostart: true
+
+  # Electron desktop on mainnet; builds + spawns its own Go daemon (Metal GPU).
+  desktop:
+    shell: './dev run-desktop-mainnet'
+    autostart: true

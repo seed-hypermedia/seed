@@ -14,10 +14,11 @@ export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolR
 export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
 
 /**
- * Tools granted to a newly created agent: full read access plus write, so the
- * agent can publish as its own auto-created account without extra setup.
+ * Tools granted to a newly created agent: full read access, web search/read, and
+ * write, so the agent can research and publish as its own auto-created account
+ * without extra setup.
  */
-export const DEFAULT_AGENT_TOOLS = [...AGENT_READ_TOOL_GROUP, AGENT_WRITE_TOOL]
+export const DEFAULT_AGENT_TOOLS = [...AGENT_READ_TOOL_GROUP, ...AGENT_WEB_TOOL_GROUP, AGENT_WRITE_TOOL]
 
 /** Web-backend capabilities a server advertises in its health response. */
 export type AgentServerWebCapabilities = {search: boolean; readBrowser: boolean}

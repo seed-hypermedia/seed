@@ -46,6 +46,7 @@ import {Input} from '@shm/ui/components/input'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
+import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
@@ -297,7 +298,11 @@ function AgentDetailPage({
         <Container
           className={isTriggerDetail ? 'max-w-4xl gap-4 pt-4 pb-4' : 'min-h-0 max-w-4xl flex-1 gap-4 pt-4 pb-0'}
         >
-          {agent.isLoading ? <SizableText color="muted">Loading agent…</SizableText> : null}
+          {agent.isLoading ? (
+            <div className="flex flex-1 items-center justify-center py-12">
+              <Spinner size="large" className="text-muted-foreground" />
+            </div>
+          ) : null}
           {agent.isError ? (
             <SizableText className="text-destructive">
               {agent.error instanceof Error ? agent.error.message : 'Could not load agent'}
@@ -456,33 +461,20 @@ function AgentDetailPage({
                       />
                     </label>
                   </div>
-                  <div className="grid gap-3 text-sm md:grid-cols-2">
-                    <div>
-                      <SizableText size="sm" weight="bold">
-                        Status
-                      </SizableText>
-                      <SizableText size="sm" color="muted">
-                        {agent.data.agent.status}
-                      </SizableText>
-                    </div>
-                  </div>
-                  <SizableText size="xs" color="muted" className="font-mono">
-                    {agent.data.agent.id}
-                  </SizableText>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {settingsSaveState !== 'idle' ? (
-                      <SizableText
-                        size="xs"
-                        className={settingsSaveState === 'error' ? 'text-destructive' : undefined}
-                        color={settingsSaveState === 'error' ? undefined : 'muted'}
-                      >
-                        {settingsSaveState === 'saving'
-                          ? 'Saving settings…'
-                          : settingsSaveState === 'saved'
-                            ? 'Settings saved'
-                            : 'Settings save failed'}
-                      </SizableText>
-                    ) : null}
+                  <div className="flex flex-col gap-2">
+                    <SizableText
+                      size="xs"
+                      className={`h-4 ${settingsSaveState === 'error' ? 'text-destructive' : ''}`}
+                      color={settingsSaveState === 'error' ? undefined : 'muted'}
+                    >
+                      {settingsSaveState === 'saving'
+                        ? 'Saving settings…'
+                        : settingsSaveState === 'saved'
+                          ? 'Settings saved'
+                          : settingsSaveState === 'error'
+                            ? 'Settings save failed'
+                            : ''}
+                    </SizableText>
                     <Button
                       className="w-fit"
                       variant="destructive"
@@ -687,7 +679,7 @@ function AgentToolsTab({
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const defaultTools = AGENT_READ_TOOL_GROUP
+  const defaultTools = [...AGENT_READ_TOOL_GROUP, ...AGENT_WEB_TOOL_GROUP]
   const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
@@ -1149,27 +1141,24 @@ function AgentTriggersTab({
           ) : null}
           {selected ? (
             <>
-              <div className="border-border grid gap-4 rounded-xl border p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <SizableText weight="bold">Trigger details</SizableText>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      disabled={updateTrigger.isLoading}
-                      onChange={(event) => void handleEnabledChange(event.target.checked)}
-                    />
-                    Enabled
-                  </label>
-                </div>
+              <div className="grid gap-4">
                 <TriggerSourceFields
                   source={source}
                   onChange={(nextSource) => {
                     setSource(nextSource)
                     setDetailsDirty(true)
                   }}
+                  trailing={
+                    <label className="flex h-9 items-center gap-2 text-base">
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        disabled={updateTrigger.isLoading}
+                        onChange={(event) => void handleEnabledChange(event.target.checked)}
+                      />
+                      Enable Trigger
+                    </label>
+                  }
                 />
                 <div className="flex flex-col gap-1">
                   <SizableText size="sm" weight="bold">
@@ -1193,21 +1182,8 @@ function AgentTriggersTab({
                           : ''}
                   </SizableText>
                 </div>
-                <div className="grid gap-3 text-sm md:grid-cols-3">
-                  <TriggerMeta label="Last checked" value={selected.lastCheckedAt} />
-                  <TriggerMeta label="Last fired" value={selected.lastFiredAt} />
-                  {source.type === 'schedule' ? <TriggerMeta label="Next fire" value={nextScheduledFire} /> : null}
-                  <div>
-                    <SizableText size="sm" weight="bold">
-                      Last error
-                    </SizableText>
-                    <SizableText size="sm" color={selected.lastError ? undefined : 'muted'}>
-                      {selected.lastError || 'None'}
-                    </SizableText>
-                  </div>
-                </div>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="border-border flex flex-col gap-2 border-t pt-5">
                 <SizableText weight="bold">Sessions created by this trigger</SizableText>
                 {!trigger.data?.sessions.length ? (
                   <SizableText color="muted">No sessions created yet.</SizableText>
@@ -1223,6 +1199,19 @@ function AgentTriggersTab({
                     }
                   />
                 ))}
+              </div>
+              <div className="border-border grid gap-3 border-t pt-5 text-sm md:grid-cols-3">
+                <TriggerMeta label="Last checked" value={selected.lastCheckedAt} />
+                <TriggerMeta label="Last fired" value={selected.lastFiredAt} />
+                {source.type === 'schedule' ? <TriggerMeta label="Next fire" value={nextScheduledFire} /> : null}
+                <div className="flex flex-col gap-1">
+                  <SizableText size="sm" weight="bold">
+                    Last error
+                  </SizableText>
+                  <SizableText size="sm" color={selected.lastError ? undefined : 'muted'}>
+                    {selected.lastError || 'None'}
+                  </SizableText>
+                </div>
               </div>
             </>
           ) : null}
@@ -1268,7 +1257,7 @@ function AgentTriggersTab({
 
 function TriggerMeta({label, value}: {label: string; value?: number | string | null}) {
   return (
-    <div>
+    <div className="flex flex-col gap-1">
       <SizableText size="sm" weight="bold">
         {label}
       </SizableText>
@@ -1288,7 +1277,6 @@ function CreateAgentTriggerDialog({
 }) {
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
   const [name, setName] = useState('New activity trigger')
-  const [enabled, setEnabled] = useState(true)
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Respond to the mention, performing the action requested.'),
@@ -1298,7 +1286,7 @@ function CreateAgentTriggerDialog({
     try {
       const trigger: AgentTriggerInput = {
         name,
-        enabled,
+        enabled: true,
         source,
         prompt: promptBlocksToMarkdown(prompt),
       }
@@ -1317,10 +1305,6 @@ function CreateAgentTriggerDialog({
         <DialogTitle>New trigger</DialogTitle>
         <DialogDescription>Start a new agent session when matching Seed activity appears.</DialogDescription>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-        Enabled
-      </label>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Name

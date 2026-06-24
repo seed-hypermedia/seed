@@ -72,7 +72,7 @@ export function ModelSelect({
         type="button"
         disabled={isDisabled}
         className={cn(
-          'border-input bg-background flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm',
+          'border-border flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-left text-sm transition-[color,box-shadow,border-color] outline-none hover:border-black/10',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >

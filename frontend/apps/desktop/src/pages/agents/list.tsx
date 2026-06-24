@@ -9,6 +9,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Bot, CircleUserRound, Settings} from 'lucide-react'
 import React, {useMemo} from 'react'
+import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 
 function AgentsListPage() {
@@ -148,44 +149,20 @@ function AgentsListPage() {
             <SizableText color="muted">No agents yet.</SizableText>
           ) : null}
           <div className="flex flex-col gap-2">
-            {agents.map((agent) => {
-              const statusIndicator = getAgentStatusIndicator(agent.status)
-              return (
-                <div
-                  key={`${agent.serverUrl}:${agent.id}`}
-                  className="border-border hover:bg-muted/60 flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-3 transition-colors"
-                  onClick={() => navigate({key: 'agent', agentId: agent.id, serverUrl: agent.serverUrl})}
-                >
-                  <SizableText weight="bold" className="min-w-0 truncate">
-                    {agent.definition.name}
-                  </SizableText>
-                  <Tooltip content={statusIndicator.label} asChild>
-                    <span className={`size-2.5 shrink-0 rounded-full ${statusIndicator.className}`} />
-                  </Tooltip>
-                </div>
-              )
-            })}
+            {agents.map((agent) => (
+              <AgentListRow
+                key={`${agent.serverUrl}:${agent.id}`}
+                agentId={agent.id}
+                name={agent.definition.name}
+                status={agent.status}
+                serverUrl={agent.serverUrl}
+              />
+            ))}
           </div>
         </section>
       </Container>
     </PanelContainer>
   )
-}
-
-function getAgentStatusIndicator(status: string): {label: string; className: string} {
-  const normalizedStatus = status.toLowerCase()
-  if (normalizedStatus.includes('error') || normalizedStatus.includes('failed')) {
-    return {label: status || 'Error', className: 'bg-destructive'}
-  }
-  if (
-    normalizedStatus.includes('thinking') ||
-    normalizedStatus.includes('streaming') ||
-    normalizedStatus.includes('running') ||
-    normalizedStatus.includes('busy')
-  ) {
-    return {label: status || 'Thinking', className: 'animate-pulse bg-muted-foreground/60'}
-  }
-  return {label: status || 'Idle', className: 'bg-green-500'}
 }
 
 function AgentServerSubscription({
