@@ -38,6 +38,13 @@ set_session_title
 or rendered as a durable tool call/result in chat. The system prompt tells the model to set a concise one-line title
 when the conversation purpose becomes clear and to update it if that purpose changes.
 
+MCP tools:
+
+Agents can also be granted tools from remote MCP servers. These are not registry entries — they are discovered at
+runtime from each enabled MCP server and exposed under the `mcp__<server>__<tool>` namespace. Enablement is stored on
+the agent definition as `mcpServers: string[]` (account MCP server names), separate from the registry `tools` array. See
+`mcp.md` for configuration, transports, and runtime behavior.
+
 Near-term project: augment `read` into the general SHM read/query path rather than ignoring it or replacing it blindly.
 A future model-facing `query` alias may be added, but existing `read` behavior must remain compatible.
 

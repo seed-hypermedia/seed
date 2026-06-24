@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "0.70.2",
+    "@modelcontextprotocol/sdk": "1.27.1",
     "@mozilla/readability": "0.6.0",
     "@seed-hypermedia/agents-protocol": "file:./protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",

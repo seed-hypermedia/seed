@@ -127,6 +127,11 @@ Features:
   prompting and context each tool passes to the model;
 - Tools tab offers a **New account** workflow that generates a server-side HM account key, publishes its profile, and
   creates an account home document stating that it is an agentic account;
+- the Tools tab has an **MCP servers** section (`AgentMcpServersSection`): it lists the account's configured MCP servers
+  (`useMcpServers`) with a checkbox per server to enable it for the current agent (autosaved into
+  `definition.mcpServers`), an **Add server** dialog (`AddMcpServerDialog` — name, URL, transport, optional encrypted
+  auth header via `useSaveMcpServer`), a per-server info dialog that lists the server's advertised tools
+  (`McpServerToolsDialog` via `ListMcpServerTools`), and a remove action (`useDeleteMcpServer`). See `mcp.md`;
 - Prompt tab views/edits the main system prompt with the rich Seed block editor; prompt edits autosave when connected to
   the agent server, are converted to markdown before the signed `UpdateAgent` request, normalized by the server, and
   converted to model-facing markdown before execution;

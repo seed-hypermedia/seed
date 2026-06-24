@@ -153,6 +153,33 @@ Mitigations present:
 - failures degrade to `tool_result.error` (or a `degraded` flag for partial search), never silent fabrication;
 - no third-party API keys or outbound calls beyond SearXNG, the target site, and the optional Crawl4AI container.
 
+## MCP server safety
+
+Agents can reach account-configured remote MCP servers (`agents/src/mcp.ts`, see `mcp.md`). Only remote HTTP/SSE
+transports are supported; the service never spawns local `stdio` subprocesses.
+
+Risks:
+
+- **SSRF / private-network access.** Connecting to an MCP server is a server-side request to an account-supplied URL,
+  sharing the `read`/web-tools SSRF concern. It is currently **unmitigated** beyond `http(s)` scheme enforcement. Add
+  the same private-network/metadata blocklist and outbound allow/deny policy before exposing agents on a sensitive
+  network.
+- **Untrusted tools.** Enabled MCP tools execute during the agent run with whatever capability the remote server grants,
+  and their results are untrusted model input (prompt-injection surface). Agent owners should only enable servers they
+  trust.
+
+Mitigations present:
+
+- `http`/`https` scheme enforcement and URL validation on every MCP server config;
+- auth headers stored as encrypted account secrets, redacted in all responses; the desktop refuses to send a secret
+  header to a non-HTTPS remote agent server;
+- per-agent opt-in: an agent only loads MCP tools from servers listed in its `mcpServers`, and servers are not enabled
+  by default;
+- failure isolation: an unreachable MCP server is logged and skipped so the run still proceeds; tool errors degrade to
+  `tool_result.error`;
+- bounded MCP tool-result size (256 KiB);
+- connections are opened at run start and closed when the run finishes.
+
 ## Replay protection status
 
 Implemented:

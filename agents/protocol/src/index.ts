@@ -1,4 +1,5 @@
 export * from './tool-registry'
+import type {JsonSchema} from './tool-registry'
 
 /** Shared options for Seed assistant/agent system prompt construction. */
 export type SeedAssistantPromptOptions = {
@@ -40,6 +41,8 @@ export type AgentDefinition = {
   modelProvider: string
   model: string
   tools?: string[]
+  /** Names of account MCP servers whose tools are enabled for this agent. */
+  mcpServers?: string[]
   signingKey?: string
   signingKeys?: string[]
   metadata?: Record<string, unknown>
@@ -88,6 +91,10 @@ export type UnsignedAgentAction =
   | DeleteSigningIdentity
   | SetModelProvider
   | DeleteModelProvider
+  | ListMcpServers
+  | SetMcpServer
+  | DeleteMcpServer
+  | ListMcpServerTools
   | SetSecret
   | GetAgent
   | UpdateAgent
@@ -163,6 +170,30 @@ export type SetModelProvider = {
 /** Deletes a named model provider and its API key secret for the account. */
 export type DeleteModelProvider = {
   _: 'DeleteModelProvider'
+  name: string
+}
+
+/** Lists configured MCP servers for the signed account. */
+export type ListMcpServers = {
+  _: 'ListMcpServers'
+}
+
+/** Creates or updates a named MCP server for the account. */
+export type SetMcpServer = {
+  _: 'SetMcpServer'
+  name: string
+  config: McpServerConfig
+}
+
+/** Deletes a named MCP server and any header secrets it owns. */
+export type DeleteMcpServer = {
+  _: 'DeleteMcpServer'
+  name: string
+}
+
+/** Connects to one configured MCP server and lists the tools it advertises. */
+export type ListMcpServerTools = {
+  _: 'ListMcpServerTools'
   name: string
 }
 
@@ -310,6 +341,46 @@ export type ModelProviderConfig = {
   modelDefaults?: Record<string, unknown>
   secretRefs?: Record<string, string>
   baseUrl?: string
+}
+
+/** Transport used to reach a remote MCP server. */
+export type McpServerTransport = 'http' | 'sse'
+
+/** Configuration for a remote (HTTP/SSE) MCP server, stored as CBOR. */
+export type McpServerConfig = {
+  /** Base URL of the remote MCP endpoint (http/https only). */
+  url: string
+  /** Transport to use. Defaults to `http` (Streamable HTTP) with SSE as a connect-time fallback. */
+  transport?: McpServerTransport
+  /** Non-secret headers sent on every request to the server. */
+  headers?: Record<string, string>
+  /** Header name -> account secret name; resolved to plaintext and merged into headers at connect time. */
+  secretRefs?: Record<string, string>
+}
+
+/** Redacted MCP server metadata returned to clients (never includes secret values). */
+export type RedactedMcpServer = {
+  id: string
+  name: string
+  url: string
+  transport: McpServerTransport
+  /** Non-secret header names configured on the server. */
+  headerNames: string[]
+  /** Header names backed by encrypted account secrets. */
+  secretHeaderNames: string[]
+  hasSecrets: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** One tool advertised by an MCP server, as discovered via `ListMcpServerTools`. */
+export type McpToolInfo = {
+  /** Tool name as advertised by the MCP server (before agent-side namespacing). */
+  name: string
+  /** Model-facing tool name actually exposed to the agent (namespaced per server). */
+  qualifiedName: string
+  description?: string
+  inputSchema?: JsonSchema
 }
 
 /** Public metadata returned for an agent. */
@@ -516,6 +587,31 @@ export type DeleteModelProviderResponse = {
   name: string
 }
 
+/** Successful response for `ListMcpServers`. */
+export type ListMcpServersResponse = {
+  _: 'ListMcpServersResponse'
+  servers: RedactedMcpServer[]
+}
+
+/** Successful response for `SetMcpServer`. */
+export type SetMcpServerResponse = {
+  _: 'SetMcpServerResponse'
+  server: RedactedMcpServer
+}
+
+/** Successful response for `DeleteMcpServer`. */
+export type DeleteMcpServerResponse = {
+  _: 'DeleteMcpServerResponse'
+  name: string
+}
+
+/** Successful response for `ListMcpServerTools`. */
+export type ListMcpServerToolsResponse = {
+  _: 'ListMcpServerToolsResponse'
+  name: string
+  tools: McpToolInfo[]
+}
+
 /** Successful response for `ListSigningIdentities`. */
 export type ListSigningIdentitiesResponse = {
   _: 'ListSigningIdentitiesResponse'
@@ -650,6 +746,10 @@ export type AgentResponse =
   | CreateAgentResponse
   | SetModelProviderResponse
   | DeleteModelProviderResponse
+  | ListMcpServersResponse
+  | SetMcpServerResponse
+  | DeleteMcpServerResponse
+  | ListMcpServerToolsResponse
   | SetSecretResponse
   | GetAgentResponse
   | DeleteAgentResponse

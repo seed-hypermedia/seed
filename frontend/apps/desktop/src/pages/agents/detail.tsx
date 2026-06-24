@@ -3,6 +3,7 @@ import {
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
+  type McpServerTransport,
   type SessionInfo,
   type SigningIdentity,
 } from '@/agents-client'
@@ -20,7 +21,11 @@ import {
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTrigger,
+  useDeleteMcpServer,
+  useMcpServers,
+  useMcpServerTools,
   useModelProviders,
+  useSaveMcpServer,
   useProviderModels,
   useSigningIdentities,
   useUpdateAgent,
@@ -50,7 +55,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
+import {Info, KeyRound, Plus, Server, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
 import {
@@ -382,6 +387,8 @@ function AgentDetailPage({
               {tab === 'tools' ? (
                 <AgentToolsTab
                   definition={agent.data.agent.definition}
+                  serverUrl={serverUrl}
+                  selectedAccountId={selectedAccountId}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
                   webCapabilities={serverHealth.data?.webTools}
@@ -672,6 +679,8 @@ const AGENT_TOOL_OPTIONS = [
 
 function AgentToolsTab({
   definition,
+  serverUrl,
+  selectedAccountId,
   identities,
   identitiesLoading,
   webCapabilities,
@@ -680,6 +689,8 @@ function AgentToolsTab({
   saving,
 }: {
   definition: AgentDefinition
+  serverUrl: string
+  selectedAccountId: string | null | undefined
   identities: SigningIdentity[]
   identitiesLoading: boolean
   webCapabilities: AgentServerWebCapabilities | undefined
@@ -692,30 +703,40 @@ function AgentToolsTab({
   const defaultTools = AGENT_READ_TOOL_GROUP
   const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
+  const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers || [])
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
   const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
 
   useEffect(() => {
     setEnabledTools(definition.tools || defaultTools)
     setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
+    setMcpServers(definition.mcpServers || [])
   }, [definition])
 
-  async function saveTools(nextTools: string[], nextSigningKeys: string[]) {
+  async function saveTools(nextTools: string[], nextSigningKeys: string[], nextMcpServers: string[] = mcpServers) {
     setEnabledTools(nextTools)
     setSigningKeys(nextSigningKeys)
+    setMcpServers(nextMcpServers)
     try {
       const nextDefinition: AgentDefinition = {
         ...definition,
         tools: nextTools,
         signingKeys: nextSigningKeys,
         signingKey: nextSigningKeys[0],
+        mcpServers: nextMcpServers,
       }
       await onSave(nextDefinition)
     } catch (error) {
       setEnabledTools(definition.tools || defaultTools)
       setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
+      setMcpServers(definition.mcpServers || [])
       toast.error(error instanceof Error ? error.message : 'Could not update agent tools')
     }
+  }
+
+  function toggleMcpServer(name: string, enabled: boolean) {
+    const next = enabled ? Array.from(new Set([...mcpServers, name])) : mcpServers.filter((server) => server !== name)
+    void saveTools(enabledTools, signingKeys, next)
   }
 
   async function handleCreateIdentity() {
@@ -831,6 +852,14 @@ function AgentToolsTab({
       </div>
       {toolInfoDialog.content}
 
+      <AgentMcpServersSection
+        serverUrl={serverUrl}
+        selectedAccountId={selectedAccountId}
+        enabledServers={mcpServers}
+        onToggleServer={toggleMcpServer}
+        saving={saving}
+      />
+
       {writeEnabled ? (
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
           <div className="flex items-start gap-3">
@@ -943,6 +972,294 @@ function NewAgentAccountPanel({
         ) : null}
         <Button onClick={onCreate} disabled={disabled || !name.trim()}>
           Create account
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Lists account MCP servers, lets the agent enable each, and manages add/remove of servers. */
+function AgentMcpServersSection({
+  serverUrl,
+  selectedAccountId,
+  enabledServers,
+  onToggleServer,
+  saving,
+}: {
+  serverUrl: string
+  selectedAccountId: string | null | undefined
+  enabledServers: string[]
+  onToggleServer: (name: string, enabled: boolean) => void
+  saving: boolean
+}) {
+  const servers = useMcpServers(serverUrl, selectedAccountId)
+  const deleteMcpServer = useDeleteMcpServer(serverUrl, selectedAccountId)
+  const addDialog = useAppDialog(AddMcpServerDialog)
+  const toolsDialog = useAppDialog(McpServerToolsDialog)
+
+  async function handleDelete(name: string) {
+    try {
+      const result = await deleteMcpServer.mutateAsync(name)
+      if (result._ !== 'DeleteMcpServerResponse') throw new Error('Unexpected delete response')
+      toast.success('MCP server removed')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not remove MCP server')
+    }
+  }
+
+  return (
+    <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
+            <Server className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <SizableText size="sm" weight="bold">
+              MCP servers
+            </SizableText>
+            <SizableText size="sm" color="muted" className="block">
+              Connect remote Model Context Protocol servers to give this agent extra tools. Enabled servers' tools are
+              loaded when the agent runs.
+            </SizableText>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => addDialog.open({serverUrl, selectedAccountId})}
+          disabled={!selectedAccountId}
+        >
+          <Plus className="size-4" />
+          Add server
+        </Button>
+      </div>
+
+      {servers.isLoading ? (
+        <SizableText size="sm" color="muted">
+          Loading MCP servers…
+        </SizableText>
+      ) : null}
+      {!servers.isLoading && (servers.data?.length ?? 0) === 0 ? (
+        <SizableText size="sm" color="muted">
+          No MCP servers configured yet. Add one to expose its tools to your agents.
+        </SizableText>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        {(servers.data || []).map((mcp) => {
+          const enabled = enabledServers.includes(mcp.name)
+          return (
+            <div
+              key={mcp.id}
+              className="border-border bg-background flex items-start gap-3 rounded-lg border px-3 py-2"
+            >
+              <input
+                type="checkbox"
+                className="mt-1 size-4"
+                checked={enabled}
+                disabled={saving}
+                onChange={(event) => onToggleServer(mcp.name, event.target.checked)}
+              />
+              <div className="min-w-0 flex-1">
+                <SizableText size="sm" weight="bold" className="block truncate">
+                  {mcp.name}
+                </SizableText>
+                <SizableText size="xs" color="muted" className="block truncate font-mono">
+                  {mcp.url}
+                </SizableText>
+                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                  <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    {mcp.transport}
+                  </span>
+                  {mcp.hasSecrets ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                      Auth header
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label={`Tools from ${mcp.name}`}
+                onClick={() => toolsDialog.open({serverUrl, selectedAccountId, name: mcp.name})}
+              >
+                <Info className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label={`Remove ${mcp.name}`}
+                onClick={() => void handleDelete(mcp.name)}
+                disabled={deleteMcpServer.isLoading}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+      {addDialog.content}
+      {toolsDialog.content}
+    </div>
+  )
+}
+
+/** Dialog to add or update a remote MCP server. */
+function AddMcpServerDialog({
+  input,
+  onClose,
+}: {
+  input: {serverUrl: string; selectedAccountId: string | null | undefined}
+  onClose: () => void
+}) {
+  const saveMcpServer = useSaveMcpServer(input.serverUrl, input.selectedAccountId)
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [transport, setTransport] = useState<McpServerTransport | 'auto'>('auto')
+  const [authHeaderName, setAuthHeaderName] = useState('Authorization')
+  const [authHeaderValue, setAuthHeaderValue] = useState('')
+
+  async function handleSave() {
+    try {
+      const result = await saveMcpServer.mutateAsync({
+        name,
+        url,
+        transport: transport === 'auto' ? undefined : transport,
+        authHeaderName: authHeaderValue.trim() ? authHeaderName : undefined,
+        authHeaderValue: authHeaderValue.trim() ? authHeaderValue : undefined,
+      })
+      if (result._ !== 'SetMcpServerResponse') throw new Error('Unexpected save response')
+      toast.success('MCP server saved')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save MCP server')
+    }
+  }
+
+  return (
+    <div className="flex min-w-[480px] flex-col gap-4">
+      <div>
+        <DialogTitle>Add MCP server</DialogTitle>
+        <DialogDescription>
+          Connect a remote Model Context Protocol server over HTTP. Its tools become available to agents that enable it.
+        </DialogDescription>
+      </div>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Name
+        </SizableText>
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. github" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Server URL
+        </SizableText>
+        <Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Transport
+        </SizableText>
+        <select
+          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          value={transport}
+          onChange={(event) => setTransport(event.target.value as McpServerTransport | 'auto')}
+        >
+          <option value="auto">Auto (HTTP, fall back to SSE)</option>
+          <option value="http">Streamable HTTP</option>
+          <option value="sse">SSE</option>
+        </select>
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Auth header (optional)
+          </SizableText>
+          <Input
+            value={authHeaderName}
+            onChange={(event) => setAuthHeaderName(event.target.value)}
+            placeholder="Authorization"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Header value
+          </SizableText>
+          <Input
+            type="password"
+            value={authHeaderValue}
+            onChange={(event) => setAuthHeaderValue(event.target.value)}
+            placeholder="Bearer …"
+          />
+        </label>
+      </div>
+      <SizableText size="xs" color="muted">
+        The header value is stored encrypted on the agent server and never returned to the desktop.
+      </SizableText>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={() => void handleSave()} disabled={saveMcpServer.isLoading || !name.trim() || !url.trim()}>
+          Save server
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Dialog that connects to one MCP server and lists its advertised tools. */
+function McpServerToolsDialog({
+  input,
+  onClose,
+}: {
+  input: {serverUrl: string; selectedAccountId: string | null | undefined; name: string}
+  onClose: () => void
+}) {
+  const tools = useMcpServerTools(input.serverUrl, input.selectedAccountId, input.name)
+  return (
+    <div className="flex max-h-[70vh] min-w-[480px] flex-col gap-4 overflow-y-auto">
+      <div>
+        <DialogTitle>{input.name}</DialogTitle>
+        <DialogDescription>Tools advertised by this MCP server.</DialogDescription>
+      </div>
+      {tools.isLoading ? (
+        <SizableText size="sm" color="muted">
+          Connecting…
+        </SizableText>
+      ) : null}
+      {tools.isError ? (
+        <SizableText size="sm" className="text-destructive">
+          {tools.error instanceof Error ? tools.error.message : 'Could not list tools'}
+        </SizableText>
+      ) : null}
+      {!tools.isLoading && !tools.isError && (tools.data?.length ?? 0) === 0 ? (
+        <SizableText size="sm" color="muted">
+          This server did not advertise any tools.
+        </SizableText>
+      ) : null}
+      <div className="flex flex-col gap-3">
+        {(tools.data || []).map((tool) => (
+          <div key={tool.qualifiedName} className="border-border flex flex-col gap-1 rounded-lg border p-3">
+            <SizableText size="sm" weight="bold" className="font-mono">
+              {tool.name}
+            </SizableText>
+            <SizableText size="xs" color="muted" className="font-mono">
+              {tool.qualifiedName}
+            </SizableText>
+            {tool.description ? (
+              <SizableText size="sm" color="muted">
+                {tool.description}
+              </SizableText>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end">
+        <Button variant="ghost" onClick={onClose}>
+          Close
         </Button>
       </div>
     </div>

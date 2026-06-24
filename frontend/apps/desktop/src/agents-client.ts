@@ -42,6 +42,14 @@ export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
 export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
+/** Redacted MCP server metadata returned by the agents service. */
+export type McpServerInfo = AgentsProtocol.RedactedMcpServer
+/** Configuration for a remote MCP server. */
+export type McpServerConfig = AgentsProtocol.McpServerConfig
+/** Transport used to reach a remote MCP server. */
+export type McpServerTransport = AgentsProtocol.McpServerTransport
+/** One tool advertised by an MCP server. */
+export type McpToolInfo = AgentsProtocol.McpToolInfo
 /** Provider types exposed in the desktop provider-management UI. */
 export type ModelProviderType = 'openai' | 'anthropic' | 'google'
 

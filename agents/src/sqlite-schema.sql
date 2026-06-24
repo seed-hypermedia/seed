@@ -36,6 +36,18 @@ CREATE TABLE secrets (
     UNIQUE (account_id, name)
 ) WITHOUT ROWID;
 
+CREATE TABLE mcp_servers (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    name TEXT NOT NULL,
+    config_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (account_id, name)
+) WITHOUT ROWID;
+
+CREATE INDEX mcp_servers_by_account ON mcp_servers (account_id, updated_at DESC);
+
 CREATE TABLE agents (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
