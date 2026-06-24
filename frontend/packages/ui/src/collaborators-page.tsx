@@ -575,6 +575,16 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
   const defaultComboboxId = useId()
   const comboboxId = comboboxProps.id || defaultComboboxId
 
+  // When this combobox is rendered inside a modal dialog (e.g. Radix Dialog), the dialog disables
+  // pointer events outside its content and dismisses itself on an outside pointerdown. Because the
+  // popover is portalled to the body it counts as "outside", so mouse clicks on options are swallowed
+  // (keyboard selection still works). Re-enable pointer events on the popover and stop its pointerdown
+  // from bubbling to the dialog's document-level dismiss listener. A native listener is used so it runs
+  // regardless of React's synthetic event root.
+  const popoverRef = useCallback((node: HTMLElement | null) => {
+    node?.addEventListener('pointerdown', (event) => event.stopPropagation())
+  }, [])
+
   const combobox = Ariakit.useComboboxStore({
     value,
     defaultValue,
@@ -682,10 +692,12 @@ const TagInput = forwardRef<HTMLInputElement, TagInputProps>(function TagInput(p
           />
         </div>
         <Ariakit.ComboboxPopover
+          ref={popoverRef}
           store={combobox}
           portal
           sameWidth
           gutter={8}
+          className="pointer-events-auto"
           render={
             <Ariakit.SelectList
               // @ts-expect-error
