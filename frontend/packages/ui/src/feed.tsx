@@ -929,7 +929,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
 }
 
-function getEventRoute(event: LoadedEvent): NavRoute | null {
+export function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
     // Navigate to the full comments page with the comment focused in the main panel
     if (!event.target?.id || !event.comment) return null
