@@ -19,6 +19,8 @@ import {
   type SigningIdentity,
 } from '@/agents-client'
 import {client} from '@/trpc'
+import {grpcClient} from '@/grpc-client'
+import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
@@ -35,6 +37,78 @@ export function getDefaultAgentServerUrl() {
 /** The built-in default agent server URL for the current desktop runtime. */
 export const DEFAULT_AGENT_SERVER_URL = getDefaultAgentServerUrl()
 const AGENT_BACKGROUND_REFETCH_INTERVAL_MS = 5_000
+
+// ─── Agent-referenced content discovery ─────────────────────────────────────
+// When an agent session event arrives over the WebSocket it may reference hm:// content the local node
+// hasn't synced. We detect those references centrally at the ingestion point — reading tool-result URLs from
+// the tool registry's structured `references` metadata (getToolReferencedUrls), and assistant-message URLs
+// from the markdown prose — then ask the local daemon to discover/sync each, so the document is available by
+// the time the user clicks. The agent publishes to a different node (its HM server), so this only works once
+// the local node is peered with it (see useConnectLocalNodeToAgentHmServer).
+
+const HM_REF_REGEX = /hm:\/\/[^\s)"'`\]<>]+/g
+/** Canonical discovery URLs already requested this process, to avoid re-discovering the same resource. */
+const discoveredAgentRefs = new Set<string>()
+
+/** Normalize an hm:// URL to a bare resource URL (drop version/query, block ref, and any `:view` marker). */
+function canonicalAgentRef(raw: string): string | null {
+  if (!raw.startsWith('hm://')) return null
+  const withoutScheme = (raw.slice('hm://'.length).split('#')[0] ?? '').split('?')[0] ?? ''
+  const segments = withoutScheme.split('/').filter((segment) => segment.length > 0)
+  const uid = segments[0]
+  if (!uid) return null
+  const pathSegments: string[] = []
+  for (const segment of segments.slice(1)) {
+    if (segment.startsWith(':')) break
+    pathSegments.push(segment)
+  }
+  return `hm://${uid}${pathSegments.length ? `/${pathSegments.join('/')}` : ''}`
+}
+
+/** Pull hm:// references out of free-form text (assistant prose / markdown links). */
+function extractHmUrlsFromText(text: string): string[] {
+  return (text.match(HM_REF_REGEX) ?? []).map((match) => match.replace(/[.,;]+$/, ''))
+}
+
+/**
+ * Triggers local-daemon discovery for any referenced resource not already seen this process. Best-effort and
+ * fire-and-forget; logs under `[agents-discovery]` so the agent-content discovery path is visible without the
+ * noise of generic per-resource discovery.
+ *
+ * A comment URL (`hm://target/path/:comments/<author>/<tsid>`) canonicalizes to its target document, but a
+ * comment is only synced as part of that document's subtree — so comment references are discovered
+ * recursively (`/**`), the same way the document page subscribes (`recursive: true`). Plain document
+ * references stay non-recursive.
+ */
+function discoverReferences(urls: string[]): void {
+  // Group by canonical resource id, marking a target recursive if any reference to it is a comment.
+  const recursiveById = new Map<string, boolean>()
+  for (const rawUrl of urls) {
+    const id = canonicalAgentRef(rawUrl)
+    if (!id) continue
+    const recursive = rawUrl.includes('/:comments/') || (recursiveById.get(id) ?? false)
+    recursiveById.set(id, recursive)
+  }
+  for (const [id, recursive] of Array.from(recursiveById.entries())) {
+    const discoveryId = recursive ? `${id}/**` : id
+    if (discoveredAgentRefs.has(discoveryId)) continue
+    discoveredAgentRefs.add(discoveryId)
+    console.info('[agents-discovery] agent referenced content — discovering on local node', {id: discoveryId})
+    void grpcClient.entities.discoverEntity({id: discoveryId}).then(
+      (resp) =>
+        console.info('[agents-discovery] discovery scheduled', {
+          id: discoveryId,
+          state: resp.state,
+          version: resp.version || '(pending)',
+        }),
+      (error) =>
+        console.warn('[agents-discovery] discovery request failed', {
+          id: discoveryId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+    )
+  }
+}
 
 function tryNormalizeAgentServerUrl(input: string): string | null {
   try {
@@ -138,6 +212,42 @@ export function useAgentServerHealth(serverUrl: string | undefined) {
     refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
+  })
+}
+
+/**
+ * Ensures the desktop's local Seed node is peered with the agent server's HM node.
+ *
+ * Agents publish documents/comments to their configured `hmServerUrl` — a different node than the desktop's
+ * local embedded daemon. Discovery only queries the node's current set of connected peers, so unless the
+ * local node is peered with the HM node that actually holds the content, discovery has nowhere to fetch it
+ * from and clicked links stay stuck on a loading spinner. Connecting the local node to the HM server adds it
+ * to that peer set so discovery can sync agent-created content directly from it. Best-effort and periodic;
+ * failures are non-fatal.
+ */
+export function useConnectLocalNodeToAgentHmServer(serverUrl: string | undefined) {
+  const health = useAgentServerHealth(serverUrl)
+  const hmServerUrl = health.data?.hmServerUrl
+  return useQuery({
+    queryKey: ['agents', 'hm-server-connect', hmServerUrl],
+    enabled: !!hmServerUrl,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+    queryFn: async () => {
+      if (!hmServerUrl) return null
+      const config = await client.web.configOfHost.query({host: hmServerUrl})
+      if (config.addrs?.length) {
+        await grpcClient.networking.connect({addrs: config.addrs})
+        console.info('[agents] connected local node to agent HM server', {
+          hmServerUrl,
+          peerId: config.peerId,
+          addrs: config.addrs.length,
+        })
+      }
+      return {peerId: config.peerId, addrs: config.addrs}
+    },
   })
 }
 
@@ -676,6 +786,9 @@ export function useAgentWebSocketSubscription(
 ): AgentSessionLiveState {
   const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
 
+  // Keep the local node peered with this server's HM node so agent-created content can be discovered locally.
+  useConnectLocalNodeToAgentHmServer(serverUrl)
+
   useEffect(() => {
     if (!serverUrl || !accountUid || !key) return
     let cancelled = false
@@ -725,7 +838,21 @@ export function useAgentWebSocketSubscription(
               log('subscribed event', {subscribedKey: event.key, accountId: event.accountId})
             } else if (event._ === 'append') {
               log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
-              const eventPayload = event.event.event as {type?: string; role?: string; content?: string}
+              const eventPayload = event.event.event as {
+                type?: string
+                role?: string
+                content?: string
+                name?: string
+                output?: unknown
+              }
+              // Central detection point: sync any hm:// content this agent event references onto the local
+              // node — tool-result URLs come from the registry's structured reference metadata, message URLs
+              // from the markdown prose.
+              if (eventPayload.type === 'tool_result' && typeof eventPayload.name === 'string') {
+                discoverReferences(getToolReferencedUrls(eventPayload.name, {output: eventPayload.output}))
+              } else if (eventPayload.type === 'message' && typeof eventPayload.content === 'string') {
+                discoverReferences(extractHmUrlsFromText(eventPayload.content))
+              }
               if (eventPayload.type === 'message' && eventPayload.role === 'assistant') {
                 // The streamed text is now a durable message, but the run may continue
                 // (more turns after tool calls), so keep usage/activity until idle.

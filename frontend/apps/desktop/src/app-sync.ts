@@ -67,6 +67,25 @@ async function timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Discovery diagnostics. Always logs key transitions/errors with a `[discovery]` prefix so an operator can
+ * trace why a clicked hm:// resource does or doesn't resolve. These run in the desktop MAIN process, so the
+ * output appears in the terminal running the app (e.g. `./dev run-desktop`), not the renderer DevTools console.
+ * Set SEED_DEBUG_DISCOVERY=1 to also log every per-poll discoverEntity response (verbose).
+ */
+const DISCOVERY_VERBOSE = process.env.SEED_DEBUG_DISCOVERY === '1' || process.env.SEED_DEBUG_DISCOVERY === 'true'
+// Generic per-resource discovery logging is OFF unless SEED_DEBUG_DISCOVERY is set — it fires for every
+// subscribed resource on every poll and is far too noisy for normal use. Agent-referenced discovery has its
+// own always-on `[agents-discovery]` log (see models/agents.ts).
+function discoveryLog(message: string, fields?: Record<string, unknown>): void {
+  if (!DISCOVERY_VERBOSE) return
+  console.info(`[discovery] ${message}`, fields ?? {})
+}
+function discoveryWarn(message: string, fields?: Record<string, unknown>): void {
+  if (!DISCOVERY_VERBOSE) return
+  console.warn(`[discovery] ${message}`, fields ?? {})
+}
+
 // Polling intervals (base values, multiplied by getPollingMultiplier())
 const DISCOVERY_POLL_INTERVAL_MS = 14_000
 const ACTIVITY_POLL_INTERVAL_MS = 1_000
@@ -719,9 +738,28 @@ export async function discoverDocument(
     return false
   }
 
+  if (DISCOVERY_VERBOSE) {
+    discoveryLog('discoverDocument start', {id: discoverRequest.id, version: version || undefined, recursive, scope})
+  }
+
   return await tryUntilSuccess(
     async () => {
       const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+      const progress = discoverResp.progress
+      if (DISCOVERY_VERBOSE || discoverResp.lastError) {
+        discoveryLog('discoverEntity response', {
+          id: discoverRequest.id,
+          state: discoverResp.state,
+          version: discoverResp.version || '(empty)',
+          lastError: discoverResp.lastError || undefined,
+          peersFound: progress?.peersFound,
+          peersSyncedOk: progress?.peersSyncedOk,
+          peersFailed: progress?.peersFailed,
+          blobsDiscovered: progress?.blobsDiscovered,
+          blobsDownloaded: progress?.blobsDownloaded,
+          blobsFailed: progress?.blobsFailed,
+        })
+      }
       if (discoverResp.progress && onProgress) {
         onProgress({
           blobsDiscovered: discoverResp.progress.blobsDiscovered,
@@ -784,14 +822,23 @@ async function runDiscovery(sub: ResourceSubscription): Promise<DiscoveryResult 
     )
   } catch (e) {
     // Discovery failed (timeout, network error, etc.)
-    // Check resource status anyway - data may have been synced
-    // console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
+    // Check resource status anyway - data may have been synced.
+    discoveryWarn('discoverDocument failed (will still check resource status)', {
+      id: id.id,
+      recursive: getEffectiveRecursive(),
+      error: getErrorMessage(e),
+    })
   }
 
   updateAggregatedDiscoveryState()
 
   // After discovery, check resource status via GetResource
   const status = await checkResourceStatus(id)
+  discoveryLog('resource status after discovery', {
+    id: id.id,
+    status,
+    discoveredVersion: discoveryResult?.version || undefined,
+  })
   // if (!PROFILE_ENABLED) {
   //   console.log(`[Discovery] ${id.id}: status=${status}`)
   // }
@@ -866,6 +913,7 @@ function isEntityCoveredByRecursive(id: UnpackedHypermediaId): boolean {
 function createSubscription(sub: ResourceSubscription): SubscriptionState {
   const {id, recursive} = sub
   const key = getSubscriptionKey(sub)
+  discoveryLog('subscribe', {id: id.id, recursive: !!recursive, scope: sub.scope ?? 'all'})
 
   // Track recursive subscriptions
   if (recursive) {
@@ -926,9 +974,14 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
         updateAggregatedDiscoveryState()
         discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return
-        // Keep discovering state and retry on errors
+        // Keep discovering state and retry on errors — this is the path that keeps a resource stuck on a
+        // loading spinner indefinitely, so surface it loudly.
+        discoveryWarn('runDiscovery threw — keeping discovering state and retrying', {
+          id: id.id,
+          error: getErrorMessage(error),
+        })
         discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
       })
   }

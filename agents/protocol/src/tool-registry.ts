@@ -25,6 +25,9 @@ export type ToolRenderLink = {
   labelPath?: string
 }
 
+/** Input and output of a single tool call, passed to a tool's reference extractor. */
+export type ToolCallIO = {input?: unknown; output?: unknown}
+
 export type ToolRenderDetail = {
   label: string
   source: ToolRenderValueSource
@@ -58,6 +61,8 @@ export type SeedToolMetadata = {
   inputSchema: JsonSchema
   outputSchema?: JsonSchema
   render: ToolRenderMetadata
+  /** Returns the hm:// resource URLs this tool call references, so referenced content can be synced. */
+  getReferencedUrls?: (io: ToolCallIO) => string[]
   runtimes: ToolRuntime[]
   hidden?: boolean
   userConfigurable?: boolean
@@ -215,6 +220,10 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Output', source: 'output'},
       ],
     },
+    getReferencedUrls: ({output}) => {
+      const results = record(output).results
+      return Array.isArray(results) ? urlList(...results.map((result) => record(result).url)) : []
+    },
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
@@ -334,6 +343,7 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Output', source: 'output'},
       ],
     },
+    getReferencedUrls: ({input, output}) => urlList(record(output).id, record(output).resourceUrl, record(input).id),
     runtimes: ['assistant', 'agent-service'],
     userConfigurable: true,
   },
@@ -386,6 +396,14 @@ export const seedToolRegistry: SeedToolRegistry = {
         {command: 'profile.alias', kind: 'write-command'},
       ],
     },
+    getReferencedUrls: ({output}) =>
+      urlList(
+        record(output).id,
+        record(output).commentUrl,
+        record(output).target,
+        record(output).targetUrl,
+        record(output).authorUrl,
+      ),
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
@@ -423,4 +441,19 @@ export function getSeedToolMetadata(name: string): SeedToolMetadata | undefined 
 
 export function getSeedToolInputSchema(name: SeedToolName): JsonSchema {
   return seedToolRegistry[name].inputSchema
+}
+
+/** Coerces an unknown to a record so a tool extractor can read fields off it without casts. */
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
+/** Keeps only the non-empty strings from a list of candidate URL values. */
+function urlList(...values: unknown[]): string[] {
+  return values.filter((value): value is string => typeof value === 'string' && value.length > 0)
+}
+
+/** Returns the resource URLs a tool call references, via the tool's own `getReferencedUrls` extractor. */
+export function getToolReferencedUrls(toolName: string, io: ToolCallIO): string[] {
+  return getSeedToolMetadata(toolName)?.getReferencedUrls?.(io) ?? []
 }

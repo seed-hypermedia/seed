@@ -125,6 +125,12 @@ export class Service {
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
   }
 
+  /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
+   * connect their local node to it for discovery. */
+  get hmServerUrl(): string {
+    return this.#hmServerUrl
+  }
+
   /** Verifies and dispatches a signed action envelope. */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
     let verified: auth.VerifiedEnvelope

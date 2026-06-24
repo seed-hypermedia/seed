@@ -142,10 +142,12 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
     '/api/health': {
-      GET: () => Response.json({status: 'ok', uptime: process.uptime()}, {headers: corsHeaders()}),
+      GET: () =>
+        Response.json({status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl}, {headers: corsHeaders()}),
     },
     '/agents/api/health': {
-      GET: () => Response.json({status: 'ok', uptime: process.uptime()}, {headers: corsHeaders()}),
+      GET: () =>
+        Response.json({status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl}, {headers: corsHeaders()}),
     },
   }
 }

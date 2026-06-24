@@ -52,6 +52,8 @@ type AgentsResponse = AgentsProtocol.AgentResponse
 export type AgentServerHealth = {
   status: string
   uptime: number
+  /** The Seed HM server the agent publishes to; desktop connects its local node to this for discovery. */
+  hmServerUrl?: string
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */
