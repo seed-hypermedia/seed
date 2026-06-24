@@ -385,18 +385,16 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		MReconcileServerPhaseSeconds.WithLabelValues("load_store").Observe(time.Since(loadStart).Seconds())
 	}()
 
-	// Serve from the maintained index only when explicitly enabled and no
-	// reindex is in flight (the derived tables may be torn down mid-reindex).
-	// Any error in the index path falls back to the authoritative legacy
-	// rebuild, so a problem in the maintained index can never break sync.
-	if rbsrServeFromIndex {
-		if st := s.index.ReindexInfo().State; st != blob.ReindexStatePending && st != blob.ReindexStateInProgress {
-			store, err := s.loadStoreFromIndex(ctx, dkeys, authorizedSpaces, protocolVersionFromContext(ctx))
-			if err == nil {
-				return store, nil
-			}
-			s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
+	// Serve from the maintained index, unless a reindex is in flight (the derived
+	// tables may be torn down mid-reindex). Any error in the index path falls back
+	// to the authoritative legacy rebuild, so a problem in the maintained index
+	// can never break sync.
+	if st := s.index.ReindexInfo().State; st != blob.ReindexStatePending && st != blob.ReindexStateInProgress {
+		store, err := s.loadStoreFromIndex(ctx, dkeys, authorizedSpaces, protocolVersionFromContext(ctx))
+		if err == nil {
+			return store, nil
 		}
+		s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
 	}
 
 	return s.loadStoreLegacy(ctx, dkeys, authorizedSpaces)
