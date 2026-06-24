@@ -11,7 +11,8 @@ export const tablePasteCleanupPlugin = new Plugin({
       if (!sliceContainsTableCell(slice.content)) return slice
       const hardBreakType = schema.nodes['hardBreak']
       const newContent = cleanFragment(slice.content, paragraphType, hardBreakType)
-      return new Slice(newContent, slice.openStart, slice.openEnd)
+      const newSlice = new Slice(newContent, slice.openStart, slice.openEnd)
+      return newSlice
     },
   },
 })
@@ -54,8 +55,7 @@ function flattenCell(cellNode: PMNode, paragraphType: NodeType, hardBreakType: N
   return cellNode.type.create(cellNode.attrs, Fragment.from([paragraph]))
 }
 
-// Pull inline content out of any descendants of the cell node. Returns one
-// inline run per logical block.
+// Pull inline content out of any descendants of the cell node.
 function extractInlineRuns(node: PMNode): PMNode[][] {
   const runs: PMNode[][] = []
   node.content.forEach((child) => {

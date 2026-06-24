@@ -871,3 +871,43 @@ NESTED BLOCKS
 :global(.dark) .blockContent[data-content-type='table'] th:global(.selectedCell) {
   background-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
+
+/* Table row and column hover strips */
+:global(.hm-table-row-strip),
+:global(.hm-table-col-strip) {
+  position: absolute;
+  background-color: var(--muted-foreground);
+  opacity: 0.4;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.1s ease;
+  z-index: 2;
+}
+
+:global(.hm-table-row-strip:hover),
+:global(.hm-table-col-strip:hover) {
+  opacity: 0.7;
+}
+
+:global(.hm-table-row-strip) {
+  width: 3px;
+}
+
+:global(.hm-table-col-strip) {
+  height: 3px;
+}
+
+:global(.dark) :global(.hm-table-row-strip),
+:global(.dark) :global(.hm-table-col-strip) {
+  opacity: 0.5;
+}
+
+:global(.dark) :global(.hm-table-row-strip:hover),
+:global(.dark) :global(.hm-table-col-strip:hover) {
+  opacity: 0.8;
+}
+
+/* Anchor div for the table row and column action menus */
+:global(.hm-table-menu-anchor) {
+  pointer-events: none;
+}
