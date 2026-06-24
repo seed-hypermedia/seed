@@ -1289,13 +1289,6 @@ function TriggerSourceFields({
             accounts={mentionedAccountsOf(source)}
             onChange={(accounts) => onChange({...source, mentionedAccounts: accounts})}
           />
-          <AccountAutocompleteField
-            label="Resource/site prefix"
-            value={source.resourcePrefix || ''}
-            onChange={(value) => onChange({...source, resourcePrefix: value || undefined})}
-            placeholder="Search site/account or enter hm:// prefix"
-            valueFormat="hm-url"
-          />
         </div>
       ) : null}
       {source.type === 'site-update' ? (
