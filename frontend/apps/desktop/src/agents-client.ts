@@ -42,6 +42,8 @@ export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
 export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
+/** Avatar image payload for updating an agent account profile. */
+export type SigningIdentityIcon = AgentsProtocol.SigningIdentityIcon
 /** Provider types exposed in the desktop provider-management UI. */
 export type ModelProviderType = 'openai' | 'anthropic' | 'google'
 

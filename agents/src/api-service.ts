@@ -165,7 +165,12 @@ export class Service {
       case 'CreateSigningIdentity':
         return this.#createSigningIdentity(verified.accountId, envelope.action.label, envelope.action.clientRequestId)
       case 'UpdateSigningIdentity':
-        return this.#updateSigningIdentity(verified.accountId, envelope.action.name, envelope.action.label)
+        return this.#updateSigningIdentity(
+          verified.accountId,
+          envelope.action.name,
+          envelope.action.label,
+          envelope.action.icon,
+        )
       case 'DeleteSigningIdentity':
         return this.#deleteSigningIdentity(verified.accountId, envelope.action.name)
       case 'SetModelProvider':
@@ -376,7 +381,7 @@ export class Service {
         {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
         [string]
       >(
-        `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY updated_at DESC`,
+        `SELECT id, name, metadata_cbor, created_at, updated_at FROM secrets WHERE account_id = ? ORDER BY created_at DESC`,
       )
       .all(accountId)
 
@@ -392,6 +397,7 @@ export class Service {
             name: row.name,
             ...(typeof metadata.accountId === 'string' ? {accountId: metadata.accountId} : {}),
             ...(typeof metadata.label === 'string' ? {label: metadata.label} : {}),
+            ...(typeof metadata.icon === 'string' ? {icon: metadata.icon} : {}),
             ...(typeof metadata.serverUrl === 'string' ? {serverUrl: metadata.serverUrl} : {}),
             ...(typeof metadata.dev === 'boolean' ? {dev: metadata.dev} : {}),
             createdAt: row.created_at,
@@ -456,6 +462,7 @@ export class Service {
     accountId: string,
     rawName: string,
     rawLabel: string,
+    icon?: api.SigningIdentityIcon,
   ): Promise<api.UpdateSigningIdentityResponse> {
     const name = normalizeBoundedString(rawName, 'Signing key', MAX_NAME_BYTES)
     const label = normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
@@ -471,12 +478,27 @@ export class Service {
     const seed = await decryptSecret(this.#db, row.ciphertext)
     const keyPair = blobs.nobleKeyPairFromSeed(seed)
     const accountIdFromKey = blobs.principalToString(keyPair.principal)
+    // Upload a new avatar to our HM node when provided, otherwise keep the icon already on the profile.
+    let iconUrl = typeof metadata.icon === 'string' ? metadata.icon : undefined
+    if (icon) {
+      try {
+        iconUrl = await uploadIconToHmNode(this.#hmServerUrl, icon)
+      } catch (error) {
+        throw new APIError(502, `Failed to upload agent account icon to ${this.#hmServerUrl}: ${errorMessage(error)}`)
+      }
+    }
     try {
-      await publishSigningIdentityProfile(this.#hmServerUrl, keyPair, label)
+      await publishSigningIdentityProfile(this.#hmServerUrl, keyPair, label, iconUrl)
     } catch (error) {
       throw new APIError(502, `Failed to publish agent account profile to ${this.#hmServerUrl}: ${errorMessage(error)}`)
     }
-    const nextMetadata = {...metadata, accountId: accountIdFromKey, label, serverUrl: this.#hmServerUrl}
+    const nextMetadata = {
+      ...metadata,
+      accountId: accountIdFromKey,
+      label,
+      serverUrl: this.#hmServerUrl,
+      ...(iconUrl ? {icon: iconUrl} : {}),
+    }
     const now = Date.now()
     this.#db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
       cbor.encode(nextMetadata),
@@ -491,6 +513,7 @@ export class Service {
         name,
         accountId: accountIdFromKey,
         label,
+        ...(iconUrl ? {icon: iconUrl} : {}),
         serverUrl: this.#hmServerUrl,
         createdAt: row.created_at,
         updatedAt: now,
@@ -2062,9 +2085,30 @@ async function publishSigningIdentityProfile(
   hmServerUrl: string,
   keyPair: blobs.NobleKeyPair,
   name: string,
+  avatar?: string,
 ): Promise<void> {
-  const profile = await blobs.createProfile(keyPair, {name}, Date.now())
+  const profile = await blobs.createProfile(keyPair, {name, avatar}, Date.now())
   await createSeedClient(hmServerUrl).publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
+}
+
+/**
+ * Uploads raw avatar bytes to the HM node's public IPFS file-upload endpoint and
+ * returns the resulting `ipfs://<cid>` URI for use as a profile avatar.
+ */
+async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
+  const formData = new FormData()
+  const blob = new Blob([icon.data], icon.mimeType ? {type: icon.mimeType} : undefined)
+  formData.append('file', blob, icon.fileName || 'icon')
+  const response = await fetch(`${hmServerUrl.replace(/\/$/, '')}/ipfs/file-upload`, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!response.ok) {
+    throw new Error(`Upload failed with status ${response.status}`)
+  }
+  const cid = (await response.text()).trim()
+  if (!cid) throw new Error('Upload returned an empty CID')
+  return `ipfs://${cid}`
 }
 
 async function publishSigningIdentityProfileAndHome(

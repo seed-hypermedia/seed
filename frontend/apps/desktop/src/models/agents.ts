@@ -17,12 +17,14 @@ import {
   type ModelProviderInfo,
   type ModelProviderType,
   type SigningIdentity,
+  type SigningIdentityIcon,
 } from '@/agents-client'
 import {client} from '@/trpc'
 import {grpcClient} from '@/grpc-client'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
 
@@ -421,15 +423,22 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
   })
 }
 
-/** Renames a server-side HM account key and republishes its profile. */
+/** Renames a server-side HM account key and republishes its profile, optionally setting a new avatar. */
 export function useUpdateSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({name, label}: {name: string; label: string}) => {
+    mutationFn: async ({name, label, icon}: {name: string; label: string; icon?: SigningIdentityIcon}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
-      return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateSigningIdentity', name, label}})
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateSigningIdentity', name, label, icon}})
     },
-    onSuccess() {
+    onSuccess(result) {
       invalidateQueries(['agents'])
+      // The profile (name/avatar) was republished to the agent server's HM node. Re-sync it onto the local
+      // node and refresh the account metadata so the new icon/name shows in the UI without a manual reload.
+      if (result._ === 'UpdateSigningIdentityResponse' && result.identity.accountId) {
+        const updatedAccountId = result.identity.accountId
+        void syncAgentAccountToLocalNode(serverUrl, updatedAccountId)
+        invalidateQueries([queryKeys.ACCOUNT, updatedAccountId])
+      }
     },
   })
 }

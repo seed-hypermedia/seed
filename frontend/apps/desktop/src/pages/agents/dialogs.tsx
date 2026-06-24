@@ -1,6 +1,7 @@
 import {type AgentDefinition, type ModelProviderType, type SigningIdentity} from '@/agents-client'
 import {
   DEFAULT_AGENT_SERVER_URL,
+  prefetchAgentDetail,
   useCreateAgent,
   useCreateSigningIdentity,
   useDeleteModelProvider,
@@ -10,7 +11,6 @@ import {
   useSaveModelProvider,
   useSigningIdentities,
   useUpdateSigningIdentity,
-  prefetchAgentDetail,
 } from '@/models/agents'
 import {useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -18,20 +18,26 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
-import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
+import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ExternalLink, Plus, Trash2} from 'lucide-react'
+import {Camera, ExternalLink, Plus, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
-import {pickDefaultProviderModel} from './model-utils'
 import {ModelSelect} from './model-select'
+import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
 
@@ -223,11 +229,9 @@ export function ManageAgentAccountsDialog({
   onClose: () => void
 }) {
   const identities = useSigningIdentities(input.serverUrl, input.selectedAccountId)
-  const createIdentity = useCreateSigningIdentity(input.serverUrl, input.selectedAccountId)
   const updateIdentity = useUpdateSigningIdentity(input.serverUrl, input.selectedAccountId)
-  const deleteIdentity = useDeleteSigningIdentity(input.serverUrl, input.selectedAccountId)
-  const [newName, setNewName] = useState('Agent publisher')
-  const [showNewAccountForm, setShowNewAccountForm] = useState(false)
+  const newAccountDialog = useAppDialog(NewAgentAccountDialog)
+  const deleteAccountDialog = useAppDialog(DeleteAgentAccountDialog, {isAlert: true})
   const [names, setNames] = useState<Record<string, string>>({})
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
 
@@ -237,20 +241,6 @@ export function ManageAgentAccountsDialog({
       next[identity.name] = identity.label || identity.accountId || identity.name
     setNames(next)
   }, [identities.data])
-
-  async function handleCreateAccount() {
-    try {
-      const label = newName.trim()
-      if (!label) throw new Error('Account name is required')
-      const result = await createIdentity.mutateAsync(label)
-      if (result._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected create response')
-      setNewName('Agent publisher')
-      setShowNewAccountForm(false)
-      toast.success('Agent account created')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create agent account')
-    }
-  }
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
@@ -282,23 +272,38 @@ export function ManageAgentAccountsDialog({
     return () => timers.forEach((timer) => clearTimeout(timer))
   }, [identities.data, names, updateIdentity])
 
-  async function handleDeleteAccount(name: string) {
+  async function handleIconSelect(identity: SigningIdentity, file: File) {
+    const label = names[identity.name]?.trim() || identity.label || identity.accountId || identity.name
+    setSaveStates((current) => ({...current, [identity.name]: 'saving'}))
     try {
-      const result = await deleteIdentity.mutateAsync(name)
-      if (result._ !== 'DeleteSigningIdentityResponse') throw new Error('Unexpected delete response')
-      toast.success('Agent account deleted')
+      const data = new Uint8Array(await file.arrayBuffer())
+      const result = await updateIdentity.mutateAsync({
+        name: identity.name,
+        label,
+        icon: {data, mimeType: file.type || undefined, fileName: file.name},
+      })
+      if (result._ !== 'UpdateSigningIdentityResponse') throw new Error('Unexpected update response')
+      setSaveStates((current) => ({...current, [identity.name]: 'saved'}))
+      setTimeout(() => {
+        setSaveStates((current) =>
+          current[identity.name] === 'saved' ? {...current, [identity.name]: 'idle'} : current,
+        )
+      }, 1800)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not delete agent account')
+      setSaveStates((current) => ({...current, [identity.name]: 'error'}))
+      toast.error(error instanceof Error ? error.message : 'Could not update agent account icon')
     }
   }
 
   return (
-    <div className="flex min-w-[560px] flex-col gap-5">
+    <div className="flex w-full min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3">
-        <DialogTitle>Manage agent accounts</DialogTitle>
+        <DialogTitle>Agent Server Accounts</DialogTitle>
         <DialogDescription>
-          Create server-side HM account keys, publish profile names, and initialize home documents for agents on this
-          server.
+          Hypermedia accounts that can be used by your agents on this server to write content.
+        </DialogDescription>
+        <DialogDescription>
+          To give an agent access to write content, invite these accounts as collaborators on your sites or documents.
         </DialogDescription>
       </div>
       <div className="grid gap-3">
@@ -308,30 +313,132 @@ export function ManageAgentAccountsDialog({
             identity={identity}
             name={names[identity.name] || ''}
             saveState={saveStates[identity.name] || 'idle'}
-            deleting={deleteIdentity.isLoading}
             onNameChange={(value) => setNames((current) => ({...current, [identity.name]: value}))}
-            onDelete={() => void handleDeleteAccount(identity.name)}
+            onIconSelect={(file) => void handleIconSelect(identity, file)}
+            onDelete={() =>
+              deleteAccountDialog.open({
+                serverUrl: input.serverUrl,
+                selectedAccountId: input.selectedAccountId,
+                name: identity.name,
+                label: names[identity.name]?.trim() || identity.label || identity.accountId || identity.name,
+              })
+            }
           />
         ))}
         {!identities.isLoading && !identities.data?.length ? (
           <SizableText color="muted">No agent accounts exist on this server yet.</SizableText>
         ) : null}
       </div>
-      {showNewAccountForm ? (
-        <div className="border-border grid gap-3 rounded-lg border p-3">
-          <SizableText weight="bold">New account</SizableText>
-          <Input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Account name" />
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => void handleCreateAccount()} disabled={createIdentity.isLoading || !newName.trim()}>
-              Create account
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex justify-end">
-          <Button onClick={() => setShowNewAccountForm(true)}>New account</Button>
-        </div>
-      )}
+      <div className="flex justify-end">
+        <Button
+          onClick={() =>
+            newAccountDialog.open({serverUrl: input.serverUrl, selectedAccountId: input.selectedAccountId})
+          }
+        >
+          <Plus className="size-4" />
+          New account
+        </Button>
+      </div>
+      {newAccountDialog.content}
+      {deleteAccountDialog.content}
+    </div>
+  )
+}
+
+function NewAgentAccountDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {serverUrl: string; selectedAccountId: string | null | undefined}
+}) {
+  const createIdentity = useCreateSigningIdentity(input.serverUrl, input.selectedAccountId)
+  const [name, setName] = useState('Agent publisher')
+
+  async function handleCreate() {
+    const label = name.trim()
+    if (!label) {
+      toast.error('Account name is required')
+      return
+    }
+    try {
+      const result = await createIdentity.mutateAsync(label)
+      if (result._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected create response')
+      toast.success('Agent account created')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create agent account')
+    }
+  }
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      <DialogTitle>New agent account</DialogTitle>
+      <DialogDescription>
+        Create a new server-side HM account key. You can rename it and set up its profile afterward.
+      </DialogDescription>
+      <Input
+        autoFocus
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        placeholder="Account name"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void handleCreate()
+        }}
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={() => void handleCreate()} disabled={createIdentity.isLoading || !name.trim()}>
+          Create account
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function DeleteAgentAccountDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {serverUrl: string; selectedAccountId: string | null | undefined; name: string; label: string}
+}) {
+  const deleteIdentity = useDeleteSigningIdentity(input.serverUrl, input.selectedAccountId)
+
+  async function handleConfirm() {
+    try {
+      const result = await deleteIdentity.mutateAsync(input.name)
+      if (result._ !== 'DeleteSigningIdentityResponse') throw new Error('Unexpected delete response')
+      toast.success('Agent account deleted')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete agent account')
+    }
+  }
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      <AlertDialogTitle>Delete “{input.label}”?</AlertDialogTitle>
+      <AlertDialogDescription>
+        This agent account will be permanently deleted from this server. This action cannot be undone, and may prevent
+        any agent that signs with this account from writing.
+      </AlertDialogDescription>
+      <div className="flex justify-end gap-2">
+        <AlertDialogCancel asChild>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+        </AlertDialogCancel>
+        <AlertDialogAction
+          variant="destructive"
+          disabled={deleteIdentity.isLoading}
+          onClick={() => void handleConfirm()}
+        >
+          Delete account
+        </AlertDialogAction>
+      </div>
     </div>
   )
 }
@@ -340,15 +447,15 @@ function AgentAccountRow({
   identity,
   name,
   saveState,
-  deleting,
   onNameChange,
+  onIconSelect,
   onDelete,
 }: {
   identity: SigningIdentity
   name: string
   saveState: 'idle' | 'saving' | 'saved' | 'error'
-  deleting: boolean
   onNameChange: (value: string) => void
+  onIconSelect: (file: File) => void
   onDelete: () => void
 }) {
   const spawn = useNavigate('spawn')
@@ -356,10 +463,61 @@ function AgentAccountRow({
   const account = useAccount(accountId, {subscribe: true, enabled: !!accountId})
   const profileId = accountId ? hmId(accountId) : undefined
   const metadata = account.data
+  // Optimistic local preview of a just-picked image so the new icon shows instantly while the
+  // server uploads, publishes, and the account metadata round-trips back.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const uploading = saveState === 'saving'
+
+  // Drop the optimistic preview if the upload failed, reverting to the published icon.
+  useEffect(() => {
+    if (saveState === 'error') setPreviewUrl(null)
+  }, [saveState])
+
+  // Release the object URL when this row unmounts or the preview is replaced.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  function handleFile(file: File) {
+    setPreviewUrl(URL.createObjectURL(file))
+    onIconSelect(file)
+  }
 
   return (
     <div className="border-border flex min-w-0 items-center gap-3 rounded-lg border p-3">
-      <HMIcon id={profileId} name={metadata?.metadata?.name || name} icon={metadata?.metadata?.icon} size={36} />
+      <label
+        className="group/icon relative shrink-0 cursor-pointer overflow-hidden rounded-full"
+        style={{width: 36, height: 36}}
+        aria-label="Upload account icon"
+      >
+        <input
+          type="file"
+          accept="image/*"
+          disabled={uploading}
+          className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) handleFile(file)
+          }}
+        />
+        {uploading ? (
+          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/40">
+            <Spinner className="text-white" />
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/40 opacity-0 group-hover/icon:opacity-100">
+            <Camera className="size-4 text-white" />
+          </div>
+        )}
+        {previewUrl ? (
+          <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <HMIcon id={profileId} name={metadata?.metadata?.name || name} icon={metadata?.metadata?.icon} size={36} />
+        )}
+      </label>
       <div className="min-w-0 flex-1">
         <Input value={name} onChange={(event) => onNameChange(event.target.value)} />
       </div>
@@ -384,7 +542,7 @@ function AgentAccountRow({
         >
           <ExternalLink className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Delete account" onClick={onDelete} disabled={deleting}>
+        <Button variant="ghost" size="icon" aria-label="Delete account" onClick={onDelete}>
           <Trash2 className="size-4" />
         </Button>
       </div>

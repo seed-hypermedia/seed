@@ -140,11 +140,26 @@ export type CreateSigningIdentity = {
   clientRequestId?: string
 }
 
-/** Updates a server-side Seed account key profile name. */
+/** Avatar image payload for an agent account profile. */
+export type SigningIdentityIcon = {
+  /** Raw image bytes to upload to the server's HM node. */
+  data: Uint8Array
+  /** MIME type of the image (e.g. `image/png`); used for the upload. */
+  mimeType?: string
+  /** Original file name, preserved for the upload form. */
+  fileName?: string
+}
+
+/** Updates a server-side Seed account key profile name and optional avatar. */
 export type UpdateSigningIdentity = {
   _: 'UpdateSigningIdentity'
   name: string
   label: string
+  /**
+   * Optional avatar image to upload to the server's HM node and set on the
+   * profile. Omit to leave the existing icon unchanged.
+   */
+  icon?: SigningIdentityIcon
 }
 
 /** Deletes a server-side Seed account key. */
@@ -474,6 +489,8 @@ export type SigningIdentity = {
   name: string
   accountId?: string
   label?: string
+  /** Avatar URI (`ipfs://<cid>`) currently published on the profile. */
+  icon?: string
   serverUrl?: string
   dev?: boolean
   createdAt: number
