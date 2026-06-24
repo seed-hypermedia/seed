@@ -1253,7 +1253,7 @@ function TriggerSourceFields({
           Trigger Session on:
         </SizableText>
         <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          className="border-border bg-input rounded-md border px-3 py-2 text-sm"
           value={source.type}
           onChange={(event) => onChange(defaultSourceForType(event.target.value as AgentTriggerSource['type']))}
         >
@@ -1350,7 +1350,7 @@ function ScheduleTriggerFields({
           Schedule mode
         </SizableText>
         <select
-          className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+          className="border-border bg-input rounded-md border px-3 py-2 text-sm"
           value={schedule.kind}
           onChange={(event) => {
             const kind = event.target.value
@@ -1382,7 +1382,7 @@ function ScheduleTriggerFields({
               Unit
             </SizableText>
             <select
-              className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+              className="border-border bg-input rounded-md border px-3 py-2 text-sm"
               value={schedule.unit}
               onChange={(event) => setSchedule({...schedule, unit: event.target.value as 'minutes' | 'hours'})}
             >
