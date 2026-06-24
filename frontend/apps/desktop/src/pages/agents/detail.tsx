@@ -1205,7 +1205,7 @@ function CreateAgentTriggerDialog({
   }
 
   return (
-    <div className="flex min-w-[560px] flex-col gap-5">
+    <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
       <div>
         <DialogTitle>New trigger</DialogTitle>
         <DialogDescription>Start a new agent session when matching Seed activity appears.</DialogDescription>
