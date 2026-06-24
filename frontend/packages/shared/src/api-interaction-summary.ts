@@ -15,8 +15,8 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
 
     try {
       const [mentions, latestDoc, children] = await Promise.all([
-        grpcClient.entities.listEntityMentions({
-          id: id.id,
+        grpcClient.resources.listCitations({
+          iri: id.id,
           pageSize: BIG_INT,
         }),
         grpcClient.documents.getDocument({
@@ -42,7 +42,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         return true
       }).length
 
-      return calculateInteractionSummary(mentions.mentions, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(mentions.citations, changes.changes, id, childrenCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be

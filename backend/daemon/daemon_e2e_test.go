@@ -5357,32 +5357,32 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		require.Contains(t, search.Entities[0].Content, "helloPearMovedUnique")
 	})
 
-	t.Run("ListEntityMentions", func(t *testing.T) {
+	t.Run("ListCitations", func(t *testing.T) {
 		ctx, app, account, comment := setup(t, "alice")
 
-		srcMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
-			Id:       "hm://" + account + "/comments-move-src",
+		srcCitations, err := app.RPC.DocumentsV3.ListCitations(ctx, &documents.ListCitationsRequest{
+			Iri:      "hm://" + account + "/comments-move-src",
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, srcMentions.Mentions, "comment mentions must not remain on the original moved path")
+		require.Empty(t, srcCitations.Citations, "comment citations must not remain on the original moved path")
 
-		midMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
-			Id:       "hm://" + account + "/comments-move-mid",
+		midCitations, err := app.RPC.DocumentsV3.ListCitations(ctx, &documents.ListCitationsRequest{
+			Iri:      "hm://" + account + "/comments-move-mid",
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Empty(t, midMentions.Mentions, "comment mentions must not remain on an intermediate moved path")
+		require.Empty(t, midCitations.Citations, "comment citations must not remain on an intermediate moved path")
 
-		dstMentions, err := app.RPC.Entities.ListEntityMentions(ctx, &entities.ListEntityMentionsRequest{
-			Id:       "hm://" + account + "/comments-move-dst",
+		dstCitations, err := app.RPC.DocumentsV3.ListCitations(ctx, &documents.ListCitationsRequest{
+			Iri:      "hm://" + account + "/comments-move-dst",
 			PageSize: 10,
 		})
 		require.NoError(t, err)
-		require.Len(t, dstMentions.Mentions, 1, "interaction summary must count comments after document moves")
-		require.Equal(t, "Comment", dstMentions.Mentions[0].SourceType)
-		require.Equal(t, "hm://"+comment.Id, dstMentions.Mentions[0].Source)
-		require.Equal(t, "hm://"+account+"/comments-move-dst", dstMentions.Mentions[0].SourceDocument)
+		require.Len(t, dstCitations.Citations, 1, "interaction summary must count comments after document moves")
+		require.Equal(t, "Comment", dstCitations.Citations[0].SourceType)
+		require.Equal(t, "hm://"+comment.Id, dstCitations.Citations[0].Source)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", dstCitations.Citations[0].SourceDocument)
 	})
 }
 

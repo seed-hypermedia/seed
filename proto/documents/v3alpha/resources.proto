@@ -4,6 +4,7 @@ package com.seed.documents.v3alpha;
 
 import "documents/v3alpha/documents.proto";
 import "documents/v3alpha/comments.proto";
+import "google/protobuf/timestamp.proto";
 import "p2p/v1alpha/syncing.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
@@ -14,6 +15,9 @@ option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 service Resources {
   // Gets a single resource with a URL (technically IRI).
   rpc GetResource(GetResourceRequest) returns (Resource);
+
+  // Lists citations of a given resource across the locally-available content.
+  rpc ListCitations(ListCitationsRequest) returns (ListCitationsResponse);
 
   // Makes sure a resource (and their related blobs) are pushed to a given peer.
   rpc PushResourcesToPeer(PushResourcesToPeerRequest) returns (stream com.seed.p2p.v1alpha.AnnounceBlobsProgress);
@@ -53,4 +57,89 @@ message PushResourcesToPeerRequest {
 
   // Optional. Whether to push children documents recursively as well.
   bool recursive = 3;
+}
+
+// Request to list citations of a resource.
+message ListCitationsRequest {
+  // Required. IRI of the cited resource.
+  string iri = 1;
+
+  // Optional. The size of the page to return by the server.
+  // The server may ignore this, and return a bigger response.
+  int32 page_size = 2;
+
+  // Optional. The page token to continue the pagination.
+  string page_token = 3;
+
+  // Optional. Whether to return the results in descending order (newest-first).
+  // By default citations are listed in the chronological order,
+  // according to the *locally perceived* order of the blobs that contain the citations.
+  //
+  // I.e. we sort the links according to the time we receive the blobs, not according to the time blobs claim to have been created.
+  // This is to prevent losing new citations in case of receiving out-of-date blobs.
+  //
+  // This flag must remain the same when paginating through the results.
+  bool reverse_order = 4;
+}
+
+// Response to list citations of a resource.
+message ListCitationsResponse {
+  // Required. The list of citations for the resource.
+  repeated Citation citations = 1;
+
+  // Optional. Token for the next page if there's any.
+  string next_page_token = 2;
+}
+
+// Citation of a resource.
+// Source means the place where the citation was found.
+// Target means the resource being cited.
+message Citation {
+  // Information about a structural blob that contains the citation.
+  message BlobInfo {
+    // The CID-formatted hash of the blob.
+    string cid = 1;
+
+    // The Account ID of the author of the blob.
+    string author = 2;
+
+    // The timestamp of the blob.
+    google.protobuf.Timestamp create_time = 3;
+  }
+
+  // Required. The source blob where the citation was found.
+  string source = 1;
+
+  // Required. The type of the source where the citation was found.
+  string source_type = 2;
+
+  // Required. Context can mean different things depending on the type of the source:
+  // it can be the block ID when source type is a Document or Comment.
+  string source_context = 3;
+
+  // Required. Information about the blob where the citation was found.
+  BlobInfo source_blob = 4;
+
+  // Required. Specifies whether the link points to the exact/pinned version of the target document,
+  // or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
+  bool is_exact_version = 5;
+
+  // Optional. Specifies the document where the citation was found. Relevant for comments.
+  string source_document = 6;
+
+  // Optional. The target resource the link points to.
+  string target = 10;
+
+  // Optional. The version of the target resource the link points to.
+  string target_version = 7;
+
+  // Optional. The fragment portion of the link.
+  string target_fragment = 8;
+
+  // Optional. The revision of the target block at target_version, when target_fragment
+  // points to a block or text range.
+  string target_block_revision = 11;
+
+  // Optional. The type of citation. Could be embed, link, ...
+  string citation_type = 9;
 }

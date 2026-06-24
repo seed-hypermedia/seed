@@ -138,7 +138,7 @@ describe('QueryBlock.getData', () => {
     expect(perfSummary.visibleContributorCount).toBe(1)
     expect(perfSummary.grpcRequests.byMethod['documents.getDocumentInfo'].count).toBe(1)
     expect(perfSummary.grpcRequests.byMethod['documents.batchGetAccounts'].count).toBe(1)
-    expect(perfSummary.grpcRequests.byMethod['entities.listEntityMentions']).toBeUndefined()
+    expect(perfSummary.grpcRequests.byMethod['resources.listCitations']).toBeUndefined()
 
     consoleInfoSpy.mockRestore()
   })

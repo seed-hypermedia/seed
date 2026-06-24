@@ -35,7 +35,11 @@ service Entities {
   rpc UndeleteEntity(UndeleteEntityRequest) returns (google.protobuf.Empty);
 
   // List mentions of a given Entity across the locally-available content.
-  rpc ListEntityMentions(ListEntityMentionsRequest) returns (ListEntityMentionsResponse);
+  //
+  // Deprecated: Use documents.v3alpha.Resources.ListCitations.
+  rpc ListEntityMentions(ListEntityMentionsRequest) returns (ListEntityMentionsResponse) {
+    option deprecated = true;
+  }
 }
 
 // Request to get a change by ID.

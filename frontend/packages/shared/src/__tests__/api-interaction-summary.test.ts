@@ -9,11 +9,11 @@ function makeGrpcClient({
   getDocument = vi.fn().mockResolvedValue({version: 'v1'}),
   listDirectory = vi.fn().mockResolvedValue({documents: []}),
   listDocumentChanges = vi.fn().mockResolvedValue({changes: []}),
-  listEntityMentions = vi.fn().mockResolvedValue({mentions: []}),
+  listCitations = vi.fn().mockResolvedValue({citations: []}),
 } = {}) {
   return {
     documents: {getDocument, listDirectory, listDocumentChanges},
-    entities: {listEntityMentions},
+    resources: {listCitations},
   } as any
 }
 
@@ -62,9 +62,9 @@ describe('InteractionSummary.getData', () => {
     await expect(InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)).rejects.toThrow()
   })
 
-  it('returns empty summary when listEntityMentions fails with deleted doc', async () => {
+  it('returns empty summary when listCitations fails with deleted doc', async () => {
     const grpcClient = makeGrpcClient({
-      listEntityMentions: vi
+      listCitations: vi
         .fn()
         .mockRejectedValue(
           new ConnectError("document 'hm://z6Mk.../test-doc' is marked as deleted", Code.FailedPrecondition),

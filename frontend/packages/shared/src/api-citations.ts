@@ -6,12 +6,12 @@ import {packHmId, unpackHmId} from './utils'
 
 export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {
   async getData(grpcClient: GRPCClient, input): Promise<HMListCitationsRequest['output']> {
-    const result = await grpcClient.entities.listEntityMentions({
-      id: packHmId({...input.targetId, version: null, latest: null}),
+    const result = await grpcClient.resources.listCitations({
+      iri: packHmId({...input.targetId, version: null, latest: null}),
       pageSize: BIG_INT,
     })
     return {
-      citations: result.mentions.map((m) => m.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
+      citations: result.citations.map((c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
     }
   },
 }

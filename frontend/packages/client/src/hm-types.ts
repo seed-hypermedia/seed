@@ -1463,18 +1463,19 @@ export const HMListCommentsByAuthorRequestSchema = z.object({
 })
 export type HMListCommentsByAuthorRequest = z.infer<typeof HMListCommentsByAuthorRequestSchema>
 
-// ListCitations - lists mentions/citations of an entity (raw API response)
-export const HMRawMentionSchema = z.object({
+// ListCitations - lists raw citations of a resource.
+export const HMRawCitationSchema = z.object({
   source: z.string(),
   sourceType: z.string().optional(),
   sourceDocument: z.string().optional(),
   targetFragment: z.string().optional(),
-  isExact: z.boolean().optional(),
+  isExactVersion: z.boolean().optional(),
+  targetBlockRevision: z.string().optional(),
 })
-export type HMRawMention = z.infer<typeof HMRawMentionSchema>
+export type HMRawCitation = z.infer<typeof HMRawCitationSchema>
 
 export const HMListCitationsOutputSchema = z.object({
-  citations: z.array(HMRawMentionSchema),
+  citations: z.array(HMRawCitationSchema),
 })
 export type HMListCitationsOutput = z.infer<typeof HMListCitationsOutputSchema>
 

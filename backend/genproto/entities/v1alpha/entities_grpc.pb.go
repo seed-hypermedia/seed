@@ -53,7 +53,10 @@ type EntitiesClient interface {
 	// Undo the entity delition by removing the entity from the deleted list. That entity, if available
 	// will be synced back in the next syncing round (or manually discovered).
 	UndeleteEntity(ctx context.Context, in *UndeleteEntityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// List mentions of a given Entity across the locally-available content.
+	//
+	// Deprecated: Use documents.v3alpha.Resources.ListCitations.
 	ListEntityMentions(ctx context.Context, in *ListEntityMentionsRequest, opts ...grpc.CallOption) (*ListEntityMentionsResponse, error)
 }
 
@@ -135,6 +138,7 @@ func (c *entitiesClient) UndeleteEntity(ctx context.Context, in *UndeleteEntityR
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *entitiesClient) ListEntityMentions(ctx context.Context, in *ListEntityMentionsRequest, opts ...grpc.CallOption) (*ListEntityMentionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListEntityMentionsResponse)
@@ -168,7 +172,10 @@ type EntitiesServer interface {
 	// Undo the entity delition by removing the entity from the deleted list. That entity, if available
 	// will be synced back in the next syncing round (or manually discovered).
 	UndeleteEntity(context.Context, *UndeleteEntityRequest) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// List mentions of a given Entity across the locally-available content.
+	//
+	// Deprecated: Use documents.v3alpha.Resources.ListCitations.
 	ListEntityMentions(context.Context, *ListEntityMentionsRequest) (*ListEntityMentionsResponse, error)
 }
 

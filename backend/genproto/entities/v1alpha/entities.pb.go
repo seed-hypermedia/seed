@@ -1969,7 +1969,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x12CONTENT_TYPE_TITLE\x10\x00\x12\x19\n" +
 	"\x15CONTENT_TYPE_DOCUMENT\x10\x01\x12\x18\n" +
 	"\x14CONTENT_TYPE_COMMENT\x10\x02\x12\x18\n" +
-	"\x14CONTENT_TYPE_CONTACT\x10\x032\x89\a\n" +
+	"\x14CONTENT_TYPE_CONTACT\x10\x032\x8e\a\n" +
 	"\bEntities\x12[\n" +
 	"\tGetChange\x12+.com.seed.entities.v1alpha.GetChangeRequest\x1a!.com.seed.entities.v1alpha.Change\x12s\n" +
 	"\x11GetEntityTimeline\x123.com.seed.entities.v1alpha.GetEntityTimelineRequest\x1a).com.seed.entities.v1alpha.EntityTimeline\x12u\n" +
@@ -1977,8 +1977,8 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x0eSearchEntities\x120.com.seed.entities.v1alpha.SearchEntitiesRequest\x1a1.com.seed.entities.v1alpha.SearchEntitiesResponse\x12V\n" +
 	"\fDeleteEntity\x12..com.seed.entities.v1alpha.DeleteEntityRequest\x1a\x16.google.protobuf.Empty\x12\x84\x01\n" +
 	"\x13ListDeletedEntities\x125.com.seed.entities.v1alpha.ListDeletedEntitiesRequest\x1a6.com.seed.entities.v1alpha.ListDeletedEntitiesResponse\x12Z\n" +
-	"\x0eUndeleteEntity\x120.com.seed.entities.v1alpha.UndeleteEntityRequest\x1a\x16.google.protobuf.Empty\x12\x81\x01\n" +
-	"\x12ListEntityMentions\x124.com.seed.entities.v1alpha.ListEntityMentionsRequest\x1a5.com.seed.entities.v1alpha.ListEntityMentionsResponseB1Z/seed/backend/genproto/entities/v1alpha;entitiesb\x06proto3"
+	"\x0eUndeleteEntity\x120.com.seed.entities.v1alpha.UndeleteEntityRequest\x1a\x16.google.protobuf.Empty\x12\x86\x01\n" +
+	"\x12ListEntityMentions\x124.com.seed.entities.v1alpha.ListEntityMentionsRequest\x1a5.com.seed.entities.v1alpha.ListEntityMentionsResponse\"\x03\x88\x02\x01B1Z/seed/backend/genproto/entities/v1alpha;entitiesb\x06proto3"
 
 var (
 	file_entities_v1alpha_entities_proto_rawDescOnce sync.Once

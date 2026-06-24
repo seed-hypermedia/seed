@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, PushResourcesToPeerRequest, Resource } from "./resources_pb";
+import { GetResourceRequest, ListCitationsRequest, ListCitationsResponse, PushResourcesToPeerRequest, Resource } from "./resources_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 import { AnnounceBlobsProgress } from "../../p2p/v1alpha/syncing_pb";
 
@@ -26,6 +26,17 @@ export const Resources = {
       name: "GetResource",
       I: GetResourceRequest,
       O: Resource,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists citations of a given resource across the locally-available content.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Resources.ListCitations
+     */
+    listCitations: {
+      name: "ListCitations",
+      I: ListCitationsRequest,
+      O: ListCitationsResponse,
       kind: MethodKind.Unary,
     },
     /**

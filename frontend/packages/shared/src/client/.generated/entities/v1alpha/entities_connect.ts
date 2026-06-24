@@ -97,7 +97,10 @@ export const Entities = {
     /**
      * List mentions of a given Entity across the locally-available content.
      *
+     * Deprecated: Use documents.v3alpha.Resources.ListCitations.
+     *
      * @generated from rpc com.seed.entities.v1alpha.Entities.ListEntityMentions
+     * @deprecated
      */
     listEntityMentions: {
       name: "ListEntityMentions",

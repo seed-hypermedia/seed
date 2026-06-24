@@ -4,12 +4,8 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/api/apitest"
-	entities "seed/backend/api/entities/v1alpha"
-	"seed/backend/config"
 	"seed/backend/core/coretest"
 	pb "seed/backend/genproto/documents/v3alpha"
-	entpb "seed/backend/genproto/entities/v1alpha"
-	"seed/backend/logging"
 	"seed/backend/testutil"
 	"slices"
 	"testing"
@@ -1057,13 +1053,11 @@ func TestCommentCitations(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entitySrv := entities.NewServer(config.Base{}, alice.db, nil, nil, logging.New("seed/entities/comments-test", "debug"))
-
-	mentions, err := entitySrv.ListEntityMentions(ctx, &entpb.ListEntityMentionsRequest{
-		Id: "hm://" + target.Id,
+	citations, err := alice.ListCitations(ctx, &pb.ListCitationsRequest{
+		Iri: "hm://" + target.Id,
 	})
 	require.NoError(t, err)
-	require.Empty(t, mentions.Mentions, "comment resources must exist even when they have no citations")
+	require.Empty(t, citations.Citations, "comment resources must exist even when they have no citations")
 
 	stableMention, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
 		SigningKeyName: "main",
@@ -1076,19 +1070,143 @@ func TestCommentCitations(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mentions, err = entitySrv.ListEntityMentions(ctx, &entpb.ListEntityMentionsRequest{
-		Id: "hm://" + target.Id,
+	citations, err = alice.ListCitations(ctx, &pb.ListCitationsRequest{
+		Iri: "hm://" + target.Id,
 	})
 	require.NoError(t, err)
-	require.Len(t, mentions.Mentions, 1)
+	require.Len(t, citations.Citations, 1)
 
-	sources := []string{mentions.Mentions[0].Source}
+	sources := []string{citations.Citations[0].Source}
 	require.ElementsMatch(t, []string{"hm://" + stableMention.Id}, sources)
 
-	for _, mention := range mentions.Mentions {
-		require.Equal(t, "Comment", mention.SourceType)
-		require.Equal(t, target.Version, mention.TargetVersion)
+	for _, citation := range citations.Citations {
+		require.Equal(t, "Comment", citation.SourceType)
+		require.Equal(t, target.Version, citation.TargetVersion)
 	}
+}
+
+func TestListCitations_TargetBlockRevisionAtMentionVersion(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	targetV1, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/target", "", "main").
+		MoveBlock("b1", "", "").
+		ReplaceBlock("b1", "paragraph", "Original target text").
+		Build())
+	require.NoError(t, err)
+	require.Len(t, targetV1.Content, 1)
+	targetV1BlockRevision := targetV1.Content[0].Block.Revision
+
+	targetV2, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/target", targetV1.Version, "main").
+		ReplaceBlock("b1", "paragraph", "Updated target text").
+		Build())
+	require.NoError(t, err)
+	require.Len(t, targetV2.Content, 1)
+	require.NotEqual(t, targetV1BlockRevision, targetV2.Content[0].Block.Revision)
+
+	targetIRI := "hm://" + account + "/target"
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_MoveBlock_{MoveBlock: &pb.DocumentChange_MoveBlock{BlockId: "range-link", Parent: "", LeftSibling: ""}}},
+			{Op: &pb.DocumentChange_ReplaceBlock{ReplaceBlock: &pb.Block{
+				Id:   "range-link",
+				Type: "paragraph",
+				Text: "Range citation",
+				Link: targetIRI + "?v=" + targetV1.Version + "&l#b1[0:8]",
+			}}},
+			{Op: &pb.DocumentChange_MoveBlock_{MoveBlock: &pb.DocumentChange_MoveBlock{BlockId: "block-link", Parent: "", LeftSibling: "range-link"}}},
+			{Op: &pb.DocumentChange_ReplaceBlock{ReplaceBlock: &pb.Block{
+				Id:   "block-link",
+				Type: "paragraph",
+				Text: "Block citation",
+				Link: targetIRI + "?v=" + targetV1.Version + "#b1+",
+			}}},
+		},
+	})
+	require.NoError(t, err)
+
+	citations, err := alice.ListCitations(ctx, &pb.ListCitationsRequest{Iri: targetIRI})
+	require.NoError(t, err)
+	require.Len(t, citations.Citations, 2)
+
+	got := map[string]*pb.Citation{}
+	for _, citation := range citations.Citations {
+		got[citation.TargetFragment] = citation
+	}
+
+	rangeCitation := got["b1[0:8]"]
+	require.NotNil(t, rangeCitation)
+	require.False(t, rangeCitation.IsExactVersion)
+	require.Equal(t, targetV1.Version, rangeCitation.TargetVersion)
+	require.Equal(t, targetV1BlockRevision, rangeCitation.TargetBlockRevision)
+
+	blockCitation := got["b1+"]
+	require.NotNil(t, blockCitation)
+	require.True(t, blockCitation.IsExactVersion)
+	require.Equal(t, targetV1.Version, blockCitation.TargetVersion)
+	require.Equal(t, targetV1BlockRevision, blockCitation.TargetBlockRevision)
+}
+
+func TestListCitations_PaginatesWithinSameBlob(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	account := alice.me.Account.PublicKey.String()
+
+	target, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/target", "", "main").
+		MoveBlock("b1", "", "").
+		ReplaceBlock("b1", "paragraph", "Target text").
+		Build())
+	require.NoError(t, err)
+
+	targetIRI := "hm://" + account + "/target"
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        account,
+		Path:           "/source",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_MoveBlock_{MoveBlock: &pb.DocumentChange_MoveBlock{BlockId: "first-link", Parent: "", LeftSibling: ""}}},
+			{Op: &pb.DocumentChange_ReplaceBlock{ReplaceBlock: &pb.Block{
+				Id:   "first-link",
+				Type: "paragraph",
+				Text: "First citation",
+				Link: targetIRI + "?v=" + target.Version + "#b1",
+			}}},
+			{Op: &pb.DocumentChange_MoveBlock_{MoveBlock: &pb.DocumentChange_MoveBlock{BlockId: "second-link", Parent: "", LeftSibling: "first-link"}}},
+			{Op: &pb.DocumentChange_ReplaceBlock{ReplaceBlock: &pb.Block{
+				Id:   "second-link",
+				Type: "paragraph",
+				Text: "Second citation",
+				Link: targetIRI + "?v=" + target.Version + "#b1+",
+			}}},
+		},
+	})
+	require.NoError(t, err)
+
+	page1, err := alice.ListCitations(ctx, &pb.ListCitationsRequest{Iri: targetIRI, PageSize: 1})
+	require.NoError(t, err)
+	require.Len(t, page1.Citations, 1)
+	require.NotEmpty(t, page1.NextPageToken)
+
+	page2, err := alice.ListCitations(ctx, &pb.ListCitationsRequest{
+		Iri:       targetIRI,
+		PageSize:  1,
+		PageToken: page1.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, page2.Citations, 1)
+	require.Empty(t, page2.NextPageToken)
+	require.NotEqual(t, page1.Citations[0].TargetFragment, page2.Citations[0].TargetFragment)
+
+	fragments := []string{page1.Citations[0].TargetFragment, page2.Citations[0].TargetFragment}
+	require.ElementsMatch(t, []string{"b1", "b1+"}, fragments)
 }
 
 // TestListComments_AfterDocumentMove is a regression test for a bug where ListComments

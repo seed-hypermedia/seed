@@ -154,7 +154,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
           pageSize: BIG_INT,
         })
         .catch(() => null),
-      client.entities.listEntityMentions({id: targetId.id, pageSize: BIG_INT}).catch(() => null),
+      client.resources.listCitations({iri: targetId.id, pageSize: BIG_INT}).catch(() => null),
     ])
 
     // Process direct comments
@@ -164,7 +164,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
 
     // Process citing discussions - group by doc to dedupe listComments calls
     const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
-    citationsResult?.mentions
+    citationsResult?.citations
       .filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
       .forEach((mention) => {
         const id = unpackHmId(mention.sourceDocument)
@@ -235,12 +235,12 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
     authors: Record<string, HMMetadataPayload>
   }> => {
     try {
-      const citations = await client.entities.listEntityMentions({
-        id: targetId.id,
+      const citations = await client.resources.listCitations({
+        iri: targetId.id,
         pageSize: BIG_INT,
       })
 
-      const commentCitations = citations.mentions.filter((m) => {
+      const commentCitations = citations.citations.filter((m) => {
         if (m.sourceType != 'Comment') return false
         const targetFragment = parseFragment(m.targetFragment)
         if (!targetFragment) return false

@@ -38,8 +38,8 @@ jobs:
           mkdir -p backend/llm/backends/llamacpp/models
           printf 'lint-stub\n' > backend/llm/backends/llamacpp/models/lint-stub.gguf
 
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9.2.1
         with:
-          version: latest
+          version: v2.12.2
           only-new-issues: true
           args: --timeout=5m

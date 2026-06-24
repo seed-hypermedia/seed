@@ -9,6 +9,7 @@ package documents
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	v1alpha "seed/backend/genproto/p2p/v1alpha"
 	sync "sync"
@@ -245,11 +246,352 @@ func (x *PushResourcesToPeerRequest) GetRecursive() bool {
 	return false
 }
 
+// Request to list citations of a resource.
+type ListCitationsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. IRI of the cited resource.
+	Iri string `protobuf:"bytes,1,opt,name=iri,proto3" json:"iri,omitempty"`
+	// Optional. The size of the page to return by the server.
+	// The server may ignore this, and return a bigger response.
+	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optional. The page token to continue the pagination.
+	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Optional. Whether to return the results in descending order (newest-first).
+	// By default citations are listed in the chronological order,
+	// according to the *locally perceived* order of the blobs that contain the citations.
+	//
+	// I.e. we sort the links according to the time we receive the blobs, not according to the time blobs claim to have been created.
+	// This is to prevent losing new citations in case of receiving out-of-date blobs.
+	//
+	// This flag must remain the same when paginating through the results.
+	ReverseOrder  bool `protobuf:"varint,4,opt,name=reverse_order,json=reverseOrder,proto3" json:"reverse_order,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCitationsRequest) Reset() {
+	*x = ListCitationsRequest{}
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCitationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCitationsRequest) ProtoMessage() {}
+
+func (x *ListCitationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCitationsRequest.ProtoReflect.Descriptor instead.
+func (*ListCitationsRequest) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListCitationsRequest) GetIri() string {
+	if x != nil {
+		return x.Iri
+	}
+	return ""
+}
+
+func (x *ListCitationsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListCitationsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListCitationsRequest) GetReverseOrder() bool {
+	if x != nil {
+		return x.ReverseOrder
+	}
+	return false
+}
+
+// Response to list citations of a resource.
+type ListCitationsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. The list of citations for the resource.
+	Citations []*Citation `protobuf:"bytes,1,rep,name=citations,proto3" json:"citations,omitempty"`
+	// Optional. Token for the next page if there's any.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCitationsResponse) Reset() {
+	*x = ListCitationsResponse{}
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCitationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCitationsResponse) ProtoMessage() {}
+
+func (x *ListCitationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCitationsResponse.ProtoReflect.Descriptor instead.
+func (*ListCitationsResponse) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListCitationsResponse) GetCitations() []*Citation {
+	if x != nil {
+		return x.Citations
+	}
+	return nil
+}
+
+func (x *ListCitationsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// Citation of a resource.
+// Source means the place where the citation was found.
+// Target means the resource being cited.
+type Citation struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. The source blob where the citation was found.
+	Source string `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	// Required. The type of the source where the citation was found.
+	SourceType string `protobuf:"bytes,2,opt,name=source_type,json=sourceType,proto3" json:"source_type,omitempty"`
+	// Required. Context can mean different things depending on the type of the source:
+	// it can be the block ID when source type is a Document or Comment.
+	SourceContext string `protobuf:"bytes,3,opt,name=source_context,json=sourceContext,proto3" json:"source_context,omitempty"`
+	// Required. Information about the blob where the citation was found.
+	SourceBlob *Citation_BlobInfo `protobuf:"bytes,4,opt,name=source_blob,json=sourceBlob,proto3" json:"source_blob,omitempty"`
+	// Required. Specifies whether the link points to the exact/pinned version of the target document,
+	// or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
+	IsExactVersion bool `protobuf:"varint,5,opt,name=is_exact_version,json=isExactVersion,proto3" json:"is_exact_version,omitempty"`
+	// Optional. Specifies the document where the citation was found. Relevant for comments.
+	SourceDocument string `protobuf:"bytes,6,opt,name=source_document,json=sourceDocument,proto3" json:"source_document,omitempty"`
+	// Optional. The target resource the link points to.
+	Target string `protobuf:"bytes,10,opt,name=target,proto3" json:"target,omitempty"`
+	// Optional. The version of the target resource the link points to.
+	TargetVersion string `protobuf:"bytes,7,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
+	// Optional. The fragment portion of the link.
+	TargetFragment string `protobuf:"bytes,8,opt,name=target_fragment,json=targetFragment,proto3" json:"target_fragment,omitempty"`
+	// Optional. The revision of the target block at target_version, when target_fragment
+	// points to a block or text range.
+	TargetBlockRevision string `protobuf:"bytes,11,opt,name=target_block_revision,json=targetBlockRevision,proto3" json:"target_block_revision,omitempty"`
+	// Optional. The type of citation. Could be embed, link, ...
+	CitationType  string `protobuf:"bytes,9,opt,name=citation_type,json=citationType,proto3" json:"citation_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Citation) Reset() {
+	*x = Citation{}
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Citation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Citation) ProtoMessage() {}
+
+func (x *Citation) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Citation.ProtoReflect.Descriptor instead.
+func (*Citation) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Citation) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *Citation) GetSourceType() string {
+	if x != nil {
+		return x.SourceType
+	}
+	return ""
+}
+
+func (x *Citation) GetSourceContext() string {
+	if x != nil {
+		return x.SourceContext
+	}
+	return ""
+}
+
+func (x *Citation) GetSourceBlob() *Citation_BlobInfo {
+	if x != nil {
+		return x.SourceBlob
+	}
+	return nil
+}
+
+func (x *Citation) GetIsExactVersion() bool {
+	if x != nil {
+		return x.IsExactVersion
+	}
+	return false
+}
+
+func (x *Citation) GetSourceDocument() string {
+	if x != nil {
+		return x.SourceDocument
+	}
+	return ""
+}
+
+func (x *Citation) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *Citation) GetTargetVersion() string {
+	if x != nil {
+		return x.TargetVersion
+	}
+	return ""
+}
+
+func (x *Citation) GetTargetFragment() string {
+	if x != nil {
+		return x.TargetFragment
+	}
+	return ""
+}
+
+func (x *Citation) GetTargetBlockRevision() string {
+	if x != nil {
+		return x.TargetBlockRevision
+	}
+	return ""
+}
+
+func (x *Citation) GetCitationType() string {
+	if x != nil {
+		return x.CitationType
+	}
+	return ""
+}
+
+// Information about a structural blob that contains the citation.
+type Citation_BlobInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The CID-formatted hash of the blob.
+	Cid string `protobuf:"bytes,1,opt,name=cid,proto3" json:"cid,omitempty"`
+	// The Account ID of the author of the blob.
+	Author string `protobuf:"bytes,2,opt,name=author,proto3" json:"author,omitempty"`
+	// The timestamp of the blob.
+	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Citation_BlobInfo) Reset() {
+	*x = Citation_BlobInfo{}
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Citation_BlobInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Citation_BlobInfo) ProtoMessage() {}
+
+func (x *Citation_BlobInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Citation_BlobInfo.ProtoReflect.Descriptor instead.
+func (*Citation_BlobInfo) Descriptor() ([]byte, []int) {
+	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *Citation_BlobInfo) GetCid() string {
+	if x != nil {
+		return x.Cid
+	}
+	return ""
+}
+
+func (x *Citation_BlobInfo) GetAuthor() string {
+	if x != nil {
+		return x.Author
+	}
+	return ""
+}
+
+func (x *Citation_BlobInfo) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreateTime
+	}
+	return nil
+}
+
 var File_documents_v3alpha_resources_proto protoreflect.FileDescriptor
 
 const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\n" +
-	"!documents/v3alpha/resources.proto\x12\x1acom.seed.documents.v3alpha\x1a!documents/v3alpha/documents.proto\x1a documents/v3alpha/comments.proto\x1a\x19p2p/v1alpha/syncing.proto\"&\n" +
+	"!documents/v3alpha/resources.proto\x12\x1acom.seed.documents.v3alpha\x1a!documents/v3alpha/documents.proto\x1a documents/v3alpha/comments.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x19p2p/v1alpha/syncing.proto\"&\n" +
 	"\x12GetResourceRequest\x12\x10\n" +
 	"\x03iri\x18\x01 \x01(\tR\x03iri\"\xf2\x01\n" +
 	"\bResource\x12B\n" +
@@ -261,9 +603,39 @@ const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\x1aPushResourcesToPeerRequest\x12\x14\n" +
 	"\x05addrs\x18\x01 \x03(\tR\x05addrs\x12\x1c\n" +
 	"\tresources\x18\x02 \x03(\tR\tresources\x12\x1c\n" +
-	"\trecursive\x18\x03 \x01(\bR\trecursive2\xee\x01\n" +
+	"\trecursive\x18\x03 \x01(\bR\trecursive\"\x89\x01\n" +
+	"\x14ListCitationsRequest\x12\x10\n" +
+	"\x03iri\x18\x01 \x01(\tR\x03iri\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\x12#\n" +
+	"\rreverse_order\x18\x04 \x01(\bR\freverseOrder\"\x83\x01\n" +
+	"\x15ListCitationsResponse\x12B\n" +
+	"\tcitations\x18\x01 \x03(\v2$.com.seed.documents.v3alpha.CitationR\tcitations\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xc1\x04\n" +
+	"\bCitation\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
+	"\vsource_type\x18\x02 \x01(\tR\n" +
+	"sourceType\x12%\n" +
+	"\x0esource_context\x18\x03 \x01(\tR\rsourceContext\x12N\n" +
+	"\vsource_blob\x18\x04 \x01(\v2-.com.seed.documents.v3alpha.Citation.BlobInfoR\n" +
+	"sourceBlob\x12(\n" +
+	"\x10is_exact_version\x18\x05 \x01(\bR\x0eisExactVersion\x12'\n" +
+	"\x0fsource_document\x18\x06 \x01(\tR\x0esourceDocument\x12\x16\n" +
+	"\x06target\x18\n" +
+	" \x01(\tR\x06target\x12%\n" +
+	"\x0etarget_version\x18\a \x01(\tR\rtargetVersion\x12'\n" +
+	"\x0ftarget_fragment\x18\b \x01(\tR\x0etargetFragment\x122\n" +
+	"\x15target_block_revision\x18\v \x01(\tR\x13targetBlockRevision\x12#\n" +
+	"\rcitation_type\x18\t \x01(\tR\fcitationType\x1aq\n" +
+	"\bBlobInfo\x12\x10\n" +
+	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x16\n" +
+	"\x06author\x18\x02 \x01(\tR\x06author\x12;\n" +
+	"\vcreate_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime2\xe4\x02\n" +
 	"\tResources\x12c\n" +
-	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.Resource\x12|\n" +
+	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.Resource\x12t\n" +
+	"\rListCitations\x120.com.seed.documents.v3alpha.ListCitationsRequest\x1a1.com.seed.documents.v3alpha.ListCitationsResponse\x12|\n" +
 	"\x13PushResourcesToPeer\x126.com.seed.documents.v3alpha.PushResourcesToPeerRequest\x1a+.com.seed.p2p.v1alpha.AnnounceBlobsProgress0\x01B3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
 
 var (
@@ -278,29 +650,39 @@ func file_documents_v3alpha_resources_proto_rawDescGZIP() []byte {
 	return file_documents_v3alpha_resources_proto_rawDescData
 }
 
-var file_documents_v3alpha_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_documents_v3alpha_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_documents_v3alpha_resources_proto_goTypes = []any{
 	(*GetResourceRequest)(nil),            // 0: com.seed.documents.v3alpha.GetResourceRequest
 	(*Resource)(nil),                      // 1: com.seed.documents.v3alpha.Resource
 	(*PushResourcesToPeerRequest)(nil),    // 2: com.seed.documents.v3alpha.PushResourcesToPeerRequest
-	(*Document)(nil),                      // 3: com.seed.documents.v3alpha.Document
-	(*Comment)(nil),                       // 4: com.seed.documents.v3alpha.Comment
-	(*Contact)(nil),                       // 5: com.seed.documents.v3alpha.Contact
-	(*v1alpha.AnnounceBlobsProgress)(nil), // 6: com.seed.p2p.v1alpha.AnnounceBlobsProgress
+	(*ListCitationsRequest)(nil),          // 3: com.seed.documents.v3alpha.ListCitationsRequest
+	(*ListCitationsResponse)(nil),         // 4: com.seed.documents.v3alpha.ListCitationsResponse
+	(*Citation)(nil),                      // 5: com.seed.documents.v3alpha.Citation
+	(*Citation_BlobInfo)(nil),             // 6: com.seed.documents.v3alpha.Citation.BlobInfo
+	(*Document)(nil),                      // 7: com.seed.documents.v3alpha.Document
+	(*Comment)(nil),                       // 8: com.seed.documents.v3alpha.Comment
+	(*Contact)(nil),                       // 9: com.seed.documents.v3alpha.Contact
+	(*timestamppb.Timestamp)(nil),         // 10: google.protobuf.Timestamp
+	(*v1alpha.AnnounceBlobsProgress)(nil), // 11: com.seed.p2p.v1alpha.AnnounceBlobsProgress
 }
 var file_documents_v3alpha_resources_proto_depIdxs = []int32{
-	3, // 0: com.seed.documents.v3alpha.Resource.document:type_name -> com.seed.documents.v3alpha.Document
-	4, // 1: com.seed.documents.v3alpha.Resource.comment:type_name -> com.seed.documents.v3alpha.Comment
-	5, // 2: com.seed.documents.v3alpha.Resource.contact:type_name -> com.seed.documents.v3alpha.Contact
-	0, // 3: com.seed.documents.v3alpha.Resources.GetResource:input_type -> com.seed.documents.v3alpha.GetResourceRequest
-	2, // 4: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:input_type -> com.seed.documents.v3alpha.PushResourcesToPeerRequest
-	1, // 5: com.seed.documents.v3alpha.Resources.GetResource:output_type -> com.seed.documents.v3alpha.Resource
-	6, // 6: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:output_type -> com.seed.p2p.v1alpha.AnnounceBlobsProgress
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	7,  // 0: com.seed.documents.v3alpha.Resource.document:type_name -> com.seed.documents.v3alpha.Document
+	8,  // 1: com.seed.documents.v3alpha.Resource.comment:type_name -> com.seed.documents.v3alpha.Comment
+	9,  // 2: com.seed.documents.v3alpha.Resource.contact:type_name -> com.seed.documents.v3alpha.Contact
+	5,  // 3: com.seed.documents.v3alpha.ListCitationsResponse.citations:type_name -> com.seed.documents.v3alpha.Citation
+	6,  // 4: com.seed.documents.v3alpha.Citation.source_blob:type_name -> com.seed.documents.v3alpha.Citation.BlobInfo
+	10, // 5: com.seed.documents.v3alpha.Citation.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
+	0,  // 6: com.seed.documents.v3alpha.Resources.GetResource:input_type -> com.seed.documents.v3alpha.GetResourceRequest
+	3,  // 7: com.seed.documents.v3alpha.Resources.ListCitations:input_type -> com.seed.documents.v3alpha.ListCitationsRequest
+	2,  // 8: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:input_type -> com.seed.documents.v3alpha.PushResourcesToPeerRequest
+	1,  // 9: com.seed.documents.v3alpha.Resources.GetResource:output_type -> com.seed.documents.v3alpha.Resource
+	4,  // 10: com.seed.documents.v3alpha.Resources.ListCitations:output_type -> com.seed.documents.v3alpha.ListCitationsResponse
+	11, // 11: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:output_type -> com.seed.p2p.v1alpha.AnnounceBlobsProgress
+	9,  // [9:12] is the sub-list for method output_type
+	6,  // [6:9] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_documents_v3alpha_resources_proto_init() }
@@ -321,7 +703,7 @@ func file_documents_v3alpha_resources_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_documents_v3alpha_resources_proto_rawDesc), len(file_documents_v3alpha_resources_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

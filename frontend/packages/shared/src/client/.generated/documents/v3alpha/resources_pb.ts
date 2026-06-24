@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3 } from "@bufbuild/protobuf";
+import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 import { Contact, Document } from "./documents_pb";
 import { Comment } from "./comments_pb";
 
@@ -174,6 +174,311 @@ export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerReque
 
   static equals(a: PushResourcesToPeerRequest | PlainMessage<PushResourcesToPeerRequest> | undefined, b: PushResourcesToPeerRequest | PlainMessage<PushResourcesToPeerRequest> | undefined): boolean {
     return proto3.util.equals(PushResourcesToPeerRequest, a, b);
+  }
+}
+
+/**
+ * Request to list citations of a resource.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCitationsRequest
+ */
+export class ListCitationsRequest extends Message<ListCitationsRequest> {
+  /**
+   * Required. IRI of the cited resource.
+   *
+   * @generated from field: string iri = 1;
+   */
+  iri = "";
+
+  /**
+   * Optional. The size of the page to return by the server.
+   * The server may ignore this, and return a bigger response.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. The page token to continue the pagination.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken = "";
+
+  /**
+   * Optional. Whether to return the results in descending order (newest-first).
+   * By default citations are listed in the chronological order,
+   * according to the *locally perceived* order of the blobs that contain the citations.
+   *
+   * I.e. we sort the links according to the time we receive the blobs, not according to the time blobs claim to have been created.
+   * This is to prevent losing new citations in case of receiving out-of-date blobs.
+   *
+   * This flag must remain the same when paginating through the results.
+   *
+   * @generated from field: bool reverse_order = 4;
+   */
+  reverseOrder = false;
+
+  constructor(data?: PartialMessage<ListCitationsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCitationsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "iri", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "reverse_order", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCitationsRequest {
+    return new ListCitationsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCitationsRequest {
+    return new ListCitationsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCitationsRequest {
+    return new ListCitationsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCitationsRequest | PlainMessage<ListCitationsRequest> | undefined, b: ListCitationsRequest | PlainMessage<ListCitationsRequest> | undefined): boolean {
+    return proto3.util.equals(ListCitationsRequest, a, b);
+  }
+}
+
+/**
+ * Response to list citations of a resource.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListCitationsResponse
+ */
+export class ListCitationsResponse extends Message<ListCitationsResponse> {
+  /**
+   * Required. The list of citations for the resource.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.Citation citations = 1;
+   */
+  citations: Citation[] = [];
+
+  /**
+   * Optional. Token for the next page if there's any.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListCitationsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListCitationsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "citations", kind: "message", T: Citation, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCitationsResponse {
+    return new ListCitationsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCitationsResponse {
+    return new ListCitationsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCitationsResponse {
+    return new ListCitationsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListCitationsResponse | PlainMessage<ListCitationsResponse> | undefined, b: ListCitationsResponse | PlainMessage<ListCitationsResponse> | undefined): boolean {
+    return proto3.util.equals(ListCitationsResponse, a, b);
+  }
+}
+
+/**
+ * Citation of a resource.
+ * Source means the place where the citation was found.
+ * Target means the resource being cited.
+ *
+ * @generated from message com.seed.documents.v3alpha.Citation
+ */
+export class Citation extends Message<Citation> {
+  /**
+   * Required. The source blob where the citation was found.
+   *
+   * @generated from field: string source = 1;
+   */
+  source = "";
+
+  /**
+   * Required. The type of the source where the citation was found.
+   *
+   * @generated from field: string source_type = 2;
+   */
+  sourceType = "";
+
+  /**
+   * Required. Context can mean different things depending on the type of the source:
+   * it can be the block ID when source type is a Document or Comment.
+   *
+   * @generated from field: string source_context = 3;
+   */
+  sourceContext = "";
+
+  /**
+   * Required. Information about the blob where the citation was found.
+   *
+   * @generated from field: com.seed.documents.v3alpha.Citation.BlobInfo source_blob = 4;
+   */
+  sourceBlob?: Citation_BlobInfo;
+
+  /**
+   * Required. Specifies whether the link points to the exact/pinned version of the target document,
+   * or if the target version is a *suggested* minimum version, and a later one should be preferred if exists.
+   *
+   * @generated from field: bool is_exact_version = 5;
+   */
+  isExactVersion = false;
+
+  /**
+   * Optional. Specifies the document where the citation was found. Relevant for comments.
+   *
+   * @generated from field: string source_document = 6;
+   */
+  sourceDocument = "";
+
+  /**
+   * Optional. The target resource the link points to.
+   *
+   * @generated from field: string target = 10;
+   */
+  target = "";
+
+  /**
+   * Optional. The version of the target resource the link points to.
+   *
+   * @generated from field: string target_version = 7;
+   */
+  targetVersion = "";
+
+  /**
+   * Optional. The fragment portion of the link.
+   *
+   * @generated from field: string target_fragment = 8;
+   */
+  targetFragment = "";
+
+  /**
+   * Optional. The revision of the target block at target_version, when target_fragment
+   * points to a block or text range.
+   *
+   * @generated from field: string target_block_revision = 11;
+   */
+  targetBlockRevision = "";
+
+  /**
+   * Optional. The type of citation. Could be embed, link, ...
+   *
+   * @generated from field: string citation_type = 9;
+   */
+  citationType = "";
+
+  constructor(data?: PartialMessage<Citation>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Citation";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "source_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "source_context", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "source_blob", kind: "message", T: Citation_BlobInfo },
+    { no: 5, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "source_document", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "target", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "target_block_revision", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "citation_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Citation {
+    return new Citation().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Citation {
+    return new Citation().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Citation {
+    return new Citation().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Citation | PlainMessage<Citation> | undefined, b: Citation | PlainMessage<Citation> | undefined): boolean {
+    return proto3.util.equals(Citation, a, b);
+  }
+}
+
+/**
+ * Information about a structural blob that contains the citation.
+ *
+ * @generated from message com.seed.documents.v3alpha.Citation.BlobInfo
+ */
+export class Citation_BlobInfo extends Message<Citation_BlobInfo> {
+  /**
+   * The CID-formatted hash of the blob.
+   *
+   * @generated from field: string cid = 1;
+   */
+  cid = "";
+
+  /**
+   * The Account ID of the author of the blob.
+   *
+   * @generated from field: string author = 2;
+   */
+  author = "";
+
+  /**
+   * The timestamp of the blob.
+   *
+   * @generated from field: google.protobuf.Timestamp create_time = 3;
+   */
+  createTime?: Timestamp;
+
+  constructor(data?: PartialMessage<Citation_BlobInfo>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.Citation.BlobInfo";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "create_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Citation_BlobInfo {
+    return new Citation_BlobInfo().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Citation_BlobInfo {
+    return new Citation_BlobInfo().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Citation_BlobInfo {
+    return new Citation_BlobInfo().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Citation_BlobInfo | PlainMessage<Citation_BlobInfo> | undefined, b: Citation_BlobInfo | PlainMessage<Citation_BlobInfo> | undefined): boolean {
+    return proto3.util.equals(Citation_BlobInfo, a, b);
   }
 }
 

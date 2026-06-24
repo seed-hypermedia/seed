@@ -1,7 +1,7 @@
 import {HMCitation, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {deduplicateCitations} from './citation-deduplication'
 import {ListDocumentChangesResponse} from './client/.generated/documents/v3alpha/documents_pb'
-import {ListEntityMentionsResponse} from './client/.generated/entities/v1alpha/entities_pb'
+import {ListCitationsResponse} from './client/.generated/documents/v3alpha/resources_pb'
 import {hmId, unpackHmId} from './utils'
 import {parseFragment} from './utils/entity-id-url'
 
@@ -22,37 +22,37 @@ export type InteractionSummaryPayload = {
 }
 
 /**
- * Processes entity mentions into HMCitation format
+ * Processes resource citations into HMCitation format
  */
-function processMentionsToCitations(
-  mentions: ListEntityMentionsResponse['mentions'],
+function processResourceCitations(
+  citations: ListCitationsResponse['citations'],
   targetDocId: UnpackedHypermediaId,
 ): HMCitation[] {
-  return mentions
-    .map((mention) => {
-      const sourceId = unpackHmId(mention.source)
+  return citations
+    .map((citation) => {
+      const sourceId = unpackHmId(citation.source)
       if (!sourceId) return null
 
       // Map both Ref (document) and Comment types
-      const sourceType = mention.sourceType === 'Ref' ? 'd' : mention.sourceType === 'Comment' ? 'c' : null
+      const sourceType = citation.sourceType === 'Ref' ? 'd' : citation.sourceType === 'Comment' ? 'c' : null
       if (!sourceType) return null
 
       const targetId = hmId(targetDocId.uid, {
         path: targetDocId.path,
-        version: mention.targetVersion,
+        version: citation.targetVersion,
       })
 
-      const targetFragment = parseFragment(mention.targetFragment)
+      const targetFragment = parseFragment(citation.targetFragment)
 
       return {
         source: {
           id: sourceId,
           type: sourceType as 'd' | 'c',
-          author: mention.sourceBlob?.author,
-          time: mention.sourceBlob?.createTime,
+          author: citation.sourceBlob?.author,
+          time: citation.sourceBlob?.createTime,
         },
         targetFragment,
-        isExactVersion: mention.isExactVersion,
+        isExactVersion: citation.isExactVersion,
         targetId,
       } as HMCitation
     })
@@ -97,16 +97,15 @@ function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {
 }
 
 /**
- * Calculates interaction summary from mentions, comments, changes, and children
+ * Calculates interaction summary from citations, comments, changes, and children
  */
 export function calculateInteractionSummary(
-  mentions: ListEntityMentionsResponse['mentions'],
+  citations: ListCitationsResponse['citations'],
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
   childrenCount: number = 0,
 ): InteractionSummaryPayload {
-  // Process mentions into citations
-  const allCitations = processMentionsToCitations(mentions, targetDocId)
+  const allCitations = processResourceCitations(citations, targetDocId)
   const dedupedCitations = deduplicateCitations(allCitations)
 
   const {blocks} = calculateBlocksFromCitations(dedupedCitations)
