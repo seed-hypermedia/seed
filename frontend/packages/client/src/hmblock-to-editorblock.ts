@@ -40,19 +40,35 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   return 'unknown'
 }
 
-/** Convert an array of HMBlockNode trees into BlockNote EditorBlock arrays. */
+/** Convert an array of HMBlockNode trees into BlockNote EditorBlock arrays.
+ *
+ * parentType is the BlockNode type of the surrounding block. Used to drop
+ * orphan table row and column blocks that ended up outside a table parent. */
 export function hmBlocksToEditorContent(
   blocks: HMBlockNode[],
   opts: ServerToEditorRecursiveOpts & {
     childrenType?: HMBlockChildrenType
     listLevel?: string
     start?: string
+    parentType?: HMBlockType
   } = {level: 1},
 ): Array<EditorBlock> {
   const childRecursiveOpts: ServerToEditorRecursiveOpts = {
     level: opts.level || 0,
   }
+  const parentIsTable = opts.parentType === 'Table'
   return blocks
+    .filter((hmBlock: HMBlockNode) => {
+      const t = hmBlock.block?.type
+      if ((t === 'TableRow' || t === 'TableColumn') && !parentIsTable) {
+        console.warn(
+          `[hmBlocksToEditorContent] dropping orphan ${t} block (parent type: ${opts.parentType ?? 'root'})`,
+          hmBlock.block?.id,
+        )
+        return false
+      }
+      return true
+    })
     .map((hmBlock: HMBlockNode) => {
       let res = hmBlock.block ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock) : null
 
@@ -71,6 +87,7 @@ export function hmBlocksToEditorContent(
         res.children = hmBlocksToEditorContent(hmBlock.children, {
           level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
           childrenType: validChildrenType,
+          parentType: hmBlock.block?.type as HMBlockType | undefined,
         })
       }
       return res as EditorBlock
