@@ -172,7 +172,7 @@ export default function Settings() {
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
         <div className="flex flex-1 overflow-hidden">
-          <div className="border-border flex flex-1 overflow-hidden rounded-lg border">
+          <div className="flex flex-1 overflow-hidden rounded-lg">
             {/* Sidebar */}
             <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
               {SETTINGS_TAB_CONFIG.map((tab) => (

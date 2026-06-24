@@ -34,6 +34,10 @@ export function getRouteWindowType(route: NavRoute): WindowTypeInfo {
       minHeight: 720,
       maxWidth: undefined,
       maxHeight: undefined,
+      trafficLightPosition: {
+        x: 12,
+        y: 10,
+      },
     } as const
   return {
     key: 'main',

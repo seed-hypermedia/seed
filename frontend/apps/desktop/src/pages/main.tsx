@@ -175,7 +175,7 @@ export default function Main({className}: {className?: string}) {
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
-      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
+      <TitlebarWrapper className="bg-background h-8 min-h-8 dark:bg-black">
         <div className="window-drag flex w-full items-center justify-center">
           <TitleText className="text-center font-bold">Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
