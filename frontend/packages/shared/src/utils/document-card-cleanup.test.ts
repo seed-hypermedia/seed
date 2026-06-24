@@ -1,6 +1,11 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {planDeletedDocumentCardEmbedCleanup, planDocumentCardRemoval} from './document-card-cleanup'
+import {
+  planDeletedDocumentCardEmbedCleanup,
+  planDocumentCardAppend,
+  planDocumentCardRemoval,
+  planDocumentCardRewrite,
+} from './document-card-cleanup'
 
 function doc(content: HMBlockNode[]): Pick<HMDocument, 'content'> {
   return {content}
@@ -209,5 +214,87 @@ describe('planDeletedDocumentCardEmbedCleanup', () => {
       {case: 'deleteBlock', blockId: 'clicked-card'},
     ])
     expect(result.removedBlockIds).toEqual(['clicked-card'])
+  })
+})
+
+describe('planDocumentCardAppend', () => {
+  it('appends a card embed to a parent without self query or existing child card', () => {
+    const result = planDocumentCardAppend(
+      doc([paragraph('intro')]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(plainChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'new-card', parent: '', leftSibling: 'intro'},
+      {case: 'replaceBlock'},
+    ])
+    expect(result.addedBlockIds).toEqual(['new-card'])
+  })
+
+  it('does not append when the parent has a self query block', () => {
+    const result = planDocumentCardAppend(
+      doc([
+        {
+          block: {
+            id: 'query',
+            type: 'Query',
+            attributes: {
+              query: {includes: [{space: 'parent', path: '/site', mode: 'Children'}]},
+            },
+          } as HMBlockNode['block'],
+          children: [],
+        },
+      ]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(result.changes).toEqual([])
+    expect(result.addedBlockIds).toEqual([])
+  })
+
+  it('does not append when the parent already links to the child', () => {
+    const result = planDocumentCardAppend(
+      doc([embedCard('existing', 'hm://parent/site/child?v=bafy')]),
+      'hm://parent/site',
+      'hm://parent/site/child',
+      'new-card',
+    )
+
+    expect(result.changes).toEqual([])
+    expect(result.addedBlockIds).toEqual([])
+  })
+})
+
+describe('planDocumentCardRewrite', () => {
+  it('rewrites matching embed links in place while preserving position and children', () => {
+    const result = planDocumentCardRewrite(
+      doc([paragraph('intro'), embedCard('card', 'hm://parent/site/old', [paragraph('child')]), paragraph('tail')]),
+      'hm://parent/site/old',
+      'hm://parent/site/new',
+    )
+
+    expect(plainChanges(result.changes)).toEqual([{case: 'replaceBlock'}])
+    expect(result.rewrittenBlockIds).toEqual(['card'])
+    const replace = result.changes[0]
+    expect(replace?.op.case).toBe('replaceBlock')
+    if (replace?.op.case === 'replaceBlock') {
+      expect(replace.op.value.id).toBe('card')
+      expect(replace.op.value.link).toBe('hm://parent/site/new')
+    }
+  })
+
+  it('does not rewrite when the target link already exists', () => {
+    const result = planDocumentCardRewrite(
+      doc([embedCard('old-card', 'hm://parent/site/old'), embedCard('new-card', 'hm://parent/site/new')]),
+      'hm://parent/site/old',
+      'hm://parent/site/new',
+    )
+
+    expect(result.changes).toEqual([])
+    expect(result.rewrittenBlockIds).toEqual([])
   })
 })
