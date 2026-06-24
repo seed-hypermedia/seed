@@ -6,6 +6,8 @@ export const RETRY_DELAYS_MS = [1_000, 5_000, 15_000]
 
 export type CleanupCoordinatorState = 'idle' | 'running' | 'retryWaiting'
 
+export type DocumentCardCleanupOperation = 'remove' | 'add' | 'rewrite'
+
 export type DocumentCardCleanupJobState =
   | 'idle'
   | 'loadingParent'
@@ -19,7 +21,10 @@ export type DocumentCardCleanupJobState =
 
 export type DocumentCardCleanupJob = {
   id: string
-  deletedDocumentId: string
+  operation?: DocumentCardCleanupOperation
+  deletedDocumentId?: string
+  sourceDocumentId?: string
+  targetDocumentId?: string
   parentDocumentId: string
   signingAccountUid: string
   capabilityId?: string
@@ -112,8 +117,25 @@ export function normalizeDocumentCardCleanupStore(raw: DocumentCardCleanupStore 
   }
 }
 
-export function cleanupJobId(input: {deletedDocumentId: string; parentDocumentId: string; signingAccountUid: string}) {
-  return `${input.deletedDocumentId}|${input.parentDocumentId}|${input.signingAccountUid}`
+export function cleanupJobId(input: {
+  operation?: DocumentCardCleanupOperation
+  deletedDocumentId?: string
+  sourceDocumentId?: string
+  targetDocumentId?: string
+  parentDocumentId: string
+  signingAccountUid: string
+}) {
+  const operation = input.operation || 'remove'
+  if (operation === 'remove' && input.deletedDocumentId && !input.sourceDocumentId && !input.targetDocumentId) {
+    return `${input.deletedDocumentId}|${input.parentDocumentId}|${input.signingAccountUid}`
+  }
+  return [
+    operation,
+    input.sourceDocumentId || input.deletedDocumentId || '',
+    input.targetDocumentId || '',
+    input.parentDocumentId,
+    input.signingAccountUid,
+  ].join('|')
 }
 
 export function getRetryDelayMs(attempts: number) {
@@ -438,10 +460,16 @@ export function createDocumentCardCleanupCoordinatorMachine(effects: CleanupCoor
     actions: {
       addJob: assign(({context, event}) => {
         if (event.type !== 'cleanup.enqueue') return {}
-        const parent = effects.getParentDocumentId(event.deletedDocumentId)
+        const operation = event.operation || 'remove'
+        const parent = event.parentDocumentId
+          ? {id: event.parentDocumentId}
+          : effects.getParentDocumentId(event.deletedDocumentId)
         if (!parent) return {}
         const jobId = cleanupJobId({
+          operation,
           deletedDocumentId: event.deletedDocumentId,
+          sourceDocumentId: event.sourceDocumentId,
+          targetDocumentId: event.targetDocumentId,
           parentDocumentId: parent.id,
           signingAccountUid: event.signingAccountUid,
         })
@@ -449,7 +477,10 @@ export function createDocumentCardCleanupCoordinatorMachine(effects: CleanupCoor
         const now = effects.now()
         const job: DocumentCardCleanupJob = {
           id: jobId,
-          deletedDocumentId: event.deletedDocumentId,
+          operation,
+          deletedDocumentId: event.deletedDocumentId || event.sourceDocumentId || event.targetDocumentId,
+          sourceDocumentId: event.sourceDocumentId,
+          targetDocumentId: event.targetDocumentId,
           parentDocumentId: parent.id,
           signingAccountUid: event.signingAccountUid,
           capabilityId: event.capabilityId,

@@ -1,10 +1,22 @@
 import {type HMBlockNode, type HMDocument, unpackHmId} from '@seed-hypermedia/client/hm-types'
-import {DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
+import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 
 /** Result of planning embed cleanup for a deleted document. */
 export type DocumentCardCleanupPlan = {
   changes: DocumentChange[]
   removedBlockIds: string[]
+}
+
+/** Result of planning a document card append. */
+export type DocumentCardAppendPlan = {
+  changes: DocumentChange[]
+  addedBlockIds: string[]
+}
+
+/** Result of planning a document card link rewrite. */
+export type DocumentCardRewritePlan = {
+  changes: DocumentChange[]
+  rewrittenBlockIds: string[]
 }
 
 type PlannedMove = {
@@ -36,6 +48,59 @@ function isMatchingDeletedDocumentEmbed(node: HMBlockNode, deletedDocumentKey: s
   if (block?.type !== 'Embed') return false
   if (!block.link) return false
   return hmDocumentKey(block.link) === deletedDocumentKey
+}
+
+function isEmbedLinkToDocument(node: HMBlockNode, documentKey: string) {
+  const block = node.block
+  if (block?.type !== 'Embed') return false
+  if (!block.link) return false
+  return hmDocumentKey(block.link) === documentKey
+}
+
+function documentContainsLinkToDocument(nodes: HMBlockNode[], documentKey: string): boolean {
+  return nodes.some(
+    (node) =>
+      isEmbedLinkToDocument(node, documentKey) || documentContainsLinkToDocument(node.children || [], documentKey),
+  )
+}
+
+function queryIncludeTargetsParent(include: any, parentUid: string, parentPath: string[]) {
+  if (!include || include.space !== parentUid) return false
+  const includePath = String(include.path || '')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+  return includePath.join('/') === parentPath.join('/')
+}
+
+function hasSelfQueryBlock(nodes: HMBlockNode[], parentDocumentId: string) {
+  const parent = unpackHmId(parentDocumentId)
+  if (!parent?.uid) return false
+  const parentUid = parent.uid
+  const parentPath = parent.path || []
+
+  function walk(blocks: HMBlockNode[]): boolean {
+    return blocks.some((node) => {
+      const block = node.block
+      const includes = block?.type === 'Query' ? (block.attributes as any)?.query?.includes : undefined
+      if (
+        Array.isArray(includes) &&
+        includes.some((include) => queryIncludeTargetsParent(include, parentUid, parentPath))
+      ) {
+        return true
+      }
+      return walk(node.children || [])
+    })
+  }
+
+  return walk(nodes)
+}
+
+function collectMatchingEmbeds(nodes: HMBlockNode[], documentKey: string): HMBlockNode[] {
+  return nodes.flatMap((node) => [
+    ...(isEmbedLinkToDocument(node, documentKey) ? [node] : []),
+    ...collectMatchingEmbeds(node.children || [], documentKey),
+  ])
 }
 
 function collectRemovedBlockIds(nodes: HMBlockNode[], deletedDocumentKey: string): string[] {
@@ -127,3 +192,71 @@ export function planDeletedDocumentCardEmbedCleanup(
 
 /** Alias for planning deleted document embed removal changes. */
 export const planDocumentCardRemoval = planDeletedDocumentCardEmbedCleanup
+
+/** Plans pure document changes that append a Card embed for a child document to a parent document. */
+export function planDocumentCardAppend(
+  document: Pick<HMDocument, 'content'>,
+  parentDocumentId: string,
+  childDocumentId: string,
+  newBlockId: string,
+): DocumentCardAppendPlan {
+  const childDocumentKey = hmDocumentKey(childDocumentId)
+  if (!childDocumentKey || !newBlockId) return {changes: [], addedBlockIds: []}
+  const content = document.content || []
+  if (hasSelfQueryBlock(content, parentDocumentId)) return {changes: [], addedBlockIds: []}
+  if (documentContainsLinkToDocument(content, childDocumentKey)) return {changes: [], addedBlockIds: []}
+
+  const lastBlockId = content.at(-1)?.block?.id || ''
+  const embedBlock = Block.fromJson({
+    id: newBlockId,
+    type: 'Embed',
+    link: childDocumentId,
+    attributes: {view: 'Card'},
+  })
+
+  return {
+    changes: [
+      new DocumentChange({
+        op: {case: 'moveBlock', value: {blockId: newBlockId, parent: '', leftSibling: lastBlockId}},
+      }),
+      new DocumentChange({
+        op: {case: 'replaceBlock', value: embedBlock},
+      }),
+    ],
+    addedBlockIds: [newBlockId],
+  }
+}
+
+/** Plans pure document changes that rewrite existing embed links from one document id to another. */
+export function planDocumentCardRewrite(
+  document: Pick<HMDocument, 'content'>,
+  fromDocumentId: string,
+  toDocumentId: string,
+): DocumentCardRewritePlan {
+  const fromDocumentKey = hmDocumentKey(fromDocumentId)
+  const toDocumentKey = hmDocumentKey(toDocumentId)
+  if (!fromDocumentKey || !toDocumentKey || fromDocumentKey === toDocumentKey) {
+    return {changes: [], rewrittenBlockIds: []}
+  }
+
+  const content = document.content || []
+  if (documentContainsLinkToDocument(content, toDocumentKey)) return {changes: [], rewrittenBlockIds: []}
+
+  const matchingEmbeds = collectMatchingEmbeds(content, fromDocumentKey)
+  if (!matchingEmbeds.length) return {changes: [], rewrittenBlockIds: []}
+
+  return {
+    changes: matchingEmbeds.map((node) => {
+      return new DocumentChange({
+        op: {
+          case: 'replaceBlock',
+          value: Block.fromJson({
+            ...(node.block as any),
+            link: toDocumentId,
+          }),
+        },
+      })
+    }),
+    rewrittenBlockIds: matchingEmbeds.map((node) => node.block.id),
+  }
+}
