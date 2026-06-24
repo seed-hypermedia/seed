@@ -56,7 +56,7 @@ import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {ModelSelect} from './model-select'
-import {curateProviderModels} from './model-utils'
+import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
 
@@ -127,8 +127,7 @@ function AgentDetailPage({
   // default from the new provider's curated list once it loads.
   useEffect(() => {
     if (!nameModelDirty || model || !providerModels.data?.length) return
-    const {recommended, all} = curateProviderModels(providerModels.data, selectedProviderType)
-    const nextModel = recommended[0]?.id || all[0]?.id
+    const nextModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id
     if (nextModel) setModel(nextModel)
   }, [nameModelDirty, model, providerModels.data, selectedProviderType])
 

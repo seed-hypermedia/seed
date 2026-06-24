@@ -140,6 +140,11 @@ Request:
 
 Creates a new agent. Validates referenced provider exists for the account. Creates a per-agent state directory.
 
+When the definition's primary `signingKey` resolves to an `hm-account-key` secret, the server also auto-creates a
+default enabled `user-mention` trigger that follows that signing identity's account uid (prompt: "Respond to the
+mention, performing the action requested."), so mentioning the agent's account starts a session in which it responds.
+This is best-effort and never blocks agent creation; agents without a signing key get no default trigger.
+
 Idempotent when `clientRequestId` is supplied.
 
 ### `ListModelProviders`

@@ -52,6 +52,81 @@ describe('api service', () => {
     }
   })
 
+  test('creates a default user-mention trigger for the agent signing identity', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetSecret',
+            name: 'agent-account-key',
+            value: new TextEncoder().encode('mnemonic words'),
+            metadata: {kind: 'hm-account-key', accountId: 'z6MkAgentAccountUid', label: 'Agent account'},
+          },
+        }),
+      )
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Mentionable Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt',
+              signingKey: 'agent-account-key',
+            },
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentTriggers', agentId: create.agentId}}),
+      )
+      expect(listed._).toBe('ListAgentTriggersResponse')
+      if (listed._ !== 'ListAgentTriggersResponse') throw new Error('unexpected response')
+      expect(listed.triggers).toHaveLength(1)
+      const trigger = listed.triggers[0]
+      expect(trigger?.enabled).toBe(true)
+      expect(trigger?.source).toEqual({type: 'user-mention', mentionedAccounts: ['z6MkAgentAccountUid']})
+      expect(agentPromptText(trigger?.prompt)).toBe('Respond to the mention, performing the action requested.')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('does not create a default trigger when the agent has no signing identity', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'No Account Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentTriggers', agentId: create.agentId}}),
+      )
+      if (listed._ !== 'ListAgentTriggersResponse') throw new Error('unexpected response')
+      expect(listed.triggers).toHaveLength(0)
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('rejects invalid definitions before writing', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

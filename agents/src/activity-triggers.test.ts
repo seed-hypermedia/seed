@@ -175,9 +175,9 @@ describe('activity trigger matching', () => {
     ).toBe(false)
 
     // resourcePrefix still filters resolved mentions by where the mention occurred.
-    expect(
-      triggers.activityMatchesTriggerSource({...source, resourcePrefix: 'hm://z6Mksite'}, documentMention),
-    ).toBe(true)
+    expect(triggers.activityMatchesTriggerSource({...source, resourcePrefix: 'hm://z6Mksite'}, documentMention)).toBe(
+      true,
+    )
     expect(
       triggers.activityMatchesTriggerSource({...source, resourcePrefix: 'hm://z6Mkelsewhere'}, documentMention),
     ).toBe(false)

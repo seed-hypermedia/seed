@@ -26,6 +26,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ExternalLink, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
+import {pickDefaultProviderModel} from './model-utils'
 import {ModelSelect} from './model-select'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
@@ -410,9 +411,9 @@ export function CreateAgentDialog({
   }, [providerName, providers.data])
 
   useEffect(() => {
-    const firstModel = providerModels.data?.[0]?.id || ''
-    if (!providerModels.data?.some((providerModel) => providerModel.id === model)) setModel(firstModel)
-  }, [model, providerModels.data])
+    const defaultModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id || ''
+    if (!providerModels.data?.some((providerModel) => providerModel.id === model)) setModel(defaultModel)
+  }, [model, providerModels.data, selectedProviderType])
 
   async function handleCreateAgent() {
     const agentName = name.trim()
