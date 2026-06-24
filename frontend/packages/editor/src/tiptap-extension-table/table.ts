@@ -107,6 +107,12 @@ export const Table = Node.create<TableOptions>({
     return [{tag: 'table'}]
   },
 
+  addNodeView() {
+    return ({node, editor}) => {
+      return new TableView(node, this.options.cellMinWidth, editor)
+    }
+  },
+
   renderHTML({HTMLAttributes}) {
     const blockContentDOMAttributes = this.options.domAttributes?.blockContent || {}
     return [
