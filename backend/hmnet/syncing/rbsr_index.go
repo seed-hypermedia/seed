@@ -2,7 +2,6 @@ package syncing
 
 import (
 	"fmt"
-	"os"
 	"seed/backend/blob"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
@@ -14,15 +13,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/tidwall/gjson"
 )
-
-// rbsrServeFromIndex gates serving reconciliation from the maintained index.
-// Default OFF: loadStore serves from the legacy collectBlobs rebuild, which
-// keeps the maintained tables fully dormant — nothing materializes, so the
-// index hook and shadow-verify sweep become no-ops (they only act on
-// materialized scopes). This lets the index code ship without changing live
-// sync behavior until the serve path is validated end-to-end. Set
-// SEED_RBSR_INDEX_SERVE=1 to serve from the index.
-var rbsrServeFromIndex = os.Getenv("SEED_RBSR_INDEX_SERVE") == "1"
 
 // This file is the persistence layer for the maintained RBSR index. A scope's
 // resolved blob set (what collectBlobs produces) is stored in rbsr_item so the
