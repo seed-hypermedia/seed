@@ -237,18 +237,51 @@ export function useConnectLocalNodeToAgentHmServer(serverUrl: string | undefined
     useErrorBoundary: false,
     queryFn: async () => {
       if (!hmServerUrl) return null
-      const config = await client.web.configOfHost.query({host: hmServerUrl})
-      if (config.addrs?.length) {
-        await grpcClient.networking.connect({addrs: config.addrs})
-        console.info('[agents] connected local node to agent HM server', {
-          hmServerUrl,
-          peerId: config.peerId,
-          addrs: config.addrs.length,
-        })
-      }
-      return {peerId: config.peerId, addrs: config.addrs}
+      return connectLocalNodeToAgentHmServer(hmServerUrl)
     },
   })
+}
+
+/** Peers the local node with an agent HM server so discovery can sync content directly from it. */
+async function connectLocalNodeToAgentHmServer(hmServerUrl: string): Promise<{peerId: string; addrs: string[]} | null> {
+  const config = await client.web.configOfHost.query({host: hmServerUrl})
+  if (config.addrs?.length) {
+    await grpcClient.networking.connect({addrs: config.addrs})
+    console.info('[agents] connected local node to agent HM server', {
+      hmServerUrl,
+      peerId: config.peerId,
+      addrs: config.addrs.length,
+    })
+  }
+  return {peerId: config.peerId, addrs: config.addrs}
+}
+
+/**
+ * Syncs a newly created agent's HM account onto the local node so it can immediately be searched and
+ * @mentioned. The agent account profile/home is published to the agent server's HM node, so we first peer the
+ * local node with that HM node (same logic as {@link useConnectLocalNodeToAgentHmServer}) and then discover the
+ * account recursively — its profile lives in the account subtree. Best-effort and fire-and-forget; failures
+ * are non-fatal and logged under `[agents-discovery]`.
+ */
+export async function syncAgentAccountToLocalNode(serverUrl: string | undefined, accountUid: string): Promise<void> {
+  const discoveryId = `hm://${accountUid}/**`
+  try {
+    const health = await getAgentServerHealth(serverUrl || DEFAULT_AGENT_SERVER_URL)
+    if (health.hmServerUrl) await connectLocalNodeToAgentHmServer(health.hmServerUrl)
+    discoveredAgentRefs.add(discoveryId)
+    console.info('[agents-discovery] syncing new agent account to local node', {id: discoveryId})
+    const resp = await grpcClient.entities.discoverEntity({id: discoveryId})
+    console.info('[agents-discovery] agent account discovery scheduled', {
+      id: discoveryId,
+      state: resp.state,
+      version: resp.version || '(pending)',
+    })
+  } catch (error) {
+    console.warn('[agents-discovery] failed to sync agent account to local node', {
+      id: discoveryId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 /** Lists agents for the selected account on the configured server. */
@@ -376,8 +409,14 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
         action: {_: 'CreateSigningIdentity', label, clientRequestId: crypto.randomUUID()},
       })
     },
-    onSuccess() {
+    onSuccess(result) {
       invalidateQueries(['agents'])
+      // The new agent account profile/home was just published to the server's HM node. Sync it onto the
+      // local node so it can be searched and @mentioned right away (covers both the create-agent flow and
+      // the Tools-tab "New account" workflow).
+      if (result._ === 'CreateSigningIdentityResponse' && result.identity.accountId) {
+        void syncAgentAccountToLocalNode(serverUrl, result.identity.accountId)
+      }
     },
   })
 }
