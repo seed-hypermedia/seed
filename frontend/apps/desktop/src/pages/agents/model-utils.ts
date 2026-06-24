@@ -63,6 +63,12 @@ const PRIORITY_PREFIXES: Record<ModelProviderType, string[]> = {
   google: ['gemini-2.5', 'gemini-2.0', 'gemini-1.5', 'gemini', 'gemma'],
 }
 
+/** Provider-specific models we prefer as the initial default in agent creation/edit flows. */
+const PREFERRED_DEFAULT_MODEL_IDS: Partial<Record<ModelProviderType, string[]>> = {
+  openai: ['gpt-5-mini'],
+  anthropic: ['claude-sonnet-4.6', 'claude-sonnet-4-6'],
+}
+
 function priorityIndex(id: string, providerType: string | undefined): number {
   const prefixes =
     providerType && providerType in PRIORITY_PREFIXES ? PRIORITY_PREFIXES[providerType as ModelProviderType] : undefined
@@ -124,6 +130,34 @@ export function curateProviderModels(
 }
 
 /** Human-friendly label for a model option. */
+function normalizePreferredModelId(id: string): string {
+  return canonicalModelId(id).toLowerCase().replace(/\./g, '-')
+}
+
+function matchesPreferredModelId(candidate: string, preferred: string): boolean {
+  return normalizePreferredModelId(candidate) === normalizePreferredModelId(preferred)
+}
+
+/** Picks the best default model for a provider, honoring product defaults when available. */
+export function pickDefaultProviderModel(
+  models: ProviderModelInfo[] | undefined,
+  providerType: string | undefined,
+): ProviderModelInfo | undefined {
+  const curated = curateProviderModels(models, providerType)
+  const preferredIds =
+    providerType && providerType in PREFERRED_DEFAULT_MODEL_IDS
+      ? PREFERRED_DEFAULT_MODEL_IDS[providerType as ModelProviderType]
+      : undefined
+
+  return (
+    curated.recommended.find(
+      (model) => preferredIds?.some((preferredId) => matchesPreferredModelId(model.id, preferredId)),
+    ) ||
+    curated.recommended[0] ||
+    curated.all[0]
+  )
+}
+
 export function modelLabel(model: ProviderModelInfo): string {
   return model.name && model.name !== model.id ? `${model.name} (${model.id})` : model.id
 }

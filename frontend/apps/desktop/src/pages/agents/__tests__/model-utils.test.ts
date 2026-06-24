@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {canonicalModelId, curateProviderModels, isChatModel} from '../model-utils'
+import {canonicalModelId, curateProviderModels, isChatModel, pickDefaultProviderModel} from '../model-utils'
 
 const m = (id: string, name?: string) => ({id, name: name ?? id})
 
@@ -39,6 +39,23 @@ describe('canonicalModelId', () => {
     expect(canonicalModelId('gpt-4o-mini')).toBe('gpt-4o-mini')
     expect(canonicalModelId('o1-mini')).toBe('o1-mini')
     expect(canonicalModelId('claude-3-5-sonnet')).toBe('claude-3-5-sonnet')
+  })
+})
+
+describe('pickDefaultProviderModel', () => {
+  it('prefers gpt-5-mini for OpenAI when available and skips embedding models', () => {
+    const models = [m('text-embedding-3-large'), m('gpt-5'), m('gpt-5-mini'), m('gpt-4o')]
+
+    expect(pickDefaultProviderModel(models, 'openai')?.id).toBe('gpt-5-mini')
+  })
+
+  it('prefers claude-sonnet-4.6 for Anthropic when available via alias or snapshot', () => {
+    expect(pickDefaultProviderModel([m('claude-opus-4'), m('claude-sonnet-4.6')], 'anthropic')?.id).toBe(
+      'claude-sonnet-4.6',
+    )
+    expect(pickDefaultProviderModel([m('claude-opus-4'), m('claude-sonnet-4-6-20260115')], 'anthropic')?.id).toBe(
+      'claude-sonnet-4-6-20260115',
+    )
   })
 })
 

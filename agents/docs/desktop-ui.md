@@ -102,6 +102,10 @@ New agents include `read` in `tools`, but the server also offers that tool regar
 plan is to augment this existing read tool for domain-aware SHM reads before deciding whether to expose a new `query`
 alias.
 
+The dialog creates a dedicated signing identity (HM account) for the agent before `CreateAgent`. The server then
+auto-creates a default enabled `user-mention` trigger that follows that signing identity's account uid, so mentioning
+the agent's account immediately starts a session in which it responds. See `signed-api.md` for the server-side behavior.
+
 ## Agent detail page
 
 Features:
@@ -134,6 +138,9 @@ Features:
 - trigger enabled state defaults on for new triggers and autosaves immediately when toggled;
 - document-comment trigger forms include document autocomplete/search while still allowing raw HM URLs;
 - user-mention and site-update trigger forms include account/site autocomplete search while still allowing raw IDs/URLs;
+- per-trigger-type frontend logic (option labels, defaults, source summaries, configuration forms, activity-route
+  derivation, and the triggered-session `TriggerContextView`) is co-located in `pages/agents/trigger-types.tsx` so each
+  trigger type stays in sync across the trigger forms and the session UI;
 - subscribe to `agents/<agentId>` for live updates.
 
 ## Session page
@@ -164,6 +171,10 @@ Features:
 - durable final assistant message rendering;
 - automatic scroll-follow while the user is at the bottom, with a scroll-to-latest pill when the user scrolls up;
 - visible tool call/result events rendered with the shared assistant chat bubbles;
+- the first message of a trigger-created session hides the raw `<trigger_context>` / `<trigger_instructions>` text and
+  renders a per-trigger-type `TriggerContextView` card (icon, headline, source summary, fired time, and a collapsible
+  activity payload) plus the human prompt; the exact model-facing markdown remains available through the message's
+  raw-markdown dialog;
 - small thinking indicator while a message request is in flight or the durable session is streaming before partial text
   arrives;
 - signed `StopSession` support from the stop button while streaming, including recovery for stale sessions stuck in

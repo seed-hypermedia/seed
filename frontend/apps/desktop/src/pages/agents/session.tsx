@@ -2,7 +2,6 @@ import {
   type AgentRunActivity,
   type AgentRunUsage,
   type AgentSessionTriggerContext,
-  type AgentTriggerSource,
   type SessionEvent,
   type SessionInfo,
 } from '@/agents-client'
@@ -32,8 +31,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
-import type {NavRoute} from '@shm/shared/routes'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -54,23 +51,7 @@ import {ArrowDown, ExternalLink, Info, Loader2, ScrollText, Send, Square, Trash2
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
 import {promptBlocksToMarkdown} from './prompt-editor'
-
-function triggerSourceSummary(source: AgentTriggerSource): string {
-  if (source.type === 'document-comment') {
-    return `Comment in ${source.resource}${source.author ? ` by ${source.author}` : ''}`
-  }
-  if (source.type === 'user-mention') {
-    return `Mention of ${source.mentionedAccount}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
-  }
-  if (source.type === 'site-update') {
-    return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`
-  }
-  if (source.schedule.kind === 'interval') return `Every ${source.schedule.every} ${source.schedule.unit}`
-  if (source.schedule.kind === 'once') return `Once at ${new Date(source.schedule.runAt).toLocaleString()}`
-  return `${source.schedule.daysOfWeek
-    .map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day])
-    .join(', ')} at ${source.schedule.timeOfDay} ${source.schedule.timezone}`
-}
+import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
 
 function SessionListItem({
   session,
@@ -137,7 +118,7 @@ function TriggerContextPopover({
             </Button>
           </div>
           <div className="grid gap-3 text-sm md:grid-cols-2">
-            <TriggerDetail label="Source" value={triggerSourceSummary(context.source)} />
+            <TriggerDetail label="Source" value={summarizeTriggerSource(context.source)} />
             <TriggerDetail label="Activity key" value={context.activityKey} mono />
             <TriggerDetail label="Firing ID" value={context.firingId} mono />
             <TriggerDetail label="Fired at" value={new Date(context.firedAt).toLocaleString()} />
@@ -181,42 +162,6 @@ function TriggerDetail({label, value, mono}: {label: string; value: string; mono
   )
 }
 
-function getTriggerActivityRoute(context: AgentSessionTriggerContext): NavRoute | null {
-  const blob = recordField(context.activity, 'newBlob')
-  if (blob) {
-    const blobType = stringField(blob, 'blobType') || stringField(blob, 'blob_type')
-    const resource = stringField(blob, 'resource')
-    const resourceId = resource ? unpackHmId(resource) : null
-    if (blobType === 'Comment' && resourceId) {
-      return {key: 'comments', id: resourceId, openComment: stringField(blob, 'blobId') || stringField(blob, 'blob_id')}
-    }
-    if ((blobType === 'Ref' || blobType === 'Change') && resourceId) {
-      return {key: 'document', id: resourceId}
-    }
-  }
-
-  if (context.source.type === 'document-comment') {
-    const id = unpackHmId(context.source.resource)
-    return id ? {key: 'comments', id} : null
-  }
-  if (context.source.type === 'site-update') {
-    const id = unpackHmId(context.source.resourcePrefix)
-    return id ? {key: 'activity', id} : null
-  }
-  return null
-}
-
-function recordField(value: unknown, key: string): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object') return null
-  const field = (value as Record<string, unknown>)[key]
-  return field && typeof field === 'object' ? (field as Record<string, unknown>) : null
-}
-
-function stringField(value: Record<string, unknown>, key: string): string | undefined {
-  const field = value[key]
-  return typeof field === 'string' && field ? field : undefined
-}
-
 function AgentSessionPage({
   sessionId,
   routeServerUrl,
@@ -254,8 +199,14 @@ function AgentSessionPage({
   const loadedSessionId = session.data?.session.id
   const persistedTitle = session.data?.session.title || 'Untitled session'
   const chatRows = useMemo(
-    () => buildAgentSessionChatRows(session.data?.events || [], {serverUrl, agentId, sessionId}),
-    [agentId, serverUrl, session.data?.events, sessionId],
+    () =>
+      buildAgentSessionChatRows(session.data?.events || [], {
+        serverUrl,
+        agentId,
+        sessionId,
+        triggerContext: session.data?.triggerContext ?? null,
+      }),
+    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId],
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
@@ -543,7 +494,7 @@ function AgentSessionPage({
                     id={`event-${row.key}`}
                     className="target:ring-primary/40 scroll-mt-24 rounded-lg target:ring-2"
                   >
-                    <AgentSessionChatRow row={row} />
+                    <AgentSessionChatRow row={row} serverUrl={serverUrl} agentId={agentId} />
                   </div>
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
@@ -790,12 +741,45 @@ function AgentRunStatusBar({
 }
 
 type AgentSessionChatRow =
-  | {key: string; kind: 'message'; message: ChatBubbleMessage}
+  | {
+      key: string
+      kind: 'message'
+      message: ChatBubbleMessage
+      triggerContext?: AgentSessionTriggerContext
+      triggerInstructions?: string
+    }
   | {key: string; kind: 'error'; message: string}
   | {key: string; kind: 'raw'; event: SessionEvent}
 
-const AgentSessionChatRow = React.memo(function AgentSessionChatRow({row}: {row: AgentSessionChatRow}) {
-  if (row.kind === 'message') return <ChatMessageBubble message={row.message} />
+const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
+  row,
+  serverUrl,
+  agentId,
+}: {
+  row: AgentSessionChatRow
+  serverUrl: string
+  agentId?: string
+}) {
+  if (row.kind === 'message') {
+    if (row.triggerContext) {
+      // First message of a triggered session: render the human prompt (if any) and a friendly
+      // trigger card instead of the raw <trigger_context> text that is sent to the model.
+      return (
+        <div className="flex flex-col gap-1.5">
+          {row.message.content?.trim() || row.message.blocks?.length ? (
+            <ChatMessageBubble message={row.message} />
+          ) : null}
+          <TriggerContextView
+            context={row.triggerContext}
+            instructions={row.triggerInstructions}
+            serverUrl={serverUrl}
+            agentId={agentId}
+          />
+        </div>
+      )
+    }
+    return <ChatMessageBubble message={row.message} />
+  }
 
   if (row.kind === 'error') {
     return (
@@ -815,10 +799,16 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({row}: {row:
 
 function buildAgentSessionChatRows(
   events: SessionEvent[],
-  context: {serverUrl: string; agentId?: string; sessionId: string},
+  context: {
+    serverUrl: string
+    agentId?: string
+    sessionId: string
+    triggerContext?: AgentSessionTriggerContext | null
+  },
 ): AgentSessionChatRow[] {
   const rows: AgentSessionChatRow[] = []
   const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
+  let triggerCardAttached = false
 
   for (const event of events) {
     const payload = event.event as {
@@ -837,12 +827,20 @@ function buildAgentSessionChatRows(
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {
+      // The first user message of a triggered session embeds a <trigger_context> block for the model.
+      // Hide it from the bubble and surface a friendly trigger card instead; the full text stays
+      // available through the raw-markdown dialog.
+      const hasTriggerBlock = payload.role === 'user' && payload.content.includes('<trigger_context>')
+      const attachTriggerCard = hasTriggerBlock && !triggerCardAttached
+      if (attachTriggerCard) triggerCardAttached = true
+      const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
+      const triggerInstructions = attachTriggerCard ? extractTriggerInstructions(payload.content) : undefined
       rows.push({
         key: event.id,
         kind: 'message',
         message: {
           role: payload.role,
-          content: payload.content,
+          content: displayContent,
           rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
           eventId: event.id,
@@ -850,6 +848,9 @@ function buildAgentSessionChatRows(
           seq: event.seq,
           shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
         },
+        ...(attachTriggerCard && context.triggerContext
+          ? {triggerContext: context.triggerContext, triggerInstructions}
+          : {}),
       })
       continue
     }
@@ -924,6 +925,20 @@ function buildAgentSessionChatRows(
   }
 
   return rows
+}
+
+/** Removes the `<trigger_context>` / `<trigger_instructions>` blocks appended to a trigger's first message. */
+function stripTriggerContextBlock(content: string): string {
+  const index = content.indexOf('<trigger_context>')
+  if (index === -1) return content
+  return content.slice(0, index).trimEnd()
+}
+
+/** Pulls the model-facing `<trigger_instructions>` text out of a trigger's first message, if present. */
+function extractTriggerInstructions(content: string): string | undefined {
+  const match = content.match(/<trigger_instructions>\n?([\s\S]*?)\n?<\/trigger_instructions>/)
+  const text = match?.[1]?.trim()
+  return text ? text : undefined
 }
 
 function buildAgentSessionEventUrl(

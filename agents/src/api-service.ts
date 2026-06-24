@@ -268,6 +268,7 @@ export class Service {
       [agentId, accountId, cbor.encode(definition), stateDir, 'idle', now, now],
     )
     fs.mkdirSync(stateDir, {recursive: true})
+    this.#createDefaultMentionTrigger(accountId, agentId, definition)
     const agentInfo = this.#getAgentInfo(accountId, agentId)
     if (agentInfo) {
       this.#emit({type: 'agent-change', accountId, agent: agentInfo})
@@ -275,6 +276,41 @@ export class Service {
     }
 
     return {_: 'CreateAgentResponse', agentId}
+  }
+
+  /**
+   * Gives a new agent a default trigger so that mentioning the agent's own HM account starts a
+   * session in which it responds. The mention target is the agent's signing-identity account uid,
+   * resolved from its primary signing key. Best-effort: a failure here never blocks agent creation.
+   */
+  #createDefaultMentionTrigger(accountId: string, agentId: string, definition: api.AgentDefinition): void {
+    const signingKey = definition.signingKey ?? definition.signingKeys?.[0]
+    if (!signingKey) return
+    const mentionAccountId = this.#signingIdentityAccountId(accountId, signingKey)
+    if (!mentionAccountId) return
+    try {
+      this.#createAgentTriggerOnce(accountId, agentId, {
+        name: `Mentions of ${definition.name}`,
+        enabled: true,
+        source: {type: 'user-mention', mentionedAccounts: [mentionAccountId]},
+        prompt: 'Respond to the mention, performing the action requested.',
+      })
+    } catch (error) {
+      console.warn('[agents] failed to create default mention trigger', {agentId, error: errorMessage(error)})
+    }
+  }
+
+  /** Resolves the HM account uid behind a signing-key secret name, or null if it is not an account key. */
+  #signingIdentityAccountId(accountId: string, signingKey: string): string | null {
+    const row = this.#db
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, signingKey)
+    if (!row?.metadata_cbor) return null
+    const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
+    if (metadata.kind !== 'hm-account-key') return null
+    return typeof metadata.accountId === 'string' ? metadata.accountId : null
   }
 
   #listModelProviders(accountId: string): api.ListModelProvidersResponse {
@@ -2317,9 +2353,19 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
     }
   }
   if (raw.type === 'user-mention') {
+    const legacy = (raw as {mentionedAccount?: unknown}).mentionedAccount
+    const rawAccounts = raw.mentionedAccounts ?? (legacy === undefined ? undefined : [legacy])
+    if (!Array.isArray(rawAccounts)) throw new APIError(400, 'Trigger mentioned accounts must be an array')
+    if (rawAccounts.length > MAX_TOOL_COUNT) throw new APIError(400, 'Too many trigger mentioned accounts')
+    const mentionedAccounts: string[] = []
+    for (const account of rawAccounts) {
+      const normalized = normalizeBoundedString(account, 'Trigger mentioned account', MAX_NAME_BYTES)
+      if (!mentionedAccounts.includes(normalized)) mentionedAccounts.push(normalized)
+    }
+    if (mentionedAccounts.length === 0) throw new APIError(400, 'Trigger mentioned account is required')
     return {
       type: 'user-mention',
-      mentionedAccount: normalizeBoundedString(raw.mentionedAccount, 'Trigger mentioned account', MAX_NAME_BYTES),
+      mentionedAccounts,
       ...(raw.resourcePrefix === undefined
         ? {}
         : {resourcePrefix: normalizeBoundedString(raw.resourcePrefix, 'Trigger resource prefix', 2048)}),
