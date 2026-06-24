@@ -15,7 +15,7 @@ function createSchema(): Schema {
       doc: {content: 'blockNode+'},
       blockNode: {
         content: 'paragraph',
-        attrs: {id: {default: ''}},
+        attrs: {id: {default: ''}, revision: {default: ''}},
         toDOM(node) {
           return ['div', {dataId: node.attrs.id}, 0]
         },
@@ -23,6 +23,7 @@ function createSchema(): Schema {
       paragraph: {
         group: 'block',
         content: 'text*',
+        attrs: {revision: {default: ''}},
         toDOM() {
           return ['p', 0]
         },
@@ -43,14 +44,18 @@ function citation(id: string, start: number, end: number): CitationFragmentHighl
     sourceBlockId: null,
     sourceCommentId: null,
     sourceAuthorUid: null,
+    targetBlockRevision: null,
     raw: {source: `hm://source/${id}`, targetFragment: `block-1[${start}:${end}]`},
   }
 }
 
-function createView(onClick = vi.fn()) {
+function createView(onClick = vi.fn(), blockRevision = '') {
   const schema = createSchema()
   const doc = schema.nodes.doc.create(null, [
-    schema.nodes.blockNode.create({id: 'block-1'}, schema.nodes.paragraph.create(null, schema.text('hello world'))),
+    schema.nodes.blockNode.create(
+      {id: 'block-1'},
+      schema.nodes.paragraph.create({revision: blockRevision}, schema.text('hello world')),
+    ),
   ])
   const plugin = createCitationFragmentHighlightPlugin({current: onClick})
   const state = EditorState.create({schema, doc, plugins: [plugin]})
@@ -172,6 +177,29 @@ describe('CitationFragmentHighlightPlugin', () => {
 
     expect(insertedTextHandled).toBe(false)
     expect(onClick).not.toHaveBeenCalled()
+    view.destroy()
+  })
+
+  it('ignores citations whose target block revision does not match the rendered block', () => {
+    const {view} = createView(vi.fn(), 'current-revision')
+
+    view.dispatch(
+      view.state.tr
+        .setMeta(citationFragmentHighlightPluginKey, {
+          type: 'set',
+          citations: [
+            {...citation('stale', 0, 5), targetBlockRevision: 'old-revision'},
+            {...citation('current', 6, 11), targetBlockRevision: 'current-revision'},
+          ],
+        })
+        .setMeta('addToHistory', false),
+    )
+
+    const pluginState = citationFragmentHighlightPluginKey.getState(view.state)
+    const decorations = pluginState?.decorations.find() ?? []
+
+    expect(decorations).toHaveLength(1)
+    expect(pluginState?.ranges[0]?.citations.map((item) => item.id)).toEqual(['current'])
     view.destroy()
   })
 })

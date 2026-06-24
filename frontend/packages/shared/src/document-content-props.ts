@@ -3,7 +3,7 @@ import type {
   BlockRange,
   HMBlockChildrenType,
   HMBlockNode,
-  HMRawMention,
+  HMRawCitation,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from './universal-client'
@@ -28,7 +28,8 @@ export type CitationFragmentHighlight = {
   sourceBlockId: string | null
   sourceCommentId: string | null
   sourceAuthorUid: string | null
-  raw: HMRawMention
+  targetBlockRevision: string | null
+  raw: HMRawCitation
 }
 
 /** Click payload emitted by the citation fragment highlight editor plugin. */

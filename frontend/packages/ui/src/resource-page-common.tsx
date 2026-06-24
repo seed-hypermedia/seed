@@ -4,7 +4,7 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
-  HMRawMention,
+  HMRawCitation,
   HMResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -143,7 +143,7 @@ function sourceCommentId(source?: string): string | null {
   return [unpacked.uid, ...(unpacked.path ?? [])].join('/')
 }
 
-function normalizeCitationFragmentHighlights(citations: HMRawMention[] | undefined): CitationFragmentHighlight[] {
+function normalizeCitationFragmentHighlights(citations: HMRawCitation[] | undefined): CitationFragmentHighlight[] {
   return (citations ?? []).flatMap((citation, index) => {
     const fragment = parseFragment(citation.targetFragment ?? null)
     if (!fragment?.blockId || fragment.start == null || fragment.end == null || fragment.end <= fragment.start) {
@@ -175,6 +175,7 @@ function normalizeCitationFragmentHighlights(citations: HMRawMention[] | undefin
         sourceBlockId,
         sourceCommentId: kind === 'comment' ? sourceCommentId(citation.source) : null,
         sourceAuthorUid: citation.sourceBlob?.author || sourceId?.uid || null,
+        targetBlockRevision: citation.targetBlockRevision || null,
         raw: citation,
       },
     ]
