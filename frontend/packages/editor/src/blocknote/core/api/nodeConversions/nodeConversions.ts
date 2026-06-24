@@ -144,6 +144,12 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
   // content shape used by every other block. Needs a custom handler.
   if (type === 'table') {
     return tableBlockToNode(block, schema, id!)
+  } else if (type === 'tableRow' || type === 'tableColumn') {
+    // Table row and column only exist nested inside a Table
+    // block.
+    throw new Error(
+      `[blockToNode] orphan ${String(type)} block reached blockToNode — caller must filter these before this point`,
+    )
   } else if (!block.content) {
     // @ts-ignore
     contentNode = schema.nodes[type].create(block.props)
