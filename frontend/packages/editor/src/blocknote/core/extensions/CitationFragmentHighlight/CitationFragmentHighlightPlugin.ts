@@ -40,18 +40,20 @@ function emptyState(): CitationFragmentHighlightState {
 function findBlockContent(
   doc: ProseMirrorNode,
   blockId: string,
-): {content: ProseMirrorNode; contentBeforePos: number} | null {
-  let result: {content: ProseMirrorNode; contentBeforePos: number} | null = null
+): {content: ProseMirrorNode; contentBeforePos: number; revision: string} | null {
+  let result: {content: ProseMirrorNode; contentBeforePos: number; revision: string} | null = null
 
   doc.descendants((node, pos) => {
     if (result) return false
     if (node.type.name === 'blockNode' && node.attrs['id'] === blockId) {
       const blockBeforePos = pos
       let contentBeforePos = blockBeforePos
+      let revision = typeof node.attrs['revision'] === 'string' ? node.attrs['revision'] : ''
       node.forEach((child, offset) => {
         if (child.type.spec.group === 'block') {
           contentBeforePos = blockBeforePos + offset + 1
-          result = {content: child, contentBeforePos}
+          revision = typeof child.attrs['revision'] === 'string' ? child.attrs['revision'] : revision
+          result = {content: child, contentBeforePos, revision}
         }
       })
       return false
@@ -77,9 +79,13 @@ function buildCitationDecorations(
     byBlock.set(citation.targetBlockId, blockCitations)
   }
 
-  for (const [blockId, blockCitations] of Array.from(byBlock.entries())) {
+  for (const [blockId, blockCitationsForBlock] of Array.from(byBlock.entries())) {
     const found = findBlockContent(doc, blockId)
     if (!found) continue
+    const blockCitations = blockCitationsForBlock.filter(
+      (citation) => !citation.targetBlockRevision || citation.targetBlockRevision === found.revision,
+    )
+    if (!blockCitations.length) continue
 
     const endpoints: number[] = Array.from(
       new Set(blockCitations.flatMap((citation) => [citation.targetRange.start, citation.targetRange.end])),
