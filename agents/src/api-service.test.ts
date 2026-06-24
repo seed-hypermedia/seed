@@ -1395,6 +1395,137 @@ describe('api service', () => {
     }
   })
 
+  test('runs web_search tool calls against SearXNG and persists tool events', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {
+        onEvent: (event) => events.push(event),
+        web: {searxngUrl: 'http://searxng:8080'},
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'prompt',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['web_search'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      let searxngCalls = 0
+      let searxngHref = ''
+      let openAICallCount = 0
+      const openAIBodies: Array<Record<string, unknown>> = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('searxng:8080/search')) {
+          searxngCalls += 1
+          searxngHref = href
+          return Response.json({
+            results: [{url: 'https://hyper.media/', title: 'Hypermedia', content: 'snippet', engine: 'google'}],
+            unresponsive_engines: [],
+          })
+        }
+
+        openAICallCount += 1
+        const body = JSON.parse(await fetchBodyText(url, init))
+        openAIBodies.push(body)
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {id: 'chat-1', choices: [{delta: {content: 'Searching.\n'}}]},
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {name: 'web_search', arguments: JSON.stringify({query: 'hypermedia'})},
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat-2', choices: [{delta: {content: 'Found it.'}}]},
+          {id: 'chat-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Search the web'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      expect(searxngCalls).toBe(1)
+      expect(searxngHref).toContain('format=json')
+      expect(openAICallCount).toBeGreaterThanOrEqual(2)
+      // First provider request advertises exactly the enabled web tool plus the hidden title tool.
+      expect(
+        (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
+      ).toEqual(['web_search', 'set_session_title'])
+      // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
+      const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
+      expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
+      expect(JSON.stringify(followUpMessages)).toContain('hyper.media')
+      expect(JSON.stringify(followUpMessages)).toContain('web_search')
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const toolEvents = session.events
+        .map((event) => event.event as {type?: string; name?: string})
+        .filter((event) => event.type === 'tool_call' || event.type === 'tool_result')
+      expect(toolEvents.map((event) => `${event.type}:${event.name}`)).toEqual([
+        'tool_call:web_search',
+        'tool_result:web_search',
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('runs write profile and draft tool calls with selected signing identities', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
@@ -1887,6 +2018,221 @@ describe('api service', () => {
     const decoded = cbor.decode<{account: Uint8Array; nested: {bytes: Uint8Array}}>(encoded)
     expect(decoded.account).toEqual(account.principal)
     expect(decoded.nested.bytes).toEqual(new Uint8Array([1, 2, 3]))
+  })
+
+  test('creates, lists, and redacts MCP servers and deletes their header secrets', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'mcp-github-authorization', value: new TextEncoder().encode('Bearer tok')},
+        }),
+      )
+      const set = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetMcpServer',
+            name: ' github ',
+            config: {url: 'https://mcp.example.com/mcp', secretRefs: {Authorization: 'mcp-github-authorization'}},
+          },
+        }),
+      )
+      expect(set._).toBe('SetMcpServerResponse')
+      if (set._ !== 'SetMcpServerResponse') throw new Error('unexpected response')
+      expect(set.server).toMatchObject({name: 'github', transport: 'http', hasSecrets: true})
+      expect(set.server.secretHeaderNames).toEqual(['Authorization'])
+      expect(JSON.stringify(set)).not.toContain('Bearer tok')
+
+      const list = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListMcpServers'}}))
+      if (list._ !== 'ListMcpServersResponse') throw new Error('unexpected response')
+      expect(list.servers).toHaveLength(1)
+      expect(list.servers[0]?.url).toBe('https://mcp.example.com/mcp')
+
+      const del = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteMcpServer', name: 'github'}}),
+      )
+      expect(del._).toBe('DeleteMcpServerResponse')
+      const secretRow = db.query(`SELECT name FROM secrets WHERE name = ?`).get('mcp-github-authorization')
+      expect(secretRow).toBeNull()
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('deleting an MCP server removes it from agents that had it enabled', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetMcpServer', name: 'weather', config: {url: 'https://mcp.example.com/mcp'}},
+        }),
+      )
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt-4.1',
+              mcpServers: ['weather'],
+            },
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteMcpServer', name: 'weather'}}))
+
+      const get = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId: created.agentId}}),
+      )
+      if (get._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(get.agent.definition.mcpServers).toEqual([])
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('rejects MCP servers with invalid URLs', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'SetMcpServer', name: 'bad', config: {url: 'ftp://nope'}},
+          }),
+        ),
+      ).rejects.toThrow('MCP server URL must start with http')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('persists enabled MCP servers on an agent definition', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'MCP Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt-4.1',
+              mcpServers: ['github', 'github'],
+            },
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const get = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId: create.agentId}}),
+      )
+      if (get._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(get.agent.definition.mcpServers).toEqual(['github', 'github'])
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('surfaces an MCP connection failure as a visible session error and still answers', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetMcpServer', name: 'weather', config: {url: 'http://mcp-broken.test/mcp'}},
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt',
+              mcpServers: ['weather'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        // The MCP connect attempt hits the (unreachable) server URL; simulate a connection failure.
+        if (String(url).includes('mcp-broken.test')) throw new Error('connection refused')
+        return openAIStreamResponse([
+          {id: 'chat-1', choices: [{delta: {content: 'I could not reach the weather tool.'}}]},
+          {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const message = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: "What's the weather?"}],
+          },
+        }),
+      )
+      expect(message._).toBe('MessageSessionResponse')
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      // The run completes (idle) and the failure is surfaced as a durable error event the desktop renders.
+      expect(session.session.status).toBe('idle')
+      const errorEvent = session.events.find((event) => isRecord(event.event) && event.event.type === 'error')
+        ?.event as {message?: string} | undefined
+      expect(errorEvent?.message).toContain('weather')
+      expect(errorEvent?.message).toContain('could not connect')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
   })
 })
 

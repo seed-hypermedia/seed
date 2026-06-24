@@ -13,6 +13,17 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE TABLE mcp_servers (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      name TEXT NOT NULL,
+      config_cbor BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (account_id, name)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX mcp_servers_by_account ON mcp_servers (account_id, updated_at DESC);`,
   `ALTER TABLE sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'system';
    UPDATE sessions
       SET title_source = CASE

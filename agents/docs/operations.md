@@ -43,16 +43,19 @@ docker run --rm -p 3050:3050 -v seed-agents-data:/data seedhypermedia/agents:dev
 
 Config source: `agents/src/config.ts`.
 
-| Environment variable                    | Default                | Purpose                                                                     |
-| --------------------------------------- | ---------------------- | --------------------------------------------------------------------------- |
-| `SEED_AGENTS_HTTP_HOSTNAME`             | `0.0.0.0`              | HTTP bind hostname.                                                         |
-| `SEED_AGENTS_HTTP_PORT`                 | `3050`                 | HTTP port.                                                                  |
-| `SEED_AGENTS_DB_PATH`                   | `./data/agents.sqlite` | SQLite DB path.                                                             |
-| `SEED_AGENTS_DATA_DIR`                  | `./data`               | Data directory.                                                             |
-| `SEED_AGENTS_HM_SERVER_URL`             | `https://hyper.media`  | Upstream SHM HTTP API used for ActivityFeed polls and HM tool reads/writes. |
-| `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000`                 | Activity and schedule trigger monitor poll interval.                        |
-| `SEED_AGENTS_ACTIVITY_PAGE_SIZE`        | `50`                   | ActivityFeed page size.                                                     |
-| `SEED_AGENTS_ACTIVITY_MAX_PAGES`        | `5`                    | Max pages fetched per poll.                                                 |
+| Environment variable                    | Default                | Purpose                                                                      |
+| --------------------------------------- | ---------------------- | ---------------------------------------------------------------------------- |
+| `SEED_AGENTS_HTTP_HOSTNAME`             | `0.0.0.0`              | HTTP bind hostname.                                                          |
+| `SEED_AGENTS_HTTP_PORT`                 | `3050`                 | HTTP port.                                                                   |
+| `SEED_AGENTS_DB_PATH`                   | `./data/agents.sqlite` | SQLite DB path.                                                              |
+| `SEED_AGENTS_DATA_DIR`                  | `./data`               | Data directory.                                                              |
+| `SEED_AGENTS_HM_SERVER_URL`             | `https://hyper.media`  | Upstream SHM HTTP API used for ActivityFeed polls and HM tool reads/writes.  |
+| `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000`                 | Activity and schedule trigger monitor poll interval.                         |
+| `SEED_AGENTS_ACTIVITY_PAGE_SIZE`        | `50`                   | ActivityFeed page size.                                                      |
+| `SEED_AGENTS_ACTIVITY_MAX_PAGES`        | `5`                    | Max pages fetched per poll.                                                  |
+| `SEED_AGENTS_SEARXNG_URL`               | _(unset)_              | Self-hosted SearXNG base URL. Enables the `web_search` tool.                 |
+| `SEED_AGENTS_CRAWLER_URL`               | _(unset)_              | Self-hosted Crawl4AI base URL. Enables `web_read` browser-render escalation. |
+| `SEED_AGENTS_CRAWLER_TOKEN`             | _(unset)_              | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9).                     |
 
 CLI flags override env/defaults:
 
@@ -64,6 +67,81 @@ bun src/main.ts \
   --data-dir ./data \
   --hm-server-url https://hyper.media
 ```
+
+## Web research backends
+
+The `web_search` and `web_read` tools are fully self-hosted and use no third-party API keys. They are optional: without
+configuration the tools are simply unavailable (`web_search` errors; `web_read` falls back to its MediaWiki and
+in-process static tiers). To enable them, run the backends as sidecar containers on the same internal network and point
+the agents service at them.
+
+For local development a ready-to-run compose and SearXNG config live at `agents/dev/web-backends/`. Start the
+containers, then run the service — `bun run dev` already points at these dev endpoints by default:
+
+```bash
+cd agents/dev/web-backends && docker compose up -d   # SearXNG on :8899, Crawl4AI on :11235
+cd ../.. && bun run dev                               # auto-targets the dev backends
+```
+
+The `dev` script defaults `SEED_AGENTS_SEARXNG_URL` (`http://127.0.0.1:8899`), `SEED_AGENTS_CRAWLER_URL`
+(`http://127.0.0.1:11235`), and `SEED_AGENTS_CRAWLER_TOKEN` (`dev-crawl-token`) to the compose values; export those env
+vars to override. The startup log prints `Web tools: search=on reader=static+crawl4ai` when wired. `web_read`'s
+MediaWiki and static tiers still work if the containers are not running; only `web_search` and the browser escalation
+need them. Stop the backends with `docker compose down` in `agents/dev/web-backends/`.
+
+For production the same two containers run as internal sidecars:
+
+```yaml
+services:
+  searxng:
+    image: searxng/searxng:latest
+    volumes:
+      - ./searxng:/etc/searxng:rw # settings.yml must enable the json format
+    restart: unless-stopped
+    # No published ports: reachable on the internal network as http://searxng:8080
+
+  crawl4ai:
+    image: unclecode/crawl4ai:0.9.0 # pin; do NOT use :latest (0.9.0 changed auth defaults)
+    shm_size: '1g' # required: headless Chromium crashes without it
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN} # required: 0.9.x is secure-by-default
+    restart: unless-stopped
+    # Reachable on the internal network as http://crawl4ai:11235
+```
+
+Required SearXNG `settings.yml` (the JSON format is off by default and the limiter blocks API calls):
+
+```yaml
+use_default_settings: true
+server:
+  secret_key: '${SEARXNG_SECRET_KEY}'
+  limiter: false # safe only on a trusted internal network
+  public_instance: false
+search:
+  formats:
+    - html
+    - json
+```
+
+Then wire the agents container:
+
+```yaml
+environment:
+  SEED_AGENTS_SEARXNG_URL: http://searxng:8080
+  SEED_AGENTS_CRAWLER_URL: http://crawl4ai:11235
+  SEED_AGENTS_CRAWLER_TOKEN: ${CRAWL4AI_API_TOKEN}
+```
+
+Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the
+host accordingly. The SearXNG + in-process static reader path is lightweight; Crawl4AI is the heavy escalation tier.
+
+The health endpoints (`/api/health`, `/agents/api/health`) report which optional web backends are configured via a
+`webTools: {search, readBrowser}` capability object (derived from `SEED_AGENTS_SEARXNG_URL` /
+`SEED_AGENTS_CRAWLER_URL`). The desktop Tools tab reads this to grey out tools the server cannot run.
+
+Production deployment of these sidecars on the hosted agent server is handled in the `mintterteam/infrastructure` repo
+(the `seed_infra/agentic` Terraform stack adds the `searxng` and `crawl4ai` containers and wires the env vars), not in
+this repo.
 
 ## Local files
 

@@ -80,6 +80,30 @@ type ModelProviderConfig = {
 
 The `(account_id, name)` pair is unique.
 
+### `mcp_servers`
+
+Stores account-scoped remote MCP server config (see `mcp.md`).
+
+Important columns:
+
+- `account_id`
+- `name`
+- `config_cbor`
+
+`config_cbor` encodes `McpServerConfig`:
+
+```ts
+type McpServerConfig = {
+  url: string
+  transport?: 'http' | 'sse'
+  headers?: Record<string, string>
+  secretRefs?: Record<string, string> // header name -> secret name in `secrets`
+}
+```
+
+The `(account_id, name)` pair is unique. Secret-backed auth headers are stored in `secrets` and referenced by name;
+deleting an MCP server also deletes the header secrets it owns (`mcp-<name>-…`).
+
 ### `secrets`
 
 Stores encrypted account-scoped secret values.

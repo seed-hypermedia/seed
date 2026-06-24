@@ -5,6 +5,8 @@ import * as activityTriggers from '@/activity-triggers'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
+import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
+import {connectMcpServer, qualifyMcpToolName, type McpConnection, type McpToolDescriptor} from '@/mcp'
 import * as blobs from '@shm/shared/blobs'
 import {
   blocksToMarkdown,
@@ -51,6 +53,8 @@ const MAX_PROMPT_BYTES = 64 * 1024
 const MAX_MODEL_BYTES = 256
 const MAX_METADATA_CBOR_BYTES = 16 * 1024
 const MAX_TOOL_COUNT = 32
+const MAX_MCP_URL_BYTES = 2048
+const MAX_MCP_HEADER_COUNT = 16
 const MAX_TOOL_NAME_BYTES = 128
 const MAX_TOOLS_TOTAL_BYTES = 4 * 1024
 const MAX_SECRET_BYTES = 64 * 1024
@@ -112,17 +116,24 @@ export class Service {
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
+  readonly #web: WebToolsConfig
   readonly #runningSessions = new Map<string, RunningSession>()
 
   constructor(
     db: Database,
     dataDir: string,
-    options: {onEvent?: (event: ServiceEvent) => void; hmServerUrl?: string} = {},
+    options: {onEvent?: (event: ServiceEvent) => void; hmServerUrl?: string; web?: WebToolsConfig} = {},
   ) {
     this.#db = db
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
+    this.#web = options.web ?? {}
+  }
+
+  /** Reports which optional web-tool backends this server has configured, for client capability display. */
+  webToolCapabilities(): {search: boolean; readBrowser: boolean} {
+    return {search: Boolean(this.#web.searxngUrl), readBrowser: Boolean(this.#web.crawlerUrl)}
   }
 
   /** Verifies and dispatches a signed action envelope. */
@@ -156,6 +167,14 @@ export class Service {
         return this.#setModelProvider(verified.accountId, envelope.action.name, envelope.action.provider)
       case 'DeleteModelProvider':
         return this.#deleteModelProvider(verified.accountId, envelope.action.name)
+      case 'ListMcpServers':
+        return this.#listMcpServers(verified.accountId)
+      case 'SetMcpServer':
+        return this.#setMcpServer(verified.accountId, envelope.action.name, envelope.action.config)
+      case 'DeleteMcpServer':
+        return this.#deleteMcpServer(verified.accountId, envelope.action.name)
+      case 'ListMcpServerTools':
+        return this.#listMcpServerTools(verified.accountId, envelope.action.name)
       case 'SetSecret':
         return this.#setSecret(
           verified.accountId,
@@ -518,6 +537,123 @@ export class Service {
     return {_: 'DeleteModelProviderResponse', name}
   }
 
+  #listMcpServers(accountId: string): api.ListMcpServersResponse {
+    const rows = this.#db
+      .query<McpServerRow, [string]>(
+        `SELECT id, name, config_cbor, created_at, updated_at FROM mcp_servers WHERE account_id = ? ORDER BY updated_at DESC`,
+      )
+      .all(accountId)
+    return {_: 'ListMcpServersResponse', servers: rows.map(mcpServerRowToRedacted)}
+  }
+
+  #setMcpServer(accountId: string, rawName: string, rawConfig: api.McpServerConfig): api.SetMcpServerResponse {
+    const name = normalizeBoundedString(rawName, 'MCP server name', MAX_NAME_BYTES)
+    const config = normalizeMcpServerConfig(rawConfig)
+    const now = Date.now()
+    const existing = this.#db
+      .query<{id: string; created_at: number}, [string, string]>(
+        `SELECT id, created_at FROM mcp_servers WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, name)
+    const id = existing?.id ?? crypto.randomUUID()
+    const createdAt = existing?.created_at ?? now
+
+    this.#ensureAccount(accountId, now)
+    this.#db.run(
+      `INSERT INTO mcp_servers (id, account_id, name, config_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, name) DO UPDATE SET
+         config_cbor = excluded.config_cbor,
+         updated_at = excluded.updated_at`,
+      [id, accountId, name, cbor.encode(config), createdAt, now],
+    )
+
+    return {
+      _: 'SetMcpServerResponse',
+      server: redactMcpServer({id, name, config, createdAt, updatedAt: now}),
+    }
+  }
+
+  #deleteMcpServer(accountId: string, rawName: string): api.DeleteMcpServerResponse {
+    const name = normalizeBoundedString(rawName, 'MCP server name', MAX_NAME_BYTES)
+    const row = this.#db
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM mcp_servers WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, name)
+    if (!row) throw new APIError(404, 'MCP server not found')
+    const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+    this.#db.run(`DELETE FROM mcp_servers WHERE account_id = ? AND name = ?`, [accountId, name])
+    // Delete header secrets this server owns (created with the `mcp-<name>-` convention by the desktop client).
+    for (const secretName of Object.values(config.secretRefs ?? {})) {
+      if (typeof secretName === 'string' && secretName.startsWith(`mcp-${name}-`)) {
+        this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
+      }
+    }
+    // Remove the server from any agents that had it enabled so runs don't reference a deleted server.
+    this.#removeMcpServerFromAgents(accountId, name)
+    return {_: 'DeleteMcpServerResponse', name}
+  }
+
+  /** Drops a deleted MCP server's name from every agent definition's `mcpServers` in the account. */
+  #removeMcpServerFromAgents(accountId: string, serverName: string): void {
+    const agents = this.#db
+      .query<AgentRow, [string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    for (const agentRow of agents) {
+      const definition = cbor.decode<api.AgentDefinition>(agentRow.definition_cbor)
+      if (!definition.mcpServers?.includes(serverName)) continue
+      definition.mcpServers = definition.mcpServers.filter((mcpName) => mcpName !== serverName)
+      const now = Date.now()
+      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        cbor.encode(definition),
+        now,
+        accountId,
+        agentRow.id,
+      ])
+      const agentInfo = this.#getAgentInfo(accountId, agentRow.id)
+      if (agentInfo) {
+        this.#emit({type: 'agent-change', accountId, agent: agentInfo})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: agentRow.id})
+      }
+    }
+  }
+
+  async #listMcpServerTools(accountId: string, rawName: string): Promise<api.ListMcpServerToolsResponse> {
+    const name = normalizeBoundedString(rawName, 'MCP server name', MAX_NAME_BYTES)
+    const row = this.#db
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM mcp_servers WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, name)
+    if (!row) throw new APIError(404, 'MCP server not found')
+    const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+    let connection: McpConnection | undefined
+    try {
+      connection = await connectMcpServer(name, config, (secretName) =>
+        this.#getSecretPlaintextString(accountId, secretName),
+      )
+      const tools = await connection.listTools()
+      return {
+        _: 'ListMcpServerToolsResponse',
+        name,
+        tools: tools.map((tool) => ({
+          name: tool.name,
+          qualifiedName: qualifyMcpToolName(name, tool.name),
+          ...(tool.description ? {description: tool.description} : {}),
+          ...(tool.inputSchema ? {inputSchema: tool.inputSchema} : {}),
+        })),
+      }
+    } catch (error) {
+      throw new APIError(502, `Could not list tools from MCP server "${name}": ${errorMessage(error)}`)
+    } finally {
+      await connection?.close()
+    }
+  }
+
   async #setSecret(
     accountId: string,
     rawName: string,
@@ -588,10 +724,16 @@ export class Service {
     return {_: 'GetAgentResponse', agent: agentRowToInfo(agent), sessions: this.#sessionRowsToInfo(accountId, sessions)}
   }
 
-  #updateAgent(accountId: string, agentId: string, rawDefinition: api.AgentDefinition): api.GetAgentResponse {
+  async #updateAgent(
+    accountId: string,
+    agentId: string,
+    rawDefinition: api.AgentDefinition,
+  ): Promise<api.GetAgentResponse> {
     const definition = normalizeDefinition(rawDefinition)
     const existing = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
+      .query<{definition_cbor: Uint8Array}, [string, string]>(
+        `SELECT definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
+      )
       .get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const provider = this.#db
@@ -600,6 +742,12 @@ export class Service {
     if (!provider) throw new APIError(400, 'Model provider not found')
     this.#validateSigningKeys(accountId, definition)
 
+    // Detect capability changes so in-flight runs can be rebuilt with the new tool/MCP set immediately.
+    const previous = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
+    const capabilitiesChanged =
+      JSON.stringify(previous.tools ?? null) !== JSON.stringify(definition.tools ?? null) ||
+      JSON.stringify(previous.mcpServers ?? null) !== JSON.stringify(definition.mcpServers ?? null)
+
     const now = Date.now()
     this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
       cbor.encode(definition),
@@ -607,10 +755,30 @@ export class Service {
       accountId,
       agentId,
     ])
+    // Idle sessions reload the definition on their next message. A run that is already streaming captured the
+    // old tool/MCP set, so stop those runs when tools/MCPs change to enforce the new capabilities right away.
+    if (capabilitiesChanged) await this.#abortAgentRuns(accountId, agentId)
     const response = this.#getAgent(accountId, agentId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
     return response
+  }
+
+  /** Stops every in-flight run for an agent's sessions so a definition change takes effect immediately. */
+  async #abortAgentRuns(accountId: string, agentId: string): Promise<void> {
+    const sessions = this.#db
+      .query<{id: string}, [string, string]>(
+        `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ? AND status = 'streaming'`,
+      )
+      .all(accountId, agentId)
+    await Promise.all(
+      sessions.map(async ({id}) => {
+        const running = this.#runningSessions.get(this.#runningSessionKey(accountId, id))
+        if (!running) return
+        running.stopped = true
+        await running.abort?.()
+      }),
+    )
   }
 
   #deleteAgent(accountId: string, agentId: string): api.DeleteAgentResponse {
@@ -1040,6 +1208,89 @@ export class Service {
     )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
   }
 
+  /**
+   * Connects to the MCP servers enabled on an agent and turns their tools into Pi tool definitions.
+   * A server that is missing or fails to connect is logged and skipped so the run still proceeds.
+   */
+  async #connectAgentMcpServers(
+    accountId: string,
+    definition: api.AgentDefinition,
+    sessionId: string,
+    agentId: string,
+  ): Promise<{tools: pi.ToolDefinition[]; toolNames: string[]; close: () => Promise<void>}> {
+    const serverNames = Array.from(new Set(definition.mcpServers ?? []))
+    const connections: McpConnection[] = []
+    const tools: pi.ToolDefinition[] = []
+    const toolNames: string[] = []
+    const close = async (): Promise<void> => {
+      await Promise.all(connections.map((connection) => connection.close()))
+    }
+    if (serverNames.length === 0) return {tools, toolNames, close}
+
+    for (const serverName of serverNames) {
+      const row = this.#db
+        .query<{config_cbor: Uint8Array}, [string, string]>(
+          `SELECT config_cbor FROM mcp_servers WHERE account_id = ? AND name = ?`,
+        )
+        .get(accountId, serverName)
+      if (!row) {
+        console.warn('[agents/mcp] enabled MCP server not found', {sessionId, agentId, serverName})
+        this.#appendSessionEvent(
+          accountId,
+          agentId,
+          sessionId,
+          {type: 'error', message: `MCP server "${serverName}" is enabled for this agent but no longer exists.`},
+          Date.now(),
+        )
+        continue
+      }
+      const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+      try {
+        const connection = await connectMcpServer(serverName, config, (secretName) =>
+          this.#getSecretPlaintextString(accountId, secretName),
+        )
+        connections.push(connection)
+        const descriptors = await connection.listTools()
+        for (const descriptor of descriptors) {
+          const qualifiedName = qualifyMcpToolName(serverName, descriptor.name)
+          tools.push(buildMcpPiTool(connection, serverName, descriptor, qualifiedName))
+          toolNames.push(qualifiedName)
+        }
+        console.info('[agents/mcp] connected MCP server', {
+          sessionId,
+          agentId,
+          serverName,
+          tools: descriptors.length,
+        })
+        if (descriptors.length === 0) {
+          this.#appendSessionEvent(
+            accountId,
+            agentId,
+            sessionId,
+            {type: 'error', message: `MCP server "${serverName}" connected but advertised no tools.`},
+            Date.now(),
+          )
+        }
+      } catch (error) {
+        console.error('[agents/mcp] could not connect MCP server', {
+          sessionId,
+          agentId,
+          serverName,
+          error: errorMessage(error),
+        })
+        // Surface the failure in the session so the user knows the tool is unavailable and why.
+        this.#appendSessionEvent(
+          accountId,
+          agentId,
+          sessionId,
+          {type: 'error', message: `MCP server "${serverName}" could not connect: ${errorMessage(error)}`},
+          Date.now(),
+        )
+      }
+    }
+    return {tools, toolNames, close}
+  }
+
   async #runPiAgent(
     accountId: string,
     definition: api.AgentDefinition,
@@ -1080,6 +1331,8 @@ export class Service {
     const cwd = this.#dataDir
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
     const resourceLoader = createSeedPiResourceLoader(await this.#agentSystemPrompt(accountId, definition))
+    // Connect any MCP servers this agent has enabled before starting the run; their tools join the tool set.
+    const mcp = await this.#connectAgentMcpServers(accountId, definition, sessionId, session.agentId)
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -1088,22 +1341,29 @@ export class Service {
       authStorage,
       modelRegistry,
       resourceLoader,
-      customTools: createAgentServicePiTools({
-        db: this.#db,
-        accountId,
-        agentId: session.agentId,
-        definition,
-        hmServerUrl: this.#hmServerUrl,
-        setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
-      }),
+      customTools: [
+        ...createAgentServicePiTools({
+          db: this.#db,
+          accountId,
+          agentId: session.agentId,
+          definition,
+          hmServerUrl: this.#hmServerUrl,
+          web: this.#web,
+          setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
+        }),
+        ...mcp.tools,
+      ],
       tools: [
         ...(definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools).filter(
           (tool) =>
             tool === seedToolRegistry.search.name ||
             tool === seedToolRegistry.read.name ||
             tool === seedToolRegistry.list_activity_feed.name ||
+            tool === seedToolRegistry.web_search.name ||
+            tool === seedToolRegistry.web_read.name ||
             tool === seedToolRegistry.write.name,
         ),
+        ...mcp.toolNames,
         seedToolRegistry.set_session_title.name,
       ],
       noTools: 'builtin',
@@ -1338,6 +1598,7 @@ export class Service {
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
+      await mcp.close()
       logRun('agent run finished', {
         durationMs: Date.now() - runStartedAt,
         turns: turnCount,
@@ -1442,6 +1703,10 @@ export class Service {
       .get(accountId, name)
     if (!row) throw new APIError(400, 'Required secret is not configured')
     return decryptSecret(this.#db, row.ciphertext)
+  }
+
+  async #getSecretPlaintextString(accountId: string, name: string): Promise<string> {
+    return new TextDecoder().decode(await this.#getSecretPlaintext(accountId, name))
   }
 
   #appendSessionEvent(
@@ -1900,6 +2165,14 @@ type AgentRow = {
   updated_at: number
 }
 
+type McpServerRow = {
+  id: string
+  name: string
+  config_cbor: Uint8Array
+  created_at: number
+  updated_at: number
+}
+
 type AgentTriggerRow = {
   id: string
   account_id: string
@@ -2259,6 +2532,14 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
     definition.tools = tools
   }
 
+  if (raw.mcpServers !== undefined) {
+    if (!Array.isArray(raw.mcpServers)) throw new APIError(400, 'MCP servers must be an array')
+    if (raw.mcpServers.length > MAX_TOOL_COUNT) throw new APIError(400, 'Too many MCP servers')
+    definition.mcpServers = raw.mcpServers.map((name) =>
+      normalizeBoundedString(name, 'MCP server name', MAX_NAME_BYTES),
+    )
+  }
+
   if (raw.metadata !== undefined) {
     if (!raw.metadata || typeof raw.metadata !== 'object' || Array.isArray(raw.metadata)) {
       throw new APIError(400, 'Metadata must be an object')
@@ -2443,6 +2724,86 @@ function normalizeProvider(raw: api.ModelProviderConfig): api.ModelProviderConfi
   return provider
 }
 
+function normalizeMcpServerConfig(raw: api.McpServerConfig): api.McpServerConfig {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'MCP server config is required')
+  const url = normalizeBoundedString(raw.url, 'MCP server URL', MAX_MCP_URL_BYTES)
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new APIError(400, 'MCP server URL is invalid')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new APIError(400, 'MCP server URL must start with http:// or https://')
+  }
+  const config: api.McpServerConfig = {url}
+
+  if (raw.transport !== undefined) {
+    if (raw.transport !== 'http' && raw.transport !== 'sse') throw new APIError(400, 'MCP transport is unsupported')
+    config.transport = raw.transport
+  }
+
+  if (raw.headers !== undefined) {
+    if (!raw.headers || typeof raw.headers !== 'object' || Array.isArray(raw.headers)) {
+      throw new APIError(400, 'MCP headers must be an object')
+    }
+    const headers: Record<string, string> = {}
+    for (const [key, value] of Object.entries(raw.headers)) {
+      headers[normalizeBoundedString(key, 'MCP header name', MAX_NAME_BYTES)] = normalizeBoundedString(
+        value,
+        'MCP header value',
+        MAX_MCP_URL_BYTES,
+      )
+    }
+    if (Object.keys(headers).length > MAX_MCP_HEADER_COUNT) throw new APIError(400, 'Too many MCP headers')
+    if (Object.keys(headers).length) config.headers = headers
+  }
+
+  if (raw.secretRefs !== undefined) {
+    if (!raw.secretRefs || typeof raw.secretRefs !== 'object' || Array.isArray(raw.secretRefs)) {
+      throw new APIError(400, 'MCP secret refs must be an object')
+    }
+    const secretRefs: Record<string, string> = {}
+    for (const [key, value] of Object.entries(raw.secretRefs)) {
+      secretRefs[normalizeBoundedString(key, 'MCP secret ref header', MAX_NAME_BYTES)] = normalizeBoundedString(
+        value,
+        'MCP secret ref name',
+        MAX_NAME_BYTES,
+      )
+    }
+    if (Object.keys(secretRefs).length > MAX_MCP_HEADER_COUNT) throw new APIError(400, 'Too many MCP secret headers')
+    if (Object.keys(secretRefs).length) config.secretRefs = secretRefs
+  }
+
+  return config
+}
+
+function redactMcpServer(input: {
+  id: string
+  name: string
+  config: api.McpServerConfig
+  createdAt: number
+  updatedAt: number
+}): api.RedactedMcpServer {
+  const secretHeaderNames = Object.keys(input.config.secretRefs ?? {})
+  return {
+    id: input.id,
+    name: input.name,
+    url: input.config.url,
+    transport: input.config.transport ?? 'http',
+    headerNames: Object.keys(input.config.headers ?? {}),
+    secretHeaderNames,
+    hasSecrets: secretHeaderNames.length > 0,
+    createdAt: input.createdAt,
+    updatedAt: input.updatedAt,
+  }
+}
+
+function mcpServerRowToRedacted(row: McpServerRow): api.RedactedMcpServer {
+  const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+  return redactMcpServer({id: row.id, name: row.name, config, createdAt: row.created_at, updatedAt: row.updated_at})
+}
+
 function normalizeOptionalMetadata(raw: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (raw === undefined) return undefined
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Metadata must be an object')
@@ -2594,6 +2955,7 @@ type WriteToolContext = {
 
 type AgentServicePiToolContext = WriteToolContext & {
   setSessionTitle: (title: string) => api.SessionInfo
+  web: WebToolsConfig
 }
 
 type ResolvedAgentSigner = {
@@ -2608,6 +2970,28 @@ type ParsedWriteDocumentContent = {
   ops: DocumentOperation[]
   metadata: HMMetadata
   blocks: HMBlockNode[]
+}
+
+/** Builds a Pi tool definition that proxies calls to an MCP server tool, namespaced per server. */
+function buildMcpPiTool(
+  connection: McpConnection,
+  serverName: string,
+  descriptor: McpToolDescriptor,
+  qualifiedName: string,
+): pi.ToolDefinition {
+  const parameters = descriptor.inputSchema ?? {type: 'object', additionalProperties: true}
+  return pi.defineTool({
+    name: qualifiedName,
+    label: descriptor.name,
+    description: descriptor.description || `Tool "${descriptor.name}" from MCP server "${serverName}".`,
+    parameters: parameters as never,
+    execute: async (_toolCallId, params) => {
+      const result = await connection.callTool(descriptor.name, params)
+      if (result.isError) throw new Error(result.text || `MCP tool ${descriptor.name} failed`)
+      const details = result.structured ?? result.text
+      return {content: [{type: 'text', text: result.text || safeJSONStringify(details)}], details}
+    },
+  })
 }
 
 function defineSeedPiTool(
@@ -2712,6 +3096,8 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
   return [
     defineSeedPiTool(seedToolRegistry.search, (params) => executeAgentServiceSearch(context, params)),
     defineSeedPiTool(seedToolRegistry.read, (params) => readHypermedia(params)),
+    defineSeedPiTool(seedToolRegistry.web_search, (params) => executeWebSearch(context.web, params)),
+    defineSeedPiTool(seedToolRegistry.web_read, (params) => executeWebRead(context.web, params)),
     defineSeedPiTool(seedToolRegistry.list_activity_feed, async (params) => {
       const input: Record<string, unknown> = isRecord(params) ? params : {}
       const client = createSeedClient(context.hmServerUrl)

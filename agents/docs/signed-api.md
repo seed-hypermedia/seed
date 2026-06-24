@@ -74,6 +74,11 @@ Current `AgentAction` union:
 - `UpdateSigningIdentity`
 - `DeleteSigningIdentity`
 - `SetModelProvider`
+- `DeleteModelProvider`
+- `ListMcpServers`
+- `SetMcpServer`
+- `DeleteMcpServer`
+- `ListMcpServerTools`
 - `SetSecret`
 - `GetAgent`
 - `UpdateAgent`
@@ -268,6 +273,18 @@ Request:
 ```
 
 Upserts provider config by account/name.
+
+### MCP server actions
+
+See `mcp.md` for the full model.
+
+- `ListMcpServers` → `{_: 'ListMcpServersResponse'; servers: RedactedMcpServer[]}`. Redacted: header names and a
+  `hasSecrets` flag only, never secret values.
+- `SetMcpServer {name, config: McpServerConfig}` → `{_: 'SetMcpServerResponse'; server: RedactedMcpServer}`. Upserts by
+  account/name.
+- `DeleteMcpServer {name}` → `{_: 'DeleteMcpServerResponse'; name}`. Also deletes header secrets the server owns.
+- `ListMcpServerTools {name}` → `{_: 'ListMcpServerToolsResponse'; name; tools: McpToolInfo[]}`. Connects to the server
+  and lists advertised tools; returns `502` when the server is unreachable.
 
 ### `SetSecret`
 

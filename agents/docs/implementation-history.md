@@ -5,6 +5,45 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Web research tools (`web_search`, `web_read`)
+
+Completed:
+
+- Added `agents/src/web-tools.ts` implementing two self-hosted, key-free web tools.
+- `web_search` queries a self-hosted SearXNG `GET /search?format=json`, with engine-rotation retry on upstream blocking
+  and a `degraded` flag for partial coverage.
+- `web_read` uses a tiered, cheapest-first reader: MediaWiki REST/Parsoid API → in-process static extraction
+  (`@mozilla/readability` on a `linkedom` DOM + Turndown) → optional Crawl4AI headless-browser `POST /md` escalation
+  with one retry. Output bounded to 200 KiB.
+- Added `web` config (`SEED_AGENTS_SEARXNG_URL`, `SEED_AGENTS_CRAWLER_URL`, `SEED_AGENTS_CRAWLER_TOKEN`) threaded from
+  `Service` into the tool context; registry entries in `agents/protocol/src/tool-registry.ts`; desktop Tools-tab web
+  group in `frontend/apps/desktop/src/pages/agents/agent-tools.ts` and `detail.tsx`.
+- Tools are opt-in per agent and degrade gracefully when their backends are unconfigured. Added unit tests
+  (`src/web-tools.test.ts`) and an end-to-end `web_search` tool-call test in `src/api-service.test.ts`.
+- Validated against live SearXNG + Crawl4AI 0.9.0 containers locally; the static and MediaWiki tiers run with no extra
+  container.
+
+Design decisions (the original recommendation proposed a heavier six-part suite; it was cut for "reliable + easy to host
+on a small single server"):
+
+- **SearXNG — kept.** The only realistic self-hostable JSON search API; no substitute. It has no index and federates
+  public engines, so datacenter-IP rate limiting is the main failure mode — mitigated by engine-rotation retry and the
+  `degraded` flag rather than a hard dependency on any one engine.
+- **Crawl4AI — kept, optional.** Apache-2.0, one container, clean `/md` markdown. Used as the escalation tier only,
+  because its headless Chromium wants >=4 GB RAM; the lightweight tiers cover the common case so the browser is reserved
+  for pages that need it.
+- **MediaWiki adapter + static extraction — kept as in-process code, not services.** They add reliability without ops
+  surface. Trafilatura (the original static pick) was replaced by `@mozilla/readability` + Turndown because the agents
+  service is Bun, not Python, so extraction runs in-process with no sidecar.
+- **ReaderLM-v2 — dropped.** CC-BY-NC license (commercial blocker) and needs a GPU; heuristic extraction covers clean
+  articles at a fraction of the cost.
+- **ArchiveBox — dropped.** Heavy Django + Chromium + worker stack whose output is archival artifacts (WARC/PDF), not
+  agent-ready markdown.
+- **Firecrawl (self-hosted) — not adopted.** 5–7 containers, ~8 GB RAM, no self-hosted fire-engine, and its search needs
+  SearXNG anyway, so SearXNG + Crawl4AI strictly dominates it on the hosting axis.
+- **Wayback / archive.today — dropped for v1.** They call third-party archives, which conflicts with the "fully
+  self-hostable, no third-party API keys" requirement; can be revisited later as an opt-in fallback.
+
 ### Current work: Rich agent editing and presentation
 
 Completed:

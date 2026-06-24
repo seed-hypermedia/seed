@@ -13,6 +13,10 @@ import {
   type AgentTriggerInput,
   type AgentTriggerPatch,
   type AgentWSEvent,
+  type McpServerConfig,
+  type McpServerInfo,
+  type McpServerTransport,
+  type McpToolInfo,
   type MessageSessionContentPart,
   type ModelProviderInfo,
   type ModelProviderType,
@@ -324,6 +328,113 @@ export function useDeleteModelProvider(serverUrl: string | undefined, accountUid
     mutationFn: async (name: string) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteModelProvider', name}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Lists configured MCP servers for the selected account on the configured server. */
+export function useMcpServers(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useQuery({
+    queryKey: ['agents', 'mcp-servers', serverUrl, accountUid],
+    queryFn: async (): Promise<McpServerInfo[]> => {
+      if (!serverUrl || !accountUid) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListMcpServers'}})
+      if (res._ !== 'ListMcpServersResponse') throw new Error('Unexpected ListMcpServers response')
+      return res.servers
+    },
+    enabled: !!serverUrl && !!accountUid,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Connects to one MCP server and lists the tools it advertises. */
+export function useMcpServerTools(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  name: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'mcp-server-tools', serverUrl, accountUid, name],
+    queryFn: async (): Promise<McpToolInfo[]> => {
+      if (!serverUrl || !accountUid || !name) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListMcpServerTools', name}})
+      if (res._ !== 'ListMcpServerToolsResponse') throw new Error('Unexpected ListMcpServerTools response')
+      return res.tools
+    },
+    enabled: !!serverUrl && !!accountUid && !!name,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Input for creating or updating an MCP server, with an optional secret-backed auth header. */
+export type SaveMcpServerInput = {
+  name: string
+  url: string
+  transport?: McpServerTransport
+  headers?: Record<string, string>
+  /** Optional auth header sent encrypted: when set, stored as a secret and referenced by name. */
+  authHeaderName?: string
+  authHeaderValue?: string
+}
+
+/** Stores an MCP server config, persisting any auth header value as an encrypted account secret. */
+export function useSaveMcpServer(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({name, url, transport, headers, authHeaderName, authHeaderValue}: SaveMcpServerInput) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const serverName = name.trim()
+      if (!serverName) throw new Error('MCP server name is required')
+      const trimmedUrl = url.trim()
+      if (!trimmedUrl) throw new Error('MCP server URL is required')
+
+      const config: McpServerConfig = {url: trimmedUrl}
+      if (transport) config.transport = transport
+      if (headers && Object.keys(headers).length) config.headers = headers
+
+      const headerName = authHeaderName?.trim()
+      const headerValue = authHeaderValue?.trim()
+      if (headerName && headerValue) {
+        if (!isSafeAgentServerSecretTarget(serverUrl)) {
+          throw new Error(
+            'Refusing to send a secret header to a non-local HTTP agent server. Use HTTPS for remote servers.',
+          )
+        }
+        const secretName = `mcp-${serverName}-${headerName.toLowerCase()}`
+        await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {
+            _: 'SetSecret',
+            name: secretName,
+            value: new TextEncoder().encode(headerValue),
+            metadata: {kind: 'mcp-header', server: serverName, header: headerName},
+          },
+        })
+        config.secretRefs = {[headerName]: secretName}
+      }
+
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'SetMcpServer', name: serverName, config}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Deletes a configured MCP server and any secret headers it owns. */
+export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteMcpServer', name}})
     },
     onSuccess() {
       invalidateQueries(['agents'])

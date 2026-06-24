@@ -38,7 +38,11 @@ Completed and usable locally:
   before signed submissions;
 - visible durable tool call/result events;
 - `read` using shared Seed Hypermedia URL resolution;
+- `web_search` and `web_read` web research tools: self-hosted SearXNG search plus a tiered MediaWiki → in-process static
+  (Readability + Turndown) → Crawl4AI reader, with no third-party API keys;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
+- account-scoped remote MCP servers (Streamable HTTP/SSE) with per-agent enablement, encrypted auth headers, and
+  namespaced tool exposure to the model;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
 - diagnostic logging for OpenAI streaming and WebSocket subscription/fanout.
@@ -63,7 +67,8 @@ Important incomplete work:
    logs.
 7. [Persistence](./persistence.md) — SQLite schema and data lifecycle.
 8. [Model providers](./model-providers.md) — provider records, secrets, OpenAI execution, unsupported providers.
-9. [Tools](./tools.md) — tool-call lifecycle and `read` behavior.
+9. [Tools](./tools.md) — tool-call lifecycle and `read` behavior. 9a. [MCP servers](./mcp.md) — account-scoped remote
+   MCP servers and how their tools reach agents.
 10. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
     assembled, and sent to providers.
 11. [Security](./security.md) — current security model and hardening gaps.
@@ -86,6 +91,10 @@ Agents service:
 - `agents/src/api.ts` — compatibility re-export of the shared protocol package for service-local imports.
 - `agents/src/api-service.ts` — business logic, persistence operations, Pi SDK-backed model execution, tools,
   subscription verification.
+- `agents/src/web-tools.ts` — self-hosted `web_search` (SearXNG) and tiered `web_read` (MediaWiki/static/Crawl4AI)
+  implementations.
+- `agents/src/mcp.ts` — remote MCP server connection (Streamable HTTP/SSE), tool listing, namespacing, and tool-call
+  proxying.
 - `agents/src/auth.ts` — signed envelope verification and local account authorization.
 - `agents/src/sqlite.ts` — open/schema validation/migration gate.
 - `agents/src/sqlite-schema.sql` — canonical schema.
@@ -181,6 +190,7 @@ Use this routing table:
 - database/migration changes → `persistence.md`
 - provider/runtime changes → `model-providers.md`, `pi-sdk-migration.md`, `roadmap.md`
 - tool changes → `tools.md`, `security.md`
+- MCP server changes → `mcp.md`, `persistence.md`, `signed-api.md`, `desktop-ui.md`, `security.md`
 - security/auth/logging changes → `security.md`, `operations.md`
 - UI workflow changes → `desktop-ui.md`
 - completed/started major work → `implementation-history.md`, `roadmap.md`, `future-projects.md`

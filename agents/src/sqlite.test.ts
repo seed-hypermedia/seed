@@ -41,6 +41,7 @@ describe('sqlite', () => {
       db.run(
         sqlite.schema
           .replace(/    title_source TEXT NOT NULL DEFAULT 'system',\n/u, '')
+          .replace(/CREATE TABLE mcp_servers[\s\S]*?CREATE TABLE agents/u, 'CREATE TABLE agents')
           .replace(/CREATE TABLE agent_triggers[\s\S]*?CREATE TABLE sessions/u, 'CREATE TABLE sessions')
           .replace(/CREATE TABLE trigger_firings[\s\S]*?CREATE TABLE session_events/u, 'CREATE TABLE session_events')
           .replace(
@@ -60,6 +61,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'trigger_firings')).toBe(true)
       expect(tableExists(db, 'activity_watermarks')).toBe(true)
       expect(tableExists(db, 'agent_drafts')).toBe(true)
+      expect(tableExists(db, 'mcp_servers')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'cooldown_ms')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
       expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
