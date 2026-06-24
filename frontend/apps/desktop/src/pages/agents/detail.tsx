@@ -1284,7 +1284,7 @@ function TriggerSourceFields({
         </div>
       ) : null}
       {source.type === 'user-mention' ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3">
           <MentionedAccountsField
             accounts={mentionedAccountsOf(source)}
             onChange={(accounts) => onChange({...source, mentionedAccounts: accounts})}
@@ -1622,10 +1622,10 @@ function MentionedAccountsField({
       <SizableText size="sm" weight="bold">
         Mentioned accounts
       </SizableText>
-      <div className="border-input flex overflow-hidden rounded-md border">
+      <div className="border-border bg-input flex min-h-9 items-center overflow-hidden rounded-md border">
         <AccountSearchInput
           label="Mentioned accounts"
-          placeholder="Search users or paste account ID"
+          placeholder="Search or paste accounts"
           values={values}
           onValuesChange={(next) => onChange(next.map((value) => value.id.uid))}
         />
