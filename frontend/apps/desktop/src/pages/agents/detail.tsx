@@ -32,10 +32,12 @@ import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {useSearch} from '@shm/shared/models/search'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {formattedDateMedium} from '@shm/shared/utils/date'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -1283,12 +1285,9 @@ function TriggerSourceFields({
       ) : null}
       {source.type === 'user-mention' ? (
         <div className="grid gap-3 md:grid-cols-2">
-          <AccountAutocompleteField
-            label="Mentioned account"
-            value={source.mentionedAccount}
-            onChange={(value) => onChange({...source, mentionedAccount: value})}
-            placeholder="Search users or enter account ID"
-            valueFormat="uid"
+          <MentionedAccountsField
+            accounts={mentionedAccountsOf(source)}
+            onChange={(accounts) => onChange({...source, mentionedAccounts: accounts})}
           />
           <AccountAutocompleteField
             label="Resource/site prefix"
@@ -1599,8 +1598,44 @@ function AccountAutocompleteField({
   )
 }
 
+/** Reads the mentioned account list, tolerating legacy triggers that stored a single `mentionedAccount`. */
+function mentionedAccountsOf(source: Extract<AgentTriggerSource, {type: 'user-mention'}>): string[] {
+  const legacy = (source as {mentionedAccount?: string}).mentionedAccount
+  return source.mentionedAccounts ?? (legacy ? [legacy] : [])
+}
+
+function MentionedAccountsField({
+  accounts,
+  onChange,
+}: {
+  accounts: string[]
+  onChange: (accounts: string[]) => void
+}) {
+  const accountsKey = accounts.join('|')
+  const values = useMemo<SearchResult[]>(
+    () => accounts.map((uid) => ({id: hmId(uid), label: abbreviateUid(uid), unresolved: true})),
+    // accountsKey captures the contents of `accounts` for memoization
+    [accountsKey],
+  )
+  return (
+    <div className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        Mentioned accounts
+      </SizableText>
+      <div className="border-input flex overflow-hidden rounded-md border">
+        <AccountSearchInput
+          label="Mentioned accounts"
+          placeholder="Search users or paste account ID"
+          values={values}
+          onValuesChange={(next) => onChange(next.map((value) => value.id.uid))}
+        />
+      </div>
+    </div>
+  )
+}
+
 function defaultSourceForType(type: AgentTriggerSource['type']): AgentTriggerSource {
-  if (type === 'user-mention') return {type, mentionedAccount: ''}
+  if (type === 'user-mention') return {type, mentionedAccounts: []}
   if (type === 'site-update') return {type, resourcePrefix: '', eventTypes: ['doc-update', 'comment']}
   if (type === 'schedule') return {type, schedule: {kind: 'interval', every: 1, unit: 'hours'}}
   return {type: 'document-comment', resource: ''}
@@ -1611,7 +1646,9 @@ function triggerSourceSummary(source: AgentTriggerSource): string {
     return `Comment in ${source.resource}${source.author ? ` by ${source.author}` : ''}`
   }
   if (source.type === 'user-mention') {
-    return `Mention of ${source.mentionedAccount}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
+    const accounts = mentionedAccountsOf(source)
+    const mention = accounts.length ? accounts.map(abbreviateUid).join(', ') : 'anyone'
+    return `Mention of ${mention}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'site-update') {
     return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`

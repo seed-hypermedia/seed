@@ -159,15 +159,45 @@ function activityCommentTarget(event: ActivityFeedEvent): string | null {
   return canonicalizeResourceId(`hm://${account}${targetPath ? `/${targetPath.replace(/^\/+/, '')}` : ''}`)
 }
 
+/** Reads the mentioned account list, tolerating legacy triggers that stored a single `mentionedAccount`. */
+export function mentionedAccountsOf(source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>): string[] {
+  const legacy = (source as {mentionedAccount?: string}).mentionedAccount
+  const accounts = source.mentionedAccounts ?? (legacy ? [legacy] : [])
+  return accounts.filter((account) => !!account)
+}
+
 function matchesUserMention(
   source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
   event: ActivityFeedEvent,
 ): boolean {
-  const accountTarget = `hm://${source.mentionedAccount}`
+  return mentionedAccountsOf(source).some((mentionedAccount) => matchesSingleMention(mentionedAccount, source, event))
+}
+
+/**
+ * Decides whether a single activity event is a genuine @mention of `mentionedAccount`.
+ *
+ * Two event shapes are supported:
+ *  - Raw ActivityFeed events (`newMention`), used by tests and any caller that bypasses the
+ *    resolving `/api/ListEvents` endpoint.
+ *  - Resolved `LoadedEvent`s (the shape `/api/ListEvents` actually returns), where mentions live in
+ *    comment-block `Embed` annotations (`type: 'comment'`) or in citation targets (`type: 'citation'`).
+ *
+ * Detection is structural (mirroring the notification classifier) rather than a substring scan, so a
+ * trigger fires only when the account is actually mentioned — not merely because its UID appears as an
+ * author, reply parent, or cited document. Comment-sourced citations are ignored because the same
+ * mention is already reported by the comment event, which avoids firing two sessions for one mention.
+ */
+function matchesSingleMention(
+  mentionedAccount: string,
+  source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
+  event: ActivityFeedEvent,
+): boolean {
+  // Raw ActivityFeed `newMention` events.
   const mention = activityEventMention(event)
   if (mention) {
+    const accountTarget = `hm://${mentionedAccount}`
     const target = stringField(mention, 'target')
-    if (target !== source.mentionedAccount && target !== accountTarget && !target?.startsWith(`${accountTarget}/`)) {
+    if (target !== mentionedAccount && target !== accountTarget && !target?.startsWith(`${accountTarget}/`)) {
       return false
     }
     if (!source.resourcePrefix) return true
@@ -178,11 +208,86 @@ function matchesUserMention(
     ].some((value) => !!value && value.startsWith(source.resourcePrefix!))
   }
 
+  // Resolved LoadedEvents.
   const type = stringField(event, 'type')
-  if (type !== 'comment' && type !== 'citation') return false
-  if (!jsonContainsString(event, source.mentionedAccount) && !jsonContainsString(event, accountTarget)) return false
-  if (!source.resourcePrefix) return true
-  return jsonContainsString(event, source.resourcePrefix)
+  if (type === 'comment') {
+    if (!commentMentionsAccount(recordField(event, 'comment'), mentionedAccount)) return false
+    return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+  }
+  if (type === 'citation') {
+    // Comment-sourced citations mirror their comment event; rely on the comment event so a single
+    // mention does not create two sessions.
+    if (stringField(event, 'citationType') === 'c') return false
+    const target = recordField(event, 'target')
+    const targetId = target ? recordField(target, 'id') : null
+    if (mentionedAccountFromIdRecord(targetId) !== mentionedAccount) return false
+    return mentionMatchesResourcePrefix(event, source.resourcePrefix)
+  }
+
+  return false
+}
+
+/** Resolves the account UID a mention link points at, when it targets an account root or `:profile`. */
+function mentionedAccountFromLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null
+  const trimmed = link.trim()
+  if (!trimmed.startsWith('hm://')) return null
+  const withoutScheme = trimmed.slice('hm://'.length)
+  const pathOnly = withoutScheme.split('?')[0]?.split('#')[0] || ''
+  const segments = pathOnly.split('/').filter(Boolean)
+  const uid = segments[0]
+  if (!uid) return null
+  if (segments.length === 1) return uid // account root
+  if (segments[1] === ':profile') return uid // profile mention
+  return null // points at a document, not the account itself
+}
+
+/** Resolves the account UID from a resolved `UnpackedHypermediaId` record, when it names an account. */
+function mentionedAccountFromIdRecord(idRecord: Record<string, unknown> | null): string | null {
+  if (!idRecord) return null
+  const uid = stringField(idRecord, 'uid')
+  if (!uid) return null
+  const path = idRecord['path']
+  if (!Array.isArray(path) || path.length === 0) return uid // account root
+  if (path[0] === ':profile') return uid // profile mention
+  return null // points at a document, not the account itself
+}
+
+/** Returns true when a resolved comment's content embeds a mention of `mentionedAccount`. */
+function commentMentionsAccount(comment: Record<string, unknown> | null, mentionedAccount: string): boolean {
+  if (!comment) return false
+  return blockNodesMentionAccount(comment['content'], mentionedAccount)
+}
+
+function blockNodesMentionAccount(nodes: unknown, mentionedAccount: string): boolean {
+  if (!Array.isArray(nodes)) return false
+  return nodes.some((node) => {
+    if (!node || typeof node !== 'object') return false
+    const block = recordField(node as Record<string, unknown>, 'block')
+    const annotations = block ? block['annotations'] : undefined
+    if (Array.isArray(annotations)) {
+      for (const annotation of annotations) {
+        if (!annotation || typeof annotation !== 'object') continue
+        if ((annotation as Record<string, unknown>).type !== 'Embed') continue
+        if (mentionedAccountFromLink((annotation as Record<string, unknown>).link) === mentionedAccount) return true
+      }
+    }
+    return blockNodesMentionAccount((node as Record<string, unknown>).children, mentionedAccount)
+  })
+}
+
+/** Applies the optional resource/site prefix filter against the resources a mention event references. */
+function mentionMatchesResourcePrefix(event: ActivityFeedEvent, resourcePrefix: string | undefined): boolean {
+  if (!resourcePrefix) return true
+  const candidates: Array<string | undefined> = []
+  for (const field of ['source', 'target', 'commentId'] as const) {
+    const record = recordField(event, field)
+    const id = record ? recordField(record, 'id') : null
+    candidates.push(id ? stringField(id, 'id') : stringField(record || {}, 'id'))
+  }
+  if (candidates.some((value) => !!value && value.startsWith(resourcePrefix))) return true
+  // Fall back to a broad scan so unusual event shapes still honour an explicit prefix filter.
+  return jsonContainsString(event, resourcePrefix)
 }
 
 function matchesSiteUpdate(

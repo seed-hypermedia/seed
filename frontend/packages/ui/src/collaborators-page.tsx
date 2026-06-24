@@ -32,7 +32,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {toast} from './toast'
 
-type SearchResult = {
+export type SearchResult = {
   id: UnpackedHypermediaId
   label: string
   unresolved?: boolean
@@ -67,6 +67,73 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<SearchResult[]>([])
   const capabilities = useCapabilities(id)
+
+  const excludeUids = useMemo(() => {
+    // The owner cannot be added, and accounts that already have a capability are filtered out.
+    return [id.uid, ...(capabilities.data?.map((capability) => capability.grantId.uid) ?? [])]
+  }, [id.uid, capabilities.data])
+
+  if (!myCapability) return null
+  return (
+    <div className="flex flex-col gap-2 px-4 pt-4">
+      <div className="border-border flex overflow-hidden rounded-md border-1">
+        <AccountSearchInput
+          label="Members"
+          placeholder="Invite members"
+          values={selectedCollaborators}
+          onValuesChange={setSelectedCollaborators}
+          excludeUids={excludeUids}
+          domainResolver={domainResolver}
+        />
+        {selectedCollaborators.length ? (
+          <Button
+            size="sm"
+            className="h-auto rounded-tl-none rounded-bl-none"
+            onClick={() => {
+              addCapabilities.mutate(
+                {
+                  myCapability: myCapability,
+                  collaboratorAccountIds: selectedCollaborators.map((collab) => collab.id.uid),
+                  role: 'WRITER',
+                },
+                {
+                  onSuccess: (_, {collaboratorAccountIds: count}) => {
+                    toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`)
+                  },
+                },
+              )
+              setSelectedCollaborators([])
+            }}
+            variant="default"
+          >
+            <ArrowRight className="size-4" />
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Reusable multi-select account search. Renders selected accounts as pills (resolving raw account
+ * IDs to account names/icons) and accepts free-text search, pasted hm:// IDs, and full URLs.
+ */
+export function AccountSearchInput({
+  label,
+  placeholder,
+  values,
+  onValuesChange,
+  excludeUids,
+  domainResolver,
+}: {
+  label: string
+  placeholder?: string
+  values: SearchResult[]
+  onValuesChange: (values: SearchResult[]) => void
+  /** Account UIDs to omit from search matches (e.g. the owner or already-added accounts). */
+  excludeUids?: string[]
+  domainResolver?: DomainResolverFn
+}) {
   const [search, setSearch] = useState('')
   const selectedAccountId = useSelectedAccountId()
   const searchResults = useSearch(search, {
@@ -81,7 +148,7 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
       if (hmUrl) {
         const label = hmIdToURL(hmId(hmUrl.uid))
         if (label) {
-          setSelectedCollaborators((v) => [...v, {id: hmUrl, label, unresolved: true}])
+          onValuesChange([...values, {id: hmUrl, label, unresolved: true}])
           setSearch('')
           return
         }
@@ -97,25 +164,25 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
             if (!resolved?.hmId) return
             const resolvedId = hmId(resolved.hmId.uid)
             const label = resolved.title || hmIdToURL(resolvedId) || resolved.hmId.uid
-            setSelectedCollaborators((v) => [...v, {id: resolvedId, label, unresolved: true}])
+            onValuesChange([...values, {id: resolvedId, label, unresolved: true}])
             setSearch('')
           })
           .catch(() => {})
       }
     },
-    [domainResolver],
+    [values, onValuesChange, domainResolver],
   )
 
   const matches = useMemo(() => {
     const matchesByAccountUid = new Map<string, SearchResult & {type: string}>()
     const orderedAccountUids: string[] = []
+    const excluded = new Set(excludeUids ?? [])
 
     for (const result of search ? searchResults.data?.entities || [] : []) {
       if (!result) continue // probably id was not parsed correctly
       if (result.id.path?.length) continue // this is a directory document, not an account
-      if (result.id.uid === id.uid) continue // this account is already the owner, cannot be added
-      if (capabilities.data?.find((capability) => capability.grantId.uid === result.id.uid)) continue // already added
-      if (selectedCollaborators.find((collab) => collab.id.uid === result.id.uid)) continue // already added
+      if (excluded.has(result.id.uid)) continue // owner or already-added account
+      if (values.find((value) => value.id.uid === result.id.uid)) continue // already selected
       if (result.type !== 'contact' && result.type !== 'document') continue
 
       const match = {
@@ -135,88 +202,56 @@ function AddCollaboratorForm({id, domainResolver}: {id: UnpackedHypermediaId; do
     }
 
     return orderedAccountUids.map((uid) => matchesByAccountUid.get(uid)!).filter(Boolean)
-  }, [search, searchResults.data?.entities, selectedCollaborators, capabilities.data, id.uid])
+  }, [search, searchResults.data?.entities, values, excludeUids])
 
-  if (!myCapability) return null
   return (
-    <div className="flex flex-col gap-2 px-4 pt-4">
-      <div className="border-border flex overflow-hidden rounded-md border-1">
-        <div className="flex flex-1">
-          <TagInput
-            label="Members"
-            value={search}
-            onChange={handleSearchChange}
-            values={selectedCollaborators}
-            onValuesChange={(collabs) => {
-              setSelectedCollaborators(collabs)
-            }}
-            placeholder="Invite members"
-          >
-            {matches.map(
-              (result) =>
-                result && (
-                  <TagInputItem
-                    key={result.id.id}
-                    onClick={() => {
-                      setSelectedCollaborators((vals) => [...vals, result])
-                    }}
-                    member={result}
-                  >
-                    Add &quot;{result?.label}&quot;
-                  </TagInputItem>
-                ),
-            )}
-            {search && matches.length == 0 ? (
+    <div className="flex flex-1">
+      <TagInput
+        label={label}
+        value={search}
+        onChange={handleSearchChange}
+        values={values}
+        onValuesChange={onValuesChange}
+        placeholder={placeholder}
+      >
+        {matches.map(
+          (result) =>
+            result && (
               <TagInputItem
-                onClick={async () => {
-                  // Try resolving bare domains (e.g. "gabo.es")
-                  if (search.includes('.')) {
-                    const url = search.startsWith('http') ? search : `https://${search}`
-                    try {
-                      const resolved = await resolveHypermediaUrl(url, {domainResolver})
-                      if (resolved?.hmId) {
-                        const resolvedId = hmId(resolved.hmId.uid)
-                        const label = resolved.title || hmIdToURL(resolvedId) || resolved.hmId.uid
-                        setSelectedCollaborators((v) => [...v, {id: resolvedId, label, unresolved: true}])
-                        setSearch('')
-                        return
-                      }
-                    } catch {}
-                  }
-                  toast.error('Invalid Collaborator Input')
+                key={result.id.id}
+                onClick={() => {
+                  onValuesChange([...values, result])
                 }}
+                member={result}
               >
-                Add &quot;{search}&quot;
+                Add &quot;{result?.label}&quot;
               </TagInputItem>
-            ) : null}
-          </TagInput>
-        </div>
-        {selectedCollaborators.length ? (
-          <Button
-            size="sm"
-            className="h-auto rounded-tl-none rounded-bl-none"
-            onClick={() => {
-              addCapabilities.mutate(
-                {
-                  myCapability: myCapability,
-                  collaboratorAccountIds: selectedCollaborators.map((collab) => collab.id.uid),
-                  role: 'WRITER',
-                },
-                {
-                  onSuccess: (_, {collaboratorAccountIds: count}) => {
-                    toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`)
-                  },
-                },
-              )
-              setSearch('')
-              setSelectedCollaborators([])
+            ),
+        )}
+        {search && matches.length == 0 ? (
+          <TagInputItem
+            onClick={async () => {
+              // Try resolving bare domains (e.g. "gabo.es")
+              if (search.includes('.')) {
+                const url = search.startsWith('http') ? search : `https://${search}`
+                try {
+                  const resolved = await resolveHypermediaUrl(url, {domainResolver})
+                  if (resolved?.hmId) {
+                    const resolvedId = hmId(resolved.hmId.uid)
+                    const label = resolved.title || hmIdToURL(resolvedId) || resolved.hmId.uid
+                    onValuesChange([...values, {id: resolvedId, label, unresolved: true}])
+                    setSearch('')
+                    return
+                  }
+                } catch {}
+              }
+              toast.error('Invalid account input')
             }}
-            variant="default"
           >
-            <ArrowRight className="size-4" />
-          </Button>
+            Add &quot;{search}&quot;
+          </TagInputItem>
         ) : null}
-      </div>
+      </TagInput>
     </div>
   )
 }

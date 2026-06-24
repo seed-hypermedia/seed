@@ -33,6 +33,7 @@ import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import type {NavRoute} from '@shm/shared/routes'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -60,7 +61,10 @@ function triggerSourceSummary(source: AgentTriggerSource): string {
     return `Comment in ${source.resource}${source.author ? ` by ${source.author}` : ''}`
   }
   if (source.type === 'user-mention') {
-    return `Mention of ${source.mentionedAccount}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
+    const legacy = (source as {mentionedAccount?: string}).mentionedAccount
+    const accounts = source.mentionedAccounts ?? (legacy ? [legacy] : [])
+    const mention = accounts.length ? accounts.map(abbreviateUid).join(', ') : 'anyone'
+    return `Mention of ${mention}${source.resourcePrefix ? ` in ${source.resourcePrefix}` : ''}`
   }
   if (source.type === 'site-update') {
     return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`

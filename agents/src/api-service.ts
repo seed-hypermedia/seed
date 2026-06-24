@@ -2317,9 +2317,19 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
     }
   }
   if (raw.type === 'user-mention') {
+    const legacy = (raw as {mentionedAccount?: unknown}).mentionedAccount
+    const rawAccounts = raw.mentionedAccounts ?? (legacy === undefined ? undefined : [legacy])
+    if (!Array.isArray(rawAccounts)) throw new APIError(400, 'Trigger mentioned accounts must be an array')
+    if (rawAccounts.length > MAX_TOOL_COUNT) throw new APIError(400, 'Too many trigger mentioned accounts')
+    const mentionedAccounts: string[] = []
+    for (const account of rawAccounts) {
+      const normalized = normalizeBoundedString(account, 'Trigger mentioned account', MAX_NAME_BYTES)
+      if (!mentionedAccounts.includes(normalized)) mentionedAccounts.push(normalized)
+    }
+    if (mentionedAccounts.length === 0) throw new APIError(400, 'Trigger mentioned account is required')
     return {
       type: 'user-mention',
-      mentionedAccount: normalizeBoundedString(raw.mentionedAccount, 'Trigger mentioned account', MAX_NAME_BYTES),
+      mentionedAccounts,
       ...(raw.resourcePrefix === undefined
         ? {}
         : {resourcePrefix: normalizeBoundedString(raw.resourcePrefix, 'Trigger resource prefix', 2048)}),

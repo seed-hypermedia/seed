@@ -59,47 +59,128 @@ describe('activity trigger matching', () => {
 
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned', resourcePrefix: 'hm://z6Mksite'},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mksite'},
         event,
       ),
     ).toBe(true)
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned', resourcePrefix: 'hm://z6Mkelse'},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mkelse'},
         event,
       ),
     ).toBe(false)
     expect(
-      triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccount: 'z6Mkmentioned'}, event),
+      triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccounts: ['z6Mkmentioned']}, event),
     ).toBe(true)
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned', resourcePrefix: 'hm://z6Mksite'},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mksite'},
         {...event, newMention: {...event.newMention, target: 'hm://z6Mkmentioned/profile'}},
       ),
     ).toBe(true)
-    expect(triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccount: 'z6Mkother'}, event)).toBe(
+    expect(triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccounts: ['z6Mkother']}, event)).toBe(
       false,
     )
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned', resourcePrefix: 'hm://z6Mksite'},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mksite'},
         {data: {case: 'newMention', value: event.newMention}},
       ),
     ).toBe(true)
 
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned'},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned']},
         {type: 'doc-update', targetAuthorUids: ['z6Mkmentioned'], id: 'update-1'},
       ),
     ).toBe(false)
     expect(
       triggers.activityMatchesTriggerSource(
-        {type: 'user-mention', mentionedAccount: 'z6Mkmentioned'},
-        {type: 'comment', comment: {content: [{block: {annotations: [{link: 'hm://z6Mkmentioned/:profile'}]}}]}},
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned']},
+        {
+          type: 'comment',
+          comment: {content: [{block: {annotations: [{type: 'Embed', link: 'hm://z6Mkmentioned/:profile'}]}}]},
+        },
       ),
     ).toBe(true)
+
+    // Matches when any account in the list is mentioned.
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'user-mention', mentionedAccounts: ['z6Mkother', 'z6Mkmentioned']},
+        event,
+      ),
+    ).toBe(true)
+
+    // Legacy triggers that stored a single `mentionedAccount` still match.
+    expect(
+      triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccount: 'z6Mkmentioned'} as any, event),
+    ).toBe(true)
+  })
+
+  test('matches resolved LoadedEvents precisely without firing on incidental account references', () => {
+    const source = {type: 'user-mention' as const, mentionedAccounts: ['z6Mkmentioned']}
+
+    // Comment that embeds a mention of the account (the shape /api/ListEvents returns).
+    const commentMention = {
+      type: 'comment',
+      author: {id: {uid: 'z6Mkauthor', id: 'hm://z6Mkauthor', path: []}},
+      comment: {
+        content: [
+          {block: {annotations: [{type: 'Embed', link: 'hm://z6Mkmentioned/:profile?v=bafyabc&l'}]}, children: []},
+        ],
+      },
+    }
+    expect(triggers.activityMatchesTriggerSource(source, commentMention)).toBe(true)
+
+    // Comment authored BY the account, mentioning someone else, must not match.
+    const commentByAccount = {
+      type: 'comment',
+      author: {id: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned', path: []}},
+      comment: {content: [{block: {annotations: [{type: 'Embed', link: 'hm://z6Mkother/:profile'}]}, children: []}]},
+    }
+    expect(triggers.activityMatchesTriggerSource(source, commentByAccount)).toBe(false)
+
+    // A document citation that targets the account profile is a genuine mention.
+    const documentMention = {
+      type: 'citation',
+      citationType: 'd',
+      source: {id: {uid: 'z6Mksite', id: 'hm://z6Mksite/notes', path: ['notes']}},
+      target: {id: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned/:profile', path: [':profile']}},
+    }
+    expect(triggers.activityMatchesTriggerSource(source, documentMention)).toBe(true)
+
+    // A comment-sourced citation is suppressed because its comment event already reports the mention.
+    expect(triggers.activityMatchesTriggerSource(source, {...documentMention, citationType: 'c'})).toBe(false)
+
+    // A citation that merely *cites a document owned by* the account is not an account mention.
+    const documentCitation = {
+      type: 'citation',
+      citationType: 'd',
+      source: {id: {uid: 'z6Mksite', id: 'hm://z6Mksite/notes', path: ['notes']}},
+      target: {
+        id: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned/weekly-review', path: ['weekly-review']},
+      },
+      targetAuthorUids: ['z6Mkmentioned'],
+    }
+    expect(triggers.activityMatchesTriggerSource(source, documentCitation)).toBe(false)
+
+    // A doc-update authored by the account is not a mention.
+    expect(
+      triggers.activityMatchesTriggerSource(source, {
+        type: 'doc-update',
+        author: {id: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned', path: []}},
+        docId: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned/post', path: ['post']},
+      }),
+    ).toBe(false)
+
+    // resourcePrefix still filters resolved mentions by where the mention occurred.
+    expect(
+      triggers.activityMatchesTriggerSource({...source, resourcePrefix: 'hm://z6Mksite'}, documentMention),
+    ).toBe(true)
+    expect(
+      triggers.activityMatchesTriggerSource({...source, resourcePrefix: 'hm://z6Mkelsewhere'}, documentMention),
+    ).toBe(false)
   })
 
   test('matches site updates by resource prefix and event type', () => {

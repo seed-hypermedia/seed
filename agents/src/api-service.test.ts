@@ -631,7 +631,11 @@ describe('api service', () => {
             triggerId: createdTrigger.trigger.id,
             patch: {
               enabled: false,
-              source: {type: 'user-mention', mentionedAccount: ' z6Mkmentioned ', resourcePrefix: ' hm://z6Mksite '},
+              source: {
+                type: 'user-mention',
+                mentionedAccounts: [' z6Mkmentioned ', 'z6Mksecond', ' z6Mkmentioned '],
+                resourcePrefix: ' hm://z6Mksite ',
+              },
             },
           },
         }),
@@ -640,7 +644,11 @@ describe('api service', () => {
       if (updated._ !== 'UpdateAgentTriggerResponse') throw new Error('unexpected response')
       expect(updated.trigger).toMatchObject({
         enabled: false,
-        source: {type: 'user-mention', mentionedAccount: 'z6Mkmentioned', resourcePrefix: 'hm://z6Mksite'},
+        source: {
+          type: 'user-mention',
+          mentionedAccounts: ['z6Mkmentioned', 'z6Mksecond'],
+          resourcePrefix: 'hm://z6Mksite',
+        },
       })
 
       const updatedPrompt = await svc.message(

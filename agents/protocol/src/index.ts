@@ -245,7 +245,7 @@ export type AgentTriggerPatch = {
 /** Activity source/filter that decides when an agent trigger fires. */
 export type AgentTriggerSource =
   | {type: 'document-comment'; resource: string; author?: string}
-  | {type: 'user-mention'; mentionedAccount: string; resourcePrefix?: string}
+  | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
 
