@@ -4,6 +4,7 @@ import type {NavRoute} from '@shm/shared/routes'
 import {hostnameStripProtocol} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from '@shm/ui/button'
+import {Badge} from '@shm/ui/components/badge'
 import {PageTab} from '@shm/ui/page-tabs'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -268,29 +269,41 @@ export function AgentHeader({
                 {agent?.definition.name || 'Agent'}
               </SizableText>
             )}
-            <SizableText color="muted" className="block">
-              {agent
-                ? `${agent.definition.modelProvider} · ${agent.definition.model} · ${agent.status}`
-                : 'Loading agent…'}
-              {agentNameSaveState === 'saving'
-                ? ' · Saving…'
-                : agentNameSaveState === 'saved'
-                  ? ' · Saved'
-                  : agentNameSaveState === 'error'
-                    ? ' · Save failed'
-                    : ''}
-            </SizableText>
+            {!agent ? (
+              <SizableText color="muted" className="block">
+                Loading agent…
+              </SizableText>
+            ) : agentNameSaveState === 'saving' ? (
+              <SizableText color="muted" className="block">
+                Saving…
+              </SizableText>
+            ) : agentNameSaveState === 'saved' ? (
+              <SizableText color="muted" className="block">
+                Saved
+              </SizableText>
+            ) : agentNameSaveState === 'error' ? (
+              <SizableText color="muted" className="block">
+                Save failed
+              </SizableText>
+            ) : null}
           </div>
-          {activeTab === 'sessions' && onCreateSession ? (
-            <Button onClick={onCreateSession} disabled={creatingSession}>
-              <MessageSquarePlus className="mr-2 size-4" /> New session
-            </Button>
-          ) : null}
-          {activeTab === 'triggers' && onCreateTrigger ? (
-            <Button onClick={onCreateTrigger} disabled={!canCreateTrigger}>
-              <GitBranch className="mr-2 size-4" /> New trigger
-            </Button>
-          ) : null}
+          <div className="flex flex-none items-center gap-2">
+            {agent ? (
+              <Badge variant="secondary" className="flex-none">
+                {agent.definition.model}
+              </Badge>
+            ) : null}
+            {activeTab === 'sessions' && onCreateSession ? (
+              <Button onClick={onCreateSession} disabled={creatingSession}>
+                <MessageSquarePlus className="mr-2 size-4" /> New session
+              </Button>
+            ) : null}
+            {activeTab === 'triggers' && onCreateTrigger ? (
+              <Button onClick={onCreateTrigger} disabled={!canCreateTrigger}>
+                <GitBranch className="mr-2 size-4" /> New trigger
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         {agentId ? (
