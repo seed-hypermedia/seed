@@ -350,14 +350,31 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
  * This is the tree-level wrapper around `editorBlockToHMBlock` that recursively
  * converts children. Useful when serializing editor content to the HM block format
  * (e.g. for saving drafts as markdown or publishing documents).
+ *
+ * parentEditorType is the editor type of the surrounding block. Used
+ * to drop orphan table row and column blocks that ended up outside a
+ * table parent.
  */
-export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[]): HMBlockNode[] {
+export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[], parentEditorType?: string): HMBlockNode[] {
+  const parentIsTable = parentEditorType === 'table'
   return editorBlocks
+    .filter((block) => {
+      if ((block.type === 'tableRow' || block.type === 'tableColumn') && !parentIsTable) {
+        console.warn(
+          `[editorBlocksToHMBlockNodes] dropping orphan ${block.type} block (parent type: ${
+            parentEditorType ?? 'root'
+          })`,
+          block.id,
+        )
+        return false
+      }
+      return true
+    })
     .map((block) => {
       try {
         return {
           block: editorBlockToHMBlock(block),
-          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children) : undefined,
+          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children, block.type) : undefined,
         }
       } catch {
         return {
@@ -368,7 +385,7 @@ export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[]): HMBlock
             annotations: [],
             attributes: {},
           },
-          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children) : undefined,
+          children: block.children?.length ? editorBlocksToHMBlockNodes(block.children, block.type) : undefined,
         }
       }
     })

@@ -12,8 +12,18 @@ export function insertBlocks<BSchema extends BlockSchema>(
 ): Block<BSchema>[] {
   const id = typeof referenceBlock === 'string' ? referenceBlock : referenceBlock.id
 
+  // Drop orphan table rows and table columns.
+  // These block types can only exist nested inside a table block.
+  const filteredBlocks = blocksToInsert.filter((b) => {
+    if (b.type === 'tableRow' || b.type === 'tableColumn') {
+      console.warn(`[insertBlocks] dropping orphan ${String(b.type)} block`, (b as any).id)
+      return false
+    }
+    return true
+  })
+
   const nodesToInsert: Node[] = []
-  for (const blockSpec of blocksToInsert) {
+  for (const blockSpec of filteredBlocks) {
     nodesToInsert.push(blockToNode(blockSpec, editor._tiptapEditor.schema))
   }
 
