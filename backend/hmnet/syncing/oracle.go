@@ -187,3 +187,150 @@ func affectedScopes(conn *sqlite.Conn, blobID int64, scopes []DiscoveryKey) (ins
 
 	return inserts, complete, nil
 }
+
+// ============================================================================
+// Incremental maintenance for the collectBlobs edges that the forward
+// seed/closure above does NOT cover: the recursive agent-capability delegation
+// closure, the inbound Contact-by-subject edge, and late-arriving forward link
+// targets. Previously every one of these drifted until the periodic
+// shadow-verify re-materialized the scope; under real sync load (a team site
+// with hundreds of agent capabilities, blobs arriving wildly out of order) that
+// 5-minute sweep cannot keep pace and the maintained set serves ~40% short.
+//
+// Each function below patches a materialized scope's rbsr_item set the moment
+// the triggering blob is indexed, mirroring the matching collectBlobs step
+// (discovery.go) over the persisted set instead of a temp rebuild, so the
+// maintained set stays equal to a fresh materialization without the sweep.
+// They operate on downloaded (size>=0), non-stashed blobs only — exactly the
+// set materialize/shadow-verify count, so they never introduce "extra" drift.
+// ============================================================================
+
+// qScopesLinkingTo returns the materialized scopes that already contain a blob
+// linking (any type) to :target — the one-hop reverse of qMediaClosure's
+// forward edge. If member M is in scope S and M->X is a blob_link,
+// collectBlobs' forward walk puts X in S; so an X that arrived after M (whose
+// closure missed it) joins S now. Uses the blob_backlinks index.
+var qScopesLinkingTo = dqb.Str(`
+	SELECT DISTINCT ri.scope
+	FROM blob_links bl
+	JOIN rbsr_item ri ON ri.blob = bl.source
+	WHERE bl.target = :target;`)
+
+// qForwardClosureDownloaded returns :seed plus its transitive forward closure
+// over every blob_link type, restricted to downloaded, non-stashed blobs — the
+// same traversal qMediaClosure runs, but rooted at the seed and filtered to the
+// rows a scope's materialized set actually contains.
+var qForwardClosureDownloaded = dqb.Str(`
+	WITH RECURSIVE fc (id) AS (
+		SELECT :seed
+		UNION
+		SELECT bl.target FROM blob_links bl JOIN fc ON fc.id = bl.source
+	)
+	SELECT fc.id
+	FROM fc
+	JOIN blobs b ON b.id = fc.id
+	LEFT JOIN stashed_blobs s ON s.id = fc.id
+	WHERE s.id IS NULL AND b.size >= 0;`)
+
+// scopesLinkingTo lists materialized scopes with an existing member linking to target.
+func scopesLinkingTo(conn *sqlite.Conn, target int64) (out []int64, err error) {
+	err = sqlitex.Exec(conn, qScopesLinkingTo(), func(stmt *sqlite.Stmt) error {
+		out = append(out, stmt.ColumnInt64(0))
+		return nil
+	}, target)
+	return out, err
+}
+
+// forwardClosureDownloaded returns seed + its downloaded forward closure.
+func forwardClosureDownloaded(conn *sqlite.Conn, seed int64) (out []int64, err error) {
+	err = sqlitex.Exec(conn, qForwardClosureDownloaded(), func(stmt *sqlite.Stmt) error {
+		out = append(out, stmt.ColumnInt64(0))
+		return nil
+	}, seed)
+	return out, err
+}
+
+// qScopesWithAuthor returns materialized scopes containing a blob authored by
+// :author — used to find which scopes a freshly indexed AGENT capability joins
+// (its delegate authored an in-scope blob).
+var qScopesWithAuthor = dqb.Str(`
+	SELECT DISTINCT ri.scope
+	FROM rbsr_item ri
+	JOIN structural_blobs sb ON sb.id = ri.blob
+	WHERE sb.author = :author;`)
+
+// scopesWithAuthor lists materialized scopes containing a blob authored by author.
+func scopesWithAuthor(conn *sqlite.Conn, author int64) (out []int64, err error) {
+	err = sqlitex.Exec(conn, qScopesWithAuthor(), func(stmt *sqlite.Stmt) error {
+		out = append(out, stmt.ColumnInt64(0))
+		return nil
+	}, author)
+	return out, err
+}
+
+// qAgentCapStep adds, to one scope, every downloaded AGENT Capability whose
+// delegate authored a blob already in that scope — one iteration of the
+// recursive capability closure in collectBlobs (discovery.go). Idempotent
+// (INSERT OR IGNORE); the caller loops it to a fixpoint because a capability
+// just added introduces its own author, which may delegate further.
+var qAgentCapStep = dqb.Str(`
+	INSERT OR IGNORE INTO rbsr_item (scope, blob)
+	SELECT :scope, sb.id
+	FROM structural_blobs sb INDEXED BY capabilities_by_delegate
+	JOIN blobs b ON b.id = sb.id
+	LEFT JOIN stashed_blobs s ON s.id = sb.id
+	WHERE sb.type = 'Capability'
+		AND sb.extra_attrs->>'role' = 'AGENT'
+		AND s.id IS NULL AND b.size >= 0
+		AND sb.extra_attrs->>'del' IN (
+			SELECT sb2.author
+			FROM rbsr_item ri
+			JOIN structural_blobs sb2 ON sb2.id = ri.blob
+			WHERE ri.scope = :scope AND sb2.author IS NOT NULL
+		);`)
+
+// runAgentCapClosure runs the agent-capability delegation closure for one scope
+// to a fixpoint, mirroring collectBlobs' recursive Capability step.
+func runAgentCapClosure(conn *sqlite.Conn, scopeID int64) error {
+	for {
+		if err := sqlitex.Exec(conn, qAgentCapStep(), nil, scopeID); err != nil {
+			return err
+		}
+		if conn.Changes() == 0 {
+			return nil
+		}
+	}
+}
+
+var qPublicKeyIDByPrincipal = dqb.Str(`SELECT id FROM public_keys WHERE principal = :principal;`)
+
+// rootScopesBySubject maps a public-key id to the materialized recursive
+// account-root scopes for that account. Used for the inbound Contact-by-subject
+// edge: a Contact is anchored to its creator's resource, but collectBlobs pulls
+// it into the *subject* account's recursive scope (discovery.go), so a freshly
+// indexed Contact must be added to the subject account's scopes here.
+func rootScopesBySubject(conn *sqlite.Conn, keys []DiscoveryKey, idsByKey map[DiscoveryKey][]int64) (map[int64][]int64, error) {
+	out := map[int64][]int64{}
+	for _, k := range keys {
+		if !k.Recursive {
+			continue
+		}
+		space, path, err := k.IRI.SpacePath()
+		if err != nil || path != "" {
+			continue
+		}
+		var pkid int64
+		var found bool
+		if err := sqlitex.Exec(conn, qPublicKeyIDByPrincipal(), func(stmt *sqlite.Stmt) error {
+			pkid = stmt.ColumnInt64(0)
+			found = true
+			return nil
+		}, []byte(space)); err != nil {
+			return nil, err
+		}
+		if found {
+			out[pkid] = append(out[pkid], idsByKey[k]...)
+		}
+	}
+	return out, nil
+}

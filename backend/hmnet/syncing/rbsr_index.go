@@ -223,17 +223,18 @@ func loadMaterializedScopes(conn *sqlite.Conn) (keys []DiscoveryKey, idsByKey ma
 
 var qInsertItem = dqb.Str(`INSERT OR IGNORE INTO rbsr_item (scope, blob) VALUES (:scope, :blob);`)
 
-// MaintainRBSRIndex is the incremental maintenance hook: for each freshly
-// indexed blob it asks the oracle which materialized scopes the blob (and the
-// forward closure it pulls in) joins, and patches those scopes' persisted sets.
-// It runs inside the indexing transaction, so the patch commits atomically with
-// the blob. Registered on the index via SetIndexedHook.
+// MaintainRBSRIndex is the incremental maintenance hook: it patches the
+// materialized scopes a freshly indexed batch of blobs joins, in the same
+// indexing write transaction (so the patch commits atomically with the blobs).
+// Registered on the index via SetIndexedHook.
 //
-// Edges the oracle can't expand forward (it reports complete=false: inbound
-// Contact-by-subject, capability delegation, late-arriving link targets) are
-// not patched here; the shadow-verify sweep re-materializes any scope whose
-// maintained fingerprint drifts from a fresh collectBlobs, which is the safety
-// net for those.
+// It mirrors every collectBlobs membership edge so the maintained set stays
+// equal to a fresh materialization under live sync, not just the dominant
+// document-edit path: (1) the resource-anchored forward seed/closure, (2) the
+// late-arrival reverse edge for forward targets that arrived after their member,
+// (3) inbound Contact-by-subject, and (4) the recursive agent-capability
+// delegation closure. The shadow-verify sweep remains a backstop for anything
+// these miss, but no longer carries the steady-state load.
 func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 	keys, idsByKey, err := loadMaterializedScopes(conn)
 	if err != nil {
@@ -243,7 +244,30 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		return nil
 	}
 
+	// touched tracks scopes whose member set changed this batch; the agent-
+	// capability delegation closure is re-run for each at the end, because a new
+	// member can be a blob authored by a capability's delegate — which pulls that
+	// delegate's capabilities into the scope (and theirs, transitively).
+	touched := map[int64]struct{}{}
+	insertItem := func(scopeID, blobID int64) error {
+		if err := sqlitex.Exec(conn, qInsertItem(), nil, scopeID, blobID); err != nil {
+			return err
+		}
+		if conn.Changes() > 0 {
+			touched[scopeID] = struct{}{}
+		}
+		return nil
+	}
+
+	// Recursive account-root scopes keyed by their account's public-key id, for
+	// the inbound Contact-by-subject edge below.
+	rootBySubject, err := rootScopesBySubject(conn, keys, idsByKey)
+	if err != nil {
+		return err
+	}
+
 	for _, blobID := range blobIDs {
+		// (1) Forward seed: resource-anchored types plus their forward closure.
 		inserts, _, err := affectedScopes(conn, blobID, keys)
 		if err != nil {
 			return err
@@ -251,12 +275,119 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		for dkey, ids := range inserts {
 			for _, scopeID := range idsByKey[dkey] {
 				for _, bid := range ids {
-					if err := sqlitex.Exec(conn, qInsertItem(), nil, scopeID, bid); err != nil {
+					if err := insertItem(scopeID, bid); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// (2) Late-arrival reverse edge: a forward target (a Change, media blob, …)
+		// that arrived after the member whose closure should have pulled it in. If
+		// any existing scope member links to it, it — and its own forward closure,
+		// now indexable — belongs to that scope.
+		lateScopes, err := scopesLinkingTo(conn, blobID)
+		if err != nil {
+			return err
+		}
+		if len(lateScopes) > 0 {
+			closure, err := forwardClosureDownloaded(conn, blobID)
+			if err != nil {
+				return err
+			}
+			for _, scopeID := range lateScopes {
+				for _, bid := range closure {
+					if err := insertItem(scopeID, bid); err != nil {
 						return err
 					}
 				}
 			}
 		}
 	}
+
+	// (3) Attribute-keyed edges (Contact subject, Capability delegate): one pass
+	// over the batch's structural facts.
+	facts, err := structuralFactsForBatch(conn, blobIDs)
+	if err != nil {
+		return err
+	}
+	for _, f := range facts {
+		switch {
+		case f.typ == "Contact" && f.subject != 0:
+			// Inbound Contact-by-subject: anchored to its creator's resource, but
+			// belongs to the subject account's recursive scope.
+			for _, scopeID := range rootBySubject[f.subject] {
+				if err := insertItem(scopeID, f.id); err != nil {
+					return err
+				}
+			}
+		case f.typ == "Capability" && f.role == "AGENT" && f.del != 0:
+			// A fresh AGENT capability joins any scope whose member its delegate
+			// authored; mark those scopes so the closure below inserts it.
+			ss, err := scopesWithAuthor(conn, f.del)
+			if err != nil {
+				return err
+			}
+			for _, scopeID := range ss {
+				touched[scopeID] = struct{}{}
+			}
+		}
+	}
+
+	// (4) Agent-capability delegation closure for every touched scope, to a
+	// fixpoint — the dominant edge the oracle previously deferred to shadow-verify.
+	for scopeID := range touched {
+		if err := runAgentCapClosure(conn, scopeID); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// structuralFact carries the batch-level attributes MaintainRBSRIndex keys on.
+type structuralFact struct {
+	id      int64
+	typ     string
+	subject int64 // extra_attrs->>'subject' (public_keys.id) for Contacts
+	del     int64 // extra_attrs->>'del' (public_keys.id) for Capabilities
+	role    string
+}
+
+var qStructuralFactsBatch = dqb.Str(`
+	SELECT sb.id, sb.type,
+		CAST(sb.extra_attrs->>'subject' AS INTEGER),
+		CAST(sb.extra_attrs->>'del' AS INTEGER),
+		sb.extra_attrs->>'role'
+	FROM structural_blobs sb
+	WHERE sb.id IN (SELECT value FROM json_each(:ids));`)
+
+func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFact, err error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	err = sqlitex.Exec(conn, qStructuralFactsBatch(), func(stmt *sqlite.Stmt) error {
+		out = append(out, structuralFact{
+			id:      stmt.ColumnInt64(0),
+			typ:     stmt.ColumnText(1),
+			subject: stmt.ColumnInt64(2),
+			del:     stmt.ColumnInt64(3),
+			role:    stmt.ColumnText(4),
+		})
+		return nil
+	}, int64SliceJSON(ids))
+	return out, err
+}
+
+// int64SliceJSON renders ids as a JSON array for json_each binding.
+func int64SliceJSON(ids []int64) []byte {
+	b := make([]byte, 0, len(ids)*4+2)
+	b = append(b, '[')
+	for i, id := range ids {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = strconv.AppendInt(b, id, 10)
+	}
+	return append(b, ']')
 }
