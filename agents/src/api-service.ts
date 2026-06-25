@@ -2097,7 +2097,7 @@ async function publishSigningIdentityProfile(
  */
 async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
   const formData = new FormData()
-  const blob = new Blob([icon.data], icon.mimeType ? {type: icon.mimeType} : undefined)
+  const blob = new Blob([new Uint8Array(icon.data)], icon.mimeType ? {type: icon.mimeType} : undefined)
   formData.append('file', blob, icon.fileName || 'icon')
   const response = await fetch(`${hmServerUrl.replace(/\/$/, '')}/ipfs/file-upload`, {
     method: 'POST',
