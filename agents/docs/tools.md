@@ -393,12 +393,16 @@ unknown root-level arguments into `input` before command validation, so calls su
 and `title` is accepted as a `name` metadata alias. For `document.move`, `id`, `target`, and `targetId` are accepted as
 source aliases, and `path` can be used instead of a full destination URL to move within the same account; `path: '/'`
 moves the document to the account home/root. For comments, `body`, `content`, and `text` are accepted as body aliases.
-For `comment.create` replies, `replyCommentId`, `replyComment`, `reply`, and `replyTo` are accepted as parent-comment
-aliases. Trigger-created sessions add explicit model instructions to use `trigger_context.activity.comment.id` (or
-`activity.commentId.id`) as `replyCommentId` when responding to a mention or comment activity so the published comment
-is threaded instead of orphaned. If a reply parent is provided without a target document, the server derives the target
-from the parent comment. Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM
-server; publishing always uses that configured server and never an arbitrary model-selected server.
+`document.create` refuses to publish a document under a parent path that does not yet exist: creating `/team/notes`
+requires `/team` to already be a published document, so parents must be created first. Top-level documents (directly
+under the account home/root) are always allowed. The model-facing `write` description and the signing-identity prompt
+state this rule, and the server enforces it before publishing (in `dryRun` too). For `comment.create` replies,
+`replyCommentId`, `replyComment`, `reply`, and `replyTo` are accepted as parent-comment aliases. Trigger-created
+sessions add explicit model instructions to use `trigger_context.activity.comment.id` (or `activity.commentId.id`) as
+`replyCommentId` when responding to a mention or comment activity so the published comment is threaded instead of
+orphaned. If a reply parent is provided without a target document, the server derives the target from the parent
+comment. Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM server; publishing
+always uses that configured server and never an arbitrary model-selected server.
 
 ## Adding new tools
 

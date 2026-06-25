@@ -2090,6 +2090,144 @@ describe('api service', () => {
     }
   })
 
+  test('refuses document.create under a parent path that does not exist', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let openAICallCount = 0
+      let signerPublicKey = ''
+      let publishCount = 0
+      const resourceRequestUrls: string[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishCount += 1
+          return Response.json(serialize({cids: [`published-${publishCount}`]}))
+        }
+        if (href.includes('/api/Resource')) {
+          resourceRequestUrls.push(href)
+          // The parent document /parent does not exist on the server.
+          const resolvedId = unpackHmId(`hm://${signerPublicKey}/parent`)
+          if (!resolvedId) throw new Error('bad parent id')
+          return Response.json(serialize({type: 'not-found', id: resolvedId}))
+        }
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            command: 'document.create',
+                            signer: {publicKey: signerPublicKey},
+                            input: {path: '/parent/child', name: 'Child', body: '# Child'},
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat-2', choices: [{delta: {content: 'Parent is missing.'}}]},
+          {id: 'chat-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Writer Bot', clientRequestId: 'writer-bot'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Writer',
+              systemPrompt: 'Write Seed content.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['read', 'write'],
+              signingKeys: [identity.identity.name],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const publishCountBeforeMessage = publishCount
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Create a nested doc'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      expect(resourceRequestUrls.length).toBeGreaterThan(0)
+      // The guard rejects before publishing, so the message turn must not publish any blobs.
+      expect(publishCount).toBe(publishCountBeforeMessage)
+
+      const loadedSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId},
+        }),
+      )
+      if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const writeResult = loadedSession.events
+        .map((event) => event.event as {type?: string; name?: string; error?: string})
+        .find((event) => event.type === 'tool_result' && event.name === 'write')
+      expect(writeResult?.error).toBeTruthy()
+      expect(writeResult?.error).toContain('parent path /parent does not exist')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('emits events and verifies signed subscriptions for live clients', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

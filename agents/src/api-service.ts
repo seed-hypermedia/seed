@@ -1111,7 +1111,7 @@ export class Service {
     return `${basePrompt}\n\n<available_signing_identities>\n${safeJSONStringify(
       identities,
       2,
-    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
+    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nDo not create a document at a nested path unless its parent path already exists as a published document. For example, before creating path "/team/notes" you must have already created the document at "/team". Create parent documents first; top-level documents (directly under the account) are always allowed.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
   }
 
   async #runPiAgent(
@@ -3377,6 +3377,29 @@ async function writeCommentDelete(
   return writeToolResult(request.command, signer, {commentId, cids: published.cids})
 }
 
+/**
+ * Refuses document creation under a parent path that does not yet exist. A nested document such as
+ * `/team/notes` requires `/team` to already be a published document. Top-level documents (whose parent
+ * is the account home/root) are always allowed.
+ */
+async function ensureParentDocumentExists(
+  client: ReturnType<typeof createSeedClient>,
+  account: string,
+  path: string,
+): Promise<void> {
+  const segments = path.split('/').filter(Boolean)
+  if (segments.length <= 1) return // root/home document, or a top-level document whose parent is the account home
+  const parentPath = `/${segments.slice(0, -1).join('/')}`
+  const {id} = await resolveIdWithClient(`hm://${account}${parentPath}`, {serverUrl: client.baseUrl})
+  const resource = await client.request('Resource', id).catch(() => undefined)
+  if (resource?.type !== 'document') {
+    throw new APIError(
+      400,
+      `Cannot create document at ${path}: parent path ${parentPath} does not exist. Create the parent document first.`,
+    )
+  }
+}
+
 async function writeDocumentCreate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
@@ -3387,6 +3410,7 @@ async function writeDocumentCreate(
   const account =
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, metadata.name || 'Untitled')
+  await ensureParentDocumentExists(client, account, path)
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
