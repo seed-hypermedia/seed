@@ -52,6 +52,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
   AlertCircle,
+  Bot,
   ChevronDown,
   ChevronRight,
   File,
@@ -124,6 +125,17 @@ export function MainAppSidebar() {
                 rightHover={[]}
               />
             </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SmallListItem
+                active={route.key == 'agents'}
+                onClick={() => {
+                  navigate({key: 'agents'})
+                }}
+                icon={<Bot className="size-4" />}
+                title="Agents"
+                bold
+              />
+            </SidebarMenuItem>
             {/* <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'contacts'}
@@ -146,18 +158,6 @@ export function MainAppSidebar() {
                 bold
               />
             </SidebarMenuItem>
-            {/* Enable Agents in the sidebar once the feature is ready for general use.
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'agents'}
-                onClick={() => {
-                  navigate({key: 'agents'})
-                }}
-                icon={<Bot className="size-4" />}
-                title="Agents"
-                bold
-              />
-            </SidebarMenuItem> */}
           </SidebarMenu>
         </SidebarFooterLayout>
       )}
