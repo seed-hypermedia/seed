@@ -7,6 +7,10 @@ export type DocumentCardCleanupPlan = {
   removedBlockIds: string[]
 }
 
+export type DocumentCardCleanupOptions = {
+  targetBlockId?: string
+}
+
 type PlannedMove = {
   blockId: string
   parent: string
@@ -31,17 +35,26 @@ export function hmLinkTargetsDocument(link: string, documentId: string) {
   return !!linkKey && linkKey === documentKey
 }
 
-function isMatchingDeletedDocumentEmbed(node: HMBlockNode, deletedDocumentKey: string) {
+function isMatchingDeletedDocumentEmbed(
+  node: HMBlockNode,
+  deletedDocumentKey: string,
+  options: DocumentCardCleanupOptions = {},
+) {
   const block = node.block
   if (block?.type !== 'Embed') return false
+  if (options.targetBlockId && block.id !== options.targetBlockId) return false
   if (!block.link) return false
   return hmDocumentKey(block.link) === deletedDocumentKey
 }
 
-function collectRemovedBlockIds(nodes: HMBlockNode[], deletedDocumentKey: string): string[] {
+function collectRemovedBlockIds(
+  nodes: HMBlockNode[],
+  deletedDocumentKey: string,
+  options: DocumentCardCleanupOptions,
+): string[] {
   return nodes.flatMap((node) => [
-    ...(isMatchingDeletedDocumentEmbed(node, deletedDocumentKey) ? [node.block.id] : []),
-    ...collectRemovedBlockIds(node.children || [], deletedDocumentKey),
+    ...(isMatchingDeletedDocumentEmbed(node, deletedDocumentKey, options) ? [node.block.id] : []),
+    ...collectRemovedBlockIds(node.children || [], deletedDocumentKey, options),
   ])
 }
 
@@ -49,9 +62,12 @@ function expandFinalSiblings(
   node: HMBlockNode,
   originalParentId: string,
   deletedDocumentKey: string,
+  options: DocumentCardCleanupOptions,
 ): FinalSiblingEntry[] {
-  if (!isMatchingDeletedDocumentEmbed(node, deletedDocumentKey)) return [{node, originalParentId}]
-  return (node.children || []).flatMap((child) => expandFinalSiblings(child, node.block.id, deletedDocumentKey))
+  if (!isMatchingDeletedDocumentEmbed(node, deletedDocumentKey, options)) return [{node, originalParentId}]
+  return (node.children || []).flatMap((child) =>
+    expandFinalSiblings(child, node.block.id, deletedDocumentKey, options),
+  )
 }
 
 function finalLeftSibling(entries: FinalSiblingEntry[], index: number, removedBlockIds: Set<string>) {
@@ -68,8 +84,9 @@ function appendCleanupForSiblings(
   deletedDocumentKey: string,
   removedBlockIds: Set<string>,
   moves: PlannedMove[],
+  options: DocumentCardCleanupOptions,
 ) {
-  const finalSiblings = nodes.flatMap((node) => expandFinalSiblings(node, parentBlockId, deletedDocumentKey))
+  const finalSiblings = nodes.flatMap((node) => expandFinalSiblings(node, parentBlockId, deletedDocumentKey, options))
 
   finalSiblings.forEach((entry, index) => {
     if (entry.originalParentId === parentBlockId) return
@@ -82,7 +99,14 @@ function appendCleanupForSiblings(
 
   finalSiblings.forEach((entry) => {
     if (entry.node.children?.length) {
-      appendCleanupForSiblings(entry.node.children, entry.node.block.id, deletedDocumentKey, removedBlockIds, moves)
+      appendCleanupForSiblings(
+        entry.node.children,
+        entry.node.block.id,
+        deletedDocumentKey,
+        removedBlockIds,
+        moves,
+        options,
+      )
     }
   })
 }
@@ -91,15 +115,16 @@ function appendCleanupForSiblings(
 export function planDeletedDocumentCardEmbedCleanup(
   document: Pick<HMDocument, 'content'>,
   deletedDocumentId: string,
+  options: DocumentCardCleanupOptions = {},
 ): DocumentCardCleanupPlan {
   const deletedDocumentKey = hmDocumentKey(deletedDocumentId)
   if (!deletedDocumentKey) return {changes: [], removedBlockIds: []}
 
-  const removedBlockIds = collectRemovedBlockIds(document.content || [], deletedDocumentKey)
+  const removedBlockIds = collectRemovedBlockIds(document.content || [], deletedDocumentKey, options)
   if (!removedBlockIds.length) return {changes: [], removedBlockIds: []}
 
   const moves: PlannedMove[] = []
-  appendCleanupForSiblings(document.content || [], '', deletedDocumentKey, new Set(removedBlockIds), moves)
+  appendCleanupForSiblings(document.content || [], '', deletedDocumentKey, new Set(removedBlockIds), moves, options)
 
   const changes = [
     ...moves.map(

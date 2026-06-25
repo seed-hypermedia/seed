@@ -1,5 +1,6 @@
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {HMDocument, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {DocumentCardActionOrigin} from './utils/document-actions'
 
 export type DocumentActionsContextValue = {
   // Account info — card checks ownership/capabilities itself
@@ -13,9 +14,9 @@ export type DocumentActionsContextValue = {
 
   // Document actions — dialogs hoisted to provider
   onEditDocument?: (id: UnpackedHypermediaId, existingDraftId?: string) => void
-  onMoveDocument?: (id: UnpackedHypermediaId) => void
+  onMoveDocument?: (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) => void
   onDeleteDocument?: (id: UnpackedHypermediaId, onSuccess?: () => void) => void
-  onRepublishDocument?: (id: UnpackedHypermediaId) => void
+  onRepublishDocument?: (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) => void
   onDuplicateDocument?: (id: UnpackedHypermediaId) => void
   onRestoreDocumentVersion?: (id: UnpackedHypermediaId, selectedVersion: HMDocument) => Promise<void> | void
   onExportDocument?: (doc: HMDocument) => void

@@ -16,6 +16,7 @@ import {
 import {getMetadataName} from '@shm/shared/content'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {canUseDocumentAsDestinationParent, isMoveTargetParentBlocked} from '@shm/shared/utils/document-actions'
+import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -35,6 +36,7 @@ export type DocumentDestinationMode = 'move' | 'republish'
 export type DocumentDestinationDialogInput = {
   id: UnpackedHypermediaId
   mode: DocumentDestinationMode
+  origin?: DocumentCardActionOrigin
 }
 
 const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
@@ -55,8 +57,10 @@ export function DocumentDestinationDialog({
   const document = resource?.type === 'document' ? resource.document : undefined
   const sourceId = resource?.type === 'document' ? resource.id : input.id
   const sourceTitle = document ? getMetadataName(document.metadata) : 'Untitled'
-  const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(null)
-  const [slug, setSlug] = useState(input.id.path?.at(-1) || '')
+  const initialTargetParent = useMemo(() => getSourceParentId(input.id), [input.id.id])
+  const initialSlug = input.id.path?.at(-1) || ''
+  const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(initialTargetParent)
+  const [slug, setSlug] = useState(initialSlug)
   const [searchQuery, setSearchQuery] = useState('')
   const writableDocuments = useSelectedAccountWritableDocuments()
   const moveDocument = useMoveDocument()
@@ -64,10 +68,10 @@ export function DocumentDestinationDialog({
   const navigate = useNavigate()
 
   useEffect(() => {
-    setTargetParent(null)
-    setSlug(input.id.path?.at(-1) || '')
+    setTargetParent(initialTargetParent)
+    setSlug(initialSlug)
     setSearchQuery('')
-  }, [input.id.id, input.mode])
+  }, [initialTargetParent, initialSlug, input.mode])
 
   const destinationId = useMemo(() => {
     if (!targetParent || !slug) return null
@@ -101,11 +105,13 @@ export function DocumentDestinationDialog({
               ? 'Choose a location outside this document subtree.'
               : pathInvalid
                 ? pathInvalid.error
-                : destinationResource.isLoading
-                  ? 'Checking destination availability…'
-                  : destinationExists
-                    ? 'A document already exists at this URL. Choose a different path.'
-                    : null
+                : destinationId?.id === sourceId.id
+                  ? 'Choose a new location or URL path.'
+                  : destinationResource.isLoading
+                    ? 'Checking destination availability…'
+                    : destinationExists
+                      ? 'A document already exists at this URL. Choose a different path.'
+                      : null
   const mutation = input.mode === 'move' ? moveDocument : republishDocument
   const canSubmit = !!destinationId && !validationMessage && !mutation.isLoading
 
@@ -204,7 +210,12 @@ export function DocumentDestinationDialog({
           onClick={async () => {
             if (!destinationId || !canSubmit) return
             try {
-              await mutation.mutateAsync({from: sourceId, to: destinationId, signingAccountId: selectedAccountUid})
+              await mutation.mutateAsync({
+                from: sourceId,
+                to: destinationId,
+                signingAccountId: selectedAccountUid,
+                origin: input.origin,
+              })
               onClose()
               navigate({key: 'document', id: destinationId})
               toast.success(modeCopy[input.mode].success)
@@ -448,6 +459,12 @@ function DialogError({message}: {message: string}) {
       <SizableText className="text-destructive text-sm">{message}</SizableText>
     </div>
   )
+}
+
+function getSourceParentId(id: UnpackedHypermediaId) {
+  const path = id.path || []
+  if (!path.length) return null
+  return hmId(id.uid, {path: path.slice(0, -1)})
 }
 
 function canWriteLocation(

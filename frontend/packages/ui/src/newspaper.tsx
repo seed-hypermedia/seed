@@ -11,7 +11,11 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {canShowMoveDocumentAction, canShowRepublishDocumentAction} from '@shm/shared/utils/document-actions'
+import {
+  canShowMoveDocumentAction,
+  canShowRepublishDocumentAction,
+  type DocumentCardActionOrigin,
+} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
@@ -36,6 +40,7 @@ import {cn} from './utils'
 export function useDocumentCardMenuItems(
   docId: UnpackedHypermediaId,
   doc?: HMResourceFetchResult['document'] | null,
+  relocationOrigin?: DocumentCardActionOrigin,
 ): MenuItemType[] {
   const actions = useDocumentActions()
   const draft = actions.getDraft?.(docId)
@@ -124,7 +129,7 @@ export function useDocumentCardMenuItems(
         icon: <Forward className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
-          actions.onMoveDocument!(docId)
+          actions.onMoveDocument!(docId, relocationOrigin)
         },
       })
     }
@@ -149,7 +154,7 @@ export function useDocumentCardMenuItems(
         icon: <Split className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
-          actions.onRepublishDocument!(docId)
+          actions.onRepublishDocument!(docId, relocationOrigin)
         },
       })
     }
@@ -199,6 +204,7 @@ export function useDocumentCardMenuItems(
     origin,
     experiments?.advancedCopyLinkOptions,
     draftId,
+    relocationOrigin,
   ])
 }
 
@@ -218,6 +224,7 @@ export function DocumentCard({
   banner = false,
   showSummary = false,
   hideInlineActions = false,
+  relocationOrigin,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
@@ -236,6 +243,7 @@ export function DocumentCard({
   showSummary?: boolean
   /** Hide the inline bookmark / comments / options-dropdown row */
   hideInlineActions?: boolean
+  relocationOrigin?: DocumentCardActionOrigin
 }) {
   const highlighter = useHighlighter()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
@@ -289,7 +297,7 @@ export function DocumentCard({
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const bookmarked = actions.isBookmarked?.(docId) ?? false
 
-  const menuItems = useDocumentCardMenuItems(docId, doc)
+  const menuItems = useDocumentCardMenuItems(docId, doc, relocationOrigin)
 
   const sharedProps = {
     ...highlighter(docId),

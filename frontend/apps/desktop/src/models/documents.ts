@@ -56,10 +56,14 @@ import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
 import {computeNewDraftParams, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
+import {useBroadcastWindowEvent} from '../utils/window-events'
+import {updateParentCardsAfterDocumentRelocation} from './auto-link-parent'
+import type {ParentCardsAfterRelocationResult} from './auto-link-parent'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 import {createRepublishRefOperation, getMovedChildPath, isChildDocumentPath} from './document-relocation'
+import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
@@ -1063,10 +1067,12 @@ export function useForkDocument() {
       from,
       to,
       signingAccountId,
+      origin,
     }: {
       from: UnpackedHypermediaId
       to: UnpackedHypermediaId
       signingAccountId: string
+      origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const resource = await universalClient.request('Resource', from)
@@ -1239,18 +1245,44 @@ async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHy
   return capability.id
 }
 
+function broadcastRelocatedParentDraftChanges(
+  broadcastWindowEvent: ReturnType<typeof useBroadcastWindowEvent>,
+  result: ParentCardsAfterRelocationResult,
+  sourceId: UnpackedHypermediaId,
+) {
+  if (result.removed.kind === 'removed-from-draft') {
+    broadcastWindowEvent({
+      type: 'draft_externally_modified',
+      draftId: result.removed.parentDraftId,
+      source: 'document-card-cleanup',
+      deletedDocumentId: sourceId.id,
+      removedBlockIds: result.removed.removedBlockIds,
+    })
+  }
+  if (result.added.kind === 'added-to-draft') {
+    broadcastWindowEvent({
+      type: 'draft_externally_modified',
+      draftId: result.added.parentDraftId,
+      source: 'document-card-cleanup',
+    })
+  }
+}
+
 export function useMoveDocument() {
   const push = usePushResource()
   const universalClient = useUniversalClient()
+  const broadcastWindowEvent = useBroadcastWindowEvent()
   return useMutation({
     mutationFn: async ({
       from,
       to,
       signingAccountId,
+      origin,
     }: {
       from: UnpackedHypermediaId
       to: UnpackedHypermediaId
       signingAccountId: string
+      origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const signer = universalClient.getSigner(signingAccountId)
@@ -1362,6 +1394,16 @@ export function useMoveDocument() {
       }
       // console.log(`[move-document] recursive move complete`, {moves})
 
+      if (origin) {
+        const parentCardResult = await updateParentCardsAfterDocumentRelocation({
+          from,
+          to,
+          signingAccountUid: signingAccountId,
+          origin,
+        })
+        broadcastRelocatedParentDraftChanges(broadcastWindowEvent, parentCardResult, from)
+      }
+
       return moves
     },
     onSuccess: (moves, {from, to}) => {
@@ -1395,15 +1437,18 @@ export function useMoveDocument() {
 export function useRepublishDocument() {
   const push = usePushResource()
   const universalClient = useUniversalClient()
+  const broadcastWindowEvent = useBroadcastWindowEvent()
   return useMutation({
     mutationFn: async ({
       from,
       to,
       signingAccountId,
+      origin,
     }: {
       from: UnpackedHypermediaId
       to: UnpackedHypermediaId
       signingAccountId: string
+      origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const signer = universalClient.getSigner(signingAccountId)
@@ -1422,6 +1467,15 @@ export function useRepublishDocument() {
       await universalClient.publish(refInput)
       push(from)
       push(to)
+      if (origin) {
+        const parentCardResult = await updateParentCardsAfterDocumentRelocation({
+          from,
+          to,
+          signingAccountUid: signingAccountId,
+          origin,
+        })
+        broadcastRelocatedParentDraftChanges(broadcastWindowEvent, parentCardResult, from)
+      }
       return {from, to}
     },
     onSuccess: ({from, to}) => {

@@ -6,7 +6,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {DocumentCard} from '../newspaper'
+import {DocumentCard, useDocumentCardMenuItems} from '../newspaper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -136,5 +136,58 @@ describe('DocumentCard draft metadata', () => {
     expect(container.textContent).toContain('Draft document title')
     expect(container.textContent).not.toContain('Embedded document')
     expect(container.textContent).toContain('Draft')
+  })
+})
+
+describe('DocumentCard relocation origin', () => {
+  it('passes embedded-card origin metadata to move and republish actions', () => {
+    const docId = hmId('uid-1', {path: ['doc']})
+    const parentDocumentId = hmId('uid-1', {path: ['parent']})
+    const origin = {parentDocumentId, embedBlockId: 'embed-block'}
+    const onMoveDocument = vi.fn()
+    const onRepublishDocument = vi.fn()
+
+    function Probe() {
+      const items = useDocumentCardMenuItems(docId, null, origin)
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            items.find((item) => item.key === 'move')?.onClick?.({stopPropagation: vi.fn()} as any)
+            items.find((item) => item.key === 'republish')?.onClick?.({stopPropagation: vi.fn()} as any)
+          }}
+        >
+          run actions
+        </button>
+      )
+    }
+
+    act(() => {
+      root.render(
+        <UniversalAppProvider
+          openRoute={vi.fn() as any}
+          openUrl={vi.fn()}
+          universalClient={{request: vi.fn(), publish: vi.fn()} as any}
+        >
+          <DocumentActionsProvider
+            selectedAccountUid="uid-1"
+            canWriteDocument={() => true}
+            onMoveDocument={onMoveDocument}
+            onRepublishDocument={onRepublishDocument}
+          >
+            <Probe />
+          </DocumentActionsProvider>
+        </UniversalAppProvider>,
+      )
+    })
+
+    act(() => {
+      ;(container.querySelector('button') as HTMLButtonElement).dispatchEvent(
+        new MouseEvent('click', {bubbles: true, cancelable: true}),
+      )
+    })
+
+    expect(onMoveDocument).toHaveBeenCalledWith(docId, origin)
+    expect(onRepublishDocument).toHaveBeenCalledWith(docId, origin)
   })
 })

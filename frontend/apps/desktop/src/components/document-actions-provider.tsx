@@ -17,6 +17,7 @@ import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {hmId, isIdParentOfOrEqual, latestId, pathMatches} from '@shm/shared/utils/entity-id-url'
+import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -99,8 +100,8 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   )
 
   const onMoveDocument = useCallback(
-    (id: UnpackedHypermediaId) => {
-      destinationDialog.open({id, mode: 'move'})
+    (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) => {
+      destinationDialog.open({id, mode: 'move', origin})
     },
     [destinationDialog],
   )
@@ -113,8 +114,8 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   )
 
   const onRepublishDocument = useCallback(
-    (id: UnpackedHypermediaId) => {
-      destinationDialog.open({id, mode: 'republish'})
+    (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) => {
+      destinationDialog.open({id, mode: 'republish', origin})
     },
     [destinationDialog],
   )

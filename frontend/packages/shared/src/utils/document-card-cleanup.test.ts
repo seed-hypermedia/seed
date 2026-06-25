@@ -1,6 +1,6 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {planDeletedDocumentCardEmbedCleanup} from './document-card-cleanup'
+import {planDeletedDocumentCardEmbedCleanup, planDocumentCardRemoval} from './document-card-cleanup'
 
 function doc(content: HMBlockNode[]): Pick<HMDocument, 'content'> {
   return {content}
@@ -191,5 +191,23 @@ describe('planDeletedDocumentCardEmbedCleanup', () => {
       {case: 'deleteBlock', blockId: 'card'},
     ])
     expect(result.removedBlockIds).toEqual(['card'])
+  })
+
+  it('can remove only the clicked card embed when a target block id is provided', () => {
+    const result = planDocumentCardRemoval(
+      doc([
+        embedCard('clicked-card', 'hm://target/doc', [paragraph('clicked-child')]),
+        embedCard('other-card', 'hm://target/doc'),
+        paragraph('after'),
+      ]),
+      'hm://target/doc',
+      {targetBlockId: 'clicked-card'},
+    )
+
+    expect(plainChanges(result.changes)).toEqual([
+      {case: 'moveBlock', blockId: 'clicked-child', parent: '', leftSibling: ''},
+      {case: 'deleteBlock', blockId: 'clicked-card'},
+    ])
+    expect(result.removedBlockIds).toEqual(['clicked-card'])
   })
 })

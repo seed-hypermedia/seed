@@ -131,6 +131,8 @@ export function BlockEmbedCard({
   hideInlineActions?: boolean
 }) {
   const id = unpackHmId(block.link) ?? undefined
+  const renderResourceStack = useRenderResourceStack()
+  const parentDocumentId = [...renderResourceStack].reverse().find((resource) => resource.kind === 'document')?.id
   const doc = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
   // Version-specific fetches skip the backend's tombstone check.
@@ -204,6 +206,7 @@ export function BlockEmbedCard({
         navigate={openOnClick && !titleLinkOnly}
         titleLinkOnly={titleLinkOnly}
         hideInlineActions={hideInlineActions}
+        relocationOrigin={parentDocumentId ? {parentDocumentId, embedBlockId: block.id} : undefined}
         showSummary
       />
     </EmbedWrapper>

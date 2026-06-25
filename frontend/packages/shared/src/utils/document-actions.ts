@@ -1,5 +1,10 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
+export type DocumentCardActionOrigin = {
+  parentDocumentId: UnpackedHypermediaId
+  embedBlockId?: string
+}
+
 function hasDocumentPath(id: UnpackedHypermediaId) {
   return !!id.path?.length
 }

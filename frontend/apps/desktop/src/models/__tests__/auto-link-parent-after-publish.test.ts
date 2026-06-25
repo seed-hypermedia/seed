@@ -74,7 +74,11 @@ vi.mock('@shm/shared/client/.generated/documents/v3alpha/documents_pb', async ()
   }
 })
 
-import {autoLinkParentAfterPublish} from '../auto-link-parent'
+import {
+  appendDocumentCardToParent,
+  autoLinkParentAfterPublish,
+  updateParentCardsAfterDocumentRelocation,
+} from '../auto-link-parent'
 
 function makeParentDocument(content: any[] = []) {
   return {
@@ -419,5 +423,177 @@ describe('autoLinkParentAfterPublish', () => {
     expect(invalidatedKeys).toContain(queryKeys.ENTITY)
     expect(invalidatedKeys).toContain(queryKeys.RESOLVED_ENTITY)
     expect(invalidatedKeys).toContain(queryKeys.DOC_LIST_DIRECTORY)
+  })
+})
+
+describe('updateParentCardsAfterDocumentRelocation', () => {
+  beforeEach(() => {
+    invalidateQueriesMock.mockClear()
+    getDocumentMock.mockReset()
+    listCapabilitiesMock.mockReset()
+    findByEditMock.mockReset()
+    getDraftMock.mockReset()
+    writeDraftMock.mockReset()
+    publishDocumentMock.mockReset()
+    listCapabilitiesMock.mockResolvedValue({capabilities: []})
+    writeDraftMock.mockResolvedValue(undefined)
+    publishDocumentMock.mockResolvedValue(undefined)
+  })
+
+  it('removes the clicked source card from the old parent draft and appends the destination card to the new parent draft', async () => {
+    const sourceId = hmId('acct-1', {path: ['old-parent', 'child']})
+    const destinationId = hmId('acct-1', {path: ['new-parent', 'child']})
+    const oldParentId = hmId('acct-1', {path: ['old-parent']})
+
+    getDocumentMock.mockResolvedValueOnce(makeParentDocument())
+    findByEditMock.mockResolvedValueOnce({id: 'old-parent-draft'}).mockResolvedValueOnce({id: 'new-parent-draft'})
+    getDraftMock
+      .mockResolvedValueOnce({
+        id: 'old-parent-draft',
+        locationUid: 'acct-1',
+        locationPath: [],
+        editUid: 'acct-1',
+        editPath: ['old-parent'],
+        metadata: {},
+        content: [
+          {
+            id: 'clicked-card',
+            type: 'embed',
+            props: {url: 'hm://acct-1/old-parent/child', view: 'Card'},
+            content: [],
+            children: [{id: 'card-child', type: 'paragraph', props: {}, content: [], children: []}],
+          },
+          {
+            id: 'other-card',
+            type: 'embed',
+            props: {url: 'hm://acct-1/old-parent/child', view: 'Card'},
+            content: [],
+            children: [],
+          },
+        ],
+        deps: [],
+        navigation: [],
+        visibility: 'PUBLIC',
+      })
+      .mockResolvedValueOnce({
+        id: 'new-parent-draft',
+        locationUid: 'acct-1',
+        locationPath: [],
+        editUid: 'acct-1',
+        editPath: ['new-parent'],
+        metadata: {},
+        content: [{id: 'existing', type: 'paragraph', props: {}, content: [], children: []}],
+        deps: [],
+        navigation: [],
+        visibility: 'PUBLIC',
+      })
+
+    const result = await updateParentCardsAfterDocumentRelocation({
+      from: sourceId,
+      to: destinationId,
+      signingAccountUid: 'acct-1',
+      origin: {parentDocumentId: oldParentId, embedBlockId: 'clicked-card'},
+    })
+
+    expect(result.removed.kind).toBe('removed-from-draft')
+    expect(result.added.kind).toBe('added-to-draft')
+    expect(writeDraftMock).toHaveBeenCalledTimes(2)
+    const oldParentWrite = writeDraftMock.mock.calls[0]![0]
+    expect(oldParentWrite.id).toBe('old-parent-draft')
+    expect(oldParentWrite.content).toEqual([
+      {id: 'card-child', type: 'paragraph', props: {}, content: [], children: []},
+      {
+        id: 'other-card',
+        type: 'embed',
+        props: {url: 'hm://acct-1/old-parent/child', view: 'Card'},
+        content: [],
+        children: [],
+      },
+    ])
+    const newParentWrite = writeDraftMock.mock.calls[1]![0]
+    expect(newParentWrite.id).toBe('new-parent-draft')
+    expect(newParentWrite.content.at(-1)).toMatchObject({
+      type: 'embed',
+      props: {url: 'hm://acct-1/new-parent/child', view: 'Card'},
+    })
+  })
+
+  it('explicitly appends a parent card without applying first-publish duplicate-link suppression', async () => {
+    const childId = hmId('acct-1', {path: ['new-parent', 'child']})
+    findByEditMock.mockResolvedValueOnce(null)
+    getDocumentMock.mockResolvedValueOnce(
+      makeParentDocument([
+        {
+          block: {
+            id: 'existing-card',
+            type: 'Embed',
+            link: 'hm://acct-1/new-parent/child',
+            attributes: {view: 'Card'},
+          },
+          children: [],
+        },
+      ]),
+    )
+    getDocumentMock.mockResolvedValueOnce(makeParentDocument())
+
+    const result = await appendDocumentCardToParent({
+      childId,
+      signingAccountUid: 'acct-1',
+    })
+
+    expect(result.kind).toBe('published-parent')
+    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
+    const publishArgs = publishDocumentMock.mock.calls[0]![0]
+    expect(publishArgs.path).toBe('/new-parent')
+    expect(publishArgs.changes.map((change: any) => change.op.case)).toEqual(['moveBlock', 'replaceBlock'])
+  })
+
+  it('appends the destination card even when first-publish auto-link rules would skip existing child links', async () => {
+    const sourceId = hmId('acct-1', {path: ['old-parent', 'child']})
+    const destinationId = hmId('acct-1', {path: ['new-parent', 'child']})
+    const oldParentId = hmId('acct-1', {path: ['old-parent']})
+
+    getDocumentMock
+      .mockResolvedValueOnce(
+        makeParentDocument([
+          {
+            block: {
+              id: 'clicked-card',
+              type: 'Embed',
+              link: 'hm://acct-1/old-parent/child',
+              attributes: {view: 'Card'},
+            },
+            children: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        makeParentDocument([
+          {
+            block: {
+              id: 'existing-card',
+              type: 'Embed',
+              link: 'hm://acct-1/new-parent/child',
+              attributes: {view: 'Card'},
+            },
+            children: [],
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(makeParentDocument())
+    findByEditMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+
+    const result = await updateParentCardsAfterDocumentRelocation({
+      from: sourceId,
+      to: destinationId,
+      signingAccountUid: 'acct-1',
+      origin: {parentDocumentId: oldParentId, embedBlockId: 'clicked-card'},
+    })
+
+    expect(result.added.kind).toBe('published-parent')
+    expect(publishDocumentMock).toHaveBeenCalledTimes(2)
+    const appendPublishArgs = publishDocumentMock.mock.calls[1]![0]
+    expect(appendPublishArgs.path).toBe('/new-parent')
+    expect(appendPublishArgs.changes.map((change: any) => change.op.case)).toEqual(['moveBlock', 'replaceBlock'])
   })
 })
