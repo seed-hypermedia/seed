@@ -1255,7 +1255,12 @@ describe('removeSeedCronLines', () => {
       '0 0 * * * docker image prune -a -f # seed-cleanup',
     ].join('\n')
     const result = removeSeedCronLines(crontab)
-    expect(result.trim()).toBe('')
+    expect(result).toBe('')
+  })
+
+  test('returns empty string (not a lone newline) for empty input', () => {
+    expect(removeSeedCronLines('')).toBe('')
+    expect(removeSeedCronLines('\n\n')).toBe('')
   })
 })
 

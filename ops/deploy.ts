@@ -1568,7 +1568,7 @@ export async function setupCron(paths: DeployPaths, shell: ShellRunner): Promise
     if (existing.includes('# seed-deploy') || existing.includes('# seed-cleanup')) {
       log('Updated existing seed cron jobs.')
     } else {
-      log('Installed nightly deployment cron job (02:00) and image cleanup cron.')
+      log('Installed automatic deployment cron job (runs every 10 minutes) and hourly image cleanup.')
     }
   } catch (err) {
     log(`Warning: Failed to install cron job: ${err}`)
@@ -2107,13 +2107,12 @@ export function extractSeedCronLines(crontab: string): string[] {
 
 /** Remove all seed-managed cron lines from the active crontab. */
 export function removeSeedCronLines(existing: string): string {
-  return (
-    existing
-      .split('\n')
-      .filter((line) => !line.includes('# seed-deploy') && !line.includes('# seed-cleanup'))
-      .join('\n')
-      .trim() + '\n'
-  )
+  const cleaned = existing
+    .split('\n')
+    .filter((line) => !line.includes('# seed-deploy') && !line.includes('# seed-cleanup'))
+    .join('\n')
+    .trim()
+  return cleaned ? cleaned + '\n' : ''
 }
 
 /** Metadata stored inside backup archives for provenance tracking. */
