@@ -1,9 +1,4 @@
-import {
-  DEFAULT_AGENT_SERVER_URL,
-  useAgentList,
-  useAgentServerUrl,
-  useAgentWebSocketSubscription,
-} from '@/models/agents'
+import {DEFAULT_AGENT_SERVER_URL, useAgentList, useAgentServerUrl, useAgentWebSocketSubscription} from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'

@@ -1,6 +1,6 @@
-import { useAppContext, useIPC } from '@/app-context'
-import { AccountWallet, WalletPage } from '@/components/payment-settings'
-import { reportError } from '@/errors'
+import {useAppContext, useIPC} from '@/app-context'
+import {AccountWallet, WalletPage} from '@/components/payment-settings'
+import {reportError} from '@/errors'
 import {
   DEFAULT_AGENT_SERVER_URL,
   useAgentServerHealth,
@@ -25,7 +25,7 @@ import {
   useStartOpenaiLogin,
   useUpdateProvider,
 } from '@/models/ai-config'
-import { useAutoUpdatePreference } from '@/models/app-settings'
+import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
   useDeleteKey,
@@ -37,7 +37,7 @@ import {
   useStartVaultConnection,
   useVaultStatus,
 } from '@/models/daemon'
-import { useWriteExperiments } from '@/models/experiments'
+import {useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
   useNotifyServiceHost,
@@ -48,9 +48,9 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
-import { usePeerInfo } from '@/models/networking'
-import { useSystemThemeWriter } from '@/models/settings'
-import { useOpenUrl } from '@/open-url'
+import {usePeerInfo} from '@/models/networking'
+import {useSystemThemeWriter} from '@/models/settings'
+import {useOpenUrl} from '@/open-url'
 import {
   DEFAULT_OPENAI_LOGIN_MODEL,
   getDefaultOpenAIModel,
@@ -58,21 +58,21 @@ import {
   OPENAI_API_KEY_FALLBACK_MODELS,
   OPENAI_LOGIN_MODELS,
 } from '@/openai-models'
-import { client } from '@/trpc'
-import { useNavigate } from '@/utils/useNavigate'
-import { buildVaultConnectionURL, normalizeVaultOriginURL } from '@/utils/vault-connection'
-import { useUniversalAppContext } from '@shm/shared'
-import { VaultBackendMode, VaultConnectionStatus } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import { COMMIT_HASH, DAEMON_HTTP_URL, LIGHTNING_API_URL, SEED_HOST_URL, VERSION } from '@shm/shared/constants'
-import { getMetadataName } from '@shm/shared/content'
-import { useResource } from '@shm/shared/models/entity'
-import { invalidateQueries } from '@shm/shared/models/query-client'
-import { queryKeys } from '@shm/shared/models/query-keys'
-import type { SettingsTab } from '@shm/shared/routes'
-import { formattedDateLong } from '@shm/shared/utils/date'
-import { hmId } from '@shm/shared/utils/entity-id-url'
-import { useNavRoute } from '@shm/shared/utils/navigation'
-import { Button } from '@shm/ui/button'
+import {client} from '@/trpc'
+import {useNavigate} from '@/utils/useNavigate'
+import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
+import {useUniversalAppContext} from '@shm/shared'
+import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {COMMIT_HASH, DAEMON_HTTP_URL, LIGHTNING_API_URL, SEED_HOST_URL, VERSION} from '@shm/shared/constants'
+import {getMetadataName} from '@shm/shared/content'
+import {useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import type {SettingsTab} from '@shm/shared/routes'
+import {formattedDateLong} from '@shm/shared/utils/date'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import {Button} from '@shm/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,8 +83,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
-import { Badge } from '@shm/ui/components/badge'
-import { Checkbox } from '@shm/ui/components/checkbox'
+import {Badge} from '@shm/ui/components/badge'
+import {Checkbox} from '@shm/ui/components/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -94,28 +94,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@shm/ui/components/dialog'
-import { Input } from '@shm/ui/components/input'
-import { Label } from '@shm/ui/components/label'
-import { RadioGroup, RadioGroupItem } from '@shm/ui/components/radio-group'
-import { ScrollArea } from '@shm/ui/components/scroll-area'
-import { TabsContent, TabsTrigger } from '@shm/ui/components/tabs'
-import { Textarea } from '@shm/ui/components/textarea'
-import { panelContainerStyles, windowContainerStyles } from '@shm/ui/container'
-import { copyTextToClipboard } from '@shm/ui/copy-to-clipboard'
-import { Field } from '@shm/ui/form-fields'
-import { HMIcon } from '@shm/ui/hm-icon'
-import { Copy, ExternalLink, Undo } from '@shm/ui/icons'
-import { OptionsDropdown } from '@shm/ui/options-dropdown'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@shm/ui/select-dropdown'
-import { Separator } from '@shm/ui/separator'
-import { Spinner } from '@shm/ui/spinner'
-import { InfoListHeader, InfoListItem, TableList } from '@shm/ui/table-list'
-import { SizableText } from '@shm/ui/text'
-import { toast } from '@shm/ui/toast'
-import { Tooltip } from '@shm/ui/tooltip'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { cn } from '@shm/ui/utils'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {TabsContent, TabsTrigger} from '@shm/ui/components/tabs'
+import {Textarea} from '@shm/ui/components/textarea'
+import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Field} from '@shm/ui/form-fields'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {Copy, ExternalLink, Undo} from '@shm/ui/icons'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
+import {Separator} from '@shm/ui/separator'
+import {Spinner} from '@shm/ui/spinner'
+import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   Check,
   ChevronDown,
@@ -134,7 +134,7 @@ import {
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
+import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 
 // Fallback model lists when a live model list is not yet available.
 const ANTHROPIC_MODELS_FALLBACK = ['claude-opus-4-20250514', 'claude-sonnet-4-20250514', 'claude-haiku-4-20250414']
@@ -155,11 +155,11 @@ type SettingsTabConfig = {
 }
 
 const SETTINGS_TAB_CONFIG: SettingsTabConfig[] = [
-  { key: 'general', icon: Cog, label: 'General settings' },
-  { key: 'sync', icon: RadioTower, label: 'Sync options' },
-  { key: 'app-info', icon: Info, label: 'App info' },
-  { key: 'agent-servers', icon: Server, label: 'Agent Servers' },
-  { key: 'advanced', icon: Code2, label: 'Advanced' },
+  {key: 'general', icon: Cog, label: 'General settings'},
+  {key: 'sync', icon: RadioTower, label: 'Sync options'},
+  {key: 'app-info', icon: Info, label: 'App info'},
+  {key: 'agent-servers', icon: Server, label: 'Agent Servers'},
+  {key: 'advanced', icon: Code2, label: 'Advanced'},
 ]
 
 export default function Settings() {
@@ -167,7 +167,7 @@ export default function Settings() {
   const navigate = useNavigate('replace')
   const activeTab: SettingsTab =
     route.key === 'settings' && route.tab && SETTINGS_TABS.includes(route.tab) ? route.tab : 'general'
-  const setActiveTab = (tab: SettingsTab) => navigate({ key: 'settings', tab })
+  const setActiveTab = (tab: SettingsTab) => navigate({key: 'settings', tab})
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
@@ -545,7 +545,7 @@ function GeneralSettings() {
   )
 }
 
-function SettingsCard({ label, children }: { label: string; children: React.ReactNode }) {
+function SettingsCard({label, children}: {label: string; children: React.ReactNode}) {
   return (
     <div>
       <SizableText size="xs" weight="bold" className="text-muted-foreground mb-2 tracking-wider">
@@ -556,7 +556,7 @@ function SettingsCard({ label, children }: { label: string; children: React.Reac
   )
 }
 
-function SettingsRow({ label, description, right }: { label: string; description?: string; right?: React.ReactNode }) {
+function SettingsRow({label, description, right}: {label: string; description?: string; right?: React.ReactNode}) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -574,7 +574,7 @@ function SettingsRow({ label, description, right }: { label: string; description
   )
 }
 
-function GoBuildInfo({ goBuildInfo }: { goBuildInfo: string }) {
+function GoBuildInfo({goBuildInfo}: {goBuildInfo: string}) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="px-4 py-3">
@@ -595,7 +595,7 @@ function GoBuildInfo({ goBuildInfo }: { goBuildInfo: string }) {
   )
 }
 
-function NetworkAddresses({ addrs }: { addrs?: string }) {
+function NetworkAddresses({addrs}: {addrs?: string}) {
   const [expanded, setExpanded] = useState(false)
   const firstAddr = addrs?.split('\n')[0]
   return (
@@ -839,7 +839,7 @@ export function DeveloperSettings() {
   const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
   const [pendingEmbeddingState, setPendingEmbeddingState] = useState(false)
   const restartDaemon = useMutation({
-    mutationFn: (enabled: boolean) => client.restartDaemonWithEmbedding.mutate({ embeddingEnabled: enabled }),
+    mutationFn: (enabled: boolean) => client.restartDaemonWithEmbedding.mutate({embeddingEnabled: enabled}),
     onSuccess: () => {
       toast.success(
         pendingEmbeddingState ? 'Embedding enabled. Daemon restarted.' : 'Embedding disabled. Daemon restarted.',
@@ -866,7 +866,7 @@ export function DeveloperSettings() {
 
   function confirmEmbeddingChange() {
     setShowEmbeddingConfirm(false)
-    writeExperiments.mutate({ embeddingEnabled: pendingEmbeddingState })
+    writeExperiments.mutate({embeddingEnabled: pendingEmbeddingState})
     restartDaemon.mutate(pendingEmbeddingState)
   }
 
@@ -890,7 +890,7 @@ export function DeveloperSettings() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => writeExperiments.mutate({ developerTools: !enabledDevTools })}
+              onClick={() => writeExperiments.mutate({developerTools: !enabledDevTools})}
             >
               {enabledDevTools ? 'Disable Debug Tools' : 'Enable Debug Tools'}
             </Button>
@@ -904,7 +904,7 @@ export function DeveloperSettings() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => writeExperiments.mutate({ advancedCopyLinkOptions: !enabledAdvancedCopyLinkOptions })}
+              onClick={() => writeExperiments.mutate({advancedCopyLinkOptions: !enabledAdvancedCopyLinkOptions})}
             >
               {enabledAdvancedCopyLinkOptions ? 'Disable Advanced Copy Links' : 'Enable Advanced Copy Links'}
             </Button>
@@ -918,7 +918,7 @@ export function DeveloperSettings() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => writeExperiments.mutate({ pubContentDevMenu: !enabledPubContentDevMenu })}
+              onClick={() => writeExperiments.mutate({pubContentDevMenu: !enabledPubContentDevMenu})}
             >
               {enabledPubContentDevMenu ? 'Disable Publication Panel' : 'Enable Publication Panel'}
             </Button>
@@ -956,7 +956,7 @@ export function DeveloperSettings() {
 }
 
 function AccountKeys() {
-  const { pickKeyExportFile } = useAppContext()
+  const {pickKeyExportFile} = useAppContext()
   const deleteKey = useDeleteKey()
   const exportKey = useExportKey()
   const keys = useListKeys()
@@ -971,11 +971,11 @@ function AccountKeys() {
 
   const selectedKey = keys.data?.find((key) => key.publicKey === selectedAccount)
 
-  const { data: mnemonics, refetch: mnemonicsRefetch } = useSavedMnemonics(selectedKey?.name)
+  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedKey?.name)
 
   const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
-  const { data: profile } = useResource(selectedAccountId)
+  const {data: profile} = useResource(selectedAccountId)
   const profileDocument = profile?.type === 'document' ? profile.document : undefined
 
   const [showWords, setShowWords] = useState<boolean>(false)
@@ -999,7 +999,7 @@ function AccountKeys() {
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
-    deleteKey.mutateAsync({ accountId: selectedAccount }).then(() => {
+    deleteKey.mutateAsync({accountId: selectedAccount}).then(() => {
       setSelectedAccount(undefined)
       toast.success('Profile removed correctly')
     })
@@ -1261,7 +1261,7 @@ function AccountKeys() {
   )
 }
 
-function KeyItem({ item, isActive, onSelect }: { item: string; isActive: boolean; onSelect: () => void }) {
+function KeyItem({item, isActive, onSelect}: {item: string; isActive: boolean; onSelect: () => void}) {
   const id = hmId(item)
   const entity = useResource(id)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
@@ -1430,8 +1430,8 @@ function PushSettingRow({
 }: {
   label: string
   description: string
-  hookResult: { data?: string; isLoading: boolean; isError: boolean; refetch: () => void }
-  setMutation: { mutate: (value: 'always' | 'never' | 'ask', options?: any) => void }
+  hookResult: {data?: string; isLoading: boolean; isError: boolean; refetch: () => void}
+  setMutation: {mutate: (value: 'always' | 'never' | 'ask', options?: any) => void}
 }) {
   const id = useId()
   const currentValue = hookResult.data || 'always'
@@ -1506,9 +1506,9 @@ function PushOnPublishSetting() {
   )
 }
 
-function DeviceItem({ id }: { id: string }) {
-  let { data } = usePeerInfo(id)
-  let { data: current } = useDaemonInfo()
+function DeviceItem({id}: {id: string}) {
+  let {data} = usePeerInfo(id)
+  let {data: current} = useDaemonInfo()
 
   let isCurrent = useMemo(() => {
     if (!current?.peerId) return false
@@ -1561,7 +1561,7 @@ function AppSettings() {
     queryFn: () => client.getAppInfo.query(),
   }).data
   const openUrl = useOpenUrl()
-  const { value: autoUpdate, setAutoUpdate } = useAutoUpdatePreference()
+  const {value: autoUpdate, setAutoUpdate} = useAutoUpdatePreference()
   const daemonInfo = useQuery({
     queryKey: ['daemon-info'],
     queryFn: () => client.getDaemonInfo.query(),
@@ -1572,7 +1572,7 @@ function AppSettings() {
   } else if (daemonInfo?.daemonVersion) {
     goBuildInfo = daemonInfo.daemonVersion
   }
-  const { data: deviceInfo } = useDaemonInfo()
+  const {data: deviceInfo} = useDaemonInfo()
   const peer = usePeerInfo(deviceInfo?.peerId)
   const addrs = peer.data?.addrs?.join('\n')
 
@@ -1708,7 +1708,8 @@ function AppSettings() {
               variant="outline"
               onClick={() => {
                 copyTextToClipboard(
-                  `App Version: ${VERSION}\nElectron: ${versions.electron}\nChrome: ${versions.chrome}\nNode: ${versions.node
+                  `App Version: ${VERSION}\nElectron: ${versions.electron}\nChrome: ${versions.chrome}\nNode: ${
+                    versions.node
                   }\nCommit: ${COMMIT_HASH.slice(0, 8)}\nGo Build: ${goBuildInfo}`,
                 )
                 toast.success('Copied debug info')
@@ -1761,7 +1762,7 @@ function Tab(
     active: boolean
   },
 ) {
-  const { icon: Icon, label, active, ...rest } = props
+  const {icon: Icon, label, active, ...rest} = props
   return (
     <TabsTrigger
       data-testid={`tab-${props.value}`}
@@ -1780,7 +1781,7 @@ function SettingsSection({
   title,
   children,
   afterTitle,
-}: React.PropsWithChildren<{ title: string; afterTitle?: React.ReactNode }>) {
+}: React.PropsWithChildren<{title: string; afterTitle?: React.ReactNode}>) {
   return (
     <div className={cn('dark:bg-background bg-muted flex flex-col gap-3 rounded p-3')}>
       <div className="flex items-center justify-start gap-3">
@@ -1939,7 +1940,7 @@ function ProviderFormSection({
   description,
   action,
   children,
-}: React.PropsWithChildren<{ title: string; description?: string | null; action?: React.ReactNode }>) {
+}: React.PropsWithChildren<{title: string; description?: string | null; action?: React.ReactNode}>) {
   return (
     <div className="bg-background/70 flex flex-col gap-4 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-3">
@@ -1962,7 +1963,7 @@ function ProviderFormSection({
 
 type AddProviderDialogInput = ProviderFormData['type'] | 'choose'
 
-function AddProviderDialog({ input, onClose }: { input: AddProviderDialogInput; onClose: () => void }) {
+function AddProviderDialog({input, onClose}: {input: AddProviderDialogInput; onClose: () => void}) {
   const isSpecificProvider = input !== 'choose'
   const initialType = input === 'choose' ? 'openai' : input
 
@@ -2088,11 +2089,11 @@ function ProviderListActions({
           },
           !isDefault
             ? {
-              key: 'default',
-              label: 'Use by default',
-              icon: <Check className="size-4" />,
-              onClick: onSetDefault,
-            }
+                key: 'default',
+                label: 'Use by default',
+                icon: <Check className="size-4" />,
+                onClick: onSetDefault,
+              }
             : null,
           {
             key: 'duplicate',
@@ -2401,12 +2402,12 @@ function ProviderForm({
           id: draftProviderId,
           ...input,
         },
-        { onSuccess: onSave },
+        {onSuccess: onSave},
       )
       return
     }
 
-    addProvider.mutate(input, { onSuccess: onSave })
+    addProvider.mutate(input, {onSuccess: onSave})
   }
 
   function handleCancel() {
@@ -2694,14 +2695,14 @@ function ProviderFormFields({
     setOpenaiLoginUserCode(null)
     startOpenaiLogin.mutate(
       providerId
-        ? { providerId }
+        ? {providerId}
         : {
-          draft: {
-            label: form.label || undefined,
-            model: form.model || undefined,
-            baseUrl: form.baseUrl || undefined,
+            draft: {
+              label: form.label || undefined,
+              model: form.model || undefined,
+              baseUrl: form.baseUrl || undefined,
+            },
           },
-        },
       {
         onSuccess: (result) => {
           if (result.providerId) {
@@ -2756,7 +2757,7 @@ function ProviderFormFields({
       }
 
       if (connectedProviderId && connectedProviderId === providerId) {
-        openaiModelsProvider.refetch().catch(() => { })
+        openaiModelsProvider.refetch().catch(() => {})
       }
       return
     }
@@ -2822,24 +2823,24 @@ function ProviderFormFields({
     if (!open) return
     if (form.type === 'openai') {
       if (form.authMode === 'login' && providerId) {
-        openaiModelsProvider.refetch().catch(() => { })
+        openaiModelsProvider.refetch().catch(() => {})
         return
       }
       if (form.authMode === 'apiKey' && form.apiKey) {
-        openaiModelsApiKey.refetch().catch(() => { })
+        openaiModelsApiKey.refetch().catch(() => {})
       }
       return
     }
     if (form.type === 'anthropic' && form.apiKey) {
-      anthropicModels.refetch().catch(() => { })
+      anthropicModels.refetch().catch(() => {})
       return
     }
     if (form.type === 'gemini' && form.apiKey) {
-      geminiModels.refetch().catch(() => { })
+      geminiModels.refetch().catch(() => {})
       return
     }
     if (form.type === 'ollama' && form.baseUrl) {
-      ollamaModels.refetch().catch(() => { })
+      ollamaModels.refetch().catch(() => {})
     }
   }
 
@@ -2880,7 +2881,7 @@ function ProviderFormFields({
         <Field id="provider-label" label="Label">
           <Input
             value={form.label}
-            onChangeText={(v) => setForm((current) => ({ ...current, label: v }))}
+            onChangeText={(v) => setForm((current) => ({...current, label: v}))}
             placeholder="Provider name"
           />
         </Field>
@@ -2941,7 +2942,7 @@ function ProviderFormFields({
                           option.value === 'login'
                             ? normalizeOpenAILoginModel(current.model)
                             : current.model || getDefaultOpenAIModel('apiKey'),
-                        ...(option.value === 'apiKey' ? { openaiAuth: undefined } : {}),
+                        ...(option.value === 'apiKey' ? {openaiAuth: undefined} : {}),
                       }))
                     }}
                     className="bg-background/60 hover:border-border hover:bg-background flex min-h-[96px] flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors"
@@ -3050,7 +3051,7 @@ function ProviderFormFields({
                   <Input
                     type={showApiKey ? 'text' : 'password'}
                     value={form.apiKey}
-                    onChangeText={(v) => setForm((current) => ({ ...current, apiKey: v }))}
+                    onChangeText={(v) => setForm((current) => ({...current, apiKey: v}))}
                     placeholder="sk-..."
                     className="flex-1"
                   />
@@ -3081,7 +3082,7 @@ function ProviderFormFields({
                 <Input
                   type={showApiKey ? 'text' : 'password'}
                   value={form.apiKey}
-                  onChangeText={(v) => setForm((current) => ({ ...current, apiKey: v }))}
+                  onChangeText={(v) => setForm((current) => ({...current, apiKey: v}))}
                   placeholder={form.type === 'anthropic' ? 'sk-ant-...' : 'AIza...'}
                   className="flex-1"
                 />
@@ -3109,7 +3110,7 @@ function ProviderFormFields({
             <Field id="provider-baseurl" label="Base URL">
               <Input
                 value={form.baseUrl}
-                onChangeText={(v) => setForm((current) => ({ ...current, baseUrl: v }))}
+                onChangeText={(v) => setForm((current) => ({...current, baseUrl: v}))}
                 placeholder="http://localhost:11434"
               />
             </Field>
@@ -3141,7 +3142,7 @@ function ProviderFormFields({
               {modelOptions.length > 0 ? (
                 <Select
                   value={form.model}
-                  onValueChange={(v) => setForm((current) => ({ ...current, model: v }))}
+                  onValueChange={(v) => setForm((current) => ({...current, model: v}))}
                   onOpenChange={handleModelPickerOpenChange}
                 >
                   <SelectTrigger className="w-full">
@@ -3158,7 +3159,7 @@ function ProviderFormFields({
               ) : (
                 <Input
                   value={form.model}
-                  onChangeText={(v) => setForm((current) => ({ ...current, model: v }))}
+                  onChangeText={(v) => setForm((current) => ({...current, model: v}))}
                   placeholder={form.type === 'ollama' ? 'e.g. llama3' : 'Model name'}
                 />
               )}
@@ -3168,10 +3169,10 @@ function ProviderFormFields({
                 </SizableText>
               ) : null}
               {form.type === 'openai' &&
-                form.authMode === 'login' &&
-                form.openaiAuth &&
-                !openaiModels.isFetching &&
-                !openaiModels.data?.length ? (
+              form.authMode === 'login' &&
+              form.openaiAuth &&
+              !openaiModels.isFetching &&
+              !openaiModels.data?.length ? (
                 <SizableText size="xs" className="text-muted-foreground mt-1">
                   Could not load the live model list from OpenAI. Showing a fallback catalog.
                 </SizableText>

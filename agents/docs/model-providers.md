@@ -59,21 +59,21 @@ provider is usually one entry there (plus a matching `PROVIDER_METADATA` entry i
 `frontend/apps/desktop/src/pages/agents/provider-registry.ts`). Most providers are OpenAI-compatible and ride the same
 `openai-completions` execution + `GET /models` list path, differing only by base URL.
 
-| type | Pi API | default base URL | base URL editable | API key | model list |
-|------|--------|------------------|-------------------|---------|-----------|
-| `openai` | openai-completions | `https://api.openai.com/v1` | no | required | openai |
-| `anthropic` | anthropic-messages | `https://api.anthropic.com` | no | required | anthropic |
-| `google` | google-generative-ai | `https://generativelanguage.googleapis.com/v1beta` | no | required | google |
-| `openrouter` | openai-completions | `https://openrouter.ai/api/v1` | no | required | openai |
-| `deepseek` | openai-completions | `https://api.deepseek.com` | no | required | openai |
-| `groq` | openai-completions | `https://api.groq.com/openai/v1` | no | required | openai |
-| `xai` | openai-completions | `https://api.x.ai/v1` | no | required | openai |
-| `ollama` | openai-completions | `http://localhost:11434/v1` | **yes** | optional | openai |
-| `custom` | openai-completions | (user-supplied) | **yes** | optional | openai |
+| type         | Pi API               | default base URL                                   | base URL editable | API key  | model list |
+| ------------ | -------------------- | -------------------------------------------------- | ----------------- | -------- | ---------- |
+| `openai`     | openai-completions   | `https://api.openai.com/v1`                        | no                | required | openai     |
+| `anthropic`  | anthropic-messages   | `https://api.anthropic.com`                        | no                | required | anthropic  |
+| `google`     | google-generative-ai | `https://generativelanguage.googleapis.com/v1beta` | no                | required | google     |
+| `openrouter` | openai-completions   | `https://openrouter.ai/api/v1`                     | no                | required | openai     |
+| `deepseek`   | openai-completions   | `https://api.deepseek.com`                         | no                | required | openai     |
+| `groq`       | openai-completions   | `https://api.groq.com/openai/v1`                   | no                | required | openai     |
+| `xai`        | openai-completions   | `https://api.x.ai/v1`                              | no                | required | openai     |
+| `ollama`     | openai-completions   | `http://localhost:11434/v1`                        | **yes**           | optional | openai     |
+| `custom`     | openai-completions   | (user-supplied)                                    | **yes**           | optional | openai     |
 
-`custom` is a generic OpenAI-compatible type: the user supplies the base URL, so it covers self-hosted servers
-(LM Studio, vLLM, llama.cpp, LocalAI) and any future OpenAI-compatible endpoint without a code change. Base URL
-resolution and the pinned-vs-custom trust policy are documented in `security.md`.
+`custom` is a generic OpenAI-compatible type: the user supplies the base URL, so it covers self-hosted servers (LM
+Studio, vLLM, llama.cpp, LocalAI) and any future OpenAI-compatible endpoint without a code change. Base URL resolution
+and the pinned-vs-custom trust policy are documented in `security.md`.
 
 ## Desktop provider UI
 

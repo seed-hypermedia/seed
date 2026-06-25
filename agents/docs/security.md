@@ -86,12 +86,12 @@ Future production work should add:
 
 ## Provider endpoint safety
 
-Each provider type has a code-owned spec in `PROVIDER_SPECS` (`agents/src/api-service.ts`) with a fixed default base
-URL and an `allowCustomBaseUrl` flag. The base URL is resolved by `resolveProviderBaseUrl()`:
+Each provider type has a code-owned spec in `PROVIDER_SPECS` (`agents/src/api-service.ts`) with a fixed default base URL
+and an `allowCustomBaseUrl` flag. The base URL is resolved by `resolveProviderBaseUrl()`:
 
-- **Pinned providers** (`openai`, `anthropic`, `google`, `openrouter`, `deepseek`, `groq`, `xai`): the spec default
-  base URL always wins, and any stored `baseUrl` override is ignored. This keeps a stored API key from being redirected
-  to an arbitrary host — it replaces the previous OpenAI-only `isTrustedOpenAIBaseUrl()` check with a uniform policy.
+- **Pinned providers** (`openai`, `anthropic`, `google`, `openrouter`, `deepseek`, `groq`, `xai`): the spec default base
+  URL always wins, and any stored `baseUrl` override is ignored. This keeps a stored API key from being redirected to an
+  arbitrary host — it replaces the previous OpenAI-only `isTrustedOpenAIBaseUrl()` check with a uniform policy.
 - **Self-hosted/custom providers** (`ollama`, `custom`): the user-supplied `baseUrl` is honored, because pointing at a
   local or private endpoint is the entire purpose. These accept requests without an API key. The base-URL value is set
   by the authenticated account owner through signed `SetModelProvider` actions, so the endpoint and any key it carries
