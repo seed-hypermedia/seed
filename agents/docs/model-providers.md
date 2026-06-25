@@ -52,13 +52,34 @@ No provider API returns plaintext secrets. `ListProviderModels` returns only `{i
 - Anthropic: `GET /v1/models` with `x-api-key` and `anthropic-version`;
 - Google: `GET /models?key=...` and filters for `generateContent` models.
 
+## Supported provider types
+
+Provider behavior is driven by a single code-owned registry, `PROVIDER_SPECS` in `agents/src/api-service.ts`. Adding a
+provider is usually one entry there (plus a matching `PROVIDER_METADATA` entry in
+`frontend/apps/desktop/src/pages/agents/provider-registry.ts`). Most providers are OpenAI-compatible and ride the same
+`openai-completions` execution + `GET /models` list path, differing only by base URL.
+
+| type | Pi API | default base URL | base URL editable | API key | model list |
+|------|--------|------------------|-------------------|---------|-----------|
+| `openai` | openai-completions | `https://api.openai.com/v1` | no | required | openai |
+| `anthropic` | anthropic-messages | `https://api.anthropic.com` | no | required | anthropic |
+| `google` | google-generative-ai | `https://generativelanguage.googleapis.com/v1beta` | no | required | google |
+| `openrouter` | openai-completions | `https://openrouter.ai/api/v1` | no | required | openai |
+| `deepseek` | openai-completions | `https://api.deepseek.com` | no | required | openai |
+| `groq` | openai-completions | `https://api.groq.com/openai/v1` | no | required | openai |
+| `xai` | openai-completions | `https://api.x.ai/v1` | no | required | openai |
+| `ollama` | openai-completions | `http://localhost:11434/v1` | **yes** | optional | openai |
+| `custom` | openai-completions | (user-supplied) | **yes** | optional | openai |
+
+`custom` is a generic OpenAI-compatible type: the user supplies the base URL, so it covers self-hosted servers
+(LM Studio, vLLM, llama.cpp, LocalAI) and any future OpenAI-compatible endpoint without a code change. Base URL
+resolution and the pinned-vs-custom trust policy are documented in `security.md`.
+
 ## Desktop provider UI
 
-The desktop **Model providers** dialog can save records for:
-
-- OpenAI (`openai`)
-- Anthropic (`anthropic`)
-- Google (`google`)
+The desktop **Model providers** dialog can save records for every type above, with a provider logo per option. The
+add-provider form shows an editable **Base URL** field for `ollama`/`custom` (prefilled with the default) and treats the
+API key as optional for those keyless local providers.
 
 Save flow:
 
@@ -76,7 +97,8 @@ WebSocket events, and the `read` tool. Pi owns the model-provider request/stream
 
 ### OpenAI-compatible providers — completed through Pi
 
-Seed maps provider type `openai` to Pi API `openai-completions`.
+Seed maps `openai` and every other `openai-completions` type in `PROVIDER_SPECS` (`openrouter`, `deepseek`, `groq`,
+`xai`, `ollama`, `custom`) to Pi API `openai-completions`, each at its own base URL.
 
 Capabilities:
 
@@ -86,16 +108,13 @@ Capabilities:
   order;
 - Pi tool-call orchestration;
 - `read` registered as a Seed-owned Pi custom tool;
-- trusted custom OpenAI `baseUrl` check retained by Seed.
+- base URL resolved by `resolveProviderBaseUrl()`: pinned to the spec default for hosted providers, user-supplied for
+  `ollama`/`custom` (see `security.md`);
+- keyless execution for `ollama`/`custom` — when no API-key secret is configured, Pi receives a `local` placeholder key
+  (local servers ignore it) and the `GET /models` request omits the `Authorization` header.
 
-Default endpoint:
-
-```text
-https://api.openai.com/v1
-```
-
-Pi calls the provider-specific chat-completions endpoint underneath this base URL. Custom OpenAI `baseUrl` is currently
-accepted only when `isTrustedOpenAIBaseUrl()` allows it.
+Per-provider reasoning payload quirks (`compat.thinkingFormat` such as `deepseek`/`openrouter`) are not wired yet
+because the registered model is `reasoning: false`; revisit when reasoning support lands.
 
 ### Anthropic providers — mapped through Pi
 

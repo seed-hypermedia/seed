@@ -72,13 +72,17 @@ ModelProvidersDialog
 
 Features:
 
-- list redacted providers;
-- save OpenAI/Anthropic/Google provider records;
-- save API key through signed `SetSecret`;
-- save provider through signed `SetModelProvider`;
-- reject remote plain-HTTP secret submission.
+- list redacted providers, each with its provider logo (`ProviderIcon`);
+- save records for any type in the provider registry — OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI,
+  Ollama, and a generic Custom (OpenAI-compatible) endpoint;
+- show an editable **Base URL** field for `ollama`/`custom` (prefilled from `PROVIDER_METADATA.defaultBaseUrl`);
+- treat the API key as optional for keyless local providers (`ollama`/`custom`);
+- save API key through signed `SetSecret` (skipped when no key is given);
+- save provider (with optional `baseUrl`) through signed `SetModelProvider`;
+- reject remote plain-HTTP secret submission, but only when a key is actually being sent.
 
-Caveat: Anthropic and Google providers are configuration-only until execution backends are added.
+Provider metadata (labels, default base URLs, field behavior, model-list priorities) lives in
+`frontend/apps/desktop/src/pages/agents/provider-registry.ts`; logos are in `provider-icons.tsx`.
 
 ## Create-agent dialog
 
@@ -265,7 +269,8 @@ durable user event arrives, the hook removes matching optimistic events.
 - Provider deletion is missing.
 - Secret rotation UX is minimal.
 - `write` can use selected HM account keys to create drafts, profiles, documents, comments, capabilities, and contacts.
-- Provider configuration does not clearly warn that Anthropic/Google execution is not implemented.
+- Newly added provider types (OpenRouter/DeepSeek/Groq/xAI/Ollama/custom) still need real-provider manual smoke
+  coverage; the UI does not surface which providers are verified end-to-end.
 - No stop/cancel button exists.
 - No provider test button exists.
 - No model presets/capability validation beyond suggested defaults.

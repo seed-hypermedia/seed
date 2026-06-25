@@ -175,8 +175,12 @@ and event payloads. Production deployment needs auth or local-only binding guida
 
 ### Provider support mismatch
 
-The UI lets users save Anthropic/Google providers, and the server now maps those provider types through Pi. Until
-real-provider smoke tests are complete, the UI should still expose clearer capability status and provider test actions.
+The provider set is registry-driven (`PROVIDER_SPECS` backend, `PROVIDER_METADATA` desktop): OpenAI, Anthropic, Google,
+OpenRouter, DeepSeek, Groq, xAI, Ollama, and a generic Custom (OpenAI-compatible) endpoint are configurable and mapped
+through Pi. The new OpenAI-compatible types reuse the OpenAI model-list + execution path and have mocked-network test
+coverage, but lack real-provider smoke tests. The UI should still expose clearer capability status and provider test
+actions, and reasoning `compat` flags (deepseek/openrouter thinking formats) remain unwired until reasoning support
+lands.
 
 ### WebSocket partials are ephemeral
 

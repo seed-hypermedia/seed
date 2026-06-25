@@ -38,14 +38,29 @@ export type AgentRunUsage = AgentsProtocol.AgentRunUsage
 export type AgentRunActivity = AgentsProtocol.AgentRunActivity
 /** Redacted provider metadata returned by the agents service. */
 export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
+/** Stored provider configuration (type, optional base URL, secret references). */
+export type ModelProviderConfig = AgentsProtocol.ModelProviderConfig
 /** Public model metadata returned by the agents service. */
 export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
 /** Avatar image payload for updating an agent account profile. */
 export type SigningIdentityIcon = AgentsProtocol.SigningIdentityIcon
-/** Provider types exposed in the desktop provider-management UI. */
-export type ModelProviderType = 'openai' | 'anthropic' | 'google'
+/**
+ * Provider types exposed in the desktop provider-management UI. Most are
+ * OpenAI-compatible and differ only by base URL; `custom` lets the user point at
+ * any OpenAI-compatible endpoint (self-hosted vLLM/LM Studio/LocalAI, etc.).
+ */
+export type ModelProviderType =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'openrouter'
+  | 'deepseek'
+  | 'groq'
+  | 'xai'
+  | 'ollama'
+  | 'custom'
 
 type AgentAction = AgentsProtocol.UnsignedAgentAction
 type AgentsResponse = AgentsProtocol.AgentResponse

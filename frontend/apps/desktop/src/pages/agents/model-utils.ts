@@ -1,4 +1,5 @@
-import type {ModelProviderType, ProviderModelInfo} from '@/agents-client'
+import type {ProviderModelInfo} from '@/agents-client'
+import {isModelProviderType, PROVIDER_METADATA} from './provider-registry'
 
 /**
  * Provider model lists returned by OpenAI/Anthropic/Google are long and noisy:
@@ -56,23 +57,10 @@ export function canonicalModelId(id: string): string {
     .replace(/-\d{4}$/, '') // 0613 / 1106 / 0125
 }
 
-/** Ordered family prefixes used to float flagship models to the top of the curated list. */
-const PRIORITY_PREFIXES: Record<ModelProviderType, string[]> = {
-  openai: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'o3', 'o1', 'gpt-4', 'gpt-3.5', 'chatgpt'],
-  anthropic: ['claude-opus', 'claude-sonnet', 'claude-haiku', 'claude-3-5', 'claude-3'],
-  google: ['gemini-2.5', 'gemini-2.0', 'gemini-1.5', 'gemini', 'gemma'],
-}
-
-/** Provider-specific models we prefer as the initial default in agent creation/edit flows. */
-const PREFERRED_DEFAULT_MODEL_IDS: Partial<Record<ModelProviderType, string[]>> = {
-  openai: ['gpt-5-mini'],
-  anthropic: ['claude-sonnet-4.6', 'claude-sonnet-4-6'],
-}
-
 function priorityIndex(id: string, providerType: string | undefined): number {
   const prefixes =
-    providerType && providerType in PRIORITY_PREFIXES ? PRIORITY_PREFIXES[providerType as ModelProviderType] : undefined
-  if (!prefixes) return Number.MAX_SAFE_INTEGER
+    providerType && isModelProviderType(providerType) ? PROVIDER_METADATA[providerType].priorityPrefixes : undefined
+  if (!prefixes || !prefixes.length) return Number.MAX_SAFE_INTEGER
   const lower = id.toLowerCase()
   const index = prefixes.findIndex((prefix) => lower.startsWith(prefix))
   return index === -1 ? Number.MAX_SAFE_INTEGER : index
@@ -145,8 +133,8 @@ export function pickDefaultProviderModel(
 ): ProviderModelInfo | undefined {
   const curated = curateProviderModels(models, providerType)
   const preferredIds =
-    providerType && providerType in PREFERRED_DEFAULT_MODEL_IDS
-      ? PREFERRED_DEFAULT_MODEL_IDS[providerType as ModelProviderType]
+    providerType && isModelProviderType(providerType)
+      ? PROVIDER_METADATA[providerType].preferredDefaultModelIds
       : undefined
 
   return (

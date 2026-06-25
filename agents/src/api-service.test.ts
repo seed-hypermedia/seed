@@ -218,6 +218,148 @@ describe('api service', () => {
     }
   })
 
+  test('lists models for an OpenAI-compatible named provider (DeepSeek) at its default base URL', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'deepseek-key', value: new TextEncoder().encode('sk-deepseek')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'deepseek',
+            provider: {type: 'deepseek', secretRefs: {apiKey: 'deepseek-key'}},
+          },
+        }),
+      )
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        expect(String(url)).toBe('https://api.deepseek.com/models')
+        expect(init?.headers).toMatchObject({Authorization: 'Bearer sk-deepseek'})
+        return Response.json({data: [{id: 'deepseek-chat'}, {id: 'deepseek-reasoner'}]})
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'deepseek'}}),
+      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      expect(models.models).toEqual([
+        {id: 'deepseek-chat', name: 'deepseek-chat'},
+        {id: 'deepseek-reasoner', name: 'deepseek-reasoner'},
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('lists models for a keyless local provider (Ollama) without an Authorization header', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      // No secret stored: Ollama runs locally without an API key.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'ollama', provider: {type: 'ollama'}},
+        }),
+      )
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        expect(String(url)).toBe('http://localhost:11434/v1/models')
+        expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined()
+        return Response.json({data: [{id: 'llama3.2'}]})
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'ollama'}}),
+      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      expect(models.models).toEqual([{id: 'llama3.2', name: 'llama3.2'}])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('lists models for a custom OpenAI-compatible provider using its configured base URL', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'local',
+            provider: {type: 'custom', baseUrl: 'http://localhost:1234/v1'},
+          },
+        }),
+      )
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
+        expect(String(url)).toBe('http://localhost:1234/v1/models')
+        return Response.json({data: [{id: 'local-model'}]})
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'local'}}),
+      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      expect(models.models).toEqual([{id: 'local-model', name: 'local-model'}])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('ignores a stored base URL override for a pinned provider type', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      // A non-self-hosted provider may not redirect its endpoint: the spec default wins,
+      // so a stored key can't be exfiltrated to an attacker host.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', baseUrl: 'https://evil.example.com', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
+        expect(String(url)).toBe('https://api.openai.com/v1/models')
+        return Response.json({data: [{id: 'gpt-4.1'}]})
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'openai'}}),
+      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      expect(models.models).toEqual([{id: 'gpt-4.1', name: 'gpt-4.1'}])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('sets provider and secret with redacted responses and encrypted secret storage', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

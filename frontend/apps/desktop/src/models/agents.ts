@@ -14,6 +14,7 @@ import {
   type AgentTriggerPatch,
   type AgentWSEvent,
   type MessageSessionContentPart,
+  type ModelProviderConfig,
   type ModelProviderInfo,
   type ModelProviderType,
   type SigningIdentity,
@@ -492,33 +493,51 @@ export function useDeleteModelProvider(serverUrl: string | undefined, accountUid
 /** Stores an API key and configures a model provider. */
 export function useSaveModelProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({type, name, apiKey}: {type: ModelProviderType; name: string; apiKey: string}) => {
+    mutationFn: async ({
+      type,
+      name,
+      apiKey,
+      baseUrl,
+    }: {
+      type: ModelProviderType
+      name: string
+      apiKey: string
+      /** Custom endpoint for self-hosted/custom providers (e.g. Ollama). */
+      baseUrl?: string
+    }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
-      if (!isSafeAgentServerSecretTarget(serverUrl)) {
-        throw new Error('Refusing to send API key to a non-local HTTP agent server. Use HTTPS for remote servers.')
-      }
       const providerName = name.trim()
       if (!providerName) throw new Error('Provider name is required')
       const trimmed = apiKey.trim()
-      if (!trimmed) throw new Error('API key is required')
-      const secretName = `${providerName}-api-key`
-      await sendAgentAction({
-        serverUrl,
-        accountUid,
-        action: {
-          _: 'SetSecret',
-          name: secretName,
-          value: new TextEncoder().encode(trimmed),
-          metadata: {provider: type},
-        },
-      })
+      // Only guard the secret transport when a key is actually being sent; local
+      // providers (Ollama/custom) can be saved without one.
+      if (trimmed && !isSafeAgentServerSecretTarget(serverUrl)) {
+        throw new Error('Refusing to send API key to a non-local HTTP agent server. Use HTTPS for remote servers.')
+      }
+      const trimmedBaseUrl = baseUrl?.trim() || undefined
+      const provider: ModelProviderConfig = {type}
+      if (trimmedBaseUrl) provider.baseUrl = trimmedBaseUrl
+      if (trimmed) {
+        const secretName = `${providerName}-api-key`
+        await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {
+            _: 'SetSecret',
+            name: secretName,
+            value: new TextEncoder().encode(trimmed),
+            metadata: {provider: type},
+          },
+        })
+        provider.secretRefs = {apiKey: secretName}
+      }
       return sendAgentAction({
         serverUrl,
         accountUid,
         action: {
           _: 'SetModelProvider',
           name: providerName,
-          provider: {type, secretRefs: {apiKey: secretName}},
+          provider,
         },
       })
     },

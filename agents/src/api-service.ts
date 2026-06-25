@@ -363,16 +363,15 @@ export class Service {
     if (!row) throw new APIError(404, 'Model provider not found')
 
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
-    const type = normalizePiProviderName(provider.type)
+    const spec = providerSpec(provider.type)
     const apiKeySecretName = provider.secretRefs?.apiKey
-    if (!apiKeySecretName) throw new APIError(400, `${type} API key is not configured`)
-    const apiKey = new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
-    const baseUrl = provider.baseUrl || defaultPiBaseUrl(type)
-    if (type === 'openai' && provider.baseUrl && !isTrustedOpenAIBaseUrl(provider.baseUrl)) {
-      throw new APIError(400, 'OpenAI base URL is not allowed')
-    }
+    if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${provider.type} API key is not configured`)
+    const apiKey = apiKeySecretName
+      ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
+      : undefined
+    const baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
 
-    return {_: 'ListProviderModelsResponse', models: await fetchProviderModels(type, baseUrl, apiKey)}
+    return {_: 'ListProviderModelsResponse', models: await fetchProviderModels(provider.type, baseUrl, apiKey)}
   }
 
   #listSigningIdentities(accountId: string): api.ListSigningIdentitiesResponse {
@@ -1130,15 +1129,16 @@ export class Service {
       .get(accountId, definition.modelProvider)
     if (!providerRow) throw new APIError(400, 'Model provider not found')
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
-    const providerName = normalizePiProviderName(provider.type)
+    const spec = providerSpec(provider.type)
+    const providerName = provider.type
     const apiKeySecretName = provider.secretRefs?.apiKey
-    if (!apiKeySecretName) throw new APIError(400, `${providerName} API key is not configured`)
-    const apiKey = new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
-    const baseUrl = provider.baseUrl || defaultPiBaseUrl(providerName)
-    if (!baseUrl) throw new APIError(400, `Unsupported model provider type: ${provider.type}`)
-    if (providerName === 'openai' && provider.baseUrl && !isTrustedOpenAIBaseUrl(provider.baseUrl)) {
-      throw new APIError(400, 'OpenAI base URL is not allowed')
-    }
+    if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${providerName} API key is not configured`)
+    // Pi's registerProvider expects a non-empty apiKey when models are defined; local
+    // servers (Ollama/custom without a key) ignore the value, so pass a placeholder.
+    const apiKey = apiKeySecretName
+      ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
+      : 'local'
+    const baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
 
     const authStorage = pi.AuthStorage.inMemory()
     authStorage.setRuntimeApiKey(providerName, apiKey)
@@ -1146,8 +1146,8 @@ export class Service {
     modelRegistry.registerProvider(providerName, {
       baseUrl,
       apiKey,
-      api: piApiForProvider(providerName),
-      models: [piModelForDefinition(providerName, baseUrl, definition)],
+      api: spec.api,
+      models: [piModelForDefinition(provider.type, baseUrl, definition)],
     })
     const model = modelRegistry.find(providerName, definition.model)
     if (!model) throw new APIError(400, `Model not found: ${providerName}/${definition.model}`)
@@ -2616,52 +2616,135 @@ function normalizeOptionalMetadata(raw: Record<string, unknown> | undefined): Re
   return raw
 }
 
-function normalizePiProviderName(type: string): 'openai' | 'anthropic' | 'google' {
-  if (type === 'openai' || type === 'anthropic' || type === 'google') return type
-  throw new APIError(400, `Unsupported model provider type: ${type}`)
+/** Pi streaming API a provider is routed through. */
+type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+
+/** Shape of the upstream model-list endpoint a provider exposes. */
+type ProviderModelListStrategy = 'openai' | 'anthropic' | 'google'
+
+/**
+ * Static, code-owned configuration for each supported model-provider type. Most
+ * providers are OpenAI-compatible and differ only by base URL, so adding one is
+ * usually a single entry here. `openai`/`anthropic`/`google` use their own model
+ * list + Pi API; everything else rides the OpenAI-compatible path.
+ */
+type ProviderSpec = {
+  /** Pi streaming API used to execute requests for this provider. */
+  api: PiProviderApi
+  /** Endpoint used when the provider record does not (or may not) override baseUrl. */
+  defaultBaseUrl: string
+  /** Which upstream model-list endpoint shape to query for `ListProviderModels`. */
+  modelList: ProviderModelListStrategy
+  /** Whether a stored provider record may override the base URL (self-hosted/custom). */
+  allowCustomBaseUrl: boolean
+  /** Whether an API key is required. False for local servers like Ollama. */
+  requireApiKey: boolean
 }
 
-function piApiForProvider(
-  provider: 'openai' | 'anthropic' | 'google',
-): 'openai-completions' | 'anthropic-messages' | 'google-generative-ai' {
-  switch (provider) {
-    case 'openai':
-      return 'openai-completions'
-    case 'anthropic':
-      return 'anthropic-messages'
-    case 'google':
-      return 'google-generative-ai'
-  }
+const PROVIDER_SPECS: Record<string, ProviderSpec> = {
+  openai: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    modelList: 'openai',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  anthropic: {
+    api: 'anthropic-messages',
+    defaultBaseUrl: 'https://api.anthropic.com',
+    modelList: 'anthropic',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  google: {
+    api: 'google-generative-ai',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    modelList: 'google',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  openrouter: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    modelList: 'openai',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  deepseek: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'https://api.deepseek.com',
+    modelList: 'openai',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  groq: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'https://api.groq.com/openai/v1',
+    modelList: 'openai',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  xai: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'https://api.x.ai/v1',
+    modelList: 'openai',
+    allowCustomBaseUrl: false,
+    requireApiKey: true,
+  },
+  ollama: {
+    api: 'openai-completions',
+    defaultBaseUrl: 'http://localhost:11434/v1',
+    modelList: 'openai',
+    allowCustomBaseUrl: true,
+    requireApiKey: false,
+  },
+  custom: {
+    api: 'openai-completions',
+    defaultBaseUrl: '',
+    modelList: 'openai',
+    allowCustomBaseUrl: true,
+    requireApiKey: false,
+  },
 }
 
-function defaultPiBaseUrl(provider: 'openai' | 'anthropic' | 'google'): string {
-  switch (provider) {
-    case 'openai':
-      return 'https://api.openai.com/v1'
-    case 'anthropic':
-      return 'https://api.anthropic.com'
-    case 'google':
-      return 'https://generativelanguage.googleapis.com/v1beta'
-  }
+function providerSpec(type: string): ProviderSpec {
+  const spec = PROVIDER_SPECS[type]
+  if (!spec) throw new APIError(400, `Unsupported model provider type: ${type}`)
+  return spec
+}
+
+/**
+ * Resolves the effective base URL for a provider record. A stored `baseUrl`
+ * override is honored only for provider types that allow it (self-hosted/custom);
+ * for pinned providers the spec default always wins, which keeps a stored API key
+ * from being redirected to an arbitrary host.
+ */
+function resolveProviderBaseUrl(type: string, configuredBaseUrl: string | undefined): string {
+  const spec = providerSpec(type)
+  const baseUrl = spec.allowCustomBaseUrl ? configuredBaseUrl?.trim() || spec.defaultBaseUrl : spec.defaultBaseUrl
+  if (!baseUrl) throw new APIError(400, `Base URL is required for provider type: ${type}`)
+  return baseUrl
 }
 
 async function fetchProviderModels(
-  provider: 'openai' | 'anthropic' | 'google',
+  type: string,
   baseUrl: string,
-  apiKey: string,
+  apiKey: string | undefined,
 ): Promise<api.ProviderModelInfo[]> {
-  switch (provider) {
+  switch (providerSpec(type).modelList) {
     case 'openai':
       return fetchOpenAIModels(baseUrl, apiKey)
     case 'anthropic':
-      return fetchAnthropicModels(baseUrl, apiKey)
+      return fetchAnthropicModels(baseUrl, apiKey ?? '')
     case 'google':
-      return fetchGoogleModels(baseUrl, apiKey)
+      return fetchGoogleModels(baseUrl, apiKey ?? '')
   }
 }
 
-async function fetchOpenAIModels(baseUrl: string, apiKey: string): Promise<api.ProviderModelInfo[]> {
-  const response = await fetch(joinUrlPath(baseUrl, 'models'), {headers: {Authorization: `Bearer ${apiKey}`}})
+async function fetchOpenAIModels(baseUrl: string, apiKey: string | undefined): Promise<api.ProviderModelInfo[]> {
+  const headers: Record<string, string> = {}
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+  const response = await fetch(joinUrlPath(baseUrl, 'models'), {headers})
   const body = await readJsonResponse(response, 'OpenAI models')
   if (!isRecord(body) || !Array.isArray(body.data)) throw new APIError(502, 'OpenAI models response is invalid')
   return body.data.flatMap((model) => {
@@ -2719,14 +2802,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function piModelForDefinition(
-  provider: 'openai' | 'anthropic' | 'google',
+  type: string,
   baseUrl: string,
   definition: api.AgentDefinition,
 ): NonNullable<Parameters<pi.ModelRegistry['registerProvider']>[1]['models']>[number] {
   return {
     id: definition.model,
     name: definition.model,
-    api: piApiForProvider(provider),
+    api: providerSpec(type).api,
     baseUrl,
     reasoning: false,
     input: ['text'],
@@ -4209,15 +4292,6 @@ function canonicalServerUrl(rawUrl: string): string {
     return url.toString().replace(/\/+$/, '')
   } catch {
     return rawUrl.replace(/\/+$/, '')
-  }
-}
-
-function isTrustedOpenAIBaseUrl(rawUrl: string): boolean {
-  try {
-    const url = new URL(rawUrl)
-    return url.protocol === 'https:' && url.hostname === 'api.openai.com'
-  } catch {
-    return false
   }
 }
 

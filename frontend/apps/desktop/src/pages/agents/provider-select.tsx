@@ -1,5 +1,6 @@
-import type {ModelProviderInfo} from '@/agents-client'
+import type {ModelProviderInfo, ModelProviderType} from '@/agents-client'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
+import {ProviderIcon} from './provider-icons'
 
 const ADD_PROVIDER_VALUE = '__add_provider__'
 
@@ -39,7 +40,10 @@ export function ProviderSelect({
         {hasValueOption ? null : <SelectItem value={value}>{value}</SelectItem>}
         {(providers || []).map((provider) => (
           <SelectItem key={provider.id} value={provider.name}>
-            {provider.name} ({provider.type})
+            <span className="flex items-center gap-2">
+              <ProviderIcon type={provider.type as ModelProviderType} className="size-4" />
+              {provider.name} ({provider.type})
+            </span>
           </SelectItem>
         ))}
         <SelectItem value={ADD_PROVIDER_VALUE}>+ Add provider…</SelectItem>

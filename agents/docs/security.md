@@ -86,14 +86,20 @@ Future production work should add:
 
 ## Provider endpoint safety
 
-OpenAI custom `baseUrl` is restricted by `isTrustedOpenAIBaseUrl()`. This prevents arbitrary URL configuration from
-exfiltrating API keys. The Pi SDK runner still applies this Seed-owned check before registering an OpenAI provider with
-Pi.
+Each provider type has a code-owned spec in `PROVIDER_SPECS` (`agents/src/api-service.ts`) with a fixed default base
+URL and an `allowCustomBaseUrl` flag. The base URL is resolved by `resolveProviderBaseUrl()`:
 
-Anthropic and Google currently use default Pi/Seed base URLs unless a provider record supplies a custom `baseUrl`;
-custom endpoint trust policy for those providers is follow-up hardening work.
+- **Pinned providers** (`openai`, `anthropic`, `google`, `openrouter`, `deepseek`, `groq`, `xai`): the spec default
+  base URL always wins, and any stored `baseUrl` override is ignored. This keeps a stored API key from being redirected
+  to an arbitrary host — it replaces the previous OpenAI-only `isTrustedOpenAIBaseUrl()` check with a uniform policy.
+- **Self-hosted/custom providers** (`ollama`, `custom`): the user-supplied `baseUrl` is honored, because pointing at a
+  local or private endpoint is the entire purpose. These accept requests without an API key. The base-URL value is set
+  by the authenticated account owner through signed `SetModelProvider` actions, so the endpoint and any key it carries
+  share a single trust owner. The desktop save flow still refuses to send an API key to a remote plain-HTTP **agent
+  server** via `isSafeAgentServerSecretTarget()`. Outbound SSRF to whatever a custom `baseUrl` names is accepted by
+  design; tightening this (e.g. blocking link-local ranges for non-local custom endpoints) is future hardening.
 
-Provider-backend additions must include endpoint trust policy.
+Adding a pinned provider type only requires a `PROVIDER_SPECS` entry; it inherits the pinned-URL policy automatically.
 
 ## `read` safety
 

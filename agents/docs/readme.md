@@ -47,7 +47,9 @@ Completed and usable locally:
 
 Important incomplete work:
 
-- Anthropic and Google providers are mapped through Pi but still need real-provider smoke coverage.
+- Provider types are registry-driven: OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, and a generic
+  Custom (OpenAI-compatible) endpoint are configurable and mapped through Pi; all non-OpenAI types still need
+  real-provider smoke coverage.
 - Running sessions can be stopped with the signed `StopSession` action from desktop or API clients.
 - Signed actions include a timestamp and the server rejects requests more than 30 seconds from local time; nonce caching
   is still future hardening.

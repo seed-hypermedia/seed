@@ -27,7 +27,7 @@ import {
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -39,17 +39,9 @@ import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {ModelSelect} from './model-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {ProviderIcon} from './provider-icons'
+import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 import {ProviderSelect} from './provider-select'
-
-const PROVIDER_TYPE_OPTIONS: {value: ModelProviderType; label: string}[] = [
-  {value: 'openai', label: 'OpenAI'},
-  {value: 'anthropic', label: 'Anthropic'},
-  {value: 'google', label: 'Google'},
-]
-
-function providerTypeLabel(type: ModelProviderType): string {
-  return PROVIDER_TYPE_OPTIONS.find((option) => option.value === type)?.label || type
-}
 
 export function ModelProvidersDialog({
   input,
@@ -86,11 +78,14 @@ export function ModelProvidersDialog({
             key={provider.id}
             className="border-border flex items-center justify-between gap-3 rounded-lg border p-3"
           >
-            <div className="flex flex-col gap-1.5">
-              <SizableText weight="bold">{provider.name}</SizableText>
-              <SizableText size="sm" color="muted">
-                {provider.type}
-              </SizableText>
+            <div className="flex items-center gap-3">
+              <ProviderIcon type={provider.type as ModelProviderType} className="text-muted-foreground size-5" />
+              <div className="flex flex-col gap-1.5">
+                <SizableText weight="bold">{provider.name}</SizableText>
+                <SizableText size="sm" color="muted">
+                  {provider.type}
+                </SizableText>
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -158,16 +153,31 @@ function AddModelProviderForm({
 }) {
   const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
   const [type, setType] = useState<ModelProviderType>('openai')
-  const [name, setName] = useState(providerTypeLabel('openai'))
+  const [name, setName] = useState(providerLabel('openai'))
   const [apiKey, setApiKey] = useState('')
+  const [baseUrl, setBaseUrl] = useState(PROVIDER_METADATA.openai.defaultBaseUrl)
+
+  const metadata = PROVIDER_METADATA[type]
 
   useEffect(() => {
-    setName(providerTypeLabel(type))
+    setName(providerLabel(type))
+    setBaseUrl(PROVIDER_METADATA[type].defaultBaseUrl)
   }, [type])
+
+  // Self-hosted/custom providers may run without a key; a custom endpoint must still
+  // supply a base URL since it has no sensible default.
+  const apiKeyOk = !metadata.requiresApiKey || apiKey.trim().length > 0
+  const baseUrlOk = !metadata.showBaseUrlField || baseUrl.trim().length > 0
+  const canSubmit = !saveProvider.isLoading && apiKeyOk && baseUrlOk
 
   async function handleSave() {
     try {
-      await saveProvider.mutateAsync({type, name, apiKey})
+      await saveProvider.mutateAsync({
+        type,
+        name,
+        apiKey,
+        baseUrl: metadata.showBaseUrlField ? baseUrl.trim() : undefined,
+      })
       setApiKey('')
       toast.success('Model provider saved')
       onSaved?.()
@@ -181,7 +191,7 @@ function AddModelProviderForm({
       className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (saveProvider.isLoading || !apiKey.trim()) return
+        if (!canSubmit) return
         void handleSave()
       }}
     >
@@ -189,21 +199,43 @@ function AddModelProviderForm({
         <SizableText size="sm" weight="bold">
           Provider
         </SizableText>
-        <SelectDropdown
-          options={PROVIDER_TYPE_OPTIONS}
-          value={type}
-          onValue={(value) => setType(value as ModelProviderType)}
-        />
+        <Select value={type} onValueChange={(value) => setType(value as ModelProviderType)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PROVIDER_TYPE_ORDER.map((providerType) => (
+              <SelectItem key={providerType} value={providerType}>
+                <span className="flex items-center gap-2">
+                  <ProviderIcon type={providerType} className="size-4" />
+                  {PROVIDER_METADATA[providerType].label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </label>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Provider Label
         </SizableText>
-        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="OpenAI" />
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={metadata.label} />
       </label>
+      {metadata.showBaseUrlField ? (
+        <label className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Base URL
+          </SizableText>
+          <Input
+            value={baseUrl}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={metadata.defaultBaseUrl || 'https://my-llm.example.com/v1'}
+          />
+        </label>
+      ) : null}
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          API key
+          {metadata.requiresApiKey ? 'API key' : 'API key (optional)'}
         </SizableText>
         <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
       </label>
@@ -213,7 +245,7 @@ function AddModelProviderForm({
             Cancel
           </Button>
         ) : null}
-        <Button type="submit" disabled={saveProvider.isLoading || !apiKey.trim()}>
+        <Button type="submit" disabled={!canSubmit}>
           {submitLabel}
         </Button>
       </div>
