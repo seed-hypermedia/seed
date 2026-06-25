@@ -389,7 +389,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		if e.Data.(*activity.Event_NewBlob).NewBlob.BlobType == "Ref" {
 			version, ok := versions[e.Data.(*activity.Event_NewBlob).NewBlob.BlobId]
 			if !ok {
-				srv.log.Warn("Missing version for Ref blob", zap.Int64("blob_id", e.Data.(*activity.Event_NewBlob).NewBlob.BlobId))
+				srv.log.Debug("Missing version for Ref blob", zap.Int64("blob_id", e.Data.(*activity.Event_NewBlob).NewBlob.BlobId))
 				continue
 			}
 

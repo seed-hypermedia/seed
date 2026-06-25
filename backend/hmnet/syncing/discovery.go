@@ -24,7 +24,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multicodec"
-	"github.com/peterbourgon/trc/eztrc"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
@@ -45,7 +44,7 @@ type Progress struct {
 	BlobsDownloaded atomic.Int32
 	BlobsFailed     atomic.Int32
 
-	// Diagnostic counters (trace-only) for attributing why a discovery is cut
+	// Diagnostic counters for attributing why a discovery is cut
 	// before convergence. MaxReconciledWants is the largest single-peer reconciled
 	// want-count seen this discovery — against a complete peer (the gateway) this
 	// approximates the full set, so `MaxReconciledWants - BlobsDownloaded` is the
@@ -108,17 +107,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
 
-	// One eztrc trace per discovery attempt. Reassigning ctx makes every
-	// derived context (ctxLocalPeers, ctxDHT) and the per-peer syncs carry it,
-	// so their marks land on this attempt's timeline at /debug/traces. Repeated
-	// attempts for the same IRI surface as separate sync.discover traces.
-	ctx, tr := eztrc.New(ctx, traceCategoryDiscover)
-	defer tr.Finish()
-	// Per-attempt trace logger: every mark line carries iri, so the flat log can
-	// be grepped by site ('"iri":"hm://..."').
-	tlog := s.traceLog.With(zap.String("iri", string(entityID)))
-	markf(ctx, tlog, "discover start: iri=%s version=%q recursive=%v depthOne=%v", entityID, version.String(), recursive, depthOne)
-
 	discoverStart := time.Now()
 	outcome := "notfound"
 	defer func() {
@@ -127,16 +115,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 		dur := time.Since(discoverStart)
 		MDiscoverTotalSeconds.WithLabelValues(outcome).Observe(dur.Seconds())
-		// outcome=error with a canceled ctx ⇒ the discovery's own context was
-		// cancelled externally (scheduler preemption / parent), as opposed to a
-		// straggler/idle wave-cut, which lets the phase complete with
-		// outcome=notfound|connected. maxReconciled/outstanding say whether a peer
-		// still had structure to give when the run ended.
-		maxRec := prog.MaxReconciledWants.Load()
-		dl := prog.BlobsDownloaded.Load()
-		markf(ctx, tlog, "discover end: outcome=%s dur=%s discovered=%d downloaded=%d failed=%d maxReconciled=%d outstanding=%d reconciledPeers=%d emptyPeers=%d",
-			outcome, dur.Round(time.Millisecond), prog.BlobsDiscovered.Load(), dl, prog.BlobsFailed.Load(),
-			maxRec, maxRec-dl, prog.ReconciledPeers.Load(), prog.EmptyPeers.Load())
 	}()
 
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
@@ -159,7 +137,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		})
 		if err == nil && res.Version == vstr {
 			s.log.Debug("It's your lucky day, the document was already in the db!. we avoided syncing with peers.")
-			markf(ctx, tlog, "cache hit: already have version=%s, skipping peer sync", vstr)
 			return blob.Version(res.Version), nil
 		}
 	}
@@ -187,8 +164,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 				case <-limit.C:
 					return
 				case <-tick.C:
-					if doc, gerr := s.resources.GetResource(ctx, &docspb.GetResourceRequest{Iri: string(entityID)}); gerr == nil {
-						markf(ctx, tlog, "home renderable %s after discover start (version=%s)", time.Since(discoverStart).Round(time.Millisecond), doc.Version)
+					if _, gerr := s.resources.GetResource(ctx, &docspb.GetResourceRequest{Iri: string(entityID)}); gerr == nil {
 						return
 					}
 				}
@@ -306,8 +282,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 	}
 	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
-	markf(ctx, tlog, "peer_select: %d peers selected (%d fallback candidates) in %s",
-		len(allPeers), len(fallbackCandidates), time.Since(peerSelectStart).Round(time.Millisecond))
 
 	// buildStore loads the local RBSR set (the blobs we already have) for a
 	// given scope, so each sync phase reconciles against the right slice of the
@@ -345,7 +319,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	if err != nil {
 		return "", err
 	}
-	markf(ctx, tlog, "rbsr store loaded: %d local items (the set we reconcile against peers)", store.Size())
 
 	// Compute auth info once for all peers. This determines which siteURL servers
 	// we should authenticate with based on local siteURL and capability info.
@@ -371,16 +344,13 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			}
 		}
 		start := time.Now()
-		markf(ctx, tlog, "%s start: %d peers", phase, len(peers))
 		// The root-directory pass only needs to make the page renderable before
 		// handing off to connected_sync (which fetches the full recursive closure),
 		// so it drops stragglers at the grace instead of keep-draining a backlog the
 		// next phase will fetch anyway.
 		quickDrain := phase == "root_directory_sync"
-		res := s.syncWithManyPeers(ctx, string(entityID), peers, st, prog, auth, btypes, quickDrain)
+		res := s.syncWithManyPeers(ctx, peers, st, prog, auth, btypes, quickDrain)
 		MDiscoverPhaseSeconds.WithLabelValues(phase).Observe(time.Since(start).Seconds())
-		markf(ctx, tlog, "%s done: ok=%d failed=%d of %d peers in %s",
-			phase, res.NumSyncOK, res.NumSyncFailed, len(peers), time.Since(start).Round(time.Millisecond))
 		return res
 	}
 
@@ -408,36 +378,26 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		if len(blobTypes) == 0 && recursive {
 			dirScope := entityScope{DepthOne: true, StructureOnly: true}
 			if dStore, derr := buildStore(ctxLocalPeers, dirScope, docStructureTypes); derr != nil {
-				markf(ctx, tlog, "root-first: directory store load failed: %v", derr)
+				s.log.Debug("root-first directory store load failed", zap.Error(derr))
 			} else {
 				syncConnected(ctxLocalPeers, "root_directory_sync", dirScope, docStructureTypes, dStore)
-				if s.resources != nil {
-					if doc, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{Iri: string(entityID)}); gerr == nil {
-						markf(ctx, tlog, "root-first: home + directory assembled (version=%s); full subtree streaming behind", doc.Version)
-					}
-				}
 			}
 		}
 
 		// Full requested scope (all types: comments, comment counts, all media, bulk).
 		res := syncConnected(ctxLocalPeers, "connected_sync", entityScope{Recursive: recursive, DepthOne: depthOne}, blobTypes, store)
-		if ctxLocalPeers.Err() != nil {
-			markf(ctx, tlog, "TIMEOUT connected_sync phase (budget %s): %v", DefaultSyncingTimeout, ctxLocalPeers.Err())
-		}
 		if res.NumSyncOK > 0 && s.resources != nil {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
 			})
 			if err == nil && (version == "" || doc.Version == vstr) {
 				s.log.Debug("Discovered content via an already-connected peer, we avoided hitting the DHT!")
-				markf(ctx, tlog, "found via connected peer, skipping DHT")
 				outcome = "connected"
 				return blob.Version(doc.Version), nil
 			}
 		}
 	}
 	s.log.Debug("None of the connected peers have the document, hitting the DHT :(")
-	markf(ctx, tlog, "connected peers did not yield the resource, querying DHT")
 	// Arbitrary number of maximum providers
 	maxProviders := 15
 
@@ -449,15 +409,9 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	ctxDHT, cancelDHTCtx := context.WithTimeout(ctx, DefaultDHTTimeout)
 	defer cancelDHTCtx()
 	dhtDiscoverStart := time.Now()
-	markf(ctx, tlog, "dht_discover start: looking for up to %d providers (budget %s)", maxProviders, DefaultDHTTimeout)
 	peers := s.bitswap.FindProvidersAsync(ctxDHT, c, maxProviders)
 	if len(peers) == 0 {
 		MDiscoverPhaseSeconds.WithLabelValues("dht_discover").Observe(time.Since(dhtDiscoverStart).Seconds())
-		if ctxDHT.Err() != nil {
-			markf(ctx, tlog, "TIMEOUT dht_discover (budget %s): %v", DefaultDHTTimeout, ctxDHT.Err())
-		} else {
-			markf(ctx, tlog, "dht_discover done: 0 providers in %s", time.Since(dhtDiscoverStart).Round(time.Millisecond))
-		}
 		return "", nil
 	}
 
@@ -471,30 +425,21 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		subsMap[p.ID] = eidsMap
 	}
 	MDiscoverPhaseSeconds.WithLabelValues("dht_discover").Observe(time.Since(dhtDiscoverStart).Seconds())
-	markf(ctx, tlog, "dht_discover done: %d providers in %s", len(peers), time.Since(dhtDiscoverStart).Round(time.Millisecond))
 
 	dhtSyncStart := time.Now()
-	markf(ctx, tlog, "dht_sync start: %d providers", len(subsMap))
 	// DHT sync is the last-resort bulk phase (no follow-up), so it keeps draining.
-	res := s.syncWithManyPeers(ctxDHT, string(entityID), subsMap, store, prog, auth, blobTypes, false)
+	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth, blobTypes, false)
 	MDiscoverPhaseSeconds.WithLabelValues("dht_sync").Observe(time.Since(dhtSyncStart).Seconds())
-	markf(ctx, tlog, "dht_sync done: ok=%d failed=%d of %d providers in %s",
-		res.NumSyncOK, res.NumSyncFailed, len(subsMap), time.Since(dhtSyncStart).Round(time.Millisecond))
-	if ctxDHT.Err() != nil {
-		markf(ctx, tlog, "TIMEOUT dht_sync phase (budget %s): %v", DefaultDHTTimeout, ctxDHT.Err())
-	}
 	if res.NumSyncOK > 0 && s.resources != nil {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,
 		})
 		if err == nil && (version == "" || doc.Version == vstr) {
 			s.log.Debug("Discovered content via DHT")
-			markf(ctx, tlog, "found via DHT")
 			outcome = "dht"
 			return blob.Version(doc.Version), nil
 		}
 	}
-	markf(ctx, tlog, "exhausted: %d DHT providers synced but resource still incomplete", res.NumSyncOK)
 	return "", fmt.Errorf("found some DHT providers but could not get document from them %s", c.String())
 }
 

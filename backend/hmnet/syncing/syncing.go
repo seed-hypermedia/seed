@@ -8,7 +8,6 @@ import (
 	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/ipfs"
-	"seed/backend/logging"
 
 	docspb "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -28,7 +27,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/peterbourgon/trc/eztrc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
@@ -419,14 +417,8 @@ type protocolChecker struct {
 
 // Service implements syncing content over the P2P network.
 type Service struct {
-	cfg config.Syncing
-	log *zap.Logger
-	// traceLog is a dedicated subsystem ("seed/synctrace") for the discovery /
-	// peer-sync timeline marks emitted via markf. It's created at debug so the
-	// marks are always written to the daemon log (the primary core is hardcoded
-	// to debug), greppable by '"log":"seed/synctrace"', and silenceable on its
-	// own at /debug/logs without touching seed/syncing.
-	traceLog     *zap.Logger
+	cfg          config.Syncing
+	log          *zap.Logger
 	db           *sqlitex.Pool
 	index        Index
 	bitswap      bitswap
@@ -476,7 +468,6 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 	svc := &Service{
 		cfg:          cfg,
 		log:          log,
-		traceLog:     logging.New("seed/synctrace", "debug"),
 		db:           db,
 		index:        indexer,
 		bitswap:      net.Bitswap(),
@@ -820,7 +811,7 @@ func (s *Service) globalPersistFeeder() *persistFeeder {
 	return s.persistFeeder
 }
 
-func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, quickDrain bool) (res SyncResult) {
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, quickDrain bool) (res SyncResult) {
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
@@ -872,7 +863,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 			defer completed.Add(1)
 			var err error
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, iri, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks, pf); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks, pf); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = fmt.Errorf("failed to sync objects: %w", xerr)
 			}
@@ -945,10 +936,6 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 				if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded, quickDrain) {
 					continue
 				}
-				markf(ctx, s.traceLog.With(zap.String("iri", iri)),
-					"straggler cancel: %d/%d peers done (empties=%d), idle %s — outstanding=%d (maxReconciled=%d, downloaded=%d)",
-					completed.Load(), total, prog.EmptyPeers.Load(), idle.Round(time.Millisecond),
-					int64(maxRec)-int64(lastDownloaded), maxRec, lastDownloaded)
 				cancel()
 				return
 			}
@@ -965,7 +952,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, iri string, subsMap sub
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher, claimedBlocks *sync.Map, pf *persistFeeder) (err error) {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]entityScope, store *authorizedStore, prog *Progress, auth *authInfo, blobTypes []string, bswap exchange.Fetcher, claimedBlocks *sync.Map, pf *persistFeeder) (err error) {
 	// lastPhase tracks the most recent phase we entered. On error it's used to
 	// classify the failure into an outcome counter label.
 	lastPhase := "dial"
@@ -984,20 +971,6 @@ func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eid
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
-
-	// One eztrc trace per peer per attempt (category sync.peer). It shadows the
-	// parent sync.discover trace in this ctx, so the RBSR-round and bitswap
-	// marks below land on the per-peer timeline. The IRI is in the first event
-	// so the trace can be matched to its discovery via the /debug/traces query.
-	ctx, ptr := eztrc.New(ctx, traceCategoryPeer)
-	defer ptr.Finish()
-	// Per-peer trace logger: every mark line carries iri + peer, so the flat log
-	// can be grepped by site ('"iri":"hm://..."') and narrowed to one peer.
-	peerTraceLog := s.traceLog.With(zap.String("iri", iri), zap.String("peer", pid.String()))
-	markf(ctx, peerTraceLog, "peer sync start: iri=%s peer=%s timeout=%s", iri, pid, s.cfg.TimeoutPerPeer)
-	defer func() {
-		markf(ctx, peerTraceLog, "peer sync end: outcome=%s", classifySyncOutcome(lastPhase, err))
-	}()
 
 	dialStart := time.Now()
 	// Auto-authenticate if this peer is a siteURL server for a space we have access to.
@@ -1024,10 +997,8 @@ func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eid
 	}()
 	MSyncPeerPhaseSeconds.WithLabelValues("dial").Observe(time.Since(dialStart).Seconds())
 	if err != nil {
-		markf(ctx, peerTraceLog, "dial failed after %s: %v", time.Since(dialStart).Round(time.Millisecond), err)
 		return err
 	}
-	markf(ctx, peerTraceLog, "dial ok in %s (conn_cached_before=%v)", time.Since(dialStart).Round(time.Millisecond), connCachedBefore)
 
 	// Get authorized spaces for the remote peer and filter the store accordingly.
 	requestedIRIs := make([]blob.IRI, 0, len(eids))
@@ -1040,7 +1011,7 @@ func (s *Service) syncWithPeer(ctx context.Context, iri string, pid peer.ID, eid
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
 
-	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, peerTraceLog, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore, pf)
+	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore, pf)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -1075,7 +1046,6 @@ func syncResources(
 	classifyMedia mediaTierFunc,
 	sess exchange.Fetcher,
 	log *zap.Logger,
-	traceLog *zap.Logger,
 	eids map[string]entityScope,
 	blobTypes []string,
 	store rbsr.Store,
@@ -1135,16 +1105,11 @@ func syncResources(
 		wants [][]byte
 	)
 	*phase = "reconcile_rpc"
-	reconcileStart := time.Now()
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
 			return fmt.Errorf("too many rounds of interactive syncing")
 		}
-		// Ranges we're about to send this round (captured before msg is
-		// overwritten with the server's response below).
-		sentRanges := len(msg)
-
 		// One observation per ReconcileBlobs RPC call. The prior once-per-sync
 		// timing hid cases where many cheap rounds accumulated vs. a single
 		// slow round; per-round data makes that distinction visible.
@@ -1173,14 +1138,6 @@ func syncResources(
 		MSyncPeerPhaseSeconds.WithLabelValues("reconcile_rpc").Observe(rpcElapsed)
 		MReconcileClientRoundSeconds.WithLabelValues(connReuse).Observe(rpcElapsed)
 		if rerr != nil {
-			switch {
-			case ctx.Err() != nil:
-				markf(ctx, traceLog, "TIMEOUT peer deadline during round %d (%d ranges sent, rpc=%s): %v", rounds, sentRanges, rpcDur.Round(time.Millisecond), ctx.Err())
-			case errors.Is(rerr, context.DeadlineExceeded):
-				markf(ctx, traceLog, "TIMEOUT round %d: ReconcileBlobs exceeded %s (%d ranges sent)", rounds, reconcileRoundTimeout, sentRanges)
-			default:
-				markf(ctx, traceLog, "round %d failed (%d ranges sent, rpc=%s): %v", rounds, sentRanges, rpcDur.Round(time.Millisecond), rerr)
-			}
 			return rerr
 		}
 		msg = res.Ranges
@@ -1202,22 +1159,16 @@ func syncResources(
 			wantsIdx[blockCid] = len(allWants)
 			allWants = append(allWants, blockCid)
 		}
-		// +wants/+haves > 0 means this round localized a diff: the server has
-		// blobs we lack (wants) and/or we have blobs it listed (haves).
-		markf(ctx, traceLog, "round %d: sent %d ranges, rpc=%s [%s], +%d wants +%d haves, cumulative %d wants",
-			rounds, sentRanges, rpcDur.Round(time.Millisecond), connReuse, len(wants), len(haves), len(allWants))
 	}
 
 	MSyncWantedBlobsPerPeer.Observe(float64(len(allWants)))
-	markf(ctx, traceLog, "reconcile done: %d rounds, %d wants to fetch in %s", rounds, len(allWants), time.Since(reconcileStart).Round(time.Millisecond))
 	// Diagnostic tally: record this peer's reconciled want-count (raw, pre-preflight
-	// = "what this peer has that we lack"). The straggler watcher and discover-end
-	// read the max/empties to attribute premature cuts. Trace-only.
+	// = "what this peer has that we lack"). The straggler watcher reads the
+	// max/empties to decide when to drop stragglers.
 	prog.recordReconcile(len(allWants))
 
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content")
-		markf(ctx, traceLog, "peer has no new content (sets in sync after %d rounds)", rounds)
 		return nil
 	}
 
@@ -1261,11 +1212,9 @@ func syncResources(
 		)
 	}
 	MSyncPreflightWantsPerPeer.Observe(float64(len(allWants)))
-	markf(ctx, traceLog, "preflight: %d already local, %d remaining to fetch (in %s)", preflightSkipped, len(allWants), preflightDur.Round(time.Millisecond))
 
 	if len(allWants) == 0 {
 		log.Debug("Peer does not have new content (all wants filtered by preflight Has)")
-		markf(ctx, traceLog, "all %d wants already local (nothing to fetch from bitswap)", preflightSkipped)
 		return nil
 	}
 
@@ -1283,9 +1232,6 @@ func syncResources(
 	// visibility-CTE overhead across 100 blobs; safe now that the feeder is the
 	// only heavy writer).
 	const persistBatchSize = 100
-	// Emit a trace mark every N downloaded blobs so a long fetch shows forward
-	// progress without flooding the trace one-event-per-blob.
-	const bitswapProgressEvery = 100
 
 	// Shared across the per-tier fetches and consumed by the metrics afterwards:
 	// the moment of the most recent block, the running download total, and the
@@ -1300,16 +1246,13 @@ func syncResources(
 	// when the caller should stop (the per-peer ctx was cancelled, or the
 	// download stalled past idleTimeout); whatever landed is already banked and
 	// the next discovery cycle resumes the rest.
-	fetchTier := func(tierName string, wants []cid.Cid, idleTimeout time.Duration) (keepGoing bool) {
+	fetchTier := func(wants []cid.Cid, idleTimeout time.Duration) (keepGoing bool) {
 		if len(wants) == 0 {
 			return true
 		}
-		tierStart := time.Now()
-		markf(ctx, traceLog, "tier %s: fetching %d blobs (idle %s)", tierName, len(wants), idleTimeout)
 		ch, gerr := sess.GetBlocks(ctx, wants)
 		if gerr != nil {
 			bitswapOutcome = "ctx_done"
-			markf(ctx, traceLog, "tier %s: bitswap fetch failed to start: %v", tierName, gerr)
 			return false
 		}
 
@@ -1364,9 +1307,6 @@ func syncResources(
 				if len(batch) >= persistBatchSize {
 					flush()
 				}
-				if downloadedTotal%bitswapProgressEvery == 0 {
-					markf(ctx, traceLog, "bitswap progress: %d blobs in %s (tier %s)", downloadedTotal, time.Since(bitswapStart).Round(time.Millisecond), tierName)
-				}
 			case <-t.C:
 				// No block arrived for idleTimeout. A gap with a large tier backlog
 				// still owed is a transient delivery gap (real-app delivery is bursty),
@@ -1381,7 +1321,6 @@ func syncResources(
 					continue
 				}
 				bitswapOutcome = "idle_timeout"
-				markf(ctx, traceLog, "TIMEOUT bitswap idle (%s x%d) in tier %s: got %d/%d, abandoning %d [discovery-wide downloaded=%d maxReconciled=%d]", idleTimeout, idleStrikes, tierName, tierDownloaded, len(wants), int64(len(wants))-tierDownloaded, prog.BlobsDownloaded.Load(), prog.MaxReconciledWants.Load())
 				keepGoing = false
 				break drain
 			}
@@ -1390,7 +1329,6 @@ func syncResources(
 		flush()
 		persistWG.Wait() // barrier: the shared feeder has persisted this tier before the next
 
-		markf(ctx, traceLog, "tier %s: got %d/%d in %s", tierName, tierDownloaded, len(wants), time.Since(tierStart).Round(time.Millisecond))
 		return keepGoing
 	}
 
@@ -1416,13 +1354,12 @@ func syncResources(
 		bulkIdle           = 5 * time.Second
 	)
 
-	keepGoing := fetchTier("structure", structural, renderCriticalIdle)
+	keepGoing := fetchTier(structural, renderCriticalIdle)
 	if keepGoing && len(media) > 0 {
 		var chrome, inline, bulk []cid.Cid
 		if classifyMedia != nil {
 			mtiers, cerr := classifyMedia(ctx, media)
 			if cerr != nil {
-				markf(ctx, traceLog, "media tier classification failed (%v); fetching media as bulk", cerr)
 				bulk = media
 			} else {
 				for _, wc := range media {
@@ -1435,26 +1372,22 @@ func syncResources(
 						bulk = append(bulk, wc)
 					}
 				}
-				markf(ctx, traceLog, "media tiers: %d chrome, %d inline, %d bulk", len(chrome), len(inline), len(bulk))
 			}
 		} else {
 			bulk = media
 		}
 		if keepGoing {
-			keepGoing = fetchTier("chrome", chrome, renderCriticalIdle)
+			keepGoing = fetchTier(chrome, renderCriticalIdle)
 		}
 		if keepGoing {
-			keepGoing = fetchTier("inline", inline, renderCriticalIdle)
+			keepGoing = fetchTier(inline, renderCriticalIdle)
 		}
 		switch {
 		case skipBulk:
 			// Root-first (structure-only) phase: defer file payloads to the full
 			// recursive phase so the doc/cards render without waiting on them.
-			if len(bulk) > 0 {
-				markf(ctx, traceLog, "structure-only phase: deferring %d bulk blobs to the recursive phase", len(bulk))
-			}
 		case keepGoing:
-			keepGoing = fetchTier("bulk", bulk, bulkIdle)
+			keepGoing = fetchTier(bulk, bulkIdle)
 		}
 	}
 
@@ -1476,9 +1409,6 @@ func syncResources(
 	if int64(len(allWants)) > downloadedTotal {
 		prog.BlobsFailed.Add(int32(int64(len(allWants)) - downloadedTotal)) //nolint:gosec
 	}
-	markf(ctx, traceLog, "bitswap %s: got %d/%d blobs in %s (last block %s ago)",
-		bitswapOutcome, downloadedTotal, len(allWants), fetchDur.Round(time.Millisecond), time.Since(lastBlockAt).Round(time.Millisecond))
-
 	return nil
 }
 
