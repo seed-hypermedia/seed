@@ -41,6 +41,7 @@ import './polyfills'
 
 var Onboarding = lazy(() => import('./onboarding'))
 var Settings = lazy(() => import('./settings'))
+var AccountSettings = lazy(() => import('./account-settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
@@ -380,6 +381,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'settings':
       return {
         PageComponent: Settings,
+        Fallback: BaseLoading,
+      }
+    case 'account-settings':
+      return {
+        PageComponent: AccountSettings,
         Fallback: BaseLoading,
       }
     case 'library': {
