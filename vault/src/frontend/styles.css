@@ -157,6 +157,15 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Sidebar tokens consumed by shared @shm/ui components (e.g. the account
+     settings sidebar). Mapped to the vault palette so the selected-item accent
+     is visible and mode-aware. */
+  --color-sidebar: var(--muted);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--accent-foreground);
+  --color-sidebar-border: var(--border);
+
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
