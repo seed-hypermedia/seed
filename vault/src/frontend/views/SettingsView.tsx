@@ -1,13 +1,6 @@
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {useActions, useAppState} from '@/frontend/store'
-import {Button} from '@shm/ui/button'
-import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
-import {NotificationServerDialog} from '@shm/ui/components/notification-server-dialog'
-import {SetMasterPasswordDialog} from '@shm/ui/components/set-master-password-dialog'
-import {Separator} from '@shm/ui/separator'
-import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
-import * as icons from 'lucide-react'
-import {useState} from 'react'
+import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
 
 /**
  * Vault-level settings view for managing authentication credentials and account settings.
@@ -17,112 +10,48 @@ export function SettingsView() {
   const {session, loading, passkeySupported, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
   const notifyOverride = vaultData?.notificationServerUrl?.trim() || ''
-  const effectiveNotificationServerUrl = notifyOverride || notificationServerUrl
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
-  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
   const hasPassword = !!session?.credentials?.password
+  const hasPasskey = !!session?.credentials?.passkey
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6 p-6">
       <div>
         <h1 className="text-2xl font-semibold">Security</h1>
         <p className="text-muted-foreground text-sm">Manage authentication and security for your vault</p>
       </div>
 
-      {/* Authentication Methods */}
-      <SettingsSection label="AUTHENTICATION">
-        <SettingsRow
-          icon={<icons.Key />}
-          label="Passkeys"
-          description={session?.credentials?.passkey ? 'One or more passkeys registered' : 'No passkeys registered'}
-          action={
-            passkeySupported ? (
-              <Button variant="secondary" size="sm" onClick={actions.handleRegisterPasskey} loading={loading}>
-                Add Passkey
-              </Button>
-            ) : null
-          }
-        />
-
-        <Separator />
-
-        <SettingsRow
-          icon={<icons.Shield />}
-          label="Master Password"
-          description={session?.credentials?.password ? 'Password is set' : 'No password set'}
-          action={
-            <Button variant="secondary" size="sm" onClick={() => setPasswordDialogOpen(true)} disabled={loading}>
-              {hasPassword ? 'Change' : 'Add Password'}
-            </Button>
-          }
-        />
-
-        {!passkeySupported && !session?.credentials?.password && (
-          <>
-            <Separator />
-            <div className="px-4 py-3">
-              <Alert variant="info">
-                <AlertDescription>Add at least one authentication method to protect your vault.</AlertDescription>
-              </Alert>
-            </div>
-          </>
-        )}
-      </SettingsSection>
-
-      {/* Notifications */}
-      <SettingsSection label="NOTIFICATIONS">
-        <SettingsRow
-          icon={<icons.Bell />}
-          label="Notify Server URL"
-          description={effectiveNotificationServerUrl}
-          action={
-            <Button variant="secondary" size="sm" onClick={() => setNotifyDialogOpen(true)} disabled={loading}>
-              Change
-            </Button>
-          }
-        />
-      </SettingsSection>
-
-      {/* Account Settings */}
-      <SettingsSection label="ACCOUNT">
-        <SettingsRow
-          icon={<icons.Mail />}
-          label="Email address"
-          description={session?.email}
-          action={
-            <Button variant="secondary" size="sm" onClick={() => setEmailDialogOpen(true)} disabled={loading}>
-              Change
-            </Button>
-          }
-        />
-      </SettingsSection>
-
-      <ChangeEmailDialog
-        open={emailDialogOpen}
-        onOpenChange={setEmailDialogOpen}
-        currentEmail={session?.email}
-        onStart={(newEmail) => actions.changeEmailDialogStart(newEmail)}
-        onVerify={(code) => actions.changeEmailDialogVerify(code)}
-      />
-
-      <SetMasterPasswordDialog
-        open={passwordDialogOpen}
-        onOpenChange={setPasswordDialogOpen}
-        mode={hasPassword ? 'change' : 'set'}
-        onSubmit={(password) => actions.setMasterPasswordDialog(password)}
-      />
-
-      <NotificationServerDialog
-        open={notifyDialogOpen}
-        onOpenChange={setNotifyDialogOpen}
-        currentUrl={notifyOverride}
-        defaultUrl={notificationServerUrl}
-        onSave={async (url) => {
-          const ok = await actions.saveNotificationServerUrl(url)
-          if (!ok) throw new Error('Failed to save notification server URL')
+      <VaultSecuritySettings
+        passkey={{
+          description: hasPasskey ? 'One or more passkeys registered' : 'No passkeys registered',
+          actionLabel: passkeySupported ? 'Add Passkey' : undefined,
+          onAction: actions.handleRegisterPasskey,
+          busy: loading,
         }}
+        password={{
+          isSet: hasPassword,
+          onSet: (password) => actions.setMasterPasswordDialog(password),
+        }}
+        notify={{
+          url: notifyOverride,
+          defaultUrl: notificationServerUrl,
+          onSave: async (url) => {
+            const ok = await actions.saveNotificationServerUrl(url)
+            if (!ok) throw new Error('Failed to save notification server URL')
+          },
+        }}
+        email={{
+          address: session?.email,
+          onStart: (newEmail) => actions.changeEmailDialogStart(newEmail),
+          onVerify: (code) => actions.changeEmailDialogVerify(code),
+        }}
+        disabled={loading}
       />
+
+      {!passkeySupported && !hasPassword ? (
+        <Alert variant="info">
+          <AlertDescription>Add at least one authentication method to protect your vault.</AlertDescription>
+        </Alert>
+      ) : null}
     </div>
   )
 }
