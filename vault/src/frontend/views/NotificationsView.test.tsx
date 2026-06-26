@@ -69,7 +69,7 @@ describe('NotificationsView', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', {name: 'Notifications', level: 1})).toBeDefined()
       })
-      expect(screen.getByRole('button', {name: 'Register Account'})).toBeDefined()
+      expect(screen.getByRole('button', {name: 'Register account'})).toBeDefined()
     } finally {
       global.fetch = originalFetch
     }
@@ -128,8 +128,8 @@ describe('NotificationsView', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('This account is registered with notify.example.com.')).toBeDefined()
-        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+        expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
       })
     } finally {
       global.fetch = originalFetch

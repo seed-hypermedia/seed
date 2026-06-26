@@ -52,12 +52,12 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
-import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
+import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -530,9 +530,6 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
   const needsVerification = Boolean(currentEmail && !isVerified)
   const canResendVerification = needsVerification && (verificationExpired || !verificationSendTime)
 
-  const [emailInput, setEmailInput] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
-
   if (isLoading && !config) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
@@ -541,140 +538,51 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
     )
   }
 
+  const verificationMessage =
+    verificationSendTime && !verificationExpired
+      ? 'Email verification is pending. Click the link in your inbox to activate notification emails.'
+      : verificationExpired
+        ? 'Your verification link expired. Request a new verification email.'
+        : 'Notification emails are paused until you verify this email address.'
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-      <div>
-        <SizableText weight="bold">Email notifications</SizableText>
-        <SizableText size="sm" color="muted">
-          Receive an email when there is activity involving this account.
-        </SizableText>
-      </div>
-
-      {!isNotifyServerConnected ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          You are not connected to the notification server.
-        </div>
-      ) : null}
-
-      {needsVerification ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          <p>
-            {verificationSendTime && !verificationExpired
-              ? 'Email verification is pending. Click the link in your inbox to activate notification emails.'
-              : verificationExpired
-                ? 'Your verification link expired. Request a new verification email.'
-                : 'Notification emails are paused until you verify this email address.'}
-          </p>
-          {canResendVerification ? (
-            <div className="mt-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={resendVerification.isLoading}
-                onClick={() => {
-                  resendVerification.mutate(undefined, {
-                    onSuccess: () => toast.success('Verification email sent. Check your inbox.'),
-                  })
-                }}
-              >
-                {resendVerification.isLoading ? 'Sending…' : 'Resend verification email'}
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {isNotifyServerConnected ? (
-        currentEmail && !isEditing ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <SizableText size="sm" weight="bold" className="truncate">
-                {currentEmail}
-              </SizableText>
-              {isVerified ? (
-                <SizableText size="xs" color="muted">
-                  Verified
-                </SizableText>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setEmailInput(currentEmail)
-                  setIsEditing(true)
-                }}
-              >
-                Edit Email
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={removeConfig.isLoading}
-                onClick={() => {
-                  removeConfig.mutate(undefined, {
-                    onSuccess: () => {
-                      setEmailInput('')
-                      setIsEditing(false)
-                      toast.success('Notification email removed')
-                    },
-                  })
-                }}
-              >
-                {removeConfig.isLoading ? 'Removing…' : 'Remove Email'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!emailInput) return
-              setConfig.mutate(
-                {email: emailInput},
-                {
-                  onSuccess: (result: any) => {
-                    setIsEditing(false)
-                    if (result?.verifiedTime) {
-                      toast.success('Email updated')
-                    } else {
-                      toast.success('Verification email sent. Click the link in your inbox to activate notifications.')
-                    }
-                  },
-                },
-              )
-            }}
-          >
-            <Input
-              type="email"
-              placeholder="you@example.com"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-            />
-            <div className="flex justify-end gap-2">
-              {currentEmail ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setEmailInput(currentEmail)
-                    setIsEditing(false)
-                  }}
-                >
-                  Cancel
-                </Button>
-              ) : null}
-              <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
-                {setConfig.isLoading ? 'Saving…' : currentEmail ? 'Save Email' : 'Set Email'}
-              </Button>
-            </div>
-          </form>
+    <NotificationEmailSettings
+      serverLabel={notifyServiceHost.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+      isRegistered
+      isNotifyServerConnected={isNotifyServerConnected}
+      email={currentEmail}
+      isVerified={isVerified}
+      needsVerification={needsVerification}
+      verificationMessage={verificationMessage}
+      saving={setConfig.isLoading}
+      removing={removeConfig.isLoading}
+      resending={resendVerification.isLoading}
+      onSetEmail={(email) =>
+        setConfig.mutate(
+          {email},
+          {
+            onSuccess: (result: any) => {
+              if (result?.verifiedTime) {
+                toast.success('Email updated')
+              } else {
+                toast.success('Verification email sent. Click the link in your inbox to activate notifications.')
+              }
+            },
+          },
         )
-      ) : null}
-    </div>
+      }
+      onRemoveEmail={() =>
+        removeConfig.mutate(undefined, {onSuccess: () => toast.success('Notification email removed')})
+      }
+      onResendVerification={
+        canResendVerification
+          ? () =>
+              resendVerification.mutate(undefined, {
+                onSuccess: () => toast.success('Verification email sent. Check your inbox.'),
+              })
+          : undefined
+      }
+    />
   )
 }
 
