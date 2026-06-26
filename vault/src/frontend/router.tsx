@@ -7,9 +7,7 @@ import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState} from './store'
-import {AddPasswordView} from './views/AddPasswordView'
 import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
-import {ChangePasswordView} from './views/ChangePasswordView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
@@ -256,14 +254,6 @@ export function createRouter() {
               {
                 element: <EnsureUnlocked />,
                 children: [
-                  {
-                    path: '/password/add',
-                    element: <AddPasswordView />,
-                  },
-                  {
-                    path: '/password/change',
-                    element: <ChangePasswordView />,
-                  },
                   {
                     path: '/profile/create',
                     element: <CreateProfileView />,

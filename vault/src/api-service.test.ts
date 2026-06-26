@@ -1183,12 +1183,14 @@ describe('vault auth service', () => {
       createContext(sessionId),
     )
 
+    // Minting another credential is browser-only: a secret bearer must not be
+    // able to add credentials (unlike vault data / password / email routes,
+    // which the daemon may call with a bearer).
     await expect(
-      svc.addPassword(
+      svc.addSecretCredential(
         {
+          authKey,
           wrappedDEK: password.wrappedDEK,
-          authKey: password.authKey,
-          salt: password.salt,
         },
         createContext(null, `${secretCredential.credentialId}:${authKey}`),
       ),

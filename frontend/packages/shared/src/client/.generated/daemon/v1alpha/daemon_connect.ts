@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -159,6 +159,30 @@ export const Daemon = {
       name: "ChangeVaultEmailVerify",
       I: ChangeVaultEmailVerifyRequest,
       O: ChangeVaultEmailVerifyResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Reports whether the connected remote vault user has a master password set.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultPasswordStatus
+     */
+    getVaultPasswordStatus: {
+      name: "GetVaultPasswordStatus",
+      I: GetVaultPasswordStatusRequest,
+      O: GetVaultPasswordStatusResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Sets or changes the connected remote vault user's master password. The
+     * daemon derives the credential from the in-daemon DEK; the plaintext password
+     * is never sent to the vault server.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SetVaultMasterPassword
+     */
+    setVaultMasterPassword: {
+      name: "SetVaultMasterPassword",
+      I: SetVaultMasterPasswordRequest,
+      O: SetVaultMasterPasswordResponse,
       kind: MethodKind.Unary,
     },
     /**

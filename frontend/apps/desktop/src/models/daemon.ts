@@ -259,6 +259,33 @@ export function useChangeVaultEmailVerify(opts?: UseMutationOptions<string, unkn
   })
 }
 
+/** Whether the connected remote vault user has a master password set. */
+export function useVaultPasswordStatus(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_PASSWORD_STATUS],
+    queryFn: async () => {
+      const res = await grpcClient.daemon.getVaultPasswordStatus({})
+      return res.isSet
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Sets or changes the remote vault master password (daemon derives the credential). */
+export function useSetVaultMasterPassword(opts?: UseMutationOptions<void, unknown, {password: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({password}) => {
+      await grpcClient.daemon.setVaultMasterPassword({password})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_PASSWORD_STATUS])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],

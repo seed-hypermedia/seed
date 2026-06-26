@@ -738,6 +738,31 @@ func (srv *Server) ChangeVaultEmailVerify(ctx context.Context, in *daemon.Change
 	return &daemon.ChangeVaultEmailVerifyResponse{NewEmail: newEmail}, nil
 }
 
+// GetVaultPasswordStatus implements the corresponding gRPC method.
+func (srv *Server) GetVaultPasswordStatus(ctx context.Context, _ *daemon.GetVaultPasswordStatusRequest) (*daemon.GetVaultPasswordStatusResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	isSet, err := vlt.VaultPasswordIsSet(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultPasswordStatusResponse{IsSet: isSet}, nil
+}
+
+// SetVaultMasterPassword implements the corresponding gRPC method.
+func (srv *Server) SetVaultMasterPassword(ctx context.Context, in *daemon.SetVaultMasterPasswordRequest) (*daemon.SetVaultMasterPasswordResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	if err := vlt.SetVaultMasterPassword(ctx, in.Password); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.SetVaultMasterPasswordResponse{}, nil
+}
+
 // DisconnectVault implements the corresponding gRPC method.
 func (srv *Server) DisconnectVault(_ context.Context, req *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
 	vlt, err := srv.store.Vault()
