@@ -670,92 +670,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handleAddPassword() {
-      state.error = ''
-
+    /**
+     * Dialog-driven master password set/change (no navigation). Derives the
+     * credential from the unlocked DEK and adds or changes it depending on
+     * whether one already exists. Throws on failure so the shared
+     * SetMasterPasswordDialog can surface the error.
+     */
+    async setMasterPasswordDialog(password: string): Promise<void> {
       if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
+        throw new Error('Vault must be unlocked first')
       }
 
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
+      const salt = base64.encode(localCrypto.generatePasswordSalt())
+      const {encryptionKey, authKey} = await derivePasswordMaterial(password, salt)
+      const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
+      const payload = {wrappedDEK: base64.encode(wrappedDEK), authKey: base64.encode(authKey), salt}
+
+      if (state.session?.credentials?.password) {
+        await client.changePassword(payload)
+      } else {
+        await client.addPassword(payload)
       }
 
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.addPassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Add password error:', e)
-        state.error = (e as Error).message || 'Failed to add password. Please try again.'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangePassword() {
-      state.error = ''
-
-      if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
-      }
-
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
-      }
-
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.changePassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Change password error:', e)
-        state.error = (e as Error).message || 'Failed to change password. Please try again.'
-      } finally {
-        state.loading = false
-      }
+      state.passwordSalt = salt
+      await actions.checkSession()
     },
 
     async handleSetPasskey() {

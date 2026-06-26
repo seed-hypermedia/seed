@@ -612,20 +612,21 @@ export class Service implements api.ServerInterface {
    * Add the authenticated user's password credential.
    */
   async addPassword(req: api.AddPasswordRequest, ctx: api.ServerContext): Promise<api.AddPasswordResponse> {
-    const session = this.requireCookieSession(ctx)
+    // Accept a browser cookie session or a daemon secret-credential bearer.
+    const access = this.requireVaultAccess(ctx)
 
     if (!req.wrappedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
-    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
     if (!user) {
       throw new APIError('User not found', 404)
     }
 
     const existing = this.db
       .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
-      .get(session.user_id, 'password')
+      .get(access.userId, 'password')
 
     if (existing) {
       throw new APIError('Password already set', 409)
@@ -638,14 +639,7 @@ export class Service implements api.ServerInterface {
 
     this.db.run(
       `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        sess.randomId(),
-        session.user_id,
-        'password',
-        base64.decode(req.wrappedDEK),
-        JSON.stringify(metadata),
-        Date.now(),
-      ],
+      [sess.randomId(), access.userId, 'password', base64.decode(req.wrappedDEK), JSON.stringify(metadata), Date.now()],
     )
 
     return {success: true}
@@ -655,20 +649,21 @@ export class Service implements api.ServerInterface {
    * Change the authenticated user's password credential.
    */
   async changePassword(req: api.ChangePasswordRequest, ctx: api.ServerContext): Promise<api.ChangePasswordResponse> {
-    const session = this.requireCookieSession(ctx)
+    // Accept a browser cookie session or a daemon secret-credential bearer.
+    const access = this.requireVaultAccess(ctx)
 
     if (!req.wrappedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
-    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
     if (!user) {
       throw new APIError('User not found', 404)
     }
 
     const existing = this.db
       .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
-      .get(session.user_id, 'password')
+      .get(access.userId, 'password')
 
     if (!existing) {
       throw new APIError('Password not set', 409)
