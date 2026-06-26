@@ -22,19 +22,47 @@ import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/a
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {CheckCircle2, Monitor, Smartphone, Tablet, X} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
-import {useLocation, useNavigate, useParams} from 'react-router-dom'
+import {useLocation, useNavigate} from 'react-router-dom'
 import {SettingsView} from './SettingsView'
+
+const ACCOUNT_TABS: AccountSettingsTab[] = ['account', 'notifications', 'devices']
+
+/**
+ * Parses the account selection out of the URL hash (`#/a/<principal>` or
+ * `#/a/<principal>/<tab>`). The selection lives in the hash so the server never
+ * sees it — the fragment is never sent on requests, and a reload only needs the
+ * `/vault` path to resolve.
+ */
+function parseAccountHash(hash: string): {accountId: string; tab: AccountSettingsTab} | null {
+  const segments = hash.replace(/^#/, '').split('/').filter(Boolean)
+  if (segments[0] !== 'a' || !segments[1]) return null
+  try {
+    const accountId = decodeURIComponent(segments[1])
+    const tab = ACCOUNT_TABS.includes(segments[2] as AccountSettingsTab)
+      ? (segments[2] as AccountSettingsTab)
+      : 'account'
+    return {accountId, tab}
+  } catch {
+    return null
+  }
+}
+
+/** Builds the `#/a/<principal>[/<tab>]` hash for an account selection. */
+function formatAccountHash(accountId: string, tab: AccountSettingsTab = 'account'): string {
+  const base = `#/a/${encodeURIComponent(accountId)}`
+  return tab === 'account' ? base : `${base}/${tab}`
+}
 
 /**
  * The unlocked web vault UI: a shared account-settings layout (account sidebar +
- * per-account tabs + Vault Settings), backed by the vault store and routed via
- * react-router so every state has a URL (/, /accounts/:id, /accounts/:id/:tab,
- * /settings).
+ * per-account tabs + Vault Settings), backed by the vault store. Account/tab
+ * selection lives in the URL hash (`/vault#/a/<principal>/<tab>`) so it stays
+ * client-side; Vault Settings is the one server-visible path (`/settings`),
+ * which the desktop app deep-links to for passkey management.
  */
 export function AccountSettingsView() {
   const navigate = useNavigate()
   const location = useLocation()
-  const params = useParams()
   const actions = useActions()
   const {
     vaultData,
@@ -55,8 +83,9 @@ export function AccountSettingsView() {
   const accountsKey = accountList.map((a) => a.principal).join(',')
 
   const isVaultSelected = location.pathname === '/settings'
-  const selectedAccountId = params.accountId ? decodeURIComponent(params.accountId) : null
-  const tab = (params.tab as AccountSettingsTab) || 'account'
+  const route = parseAccountHash(location.hash)
+  const selectedAccountId = route?.accountId ?? null
+  const tab = route?.tab ?? 'account'
   const selected = accountList.find((a) => a.principal === selectedAccountId) ?? null
 
   const [importOpen, setImportOpen] = useState(false)
@@ -73,17 +102,18 @@ export function AccountSettingsView() {
     if (selected) actions.selectAccount(selected.index)
   }, [selected?.index, actions])
 
-  // The bare "/" landing redirects to a concrete URL (first account, or settings).
+  // When not viewing Vault Settings and no valid account is selected in the hash,
+  // land on the first account (or Vault Settings if there are no accounts).
   useEffect(() => {
-    if (location.pathname !== '/') return
+    if (isVaultSelected || selected) return
     const first = accountList[0]
     if (first) {
-      navigate(`/accounts/${encodeURIComponent(first.principal)}`, {replace: true})
+      navigate({pathname: '/', hash: formatAccountHash(first.principal)}, {replace: true})
     } else {
       navigate('/settings', {replace: true})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, accountsKey])
+  }, [isVaultSelected, selected?.principal, accountsKey])
 
   const sidebarAccounts = accountList.map((a) => {
     const profile = profiles[a.principal]
@@ -126,7 +156,7 @@ export function AccountSettingsView() {
           selectedAccountId={selectedAccountId}
           isVaultSelected={isVaultSelected}
           onSelectVault={() => navigate('/settings')}
-          onSelectAccount={(id) => navigate(`/accounts/${encodeURIComponent(id)}`)}
+          onSelectAccount={(id) => navigate({pathname: '/', hash: formatAccountHash(id)})}
           onAddAccount={() => actions.setCreatingAccount(true)}
           onImportKey={() => setImportOpen(true)}
         >
@@ -137,7 +167,9 @@ export function AccountSettingsView() {
               <h1 className="text-2xl font-semibold">Account Settings</h1>
               <AccountSettingsTabs
                 activeTab={tab}
-                onTabChange={(nextTab) => navigate(`/accounts/${encodeURIComponent(selected.principal)}/${nextTab}`)}
+                onTabChange={(nextTab) =>
+                  navigate({pathname: '/', hash: formatAccountHash(selected.principal, nextTab)})
+                }
               />
               {tab === 'account' ? (
                 <AccountTabContent
