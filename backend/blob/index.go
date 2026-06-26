@@ -117,6 +117,38 @@ type Index struct {
 		blobsIndexed atomic.Int64
 		state        atomic.Int32
 	}
+
+	// indexedHook, if set, runs inside the indexing write transaction with the
+	// ids of the blobs just indexed in that transaction. The syncing service
+	// registers it to keep the maintained RBSR index current. Set once at
+	// startup; guarded by hookMu for race-safety against concurrent indexing.
+	hookMu      sync.RWMutex
+	indexedHook func(*sqlite.Conn, []int64) error
+}
+
+// SetIndexedHook registers a callback invoked, inside the indexing write
+// transaction, with the ids of freshly indexed blobs. Pass nil to clear.
+// Intended to be set once during startup before heavy indexing begins.
+func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
+	idx.hookMu.Lock()
+	idx.indexedHook = fn
+	idx.hookMu.Unlock()
+}
+
+// runIndexedHook invokes the registered hook (if any) with the given blob ids.
+// Runs in the caller's transaction so the maintenance commits or rolls back
+// atomically with the blobs themselves.
+func (idx *Index) runIndexedHook(conn *sqlite.Conn, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	idx.hookMu.RLock()
+	fn := idx.indexedHook
+	idx.hookMu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(conn, ids)
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.

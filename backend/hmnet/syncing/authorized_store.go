@@ -30,10 +30,19 @@ type authorizedStore struct {
 	authSet     map[core.PrincipalUnsafeString]struct{}
 }
 
-// newAuthorizedStore creates a new store wrapper.
+// newAuthorizedStore creates a new store wrapper backed by a slice store.
 func newAuthorizedStore() *authorizedStore {
 	return &authorizedStore{
 		Store:       rbsr.NewSliceStore(),
+		privateOnly: btree.New[visibilityKey, struct{}](32, visibilityKey.Compare),
+	}
+}
+
+// newAuthorizedTreeStore creates a store wrapper backed by a monoid tree, whose
+// O(log n) RangeFingerprint the maintained index serves from.
+func newAuthorizedTreeStore() *authorizedStore {
+	return &authorizedStore{
+		Store:       rbsr.NewTreeStore(),
 		privateOnly: btree.New[visibilityKey, struct{}](32, visibilityKey.Compare),
 	}
 }
@@ -45,6 +54,20 @@ func (s *authorizedStore) SetItemPrivateVisibility(i int, space core.Principal) 
 
 	vk := visibilityKey{ItemIndex: i, Space: space}
 	s.privateOnly.Set(vk, struct{}{})
+}
+
+// RangeFingerprint implements [rbsr.RangeFingerprinter] in a visibility-safe
+// way. The inner store's fast path fingerprints the whole [start,end) ignoring
+// visibility; that equals the filtered fingerprint only when no item is private
+// (then nothing is ever filtered out), which is the ~99% public case. When any
+// private item exists we fold over the visibility-filtered ForEach instead, so
+// an unauthorized peer never sees a fingerprint that accounts for blobs it
+// can't read.
+func (s *authorizedStore) RangeFingerprint(start, end int) (rbsr.Fingerprint, error) {
+	if rf, ok := s.Store.(rbsr.RangeFingerprinter); ok && s.privateOnly.Len() == 0 {
+		return rf.RangeFingerprint(start, end)
+	}
+	return rbsr.FoldFingerprint(s, start, end)
 }
 
 // ForEach iterates over items, applying the filter if set.
