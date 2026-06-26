@@ -1,6 +1,8 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {grpcClient} from '@/grpc-client'
-import {useRegisterKey} from '@/models/daemon'
+import {useRegisterKey, useVaultEmail} from '@/models/daemon'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {postAccountCreateAction, useUniversalAppContext} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -83,16 +85,51 @@ export function useCreateAccountDialog() {
 
 function CreateAccountDialog({onClose}: {onClose: () => void}) {
   const {createAccount, isCreating} = useCreateAccount()
+  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  const {data: vaultEmail} = useVaultEmail()
+  const email = vaultEmail?.trim() || ''
+  const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
 
   async function handleSubmit(profile: SiteMetaFields) {
     const createdAccount = await createAccount(profile)
-    if (createdAccount) onClose()
+    if (!createdAccount) return
+
+    if (shareEmailWithNotificationServer && email) {
+      try {
+        await client.notificationConfig.setConfig.mutate({
+          accountUid: createdAccount.accountId,
+          notifyServiceHost,
+          email,
+        })
+        invalidateQueries([queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, createdAccount.accountId])
+      } catch (error) {
+        toast.error(
+          'Account created, but notification setup failed: ' + (error instanceof Error ? error.message : String(error)),
+        )
+      }
+    }
+
+    onClose()
   }
 
   return (
     <>
-      <DialogTitle>Create Profile</DialogTitle>
-      <EditProfileForm onSubmit={handleSubmit} submitLabel={isCreating ? 'Creating…' : 'Create Profile'} />
+      <DialogTitle>Create Account</DialogTitle>
+      <EditProfileForm
+        onSubmit={handleSubmit}
+        submitLabel={isCreating ? 'Creating…' : 'Create Account'}
+        notificationOption={
+          email
+            ? {
+                label: `Notify me at ${email}`,
+                description:
+                  'Leave this on to register notifications with that email. If you turn it off, the account will still be created without an email address.',
+                checked: shareEmailWithNotificationServer,
+                onCheckedChange: setShareEmailWithNotificationServer,
+              }
+            : undefined
+        }
+      />
     </>
   )
 }
