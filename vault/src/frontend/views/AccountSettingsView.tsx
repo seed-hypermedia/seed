@@ -15,6 +15,7 @@ import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
+import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Monitor, Smartphone, Tablet} from 'lucide-react'
@@ -253,39 +254,22 @@ function AccountTabContent({
 
 function DevicesTabContent({account}: {account: vault.Account}) {
   const sessions = account.delegations || []
-  if (!sessions.length) {
-    return (
-      <div className="border-border flex min-h-[160px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed p-8 text-center">
-        <p className="font-medium">No delegated keys</p>
-        <p className="text-muted-foreground text-sm">Sessions you authorize on other devices will appear here.</p>
-      </div>
-    )
-  }
   return (
-    <div className="flex flex-col gap-2">
-      {sessions.map((session) => {
+    <DelegatedKeysList
+      emptyDescription="Sessions you authorize on other devices will appear here."
+      items={sessions.map((session) => {
         const delegatePrincipal = blobs.principalToString(session.capability.delegate)
         const DeviceIcon =
           session.deviceType === 'mobile' ? Smartphone : session.deviceType === 'tablet' ? Tablet : Monitor
-        return (
-          <div
-            key={`${session.clientId}:${delegatePrincipal}`}
-            className="flex items-center gap-3 rounded-xl border p-4"
-          >
-            <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
-              <DeviceIcon className="size-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{session.clientId}</p>
-              <p className="text-muted-foreground truncate font-mono text-xs">{delegatePrincipal}</p>
-            </div>
-            <p className="text-muted-foreground shrink-0 text-xs">
-              {new Date(session.createTime).toLocaleDateString()}
-            </p>
-          </div>
-        )
+        return {
+          id: `${session.clientId}:${delegatePrincipal}`,
+          title: session.clientId,
+          subtitle: delegatePrincipal,
+          icon: <DeviceIcon className="size-5" />,
+          dateLabel: new Date(session.createTime).toLocaleDateString(),
+        }
       })}
-    </div>
+    />
   )
 }
 
