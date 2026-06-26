@@ -1,4 +1,4 @@
-import {type InputHTMLAttributes, useRef, useState} from 'react'
+import {type InputHTMLAttributes, useEffect, useRef, useState} from 'react'
 
 interface CodeInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> {
   value: string
@@ -6,11 +6,22 @@ interface CodeInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'on
   length?: number
 }
 
+/**
+ * Multi-cell numeric verification-code input (e.g. a 4-digit email code).
+ * Shared between the desktop app and the web vault so the email-change UX is
+ * identical. Handles per-cell entry, backspace/arrow navigation, and full-code
+ * paste.
+ */
 export function CodeInput({value, onChange, length = 4, className, ...props}: CodeInputProps) {
   // We track focus state to visually highlight the active cell for better UX.
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   // We need refs to programmatically shift focus between cells as the user types.
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  // Autofocus the first cell when the input appears so the user can type right away.
+  useEffect(() => {
+    inputRefs.current[0]?.focus()
+  }, [])
 
   const handleChange = (index: number, digit: string) => {
     // Restrict input to single digits. Prevents broken pasting into one cell.
@@ -85,7 +96,7 @@ export function CodeInput({value, onChange, length = 4, className, ...props}: Co
           onFocus={() => handleFocus(i)}
           onBlur={() => setFocusedIndex(null)}
           className={`bg-background h-14 w-12 rounded-md border text-center text-2xl font-semibold transition-colors ${
-            focusedIndex === i ? 'border-primary ring-primary/20 ring-2' : 'border-input hover:border-primary/50'
+            focusedIndex === i ? 'border-primary ring-primary/20 ring-2' : 'border-border hover:border-primary/50'
           } ${value[i] ? 'border-primary/50' : ''} ${className || ''}`}
           aria-label={`Digit ${i + 1} of ${length}`}
           {...props}

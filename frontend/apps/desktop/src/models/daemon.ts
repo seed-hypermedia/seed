@@ -210,6 +210,55 @@ export function useForceVaultSync(opts?: UseMutationOptions<GetVaultStatusRespon
   })
 }
 
+/** Current email of the connected remote vault user. Only enabled when connected. */
+export function useVaultEmail(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_EMAIL],
+    queryFn: async () => {
+      const res = await grpcClient.daemon.getVaultEmail({})
+      return res.email
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Starts a remote vault email change. Returns the binding + code timing (ms). */
+export function useChangeVaultEmailStart(
+  opts?: UseMutationOptions<
+    {binding: string; expireTimeMs: number; resendAllowedTimeMs: number},
+    unknown,
+    {newEmail: string}
+  >,
+) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({newEmail}) => {
+      const res = await grpcClient.daemon.changeVaultEmailStart({newEmail})
+      return {
+        binding: res.binding,
+        expireTimeMs: res.expireTime ? res.expireTime.toDate().getTime() : 0,
+        resendAllowedTimeMs: res.resendAllowedTime ? res.resendAllowedTime.toDate().getTime() : 0,
+      }
+    },
+  })
+}
+
+/** Completes a remote vault email change. Returns the new email. */
+export function useChangeVaultEmailVerify(opts?: UseMutationOptions<string, unknown, {code: string; binding: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({code, binding}) => {
+      const res = await grpcClient.daemon.changeVaultEmailVerify({code, binding})
+      return res.newEmail
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_EMAIL])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],

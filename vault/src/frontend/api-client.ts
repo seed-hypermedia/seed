@@ -130,6 +130,10 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/email-change/verify', {method: 'POST', body: JSON.stringify(req)})
   }
 
+  async getVaultEmail(): Promise<api.GetVaultEmailResponse> {
+    return this.request('/api/vault-email', {method: 'GET'})
+  }
+
   async putVaultConnect(req: api.PutVaultConnectRequest): Promise<api.PutVaultConnectResponse> {
     return this.request('/api/vault-connect', {method: 'POST', body: JSON.stringify(req)})
   }
