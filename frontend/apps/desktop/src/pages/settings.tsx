@@ -364,35 +364,34 @@ function AgentServerSettingsRow({
             Make default
           </Button>
         )}
-        {isDefault ? null : (
-          <AlertDialog>
-            <Tooltip content="Remove agent server">
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Trash className="size-4" />
-                </Button>
-              </AlertDialogTrigger>
-            </Tooltip>
-            <AlertDialogPortal>
-              <AlertDialogContent className="max-w-[500px] gap-4">
-                <AlertDialogTitle className="text-2xl font-bold">Remove Agent Server</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to remove {serverUrl}? You can add it back later.
-                </AlertDialogDescription>
-                <div className="flex justify-end gap-3">
-                  <AlertDialogCancel asChild>
-                    <Button variant="ghost">Cancel</Button>
-                  </AlertDialogCancel>
-                  <AlertDialogAction asChild>
-                    <Button variant="destructive" onClick={onRemove}>
-                      Remove
-                    </Button>
-                  </AlertDialogAction>
-                </div>
-              </AlertDialogContent>
-            </AlertDialogPortal>
-          </AlertDialog>
-        )}
+        <AlertDialog>
+          <Tooltip content="Remove agent server">
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Trash className="size-4" />
+                <span className="sr-only">Remove</span>
+              </Button>
+            </AlertDialogTrigger>
+          </Tooltip>
+          <AlertDialogPortal>
+            <AlertDialogContent className="max-w-[500px] gap-4">
+              <AlertDialogTitle className="text-2xl font-bold">Remove Agent Server</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove {serverUrl}? You can add it back later.
+              </AlertDialogDescription>
+              <div className="flex justify-end gap-3">
+                <AlertDialogCancel asChild>
+                  <Button variant="ghost">Cancel</Button>
+                </AlertDialogCancel>
+                <AlertDialogAction asChild>
+                  <Button variant="destructive" onClick={onRemove}>
+                    Remove
+                  </Button>
+                </AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialogPortal>
+        </AlertDialog>
       </div>
     </div>
   )

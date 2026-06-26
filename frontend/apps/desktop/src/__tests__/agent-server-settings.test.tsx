@@ -1,5 +1,10 @@
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
+;(globalThis as typeof globalThis & {ResizeObserver?: typeof ResizeObserver}).ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as any
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -38,6 +43,7 @@ vi.mock('@sentry/electron/main', () => ({}))
 vi.mock('@sentry/electron/renderer', () => ({}))
 vi.mock('@sentry/electron/preload', () => ({}))
 
+import {TooltipProvider} from '@shm/ui/tooltip'
 import {AgentServersSettings} from '../pages/settings'
 
 function renderSettings() {
@@ -46,7 +52,11 @@ function renderSettings() {
   const root = createRoot(container)
 
   act(() => {
-    root.render(<AgentServersSettings />)
+    root.render(
+      <TooltipProvider>
+        <AgentServersSettings />
+      </TooltipProvider>,
+    )
   })
 
   return {container, root}
@@ -86,6 +96,17 @@ describe('AgentServersSettings', () => {
 
     await act(async () => {
       removeButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      await Promise.resolve()
+    })
+
+    const confirmRemoveButton = Array.from(document.body.querySelectorAll('button')).find(
+      (button) => button !== removeButton && button.textContent?.trim() === 'Remove',
+    ) as HTMLButtonElement | undefined
+
+    expect(confirmRemoveButton).toBeDefined()
+
+    await act(async () => {
+      confirmRemoveButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
       await Promise.resolve()
     })
 
