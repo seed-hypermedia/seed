@@ -265,6 +265,8 @@ export const accountSettingsRouteSchema = z.object({
   key: z.literal('account-settings'),
   accountUid: z.string().optional(),
   tab: accountSettingsTabSchema.optional(),
+  /** When 'vault', the page shows vault-wide settings instead of a single account. */
+  view: z.enum(['vault']).optional(),
 })
 /** Navigation route for the desktop Account Settings page. */
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>

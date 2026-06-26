@@ -1,7 +1,18 @@
 import {useAppContext} from '@/app-context'
 import {useCreateAccountDialog} from '@/components/create-account'
+import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
-import {useDeleteKey, useExportKey, useImportKey, useListKeys, useMyAccountIds} from '@/models/daemon'
+import {
+  useDeleteKey,
+  useDisconnectVault,
+  useExportKey,
+  useForceVaultSync,
+  useImportKey,
+  useListKeys,
+  useLogout,
+  useMyAccountIds,
+  useVaultStatus,
+} from '@/models/daemon'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {
   useNotificationConfig,
@@ -14,6 +25,7 @@ import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onb
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMRole} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
+import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {useAccount, useAccounts, useCapabilities} from '@shm/shared/models/entity'
 import type {AccountSettingsTab} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -40,12 +52,13 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil, User} from '@shm/ui/icons'
 import {PageTabs, type PageTabItem} from '@shm/ui/page-tabs'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bell, Import, KeyRound, MonitorSmartphone, Plus, Trash} from 'lucide-react'
-import React, {useEffect, useState} from 'react'
+import {Bell, Import, KeyRound, LogOut, MonitorSmartphone, Plus, Trash, Vault} from 'lucide-react'
+import React, {useEffect, useId, useState} from 'react'
 
 export default function AccountSettingsPage() {
   const route = useNavRoute()
@@ -59,7 +72,8 @@ export default function AccountSettingsPage() {
   const {pickKeyImportFile} = useAppContext()
   const importKey = useImportKey()
 
-  const selectedUid = accountSettingsRoute?.accountUid ?? null
+  const isVaultSelected = accountSettingsRoute?.view === 'vault'
+  const selectedUid = isVaultSelected ? null : accountSettingsRoute?.accountUid ?? null
   const activeTab: AccountSettingsTab = accountSettingsRoute?.tab ?? 'account'
 
   const [pendingSelectUid, setPendingSelectUid] = useState<string | null>(null)
@@ -73,7 +87,9 @@ export default function AccountSettingsPage() {
   // Persist a default account selection in the route (so a refresh restores it),
   // auto-selecting the current account and falling back to the first available
   // one. A freshly imported account is honored once it appears in the list.
+  // Skipped while the vault view is selected.
   useEffect(() => {
+    if (isVaultSelected) return
     if (pendingSelectUid) {
       if (accountIds.includes(pendingSelectUid)) setPendingSelectUid(null)
       return
@@ -85,6 +101,7 @@ export default function AccountSettingsPage() {
       replace({key: 'account-settings', accountUid: next, tab: accountSettingsRoute?.tab})
     }
   }, [
+    isVaultSelected,
     pendingSelectUid,
     accountIds,
     myAccountIds.data,
@@ -110,6 +127,22 @@ export default function AccountSettingsPage() {
       <div className="flex h-full min-h-0 w-full">
         {/* Accounts sidebar */}
         <div className="bg-sidebar flex w-[260px] shrink-0 flex-col border-r border-black/10 dark:border-white/10">
+          <div className="border-b border-black/10 p-2 dark:border-white/10">
+            <button
+              onClick={() => replace({key: 'account-settings', view: 'vault'})}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
+                isVaultSelected
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'hover:bg-black/5 dark:hover:bg-white/5',
+              )}
+            >
+              <div className="bg-muted flex size-7 items-center justify-center rounded-full">
+                <Vault className="size-4" />
+              </div>
+              <span className="text-sm font-medium">Vault Settings</span>
+            </button>
+          </div>
           <div className="px-4 py-3">
             <SizableText size="sm" weight="bold" color="muted">
               Accounts
@@ -165,7 +198,9 @@ export default function AccountSettingsPage() {
 
         {/* Selected account settings */}
         <div className="min-w-0 flex-1 overflow-y-auto">
-          {selectedUid ? (
+          {isVaultSelected ? (
+            <VaultSettings />
+          ) : selectedUid ? (
             <AccountSettingsDetail accountUid={selectedUid} tab={activeTab} />
           ) : (
             <div className="flex h-full items-center justify-center p-8">
@@ -215,6 +250,242 @@ export default function AccountSettingsPage() {
         }}
       />
     </PanelContainer>
+  )
+}
+
+/**
+ * Vault-wide settings. Lets the user switch between a local vault (stored on
+ * this device only) and a remote vault (synced to a server for multi-device
+ * continuity).
+ *
+ * Switching to Remote opens the shared identity auth dialog, where the user can
+ * keep the default vault server URL or enter a different one before signing in
+ * through the browser. When the connection completes the daemon automatically
+ * merges this device's local identities into the remote vault.
+ *
+ * Switching back to Local disconnects but keeps the local keys (non-destructive).
+ * Logging out clears all local keys, returning to a local vault with zero
+ * accounts. While connected, the remote vault URL is shown read-only.
+ */
+function VaultSettings() {
+  const vaultStatus = useVaultStatus()
+  const disconnectVault = useDisconnectVault()
+  const forceVaultSync = useForceVaultSync()
+  const logout = useLogout()
+  const authDialog = useDesktopAuthDialog()
+  const {setSelectedIdentity} = useUniversalAppContext()
+  const id = useId()
+
+  const data = vaultStatus.data
+  const isRemoteBackend = data?.backendMode === VaultBackendMode.REMOTE
+  const isConnected = data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const syncStatus = data?.syncStatus
+
+  const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
+  const [logoutOpen, setLogoutOpen] = useState(false)
+
+  useEffect(() => {
+    setSelectedMode(isRemoteBackend ? 'remote' : 'local')
+  }, [isRemoteBackend])
+
+  const isPending = forceVaultSync.isPending || disconnectVault.isPending || logout.isLoading
+
+  function openConnectDialog() {
+    // Open the normal login/register workflow (same as "Sign in" / "Create my
+    // identity" from the account dropdown). From there the user can sign in,
+    // create an identity, or choose a different identity server URL. The daemon
+    // is responsible for merging this device's local identities into the remote
+    // vault as part of completing the connection (see vault.finishConnection).
+    authDialog.open({
+      onReady: () => {
+        setSelectedMode('remote')
+        toast.success('Connected to remote vault')
+      },
+    })
+  }
+
+  async function handleDisconnect() {
+    try {
+      await disconnectVault.mutateAsync()
+      setSelectedMode('local')
+      toast.success('Switched to local vault')
+    } catch (error) {
+      toast.error('Failed to switch to local vault: ' + (error instanceof Error ? error.message : String(error)))
+      setSelectedMode('remote')
+    }
+  }
+
+  async function handleForceSync() {
+    try {
+      await forceVaultSync.mutateAsync()
+      toast.success('Sync completed')
+    } catch (error) {
+      toast.error('Sync failed: ' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+
+  function handleModeChange(nextMode: 'local' | 'remote') {
+    if (nextMode === 'remote') {
+      // Don't flip the mode optimistically — the user is still local until the
+      // connection actually completes (the effect above syncs the radio then).
+      if (!isConnected) openConnectDialog()
+      return
+    }
+    // Switching to local disconnects from the remote vault but keeps the local
+    // keys (non-destructive). Logging out (separate action) clears them.
+    if (isRemoteBackend || isConnected) {
+      setSelectedMode('local')
+      void handleDisconnect()
+      return
+    }
+    setSelectedMode('local')
+  }
+
+  function handleLogout() {
+    logout.mutate(undefined, {
+      onSuccess: () => {
+        setSelectedIdentity?.(null)
+        setSelectedMode('local')
+        toast.success('Logged out of remote vault')
+      },
+      onError: (error) => {
+        toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
+      },
+    })
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
+      <SizableText size="2xl" weight="bold">
+        Vault Settings
+      </SizableText>
+
+      {vaultStatus.isLoading && !data ? (
+        <div className="flex min-h-[200px] items-center justify-center">
+          <Spinner />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 rounded-xl border border-black/10 p-4 dark:border-white/10">
+          <div className="flex flex-col gap-2">
+            <SizableText weight="bold">Identity key storage</SizableText>
+            <SizableText size="sm" color="muted">
+              {selectedMode === 'remote'
+                ? 'Your encrypted vault syncs to a remote server for multi-device continuity.'
+                : 'Your encrypted vault is stored on this device only.'}
+            </SizableText>
+            <RadioGroup
+              value={selectedMode}
+              onValueChange={(value) => handleModeChange(value === 'remote' ? 'remote' : 'local')}
+              className="mt-1 flex items-center gap-4"
+            >
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="local" id={`${id}-local`} disabled={isPending} />
+                <Label htmlFor={`${id}-local`} className="text-sm">
+                  Local
+                </Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="remote" id={`${id}-remote`} disabled={isPending} />
+                <Label htmlFor={`${id}-remote`} className="text-sm">
+                  Remote
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {selectedMode === 'remote' ? (
+            <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/10">
+              {isConnected ? (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="vault-remote-url">Remote vault URL</Label>
+                    <Input id="vault-remote-url" value={data?.remoteVaultUrl || ''} readOnly disabled />
+                    <SizableText size="xs" color="muted">
+                      Connected — log out to change the vault URL.
+                    </SizableText>
+                  </div>
+                  <InfoRow label="Connection" value="Connected" />
+                  {syncStatus?.lastSyncTime ? (
+                    <InfoRow label="Last sync" value={formattedDate(syncStatus.lastSyncTime)} />
+                  ) : null}
+                  {syncStatus?.lastSyncError ? (
+                    <InfoRow label="Sync error" value={syncStatus.lastSyncError} destructive />
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={handleForceSync} disabled={isPending}>
+                      {forceVaultSync.isPending ? 'Syncing…' : 'Sync now'}
+                    </Button>
+                    <Button variant="destructive" onClick={() => setLogoutOpen(true)} disabled={isPending}>
+                      <LogOut className="size-4" />
+                      Log out
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <SizableText size="sm" color="muted">
+                    Not connected to a remote vault. Sign in to sync your identities across devices.
+                  </SizableText>
+                  <div className="flex">
+                    <Button onClick={openConnectDialog}>Connect remote vault</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <AlertDialogPortal>
+          <AlertDialogContent className="max-w-[600px] gap-4">
+            <AlertDialogTitle className="text-2xl font-bold">Log out of remote vault?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will disconnect the remote vault and delete all local vault keys from this device, leaving you with a
+              local vault and zero accounts. Make sure your accounts are still recoverable before continuing.
+            </AlertDialogDescription>
+            <div className="flex justify-end gap-3">
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button variant="destructive" onClick={handleLogout} disabled={logout.isLoading}>
+                  {logout.isLoading ? 'Logging out…' : 'Log out'}
+                </Button>
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialog>
+      {authDialog.content}
+    </div>
+  )
+}
+
+function InfoRow({
+  label,
+  value,
+  mono,
+  destructive,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+  destructive?: boolean
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <SizableText size="sm" color="muted">
+        {label}
+      </SizableText>
+      <SizableText
+        size="sm"
+        color={destructive ? 'destructive' : 'default'}
+        className={cn('text-right', mono && 'font-mono break-all')}
+      >
+        {value}
+      </SizableText>
+    </div>
   )
 }
 
