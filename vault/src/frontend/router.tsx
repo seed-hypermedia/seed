@@ -288,14 +288,6 @@ export function createRouter() {
                     path: '/settings',
                     element: <AccountSettingsView />,
                   },
-                  {
-                    path: '/accounts/:accountId',
-                    element: <AccountSettingsView />,
-                  },
-                  {
-                    path: '/accounts/:accountId/:tab',
-                    element: <AccountSettingsView />,
-                  },
                 ],
               },
             ],

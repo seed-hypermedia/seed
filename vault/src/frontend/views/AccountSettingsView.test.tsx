@@ -6,19 +6,21 @@ import {afterEach, describe, expect, mock, test} from 'bun:test'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {AccountSettingsView} from './AccountSettingsView'
 
-function renderAt(initialPath: string, store: ReturnType<typeof createStore>) {
+function renderAt(initialEntry: string | {pathname: string; hash: string}, store: ReturnType<typeof createStore>) {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <StoreContext.Provider value={store}>
         <Routes>
           <Route path="/" element={<AccountSettingsView />} />
           <Route path="/settings" element={<AccountSettingsView />} />
-          <Route path="/accounts/:accountId" element={<AccountSettingsView />} />
-          <Route path="/accounts/:accountId/:tab" element={<AccountSettingsView />} />
         </Routes>
       </StoreContext.Provider>
     </MemoryRouter>,
   )
+}
+
+function accountEntry(principal: string) {
+  return {pathname: '/', hash: `#/a/${encodeURIComponent(principal)}`}
 }
 
 describe('AccountSettingsView', () => {
@@ -56,7 +58,7 @@ describe('AccountSettingsView', () => {
     const {store, principals} = createVaultStore()
 
     try {
-      renderAt(`/accounts/${encodeURIComponent(principals[1]!)}`, store)
+      renderAt(accountEntry(principals[1]!), store)
 
       await waitFor(() => {
         expect(store.state.selectedAccountIndex).toBe(1)
@@ -76,7 +78,7 @@ describe('AccountSettingsView', () => {
     const {store, principals} = createVaultStore()
 
     try {
-      renderAt(`/accounts/${encodeURIComponent(principals[0]!)}`, store)
+      renderAt(accountEntry(principals[0]!), store)
 
       await waitFor(() => {
         expect(store.state.selectedAccountIndex).toBe(0)
@@ -100,7 +102,7 @@ describe('AccountSettingsView', () => {
       'Your Seed desktop app has been linked with this remote vault successfully.'
 
     try {
-      renderAt(`/accounts/${encodeURIComponent(principals[0]!)}`, store)
+      renderAt(accountEntry(principals[0]!), store)
 
       expect(screen.getByText('Desktop app connected')).toBeTruthy()
       expect(
