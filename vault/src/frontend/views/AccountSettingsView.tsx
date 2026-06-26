@@ -104,8 +104,15 @@ export function AccountSettingsView() {
 
   // When not viewing Vault Settings and no valid account is selected in the hash,
   // land on the first account (or Vault Settings if there are no accounts).
+  //
+  // Guard on `vaultLoaded`: during unlock the view mounts before the vault data
+  // arrives (decryptedDEK is set just before loadVaultData resolves). Redirecting
+  // in that gap would clobber the restored `#/a/<principal>/<tab>` hash before the
+  // accounts exist to match it. Once loaded, a hash pointing at a real account
+  // resolves to `selected` and no redirect happens.
+  const vaultLoaded = !!vaultData
   useEffect(() => {
-    if (isVaultSelected || selected) return
+    if (isVaultSelected || selected || !vaultLoaded) return
     const first = accountList[0]
     if (first) {
       navigate({pathname: '/', hash: formatAccountHash(first.principal)}, {replace: true})
@@ -113,7 +120,7 @@ export function AccountSettingsView() {
       navigate('/settings', {replace: true})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVaultSelected, selected?.principal, accountsKey])
+  }, [isVaultSelected, selected?.principal, vaultLoaded, accountsKey])
 
   const sidebarAccounts = accountList.map((a) => {
     const profile = profiles[a.principal]
