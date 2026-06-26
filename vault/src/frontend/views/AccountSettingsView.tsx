@@ -1,6 +1,8 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
 import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
+import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
+import {Button} from '@/frontend/components/ui/button'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
 import {
@@ -18,7 +20,7 @@ import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
-import {Monitor, Smartphone, Tablet} from 'lucide-react'
+import {CheckCircle2, Monitor, Smartphone, Tablet, X} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {SettingsView} from './SettingsView'
@@ -34,7 +36,15 @@ export function AccountSettingsView() {
   const location = useLocation()
   const params = useParams()
   const actions = useActions()
-  const {vaultData, profiles, profileLoadStates, backendHttpBaseUrl, session, notificationServerUrl} = useAppState()
+  const {
+    vaultData,
+    profiles,
+    profileLoadStates,
+    backendHttpBaseUrl,
+    session,
+    notificationServerUrl,
+    vaultConnectionSuccessMessage,
+  } = useAppState()
 
   const accounts = vaultData?.accounts ?? []
   const accountList = accounts.map((account, index) => {
@@ -89,51 +99,75 @@ export function AccountSettingsView() {
   const sessionEmail = session?.email?.trim() || ''
 
   return (
-    <div className="bg-card flex h-[640px] w-full overflow-hidden rounded-xl border max-md:h-auto max-md:min-h-[480px] max-md:flex-col">
-      <AccountSettingsLayout
-        accounts={sidebarAccounts}
-        selectedAccountId={selectedAccountId}
-        isVaultSelected={isVaultSelected}
-        onSelectVault={() => navigate('/settings')}
-        onSelectAccount={(id) => navigate(`/accounts/${encodeURIComponent(id)}`)}
-        onAddAccount={() => actions.setCreatingAccount(true)}
-        onImportKey={() => setImportOpen(true)}
-      >
-        {isVaultSelected ? (
-          <SettingsView />
-        ) : selected ? (
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-            <h1 className="text-2xl font-semibold">Account Settings</h1>
-            <AccountSettingsTabs
-              activeTab={tab}
-              onTabChange={(nextTab) => navigate(`/accounts/${encodeURIComponent(selected.principal)}/${nextTab}`)}
-            />
-            {tab === 'account' ? (
-              <AccountTabContent
-                principal={selected.principal}
-                account={selected.account as vault.Account}
-                profile={profiles[selected.principal]}
-                profileLoadState={profileLoadStates[selected.principal]}
-                backendHttpBaseUrl={backendHttpBaseUrl}
-              />
-            ) : null}
-            {tab === 'notifications' ? (
-              <AccountNotificationsSection
-                seed={selected.account.seed}
-                accountCreateTime={selected.account.createTime}
-                notificationServerUrl={effectiveNotifyUrl}
-                sessionEmail={sessionEmail}
-              />
-            ) : null}
-            {tab === 'devices' ? <DevicesTabContent account={selected.account as vault.Account} /> : null}
-          </div>
-        ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center p-8">No account selected.</div>
-        )}
-      </AccountSettingsLayout>
+    <div className="flex w-full flex-col gap-4">
+      {vaultConnectionSuccessMessage ? (
+        <Alert variant="success">
+          <CheckCircle2 />
+          <AlertTitle>Desktop app connected</AlertTitle>
+          <AlertDescription className="pr-10">
+            <p>{vaultConnectionSuccessMessage}</p>
+            <p>You can manage or disconnect it later from the desktop app&apos;s Vault Backend settings.</p>
+          </AlertDescription>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2"
+            onClick={actions.clearVaultConnectionSuccessMessage}
+            aria-label="Dismiss desktop app connected message"
+          >
+            <X className="size-4" />
+          </Button>
+        </Alert>
+      ) : null}
 
-      <CreateAccountDialog />
-      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      <div className="bg-card flex h-[640px] w-full overflow-hidden rounded-xl border max-md:h-auto max-md:min-h-[480px] max-md:flex-col">
+        <AccountSettingsLayout
+          accounts={sidebarAccounts}
+          selectedAccountId={selectedAccountId}
+          isVaultSelected={isVaultSelected}
+          onSelectVault={() => navigate('/settings')}
+          onSelectAccount={(id) => navigate(`/accounts/${encodeURIComponent(id)}`)}
+          onAddAccount={() => actions.setCreatingAccount(true)}
+          onImportKey={() => setImportOpen(true)}
+        >
+          {isVaultSelected ? (
+            <SettingsView />
+          ) : selected ? (
+            <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
+              <h1 className="text-2xl font-semibold">Account Settings</h1>
+              <AccountSettingsTabs
+                activeTab={tab}
+                onTabChange={(nextTab) => navigate(`/accounts/${encodeURIComponent(selected.principal)}/${nextTab}`)}
+              />
+              {tab === 'account' ? (
+                <AccountTabContent
+                  principal={selected.principal}
+                  account={selected.account as vault.Account}
+                  profile={profiles[selected.principal]}
+                  profileLoadState={profileLoadStates[selected.principal]}
+                  backendHttpBaseUrl={backendHttpBaseUrl}
+                />
+              ) : null}
+              {tab === 'notifications' ? (
+                <AccountNotificationsSection
+                  seed={selected.account.seed}
+                  accountCreateTime={selected.account.createTime}
+                  notificationServerUrl={effectiveNotifyUrl}
+                  sessionEmail={sessionEmail}
+                />
+              ) : null}
+              {tab === 'devices' ? <DevicesTabContent account={selected.account as vault.Account} /> : null}
+            </div>
+          ) : (
+            <div className="text-muted-foreground flex h-full items-center justify-center p-8">
+              No account selected.
+            </div>
+          )}
+        </AccountSettingsLayout>
+
+        <CreateAccountDialog />
+        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+      </div>
     </div>
   )
 }
