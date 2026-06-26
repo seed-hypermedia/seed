@@ -35,6 +35,7 @@ import {
 import {SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy} from '@dnd-kit/sortable'
 import {CSS} from '@dnd-kit/utilities'
 import * as blobs from '@shm/shared/blobs'
+import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {
   AlertTriangle,
@@ -423,83 +424,39 @@ function EmptyState({onImport}: {onImport: () => void}) {
 }
 
 function ImportAccountDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
-  const {loading} = useAppState()
   const actions = useActions()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [password, setPassword] = useState('')
-  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) {
-      setSelectedFile(null)
-      setPassword('')
-      setSubmitError(null)
-    }
+    if (!open) setSelectedFile(null)
   }, [open])
 
-  async function handleSubmit(event?: FormEvent) {
-    event?.preventDefault()
-
-    if (!selectedFile) {
-      setSubmitError('Key file is required')
-      return
-    }
-
-    try {
-      const contents = await selectedFile.text()
-      await actions.importAccount(contents, password.length > 0 ? password : undefined)
-      onOpenChange(false)
-    } catch (error) {
-      setSubmitError((error as Error).message || 'Failed to import account')
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:w-fit sm:max-w-[calc(100vw-2rem)]">
-        <DialogHeader>
-          <DialogTitle>Import Key File</DialogTitle>
-          <DialogDescription>
-            Choose an exported `.hmkey.json` file. Enter a password only if the key file was exported with encryption.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="import-key-file">Key File</Label>
-            <Input
-              id="import-key-file"
-              type="file"
-              accept=".hmkey.json,application/json"
-              onChange={(event) => {
-                setSelectedFile(event.target.files?.[0] ?? null)
-                setSubmitError(null)
-              }}
-            />
-            {selectedFile ? <p className="text-muted-foreground text-sm break-all">{selectedFile.name}</p> : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="import-key-password">Password (optional)</Label>
-            <Input
-              id="import-key-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.currentTarget.value)}
-              autoComplete="off"
-              placeholder="Only needed for encrypted files"
-            />
-          </div>
-          {submitError ? <p className="text-destructive text-sm">{submitError}</p> : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Importing...' : 'Import Key'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <ImportKeyDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      hasFile={!!selectedFile}
+      renderFileField={({clearError}) => (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="import-key-file">Key File</Label>
+          <Input
+            id="import-key-file"
+            type="file"
+            accept=".hmkey.json,application/json"
+            onChange={(event) => {
+              setSelectedFile(event.target.files?.[0] ?? null)
+              clearError()
+            }}
+          />
+          {selectedFile ? <p className="text-muted-foreground text-sm break-all">{selectedFile.name}</p> : null}
+        </div>
+      )}
+      onImport={async (password) => {
+        if (!selectedFile) throw new Error('Key file is required')
+        const contents = await selectedFile.text()
+        await actions.importAccount(contents, password)
+      }}
+    />
   )
 }
 
