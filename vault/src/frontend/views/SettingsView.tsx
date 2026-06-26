@@ -1,8 +1,8 @@
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
-import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 import {Button} from '@shm/ui/button'
 import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
+import {NotificationServerDialog} from '@shm/ui/components/notification-server-dialog'
 import {SetMasterPasswordDialog} from '@shm/ui/components/set-master-password-dialog'
 import {Separator} from '@shm/ui/separator'
 import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
@@ -16,10 +16,11 @@ import {useState} from 'react'
 export function SettingsView() {
   const {session, loading, passkeySupported, notificationServerUrl, vaultData} = useAppState()
   const actions = useActions()
-  const navigate = navigation.useHashNavigate()
-  const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
+  const notifyOverride = vaultData?.notificationServerUrl?.trim() || ''
+  const effectiveNotificationServerUrl = notifyOverride || notificationServerUrl
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
   const hasPassword = !!session?.credentials?.password
 
   return (
@@ -76,7 +77,7 @@ export function SettingsView() {
           label="Notify Server URL"
           description={effectiveNotificationServerUrl}
           action={
-            <Button variant="secondary" size="sm" onClick={() => navigate('/notify-server/change')} disabled={loading}>
+            <Button variant="secondary" size="sm" onClick={() => setNotifyDialogOpen(true)} disabled={loading}>
               Change
             </Button>
           }
@@ -110,6 +111,17 @@ export function SettingsView() {
         onOpenChange={setPasswordDialogOpen}
         mode={hasPassword ? 'change' : 'set'}
         onSubmit={(password) => actions.setMasterPasswordDialog(password)}
+      />
+
+      <NotificationServerDialog
+        open={notifyDialogOpen}
+        onOpenChange={setNotifyDialogOpen}
+        currentUrl={notifyOverride}
+        defaultUrl={notificationServerUrl}
+        onSave={async (url) => {
+          const ok = await actions.saveNotificationServerUrl(url)
+          if (!ok) throw new Error('Failed to save notification server URL')
+        }}
       />
     </div>
   )

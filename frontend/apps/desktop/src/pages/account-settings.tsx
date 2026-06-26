@@ -12,7 +12,9 @@ import {
   useLogout,
   useMyAccountIds,
   useSetVaultMasterPassword,
+  useSetVaultNotificationServer,
   useVaultEmail,
+  useVaultNotificationServer,
   useVaultPasswordStatus,
   useVaultStatus,
 } from '@/models/daemon'
@@ -30,6 +32,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import type {HMRole} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount, useAccounts, useCapabilities} from '@shm/shared/models/entity'
 import type {AccountSettingsTab} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -50,6 +53,7 @@ import {
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Input} from '@shm/ui/components/input'
+import {NotificationServerDialog} from '@shm/ui/components/notification-server-dialog'
 import {Label} from '@shm/ui/components/label'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -288,11 +292,18 @@ function VaultSettings() {
   const vaultEmail = useVaultEmail({enabled: isConnected})
   const passwordStatus = useVaultPasswordStatus({enabled: isConnected})
   const setMasterPassword = useSetVaultMasterPassword()
+  const notifyServer = useVaultNotificationServer()
+  const setNotifyServer = useSetVaultNotificationServer()
+
+  const notifyDefault = NOTIFY_SERVICE_HOST || 'https://notify.seed.hyper.media'
+  const notifyOverride = notifyServer.data || ''
+  const notifyEffective = notifyOverride || notifyDefault
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
 
   useEffect(() => {
     setSelectedMode(isRemoteBackend ? 'remote' : 'local')
@@ -481,6 +492,28 @@ function VaultSettings() {
         </div>
       )}
 
+      <div className="flex flex-col gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+        <div>
+          <SizableText weight="bold">Notifications</SizableText>
+          <SizableText size="sm" color="muted">
+            The server that relays your notification emails and push notifications.
+          </SizableText>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <SizableText size="sm" color="muted">
+              Notify server URL
+            </SizableText>
+            <SizableText size="sm" className="truncate font-mono">
+              {notifyEffective}
+            </SizableText>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setNotifyDialogOpen(true)}>
+            Change
+          </Button>
+        </div>
+      </div>
+
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogPortal>
           <AlertDialogContent className="max-w-[600px] gap-4">
@@ -503,6 +536,16 @@ function VaultSettings() {
         </AlertDialogPortal>
       </AlertDialog>
       <ChangeVaultEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} currentEmail={vaultEmail.data} />
+      <NotificationServerDialog
+        open={notifyDialogOpen}
+        onOpenChange={setNotifyDialogOpen}
+        currentUrl={notifyOverride}
+        defaultUrl={notifyDefault}
+        onSave={async (url) => {
+          await setNotifyServer.mutateAsync({url})
+          toast.success('Notify server URL saved')
+        }}
+      />
       <SetMasterPasswordDialog
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
