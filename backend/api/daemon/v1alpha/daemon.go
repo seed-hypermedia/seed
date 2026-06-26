@@ -692,6 +692,52 @@ func (srv *Server) clearVaultConnectionPoll(poll *vaultConnectionPoll) {
 	}
 }
 
+// GetVaultEmail implements the corresponding gRPC method.
+func (srv *Server) GetVaultEmail(ctx context.Context, _ *daemon.GetVaultEmailRequest) (*daemon.GetVaultEmailResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	email, err := vlt.GetVaultEmail(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultEmailResponse{Email: email}, nil
+}
+
+// ChangeVaultEmailStart implements the corresponding gRPC method.
+func (srv *Server) ChangeVaultEmailStart(ctx context.Context, in *daemon.ChangeVaultEmailStartRequest) (*daemon.ChangeVaultEmailStartResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	binding, expireMs, resendMs, err := vlt.ChangeVaultEmailStart(ctx, in.NewEmail)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	resp := &daemon.ChangeVaultEmailStartResponse{Binding: binding}
+	if expireMs > 0 {
+		resp.ExpireTime = timestamppb.New(time.UnixMilli(expireMs))
+	}
+	if resendMs > 0 {
+		resp.ResendAllowedTime = timestamppb.New(time.UnixMilli(resendMs))
+	}
+	return resp, nil
+}
+
+// ChangeVaultEmailVerify implements the corresponding gRPC method.
+func (srv *Server) ChangeVaultEmailVerify(ctx context.Context, in *daemon.ChangeVaultEmailVerifyRequest) (*daemon.ChangeVaultEmailVerifyResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	newEmail, err := vlt.ChangeVaultEmailVerify(ctx, in.Code, in.Binding)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.ChangeVaultEmailVerifyResponse{NewEmail: newEmail}, nil
+}
+
 // DisconnectVault implements the corresponding gRPC method.
 func (srv *Server) DisconnectVault(_ context.Context, req *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
 	vlt, err := srv.store.Vault()

@@ -72,6 +72,7 @@ export interface ServiceDefinition {
   // Email change.
   changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
   changeEmailVerify(req: ChangeEmailVerifyRequest): Promise<ChangeEmailVerifyResponse>
+  getVaultEmail(): Promise<GetVaultEmailResponse>
 
   // Desktop Vault Connect mailbox.
   putVaultConnect(req: PutVaultConnectRequest): Promise<PutVaultConnectResponse>
@@ -282,15 +283,27 @@ export type ChangeEmailStartResponse = {
   message: string
   expireTime: number
   resendAllowedTime: number
+  // Set only for the bearer/daemon flow (no browser cookie). The caller must
+  // hold this binding and send it back to `changeEmailVerify`. For the browser
+  // flow the binding is carried in an httpOnly cookie and this is omitted.
+  binding?: string
 }
 
 // Change email verify.
 export type ChangeEmailVerifyRequest = {
   code: string
+  // Required for the bearer/daemon flow: the binding returned by
+  // `changeEmailStart`. Ignored for the browser flow (read from the cookie).
+  binding?: string
 }
 export type ChangeEmailVerifyResponse = {
   verified: boolean
   newEmail: string
+}
+
+// Current vault user email (bearer or cookie auth).
+export type GetVaultEmailResponse = {
+  email: string
 }
 
 // Logout.

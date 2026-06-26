@@ -11,8 +11,10 @@ import {
   useListKeys,
   useLogout,
   useMyAccountIds,
+  useVaultEmail,
   useVaultStatus,
 } from '@/models/daemon'
+import {ChangeVaultEmailDialog} from '@/components/change-vault-email-dialog'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {
   useNotificationConfig,
@@ -280,9 +282,11 @@ function VaultSettings() {
   const isRemoteBackend = data?.backendMode === VaultBackendMode.REMOTE
   const isConnected = data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const syncStatus = data?.syncStatus
+  const vaultEmail = useVaultEmail({enabled: isConnected})
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
 
   useEffect(() => {
     setSelectedMode(isRemoteBackend ? 'remote' : 'local')
@@ -405,6 +409,19 @@ function VaultSettings() {
                     </SizableText>
                   </div>
                   <InfoRow label="Connection" value="Connected" />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <SizableText size="sm" color="muted">
+                        Email address
+                      </SizableText>
+                      <SizableText size="sm" className="truncate">
+                        {vaultEmail.isLoading && !vaultEmail.data ? '…' : vaultEmail.data || 'Not set'}
+                      </SizableText>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} disabled={isPending}>
+                      Change
+                    </Button>
+                  </div>
                   {syncStatus?.lastSyncTime ? (
                     <InfoRow label="Last sync" value={formattedDate(syncStatus.lastSyncTime)} />
                   ) : null}
@@ -457,6 +474,7 @@ function VaultSettings() {
           </AlertDialogContent>
         </AlertDialogPortal>
       </AlertDialog>
+      <ChangeVaultEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} currentEmail={vaultEmail.data} />
       {authDialog.content}
     </div>
   )

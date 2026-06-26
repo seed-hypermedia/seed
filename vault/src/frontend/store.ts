@@ -1684,57 +1684,27 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     // Email Change Actions.
 
-    setNewEmail(email: string) {
-      state.newEmail = email
+    /**
+     * Dialog-driven email change start (no navigation). Throws on failure so the
+     * shared ChangeEmailDialog can surface the error. Returns the code expiry.
+     */
+    async changeEmailDialogStart(newEmail: string): Promise<{expireTimeMs: number}> {
+      if (!state.session?.authenticated) {
+        throw new Error('You must be signed in to change your email')
+      }
+      const data = await client.changeEmailStart({newEmail})
+      return {expireTimeMs: data.expireTime}
     },
 
     /**
-     * Start the email change process. Sends a verification code to the new email.
+     * Dialog-driven email change verify (no navigation). Updates the active
+     * session email on success. Throws on failure.
      */
-    async handleStartEmailChange() {
-      if (!state.newEmail) {
-        state.error = 'Please enter a new email address'
-        return
-      }
-
-      if (!state.session?.authenticated) {
-        state.error = 'You must be signed in to change your email'
-        return
-      }
-
-      state.error = ''
-      state.loading = true
-
-      try {
-        const data = await client.changeEmailStart({
-          newEmail: state.newEmail,
-        })
-        state.verificationExpireTime = data.expireTime
-        state.resendAllowedTime = data.resendAllowedTime
-        navigator.go('/email/change-pending')
-      } catch (e) {
-        state.error = (e as Error).message || 'Failed to start email change'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangeEmailVerify(code: string) {
-      state.loading = true
-      state.error = ''
-
-      try {
-        const data = await client.changeEmailVerify({code})
-        if (state.session) {
-          state.session.email = data.newEmail
-          state.email = data.newEmail
-        }
-        state.newEmail = ''
-        navigator.go('/')
-      } catch (e) {
-        state.error = (e as Error).message || 'Verification failed'
-      } finally {
-        state.loading = false
+    async changeEmailDialogVerify(code: string): Promise<void> {
+      const data = await client.changeEmailVerify({code})
+      if (state.session) {
+        state.session.email = data.newEmail
+        state.email = data.newEmail
       }
     },
 

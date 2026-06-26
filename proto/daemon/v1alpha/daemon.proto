@@ -42,6 +42,16 @@ service Daemon {
   // Force-trigger periodic background sync of Seed objects.
   rpc ForceSync(ForceSyncRequest) returns (google.protobuf.Empty);
 
+  // Gets the current email address of the connected remote vault user.
+  rpc GetVaultEmail(GetVaultEmailRequest) returns (GetVaultEmailResponse);
+
+  // Starts changing the remote vault user's email address. Sends a verification
+  // code to the new email and returns an opaque binding to pass to verify.
+  rpc ChangeVaultEmailStart(ChangeVaultEmailStartRequest) returns (ChangeVaultEmailStartResponse);
+
+  // Completes a remote vault email change by verifying the emailed code.
+  rpc ChangeVaultEmailVerify(ChangeVaultEmailVerifyRequest) returns (ChangeVaultEmailVerifyResponse);
+
   // Forces the daemon to reindex the entire database.
   rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
 
@@ -192,6 +202,48 @@ message DisconnectVaultRequest {
 
 // Request to force the syncing process.
 message ForceSyncRequest {}
+
+// Request to get the connected remote vault user's email.
+message GetVaultEmailRequest {}
+
+// Response with the connected remote vault user's email.
+message GetVaultEmailResponse {
+  // Current vault user email. Empty when not connected to a remote vault.
+  string email = 1;
+}
+
+// Request to start a remote vault email change.
+message ChangeVaultEmailStartRequest {
+  // Required. The new email address to change to.
+  string new_email = 1;
+}
+
+// Response after starting a remote vault email change.
+message ChangeVaultEmailStartResponse {
+  // Opaque anti-phishing binding to pass back to ChangeVaultEmailVerify.
+  string binding = 1;
+
+  // Time when the verification code expires.
+  google.protobuf.Timestamp expire_time = 2;
+
+  // Time after which a new code may be requested.
+  google.protobuf.Timestamp resend_allowed_time = 3;
+}
+
+// Request to verify and complete a remote vault email change.
+message ChangeVaultEmailVerifyRequest {
+  // Required. The verification code emailed to the new address.
+  string code = 1;
+
+  // Required. The binding returned by ChangeVaultEmailStart.
+  string binding = 2;
+}
+
+// Response after completing a remote vault email change.
+message ChangeVaultEmailVerifyResponse {
+  // The new, now-active vault user email.
+  string new_email = 1;
+}
 
 // Request to force reindexing of the entire database.
 message ForceReindexRequest {}

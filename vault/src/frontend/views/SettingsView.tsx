@@ -2,9 +2,11 @@ import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 import {Button} from '@shm/ui/button'
+import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
 import {Separator} from '@shm/ui/separator'
 import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import * as icons from 'lucide-react'
+import {useState} from 'react'
 
 /**
  * Vault-level settings view for managing authentication credentials and account settings.
@@ -15,6 +17,7 @@ export function SettingsView() {
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
   const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
 
   return (
     <div className="space-y-6 p-6">
@@ -90,12 +93,20 @@ export function SettingsView() {
           label="Email address"
           description={session?.email}
           action={
-            <Button variant="secondary" size="sm" onClick={() => navigate('/email/change')} disabled={loading}>
+            <Button variant="secondary" size="sm" onClick={() => setEmailDialogOpen(true)} disabled={loading}>
               Change
             </Button>
           }
         />
       </SettingsSection>
+
+      <ChangeEmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        currentEmail={session?.email}
+        onStart={(newEmail) => actions.changeEmailDialogStart(newEmail)}
+        onVerify={(code) => actions.changeEmailDialogVerify(code)}
+      />
     </div>
   )
 }
