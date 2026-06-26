@@ -57,6 +57,7 @@ import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
+import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
@@ -68,7 +69,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {KeyRound, LogOut, RefreshCw, Vault} from 'lucide-react'
+import {LogOut, RefreshCw, Vault} from 'lucide-react'
 import React, {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -612,60 +613,16 @@ function DevicesTab({accountUid}: {accountUid: string}) {
     )
   }
 
-  if (!delegatedKeys.length) {
-    return (
-      <AccountSettingsStub
-        label="No delegated keys"
-        description="Keys this account delegates to other devices and web sessions will appear here."
-      />
-    )
-  }
-
   return (
-    <div className="flex flex-col gap-2">
-      {delegatedKeys.map((cap) => {
-        const title = cap.label || DELEGATED_ROLE_LABELS[cap.role] || 'Delegated key'
-        return (
-          <div
-            key={cap.id || cap.accountUid}
-            className="flex items-center gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10"
-          >
-            <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
-              <KeyRound className="size-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <SizableText size="sm" weight="bold" className="truncate">
-                {title}
-              </SizableText>
-              <SizableText size="xs" color="muted" className="truncate font-mono">
-                {cap.accountUid}
-              </SizableText>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs capitalize">
-                {cap.role}
-              </span>
-              {cap.createTime ? (
-                <SizableText size="xs" color="muted">
-                  {formattedDate(cap.createTime)}
-                </SizableText>
-              ) : null}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function AccountSettingsStub({label, description}: {label: string; description: string}) {
-  return (
-    <div className="border-border flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-8 text-center">
-      <SizableText weight="bold">{label}</SizableText>
-      <SizableText size="sm" color="muted" className="max-w-sm">
-        {description} Coming soon.
-      </SizableText>
-    </div>
+    <DelegatedKeysList
+      items={delegatedKeys.map((cap) => ({
+        id: cap.id || cap.accountUid,
+        title: cap.label || DELEGATED_ROLE_LABELS[cap.role] || 'Delegated key',
+        subtitle: cap.accountUid,
+        badge: cap.role,
+        dateLabel: cap.createTime ? formattedDate(cap.createTime) : undefined,
+      }))}
+    />
   )
 }
 
