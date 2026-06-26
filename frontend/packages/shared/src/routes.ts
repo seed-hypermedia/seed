@@ -257,6 +257,18 @@ export const settingsRouteSchema = z.object({
 })
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
+export const accountSettingsTabSchema = z.enum(['account', 'notifications', 'devices'])
+export type AccountSettingsTab = z.infer<typeof accountSettingsTabSchema>
+
+/** Route schema for the desktop Account Settings page (manage the logged-in account). */
+export const accountSettingsRouteSchema = z.object({
+  key: z.literal('account-settings'),
+  accountUid: z.string().optional(),
+  tab: accountSettingsTabSchema.optional(),
+})
+/** Navigation route for the desktop Account Settings page. */
+export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
+
 export const notificationsRouteSchema = z.object({
   key: z.literal('notifications'),
   view: z.enum(['all', 'unread']).optional(),
@@ -334,6 +346,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   siteProfileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
+  accountSettingsRouteSchema,
   notificationsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,

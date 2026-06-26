@@ -62,6 +62,7 @@ import {
   Search,
   Settings,
   User,
+  UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
@@ -417,11 +418,11 @@ export function AccountProfileButton() {
               My Profile
             </DropdownMenuItem>
           )}
-          {/* <DropdownMenuItem disabled>
+          <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
             <UserCog className="size-4" />
-            Manage account
+            Account Settings
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
+          {/* <DropdownMenuItem disabled>
             <Monitor className="size-4" />
             Site settings
           </DropdownMenuItem> */}
