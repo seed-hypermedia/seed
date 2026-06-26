@@ -1027,6 +1027,155 @@ export class ChangeVaultEmailVerifyResponse extends Message<ChangeVaultEmailVeri
 }
 
 /**
+ * Request for the remote vault master-password status.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultPasswordStatusRequest
+ */
+export class GetVaultPasswordStatusRequest extends Message<GetVaultPasswordStatusRequest> {
+  constructor(data?: PartialMessage<GetVaultPasswordStatusRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultPasswordStatusRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultPasswordStatusRequest | PlainMessage<GetVaultPasswordStatusRequest> | undefined, b: GetVaultPasswordStatusRequest | PlainMessage<GetVaultPasswordStatusRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultPasswordStatusRequest, a, b);
+  }
+}
+
+/**
+ * Response with the remote vault master-password status.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultPasswordStatusResponse
+ */
+export class GetVaultPasswordStatusResponse extends Message<GetVaultPasswordStatusResponse> {
+  /**
+   * True when the vault user already has a master password credential.
+   *
+   * @generated from field: bool is_set = 1;
+   */
+  isSet = false;
+
+  constructor(data?: PartialMessage<GetVaultPasswordStatusResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultPasswordStatusResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "is_set", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultPasswordStatusResponse | PlainMessage<GetVaultPasswordStatusResponse> | undefined, b: GetVaultPasswordStatusResponse | PlainMessage<GetVaultPasswordStatusResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultPasswordStatusResponse, a, b);
+  }
+}
+
+/**
+ * Request to set or change the remote vault master password.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultMasterPasswordRequest
+ */
+export class SetVaultMasterPasswordRequest extends Message<SetVaultMasterPasswordRequest> {
+  /**
+   * Required. The new master password (plaintext; used by the daemon to derive
+   * the credential locally and never sent to the vault server).
+   *
+   * @generated from field: string password = 1;
+   */
+  password = "";
+
+  constructor(data?: PartialMessage<SetVaultMasterPasswordRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultMasterPasswordRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultMasterPasswordRequest | PlainMessage<SetVaultMasterPasswordRequest> | undefined, b: SetVaultMasterPasswordRequest | PlainMessage<SetVaultMasterPasswordRequest> | undefined): boolean {
+    return proto3.util.equals(SetVaultMasterPasswordRequest, a, b);
+  }
+}
+
+/**
+ * Response after setting or changing the remote vault master password.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultMasterPasswordResponse
+ */
+export class SetVaultMasterPasswordResponse extends Message<SetVaultMasterPasswordResponse> {
+  constructor(data?: PartialMessage<SetVaultMasterPasswordResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultMasterPasswordResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultMasterPasswordResponse | PlainMessage<SetVaultMasterPasswordResponse> | undefined, b: SetVaultMasterPasswordResponse | PlainMessage<SetVaultMasterPasswordResponse> | undefined): boolean {
+    return proto3.util.equals(SetVaultMasterPasswordResponse, a, b);
+  }
+}
+
+/**
  * Request to force reindexing of the entire database.
  *
  * @generated from message com.seed.daemon.v1alpha.ForceReindexRequest

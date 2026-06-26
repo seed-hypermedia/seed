@@ -52,6 +52,14 @@ service Daemon {
   // Completes a remote vault email change by verifying the emailed code.
   rpc ChangeVaultEmailVerify(ChangeVaultEmailVerifyRequest) returns (ChangeVaultEmailVerifyResponse);
 
+  // Reports whether the connected remote vault user has a master password set.
+  rpc GetVaultPasswordStatus(GetVaultPasswordStatusRequest) returns (GetVaultPasswordStatusResponse);
+
+  // Sets or changes the connected remote vault user's master password. The
+  // daemon derives the credential from the in-daemon DEK; the plaintext password
+  // is never sent to the vault server.
+  rpc SetVaultMasterPassword(SetVaultMasterPasswordRequest) returns (SetVaultMasterPasswordResponse);
+
   // Forces the daemon to reindex the entire database.
   rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
 
@@ -244,6 +252,25 @@ message ChangeVaultEmailVerifyResponse {
   // The new, now-active vault user email.
   string new_email = 1;
 }
+
+// Request for the remote vault master-password status.
+message GetVaultPasswordStatusRequest {}
+
+// Response with the remote vault master-password status.
+message GetVaultPasswordStatusResponse {
+  // True when the vault user already has a master password credential.
+  bool is_set = 1;
+}
+
+// Request to set or change the remote vault master password.
+message SetVaultMasterPasswordRequest {
+  // Required. The new master password (plaintext; used by the daemon to derive
+  // the credential locally and never sent to the vault server).
+  string password = 1;
+}
+
+// Response after setting or changing the remote vault master password.
+message SetVaultMasterPasswordResponse {}
 
 // Request to force reindexing of the entire database.
 message ForceReindexRequest {}

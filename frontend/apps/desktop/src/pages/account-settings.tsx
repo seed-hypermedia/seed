@@ -11,7 +11,9 @@ import {
   useListKeys,
   useLogout,
   useMyAccountIds,
+  useSetVaultMasterPassword,
   useVaultEmail,
+  useVaultPasswordStatus,
   useVaultStatus,
 } from '@/models/daemon'
 import {ChangeVaultEmailDialog} from '@/components/change-vault-email-dialog'
@@ -55,6 +57,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil, User} from '@shm/ui/icons'
 import {PageTabs, type PageTabItem} from '@shm/ui/page-tabs'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import {SetMasterPasswordDialog} from '@shm/ui/components/set-master-password-dialog'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -283,10 +286,13 @@ function VaultSettings() {
   const isConnected = data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const syncStatus = data?.syncStatus
   const vaultEmail = useVaultEmail({enabled: isConnected})
+  const passwordStatus = useVaultPasswordStatus({enabled: isConnected})
+  const setMasterPassword = useSetVaultMasterPassword()
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
 
   useEffect(() => {
     setSelectedMode(isRemoteBackend ? 'remote' : 'local')
@@ -422,6 +428,28 @@ function VaultSettings() {
                       Change
                     </Button>
                   </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <SizableText size="sm" color="muted">
+                        Master password
+                      </SizableText>
+                      <SizableText size="sm" className="truncate">
+                        {passwordStatus.isLoading && passwordStatus.data === undefined
+                          ? '…'
+                          : passwordStatus.data
+                            ? 'Password is set'
+                            : 'No password set'}
+                      </SizableText>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPasswordDialogOpen(true)}
+                      disabled={isPending}
+                    >
+                      {passwordStatus.data ? 'Change' : 'Set'}
+                    </Button>
+                  </div>
                   {syncStatus?.lastSyncTime ? (
                     <InfoRow label="Last sync" value={formattedDate(syncStatus.lastSyncTime)} />
                   ) : null}
@@ -475,6 +503,15 @@ function VaultSettings() {
         </AlertDialogPortal>
       </AlertDialog>
       <ChangeVaultEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} currentEmail={vaultEmail.data} />
+      <SetMasterPasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        mode={passwordStatus.data ? 'change' : 'set'}
+        onSubmit={async (password) => {
+          await setMasterPassword.mutateAsync({password})
+          toast.success(passwordStatus.data ? 'Master password changed' : 'Master password set')
+        }}
+      />
       {authDialog.content}
     </div>
   )

@@ -33,6 +33,8 @@ const (
 	Daemon_GetVaultEmail_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GetVaultEmail"
 	Daemon_ChangeVaultEmailStart_FullMethodName  = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailStart"
 	Daemon_ChangeVaultEmailVerify_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailVerify"
+	Daemon_GetVaultPasswordStatus_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/GetVaultPasswordStatus"
+	Daemon_SetVaultMasterPassword_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/SetVaultMasterPassword"
 	Daemon_ForceReindex_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
 	Daemon_UpdateKey_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
@@ -83,6 +85,12 @@ type DaemonClient interface {
 	ChangeVaultEmailStart(ctx context.Context, in *ChangeVaultEmailStartRequest, opts ...grpc.CallOption) (*ChangeVaultEmailStartResponse, error)
 	// Completes a remote vault email change by verifying the emailed code.
 	ChangeVaultEmailVerify(ctx context.Context, in *ChangeVaultEmailVerifyRequest, opts ...grpc.CallOption) (*ChangeVaultEmailVerifyResponse, error)
+	// Reports whether the connected remote vault user has a master password set.
+	GetVaultPasswordStatus(ctx context.Context, in *GetVaultPasswordStatusRequest, opts ...grpc.CallOption) (*GetVaultPasswordStatusResponse, error)
+	// Sets or changes the connected remote vault user's master password. The
+	// daemon derives the credential from the in-daemon DEK; the plaintext password
+	// is never sent to the vault server.
+	SetVaultMasterPassword(ctx context.Context, in *SetVaultMasterPasswordRequest, opts ...grpc.CallOption) (*SetVaultMasterPasswordResponse, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -248,6 +256,26 @@ func (c *daemonClient) ChangeVaultEmailVerify(ctx context.Context, in *ChangeVau
 	return out, nil
 }
 
+func (c *daemonClient) GetVaultPasswordStatus(ctx context.Context, in *GetVaultPasswordStatusRequest, opts ...grpc.CallOption) (*GetVaultPasswordStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVaultPasswordStatusResponse)
+	err := c.cc.Invoke(ctx, Daemon_GetVaultPasswordStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) SetVaultMasterPassword(ctx context.Context, in *SetVaultMasterPasswordRequest, opts ...grpc.CallOption) (*SetVaultMasterPasswordResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetVaultMasterPasswordResponse)
+	err := c.cc.Invoke(ctx, Daemon_SetVaultMasterPassword_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *daemonClient) ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ForceReindexResponse)
@@ -404,6 +432,12 @@ type DaemonServer interface {
 	ChangeVaultEmailStart(context.Context, *ChangeVaultEmailStartRequest) (*ChangeVaultEmailStartResponse, error)
 	// Completes a remote vault email change by verifying the emailed code.
 	ChangeVaultEmailVerify(context.Context, *ChangeVaultEmailVerifyRequest) (*ChangeVaultEmailVerifyResponse, error)
+	// Reports whether the connected remote vault user has a master password set.
+	GetVaultPasswordStatus(context.Context, *GetVaultPasswordStatusRequest) (*GetVaultPasswordStatusResponse, error)
+	// Sets or changes the connected remote vault user's master password. The
+	// daemon derives the credential from the in-daemon DEK; the plaintext password
+	// is never sent to the vault server.
+	SetVaultMasterPassword(context.Context, *SetVaultMasterPasswordRequest) (*SetVaultMasterPasswordResponse, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -476,6 +510,12 @@ func (UnimplementedDaemonServer) ChangeVaultEmailStart(context.Context, *ChangeV
 }
 func (UnimplementedDaemonServer) ChangeVaultEmailVerify(context.Context, *ChangeVaultEmailVerifyRequest) (*ChangeVaultEmailVerifyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeVaultEmailVerify not implemented")
+}
+func (UnimplementedDaemonServer) GetVaultPasswordStatus(context.Context, *GetVaultPasswordStatusRequest) (*GetVaultPasswordStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVaultPasswordStatus not implemented")
+}
+func (UnimplementedDaemonServer) SetVaultMasterPassword(context.Context, *SetVaultMasterPasswordRequest) (*SetVaultMasterPasswordResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetVaultMasterPassword not implemented")
 }
 func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
@@ -767,6 +807,42 @@ func _Daemon_ChangeVaultEmailVerify_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Daemon_GetVaultPasswordStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVaultPasswordStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetVaultPasswordStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetVaultPasswordStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetVaultPasswordStatus(ctx, req.(*GetVaultPasswordStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_SetVaultMasterPassword_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetVaultMasterPasswordRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).SetVaultMasterPassword(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_SetVaultMasterPassword_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).SetVaultMasterPassword(ctx, req.(*SetVaultMasterPasswordRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Daemon_ForceReindex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ForceReindexRequest)
 	if err := dec(in); err != nil {
@@ -1041,6 +1117,14 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ChangeVaultEmailVerify",
 			Handler:    _Daemon_ChangeVaultEmailVerify_Handler,
+		},
+		{
+			MethodName: "GetVaultPasswordStatus",
+			Handler:    _Daemon_GetVaultPasswordStatus_Handler,
+		},
+		{
+			MethodName: "SetVaultMasterPassword",
+			Handler:    _Daemon_SetVaultMasterPassword_Handler,
 		},
 		{
 			MethodName: "ForceReindex",

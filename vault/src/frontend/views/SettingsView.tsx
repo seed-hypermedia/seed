@@ -3,6 +3,7 @@ import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 import {Button} from '@shm/ui/button'
 import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
+import {SetMasterPasswordDialog} from '@shm/ui/components/set-master-password-dialog'
 import {Separator} from '@shm/ui/separator'
 import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import * as icons from 'lucide-react'
@@ -18,6 +19,8 @@ export function SettingsView() {
   const navigate = navigation.useHashNavigate()
   const effectiveNotificationServerUrl = vaultData?.notificationServerUrl?.trim() || notificationServerUrl
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const hasPassword = !!session?.credentials?.password
 
   return (
     <div className="space-y-6 p-6">
@@ -48,15 +51,9 @@ export function SettingsView() {
           label="Master Password"
           description={session?.credentials?.password ? 'Password is set' : 'No password set'}
           action={
-            session?.credentials?.password ? (
-              <Button variant="secondary" size="sm" onClick={() => navigate('/password/change')} disabled={loading}>
-                Change
-              </Button>
-            ) : (
-              <Button variant="secondary" size="sm" onClick={() => navigate('/password/add')} disabled={loading}>
-                Add Password
-              </Button>
-            )
+            <Button variant="secondary" size="sm" onClick={() => setPasswordDialogOpen(true)} disabled={loading}>
+              {hasPassword ? 'Change' : 'Add Password'}
+            </Button>
           }
         />
 
@@ -106,6 +103,13 @@ export function SettingsView() {
         currentEmail={session?.email}
         onStart={(newEmail) => actions.changeEmailDialogStart(newEmail)}
         onVerify={(code) => actions.changeEmailDialogVerify(code)}
+      />
+
+      <SetMasterPasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        mode={hasPassword ? 'change' : 'set'}
+        onSubmit={(password) => actions.setMasterPasswordDialog(password)}
       />
     </div>
   )
