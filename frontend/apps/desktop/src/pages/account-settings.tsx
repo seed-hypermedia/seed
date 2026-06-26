@@ -60,7 +60,8 @@ import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil, User} from '@shm/ui/icons'
-import {PageTabs, type PageTabItem} from '@shm/ui/page-tabs'
+import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
+import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
 import {Separator} from '@shm/ui/separator'
@@ -69,7 +70,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bell, Import, KeyRound, LogOut, MonitorSmartphone, Plus, RefreshCw, Trash, Vault} from 'lucide-react'
+import {KeyRound, LogOut, RefreshCw, Trash, Vault} from 'lucide-react'
 import React, {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -136,91 +137,36 @@ export default function AccountSettingsPage() {
 
   return (
     <PanelContainer>
-      <div className="flex h-full min-h-0 w-full">
-        {/* Accounts sidebar */}
-        <div className="bg-sidebar flex w-[260px] shrink-0 flex-col border-r border-black/10 dark:border-white/10">
-          <div className="border-b border-black/10 p-2 dark:border-white/10">
-            <button
-              onClick={() => replace({key: 'account-settings', view: 'vault'})}
-              className={cn(
-                'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
-                isVaultSelected
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5',
-              )}
-            >
-              <div className="bg-muted flex size-7 items-center justify-center rounded-full">
-                <Vault className="size-4" />
-              </div>
-              <span className="text-sm font-medium">Vault Settings</span>
-            </button>
+      <AccountSettingsLayout
+        accounts={accountOptions.map((option) => ({
+          id: option.uid,
+          name: option.data.metadata?.name || `?${option.uid.slice(-8)}`,
+          icon: (
+            <HMIcon
+              id={hmId(option.uid)}
+              name={option.data.metadata?.name}
+              icon={option.data.metadata?.icon}
+              size={28}
+            />
+          ),
+        }))}
+        selectedAccountId={selectedUid}
+        isVaultSelected={isVaultSelected}
+        onSelectVault={() => replace({key: 'account-settings', view: 'vault'})}
+        onSelectAccount={selectAccount}
+        onAddAccount={() => createAccountDialog.open({})}
+        onImportKey={() => setImportOpen(true)}
+      >
+        {isVaultSelected ? (
+          <VaultSettings />
+        ) : selectedUid ? (
+          <AccountSettingsDetail accountUid={selectedUid} tab={activeTab} />
+        ) : (
+          <div className="flex h-full items-center justify-center p-8">
+            <SizableText color="muted">No accounts yet. Add one to get started.</SizableText>
           </div>
-          <div className="px-4 py-3">
-            <SizableText size="sm" weight="bold" color="muted">
-              Accounts
-            </SizableText>
-          </div>
-          <div className="flex-1 overflow-y-auto px-2">
-            {accountOptions.map((option) => {
-              const isSelected = option.uid === selectedUid
-              const name = option.data.metadata?.name || `?${option.uid.slice(-8)}`
-              return (
-                <button
-                  key={option.uid}
-                  onClick={() => selectAccount(option.uid)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
-                    isSelected
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'hover:bg-black/5 dark:hover:bg-white/5',
-                  )}
-                >
-                  <HMIcon
-                    id={hmId(option.uid)}
-                    name={option.data.metadata?.name}
-                    icon={option.data.metadata?.icon}
-                    size={28}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
-                </button>
-              )
-            })}
-          </div>
-          <div className="flex flex-col gap-1 border-t border-black/10 p-2 dark:border-white/10">
-            <button
-              onClick={() => createAccountDialog.open({})}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5"
-            >
-              <div className="bg-muted flex size-7 items-center justify-center rounded-full">
-                <Plus className="size-4" />
-              </div>
-              <span className="text-sm font-medium">Add account</span>
-            </button>
-            <button
-              onClick={() => setImportOpen(true)}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-black/5 dark:hover:bg-white/5"
-            >
-              <div className="bg-muted flex size-7 items-center justify-center rounded-full">
-                <Import className="size-4" />
-              </div>
-              <span className="text-sm font-medium">Import key</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Selected account settings */}
-        <div className="min-w-0 flex-1 overflow-y-auto">
-          {isVaultSelected ? (
-            <VaultSettings />
-          ) : selectedUid ? (
-            <AccountSettingsDetail accountUid={selectedUid} tab={activeTab} />
-          ) : (
-            <div className="flex h-full items-center justify-center p-8">
-              <SizableText color="muted">No accounts yet. Add one to get started.</SizableText>
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </AccountSettingsLayout>
       {createAccountDialog.content}
       <ImportKeyDialog
         open={importOpen}
@@ -548,28 +494,16 @@ function VaultSettings() {
 }
 
 function AccountSettingsDetail({accountUid, tab}: {accountUid: string; tab: AccountSettingsTab}) {
-  const tabs: PageTabItem[] = [
-    {key: 'account', label: 'Account', icon: User, route: {key: 'account-settings', accountUid, tab: 'account'}},
-    {
-      key: 'notifications',
-      label: 'Notifications',
-      icon: Bell,
-      route: {key: 'account-settings', accountUid, tab: 'notifications'},
-    },
-    {
-      key: 'devices',
-      label: 'Devices',
-      icon: MonitorSmartphone,
-      route: {key: 'account-settings', accountUid, tab: 'devices'},
-    },
-  ]
-
+  const replace = useNavigate('replace')
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <SizableText size="2xl" weight="bold">
         Account Settings
       </SizableText>
-      <PageTabs tabs={tabs} activeTab={tab} />
+      <AccountSettingsTabs
+        activeTab={tab}
+        onTabChange={(nextTab) => replace({key: 'account-settings', accountUid, tab: nextTab})}
+      />
       {tab === 'account' ? <AccountTab accountUid={accountUid} /> : null}
       {tab === 'notifications' ? <NotificationsTab accountUid={accountUid} /> : null}
       {tab === 'devices' ? <DevicesTab accountUid={accountUid} /> : null}
