@@ -50,16 +50,14 @@ import {
   AlertDialogDescription,
   AlertDialogPortal,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Copy, ExternalLink, Pencil, User} from '@shm/ui/icons'
+import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -70,7 +68,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {KeyRound, LogOut, RefreshCw, Trash, Vault} from 'lucide-react'
+import {KeyRound, LogOut, RefreshCw, Vault} from 'lucide-react'
 import React, {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -790,164 +788,36 @@ function AccountTab({accountUid}: {accountUid: string}) {
       })
   }
 
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
-  const [exportPassword, setExportPassword] = useState('')
-  const [exportError, setExportError] = useState<string | null>(null)
-
-  async function handleExportKey(e?: React.FormEvent) {
-    e?.preventDefault()
-    if (!selectedKey) return
-    setExportError(null)
-    try {
-      const filePath = await pickKeyExportFile(`${accountUid}.hmkey.json`)
-      if (!filePath) return
-      await exportKey.mutateAsync({
-        name: selectedKey.name,
-        filePath,
-        password: exportPassword.length > 0 ? exportPassword : undefined,
-      })
-      setIsExportDialogOpen(false)
-      setExportPassword('')
-      toast.success(`Key exported to ${filePath}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown export error'
-      setExportError(message)
-      toast.error('Failed to export key: ' + message)
-    }
+  async function handleExportKey(password: string) {
+    if (!selectedKey) throw new Error('Key is not available')
+    const filePath = await pickKeyExportFile(`${accountUid}.hmkey.json`)
+    if (!filePath) return
+    await exportKey.mutateAsync({
+      name: selectedKey.name,
+      filePath,
+      password: password.length > 0 ? password : undefined,
+    })
+    toast.success(`Key exported to ${filePath}`)
   }
 
   return (
     <>
-      {/* Account identity card */}
-      <div className="flex items-center gap-4 rounded-xl border border-black/10 p-4 dark:border-white/10">
-        <HMIcon id={hmId(accountUid)} name={name} icon={account.data?.metadata?.icon} size={64} />
-        <div className="min-w-0 flex-1">
-          <SizableText size="lg" weight="bold" className="truncate">
-            {name}
-          </SizableText>
-          <SizableText size="sm" color="muted" className="truncate">
-            {accountUid}
-          </SizableText>
-        </div>
-        <Button variant="outline" onClick={() => editProfileDialog.open({accountUid})}>
-          <Pencil className="size-4" />
-          Edit Profile
-        </Button>
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-col gap-2">
-        <Button
-          variant="outline"
-          className="justify-start"
-          onClick={() => navigate({key: 'profile', id: hmId(accountUid)})}
-        >
-          <User className="size-4" />
-          View public profile
-          <ExternalLink className="ml-auto size-4" />
-        </Button>
-        <Button
-          variant="outline"
-          className="justify-start"
-          onClick={() => {
-            copyTextToClipboard(accountUid)
-            toast.success('Account ID copied to clipboard')
-          }}
-        >
-          <Copy className="size-4" />
-          Copy account ID
-        </Button>
-        <Button
-          variant="outline"
-          className="justify-start"
-          onClick={() => {
-            setExportPassword('')
-            setExportError(null)
-            setIsExportDialogOpen(true)
-          }}
-          disabled={!selectedKey}
-        >
-          <KeyRound className="size-4" />
-          Export key
-        </Button>
-      </div>
-
-      {/* Danger zone */}
-      <div className="border-destructive/30 mt-2 flex flex-col gap-3 rounded-xl border p-4">
-        <div>
-          <SizableText weight="bold" color="destructive">
-            Delete account
-          </SizableText>
-          <SizableText size="sm" color="muted">
-            Permanently remove this account's key from your cloud vault and all your devices.
-          </SizableText>
-        </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" className="self-start">
-              <Trash className="size-4" />
-              Delete account
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogPortal>
-            <AlertDialogContent className="max-w-[600px] gap-4">
-              <AlertDialogTitle className="text-2xl font-bold">Delete account</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the key for <span className="font-medium">{name}</span> from your cloud
-                vault, and it will be removed from all devices where you are signed in. Make sure you have saved this
-                account's Secret Recovery Phrase if you want to recover it later — this cannot be undone.
-              </AlertDialogDescription>
-              <div className="flex justify-end gap-3">
-                <AlertDialogCancel asChild>
-                  <Button variant="ghost">Cancel</Button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button variant="destructive" onClick={handleDeleteAccount} disabled={deleteKey.isPending}>
-                    {deleteKey.isPending ? 'Deleting…' : 'Delete Permanently'}
-                  </Button>
-                </AlertDialogAction>
-              </div>
-            </AlertDialogContent>
-          </AlertDialogPortal>
-        </AlertDialog>
-      </div>
-
-      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-        <DialogContent className="max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Export Key File</DialogTitle>
-            <DialogDescription>
-              Choose whether to protect the exported `.hmkey.json` file with a password.
-            </DialogDescription>
-          </DialogHeader>
-          <form className="flex flex-col gap-4" onSubmit={handleExportKey}>
-            <div className="text-muted-foreground rounded-lg border p-3 text-sm">
-              Exported key files can grant full account control. Use a password whenever possible and store the file
-              securely.
-            </div>
-            {exportError ? <p className="text-destructive text-sm">{exportError}</p> : null}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="export-key-password">Password (optional)</Label>
-              <Input
-                id="export-key-password"
-                type="password"
-                value={exportPassword}
-                onChange={(event) => setExportPassword(event.currentTarget.value)}
-                autoComplete="off"
-                placeholder="Only needed for encrypted exports"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="ghost" onClick={() => setIsExportDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={exportKey.isPending}>
-                {exportKey.isPending ? 'Exporting…' : 'Export Key'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <AccountProfilePanel
+        name={name}
+        accountId={accountUid}
+        avatar={<HMIcon id={hmId(accountUid)} name={name} icon={account.data?.metadata?.icon} size={56} />}
+        onCopyId={() => {
+          copyTextToClipboard(accountUid)
+          toast.success('Account ID copied to clipboard')
+        }}
+        onExport={handleExportKey}
+        exportBusy={exportKey.isPending}
+        canExport={!!selectedKey}
+        onDelete={handleDeleteAccount}
+        deleteBusy={deleteKey.isPending}
+        onEditProfile={() => editProfileDialog.open({accountUid})}
+        onViewPublicProfile={() => navigate({key: 'profile', id: hmId(accountUid)})}
+      />
       {editProfileDialog.content}
     </>
   )

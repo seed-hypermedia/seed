@@ -1,15 +1,23 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
+import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import {getProfileAvatarImageSrc, getProfileDisplayName} from '@/frontend/profile'
+import {
+  type AccountProfileSummary,
+  getProfileAvatarImageSrc,
+  getProfileDisplayName,
+  type ProfileLoadState,
+} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
+import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
+import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
-import {Copy, Monitor, Smartphone, Tablet} from 'lucide-react'
+import {Monitor, Smartphone, Tablet} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {SettingsView} from './SettingsView'
@@ -97,11 +105,17 @@ export function AccountSettingsView() {
             <h1 className="text-2xl font-semibold">Account Settings</h1>
             <AccountSettingsTabs
               activeTab={tab}
-              onTabChange={(nextTab) =>
-                navigate(`/accounts/${encodeURIComponent(selected.principal)}/${nextTab}`)
-              }
+              onTabChange={(nextTab) => navigate(`/accounts/${encodeURIComponent(selected.principal)}/${nextTab}`)}
             />
-            {tab === 'account' ? <AccountTabContent principal={selected.principal} /> : null}
+            {tab === 'account' ? (
+              <AccountTabContent
+                principal={selected.principal}
+                account={selected.account as vault.Account}
+                profile={profiles[selected.principal]}
+                profileLoadState={profileLoadStates[selected.principal]}
+                backendHttpBaseUrl={backendHttpBaseUrl}
+              />
+            ) : null}
             {tab === 'notifications' ? (
               <AccountNotificationsSection
                 seed={selected.account.seed}
@@ -127,41 +141,113 @@ function AccountAvatar({
   avatar,
   name,
   backendHttpBaseUrl,
+  size = 28,
 }: {
   avatar?: string
   name: string
   backendHttpBaseUrl: string
+  size?: number
 }) {
   const src = avatar ? getProfileAvatarImageSrc(backendHttpBaseUrl, avatar) : ''
+  const style = {width: size, height: size}
   if (src) {
-    return <img src={src} alt="" className="size-7 rounded-full object-cover" />
+    return <img src={src} alt="" style={style} className="rounded-full object-cover" />
   }
   return (
-    <div className="bg-muted flex size-7 items-center justify-center rounded-full text-xs font-medium">
+    <div style={style} className="bg-muted flex items-center justify-center rounded-full text-xs font-medium">
       {(name || '?')[0]?.toUpperCase()}
     </div>
   )
 }
 
-function AccountTabContent({principal}: {principal: string}) {
+function AccountTabContent({
+  principal,
+  account,
+  profile,
+  profileLoadState,
+  backendHttpBaseUrl,
+}: {
+  principal: string
+  account: vault.Account
+  profile?: AccountProfileSummary
+  profileLoadState?: ProfileLoadState
+  backendHttpBaseUrl: string
+}) {
+  const actions = useActions()
+  const {loading, error} = useAppState()
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const name = getProfileDisplayName(profile, profileLoadState)
+  const canEditProfile = profileLoadState !== 'unavailable'
+
+  async function handleExport(password: string) {
+    const payload = await keyfile.create({
+      publicKey: principal,
+      key: account.seed,
+      password: password.length > 0 ? password : undefined,
+      profile: profile ? {name: profile.name, description: profile.description} : undefined,
+    })
+    const fileName = `${principal}.hmkey.json`
+    const contents = keyfile.stringify(payload)
+    const blob = new Blob([contents], {type: 'application/json'})
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.style.display = 'none'
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await actions.deleteAccount(principal)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4 rounded-xl border p-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium">Account ID</p>
-          <p className="text-muted-foreground truncate font-mono text-xs">{principal}</p>
-        </div>
-        <button
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
-          onClick={() => {
-            void navigator.clipboard?.writeText(principal)
-          }}
-        >
-          <Copy className="size-4" />
-          Copy
-        </button>
-      </div>
-    </div>
+    <>
+      <AccountProfilePanel
+        name={name}
+        accountId={principal}
+        avatar={
+          <AccountAvatar avatar={profile?.avatar} name={name} backendHttpBaseUrl={backendHttpBaseUrl} size={56} />
+        }
+        onCopyId={() => void navigator.clipboard?.writeText(principal)}
+        onExport={handleExport}
+        onDelete={handleDelete}
+        deleteBusy={deleting}
+        onEditProfile={() => setEditingProfile(true)}
+        editProfileLabel={profile ? 'Edit Profile' : 'Create Profile'}
+        editProfileDisabled={loading || !canEditProfile}
+      />
+      <AccountProfileDialog
+        open={editingProfile}
+        onOpenChange={setEditingProfile}
+        title={profile ? 'Edit Profile' : 'Create Profile'}
+        descriptionText={
+          profile
+            ? 'Update the public profile attached to this Hypermedia identity.'
+            : 'Publish a profile for this Hypermedia identity so apps can display it correctly.'
+        }
+        submitLabel={profile ? 'Save Profile' : 'Create Profile'}
+        loading={loading}
+        error={error}
+        initialName={profile?.name ?? ''}
+        initialDescription={profile?.description ?? ''}
+        initialAvatar={profile?.avatar}
+        onSubmit={async (nextProfile) => {
+          const didUpdate = await actions.updateAccountProfile(principal, nextProfile)
+          if (didUpdate) setEditingProfile(false)
+        }}
+      />
+    </>
   )
 }
 
@@ -179,9 +265,13 @@ function DevicesTabContent({account}: {account: vault.Account}) {
     <div className="flex flex-col gap-2">
       {sessions.map((session) => {
         const delegatePrincipal = blobs.principalToString(session.capability.delegate)
-        const DeviceIcon = session.deviceType === 'mobile' ? Smartphone : session.deviceType === 'tablet' ? Tablet : Monitor
+        const DeviceIcon =
+          session.deviceType === 'mobile' ? Smartphone : session.deviceType === 'tablet' ? Tablet : Monitor
         return (
-          <div key={`${session.clientId}:${delegatePrincipal}`} className="flex items-center gap-3 rounded-xl border p-4">
+          <div
+            key={`${session.clientId}:${delegatePrincipal}`}
+            className="flex items-center gap-3 rounded-xl border p-4"
+          >
             <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
               <DeviceIcon className="size-5" />
             </div>
@@ -189,7 +279,9 @@ function DevicesTabContent({account}: {account: vault.Account}) {
               <p className="truncate text-sm font-medium">{session.clientId}</p>
               <p className="text-muted-foreground truncate font-mono text-xs">{delegatePrincipal}</p>
             </div>
-            <p className="text-muted-foreground shrink-0 text-xs">{new Date(session.createTime).toLocaleDateString()}</p>
+            <p className="text-muted-foreground shrink-0 text-xs">
+              {new Date(session.createTime).toLocaleDateString()}
+            </p>
           </div>
         )
       })}
