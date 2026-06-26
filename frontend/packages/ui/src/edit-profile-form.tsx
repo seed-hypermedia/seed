@@ -21,11 +21,19 @@ export function EditProfileForm({
   defaultValues,
   submitLabel,
   processImage,
+  notificationOption,
 }: {
   onSubmit: (data: SiteMetaFields) => void
   defaultValues?: SiteMetaFields
   submitLabel?: string
   processImage?: (file: File) => Promise<Blob>
+  /** Optional email-notification opt-in shown above the submit button (create flow). */
+  notificationOption?: {
+    label: string
+    description: string
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+  }
 }) {
   const tx = useTxString()
   const form = useForm<SiteMetaFields>({
@@ -51,6 +59,27 @@ export function EditProfileForm({
         <Field id="icon" label={tx('Profile Icon')}>
           <ImageField control={form.control} name="icon" label={tx('Profile Icon')} processImage={processImage} />
         </Field>
+        {notificationOption ? (
+          <div className="rounded-lg border p-4">
+            <div className="flex items-start gap-3">
+              <input
+                id="edit-profile-notification-email"
+                type="checkbox"
+                checked={notificationOption.checked}
+                onChange={(event) => notificationOption.onCheckedChange(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 rounded"
+              />
+              <div className="flex flex-col gap-1">
+                <label htmlFor="edit-profile-notification-email" className="text-sm font-medium">
+                  {notificationOption.label}
+                </label>
+                <SizableText size="sm" color="muted">
+                  {notificationOption.description}
+                </SizableText>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div>
           <Button type="submit" variant="default" size="lg" className={`w-full`}>
             {submitLabel || tx('Save')}
