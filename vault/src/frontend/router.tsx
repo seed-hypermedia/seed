@@ -8,8 +8,6 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './compo
 import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState} from './store'
 import {AddPasswordView} from './views/AddPasswordView'
-import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
-import {ChangeEmailView} from './views/ChangeEmailView'
 import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
 import {ChangePasswordView} from './views/ChangePasswordView'
 import {ChooseAuthView} from './views/ChooseAuthView'
@@ -271,16 +269,8 @@ export function createRouter() {
                     element: <CreateProfileView />,
                   },
                   {
-                    path: '/email/change',
-                    element: <ChangeEmailView />,
-                  },
-                  {
                     path: '/notify-server/change',
                     element: <ChangeNotifyServerUrlView />,
-                  },
-                  {
-                    path: '/email/change-pending',
-                    element: <ChangeEmailPendingView />,
                   },
                   {
                     path: '/delegate',
