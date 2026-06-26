@@ -3,6 +3,8 @@ import {useCreateAccountDialog} from '@/components/create-account'
 import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {
+  useChangeVaultEmailStart,
+  useChangeVaultEmailVerify,
   useDeleteKey,
   useDisconnectVault,
   useExportKey,
@@ -18,8 +20,8 @@ import {
   useVaultPasswordStatus,
   useVaultStatus,
 } from '@/models/daemon'
-import {ChangeVaultEmailDialog} from '@/components/change-vault-email-dialog'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {useOpenUrl} from '@/open-url'
 import {
   useNotificationConfig,
   useRemoveNotificationConfig,
@@ -53,7 +55,6 @@ import {
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Input} from '@shm/ui/components/input'
-import {NotificationServerDialog} from '@shm/ui/components/notification-server-dialog'
 import {Label} from '@shm/ui/components/label'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -61,13 +62,15 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil, User} from '@shm/ui/icons'
 import {PageTabs, type PageTabItem} from '@shm/ui/page-tabs'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
-import {SetMasterPasswordDialog} from '@shm/ui/components/set-master-password-dialog'
+import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
+import {Separator} from '@shm/ui/separator'
+import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bell, Import, KeyRound, LogOut, MonitorSmartphone, Plus, Trash, Vault} from 'lucide-react'
-import React, {useEffect, useId, useState} from 'react'
+import {Bell, Import, KeyRound, LogOut, MonitorSmartphone, Plus, RefreshCw, Trash, Vault} from 'lucide-react'
+import React, {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
   const route = useNavRoute()
@@ -282,6 +285,7 @@ function VaultSettings() {
   const forceVaultSync = useForceVaultSync()
   const logout = useLogout()
   const authDialog = useDesktopAuthDialog()
+  const openUrl = useOpenUrl()
   const {setSelectedIdentity} = useUniversalAppContext()
   const id = useId()
 
@@ -294,16 +298,27 @@ function VaultSettings() {
   const setMasterPassword = useSetVaultMasterPassword()
   const notifyServer = useVaultNotificationServer()
   const setNotifyServer = useSetVaultNotificationServer()
+  const changeEmailStart = useChangeVaultEmailStart()
+  const changeEmailVerify = useChangeVaultEmailVerify()
+  const emailBinding = useRef('')
 
   const notifyDefault = NOTIFY_SERVICE_HOST || 'https://notify.seed.hyper.media'
   const notifyOverride = notifyServer.data || ''
-  const notifyEffective = notifyOverride || notifyDefault
+  const remoteVaultUrl = data?.remoteVaultUrl || ''
+  const passkeyManageUrl = remoteVaultUrl ? `${remoteVaultUrl.replace(/\/+$/, '')}/settings` : ''
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
-  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
+
+  // Shared notify-server config (the synced vault-state value) — always editable.
+  const notifyConfig = {
+    url: notifyOverride,
+    defaultUrl: notifyDefault,
+    onSave: async (url: string) => {
+      await setNotifyServer.mutateAsync({url})
+      toast.success('Notify server URL saved')
+    },
+  }
 
   useEffect(() => {
     setSelectedMode(isRemoteBackend ? 'remote' : 'local')
@@ -386,133 +401,125 @@ function VaultSettings() {
           <Spinner />
         </div>
       ) : (
-        <div className="flex flex-col gap-4 rounded-xl border border-black/10 p-4 dark:border-white/10">
-          <div className="flex flex-col gap-2">
-            <SizableText weight="bold">Identity key storage</SizableText>
-            <SizableText size="sm" color="muted">
-              {selectedMode === 'remote'
-                ? 'Your encrypted vault syncs to a remote server for multi-device continuity.'
-                : 'Your encrypted vault is stored on this device only.'}
-            </SizableText>
-            <RadioGroup
-              value={selectedMode}
-              onValueChange={(value) => handleModeChange(value === 'remote' ? 'remote' : 'local')}
-              className="mt-1 flex items-center gap-4"
-            >
-              <div className="flex items-center gap-1.5">
-                <RadioGroupItem value="local" id={`${id}-local`} disabled={isPending} />
-                <Label htmlFor={`${id}-local`} className="text-sm">
-                  Local
-                </Label>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <RadioGroupItem value="remote" id={`${id}-remote`} disabled={isPending} />
-                <Label htmlFor={`${id}-remote`} className="text-sm">
-                  Remote
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {selectedMode === 'remote' ? (
-            <div className="flex flex-col gap-3 border-t border-black/10 pt-4 dark:border-white/10">
-              {isConnected ? (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="vault-remote-url">Remote vault URL</Label>
-                    <Input id="vault-remote-url" value={data?.remoteVaultUrl || ''} readOnly disabled />
-                    <SizableText size="xs" color="muted">
-                      Connected — log out to change the vault URL.
-                    </SizableText>
+        <>
+          <SettingsSection label="STORAGE">
+            <SettingsRow
+              icon={<Vault />}
+              label="Identity key storage"
+              description={
+                selectedMode === 'remote'
+                  ? 'Synced to a remote server for multi-device continuity.'
+                  : 'Stored on this device only.'
+              }
+              action={
+                <RadioGroup
+                  value={selectedMode}
+                  onValueChange={(value) => handleModeChange(value === 'remote' ? 'remote' : 'local')}
+                  className="flex items-center gap-4"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="local" id={`${id}-local`} disabled={isPending} />
+                    <Label htmlFor={`${id}-local`} className="text-sm">
+                      Local
+                    </Label>
                   </div>
-                  <InfoRow label="Connection" value="Connected" />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <SizableText size="sm" color="muted">
-                        Email address
-                      </SizableText>
-                      <SizableText size="sm" className="truncate">
-                        {vaultEmail.isLoading && !vaultEmail.data ? '…' : vaultEmail.data || 'Not set'}
-                      </SizableText>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => setEmailDialogOpen(true)} disabled={isPending}>
-                      Change
-                    </Button>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="remote" id={`${id}-remote`} disabled={isPending} />
+                    <Label htmlFor={`${id}-remote`} className="text-sm">
+                      Remote
+                    </Label>
                   </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <SizableText size="sm" color="muted">
-                        Master password
-                      </SizableText>
-                      <SizableText size="sm" className="truncate">
-                        {passwordStatus.isLoading && passwordStatus.data === undefined
-                          ? '…'
-                          : passwordStatus.data
-                            ? 'Password is set'
-                            : 'No password set'}
-                      </SizableText>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPasswordDialogOpen(true)}
-                      disabled={isPending}
-                    >
-                      {passwordStatus.data ? 'Change' : 'Set'}
-                    </Button>
-                  </div>
-                  {syncStatus?.lastSyncTime ? (
-                    <InfoRow label="Last sync" value={formattedDate(syncStatus.lastSyncTime)} />
-                  ) : null}
-                  {syncStatus?.lastSyncError ? (
-                    <InfoRow label="Sync error" value={syncStatus.lastSyncError} destructive />
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={handleForceSync} disabled={isPending}>
+                </RadioGroup>
+              }
+            />
+            {isConnected ? (
+              <>
+                <Separator />
+                <SettingsRow icon={<Vault />} label="Remote vault" description={remoteVaultUrl || 'Connected'} />
+                <Separator />
+                <SettingsRow
+                  icon={<RefreshCw />}
+                  label="Sync"
+                  description={
+                    syncStatus?.lastSyncError
+                      ? syncStatus.lastSyncError
+                      : syncStatus?.lastSyncTime
+                        ? `Last synced ${formattedDate(syncStatus.lastSyncTime)}`
+                        : 'Force a sync with the remote vault now.'
+                  }
+                  action={
+                    <Button variant="secondary" size="sm" onClick={handleForceSync} disabled={isPending}>
                       {forceVaultSync.isPending ? 'Syncing…' : 'Sync now'}
                     </Button>
-                    <Button variant="destructive" onClick={() => setLogoutOpen(true)} disabled={isPending}>
-                      <LogOut className="size-4" />
-                      Log out
+                  }
+                />
+              </>
+            ) : selectedMode === 'remote' ? (
+              <>
+                <Separator />
+                <SettingsRow
+                  icon={<Vault />}
+                  label="Not connected"
+                  description="Sign in to sync your identities across devices."
+                  action={
+                    <Button variant="secondary" size="sm" onClick={openConnectDialog}>
+                      Connect
                     </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <SizableText size="sm" color="muted">
-                    Not connected to a remote vault. Sign in to sync your identities across devices.
-                  </SizableText>
-                  <div className="flex">
-                    <Button onClick={openConnectDialog}>Connect remote vault</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
+                  }
+                />
+              </>
+            ) : null}
+          </SettingsSection>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-        <div>
-          <SizableText weight="bold">Notifications</SizableText>
-          <SizableText size="sm" color="muted">
-            The server that relays your notification emails and push notifications.
-          </SizableText>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <SizableText size="sm" color="muted">
-              Notify server URL
-            </SizableText>
-            <SizableText size="sm" className="truncate font-mono">
-              {notifyEffective}
-            </SizableText>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setNotifyDialogOpen(true)}>
-            Change
-          </Button>
-        </div>
-      </div>
+          {isConnected ? (
+            <VaultSecuritySettings
+              passkey={{
+                description: 'Passkeys are managed in your browser.',
+                actionLabel: 'Manage in browser',
+                onAction: () => passkeyManageUrl && openUrl(passkeyManageUrl),
+              }}
+              password={{
+                isSet: !!passwordStatus.data,
+                onSet: async (password) => {
+                  await setMasterPassword.mutateAsync({password})
+                  toast.success(passwordStatus.data ? 'Master password changed' : 'Master password set')
+                },
+              }}
+              notify={notifyConfig}
+              email={{
+                address: vaultEmail.data,
+                onStart: async (newEmail) => {
+                  const result = await changeEmailStart.mutateAsync({newEmail})
+                  emailBinding.current = result.binding
+                  return {expireTimeMs: result.expireTimeMs}
+                },
+                onVerify: async (code) => {
+                  const updated = await changeEmailVerify.mutateAsync({code, binding: emailBinding.current})
+                  toast.success(`Email changed to ${updated}`)
+                },
+              }}
+              disabled={isPending}
+            />
+          ) : (
+            <VaultSecuritySettings notify={notifyConfig} disabled={isPending} />
+          )}
+
+          {isConnected ? (
+            <SettingsSection label="REMOTE VAULT">
+              <SettingsRow
+                icon={<LogOut />}
+                label="Log out"
+                description="Disconnect and remove all local keys from this device (zero accounts)."
+                action={
+                  <Button variant="destructive" size="sm" onClick={() => setLogoutOpen(true)} disabled={isPending}>
+                    Log out
+                  </Button>
+                }
+              />
+            </SettingsSection>
+          ) : null}
+        </>
+      )}
 
       <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <AlertDialogPortal>
@@ -535,54 +542,7 @@ function VaultSettings() {
           </AlertDialogContent>
         </AlertDialogPortal>
       </AlertDialog>
-      <ChangeVaultEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} currentEmail={vaultEmail.data} />
-      <NotificationServerDialog
-        open={notifyDialogOpen}
-        onOpenChange={setNotifyDialogOpen}
-        currentUrl={notifyOverride}
-        defaultUrl={notifyDefault}
-        onSave={async (url) => {
-          await setNotifyServer.mutateAsync({url})
-          toast.success('Notify server URL saved')
-        }}
-      />
-      <SetMasterPasswordDialog
-        open={passwordDialogOpen}
-        onOpenChange={setPasswordDialogOpen}
-        mode={passwordStatus.data ? 'change' : 'set'}
-        onSubmit={async (password) => {
-          await setMasterPassword.mutateAsync({password})
-          toast.success(passwordStatus.data ? 'Master password changed' : 'Master password set')
-        }}
-      />
       {authDialog.content}
-    </div>
-  )
-}
-
-function InfoRow({
-  label,
-  value,
-  mono,
-  destructive,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-  destructive?: boolean
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <SizableText size="sm" color="muted">
-        {label}
-      </SizableText>
-      <SizableText
-        size="sm"
-        color={destructive ? 'destructive' : 'default'}
-        className={cn('text-right', mono && 'font-mono break-all')}
-      >
-        {value}
-      </SizableText>
     </div>
   )
 }
