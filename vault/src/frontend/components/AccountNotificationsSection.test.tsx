@@ -129,9 +129,9 @@ describe('AccountNotificationsSection', () => {
       )
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Register Account'})).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Register account'})).toBeDefined()
       })
-      expect(screen.queryByRole('button', {name: 'Set Notification Email'})).toBeNull()
+      expect(screen.queryByRole('button', {name: 'Set Email'})).toBeNull()
     } finally {
       global.fetch = originalFetch
     }
@@ -153,19 +153,19 @@ describe('AccountNotificationsSection', () => {
       )
 
       await waitFor(() => {
-        expect((screen.getByRole('button', {name: 'Register Account'}) as HTMLButtonElement).disabled).toBe(false)
+        expect((screen.getByRole('button', {name: 'Register account'}) as HTMLButtonElement).disabled).toBe(false)
       })
 
-      fireEvent.click(screen.getByRole('button', {name: 'Register Account'}))
+      fireEvent.click(screen.getByRole('button', {name: 'Register account'}))
 
       await waitFor(() => {
         expect(screen.getByText('Registering this account with notify.example.com...')).toBeDefined()
       })
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
       })
-      expect(screen.getByText('This account is registered with notify.example.com.')).toBeDefined()
+      expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
       expect(countRequestPayloads(fetchMock, 'get-notification-config')).toBeGreaterThanOrEqual(3)
       expect(findRequestPayload(fetchMock, 'register-inbox')).toEqual(
         expect.objectContaining({
@@ -194,18 +194,19 @@ describe('AccountNotificationsSection', () => {
         />,
       )
 
+      // Registered without an email: the shared component shows an email form
+      // prefilled with the vault session email; submitting saves that address.
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
       })
 
-      fireEvent.click(screen.getByRole('button', {name: 'Set Notification Email'}))
+      fireEvent.click(screen.getByRole('button', {name: 'Set Email'}))
 
       await waitFor(() => {
         expect(screen.getByText('test@example.com')).toBeDefined()
       })
-      expect(screen.queryByLabelText('Notification Email')).toBeNull()
-      expect(screen.getByText('This account is registered with notify.example.com.')).toBeDefined()
-      expect(screen.queryByRole('button', {name: 'Edit Email'})).toBeNull()
+      expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
+      expect(screen.getByRole('button', {name: 'Edit Email'})).toBeDefined()
       expect(findRequestPayload(fetchMock, 'set-notification-config')).toEqual(
         expect.objectContaining({
           action: 'set-notification-config',
@@ -243,7 +244,7 @@ describe('AccountNotificationsSection', () => {
       fireEvent.click(screen.getByRole('button', {name: 'Remove Email'}))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
       })
       expect(findRequestPayload(fetchMock, 'remove-notification-config')).toEqual(
         expect.objectContaining({
@@ -388,8 +389,8 @@ describe('AccountNotificationsSection', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('This account is registered with notify.example.com.')).toBeDefined()
-        expect(screen.getByRole('button', {name: 'Set Notification Email'})).toBeDefined()
+        expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
+        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
         expect(countRequestPayloads(pollingFetchMock, 'get-notification-config')).toBeGreaterThanOrEqual(2)
       })
     } finally {
