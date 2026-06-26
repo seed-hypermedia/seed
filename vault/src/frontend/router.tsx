@@ -7,6 +7,7 @@ import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState} from './store'
+import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
@@ -14,7 +15,6 @@ import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
 import {SetPasswordView} from './views/SetPasswordView'
-import {VaultView} from './views/VaultView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
 /**
@@ -183,7 +183,7 @@ function RootView() {
 
     return (
       <div className="w-full max-w-5xl">
-        <VaultView />
+        <AccountSettingsView />
       </div>
     )
   }
@@ -286,7 +286,15 @@ export function createRouter() {
                 children: [
                   {
                     path: '/settings',
-                    element: <VaultView initialTab="settings" />,
+                    element: <AccountSettingsView />,
+                  },
+                  {
+                    path: '/accounts/:accountId',
+                    element: <AccountSettingsView />,
+                  },
+                  {
+                    path: '/accounts/:accountId/:tab',
+                    element: <AccountSettingsView />,
                   },
                 ],
               },
