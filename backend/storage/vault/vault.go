@@ -952,6 +952,39 @@ func (ks *Vault) DisconnectAndClear() error {
 	return nil
 }
 
+// GetVaultNotificationServerURL returns the notification server URL stored in
+// the (synced) vault state, or empty when using the default.
+func (ks *Vault) GetVaultNotificationServerURL() (string, error) {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	snapshot, err := ks.loadSnapshotLocked()
+	if err != nil {
+		return "", err
+	}
+	return snapshot.State.NotificationServerURL, nil
+}
+
+// SetVaultNotificationServerURL stores the notification server URL in the vault
+// state and schedules a remote sync so it propagates to other devices and the
+// web vault.
+func (ks *Vault) SetVaultNotificationServerURL(url string) error {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
+		if state.NotificationServerURL == url {
+			return false, nil
+		}
+		state.NotificationServerURL = url
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	if shouldSync {
+		ks.scheduleRemoteSync()
+	}
+	return nil
+}
+
 func (ks *Vault) applyMutation(fn func(state *State) (bool, error)) (shouldSync bool, err error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()

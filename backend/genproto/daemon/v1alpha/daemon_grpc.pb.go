@@ -20,33 +20,35 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Daemon_GenMnemonic_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/GenMnemonic"
-	Daemon_RegisterKey_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
-	Daemon_ImportKey_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
-	Daemon_ExportKey_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
-	Daemon_GetInfo_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
-	Daemon_Authenticate_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/Authenticate"
-	Daemon_GetVaultStatus_FullMethodName         = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
-	Daemon_StartVaultConnection_FullMethodName   = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
-	Daemon_DisconnectVault_FullMethodName        = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
-	Daemon_ForceSync_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
-	Daemon_GetVaultEmail_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/GetVaultEmail"
-	Daemon_ChangeVaultEmailStart_FullMethodName  = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailStart"
-	Daemon_ChangeVaultEmailVerify_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailVerify"
-	Daemon_GetVaultPasswordStatus_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/GetVaultPasswordStatus"
-	Daemon_SetVaultMasterPassword_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/SetVaultMasterPassword"
-	Daemon_ForceReindex_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
-	Daemon_ListKeys_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
-	Daemon_UpdateKey_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
-	Daemon_DeleteKey_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
-	Daemon_DeleteAllKeys_FullMethodName          = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
-	Daemon_StoreBlobs_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
-	Daemon_SignData_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/SignData"
-	Daemon_GetDomain_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/GetDomain"
-	Daemon_ListDomains_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ListDomains"
-	Daemon_AddDomain_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/AddDomain"
-	Daemon_RemoveDomain_FullMethodName           = "/com.seed.daemon.v1alpha.Daemon/RemoveDomain"
-	Daemon_CheckDomain_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/CheckDomain"
+	Daemon_GenMnemonic_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/GenMnemonic"
+	Daemon_RegisterKey_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
+	Daemon_ImportKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/ImportKey"
+	Daemon_ExportKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/ExportKey"
+	Daemon_GetInfo_FullMethodName                    = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
+	Daemon_Authenticate_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/Authenticate"
+	Daemon_GetVaultStatus_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/GetVaultStatus"
+	Daemon_StartVaultConnection_FullMethodName       = "/com.seed.daemon.v1alpha.Daemon/StartVaultConnection"
+	Daemon_DisconnectVault_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/DisconnectVault"
+	Daemon_ForceSync_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
+	Daemon_GetVaultEmail_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/GetVaultEmail"
+	Daemon_ChangeVaultEmailStart_FullMethodName      = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailStart"
+	Daemon_ChangeVaultEmailVerify_FullMethodName     = "/com.seed.daemon.v1alpha.Daemon/ChangeVaultEmailVerify"
+	Daemon_GetVaultPasswordStatus_FullMethodName     = "/com.seed.daemon.v1alpha.Daemon/GetVaultPasswordStatus"
+	Daemon_SetVaultMasterPassword_FullMethodName     = "/com.seed.daemon.v1alpha.Daemon/SetVaultMasterPassword"
+	Daemon_GetVaultNotificationServer_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/GetVaultNotificationServer"
+	Daemon_SetVaultNotificationServer_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/SetVaultNotificationServer"
+	Daemon_ForceReindex_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
+	Daemon_ListKeys_FullMethodName                   = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
+	Daemon_UpdateKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
+	Daemon_DeleteKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
+	Daemon_DeleteAllKeys_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
+	Daemon_StoreBlobs_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
+	Daemon_SignData_FullMethodName                   = "/com.seed.daemon.v1alpha.Daemon/SignData"
+	Daemon_GetDomain_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/GetDomain"
+	Daemon_ListDomains_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListDomains"
+	Daemon_AddDomain_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/AddDomain"
+	Daemon_RemoveDomain_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/RemoveDomain"
+	Daemon_CheckDomain_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/CheckDomain"
 )
 
 // DaemonClient is the client API for Daemon service.
@@ -91,6 +93,11 @@ type DaemonClient interface {
 	// daemon derives the credential from the in-daemon DEK; the plaintext password
 	// is never sent to the vault server.
 	SetVaultMasterPassword(ctx context.Context, in *SetVaultMasterPasswordRequest, opts ...grpc.CallOption) (*SetVaultMasterPasswordResponse, error)
+	// Gets the notification server URL stored in the (synced) vault state.
+	GetVaultNotificationServer(ctx context.Context, in *GetVaultNotificationServerRequest, opts ...grpc.CallOption) (*GetVaultNotificationServerResponse, error)
+	// Sets the notification server URL in the vault state and syncs it to the
+	// remote vault, so it stays consistent across devices and the web vault.
+	SetVaultNotificationServer(ctx context.Context, in *SetVaultNotificationServerRequest, opts ...grpc.CallOption) (*SetVaultNotificationServerResponse, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -276,6 +283,26 @@ func (c *daemonClient) SetVaultMasterPassword(ctx context.Context, in *SetVaultM
 	return out, nil
 }
 
+func (c *daemonClient) GetVaultNotificationServer(ctx context.Context, in *GetVaultNotificationServerRequest, opts ...grpc.CallOption) (*GetVaultNotificationServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVaultNotificationServerResponse)
+	err := c.cc.Invoke(ctx, Daemon_GetVaultNotificationServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *daemonClient) SetVaultNotificationServer(ctx context.Context, in *SetVaultNotificationServerRequest, opts ...grpc.CallOption) (*SetVaultNotificationServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetVaultNotificationServerResponse)
+	err := c.cc.Invoke(ctx, Daemon_SetVaultNotificationServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *daemonClient) ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ForceReindexResponse)
@@ -438,6 +465,11 @@ type DaemonServer interface {
 	// daemon derives the credential from the in-daemon DEK; the plaintext password
 	// is never sent to the vault server.
 	SetVaultMasterPassword(context.Context, *SetVaultMasterPasswordRequest) (*SetVaultMasterPasswordResponse, error)
+	// Gets the notification server URL stored in the (synced) vault state.
+	GetVaultNotificationServer(context.Context, *GetVaultNotificationServerRequest) (*GetVaultNotificationServerResponse, error)
+	// Sets the notification server URL in the vault state and syncs it to the
+	// remote vault, so it stays consistent across devices and the web vault.
+	SetVaultNotificationServer(context.Context, *SetVaultNotificationServerRequest) (*SetVaultNotificationServerResponse, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -516,6 +548,12 @@ func (UnimplementedDaemonServer) GetVaultPasswordStatus(context.Context, *GetVau
 }
 func (UnimplementedDaemonServer) SetVaultMasterPassword(context.Context, *SetVaultMasterPasswordRequest) (*SetVaultMasterPasswordResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetVaultMasterPassword not implemented")
+}
+func (UnimplementedDaemonServer) GetVaultNotificationServer(context.Context, *GetVaultNotificationServerRequest) (*GetVaultNotificationServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVaultNotificationServer not implemented")
+}
+func (UnimplementedDaemonServer) SetVaultNotificationServer(context.Context, *SetVaultNotificationServerRequest) (*SetVaultNotificationServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetVaultNotificationServer not implemented")
 }
 func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
@@ -843,6 +881,42 @@ func _Daemon_SetVaultMasterPassword_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Daemon_GetVaultNotificationServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVaultNotificationServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).GetVaultNotificationServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_GetVaultNotificationServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).GetVaultNotificationServer(ctx, req.(*GetVaultNotificationServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Daemon_SetVaultNotificationServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetVaultNotificationServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DaemonServer).SetVaultNotificationServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Daemon_SetVaultNotificationServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DaemonServer).SetVaultNotificationServer(ctx, req.(*SetVaultNotificationServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Daemon_ForceReindex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ForceReindexRequest)
 	if err := dec(in); err != nil {
@@ -1125,6 +1199,14 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetVaultMasterPassword",
 			Handler:    _Daemon_SetVaultMasterPassword_Handler,
+		},
+		{
+			MethodName: "GetVaultNotificationServer",
+			Handler:    _Daemon_GetVaultNotificationServer_Handler,
+		},
+		{
+			MethodName: "SetVaultNotificationServer",
+			Handler:    _Daemon_SetVaultNotificationServer_Handler,
 		},
 		{
 			MethodName: "ForceReindex",

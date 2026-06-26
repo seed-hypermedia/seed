@@ -1,3 +1,4 @@
+import {useVaultNotificationServer} from '@/models/daemon'
 import {client} from '@/trpc'
 import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -43,14 +44,22 @@ export function useSetGatewayUrl() {
   return setGatewayUrl
 }
 
-/** Returns the configured notify-service host, or `undefined` while still loading. */
+/**
+ * Returns the effective notify-service host, or `undefined` while still loading.
+ *
+ * The notification server URL stored in the vault state (synced with the web
+ * vault and other devices) takes precedence, falling back to the local app
+ * setting and then the build-time default. Writing it via
+ * `useSetVaultNotificationServer` keeps it consistent everywhere.
+ */
 export function useNotifyServiceHost() {
   const notifyServiceHost = useQuery({
     queryKey: [queryKeys.NOTIFY_SERVICE_HOST],
     queryFn: () => client.gatewaySettings.getNotifyServiceHost.query(),
   })
-  if (!notifyServiceHost.isFetched) return undefined
-  return notifyServiceHost.data || NOTIFY_SERVICE_HOST
+  const vaultNotifyServer = useVaultNotificationServer()
+  if (!notifyServiceHost.isFetched || !vaultNotifyServer.isFetched) return undefined
+  return vaultNotifyServer.data || notifyServiceHost.data || NOTIFY_SERVICE_HOST
 }
 
 export function useSetNotifyServiceHost() {

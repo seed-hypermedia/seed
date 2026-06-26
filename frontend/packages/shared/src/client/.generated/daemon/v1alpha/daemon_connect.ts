@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -183,6 +183,29 @@ export const Daemon = {
       name: "SetVaultMasterPassword",
       I: SetVaultMasterPasswordRequest,
       O: SetVaultMasterPasswordResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets the notification server URL stored in the (synced) vault state.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultNotificationServer
+     */
+    getVaultNotificationServer: {
+      name: "GetVaultNotificationServer",
+      I: GetVaultNotificationServerRequest,
+      O: GetVaultNotificationServerResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Sets the notification server URL in the vault state and syncs it to the
+     * remote vault, so it stays consistent across devices and the web vault.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SetVaultNotificationServer
+     */
+    setVaultNotificationServer: {
+      name: "SetVaultNotificationServer",
+      I: SetVaultNotificationServerRequest,
+      O: SetVaultNotificationServerResponse,
       kind: MethodKind.Unary,
     },
     /**

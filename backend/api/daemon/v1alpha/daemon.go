@@ -763,6 +763,31 @@ func (srv *Server) SetVaultMasterPassword(ctx context.Context, in *daemon.SetVau
 	return &daemon.SetVaultMasterPasswordResponse{}, nil
 }
 
+// GetVaultNotificationServer implements the corresponding gRPC method.
+func (srv *Server) GetVaultNotificationServer(_ context.Context, _ *daemon.GetVaultNotificationServerRequest) (*daemon.GetVaultNotificationServerResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	url, err := vlt.GetVaultNotificationServerURL()
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultNotificationServerResponse{Url: url}, nil
+}
+
+// SetVaultNotificationServer implements the corresponding gRPC method.
+func (srv *Server) SetVaultNotificationServer(_ context.Context, in *daemon.SetVaultNotificationServerRequest) (*daemon.SetVaultNotificationServerResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	if err := vlt.SetVaultNotificationServerURL(in.Url); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.SetVaultNotificationServerResponse{}, nil
+}
+
 // DisconnectVault implements the corresponding gRPC method.
 func (srv *Server) DisconnectVault(_ context.Context, req *daemon.DisconnectVaultRequest) (*emptypb.Empty, error) {
 	vlt, err := srv.store.Vault()
