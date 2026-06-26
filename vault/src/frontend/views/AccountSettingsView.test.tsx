@@ -1,7 +1,7 @@
 import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createSuccessMockClient} from '@/frontend/test-utils'
 import * as blobs from '@shm/shared/blobs'
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {afterEach, describe, expect, mock, test} from 'bun:test'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {AccountSettingsView} from './AccountSettingsView'
@@ -89,6 +89,34 @@ describe('AccountSettingsView', () => {
       await waitFor(() => {
         expect(store.state.selectedAccountIndex).toBe(1)
       })
+    } finally {
+      global.fetch = originalFetch
+    }
+  })
+
+  test('restores the hash account after unlock instead of redirecting while loading', async () => {
+    // Simulates the unlock gap: the view mounts (decryptedDEK set) before
+    // loadVaultData populates the accounts. The restored hash must survive so the
+    // user lands back on the same account.
+    const originalFetch = global.fetch
+    global.fetch = mock(async () => new Response('{}', {status: 200})) as unknown as typeof fetch
+    const {store, principals} = createVaultStore()
+    const loadedVault = store.state.vaultData
+    store.state.vaultData = null
+
+    try {
+      renderAt(accountEntry(principals[1]!), store)
+
+      // Vault data arrives a tick later.
+      await act(async () => {
+        store.state.vaultData = loadedVault
+      })
+
+      await waitFor(() => {
+        expect(store.state.selectedAccountIndex).toBe(1)
+      })
+      // Did not get bounced to Vault Settings.
+      expect(screen.queryByText('Security')).toBeNull()
     } finally {
       global.fetch = originalFetch
     }
