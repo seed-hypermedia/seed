@@ -30,11 +30,9 @@ import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonic
 import {useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
-  useNotifyServiceHost,
   usePushOnCopy,
   usePushOnPublish,
   useSetGatewayUrl,
-  useSetNotifyServiceHost,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
@@ -1139,12 +1137,9 @@ const EXPERIMENTS: ExperimentType[] = []
 
 function GatewaySettings() {
   const gatewayUrl = useGatewayUrl()
-  const notifyServiceHost = useNotifyServiceHost()
 
   const setGatewayUrl = useSetGatewayUrl()
-  const setNotifyServiceHost = useSetNotifyServiceHost()
   const [gwUrl, setGWUrl] = useState('')
-  const [notifyHost, setNotifyHost] = useState('')
 
   useEffect(() => {
     if (gatewayUrl.data) {
@@ -1152,14 +1147,7 @@ function GatewaySettings() {
     }
   }, [gatewayUrl.data])
 
-  useEffect(() => {
-    if (notifyServiceHost !== undefined) {
-      setNotifyHost(notifyServiceHost)
-    }
-  }, [notifyServiceHost])
-
   const gwChanged = gwUrl !== (gatewayUrl.data || '')
-  const notifyChanged = notifyHost !== (notifyServiceHost || '')
 
   return (
     <>
@@ -1181,33 +1169,6 @@ function GatewaySettings() {
                   onClick={() => {
                     setGatewayUrl.mutate(gwUrl)
                     toast.success('Gateway URL saved!')
-                  }}
-                >
-                  Save
-                </Button>
-              ) : null}
-            </div>
-          }
-        />
-        <Separator />
-        <SettingsRow
-          label="Notify service host"
-          description="Push notification relay server"
-          right={
-            <div className="relative w-[220px]">
-              <Input
-                className={cn('w-full', notifyChanged && 'pr-14')}
-                value={notifyHost}
-                onChangeText={setNotifyHost}
-              />
-              {notifyChanged ? (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  className="absolute top-1/2 right-1 -translate-y-1/2"
-                  onClick={() => {
-                    setNotifyServiceHost.mutate(notifyHost)
-                    toast.success('Notify service host saved!')
                   }}
                 >
                   Save

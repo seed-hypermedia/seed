@@ -1176,6 +1176,154 @@ export class SetVaultMasterPasswordResponse extends Message<SetVaultMasterPasswo
 }
 
 /**
+ * Request for the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultNotificationServerRequest
+ */
+export class GetVaultNotificationServerRequest extends Message<GetVaultNotificationServerRequest> {
+  constructor(data?: PartialMessage<GetVaultNotificationServerRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultNotificationServerRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultNotificationServerRequest | PlainMessage<GetVaultNotificationServerRequest> | undefined, b: GetVaultNotificationServerRequest | PlainMessage<GetVaultNotificationServerRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultNotificationServerRequest, a, b);
+  }
+}
+
+/**
+ * Response with the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultNotificationServerResponse
+ */
+export class GetVaultNotificationServerResponse extends Message<GetVaultNotificationServerResponse> {
+  /**
+   * The notification server URL from the vault state. Empty when using the default.
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  constructor(data?: PartialMessage<GetVaultNotificationServerResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultNotificationServerResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultNotificationServerResponse | PlainMessage<GetVaultNotificationServerResponse> | undefined, b: GetVaultNotificationServerResponse | PlainMessage<GetVaultNotificationServerResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultNotificationServerResponse, a, b);
+  }
+}
+
+/**
+ * Request to set the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultNotificationServerRequest
+ */
+export class SetVaultNotificationServerRequest extends Message<SetVaultNotificationServerRequest> {
+  /**
+   * The notification server URL to store in the vault state. Empty uses the default.
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  constructor(data?: PartialMessage<SetVaultNotificationServerRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultNotificationServerRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultNotificationServerRequest | PlainMessage<SetVaultNotificationServerRequest> | undefined, b: SetVaultNotificationServerRequest | PlainMessage<SetVaultNotificationServerRequest> | undefined): boolean {
+    return proto3.util.equals(SetVaultNotificationServerRequest, a, b);
+  }
+}
+
+/**
+ * Response after setting the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultNotificationServerResponse
+ */
+export class SetVaultNotificationServerResponse extends Message<SetVaultNotificationServerResponse> {
+  constructor(data?: PartialMessage<SetVaultNotificationServerResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultNotificationServerResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultNotificationServerResponse | PlainMessage<SetVaultNotificationServerResponse> | undefined, b: SetVaultNotificationServerResponse | PlainMessage<SetVaultNotificationServerResponse> | undefined): boolean {
+    return proto3.util.equals(SetVaultNotificationServerResponse, a, b);
+  }
+}
+
+/**
  * Request to force reindexing of the entire database.
  *
  * @generated from message com.seed.daemon.v1alpha.ForceReindexRequest

@@ -1166,6 +1166,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /**
+     * Best-effort poll for vault changes made elsewhere (e.g. on the desktop
+     * app). Uses knownVersion so the server replies "unchanged" when nothing
+     * changed; otherwise re-hydrates the vault from the fresh server data.
+     * Skipped while another load/save is in flight to avoid clobbering.
+     */
+    async refreshVaultData() {
+      if (!state.decryptedDEK || !state.vaultLoaded || pendingVaultLoad || state.loading) {
+        return
+      }
+      try {
+        const response = await client.getVault({knownVersion: state.vaultVersion})
+        if (!isVaultDataResponse(response)) {
+          return
+        }
+        if ((response.version ?? 0) === state.vaultVersion) {
+          return
+        }
+        await ensureVaultLoaded(response)
+      } catch (error) {
+        console.error('Vault refresh poll failed:', error)
+      }
+    },
+
     async saveVaultData() {
       if (!state.decryptedDEK || !state.vaultData) {
         state.error = 'Vault must be unlocked first'

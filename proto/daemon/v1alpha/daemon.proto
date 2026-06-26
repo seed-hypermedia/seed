@@ -60,6 +60,13 @@ service Daemon {
   // is never sent to the vault server.
   rpc SetVaultMasterPassword(SetVaultMasterPasswordRequest) returns (SetVaultMasterPasswordResponse);
 
+  // Gets the notification server URL stored in the (synced) vault state.
+  rpc GetVaultNotificationServer(GetVaultNotificationServerRequest) returns (GetVaultNotificationServerResponse);
+
+  // Sets the notification server URL in the vault state and syncs it to the
+  // remote vault, so it stays consistent across devices and the web vault.
+  rpc SetVaultNotificationServer(SetVaultNotificationServerRequest) returns (SetVaultNotificationServerResponse);
+
   // Forces the daemon to reindex the entire database.
   rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
 
@@ -271,6 +278,24 @@ message SetVaultMasterPasswordRequest {
 
 // Response after setting or changing the remote vault master password.
 message SetVaultMasterPasswordResponse {}
+
+// Request for the vault notification server URL.
+message GetVaultNotificationServerRequest {}
+
+// Response with the vault notification server URL.
+message GetVaultNotificationServerResponse {
+  // The notification server URL from the vault state. Empty when using the default.
+  string url = 1;
+}
+
+// Request to set the vault notification server URL.
+message SetVaultNotificationServerRequest {
+  // The notification server URL to store in the vault state. Empty uses the default.
+  string url = 1;
+}
+
+// Response after setting the vault notification server URL.
+message SetVaultNotificationServerResponse {}
 
 // Request to force reindexing of the entire database.
 message ForceReindexRequest {}

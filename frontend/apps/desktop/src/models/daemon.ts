@@ -286,6 +286,44 @@ export function useSetVaultMasterPassword(opts?: UseMutationOptions<void, unknow
   })
 }
 
+/**
+ * The notification server URL stored in the (synced) vault state. This is the
+ * value shared with the web vault and other devices. Empty string = use the
+ * default. Returns '' on error so callers can fall back.
+ */
+export function useVaultNotificationServer(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_NOTIFICATION_SERVER],
+    queryFn: async () => {
+      try {
+        const res = await grpcClient.daemon.getVaultNotificationServer({})
+        return res.url
+      } catch (error) {
+        console.error('useVaultNotificationServer failed:', error)
+        return ''
+      }
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Sets the vault notification server URL (synced to the remote vault). */
+export function useSetVaultNotificationServer(opts?: UseMutationOptions<void, unknown, {url: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({url}) => {
+      await grpcClient.daemon.setVaultNotificationServer({url})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_NOTIFICATION_SERVER])
+      invalidateQueries([queryKeys.NOTIFY_SERVICE_HOST])
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],
