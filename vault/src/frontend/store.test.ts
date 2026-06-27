@@ -554,8 +554,8 @@ describe('Store', () => {
     })
   })
 
-  describe('email change verification', () => {
-    test('starts email change and stores verification times', async () => {
+  describe('email change (dialog)', () => {
+    test('start returns the verification code expiry', async () => {
       const client = createMockClient({
         changeEmailStart: async () => ({
           message: 'ok',
@@ -563,20 +563,15 @@ describe('Store', () => {
           resendAllowedTime: 3500,
         }),
       })
-      const {state, actions, navigator} = createStore(client, createMockBlockstore())
-      const navigate = mock()
-      navigator.setNavigate(navigate)
+      const {state, actions} = createStore(client, createMockBlockstore())
       state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
-      state.newEmail = 'new@example.com'
 
-      await actions.handleStartEmailChange()
+      const result = await actions.changeEmailDialogStart('new@example.com')
 
-      expect(navigate).toHaveBeenCalledWith('/email/change-pending')
-      expect(state.verificationExpireTime).toBe(4000)
-      expect(state.resendAllowedTime).toBe(3500)
+      expect(result.expireTimeMs).toBe(4000)
     })
 
-    test('verifies email change with code', async () => {
+    test('verify updates the active session email', async () => {
       let receivedCode = ''
       const client = createMockClient({
         changeEmailVerify: async (req) => {
@@ -584,18 +579,14 @@ describe('Store', () => {
           return {verified: true, newEmail: 'new@example.com'}
         },
       })
-      const {state, actions, navigator} = createStore(client, createMockBlockstore())
-      const navigate = mock()
-      navigator.setNavigate(navigate)
+      const {state, actions} = createStore(client, createMockBlockstore())
       state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
-      state.newEmail = 'new@example.com'
 
-      await actions.handleChangeEmailVerify('1234')
+      await actions.changeEmailDialogVerify('1234')
 
       expect(receivedCode).toBe('1234')
       expect(state.session?.email).toBe('new@example.com')
       expect(state.email).toBe('new@example.com')
-      expect(navigate).toHaveBeenCalledWith('/')
     })
   })
 

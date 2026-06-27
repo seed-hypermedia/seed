@@ -210,6 +210,120 @@ export function useForceVaultSync(opts?: UseMutationOptions<GetVaultStatusRespon
   })
 }
 
+/** Current email of the connected remote vault user. Only enabled when connected. */
+export function useVaultEmail(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_EMAIL],
+    queryFn: async () => {
+      const res = await grpcClient.daemon.getVaultEmail({})
+      return res.email
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Starts a remote vault email change. Returns the binding + code timing (ms). */
+export function useChangeVaultEmailStart(
+  opts?: UseMutationOptions<
+    {binding: string; expireTimeMs: number; resendAllowedTimeMs: number},
+    unknown,
+    {newEmail: string}
+  >,
+) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({newEmail}) => {
+      const res = await grpcClient.daemon.changeVaultEmailStart({newEmail})
+      return {
+        binding: res.binding,
+        expireTimeMs: res.expireTime ? res.expireTime.toDate().getTime() : 0,
+        resendAllowedTimeMs: res.resendAllowedTime ? res.resendAllowedTime.toDate().getTime() : 0,
+      }
+    },
+  })
+}
+
+/** Completes a remote vault email change. Returns the new email. */
+export function useChangeVaultEmailVerify(opts?: UseMutationOptions<string, unknown, {code: string; binding: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({code, binding}) => {
+      const res = await grpcClient.daemon.changeVaultEmailVerify({code, binding})
+      return res.newEmail
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_EMAIL])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+/** Whether the connected remote vault user has a master password set. */
+export function useVaultPasswordStatus(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_PASSWORD_STATUS],
+    queryFn: async () => {
+      const res = await grpcClient.daemon.getVaultPasswordStatus({})
+      return res.isSet
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Sets or changes the remote vault master password (daemon derives the credential). */
+export function useSetVaultMasterPassword(opts?: UseMutationOptions<void, unknown, {password: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({password}) => {
+      await grpcClient.daemon.setVaultMasterPassword({password})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_PASSWORD_STATUS])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
+/**
+ * The notification server URL stored in the (synced) vault state. This is the
+ * value shared with the web vault and other devices. Empty string = use the
+ * default. Returns '' on error so callers can fall back.
+ */
+export function useVaultNotificationServer(opts?: {enabled?: boolean}) {
+  return useQuery({
+    queryKey: [queryKeys.VAULT_NOTIFICATION_SERVER],
+    queryFn: async () => {
+      try {
+        const res = await grpcClient.daemon.getVaultNotificationServer({})
+        return res.url
+      } catch (error) {
+        console.error('useVaultNotificationServer failed:', error)
+        return ''
+      }
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 0,
+  })
+}
+
+/** Sets the vault notification server URL (synced to the remote vault). */
+export function useSetVaultNotificationServer(opts?: UseMutationOptions<void, unknown, {url: string}>) {
+  return useMutation({
+    ...opts,
+    mutationFn: async ({url}) => {
+      await grpcClient.daemon.setVaultNotificationServer({url})
+    },
+    onSuccess: async (data, variables, context) => {
+      invalidateQueries([queryKeys.VAULT_NOTIFICATION_SERVER])
+      invalidateQueries([queryKeys.NOTIFY_SERVICE_HOST])
+      invalidateQueries([queryKeys.NOTIFICATION_CONFIG])
+      opts?.onSuccess?.(data, variables, context)
+    },
+  })
+}
+
 export function useMnemonics(opts?: UseQueryOptions<GenMnemonicResponse['mnemonic']>) {
   return useQuery({
     queryKey: [queryKeys.GENERATE_MNEMONIC],

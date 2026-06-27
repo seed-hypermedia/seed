@@ -952,6 +952,39 @@ func (ks *Vault) DisconnectAndClear() error {
 	return nil
 }
 
+// GetVaultNotificationServerURL returns the notification server URL stored in
+// the (synced) vault state, or empty when using the default.
+func (ks *Vault) GetVaultNotificationServerURL() (string, error) {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	snapshot, err := ks.loadSnapshotLocked()
+	if err != nil {
+		return "", err
+	}
+	return snapshot.State.NotificationServerURL, nil
+}
+
+// SetVaultNotificationServerURL stores the notification server URL in the vault
+// state and schedules a remote sync so it propagates to other devices and the
+// web vault.
+func (ks *Vault) SetVaultNotificationServerURL(url string) error {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
+		if state.NotificationServerURL == url {
+			return false, nil
+		}
+		state.NotificationServerURL = url
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	if shouldSync {
+		ks.scheduleRemoteSync()
+	}
+	return nil
+}
+
 func (ks *Vault) applyMutation(fn func(state *State) (bool, error)) (shouldSync bool, err error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
@@ -1541,6 +1574,140 @@ func (ks *Vault) getRemote(
 	}
 
 	return remoteResp, nil
+}
+
+// activeRemoteEmailAuth returns the active remote vault URL and bearer auth for
+// user-scoped requests (e.g. email change), or an error if there is no active
+// remote vault connection.
+func (ks *Vault) activeRemoteEmailAuth() (remoteURL string, bearerAuth string, err error) {
+	localRemote, _, remoteSecret, enabled, err := ks.loadRemoteSyncState()
+	if err != nil {
+		return "", "", err
+	}
+	if !enabled {
+		return "", "", fmt.Errorf("not connected to a remote vault")
+	}
+	bearerAuth, err = buildRemoteBearerAuth(localRemote.CredentialID, remoteSecret)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
+	}
+	return localRemote.VaultURL, bearerAuth, nil
+}
+
+// requestRemoteEmail performs an authenticated JSON request to a user-scoped
+// vault endpoint using the active remote connection's bearer credential.
+func (ks *Vault) requestRemoteEmail(
+	ctx context.Context,
+	method string,
+	endpointPath string,
+	remoteURL string,
+	bearerAuth string,
+	reqBody any,
+	out any,
+) error {
+	endpoint, err := resolveDaemonEndpointURL(remoteURL, endpointPath)
+	if err != nil {
+		return err
+	}
+
+	var bodyReader io.Reader
+	if reqBody != nil {
+		encoded, marshalErr := json.Marshal(reqBody)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		bodyReader = bytes.NewReader(encoded)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
+	if err != nil {
+		return err
+	}
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Authorization", "Bearer "+bearerAuth)
+
+	resp, err := ks.httpClientDo(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := readRemoteBody(resp.Body, controlMaxBody, "remote vault email error response")
+		return remoteEmailError(body, resp.StatusCode)
+	}
+	if out != nil {
+		if err := decodeRemoteJSON(resp.Body, controlMaxBody, "remote vault email response", out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// remoteEmailError extracts a human-readable error from a vault JSON error body.
+func remoteEmailError(body []byte, status int) error {
+	var parsed struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &parsed) == nil && strings.TrimSpace(parsed.Error) != "" {
+		return fmt.Errorf("%s", strings.TrimSpace(parsed.Error))
+	}
+	return fmt.Errorf("remote vault email request failed (status %d)", status)
+}
+
+// GetVaultEmail returns the current email of the connected remote vault user.
+func (ks *Vault) GetVaultEmail(ctx context.Context) (string, error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Email string `json:"email"`
+	}
+	if err := ks.requestRemoteEmail(ctx, http.MethodGet, "api/vault-email", remoteURL, bearerAuth, nil, &resp); err != nil {
+		return "", err
+	}
+	return resp.Email, nil
+}
+
+// ChangeVaultEmailStart begins a remote vault email change, sending a code to
+// the new address. It returns an anti-phishing binding to pass back to verify,
+// plus the code expiry and resend-allowed times (Unix milliseconds).
+func (ks *Vault) ChangeVaultEmailStart(ctx context.Context, newEmail string) (binding string, expireTimeMs int64, resendAllowedTimeMs int64, err error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", 0, 0, err
+	}
+	var resp struct {
+		Binding           string `json:"binding"`
+		ExpireTime        int64  `json:"expireTime"`
+		ResendAllowedTime int64  `json:"resendAllowedTime"`
+	}
+	reqBody := map[string]string{"newEmail": newEmail}
+	if err := ks.requestRemoteEmail(ctx, http.MethodPost, "api/email-change/start", remoteURL, bearerAuth, reqBody, &resp); err != nil {
+		return "", 0, 0, err
+	}
+	return resp.Binding, resp.ExpireTime, resp.ResendAllowedTime, nil
+}
+
+// ChangeVaultEmailVerify completes a remote vault email change by submitting the
+// emailed code and the binding from ChangeVaultEmailStart. Returns the new email.
+func (ks *Vault) ChangeVaultEmailVerify(ctx context.Context, code string, binding string) (string, error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Verified bool   `json:"verified"`
+		NewEmail string `json:"newEmail"`
+	}
+	reqBody := map[string]string{"code": code, "binding": binding}
+	if err := ks.requestRemoteEmail(ctx, http.MethodPost, "api/email-change/verify", remoteURL, bearerAuth, reqBody, &resp); err != nil {
+		return "", err
+	}
+	return resp.NewEmail, nil
 }
 
 func (ks *Vault) buildRemoteSaveRequest(

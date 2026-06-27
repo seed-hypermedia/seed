@@ -325,6 +325,16 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/vault-email': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.getVaultEmail(ctx)
+        return handleResponse(result, ctx, 200, {
+          'Cache-Control': 'no-store, private, max-age=0',
+          Vary: 'Authorization, Cookie',
+        })
+      },
+    },
     '/vault/api/accounts/:id': {
       GET: async (req) => {
         const ctx = getRequestContext(req)

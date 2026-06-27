@@ -670,92 +670,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handleAddPassword() {
-      state.error = ''
-
+    /**
+     * Dialog-driven master password set/change (no navigation). Derives the
+     * credential from the unlocked DEK and adds or changes it depending on
+     * whether one already exists. Throws on failure so the shared
+     * SetMasterPasswordDialog can surface the error.
+     */
+    async setMasterPasswordDialog(password: string): Promise<void> {
       if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
+        throw new Error('Vault must be unlocked first')
       }
 
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
+      const salt = base64.encode(localCrypto.generatePasswordSalt())
+      const {encryptionKey, authKey} = await derivePasswordMaterial(password, salt)
+      const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
+      const payload = {wrappedDEK: base64.encode(wrappedDEK), authKey: base64.encode(authKey), salt}
+
+      if (state.session?.credentials?.password) {
+        await client.changePassword(payload)
+      } else {
+        await client.addPassword(payload)
       }
 
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.addPassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Add password error:', e)
-        state.error = (e as Error).message || 'Failed to add password. Please try again.'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangePassword() {
-      state.error = ''
-
-      if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
-      }
-
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
-      }
-
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.changePassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Change password error:', e)
-        state.error = (e as Error).message || 'Failed to change password. Please try again.'
-      } finally {
-        state.loading = false
-      }
+      state.passwordSalt = salt
+      await actions.checkSession()
     },
 
     async handleSetPasskey() {
@@ -1228,6 +1166,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /**
+     * Best-effort poll for vault changes made elsewhere (e.g. on the desktop
+     * app). Uses knownVersion so the server replies "unchanged" when nothing
+     * changed; otherwise re-hydrates the vault from the fresh server data.
+     * Skipped while another load/save is in flight to avoid clobbering.
+     */
+    async refreshVaultData() {
+      if (!state.decryptedDEK || !state.vaultLoaded || pendingVaultLoad || state.loading) {
+        return
+      }
+      try {
+        const response = await client.getVault({knownVersion: state.vaultVersion})
+        if (!isVaultDataResponse(response)) {
+          return
+        }
+        if ((response.version ?? 0) === state.vaultVersion) {
+          return
+        }
+        await ensureVaultLoaded(response)
+      } catch (error) {
+        console.error('Vault refresh poll failed:', error)
+      }
+    },
+
     async saveVaultData() {
       if (!state.decryptedDEK || !state.vaultData) {
         state.error = 'Vault must be unlocked first'
@@ -1684,57 +1646,27 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     // Email Change Actions.
 
-    setNewEmail(email: string) {
-      state.newEmail = email
+    /**
+     * Dialog-driven email change start (no navigation). Throws on failure so the
+     * shared ChangeEmailDialog can surface the error. Returns the code expiry.
+     */
+    async changeEmailDialogStart(newEmail: string): Promise<{expireTimeMs: number}> {
+      if (!state.session?.authenticated) {
+        throw new Error('You must be signed in to change your email')
+      }
+      const data = await client.changeEmailStart({newEmail})
+      return {expireTimeMs: data.expireTime}
     },
 
     /**
-     * Start the email change process. Sends a verification code to the new email.
+     * Dialog-driven email change verify (no navigation). Updates the active
+     * session email on success. Throws on failure.
      */
-    async handleStartEmailChange() {
-      if (!state.newEmail) {
-        state.error = 'Please enter a new email address'
-        return
-      }
-
-      if (!state.session?.authenticated) {
-        state.error = 'You must be signed in to change your email'
-        return
-      }
-
-      state.error = ''
-      state.loading = true
-
-      try {
-        const data = await client.changeEmailStart({
-          newEmail: state.newEmail,
-        })
-        state.verificationExpireTime = data.expireTime
-        state.resendAllowedTime = data.resendAllowedTime
-        navigator.go('/email/change-pending')
-      } catch (e) {
-        state.error = (e as Error).message || 'Failed to start email change'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangeEmailVerify(code: string) {
-      state.loading = true
-      state.error = ''
-
-      try {
-        const data = await client.changeEmailVerify({code})
-        if (state.session) {
-          state.session.email = data.newEmail
-          state.email = data.newEmail
-        }
-        state.newEmail = ''
-        navigator.go('/')
-      } catch (e) {
-        state.error = (e as Error).message || 'Verification failed'
-      } finally {
-        state.loading = false
+    async changeEmailDialogVerify(code: string): Promise<void> {
+      const data = await client.changeEmailVerify({code})
+      if (state.session) {
+        state.session.email = data.newEmail
+        state.email = data.newEmail
       }
     },
 
