@@ -8,8 +8,9 @@ import {postAccountCreateAction, useUniversalAppContext} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import type {SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useCallback, useState} from 'react'
@@ -90,8 +91,12 @@ function CreateAccountDialog({onClose}: {onClose: () => void}) {
   const email = vaultEmail?.trim() || ''
   const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
 
-  async function handleSubmit(profile: SiteMetaFields) {
-    const createdAccount = await createAccount(profile)
+  async function handleSubmit(values: AccountProfileFormValues) {
+    const createdAccount = await createAccount({
+      name: values.name,
+      icon: values.imageFile ?? null,
+      description: values.description ?? '',
+    })
     if (!createdAccount) return
 
     if (shareEmailWithNotificationServer && email) {
@@ -115,9 +120,11 @@ function CreateAccountDialog({onClose}: {onClose: () => void}) {
   return (
     <>
       <DialogTitle>Create Account</DialogTitle>
-      <EditProfileForm
-        onSubmit={handleSubmit}
+      <AccountProfileForm
         submitLabel={isCreating ? 'Creating…' : 'Create Account'}
+        loading={isCreating}
+        onCancel={onClose}
+        onSubmit={handleSubmit}
         notificationOption={
           email
             ? {
