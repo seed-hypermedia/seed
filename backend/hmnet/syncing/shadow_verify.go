@@ -80,7 +80,7 @@ func blobSetsEqual(a, b map[int64]struct{}) bool {
 }
 
 var qMaterializedScopesFull = dqb.Str(`
-	SELECT id, iri, recursive, depth_one, blob_types FROM rbsr_scope WHERE materialized = 1;`)
+	SELECT id, iri, kind FROM rbsr_scope WHERE materialized = 1;`)
 
 type scopeRow struct {
 	id   int64
@@ -90,13 +90,8 @@ type scopeRow struct {
 func listMaterializedScopeRows(conn *sqlite.Conn) (rows []scopeRow, err error) {
 	if err := sqlitex.Exec(conn, qMaterializedScopesFull(), func(stmt *sqlite.Stmt) error {
 		rows = append(rows, scopeRow{
-			id: stmt.ColumnInt64(0),
-			dkey: DiscoveryKey{
-				IRI:       blob.IRI(stmt.ColumnText(1)),
-				Recursive: stmt.ColumnInt64(2) != 0,
-				DepthOne:  stmt.ColumnInt64(3) != 0,
-				BlobTypes: stmt.ColumnText(4),
-			},
+			id:   stmt.ColumnInt64(0),
+			dkey: dkeyForKind(blob.IRI(stmt.ColumnText(1)), scopeKind(stmt.ColumnInt64(2))),
 		})
 		return nil
 	}); err != nil {

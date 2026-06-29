@@ -379,29 +379,29 @@ CREATE VIRTUAL TABLE embeddings USING vec0(
 );
 
 -- Maintained RBSR fingerprint index.
--- Each rbsr_scope is one reconciliation scope: a canonical discovery key
--- (IRI + recursion flags + blob-type allowlist) plus the wire protocol version,
--- since different protocol versions advertise different codec-canonical sets.
+-- Each rbsr_scope is one reconciliation scope, identified by its resource IRI
+-- and a single kind enum. The kind flattens what used to be separate recursion
+-- flags and a blob-type allowlist into one dimension: anything we need to filter
+-- is its own kind rather than a per-scope filter column. The wire protocol
+-- version is intentionally NOT part of the identity — canonicalization only
+-- changes advertised codecs, never which blobs belong to a scope, so it is
+-- applied at serve time; a protocol bump just rebuilds the index.
 -- rbsr_item holds the resolved blob set for the scope, maintained incrementally
 -- by the syncing oracle so reconciliation no longer rebuilds the set per round.
 CREATE TABLE rbsr_scope (
     id INTEGER PRIMARY KEY,
     -- The discovery key's resource IRI.
     iri TEXT NOT NULL,
-    -- Whether the scope covers the entire subtree below the IRI.
-    recursive INTEGER NOT NULL DEFAULT 0,
-    -- Whether the scope covers only the direct children of the IRI.
-    depth_one INTEGER NOT NULL DEFAULT 0,
-    -- Canonical (sorted, comma-joined) blob-type allowlist. Empty means no filter.
-    blob_types TEXT NOT NULL DEFAULT '',
-    -- Wire protocol version whose codec canonicalization this scope's set reflects.
-    protocol_version TEXT NOT NULL,
+    -- Reconciliation scope kind: 0=exact (IRI only), 1=depth_one (direct
+    -- children), 2=recursive (full subtree), 3=dir_structure (depth_one
+    -- restricted to Ref+Change, the root-first directory pass).
+    kind INTEGER NOT NULL,
     -- 1 once materialized from collectBlobs; 0 means it must be re-materialized
     -- before serving (first use, post-reindex, or repair).
     materialized INTEGER NOT NULL DEFAULT 0,
     -- Unix seconds of last access, used to evict idle scopes from the working set.
     last_access INTEGER NOT NULL DEFAULT 0,
-    UNIQUE (iri, recursive, depth_one, blob_types, protocol_version)
+    UNIQUE (iri, kind)
 );
 
 -- The resolved blob set for each maintained scope.

@@ -1,6 +1,7 @@
 package syncing
 
 import (
+	"errors"
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/util/dqb"
@@ -20,33 +21,90 @@ import (
 // round. Serving builds a monoid-tree-backed store from those rows. The set is
 // kept current incrementally by the oracle (see oracle.go / the index hook).
 
-func boolToInt(b bool) int64 {
-	if b {
-		return 1
+// scopeKind is the flattened identity of a reconciliation scope: it collapses
+// the former (recursive, depth_one) flags and the blob-type allowlist into a
+// single dimension, so each kind is a distinct scope rather than an orthogonal
+// filter column. Anything we genuinely need a type filter for becomes its own
+// kind (scopeDirStructure), keeping the schema one-dimensional.
+type scopeKind int64
+
+const (
+	scopeExact        scopeKind = 0 // IRI only, no descent, no type filter.
+	scopeDepthOne     scopeKind = 1 // direct children, no type filter.
+	scopeRecursive    scopeKind = 2 // full subtree, no type filter.
+	scopeDirStructure scopeKind = 3 // depth_one restricted to docStructureTypes.
+)
+
+// dirStructureTypes is the canonical BlobTypes string for the root-first
+// directory pass, derived from docStructureTypes so the kind mapping can never
+// drift from the source list. It is the single filtered scope kind.
+var dirStructureTypes = BlobTypesString(docStructureTypes)
+
+// errScopeNotRepresentable means a DiscoveryKey uses a filter combination the
+// flattened scope model does not enumerate (an exotic blob-type allowlist, or
+// the impossible recursive+depth_one pair). The caller falls back to the legacy
+// non-indexed rebuild, which honors arbitrary filters.
+var errScopeNotRepresentable = errors.New("discovery key has no maintained scope kind")
+
+// scopeKindFor maps a DiscoveryKey to its persisted scope kind, or
+// errScopeNotRepresentable when the key's filter isn't one the index maintains.
+func scopeKindFor(dkey DiscoveryKey) (scopeKind, error) {
+	if dkey.Recursive && dkey.DepthOne {
+		return 0, errScopeNotRepresentable
 	}
-	return 0
+	switch dkey.BlobTypes {
+	case "":
+		switch {
+		case dkey.Recursive:
+			return scopeRecursive, nil
+		case dkey.DepthOne:
+			return scopeDepthOne, nil
+		default:
+			return scopeExact, nil
+		}
+	case dirStructureTypes:
+		if dkey.DepthOne {
+			return scopeDirStructure, nil
+		}
+	}
+	return 0, errScopeNotRepresentable
+}
+
+// dkeyForKind reconstructs the DiscoveryKey a persisted scope row stands for, so
+// the oracle's predicates (scopeCovers / scopeAllowsType) keep operating on a
+// plain DiscoveryKey without ever learning about kinds.
+func dkeyForKind(iri blob.IRI, k scopeKind) DiscoveryKey {
+	switch k {
+	case scopeDepthOne:
+		return DiscoveryKey{IRI: iri, DepthOne: true}
+	case scopeRecursive:
+		return DiscoveryKey{IRI: iri, Recursive: true}
+	case scopeDirStructure:
+		return DiscoveryKey{IRI: iri, DepthOne: true, BlobTypes: dirStructureTypes}
+	default: // scopeExact
+		return DiscoveryKey{IRI: iri}
+	}
 }
 
 var qResolveScopeInsert = dqb.Str(`
-	INSERT OR IGNORE INTO rbsr_scope (iri, recursive, depth_one, blob_types, protocol_version)
-	VALUES (:iri, :recursive, :depth_one, :blob_types, :protocol_version);`)
+	INSERT OR IGNORE INTO rbsr_scope (iri, kind)
+	VALUES (:iri, :kind);`)
 
 var qResolveScopeSelect = dqb.Str(`
 	SELECT id, materialized
 	FROM rbsr_scope
-	WHERE iri = :iri AND recursive = :recursive AND depth_one = :depth_one
-		AND blob_types = :blob_types AND protocol_version = :protocol_version;`)
+	WHERE iri = :iri AND kind = :kind;`)
 
-// resolveScope returns the rbsr_scope row id for the given discovery key and
-// protocol version, creating an unmaterialized row if absent.
-func resolveScope(conn *sqlite.Conn, dkey DiscoveryKey, protocolVersion string) (id int64, materialized bool, err error) {
-	args := []any{
-		string(dkey.IRI),
-		boolToInt(dkey.Recursive),
-		boolToInt(dkey.DepthOne),
-		dkey.BlobTypes,
-		protocolVersion,
+// resolveScope returns the rbsr_scope row id for the given discovery key,
+// creating an unmaterialized row if absent. It returns errScopeNotRepresentable
+// when the key has no maintained scope kind, so the caller falls back to the
+// legacy rebuild.
+func resolveScope(conn *sqlite.Conn, dkey DiscoveryKey) (id int64, materialized bool, err error) {
+	kind, err := scopeKindFor(dkey)
+	if err != nil {
+		return 0, false, err
 	}
+	args := []any{string(dkey.IRI), int64(kind)}
 	if err := sqlitex.Exec(conn, qResolveScopeInsert(), nil, args...); err != nil {
 		return 0, false, err
 	}
@@ -183,23 +241,17 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, protocolVersion s
 }
 
 var qMaterializedScopes = dqb.Str(`
-	SELECT id, iri, recursive, depth_one, blob_types FROM rbsr_scope WHERE materialized = 1;`)
+	SELECT id, iri, kind FROM rbsr_scope WHERE materialized = 1;`)
 
-// loadMaterializedScopes returns the distinct discovery keys of all materialized
-// scopes plus, for each key, the scope-row ids that share it. Membership is
-// identical across protocol versions of the same key (canonicalization only
-// changes advertised codecs, not which blobs belong), so the oracle runs once
-// per key and the result fans out to every row.
+// loadMaterializedScopes returns the discovery keys of all materialized scopes
+// plus, for each key, its scope-row id. With the flattened schema a key maps to
+// exactly one row ((iri, kind) is UNIQUE), so each idsByKey slice holds a single
+// id; the slice shape is kept so the oracle's fan-out loops read unchanged.
 func loadMaterializedScopes(conn *sqlite.Conn) (keys []DiscoveryKey, idsByKey map[DiscoveryKey][]int64, err error) {
 	idsByKey = make(map[DiscoveryKey][]int64)
 	if err := sqlitex.Exec(conn, qMaterializedScopes(), func(stmt *sqlite.Stmt) error {
 		id := stmt.ColumnInt64(0)
-		key := DiscoveryKey{
-			IRI:       blob.IRI(stmt.ColumnText(1)),
-			Recursive: stmt.ColumnInt64(2) != 0,
-			DepthOne:  stmt.ColumnInt64(3) != 0,
-			BlobTypes: stmt.ColumnText(4),
-		}
+		key := dkeyForKind(blob.IRI(stmt.ColumnText(1)), scopeKind(stmt.ColumnInt64(2)))
 		if _, seen := idsByKey[key]; !seen {
 			keys = append(keys, key)
 		}

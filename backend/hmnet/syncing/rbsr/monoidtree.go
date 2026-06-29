@@ -55,7 +55,10 @@ func NewTreeStore() Store {
 	}
 }
 
-func sizeOf(n *treeNode) int {
+// sizeOf returns the cached subtree size, treating a nil node as empty. It is a
+// method (not a free function) so the nil-receiver case reads naturally; Go
+// dispatches methods on nil pointers without dereferencing the receiver.
+func (n *treeNode) sizeOf() int {
 	if n == nil {
 		return 0
 	}
@@ -65,7 +68,7 @@ func sizeOf(n *treeNode) int {
 // update recomputes the cached aggregates from the node's children. Must be
 // called whenever a node's children change.
 func (n *treeNode) update() {
-	n.size = 1 + sizeOf(n.left) + sizeOf(n.right)
+	n.size = 1 + n.left.sizeOf() + n.right.sizeOf()
 
 	var s [32]byte
 	if n.left != nil {
@@ -146,7 +149,7 @@ func (v *treeStore) Size() int {
 	if !v.sealed {
 		return 0
 	}
-	return sizeOf(v.root)
+	return v.root.sizeOf()
 }
 
 func (v *treeStore) ForEach(start, end int, fn func(int, Item) bool) error {
@@ -172,7 +175,7 @@ func forEachRange(n *treeNode, base, start, end int, fn func(int, Item) bool) bo
 		return false
 	}
 
-	nodeIdx := base + sizeOf(n.left)
+	nodeIdx := base + n.left.sizeOf()
 	if nodeIdx >= start && nodeIdx < end {
 		if !fn(nodeIdx, n.item) {
 			return false
@@ -186,7 +189,7 @@ func (v *treeStore) FindLowerBound(startHint int, bound Item) (int, error) {
 	if err := v.checkSealed(); err != nil {
 		return 0, err
 	}
-	if err := v.checkBounds(startHint, sizeOf(v.root)); err != nil {
+	if err := v.checkBounds(startHint, v.root.sizeOf()); err != nil {
 		return 0, err
 	}
 
@@ -196,7 +199,7 @@ func (v *treeStore) FindLowerBound(startHint int, bound Item) (int, error) {
 	l := 0
 	for n := v.root; n != nil; {
 		if n.item.Compare(bound) < 0 {
-			l += sizeOf(n.left) + 1
+			l += n.left.sizeOf() + 1
 			n = n.right
 		} else {
 			n = n.left
@@ -236,7 +239,7 @@ func sumRange(n *treeNode, base, start, end int, acc *accumulator) {
 	}
 
 	sumRange(n.left, base, start, end, acc)
-	nodeIdx := base + sizeOf(n.left)
+	nodeIdx := base + n.left.sizeOf()
 	if nodeIdx >= start && nodeIdx < end {
 		acc.Add(n.item.Hash)
 	}
@@ -251,7 +254,7 @@ func (v *treeStore) checkSealed() error {
 }
 
 func (v *treeStore) checkBounds(begin, end int) error {
-	if begin > end || end > sizeOf(v.root) {
+	if begin > end || end > v.root.sizeOf() {
 		return errors.New("bad range")
 	}
 	return nil

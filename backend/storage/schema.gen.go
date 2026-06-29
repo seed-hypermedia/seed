@@ -464,28 +464,22 @@ const (
 
 // Table rbsr_scope.
 const (
-	RbsrScope                sqlitegen.Table  = "rbsr_scope"
-	RbsrScopeBlobTypes       sqlitegen.Column = "rbsr_scope.blob_types"
-	RbsrScopeDepthOne        sqlitegen.Column = "rbsr_scope.depth_one"
-	RbsrScopeID              sqlitegen.Column = "rbsr_scope.id"
-	RbsrScopeIRI             sqlitegen.Column = "rbsr_scope.iri"
-	RbsrScopeLastAccess      sqlitegen.Column = "rbsr_scope.last_access"
-	RbsrScopeMaterialized    sqlitegen.Column = "rbsr_scope.materialized"
-	RbsrScopeProtocolVersion sqlitegen.Column = "rbsr_scope.protocol_version"
-	RbsrScopeRecursive       sqlitegen.Column = "rbsr_scope.recursive"
+	RbsrScope             sqlitegen.Table  = "rbsr_scope"
+	RbsrScopeID           sqlitegen.Column = "rbsr_scope.id"
+	RbsrScopeIRI          sqlitegen.Column = "rbsr_scope.iri"
+	RbsrScopeKind         sqlitegen.Column = "rbsr_scope.kind"
+	RbsrScopeLastAccess   sqlitegen.Column = "rbsr_scope.last_access"
+	RbsrScopeMaterialized sqlitegen.Column = "rbsr_scope.materialized"
 )
 
 // Table rbsr_scope. Plain strings.
 const (
-	T_RbsrScope                = "rbsr_scope"
-	C_RbsrScopeBlobTypes       = "rbsr_scope.blob_types"
-	C_RbsrScopeDepthOne        = "rbsr_scope.depth_one"
-	C_RbsrScopeID              = "rbsr_scope.id"
-	C_RbsrScopeIRI             = "rbsr_scope.iri"
-	C_RbsrScopeLastAccess      = "rbsr_scope.last_access"
-	C_RbsrScopeMaterialized    = "rbsr_scope.materialized"
-	C_RbsrScopeProtocolVersion = "rbsr_scope.protocol_version"
-	C_RbsrScopeRecursive       = "rbsr_scope.recursive"
+	T_RbsrScope             = "rbsr_scope"
+	C_RbsrScopeID           = "rbsr_scope.id"
+	C_RbsrScopeIRI          = "rbsr_scope.iri"
+	C_RbsrScopeKind         = "rbsr_scope.kind"
+	C_RbsrScopeLastAccess   = "rbsr_scope.last_access"
+	C_RbsrScopeMaterialized = "rbsr_scope.materialized"
 )
 
 // Table resource_links.
@@ -766,14 +760,11 @@ var Schema = sqlitegen.Schema{
 		PublicKeysPrincipal:                     {Table: PublicKeys, SQLType: "BLOB"},
 		RbsrItemBlob:                            {Table: RbsrItem, SQLType: "INTEGER"},
 		RbsrItemScope:                           {Table: RbsrItem, SQLType: "INTEGER"},
-		RbsrScopeBlobTypes:                      {Table: RbsrScope, SQLType: "TEXT"},
-		RbsrScopeDepthOne:                       {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeID:                             {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeIRI:                            {Table: RbsrScope, SQLType: "TEXT"},
+		RbsrScopeKind:                           {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeLastAccess:                     {Table: RbsrScope, SQLType: "INTEGER"},
 		RbsrScopeMaterialized:                   {Table: RbsrScope, SQLType: "INTEGER"},
-		RbsrScopeProtocolVersion:                {Table: RbsrScope, SQLType: "TEXT"},
-		RbsrScopeRecursive:                      {Table: RbsrScope, SQLType: "INTEGER"},
 		ResourceLinksExtraAttrs:                 {Table: ResourceLinks, SQLType: "JSONB"},
 		ResourceLinksID:                         {Table: ResourceLinks, SQLType: "INTEGER"},
 		ResourceLinksIsPinned:                   {Table: ResourceLinks, SQLType: "INTEGER"},

@@ -22,7 +22,7 @@ func TestShadowVerify_DetectsDriftAndMarksStale(t *testing.T) {
 
 	var scopeID int64
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		id, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		id, _, err := resolveScope(conn, dkey)
 		if err != nil {
 			return err
 		}
