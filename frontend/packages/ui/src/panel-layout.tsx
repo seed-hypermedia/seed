@@ -1,4 +1,5 @@
 import {PanelSelectionOptions} from '@shm/shared'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {X} from 'lucide-react'
 import {useRef} from 'react'
 import {
@@ -8,7 +9,6 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from './button'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
@@ -48,7 +48,7 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
     case 'comments':
       return 'Discussions'
     case 'directory':
-      return 'Directory'
+      return 'Subdocuments'
     case 'collaborators':
       return 'Collaborators'
     case 'options':

@@ -1,4 +1,4 @@
-import type { HMBlockImage } from '@seed-hypermedia/client/hm-types'
+import type {HMBlockImage} from '@seed-hypermedia/client/hm-types'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
@@ -6,35 +6,35 @@ import {
   HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import { findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext } from '@shm/shared'
-import { DEFAULT_GATEWAY_URL } from '@shm/shared/constants'
-import { useDocumentActions } from '@shm/shared/document-actions-context'
-import { useResource } from '@shm/shared/models/entity'
-import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
+import {findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useResource} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   canShowMoveDocumentAction,
   canShowRepublishDocumentAction,
   type DocumentCardActionOrigin,
 } from '@shm/shared/utils/document-actions'
-import { createWebHMUrl, getVersionHeads, hmIdToURL } from '@shm/shared/utils/entity-id-url'
-import { useNavigate } from '@shm/shared/utils/navigation'
-import { Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split } from 'lucide-react'
-import { HTMLAttributes, useMemo } from 'react'
-import { Button } from './button'
-import { createCopyLinkMenuItem } from './copy-link-menu'
-import { copyUrlToClipboardWithFeedback } from './copy-to-clipboard'
-import { createDocumentVersionsPanelRoute } from './document-versions-panel'
-import { DraftBadge } from './draft-badge'
-import { FacePile } from './face-pile'
-import { useImageUrl } from './get-file-url'
-import { useHighlighter } from './highlight-context'
-import { Download, Trash } from './icons'
-import { MergedBadge } from './merged-badge'
-import { MenuItemType, OptionsDropdown } from './options-dropdown'
-import { PrivateBadge } from './private-badge'
-import { SizableText } from './text'
-import { Tooltip } from './tooltip'
-import { cn } from './utils'
+import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
+import {HTMLAttributes, useMemo} from 'react'
+import {Button} from './button'
+import {createCopyLinkMenuItem} from './copy-link-menu'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {createDocumentVersionsPanelRoute} from './document-versions-panel'
+import {DraftBadge} from './draft-badge'
+import {FacePile} from './face-pile'
+import {useImageUrl} from './get-file-url'
+import {useHighlighter} from './highlight-context'
+import {Download, Trash} from './icons'
+import {MergedBadge} from './merged-badge'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {PrivateBadge} from './private-badge'
+import {SizableText} from './text'
+import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 /** Builds the DocumentCard inline menu items */
 export function useDocumentCardMenuItems(
@@ -45,7 +45,7 @@ export function useDocumentCardMenuItems(
   const actions = useDocumentActions()
   const draft = actions.getDraft?.(docId)
   const navigate = useNavigate()
-  const { onCopyReference, onPushReference, origin, experiments } = useUniversalAppContext()
+  const {onCopyReference, onPushReference, origin, experiments} = useUniversalAppContext()
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
   const isOwner = actions.selectedAccountUid === docId.uid
   const hasPath = !!docId.path?.length
@@ -84,7 +84,7 @@ export function useDocumentCardMenuItems(
         icon: <FilePen className="size-4" />,
         onClick: (e) => {
           e?.stopPropagation()
-          navigate({ key: 'document', id: docId, panel: { key: 'options' } } as any)
+          navigate({key: 'document', id: docId, panel: {key: 'options'}} as any)
         },
       })
     }
@@ -107,8 +107,8 @@ export function useDocumentCardMenuItems(
         createCopyLinkMenuItem({
           advanced: experiments?.advancedCopyLinkOptions,
           label: 'Copy link',
-          canonical: { copy: copyCanonical },
-          gateway: { copy: copyGateway },
+          canonical: {copy: copyCanonical},
+          gateway: {copy: copyGateway},
           hypermedia: {
             copy: () => copyUrlToClipboardWithFeedback(hmIdToURL(docId), 'Hypermedia'),
           },
@@ -146,7 +146,7 @@ export function useDocumentCardMenuItems(
     }
     if (
       actions.onRepublishDocument &&
-      canShowRepublishDocumentAction({ id: docId, selectedAccountUid: actions.selectedAccountUid })
+      canShowRepublishDocumentAction({id: docId, selectedAccountUid: actions.selectedAccountUid})
     ) {
       items.push({
         key: 'republish',
@@ -175,7 +175,7 @@ export function useDocumentCardMenuItems(
       icon: <Layers className="size-4" />,
       onClick: (e) => {
         e?.stopPropagation()
-        navigate({ key: 'directory', id: docId } as any)
+        navigate({key: 'directory', id: docId} as any)
       },
     })
     if (actions.onDeleteDocument && isOwner && hasPath) {
@@ -246,19 +246,19 @@ export function DocumentCard({
   relocationOrigin?: DocumentCardActionOrigin
 }) {
   const highlighter = useHighlighter()
-  const linkProps = useRouteLink(docId ? { key: 'document', id: docId } : null)
-  const { onClick: routeOnClick, tag: _routeTag, ...linkAttributes } = linkProps
+  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+  const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const actions = useDocumentActions()
   const draft = actions.getDraft?.(docId)
 
-  const summaryId = useMemo(() => (docId ? hmId(docId.uid, { path: docId.path }) : null), [docId?.uid, docId?.path])
-  const interactionSummary = useInteractionSummary(summaryId, { enabled: !interactionSummaryProp })
+  const summaryId = useMemo(() => (docId ? hmId(docId.uid, {path: docId.path}) : null), [docId?.uid, docId?.path])
+  const interactionSummary = useInteractionSummary(summaryId, {enabled: !interactionSummaryProp})
   const commentCount = interactionSummaryProp?.comments ?? interactionSummary.data?.comments ?? 0
 
   const baseMetadata = metadata ?? entity?.document?.metadata
-  const resolvedMetadata = draft?.metadata ? { ...baseMetadata, ...draft.metadata } : baseMetadata
+  const resolvedMetadata = draft?.metadata ? {...baseMetadata, ...draft.metadata} : baseMetadata
   const textContent = useMemo(() => {
     if (!showSummary) return null
     if (resolvedMetadata?.summary) {
@@ -409,7 +409,7 @@ export function DocumentCard({
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        navigate({ key: 'comments', id: docId })
+                        navigate({key: 'comments', id: docId})
                       }}
                     >
                       <MessageSquare className="size-3" />

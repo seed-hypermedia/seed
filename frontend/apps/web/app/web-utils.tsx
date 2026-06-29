@@ -7,14 +7,12 @@ import {
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
-import {useAccount} from '@shm/shared/models/entity'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ButtonLink} from '@shm/ui/button'
-import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
-import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +20,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
+import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
@@ -31,15 +32,14 @@ import {MenuItemType} from '@shm/ui/options-dropdown'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
   FilePlus2,
-  Folder,
   History,
   Import as ImportIcon,
+  Layers,
   LayoutList,
   Lock,
   LogOut,
@@ -99,8 +99,8 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
       },
       {
         key: 'directory',
-        label: 'Directory',
-        icon: <Folder className="size-4" />,
+        label: 'Subdocuments',
+        icon: <Layers className="size-4" />,
         onClick: () => navigate({key: 'directory', id: docId}),
       },
       {

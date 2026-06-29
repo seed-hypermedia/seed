@@ -1,3 +1,5 @@
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {
   computeContactBreadcrumbs,
@@ -9,8 +11,6 @@ import {
   getIconForRoute,
   getWindowTitle,
 } from '../route-breadcrumbs'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId} from '@shm/shared'
 
 function makeId(uid: string, path?: string[] | null): UnpackedHypermediaId {
   return hmId(uid, {path: path ?? undefined})
@@ -330,7 +330,7 @@ describe('computeEntityBreadcrumbs', () => {
       contacts: [],
       panel: {key: 'directory'},
     })
-    expect(items.at(-1)?.name).toBe('Directory')
+    expect(items.at(-1)?.name).toBe('Subdocuments')
     expect(items.at(-1)?.crumbKey).toBe('directory')
   })
 
