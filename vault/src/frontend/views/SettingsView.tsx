@@ -1,6 +1,7 @@
 import {Alert, AlertDescription} from '@/frontend/components/ui/alert'
 import {useActions, useAppState} from '@/frontend/store'
 import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
+import {SizableText} from '@shm/ui/text'
 
 /**
  * Vault-level settings view for managing authentication credentials and account settings.
@@ -14,13 +15,21 @@ export function SettingsView() {
   const hasPasskey = !!session?.credentials?.passkey
 
   return (
-    <div className="w-full space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Security</h1>
-        <p className="text-muted-foreground text-sm">Manage authentication and security for your vault</p>
-      </div>
+    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 p-6">
+      <SizableText size="2xl" weight="bold">
+        Identity Settings
+      </SizableText>
 
       <VaultSecuritySettings
+        email={{
+          address: session?.email,
+          onStart: (newEmail) => actions.changeEmailDialogStart(newEmail),
+          onVerify: (code) => actions.changeEmailDialogVerify(code),
+        }}
+        logout={{
+          description: 'Sign out of this vault on this device.',
+          onLogOut: () => actions.handleLogout(),
+        }}
         passkey={{
           description: hasPasskey ? 'One or more passkeys registered' : 'No passkeys registered',
           actionLabel: passkeySupported ? 'Add Passkey' : undefined,
@@ -38,11 +47,6 @@ export function SettingsView() {
             const ok = await actions.saveNotificationServerUrl(url)
             if (!ok) throw new Error('Failed to save notification server URL')
           },
-        }}
-        email={{
-          address: session?.email,
-          onStart: (newEmail) => actions.changeEmailDialogStart(newEmail),
-          onVerify: (code) => actions.changeEmailDialogVerify(code),
         }}
         disabled={loading}
       />

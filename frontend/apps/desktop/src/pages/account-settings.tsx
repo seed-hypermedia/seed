@@ -44,7 +44,6 @@ import {Button} from '@shm/ui/button'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
-import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,7 +69,7 @@ import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {LogOut, Mail, Vault} from 'lucide-react'
+import {Vault} from 'lucide-react'
 import {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -321,7 +320,6 @@ function VaultSettings() {
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
-  const [emailOpen, setEmailOpen] = useState(false)
 
   // Shared notify-server config (the synced vault-state value) — always editable.
   const notifyConfig = {
@@ -440,28 +438,6 @@ function VaultSettings() {
               <>
                 <Separator />
                 <SettingsRow icon={<Vault />} label="Remote vault" description={remoteVaultUrl || 'Connected'} />
-                <Separator />
-                <SettingsRow
-                  icon={<Mail />}
-                  label="Email address"
-                  description={vaultEmail.data || 'No email set'}
-                  action={
-                    <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)} disabled={isPending}>
-                      Change
-                    </Button>
-                  }
-                />
-                <Separator />
-                <SettingsRow
-                  icon={<LogOut />}
-                  label="Log out"
-                  description="Disconnect from the identity server, and remove all local keys from this device"
-                  action={
-                    <Button variant="destructive" size="sm" onClick={() => setLogoutOpen(true)} disabled={isPending}>
-                      Log out
-                    </Button>
-                  }
-                />
               </>
             ) : selectedMode === 'remote' ? (
               <>
@@ -482,6 +458,23 @@ function VaultSettings() {
 
           {isConnected ? (
             <VaultSecuritySettings
+              email={{
+                address: vaultEmail.data,
+                onStart: async (newEmail) => {
+                  const result = await changeEmailStart.mutateAsync({newEmail})
+                  emailBinding.current = result.binding
+                  return {expireTimeMs: result.expireTimeMs}
+                },
+                onVerify: async (code) => {
+                  const updated = await changeEmailVerify.mutateAsync({code, binding: emailBinding.current})
+                  toast.success(`Email changed to ${updated}`)
+                },
+              }}
+              logout={{
+                description: 'Disconnect from the identity server, and remove all local keys from this device.',
+                onLogOut: () => setLogoutOpen(true),
+                busy: isPending,
+              }}
               passkey={{
                 description: 'Passkeys are managed in your browser.',
                 actionLabel: 'Manage Passkeys',
@@ -534,20 +527,6 @@ function VaultSettings() {
           </AlertDialogContent>
         </AlertDialogPortal>
       </AlertDialog>
-      <ChangeEmailDialog
-        open={emailOpen}
-        onOpenChange={setEmailOpen}
-        currentEmail={vaultEmail.data}
-        onStart={async (newEmail) => {
-          const result = await changeEmailStart.mutateAsync({newEmail})
-          emailBinding.current = result.binding
-          return {expireTimeMs: result.expireTimeMs}
-        }}
-        onVerify={async (code) => {
-          const updated = await changeEmailVerify.mutateAsync({code, binding: emailBinding.current})
-          toast.success(`Email changed to ${updated}`)
-        }}
-      />
       {authDialog.content}
     </div>
   )

@@ -1,4 +1,4 @@
-import {Bell, Key, Mail, Shield} from 'lucide-react'
+import {Bell, Key, LogOut, Mail, Shield} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from '../button'
 import {Separator} from '../separator'
@@ -33,6 +33,13 @@ export type VaultSecurityEmail = {
   onVerify: (code: string) => Promise<void>
 }
 
+export type VaultSecurityLogout = {
+  /** Platform-specific explanation (desktop clears local keys; web just signs out). */
+  description: string
+  onLogOut: () => void
+  busy?: boolean
+}
+
 /**
  * Shared vault security/settings rows used by both the web vault and the desktop
  * app, so the two stay visually and behaviorally identical. Each section is
@@ -45,12 +52,14 @@ export function VaultSecuritySettings({
   password,
   notify,
   email,
+  logout,
   disabled,
 }: {
   passkey?: VaultSecurityPasskey
   password?: VaultSecurityPassword
   notify?: VaultSecurityNotify
   email?: VaultSecurityEmail
+  logout?: VaultSecurityLogout
   disabled?: boolean
 }) {
   const [passwordOpen, setPasswordOpen] = useState(false)
@@ -59,6 +68,42 @@ export function VaultSecuritySettings({
 
   return (
     <div className="flex flex-col gap-6">
+      {email || logout ? (
+        <SettingsSection label="ACCOUNT">
+          {email ? (
+            <SettingsRow
+              icon={<Mail />}
+              label="Email address"
+              description={email.address || 'No email set'}
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)} disabled={disabled}>
+                  Change
+                </Button>
+              }
+            />
+          ) : null}
+          {email && logout ? <Separator /> : null}
+          {logout ? (
+            <SettingsRow
+              icon={<LogOut />}
+              label="Log out"
+              description={logout.description}
+              action={
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={logout.onLogOut}
+                  loading={logout.busy}
+                  disabled={disabled}
+                >
+                  Log out
+                </Button>
+              }
+            />
+          ) : null}
+        </SettingsSection>
+      ) : null}
+
       {passkey || password ? (
         <SettingsSection label="AUTHENTICATION">
           {passkey ? (
@@ -105,21 +150,6 @@ export function VaultSecuritySettings({
             description={notify.url || notify.defaultUrl}
             action={
               <Button variant="secondary" size="sm" onClick={() => setNotifyOpen(true)} disabled={disabled}>
-                Change
-              </Button>
-            }
-          />
-        </SettingsSection>
-      ) : null}
-
-      {email ? (
-        <SettingsSection label="ACCOUNT">
-          <SettingsRow
-            icon={<Mail />}
-            label="Email address"
-            description={email.address}
-            action={
-              <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)} disabled={disabled}>
                 Change
               </Button>
             }
