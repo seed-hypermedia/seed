@@ -107,7 +107,7 @@ async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise
   const explicit = notifyServiceHost?.trim()
   // Prefer the synced vault notification server URL so background syncs hit the
   // same notify server the web vault and the UI use; fall back to the local
-  // default (appStore / NOTIFY_SERVICE_HOST).
+  // default (appStore / NOTIFY_SERVICE_HOST, seeded from the renderer).
   const host = explicit || (await getVaultNotifyHost()) || getNotifyServiceHostDefault()
   if (!host) {
     throw new Error('Notify service host is not configured')
@@ -330,6 +330,7 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
   try {
     host = await resolveNotifyHost(notifyServiceHost)
   } catch (error: any) {
+    log.warn('Notification sync skipped: no notify host configured', {accountUid})
     updateAccountState(accountUid, (current) => ({
       ...current,
       lastSyncError: error.message,
@@ -464,6 +465,14 @@ export function getLocalNotificationSyncStatus(accountUid: string) {
 
 /** Returns the local optimistic notification config state for an account. */
 export function getLocalNotificationConfig(accountUid: string, notifyServiceHost?: string) {
+  // The renderer resolves the notify host (vault URL / NOTIFY_SERVICE_HOST) but
+  // the main process can't (no Vite env). Learn it from the host the frontend
+  // passes here so background syncs have a host to hit; re-sync if it changed.
+  const host = notifyServiceHost?.trim()
+  if (host && host !== getNotifyServiceHostDefault()) {
+    appStore.set(NOTIFY_SERVICE_HOST_KEY, host)
+    scheduleSync(accountUid, 0, 'notify-host-learned')
+  }
   return toConfigResponse(accountUid, notifyServiceHost)
 }
 
