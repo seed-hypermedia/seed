@@ -20,13 +20,13 @@ import {
   useVaultStatus,
 } from '@/models/daemon'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
-import {useOpenUrl} from '@/open-url'
 import {
   useNotificationConfig,
   useRemoveNotificationConfig,
   useResendNotificationConfigVerification,
   useSetNotificationConfig,
 } from '@/models/notification-config'
+import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {getImportKeyFilePathError, normalizeImportKeyFilePath} from '@/utils/onboarding-import'
 import {useNavigate} from '@/utils/useNavigate'
@@ -41,6 +41,10 @@ import {formattedDate} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
+import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
+import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
+import {ChangeEmailDialog} from '@shm/ui/components/change-email-dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,28 +54,24 @@ import {
   AlertDialogPortal,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
+import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
+import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
+import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Label} from '@shm/ui/components/label'
+import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
-import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
-import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
-import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
-import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
-import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
-import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
-import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
-import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
 import {Separator} from '@shm/ui/separator'
 import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {cn} from '@shm/ui/utils'
-import {LogOut, Vault} from 'lucide-react'
-import React, {useEffect, useId, useRef, useState} from 'react'
+import {LogOut, Mail, Vault} from 'lucide-react'
+import {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
   const route = useNavRoute()
@@ -321,6 +321,7 @@ function VaultSettings() {
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
 
   // Shared notify-server config (the synced vault-state value) — always editable.
   const notifyConfig = {
@@ -439,6 +440,28 @@ function VaultSettings() {
               <>
                 <Separator />
                 <SettingsRow icon={<Vault />} label="Remote vault" description={remoteVaultUrl || 'Connected'} />
+                <Separator />
+                <SettingsRow
+                  icon={<Mail />}
+                  label="Email address"
+                  description={vaultEmail.data || 'No email set'}
+                  action={
+                    <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)} disabled={isPending}>
+                      Change
+                    </Button>
+                  }
+                />
+                <Separator />
+                <SettingsRow
+                  icon={<LogOut />}
+                  label="Log out"
+                  description="Disconnect from the identity server, and remove all local keys from this device"
+                  action={
+                    <Button variant="destructive" size="sm" onClick={() => setLogoutOpen(true)} disabled={isPending}>
+                      Log out
+                    </Button>
+                  }
+                />
               </>
             ) : selectedMode === 'remote' ? (
               <>
@@ -461,7 +484,7 @@ function VaultSettings() {
             <VaultSecuritySettings
               passkey={{
                 description: 'Passkeys are managed in your browser.',
-                actionLabel: 'Manage in browser',
+                actionLabel: 'Manage Passkeys',
                 onAction: () => passkeyManageUrl && openUrl(passkeyManageUrl),
               }}
               password={{
@@ -472,38 +495,11 @@ function VaultSettings() {
                 },
               }}
               notify={notifyConfig}
-              email={{
-                address: vaultEmail.data,
-                onStart: async (newEmail) => {
-                  const result = await changeEmailStart.mutateAsync({newEmail})
-                  emailBinding.current = result.binding
-                  return {expireTimeMs: result.expireTimeMs}
-                },
-                onVerify: async (code) => {
-                  const updated = await changeEmailVerify.mutateAsync({code, binding: emailBinding.current})
-                  toast.success(`Email changed to ${updated}`)
-                },
-              }}
               disabled={isPending}
             />
           ) : (
             <VaultSecuritySettings notify={notifyConfig} disabled={isPending} />
           )}
-
-          {isConnected ? (
-            <SettingsSection label="REMOTE VAULT">
-              <SettingsRow
-                icon={<LogOut />}
-                label="Log out"
-                description="Disconnect and remove all local keys from this device (zero accounts)."
-                action={
-                  <Button variant="destructive" size="sm" onClick={() => setLogoutOpen(true)} disabled={isPending}>
-                    Log out
-                  </Button>
-                }
-              />
-            </SettingsSection>
-          ) : null}
 
           {isConnected && (syncStatus?.lastSyncTime || syncStatus?.lastSyncError) ? (
             <div className="mt-auto flex justify-end pt-2">
@@ -538,6 +534,20 @@ function VaultSettings() {
           </AlertDialogContent>
         </AlertDialogPortal>
       </AlertDialog>
+      <ChangeEmailDialog
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+        currentEmail={vaultEmail.data}
+        onStart={async (newEmail) => {
+          const result = await changeEmailStart.mutateAsync({newEmail})
+          emailBinding.current = result.binding
+          return {expireTimeMs: result.expireTimeMs}
+        }}
+        onVerify={async (code) => {
+          const updated = await changeEmailVerify.mutateAsync({code, binding: emailBinding.current})
+          toast.success(`Email changed to ${updated}`)
+        }}
+      />
       {authDialog.content}
     </div>
   )
