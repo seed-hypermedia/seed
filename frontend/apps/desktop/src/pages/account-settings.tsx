@@ -59,7 +59,7 @@ import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Label} from '@shm/ui/components/label'
 import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
-import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
+import {SegmentedControl} from '@shm/ui/components/segmented-control'
 import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -70,7 +70,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Key, Vault} from 'lucide-react'
-import {useEffect, useId, useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
   const route = useNavRoute()
@@ -298,7 +298,6 @@ function VaultSettings() {
   const authDialog = useDesktopAuthDialog()
   const openUrl = useOpenUrl()
   const {setSelectedIdentity} = useUniversalAppContext()
-  const id = useId()
 
   const data = vaultStatus.data
   const isRemoteBackend = data?.backendMode === VaultBackendMode.REMOTE
@@ -416,24 +415,15 @@ function VaultSettings() {
                   : 'Your account keys are stored on this device only.'
               }
               action={
-                <RadioGroup
+                <SegmentedControl
                   value={selectedMode}
-                  onValueChange={(value) => handleModeChange(value === 'remote' ? 'remote' : 'local')}
-                  className="flex items-center gap-4"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <RadioGroupItem value="local" id={`${id}-local`} disabled={isPending} />
-                    <Label htmlFor={`${id}-local`} className="text-sm">
-                      Local
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <RadioGroupItem value="remote" id={`${id}-remote`} disabled={isPending} />
-                    <Label htmlFor={`${id}-remote`} className="text-sm">
-                      Remote
-                    </Label>
-                  </div>
-                </RadioGroup>
+                  onChange={handleModeChange}
+                  disabled={isPending}
+                  options={[
+                    {value: 'local', label: 'Local'},
+                    {value: 'remote', label: 'Remote'},
+                  ]}
+                />
               }
             />
             {isConnected ? null : selectedMode === 'remote' ? (
