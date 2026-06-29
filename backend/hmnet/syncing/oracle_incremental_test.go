@@ -60,7 +60,7 @@ func TestMaintainRBSRIndex_IncrementalMatchesCollectBlobs(t *testing.T) {
 		exec(conn, `INSERT INTO structural_blobs (id, type, author) VALUES (11, 'Change', 1)`)
 		exec(conn, `INSERT INTO blob_links (source, type, target) VALUES (10, 'ref/head', 11)`)
 
-		id, _, err := resolveScope(conn, scope, ProtocolVersionLegacy)
+		id, _, err := resolveScope(conn, scope)
 		require.NoError(t, err)
 		require.NoError(t, materializeScope(conn, id, scope))
 
@@ -112,7 +112,7 @@ func scopeIDFor(t *testing.T, db *sqlitex.Pool, dkey DiscoveryKey) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
-		got, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		got, _, err := resolveScope(conn, dkey)
 		id = got
 		return err
 	}))

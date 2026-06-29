@@ -40,7 +40,7 @@ func TestRbsrIndex_BuildMatchesLoadRBSRStore(t *testing.T) {
 
 	got := newAuthorizedTreeStore()
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		id, materialized, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		id, materialized, err := resolveScope(conn, dkey)
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func TestRbsrIndex_IncrementalMaintenanceMatchesCollectBlobs(t *testing.T) {
 
 	var scopeID int64
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		id, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		id, _, err := resolveScope(conn, dkey)
 		if err != nil {
 			return err
 		}
@@ -121,21 +121,22 @@ func TestRbsrIndex_ResolveScopeIdempotent(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		id1, mat1, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		id1, mat1, err := resolveScope(conn, dkey)
 		require.NoError(t, err)
 		require.False(t, mat1)
 
-		id2, _, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		id2, _, err := resolveScope(conn, dkey)
 		require.NoError(t, err)
 		require.Equal(t, id1, id2, "same key resolves to same scope id")
 
-		// Different protocol version is a distinct scope.
-		id3, _, err := resolveScope(conn, dkey, ProtocolVersionCanonical)
+		// A different kind for the same IRI is a distinct scope; the protocol
+		// version is intentionally NOT part of the identity anymore.
+		id3, _, err := resolveScope(conn, DiscoveryKey{IRI: blob.IRI(base), DepthOne: true})
 		require.NoError(t, err)
-		require.NotEqual(t, id1, id3, "protocol version is part of the scope key")
+		require.NotEqual(t, id1, id3, "scope kind is part of the scope identity")
 
 		require.NoError(t, materializeScope(conn, id1, dkey))
-		_, matAfter, err := resolveScope(conn, dkey, ProtocolVersionLegacy)
+		_, matAfter, err := resolveScope(conn, dkey)
 		require.NoError(t, err)
 		require.True(t, matAfter, "scope is materialized after materializeScope")
 		return nil

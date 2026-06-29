@@ -42,7 +42,7 @@ func TestCanonicalization_MakesCodecsAgreeAcrossPeers(t *testing.T) {
 	buildFingerprint := func(storedCodec int64, protocolVersion string) rbsr.Fingerprint {
 		db := storage.MakeTestDB(t)
 		require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-			if err := sqlitex.Exec(conn, `INSERT INTO rbsr_scope (id, iri, protocol_version, materialized) VALUES (1, 'hm://x', '0.9.2', 1)`, nil); err != nil {
+			if err := sqlitex.Exec(conn, `INSERT INTO rbsr_scope (id, iri, kind, materialized) VALUES (1, 'hm://x', 2, 1)`, nil); err != nil {
 				return err
 			}
 			if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (80, X'AA', ?, 1)`, nil, storedCodec); err != nil {

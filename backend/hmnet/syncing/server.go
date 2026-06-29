@@ -425,7 +425,11 @@ func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[Disc
 	if err := s.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		scopeIDs := make([]int64, 0, len(dkeys))
 		for dkey := range dkeys {
-			id, materialized, err := resolveScope(conn, dkey, protocolVersion)
+			// resolveScope returns errScopeNotRepresentable for an exotic blob-type
+			// filter the flattened index doesn't maintain; that error propagates out
+			// of the tx so loadStore falls back to the legacy rebuild, which honors
+			// arbitrary filters.
+			id, materialized, err := resolveScope(conn, dkey)
 			if err != nil {
 				return err
 			}

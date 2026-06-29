@@ -72,13 +72,10 @@ var migrations = []migration{
 			CREATE TABLE rbsr_scope (
 			    id INTEGER PRIMARY KEY,
 			    iri TEXT NOT NULL,
-			    recursive INTEGER NOT NULL DEFAULT 0,
-			    depth_one INTEGER NOT NULL DEFAULT 0,
-			    blob_types TEXT NOT NULL DEFAULT '',
-			    protocol_version TEXT NOT NULL,
+			    kind INTEGER NOT NULL,
 			    materialized INTEGER NOT NULL DEFAULT 0,
 			    last_access INTEGER NOT NULL DEFAULT 0,
-			    UNIQUE (iri, recursive, depth_one, blob_types, protocol_version)
+			    UNIQUE (iri, kind)
 			);
 			CREATE TABLE rbsr_item (
 			    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
