@@ -319,6 +319,7 @@ function VaultSettings() {
 
   const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [switchLocalOpen, setSwitchLocalOpen] = useState(false)
 
   // Shared notify-server config (the synced vault-state value) — always editable.
   const notifyConfig = {
@@ -369,10 +370,10 @@ function VaultSettings() {
       return
     }
     // Switching to local disconnects from the remote vault but keeps the local
-    // keys (non-destructive). Logging out (separate action) clears them.
+    // keys (non-destructive). Confirm first; logging out (separate action)
+    // clears them. Don't flip the toggle until confirmed.
     if (isRemoteBackend || isConnected) {
-      setSelectedMode('local')
-      void handleDisconnect()
+      setSwitchLocalOpen(true)
       return
     }
     setSelectedMode('local')
@@ -408,7 +409,7 @@ function VaultSettings() {
           <SettingsSection label="IDENTITY STORAGE">
             <SettingsRow
               icon={<Key />}
-              label="Secure Identity Storage"
+              label="Identity Key Storage Mode"
               description={
                 selectedMode === 'remote'
                   ? `Synced to ${remoteVaultHost} for multi-device account syncing.`
@@ -508,6 +509,28 @@ function VaultSettings() {
               <AlertDialogAction asChild>
                 <Button variant="destructive" onClick={handleLogout} disabled={logout.isLoading}>
                   {logout.isLoading ? 'Logging out…' : 'Log out'}
+                </Button>
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialog>
+
+      <AlertDialog open={switchLocalOpen} onOpenChange={setSwitchLocalOpen}>
+        <AlertDialogPortal>
+          <AlertDialogContent className="max-w-[600px] gap-4">
+            <AlertDialogTitle className="text-2xl font-bold">Switch to local identity?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This disconnects from the remote vault and stops syncing across your devices. Your account keys stay on
+              this device — you can switch back to Remote anytime to resume syncing.
+            </AlertDialogDescription>
+            <div className="flex justify-end gap-3">
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button onClick={() => void handleDisconnect()} disabled={disconnectVault.isPending}>
+                  Switch to Local
                 </Button>
               </AlertDialogAction>
             </div>
