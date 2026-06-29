@@ -15,7 +15,9 @@ import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
+import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
+import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
@@ -214,7 +216,22 @@ export function AccountSettingsView() {
             <SettingsView />
           ) : selected ? (
             <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-              <h1 className="text-2xl font-semibold">Account Settings</h1>
+              <AccountSettingsHeader
+                name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
+                icon={
+                  <AccountAvatar
+                    avatar={profiles[selected.principal]?.avatar}
+                    name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
+                    backendHttpBaseUrl={backendHttpBaseUrl}
+                    size={40}
+                  />
+                }
+                onOpenProfile={() => {
+                  const host = backendHttpBaseUrl?.trim()
+                  const url = createWebHMUrl(selected.principal, {hostname: host ? host.replace(/\/$/, '') : null})
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                }}
+              />
               <AccountSettingsTabs
                 activeTab={tab}
                 onTabChange={(nextTab) =>

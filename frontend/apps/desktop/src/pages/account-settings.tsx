@@ -57,6 +57,7 @@ import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
+import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
@@ -554,11 +555,16 @@ function VaultSettings() {
 
 function AccountSettingsDetail({accountUid, tab}: {accountUid: string; tab: AccountSettingsTab}) {
   const replace = useNavigate('replace')
+  const navigate = useNavigate()
+  const account = useAccount(accountUid)
+  const name = account.data?.metadata?.name || 'Account'
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-      <SizableText size="2xl" weight="bold">
-        Account Settings
-      </SizableText>
+      <AccountSettingsHeader
+        name={name}
+        icon={<HMIcon id={hmId(accountUid)} name={name} icon={account.data?.metadata?.icon} size={40} />}
+        onOpenProfile={() => navigate({key: 'profile', id: hmId(accountUid)})}
+      />
       <AccountSettingsTabs
         activeTab={tab}
         onTabChange={(nextTab) => replace({key: 'account-settings', accountUid, tab: nextTab})}
@@ -688,7 +694,6 @@ function DevicesTab({accountUid}: {accountUid: string}) {
 
 function AccountTab({accountUid}: {accountUid: string}) {
   const account = useAccount(accountUid)
-  const navigate = useNavigate()
   const editProfileDialog = useEditProfileDialog()
   const {pickKeyExportFile} = useAppContext()
   const exportKey = useExportKey()
@@ -741,7 +746,6 @@ function AccountTab({accountUid}: {accountUid: string}) {
         onDelete={handleDeleteAccount}
         deleteBusy={deleteKey.isPending}
         onEditProfile={() => editProfileDialog.open({accountUid})}
-        onViewPublicProfile={() => navigate({key: 'profile', id: hmId(accountUid)})}
       />
       {editProfileDialog.content}
     </>
