@@ -93,8 +93,22 @@ export function getNotifyServiceHostDefault(): string | null {
   return trimmed || null
 }
 
-function resolveNotifyHost(notifyServiceHost: string | undefined): string {
-  const host = notifyServiceHost?.trim() || getNotifyServiceHostDefault()
+/** The notify server URL synced from the connected remote vault (matches the web vault), if any. */
+async function getVaultNotifyHost(): Promise<string | null> {
+  try {
+    const res = await grpcClient.daemon.getVaultNotificationServer({})
+    return res.url?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise<string> {
+  const explicit = notifyServiceHost?.trim()
+  // Prefer the synced vault notification server URL so background syncs hit the
+  // same notify server the web vault and the UI use; fall back to the local
+  // default (appStore / NOTIFY_SERVICE_HOST).
+  const host = explicit || (await getVaultNotifyHost()) || getNotifyServiceHostDefault()
   if (!host) {
     throw new Error('Notify service host is not configured')
   }
@@ -294,7 +308,7 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
   const previousSyncStatus = toSyncStatus(accountUid)
   let host: string
   try {
-    host = resolveNotifyHost(notifyServiceHost)
+    host = await resolveNotifyHost(notifyServiceHost)
   } catch (error: any) {
     updateAccountState(accountUid, (current) => ({
       ...current,
