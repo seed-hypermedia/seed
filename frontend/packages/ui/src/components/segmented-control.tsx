@@ -19,7 +19,7 @@ export function SegmentedControl<T extends string>({
   className?: string
 }) {
   return (
-    <div className={cn('bg-muted inline-flex items-center rounded-full p-1', className)}>
+    <div className={cn('inline-flex items-center rounded-full bg-black/10 p-1 dark:bg-white/10', className)}>
       {options.map((option) => {
         const active = option.value === value
         return (
