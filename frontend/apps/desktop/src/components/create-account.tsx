@@ -1,10 +1,11 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {grpcClient} from '@/grpc-client'
-import {useRegisterKey, useVaultEmail} from '@/models/daemon'
+import {useRegisterKey, useVaultEmail, useVaultStatus} from '@/models/daemon'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {postAccountCreateAction, useUniversalAppContext} from '@shm/shared'
+import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -87,8 +88,12 @@ export function useCreateAccountDialog() {
 function CreateAccountDialog({onClose}: {onClose: () => void}) {
   const {createAccount, isCreating} = useCreateAccount()
   const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-  const {data: vaultEmail} = useVaultEmail()
-  const email = vaultEmail?.trim() || ''
+  // Only a remote-connected vault has an email; gate the query so it isn't
+  // requested on a local vault (the daemon errors with FailedPrecondition).
+  const vaultStatus = useVaultStatus()
+  const isRemoteConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const {data: vaultEmail} = useVaultEmail({enabled: isRemoteConnected})
+  const email = isRemoteConnected ? vaultEmail?.trim() || '' : ''
   const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
 
   async function handleSubmit(values: AccountProfileFormValues) {
