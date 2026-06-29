@@ -522,25 +522,41 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     async ensureProfileLoaded(principal: string) {
       if (state.profiles[principal]) return
-      try {
-        const account = await client.getAccount({id: principal})
-        const profile = account.profile
-        const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
+      // Skip if a load is already in flight for this account.
+      if (state.profileLoadStates[principal] === 'loading') return
+      state.profileLoadStates[principal] = 'loading'
 
-        delete state.profileLoadStates[principal]
+      // On first load the account may still be syncing in from the remote vault,
+      // so getAccount can 404 transiently. Retry a few times before concluding
+      // "not found" — the UI shows the loading state meanwhile.
+      const maxAttempts = 4
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const account = await client.getAccount({id: principal})
+          const profile = account.profile
+          const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
 
-        if (profile || metadata) {
-          state.profiles[principal] = {
-            name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
-            avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
-            description:
-              profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+          delete state.profileLoadStates[principal]
+
+          if (profile || metadata) {
+            state.profiles[principal] = {
+              name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
+              avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
+              description:
+                profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+            }
           }
+          return
+        } catch (err) {
+          const notFound = err instanceof APIError && err.statusCode === 404
+          if (notFound && attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+            continue
+          }
+          state.profileLoadStates[principal] = notFound ? 'not_found' : 'unavailable'
+          console.error('Failed to fetch profile', err)
+          return
         }
-      } catch (err) {
-        state.profileLoadStates[principal] =
-          err instanceof APIError && err.statusCode === 404 ? 'not_found' : 'unavailable'
-        console.error('Failed to fetch profile', err)
       }
     },
 
