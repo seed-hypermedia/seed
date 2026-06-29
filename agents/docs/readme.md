@@ -149,6 +149,7 @@ Validate agents service:
 direnv exec . bash -lc 'cd agents && bun check && bun test'
 direnv exec . bash -lc 'cd agents && bun run test:build'
 direnv exec . bash -lc 'cd agents && bun run test:docker'
+direnv exec . bash -lc 'cd agents && bun run test:trigger'
 ```
 
 Validate frontend:

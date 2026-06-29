@@ -172,6 +172,18 @@ The `activity_key` must be stable and derived from the feed event identity, for 
 ID/CID/resource/observe time as available. Add a uniqueness constraint on `(account_id, trigger_id, activity_key)` so
 feed retries are idempotent.
 
+> **Comment mentions emit two sibling feed events.** A comment that @mentions an account produces both a
+> `comment` event (`feedEventId: blob-<cid>`) and a comment-sourced `citation` event
+> (`feedEventId: mention-<cid>--<target>`) that share the same comment-version CID. They are indexed seconds
+> apart and can land in different polls, and the staleness watermark can drop whichever arrives second. Both
+> are therefore allowed to match (`matchesSingleMention` no longer suppresses `citationType: 'c'`), and
+> `activityTriggers.activityFiringKey` collapses the citation onto its comment sibling's `blob-<cid>` identity
+> before the `trigger_firings` insert — so the mention fires **exactly once** regardless of which sibling is
+> processed first, and survives the other being dropped. Both resolved siblings carry the full comment body
+> (`loadCitationEvent` fetches it for `'c'` citations), so context is preserved whichever one fires. Regression
+> coverage: `src/activity-trigger-race.test.ts` (real monitor → HTTP → service) and `scripts/smoke-trigger.ts`
+> (`bun run test:trigger`, real daemon).
+
 Track feed progress separately from individual triggers:
 
 - `activity_watermarks`

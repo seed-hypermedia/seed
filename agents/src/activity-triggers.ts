@@ -30,6 +30,34 @@ export function activityEventKey(event: ActivityFeedEvent): string | null {
   return null
 }
 
+/**
+ * Returns the idempotency key used to deduplicate `trigger_firings` for an activity event.
+ *
+ * A single comment that @mentions an account produces TWO sibling events from `/api/ListEvents`: a
+ * `comment` event (`feedEventId: blob-<cid>`) and a `citation` event (`feedEventId: mention-<cid>--<target>`).
+ * Both carry the *same* origin CID — the comment version. They are indexed a few seconds apart, so the
+ * monitor can see them in different polls and the staleness watermark can drop whichever arrives second.
+ * To make the mention fire exactly once regardless of which sibling is processed first (and survive the
+ * other being dropped), we collapse the citation onto its comment sibling's `blob-<cid>` identity here.
+ *
+ * Comment events keep their natural `blob-<cid>` key, so non-mention activity (document comments, site
+ * updates) and existing firing keys are unchanged. Falls back to {@link activityEventKey} for shapes
+ * with no recognizable comment CID.
+ */
+export function activityFiringKey(event: ActivityFeedEvent): string | null {
+  const key = activityEventKey(event)
+  if (!key) return null
+  if (key.startsWith('mention-')) {
+    const rest = key.slice('mention-'.length)
+    const separatorIndex = rest.indexOf('--')
+    // The CID precedes the first `--` in both the resolved citation form (`mention-<cid>--<target>`)
+    // and the raw `newMention` fallback (`mention-<cid>-<type>-<target>`). Collapsing onto `blob-<cid>`
+    // unifies the citation with the comment event that shares the same comment-version CID.
+    if (separatorIndex > 0) return `blob-${rest.slice(0, separatorIndex)}`
+  }
+  return key
+}
+
 /** Canonicalizes a user-entered HM document/resource URL for exact trigger matching. */
 export function canonicalizeResourceId(value: string): string {
   const trimmed = value.trim()
@@ -184,8 +212,9 @@ function matchesUserMention(
  *
  * Detection is structural (mirroring the notification classifier) rather than a substring scan, so a
  * trigger fires only when the account is actually mentioned — not merely because its UID appears as an
- * author, reply parent, or cited document. Comment-sourced citations are ignored because the same
- * mention is already reported by the comment event, which avoids firing two sessions for one mention.
+ * author, reply parent, or cited document. Both the comment event and its comment-sourced citation twin
+ * are allowed to match; duplicate firings are prevented downstream by {@link activityFiringKey}, which
+ * collapses the two siblings onto one shared comment-CID idempotency key.
  */
 function matchesSingleMention(
   mentionedAccount: string,
@@ -215,9 +244,11 @@ function matchesSingleMention(
     return mentionMatchesResourcePrefix(event, source.resourcePrefix)
   }
   if (type === 'citation') {
-    // Comment-sourced citations mirror their comment event; rely on the comment event so a single
-    // mention does not create two sessions.
-    if (stringField(event, 'citationType') === 'c') return false
+    // A comment-sourced citation (`citationType: 'c'`) mirrors its comment event. We deliberately do
+    // NOT suppress it here: the two are emitted as separate feed events that can arrive in different
+    // polls, and the comment event is sometimes dropped by the staleness watermark. Letting either
+    // sibling match — deduplicated to one firing by {@link activityFiringKey} (shared comment CID) —
+    // makes the mention fire exactly once instead of being silently missed.
     const target = recordField(event, 'target')
     const targetId = target ? recordField(target, 'id') : null
     if (mentionedAccountFromIdRecord(targetId) !== mentionedAccount) return false

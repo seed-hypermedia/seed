@@ -8,6 +8,7 @@
     "build": "NODE_ENV=production bun build.ts",
     "test:build": "bun run build && bun scripts/smoke-build.ts",
     "test:docker": "bun scripts/smoke-docker.ts",
+    "test:trigger": "bun scripts/smoke-trigger.ts",
     "typecheck": "bun tsgo --noEmit",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",

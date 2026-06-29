@@ -1854,6 +1854,9 @@ export class Service {
       })
       return {checked: 0, matched: 0, fired: 0, skipped: 1, errors: 0}
     }
+    // Deduplicate firings on the comment's origin CID so the comment event and its citation twin (the
+    // two feed events HM emits for one @mention) collapse to a single firing. See activityFiringKey.
+    const firingKey = activityTriggers.activityFiringKey(event) ?? activityKey
     const rows = this.#db
       .query<AgentTriggerRow, [string]>(
         `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
@@ -1894,13 +1897,14 @@ export class Service {
         `INSERT OR IGNORE INTO trigger_firings
            (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [firingId, accountId, trigger.agentId, trigger.id, activityKey, cbor.encode(event), 'created', now],
+        [firingId, accountId, trigger.agentId, trigger.id, firingKey, cbor.encode(event), 'created', now],
       )
       if (inserted.changes === 0) {
         console.log('[Agents Trigger] Skipping duplicate trigger firing', {
           accountId,
           triggerId: trigger.id,
           activityKey,
+          firingKey,
         })
         skipped += 1
         continue

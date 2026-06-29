@@ -19,7 +19,12 @@ Validation:
 direnv exec . bash -lc 'cd agents && bun check && bun test'
 direnv exec . bash -lc 'cd agents && bun run test:build'
 direnv exec . bash -lc 'cd agents && bun run test:docker'
+direnv exec . bash -lc 'cd agents && bun run test:trigger'
 ```
+
+`test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an
+agent + user-mention trigger over the signed API, and asserts a comment-mention fires exactly one session
+(guards the comment/citation sibling race; see `agent-triggers-plan.md`).
 
 Desktop:
 

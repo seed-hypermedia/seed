@@ -150,8 +150,11 @@ describe('activity trigger matching', () => {
     }
     expect(triggers.activityMatchesTriggerSource(source, documentMention)).toBe(true)
 
-    // A comment-sourced citation is suppressed because its comment event already reports the mention.
-    expect(triggers.activityMatchesTriggerSource(source, {...documentMention, citationType: 'c'})).toBe(false)
+    // A comment-sourced citation (citationType 'c') is now ALSO a match. It is no longer suppressed:
+    // the comment event and this citation twin are separate feed events that can arrive in different
+    // polls (and the comment event is sometimes dropped by the staleness watermark), so either must be
+    // able to fire. Duplicate firings are prevented downstream by activityFiringKey, not here.
+    expect(triggers.activityMatchesTriggerSource(source, {...documentMention, citationType: 'c'})).toBe(true)
 
     // A citation that merely *cites a document owned by* the account is not an account mention.
     const documentCitation = {
@@ -247,5 +250,35 @@ describe('activity trigger matching', () => {
       'Comment on hm://z6Mkdoc',
     )
     expect(triggers.activityEventTimeMs({eventTime: {seconds: 2}, observeTime: {seconds: 1}})).toBe(2000)
+  })
+
+  test('collapses a comment event and its citation twin to one firing key', () => {
+    // The two feed events HM emits for one @mention: a comment event and a citation event. Both carry
+    // the same comment-version CID, so activityFiringKey maps them to the same `blob-<cid>` identity.
+    const commentCid = 'bafy2bzaceca7qqno4qw7rxa3mblizsb266i2ryt6lojpxnocrfqn7yfy7m6ww'
+    const commentEvent = {type: 'comment', feedEventId: `blob-${commentCid}`}
+    const citationEvent = {
+      type: 'citation',
+      citationType: 'c',
+      feedEventId: `mention-${commentCid}--hm://z6MknRGBsPMcrn5nAXWHmR4RjNuVTRK5a2rthFy188et7LKs/:profile`,
+    }
+
+    expect(triggers.activityFiringKey(commentEvent)).toBe(`blob-${commentCid}`)
+    expect(triggers.activityFiringKey(citationEvent)).toBe(`blob-${commentCid}`)
+    // Same identity => one row under UNIQUE(account_id, trigger_id, activity_key) => fires once.
+    expect(triggers.activityFiringKey(citationEvent)).toBe(triggers.activityFiringKey(commentEvent))
+  })
+
+  test('keeps distinct comments and non-mention events on distinct firing keys', () => {
+    // Different comments must not collapse.
+    const a = {type: 'comment', feedEventId: 'blob-bafyCommentA'}
+    const bCitation = {type: 'citation', feedEventId: 'mention-bafyCommentB--hm://z6Mkmentioned/:profile'}
+    expect(triggers.activityFiringKey(a)).not.toBe(triggers.activityFiringKey(bCitation))
+
+    // A plain comment/blob event keeps its natural key (unchanged behavior for document-comment triggers).
+    expect(triggers.activityFiringKey({newBlob: {cid: 'bafyblob', blobType: 'Comment'}})).toBe('blob-bafyblob')
+
+    // Events without a stable key have no firing key.
+    expect(triggers.activityFiringKey({newBlob: {cid: 'undefined'}})).toBeNull()
   })
 })
