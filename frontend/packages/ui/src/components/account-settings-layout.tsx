@@ -73,7 +73,7 @@ export function AccountSettingsLayout({
           <p className="text-muted-foreground text-xs font-bold tracking-wider uppercase">Accounts</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2">
           {accounts.map((account) => (
             <SidebarItem
               key={account.id}
