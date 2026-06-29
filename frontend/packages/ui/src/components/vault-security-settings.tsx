@@ -1,4 +1,4 @@
-import {Bell, Key, LogOut, Mail, Shield} from 'lucide-react'
+import {Bell, Lock, LogOut, Mail, Shield} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from '../button'
 import {Separator} from '../separator'
@@ -108,7 +108,7 @@ export function VaultSecuritySettings({
         <SettingsSection label="AUTHENTICATION">
           {passkey ? (
             <SettingsRow
-              icon={<Key />}
+              icon={<Lock />}
               label="Passkeys"
               description={passkey.description}
               action={
