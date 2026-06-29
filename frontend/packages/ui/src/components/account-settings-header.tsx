@@ -22,9 +22,9 @@ export function AccountSettingsHeader({
       <div className="shrink-0">{icon}</div>
       <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold">{name}</h1>
       {onOpenProfile ? (
-        <Button variant="outline" className="shrink-0" onClick={onOpenProfile}>
-          Open Profile
+        <Button variant="brand" className="shrink-0" onClick={onOpenProfile}>
           <ExternalLink className="size-4" />
+          Open Profile
         </Button>
       ) : null}
     </div>

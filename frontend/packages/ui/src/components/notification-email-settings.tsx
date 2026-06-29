@@ -86,7 +86,7 @@ export function NotificationEmailSettings({
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-      <div>
+      <div className="flex flex-col gap-2">
         <SizableText weight="bold">Email notifications</SizableText>
         <SizableText size="sm" color="muted">
           {!hasServer
