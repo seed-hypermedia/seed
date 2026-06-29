@@ -1,8 +1,8 @@
-import {Loader2} from 'lucide-react'
-import {useEffect, useState, type FormEvent} from 'react'
-import {Button} from '../button'
-import {SizableText} from '../text'
-import {Input} from './input'
+import { Loader2 } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Button } from '../button'
+import { SizableText } from '../text'
+import { Input } from './input'
 
 /**
  * Shared, cross-platform per-account email-notification settings UI.
@@ -133,7 +133,7 @@ export function NotificationEmailSettings({
 
       {showEmailRow ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 flex flex-col gap-1">
             <SizableText size="sm" weight="bold" className="truncate">
               {email}
             </SizableText>
