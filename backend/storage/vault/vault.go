@@ -228,6 +228,9 @@ const (
 	fetchMaxBody             = 120 << 20 // 120 MiB.
 	defaultPollInterval      = 2 * time.Second
 	defaultPollTimeout       = 2 * time.Minute
+	// defaultRemoteSyncInterval is how often the daemon pulls/pushes the remote
+	// vault in the background so it stays in sync without manual action.
+	defaultRemoteSyncInterval = 30 * time.Second
 
 	vaultPath            = "api/vault"
 	vaultConnectPath     = "api/vault-connect"
@@ -427,6 +430,28 @@ func validateLocalKeyName(name string, kp *core.KeyPair) error {
 // ResumeRemoteConnection refreshes remote sync state for an already-connected vault.
 func (ks *Vault) ResumeRemoteConnection() {
 	go ks.syncRemoteMaybe(context.Background())
+}
+
+// StartPeriodicRemoteSync runs a background sync on the given interval until ctx
+// is cancelled, keeping the local vault in sync with the remote without manual
+// action. Each tick is a no-op unless the vault is connected to a remote, and
+// syncs are serialized, so this is safe to start unconditionally.
+func (ks *Vault) StartPeriodicRemoteSync(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = defaultRemoteSyncInterval
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ks.syncRemoteMaybe(ctx)
+			}
+		}
+	}()
 }
 
 // SetPendingConnectionExpiry rewrites the current pending Vault Connect expiry.

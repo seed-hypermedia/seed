@@ -122,6 +122,7 @@ export function useVaultStatus(opts: UseQueryOptions<GetVaultStatusResponse | nu
       return null
     },
     refetchInterval: VAULT_STATUS_POLL_INTERVAL,
+    refetchIntervalInBackground: true,
     useErrorBoundary: false,
     ...opts,
   })
