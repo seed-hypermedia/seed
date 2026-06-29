@@ -68,6 +68,7 @@ async function main() {
     db,
     cfg.backend.httpBaseUrl,
     cfg.notificationServerUrl,
+    cfg.webBaseUrl,
     grpcClient,
     cfg.relyingParty,
     hmacSecret,

@@ -55,7 +55,7 @@ export function getPendingFlowPath(state: Pick<AppState, 'delegationRequest' | '
 }
 
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
+function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '') {
   return {
     email: '',
     password: '',
@@ -92,6 +92,8 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
     backendHttpBaseUrl,
+    /** Public web reader base URL for "open profile" links ('' = same origin). */
+    webBaseUrl,
     /** Notification server URL surfaced in the application footer. */
     notificationServerUrl,
     /** Signed email prevalidation from the vault server, used to skip email verification on the notify server. */
@@ -499,7 +501,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl))
+      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
     },
 
     setEmail(email: string) {
@@ -1969,8 +1971,9 @@ export function createStore(
   blockstore: Blockstore,
   backendHttpBaseUrl = '',
   notificationServerUrl = '',
+  webBaseUrl = '',
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl))
+  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

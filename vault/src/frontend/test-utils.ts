@@ -57,6 +57,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     getConfig: async () => ({
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
+      webBaseUrl: 'https://web.example.com',
     }),
     registerStart: async () => ({
       message: 'ok',

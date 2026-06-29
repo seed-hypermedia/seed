@@ -26,8 +26,8 @@ export type DelegatedKeyItem = {
  */
 export function DelegatedKeysList({
   items,
-  emptyLabel = 'No delegated keys',
-  emptyDescription = 'Keys this account delegates to other devices and web sessions will appear here.',
+  emptyLabel = 'No Sites Signed-In',
+  emptyDescription = 'When you log into an a site on the web, your sessions will appear here.',
 }: {
   items: DelegatedKeyItem[]
   emptyLabel?: string

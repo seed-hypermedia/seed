@@ -186,6 +186,7 @@ export class Service implements api.ServerInterface {
   private sessions: sess.Store
   private backendHttpBaseUrl: string
   private notificationServerUrl: string
+  private webBaseUrl: string
   private grpcClient: MinimalGRPCClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
@@ -194,6 +195,7 @@ export class Service implements api.ServerInterface {
     db: Database,
     backendHttpBaseUrl: string,
     notificationServerUrl: string,
+    webBaseUrl: string,
     grpcClient: MinimalGRPCClient,
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
@@ -203,6 +205,7 @@ export class Service implements api.ServerInterface {
     this.sessions = new sess.Store(db)
     this.backendHttpBaseUrl = backendHttpBaseUrl
     this.notificationServerUrl = notificationServerUrl
+    this.webBaseUrl = webBaseUrl
     this.grpcClient = grpcClient
     this.rp = rp
     this.hmacSecret = hmacSecret
@@ -459,6 +462,7 @@ export class Service implements api.ServerInterface {
     return {
       backendHttpBaseUrl: this.backendHttpBaseUrl,
       notificationServerUrl: this.notificationServerUrl,
+      webBaseUrl: this.webBaseUrl,
     }
   }
 
