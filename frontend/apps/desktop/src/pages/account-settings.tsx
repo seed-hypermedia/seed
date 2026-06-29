@@ -57,7 +57,9 @@ import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
+import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
+import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
@@ -81,8 +83,13 @@ export default function AccountSettingsPage() {
   const accountIds = myAccountIds.data || []
   const accountQueries = useAccounts(accountIds)
   const createAccountDialog = useCreateAccountDialog()
-  const {pickKeyImportFile} = useAppContext()
+  const {pickKeyImportFile, pickKeyExportFile} = useAppContext()
   const importKey = useImportKey()
+  const exportKey = useExportKey()
+  const deleteKey = useDeleteKey()
+  const keys = useListKeys()
+  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
 
   const isVaultSelected = accountSettingsRoute?.view === 'vault'
   const selectedUid = isVaultSelected ? null : accountSettingsRoute?.accountUid ?? null
@@ -91,6 +98,10 @@ export default function AccountSettingsPage() {
   const [pendingSelectUid, setPendingSelectUid] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [importFilePath, setImportFilePath] = useState('')
+  // Targets for the account-row options menu (export / delete) — keyed by the
+  // hovered account, independent of the account open in the detail pane.
+  const [exportTargetUid, setExportTargetUid] = useState<string | null>(null)
+  const [deleteTargetUid, setDeleteTargetUid] = useState<string | null>(null)
 
   useEffect(() => {
     if (!importOpen) setImportFilePath('')
@@ -148,6 +159,14 @@ export default function AccountSettingsPage() {
               size={28}
             />
           ),
+          menu: {
+            onCopyId: () => {
+              copyTextToClipboard(option.uid)
+              toast.success('Account ID copied to clipboard')
+            },
+            onExportKey: () => setExportTargetUid(option.uid),
+            onDelete: () => setDeleteTargetUid(option.uid),
+          },
         }))}
         selectedAccountId={selectedUid}
         isVaultSelected={isVaultSelected}
@@ -204,6 +223,47 @@ export default function AccountSettingsPage() {
           setPendingSelectUid(imported.publicKey)
           replace({key: 'account-settings', accountUid: imported.publicKey, tab: accountSettingsRoute?.tab})
           toast.success('Account imported')
+        }}
+      />
+      <ExportKeyDialog
+        open={!!exportTargetUid}
+        onOpenChange={(open) => {
+          if (!open) setExportTargetUid(null)
+        }}
+        busy={exportKey.isPending}
+        onExport={async (password) => {
+          const key = keys.data?.find((k) => k.publicKey === exportTargetUid)
+          if (!exportTargetUid || !key) throw new Error('Key is not available')
+          const filePath = await pickKeyExportFile(`${exportTargetUid}.hmkey.json`)
+          if (!filePath) return
+          await exportKey.mutateAsync({
+            name: key.name,
+            filePath,
+            password: password.length > 0 ? password : undefined,
+          })
+          toast.success(`Key exported to ${filePath}`)
+        }}
+      />
+      <DeleteAccountDialog
+        open={!!deleteTargetUid}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetUid(null)
+        }}
+        accountName={accountOptions.find((o) => o.uid === deleteTargetUid)?.data.metadata?.name || 'Account'}
+        busy={deleteKey.isPending}
+        onDelete={() => {
+          if (!deleteTargetUid) return
+          const targetUid = deleteTargetUid
+          deleteKey
+            .mutateAsync({accountId: targetUid})
+            .then(() => {
+              if (selectedIdentityValue === targetUid) setSelectedIdentity?.(null)
+              toast.success('Account deleted')
+              setDeleteTargetUid(null)
+            })
+            .catch((error) => {
+              toast.error('Failed to delete account: ' + (error instanceof Error ? error.message : 'Unknown error'))
+            })
         }}
       />
     </PanelContainer>

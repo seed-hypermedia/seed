@@ -19,6 +19,8 @@ import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
+import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
+import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {CheckCircle2, Monitor, Smartphone, Tablet, X} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
@@ -51,6 +53,33 @@ function parseAccountHash(hash: string): {accountId: string; tab: AccountSetting
 function formatAccountHash(accountId: string, tab: AccountSettingsTab = 'account'): string {
   const base = `#/a/${encodeURIComponent(accountId)}`
   return tab === 'account' ? base : `${base}/${tab}`
+}
+
+/** Builds an encrypted/plaintext `.hmkey.json` for an account and downloads it. */
+async function downloadAccountKeyfile(
+  principal: string,
+  seed: Uint8Array,
+  profile: AccountProfileSummary | undefined,
+  password: string,
+) {
+  const payload = await keyfile.create({
+    publicKey: principal,
+    key: seed,
+    password: password.length > 0 ? password : undefined,
+    profile: profile ? {name: profile.name, description: profile.description} : undefined,
+  })
+  const fileName = `${principal}.hmkey.json`
+  const contents = keyfile.stringify(payload)
+  const blob = new Blob([contents], {type: 'application/json'})
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  anchor.style.display = 'none'
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }
 
 /**
@@ -89,6 +118,15 @@ export function AccountSettingsView() {
   const selected = accountList.find((a) => a.principal === selectedAccountId) ?? null
 
   const [importOpen, setImportOpen] = useState(false)
+  // Targets for the account-row options menu (export / delete) — keyed by the
+  // hovered account, independent of which account is selected in the detail pane.
+  const [exportTarget, setExportTarget] = useState<{
+    principal: string
+    seed: Uint8Array
+    profile?: AccountProfileSummary
+  } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{principal: string; name: string} | null>(null)
+  const [deletingTarget, setDeletingTarget] = useState(false)
 
   // Load profile metadata for each account (names + avatars).
   useEffect(() => {
@@ -129,6 +167,11 @@ export function AccountSettingsView() {
       id: a.principal,
       name,
       icon: <AccountAvatar avatar={profile?.avatar} name={name} backendHttpBaseUrl={backendHttpBaseUrl} />,
+      menu: {
+        onCopyId: () => void navigator.clipboard?.writeText(a.principal),
+        onExportKey: () => setExportTarget({principal: a.principal, seed: a.account.seed, profile}),
+        onDelete: () => setDeleteTarget({principal: a.principal, name}),
+      },
     }
   })
 
@@ -207,6 +250,35 @@ export function AccountSettingsView() {
         <CreateAccountDialog />
         <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
       </div>
+
+      <ExportKeyDialog
+        open={!!exportTarget}
+        onOpenChange={(open) => {
+          if (!open) setExportTarget(null)
+        }}
+        onExport={async (password) => {
+          if (!exportTarget) return
+          await downloadAccountKeyfile(exportTarget.principal, exportTarget.seed, exportTarget.profile, password)
+        }}
+      />
+      <DeleteAccountDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        accountName={deleteTarget?.name ?? ''}
+        busy={deletingTarget}
+        onDelete={async () => {
+          if (!deleteTarget) return
+          setDeletingTarget(true)
+          try {
+            await actions.deleteAccount(deleteTarget.principal)
+          } finally {
+            setDeletingTarget(false)
+            setDeleteTarget(null)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -256,24 +328,7 @@ function AccountTabContent({
   const canEditProfile = profileLoadState !== 'unavailable'
 
   async function handleExport(password: string) {
-    const payload = await keyfile.create({
-      publicKey: principal,
-      key: account.seed,
-      password: password.length > 0 ? password : undefined,
-      profile: profile ? {name: profile.name, description: profile.description} : undefined,
-    })
-    const fileName = `${principal}.hmkey.json`
-    const contents = keyfile.stringify(payload)
-    const blob = new Blob([contents], {type: 'application/json'})
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = fileName
-    anchor.style.display = 'none'
-    document.body.append(anchor)
-    anchor.click()
-    anchor.remove()
-    URL.revokeObjectURL(url)
+    await downloadAccountKeyfile(principal, account.seed, profile, password)
   }
 
   async function handleDelete() {

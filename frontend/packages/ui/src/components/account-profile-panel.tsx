@@ -1,26 +1,16 @@
 import {Copy, ExternalLink, KeyRound, Trash, User} from 'lucide-react'
-import {useEffect, useState, type FormEvent, type ReactNode} from 'react'
+import {useState, type ReactNode} from 'react'
 import {Button} from '../button'
 import {SizableText} from '../text'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogPortal,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from './alert-dialog'
-import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from './dialog'
-import {Input} from './input'
-import {Label} from './label'
+import {DeleteAccountDialog} from './delete-account-dialog'
+import {ExportKeyDialog} from './export-key-dialog'
 
 /**
  * Shared, cross-platform Account tab content: the identity card (avatar + name +
  * account ID), the action buttons (view public profile / copy ID / export key /
- * edit profile), a delete "danger zone" with confirmation, and the password-
- * protected key-export dialog.
+ * edit profile), and a delete "danger zone". The password-protected export
+ * dialog and the delete confirmation are the shared ExportKeyDialog /
+ * DeleteAccountDialog (also used by the account sidebar's options menu).
  *
  * Routing- and backend-agnostic. The two platforms acquire/produce the key file
  * very differently (desktop hands a path to the daemon; the web vault builds a
@@ -62,26 +52,7 @@ export function AccountProfilePanel({
   onViewPublicProfile?: () => void
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false)
-  const [exportPassword, setExportPassword] = useState('')
-  const [exportError, setExportError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!isExportOpen) {
-      setExportPassword('')
-      setExportError(null)
-    }
-  }, [isExportOpen])
-
-  async function handleExport(event?: FormEvent) {
-    event?.preventDefault()
-    setExportError(null)
-    try {
-      await onExport(exportPassword)
-      setIsExportOpen(false)
-    } catch (error) {
-      setExportError(error instanceof Error ? error.message : 'Failed to export account key')
-    }
-  }
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-4">
@@ -132,71 +103,20 @@ export function AccountProfilePanel({
             Permanently remove this account's key from your cloud vault and all your devices.
           </SizableText>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" className="self-start">
-              <Trash className="size-4" />
-              Delete account
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogPortal>
-            <AlertDialogContent className="max-w-[600px] gap-4">
-              <AlertDialogTitle className="text-2xl font-bold">Delete account</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the key for <span className="font-medium">{name}</span> from your cloud
-                vault, and it will be removed from all devices where you are signed in. Make sure you have saved this
-                account's Secret Recovery Phrase if you want to recover it later — this cannot be undone.
-              </AlertDialogDescription>
-              <div className="flex justify-end gap-3">
-                <AlertDialogCancel asChild>
-                  <Button variant="ghost">Cancel</Button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button variant="destructive" onClick={() => void onDelete()} disabled={deleteBusy}>
-                    {deleteBusy ? 'Deleting…' : 'Delete Permanently'}
-                  </Button>
-                </AlertDialogAction>
-              </div>
-            </AlertDialogContent>
-          </AlertDialogPortal>
-        </AlertDialog>
+        <Button variant="destructive" className="self-start" onClick={() => setIsDeleteOpen(true)}>
+          <Trash className="size-4" />
+          Delete account
+        </Button>
       </div>
 
-      <Dialog open={isExportOpen} onOpenChange={(open) => !exportBusy && setIsExportOpen(open)}>
-        <DialogContent className="max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Export Key File</DialogTitle>
-            <DialogDescription>Choose whether to protect the exported key file with a password.</DialogDescription>
-          </DialogHeader>
-          <form className="flex flex-col gap-4" onSubmit={handleExport}>
-            <div className="text-muted-foreground rounded-lg border p-3 text-sm">
-              Exported key files can grant full account control. Use a password whenever possible and store the file
-              securely.
-            </div>
-            {exportError ? <p className="text-destructive text-sm">{exportError}</p> : null}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="export-key-password">Password (optional)</Label>
-              <Input
-                id="export-key-password"
-                type="password"
-                value={exportPassword}
-                onChange={(event) => setExportPassword(event.currentTarget.value)}
-                autoComplete="off"
-                placeholder="Leave empty for plaintext export"
-                disabled={exportBusy}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsExportOpen(false)} disabled={exportBusy}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={exportBusy}>
-                {exportBusy ? 'Exporting…' : 'Export Key'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ExportKeyDialog open={isExportOpen} onOpenChange={setIsExportOpen} onExport={onExport} busy={exportBusy} />
+      <DeleteAccountDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        accountName={name}
+        onDelete={onDelete}
+        busy={deleteBusy}
+      />
     </div>
   )
 }

@@ -1,12 +1,28 @@
-import {Import, Plus, Vault} from 'lucide-react'
+import {Copy, Import, KeyRound, MoreHorizontal, Plus, Trash, Vault} from 'lucide-react'
 import {type ReactNode} from 'react'
 import {cn} from '../utils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './dropdown-menu'
+
+/** Per-account options exposed via the row's 3-dots menu. */
+export type AccountSettingsAccountMenu = {
+  onCopyId: () => void
+  onExportKey: () => void
+  onDelete: () => void
+}
 
 export type AccountSettingsAccount = {
   id: string
   name: string
   /** Rendered avatar/icon for the account (platform provides HMIcon, an <img>, etc.). */
   icon: ReactNode
+  /** Optional per-account options menu (Copy account ID / Export key / Delete account). */
+  menu?: AccountSettingsAccountMenu
 }
 
 /**
@@ -65,6 +81,7 @@ export function AccountSettingsLayout({
               label={account.name}
               active={!isVaultSelected && account.id === selectedAccountId}
               onClick={() => onSelectAccount(account.id)}
+              menu={account.menu}
             />
           ))}
         </div>
@@ -91,23 +108,79 @@ function SidebarItem({
   label,
   active,
   onClick,
+  menu,
 }: {
   icon: ReactNode
   label: string
   active: boolean
   onClick: () => void
+  menu?: AccountSettingsAccountMenu
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
-        active ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-black/5 dark:hover:bg-white/5',
-      )}
-    >
-      <div className="shrink-0">{icon}</div>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
-    </button>
+    <div className="group/account relative">
+      <button
+        onClick={onClick}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
+          menu ? 'pr-9' : '',
+          active ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-black/5 dark:hover:bg-white/5',
+        )}
+      >
+        <div className="shrink-0">{icon}</div>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+      </button>
+      {menu ? <AccountOptionsMenu menu={menu} /> : null}
+    </div>
+  )
+}
+
+/** The hover-revealed 3-dots options menu for an account row. */
+function AccountOptionsMenu({menu}: {menu: AccountSettingsAccountMenu}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Account options"
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          'absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded-md',
+          'opacity-0 group-hover/account:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100',
+          'hover:bg-black/10 dark:hover:bg-white/10',
+        )}
+      >
+        <MoreHorizontal className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        <DropdownMenuItem
+          onClick={(event) => {
+            event.stopPropagation()
+            menu.onCopyId()
+          }}
+        >
+          <Copy className="size-4" />
+          Copy account ID
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={(event) => {
+            event.stopPropagation()
+            menu.onExportKey()
+          }}
+        >
+          <KeyRound className="size-4" />
+          Export key
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={(event) => {
+            event.stopPropagation()
+            menu.onDelete()
+          }}
+        >
+          <Trash className="size-4" />
+          Delete account
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
