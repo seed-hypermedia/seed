@@ -98,8 +98,8 @@ export function AccountSettingsLayout({
         </div>
 
         {onImportKey ? (
-          <div className="flex flex-col gap-1 border-t border-black/10 p-2 dark:border-white/10">
-            <SidebarAction icon={<Import className="size-4" />} label="Import key" onClick={onImportKey} />
+          <div className="flex flex-col gap-1 p-2">
+            <SidebarAction icon={<Import className="size-4" />} label="Import identity" onClick={onImportKey} />
           </div>
         ) : null}
       </div>
