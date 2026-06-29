@@ -312,8 +312,13 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockTableColumn = block.type === 'TableColumn' ? block : undefined
   if (blockTableColumn && editorBlock.type == 'tableColumn') {
     blockTableColumn.text = ''
-    const width = toNumber(editorBlock.props.width)
-    if (width) blockTableColumn.attributes.width = width
+    // Only columns that have been resized carry a width. Guard against the
+    // common width-less case so we don't hand `undefined` to `toNumber`,
+    // which would log a warning on every serialization pass.
+    if (editorBlock.props.width != null && editorBlock.props.width !== '') {
+      const width = toNumber(editorBlock.props.width)
+      if (width) blockTableColumn.attributes.width = width
+    }
     if (editorBlock.props.isHeader) blockTableColumn.attributes.isHeader = true
   }
 
@@ -357,6 +362,11 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
  */
 export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[], parentEditorType?: string): HMBlockNode[] {
   const parentIsTable = parentEditorType === 'table'
+  // Track index of each TableRow / TableColumn within a Table parent so we
+  // can enforce the position-0 invariant: only row 0 / col 0 may carry
+  // isHeader=true in the wire format. Any other claim is normalized away.
+  let rowIdx = 0
+  let colIdx = 0
   return editorBlocks
     .filter((block) => {
       if ((block.type === 'tableRow' || block.type === 'tableColumn') && !parentIsTable) {
@@ -371,13 +381,21 @@ export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[], parentEd
       return true
     })
     .map((block) => {
+      // Capture this block's position within the table BEFORE converting.
+      let positionIdx: number | undefined
+      if (parentIsTable) {
+        if (block.type === 'tableRow') positionIdx = rowIdx++
+        else if (block.type === 'tableColumn') positionIdx = colIdx++
+      }
+
+      let hmNode: HMBlockNode
       try {
-        return {
+        hmNode = {
           block: editorBlockToHMBlock(block),
           children: block.children?.length ? editorBlocksToHMBlockNodes(block.children, block.type) : undefined,
         }
       } catch {
-        return {
+        hmNode = {
           block: {
             id: block.id || 'unknown',
             type: 'Paragraph' as const,
@@ -388,6 +406,16 @@ export function editorBlocksToHMBlockNodes(editorBlocks: EditorBlock[], parentEd
           children: block.children?.length ? editorBlocksToHMBlockNodes(block.children, block.type) : undefined,
         }
       }
+
+      // Position-0 invariant: strip isHeader from non-position-0 rows / columns.
+      if (positionIdx !== undefined && positionIdx > 0) {
+        const attrs = (hmNode.block as any)?.attributes
+        if (attrs && 'isHeader' in attrs) {
+          delete attrs.isHeader
+        }
+      }
+
+      return hmNode
     })
     .filter(Boolean) as HMBlockNode[]
 }
