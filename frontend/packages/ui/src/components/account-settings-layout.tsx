@@ -1,4 +1,4 @@
-import {Copy, Import, KeyRound, MoreHorizontal, Pencil, Plus, Trash, Vault} from 'lucide-react'
+import {Copy, Import, Key, KeyRound, MoreHorizontal, Pencil, Plus, Trash} from 'lucide-react'
 import {type ReactNode} from 'react'
 import {cn} from '../utils'
 import {
@@ -64,7 +64,7 @@ export function AccountSettingsLayout({
           <SidebarItem
             icon={
               <div className="bg-muted flex size-7 items-center justify-center rounded-full">
-                <Vault className="size-4" />
+                <Key className="size-4" />
               </div>
             }
             label="Identity Settings"

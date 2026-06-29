@@ -80,9 +80,9 @@ async function downloadAccountKeyfile(
 
 /**
  * The unlocked web vault UI: a shared account-settings layout (account sidebar +
- * per-account tabs + Vault Settings), backed by the vault store. Account/tab
+ * per-account tabs + Identity Settings), backed by the vault store. Account/tab
  * selection lives in the URL hash (`/vault#/a/<principal>/<tab>`) so it stays
- * client-side; Vault Settings is the one server-visible path (`/settings`),
+ * client-side; Identity Settings is the one server-visible path (`/settings`),
  * which the desktop app deep-links to for passkey management.
  */
 export function AccountSettingsView() {
