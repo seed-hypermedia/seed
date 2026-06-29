@@ -1,4 +1,3 @@
-import {describe, expect, test} from 'vitest'
 import {
   EditorBlock,
   EditorCodeBlock,
@@ -11,6 +10,8 @@ import {
   EditorVideoBlock,
   EditorWebEmbedBlock,
 } from '@seed-hypermedia/client/editor-types'
+import {editorBlockToHMBlock, editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {
   HMBlock,
   HMBlockCode,
@@ -21,7 +22,8 @@ import {
   HMBlockQuery,
   HMBlockWebEmbed,
 } from '@seed-hypermedia/client/hm-types'
-import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {describe, expect, test, vi} from 'vitest'
 
 describe('EditorBlock to HMBlock', () => {
   describe('blockTypes', () => {
@@ -1416,90 +1418,38 @@ describe('EditorBlock to HMBlock', () => {
       })
     })
 
-    test('tableRow with row label text', () => {
-      const editorBlock: EditorBlock = {
-        id: 'r-rev',
-        type: 'tableRow',
-        children: [],
-        props: {},
-        content: [{type: 'text', text: 'Revenue', styles: {}}],
+    test('tableColumn without a width does not warn and emits no width attribute', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        const editorBlock: EditorBlock = {
+          id: 'c1',
+          type: 'tableColumn',
+          children: [],
+          props: {},
+          content: [],
+        }
+
+        const val = editorBlockToHMBlock(editorBlock)
+
+        expect(val).toEqual({
+          id: 'c1',
+          type: 'TableColumn',
+          text: '',
+          annotations: [],
+          attributes: {},
+        })
+        expect(warnSpy).not.toHaveBeenCalled()
+      } finally {
+        warnSpy.mockRestore()
       }
-
-      const val = editorBlockToHMBlock(editorBlock)
-
-      expect(val).toEqual({
-        id: 'r-rev',
-        type: 'TableRow',
-        text: 'Revenue',
-        annotations: [],
-        attributes: {},
-      })
     })
 
-    test('tableRow with empty label is fine', () => {
+    test('tableColumn with a width emits the width attribute', () => {
       const editorBlock: EditorBlock = {
-        id: 'r1',
-        type: 'tableRow',
-        children: [],
-        props: {},
-        content: [],
-      }
-
-      const val = editorBlockToHMBlock(editorBlock)
-
-      expect(val).toEqual({
-        id: 'r1',
-        type: 'TableRow',
-        text: '',
-        annotations: [],
-        attributes: {},
-      })
-    })
-
-    test('tableRow text supports inline annotations', () => {
-      const editorBlock: EditorBlock = {
-        id: 'r1',
-        type: 'tableRow',
-        children: [],
-        props: {},
-        content: [
-          {type: 'text', text: 'Rev', styles: {bold: true}},
-          {type: 'text', text: 'enue', styles: {}},
-        ],
-      }
-
-      const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'TableRow'}>
-
-      expect(val.text).toBe('Revenue')
-      expect(val.annotations).toEqual([{type: 'Bold', link: '', starts: [0], ends: [3]}])
-    })
-
-    test('tableColumn with header text and width', () => {
-      const editorBlock: EditorBlock = {
-        id: 'c-q1',
+        id: 'c1',
         type: 'tableColumn',
         children: [],
         props: {width: '120'},
-        content: [{type: 'text', text: 'Q1', styles: {}}],
-      }
-
-      const val = editorBlockToHMBlock(editorBlock)
-
-      expect(val).toEqual({
-        id: 'c-q1',
-        type: 'TableColumn',
-        text: 'Q1',
-        annotations: [],
-        attributes: {width: 120},
-      })
-    })
-
-    test('tableColumn with no header text and no width', () => {
-      const editorBlock: EditorBlock = {
-        id: 'c1',
-        type: 'tableColumn',
-        children: [],
-        props: {},
         content: [],
       }
 
@@ -1510,7 +1460,7 @@ describe('EditorBlock to HMBlock', () => {
         type: 'TableColumn',
         text: '',
         annotations: [],
-        attributes: {},
+        attributes: {width: 120},
       })
     })
 
@@ -1546,6 +1496,252 @@ describe('EditorBlock to HMBlock', () => {
       const val = editorBlockToHMBlock(editorBlock) as Extract<HMBlock, {type: 'Paragraph'}>
 
       expect(val.attributes).toEqual({})
+    })
+  })
+
+  describe('table round-trip', () => {
+    type TableBuilderOptions = {
+      headerRow?: boolean
+      headerCol?: boolean
+      text?: (r: number, c: number) => string
+    }
+
+    // Build a 3x3 editor table block with stable IDs and per cell text.
+    function buildEditorTable({
+      headerRow = false,
+      headerCol = false,
+      text = (r, c) => `r${r}c${c}`,
+    }: TableBuilderOptions): EditorBlock {
+      const colIds = ['col-0', 'col-1', 'col-2']
+      const columns = colIds.map((id, idx) => ({
+        id,
+        type: 'tableColumn' as const,
+        children: [],
+        props: idx === 0 && headerCol ? {isHeader: true} : {},
+        content: [],
+      }))
+      const rows = ['row-0', 'row-1', 'row-2'].map((rid, rIdx) => ({
+        id: rid,
+        type: 'tableRow' as const,
+        children: colIds.map((cid, cIdx) => ({
+          id: `cell-${rIdx}-${cIdx}`,
+          type: 'paragraph' as const,
+          children: [],
+          props: {columnId: cid},
+          content: [{type: 'text' as const, text: text(rIdx, cIdx), styles: {}}],
+        })),
+        props: rIdx === 0 && headerRow ? {isHeader: true} : {},
+        content: [],
+      }))
+      return {
+        id: 'table-1',
+        type: 'table',
+        children: [...columns, ...rows] as any,
+        props: {},
+        content: [],
+      } as EditorBlock
+    }
+
+    // Assert the hmBlock tree's shape matches the expected result for a 3x3 table.
+    function assertHmTree(
+      hmBlockNodes: HMBlockNode[],
+      {headerRow = false, headerCol = false, text = (r, c) => `r${r}c${c}`}: TableBuilderOptions,
+    ) {
+      expect(hmBlockNodes, 'top-level node count').toHaveLength(1)
+      const tableNode = hmBlockNodes[0]
+      if (!tableNode) throw new Error('expected a top-level table node')
+      expect(tableNode.block?.type, 'top-level type').toBe('Table')
+      expect(tableNode.block?.id, 'top-level id').toBe('table-1')
+
+      const cols = (tableNode.children ?? []).filter((c) => c.block?.type === 'TableColumn')
+      const rows = (tableNode.children ?? []).filter((c) => c.block?.type === 'TableRow')
+      expect(cols, 'TableColumn count').toHaveLength(3)
+      expect(rows, 'TableRow count').toHaveLength(3)
+
+      cols.forEach((col, idx) => {
+        expect(col.block?.id, `col ${idx} id`).toBe(`col-${idx}`)
+        const isHeaderAttr = (col.block as any)?.attributes?.isHeader
+        if (idx === 0 && headerCol) expect(isHeaderAttr, `col ${idx} isHeader`).toBe(true)
+        else expect(isHeaderAttr, `col ${idx} isHeader`).toBeFalsy()
+      })
+
+      rows.forEach((row, rIdx) => {
+        expect(row.block?.id, `row ${rIdx} id`).toBe(`row-${rIdx}`)
+        const isHeaderAttr = (row.block as any)?.attributes?.isHeader
+        if (rIdx === 0 && headerRow) expect(isHeaderAttr, `row ${rIdx} isHeader`).toBe(true)
+        else expect(isHeaderAttr, `row ${rIdx} isHeader`).toBeFalsy()
+
+        expect(row.children, `row ${rIdx} children`).toHaveLength(3)
+        row.children?.forEach((cell, cIdx) => {
+          expect(cell.block?.type, `cell (${rIdx},${cIdx}) type`).toBe('Paragraph')
+          expect(cell.block?.id, `cell (${rIdx},${cIdx}) id`).toBe(`cell-${rIdx}-${cIdx}`)
+          expect((cell.block as any).text, `cell (${rIdx},${cIdx}) text`).toBe(text(rIdx, cIdx))
+          expect((cell.block as any).attributes?.columnId, `cell (${rIdx},${cIdx}) columnId`).toBe(`col-${cIdx}`)
+        })
+      })
+    }
+
+    // Normalize an editor-block tree so we can compare it across a round-trip.
+    function normalizeForCompare(value: any): any {
+      if (Array.isArray(value)) return value.map(normalizeForCompare)
+      if (value && typeof value === 'object') {
+        const out: any = {}
+        for (const [k, v] of Object.entries(value)) {
+          if (k === 'props' && v && typeof v === 'object') {
+            const props: any = {...(v as object)}
+            out[k] = props
+          } else if (
+            k === 'content' &&
+            Array.isArray(v) &&
+            v.length === 1 &&
+            (v[0] as any)?.type === 'text' &&
+            (v[0] as any)?.text === '' &&
+            Object.keys((v[0] as any)?.styles || {}).length === 0
+          ) {
+            out[k] = []
+          } else {
+            out[k] = normalizeForCompare(v)
+          }
+        }
+        return out
+      }
+      return value
+    }
+
+    test('3x3 no-headers table round-trips through hmBlockNode format', () => {
+      const original = buildEditorTable({})
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      assertHmTree(hmBlockNodes, {})
+
+      const back = hmBlocksToEditorContent(hmBlockNodes)
+      expect(normalizeForCompare(back)).toEqual([original])
+    })
+
+    test('3x3 table with header row round-trips', () => {
+      const original = buildEditorTable({headerRow: true})
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      assertHmTree(hmBlockNodes, {headerRow: true})
+
+      const back = hmBlocksToEditorContent(hmBlockNodes)
+      expect(normalizeForCompare(back)).toEqual([original])
+    })
+
+    test('3x3 table with header column only round-trips', () => {
+      const original = buildEditorTable({headerCol: true})
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      assertHmTree(hmBlockNodes, {headerCol: true})
+
+      const back = hmBlocksToEditorContent(hmBlockNodes)
+      expect(normalizeForCompare(back)).toEqual([original])
+    })
+
+    test('3x3 table with both header row and header column round-trips', () => {
+      const original = buildEditorTable({headerRow: true, headerCol: true})
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      assertHmTree(hmBlockNodes, {headerRow: true, headerCol: true})
+
+      const back = hmBlocksToEditorContent(hmBlockNodes)
+      expect(normalizeForCompare(back)).toEqual([original])
+    })
+
+    test('isHeader on a non 0 pos row is normalized away on save', () => {
+      // Build a 3x3 table and mark row[2] as a header row.
+      const original = buildEditorTable({})
+      const rows = (original.children ?? []).filter((c: any) => c.type === 'tableRow')
+      ;(rows[2] as any).props = {isHeader: true}
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      const hmRows = (hmBlockNodes[0]?.children ?? []).filter((c) => c.block?.type === 'TableRow')
+
+      // Row 2's illegal isHeader prop should be stripped in the hmBlockNode tree.
+      expect((hmRows[2]?.block as any)?.attributes?.isHeader).toBeUndefined()
+      // Rows 0 and 1 still don't have isHeader.
+      expect((hmRows[0]?.block as any)?.attributes?.isHeader).toBeUndefined()
+      expect((hmRows[1]?.block as any)?.attributes?.isHeader).toBeUndefined()
+    })
+
+    test('isHeader on a non 0 pos column is normalized away on save', () => {
+      // Build a 3x3 table and mark col[1] as a header column.
+      const original = buildEditorTable({})
+      const cols = (original.children ?? []).filter((c: any) => c.type === 'tableColumn')
+      ;(cols[1] as any).props = {isHeader: true}
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([original])
+      const hmCols = (hmBlockNodes[0]?.children ?? []).filter((c) => c.block?.type === 'TableColumn')
+
+      expect((hmCols[1]?.block as any)?.attributes?.isHeader).toBeUndefined()
+      expect((hmCols[0]?.block as any)?.attributes?.isHeader).toBeUndefined()
+      expect((hmCols[2]?.block as any)?.attributes?.isHeader).toBeUndefined()
+    })
+  })
+
+  describe('orphan filtering on save', () => {
+    test('orphan tableRow at root is dropped from hmBlockNode tree', () => {
+      const blocks: EditorBlock[] = [
+        {id: 'p1', type: 'paragraph', children: [], props: {}, content: [{type: 'text', text: 'before', styles: {}}]},
+        // tableRow at top level (not nested inside a Table).
+        {id: 'r-orphan', type: 'tableRow', children: [], props: {}, content: []} as any,
+        {id: 'p2', type: 'paragraph', children: [], props: {}, content: [{type: 'text', text: 'after', styles: {}}]},
+      ]
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes(blocks)
+
+      expect(hmBlockNodes).toHaveLength(2)
+      expect(hmBlockNodes.map((n) => n.block?.id)).toEqual(['p1', 'p2'])
+      expect(hmBlockNodes.every((n) => n.block?.type === 'Paragraph')).toBe(true)
+    })
+
+    test('orphan tableColumn at root is dropped from hmBlockNode tree', () => {
+      const blocks: EditorBlock[] = [
+        {id: 'p1', type: 'paragraph', children: [], props: {}, content: [{type: 'text', text: 'hi', styles: {}}]},
+        {id: 'c-orphan', type: 'tableColumn', children: [], props: {}, content: []} as any,
+        {id: 'p2', type: 'paragraph', children: [], props: {}, content: [{type: 'text', text: 'there', styles: {}}]},
+      ]
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes(blocks)
+
+      expect(hmBlockNodes).toHaveLength(2)
+      expect(hmBlockNodes.map((n) => n.block?.id)).toEqual(['p1', 'p2'])
+    })
+
+    test('tableRow nested under a Table parent is not dropped', () => {
+      const table: EditorBlock = {
+        id: 'table-1',
+        type: 'table',
+        props: {},
+        content: [],
+        children: [
+          {id: 'col-0', type: 'tableColumn', props: {}, content: [], children: []},
+          {
+            id: 'row-0',
+            type: 'tableRow',
+            props: {},
+            content: [],
+            children: [
+              {
+                id: 'cell-0-0',
+                type: 'paragraph',
+                props: {columnId: 'col-0'},
+                content: [{type: 'text', text: 'data', styles: {}}],
+                children: [],
+              },
+            ],
+          },
+        ] as any,
+      } as EditorBlock
+
+      const hmBlockNodes = editorBlocksToHMBlockNodes([table])
+      const tableNode = hmBlockNodes[0]
+      const rows = (tableNode?.children ?? []).filter((c) => c.block?.type === 'TableRow')
+      const cols = (tableNode?.children ?? []).filter((c) => c.block?.type === 'TableColumn')
+
+      // The TableRow / TableColumn under Table survive.
+      expect(cols.map((c) => c.block?.id)).toEqual(['col-0'])
+      expect(rows.map((r) => r.block?.id)).toEqual(['row-0'])
     })
   })
 })

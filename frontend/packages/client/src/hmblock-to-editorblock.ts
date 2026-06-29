@@ -57,6 +57,12 @@ export function hmBlocksToEditorContent(
     level: opts.level || 0,
   }
   const parentIsTable = opts.parentType === 'Table'
+  // Track index of each TableRow / TableColumn within a Table parent to
+  // enforce the position-0 invariant on the load path: only row 0 / col 0
+  // may carry isHeader=true. Wire format coming from older servers or buggy
+  // clients may violate this; we normalize on read.
+  let rowIdx = 0
+  let colIdx = 0
   return blocks
     .filter((hmBlock: HMBlockNode) => {
       const t = hmBlock.block?.type
@@ -70,7 +76,23 @@ export function hmBlocksToEditorContent(
       return true
     })
     .map((hmBlock: HMBlockNode) => {
+      let positionIdx: number | undefined
+      if (parentIsTable) {
+        const t = hmBlock.block?.type
+        if (t === 'TableRow') positionIdx = rowIdx++
+        else if (t === 'TableColumn') positionIdx = colIdx++
+      }
+
       let res = hmBlock.block ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock) : null
+
+      // Position-0 invariant: strip isHeader from editor-block props for
+      // non-position-0 rows / columns.
+      if (res && positionIdx !== undefined && positionIdx > 0) {
+        const props = res.props as any
+        if (props && 'isHeader' in props) {
+          delete props.isHeader
+        }
+      }
 
       if (res && hmBlock.children?.length) {
         const childrenType = ((hmBlock.block as any)?.attributes || {})?.childrenType

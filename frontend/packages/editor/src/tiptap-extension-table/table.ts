@@ -26,6 +26,7 @@ import {NodeView} from '@tiptap/pm/view'
 import {BlockNoteDOMAttributes, getBlockInfoFromSelection, mergeCSSClasses} from '../blocknote'
 import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
 import {TableView} from './TableView'
+import {addColumnBeforeWithHeaderPromotion, addRowBeforeWithHeaderPromotion} from './header-promotion-commands'
 import {columnIdPlugin} from './table-cell-columnid-plugin'
 import {tablePasteCleanupPlugin} from './table-paste-cleanup'
 import {createTable} from './utilities/createTable'
@@ -53,6 +54,12 @@ declare module '@tiptap/core' {
       addRowBefore: () => ReturnType
       addRowAfter: () => ReturnType
       deleteRow: () => ReturnType
+      /** Insert a new header row above row 0 and demote the existing row 0
+       * to a regular row in one transaction. */
+      addRowBeforeWithHeaderPromotion: () => ReturnType
+      /** Insert a new header column left of column 0 and demote the existing
+       * column 0 to a regular column in one transaction. */
+      addColumnBeforeWithHeaderPromotion: () => ReturnType
       deleteTable: () => ReturnType
       mergeCells: () => ReturnType
       splitCell: () => ReturnType
@@ -207,6 +214,16 @@ export const Table = Node.create<TableOptions>({
         () =>
         ({state, dispatch}) => {
           return deleteRow(state, dispatch)
+        },
+      addRowBeforeWithHeaderPromotion:
+        () =>
+        ({state, tr, dispatch}) => {
+          return addRowBeforeWithHeaderPromotion(state, tr, dispatch)
+        },
+      addColumnBeforeWithHeaderPromotion:
+        () =>
+        ({state, tr, dispatch}) => {
+          return addColumnBeforeWithHeaderPromotion(state, tr, dispatch)
         },
       deleteTable:
         () =>

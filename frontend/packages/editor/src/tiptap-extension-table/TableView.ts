@@ -330,89 +330,11 @@ export class TableView implements NodeView {
       if (!this.editor) return
       if (cmd === 'addRowBefore' && targetRow === 0 && this.isRowHeader(0)) {
         if (!this.placeCursorInCell(0, 0)) return
-        this.addRowBeforeWithHeaderPromotion()
+        this.editor.commands.addRowBeforeWithHeaderPromotion()
         return
       }
       if (!this.placeCursorInCell(targetRow, 0)) return
       ;(this.editor.chain().focus() as any)[cmd]().run()
-    })
-  }
-
-  // When inserting a row above the existing header row, promote the new row
-  // to be the header and demote the old header to a regular row in ONE transaction.
-  private addRowBeforeWithHeaderPromotion(): boolean {
-    if (!this.editor) return false
-    return this.editor.commands.command(({state, tr, dispatch}: any) => {
-      // Find the table node containing the current selection.
-      const $from = state.selection.$from
-      let tablePos = -1
-      let tableNode: any = null
-      for (let d = $from.depth; d >= 0; d--) {
-        const ancestor = $from.node(d)
-        if (ancestor.type.name === 'table') {
-          tablePos = $from.before(d)
-          tableNode = ancestor
-          break
-        }
-      }
-      if (!tableNode || tablePos < 0) return false
-
-      const oldHeaderRow = tableNode.firstChild
-      if (!oldHeaderRow || oldHeaderRow.type.name !== 'tableRow') return false
-
-      // Confirm old row 0 is a header.
-      let isHeader = oldHeaderRow.childCount > 0
-      oldHeaderRow.content.forEach((cell: any) => {
-        if (cell.type.name !== 'tableHeader') isHeader = false
-      })
-      if (!isHeader) return false
-
-      // Build new empty header row.
-      const newCells: any[] = []
-      oldHeaderRow.content.forEach((oldCell: any) => {
-        const cellAttrs = {
-          colspan: oldCell.attrs.colspan,
-          rowspan: oldCell.attrs.rowspan,
-          colwidth: oldCell.attrs.colwidth,
-          columnId: oldCell.attrs.columnId,
-        }
-        const emptyPara = state.schema.nodes['paragraph'].createAndFill()
-        newCells.push(state.schema.nodes['tableHeader'].create(cellAttrs, emptyPara))
-      })
-      const newRow = state.schema.nodes['tableRow'].create(null, newCells)
-
-      // Check whether col 0 is a header column. If so, keep col 0's cell in
-      // the demoted row as tableHeader.
-      let firstColIsHeader = true
-      let anyRow = false
-      tableNode.content.forEach((row: any) => {
-        if (row.type.name !== 'tableRow') return
-        anyRow = true
-        const firstCell = row.firstChild
-        if (!firstCell || firstCell.type.name !== 'tableHeader') firstColIsHeader = false
-      })
-      if (!anyRow) firstColIsHeader = false
-
-      // Build demoted old row 0.
-      const demotedCells: any[] = []
-      oldHeaderRow.content.forEach((oldCell: any, _: number, cellIdx: number) => {
-        if (cellIdx === 0 && firstColIsHeader) {
-          demotedCells.push(oldCell)
-        } else {
-          const demoted = state.schema.nodes['tableCell'].create(oldCell.attrs, oldCell.content)
-          demotedCells.push(demoted)
-        }
-      })
-      const demotedRow = state.schema.nodes['tableRow'].create(oldHeaderRow.attrs, demotedCells)
-
-      if (dispatch) {
-        // Replace old row 0 with new row and demoted row.
-        const rowStart = tablePos + 1
-        const rowEnd = rowStart + oldHeaderRow.nodeSize
-        tr.replaceWith(rowStart, rowEnd, [newRow, demotedRow])
-        dispatch(tr)
-      }
-      return true
     })
   }
 
@@ -423,80 +345,11 @@ export class TableView implements NodeView {
       if (!this.editor) return
       if (cmd === 'addColumnBefore' && targetCol === 0 && this.isColHeader(0)) {
         if (!this.placeCursorInCell(0, 0)) return
-        this.addColumnBeforeWithHeaderPromotion()
+        this.editor.commands.addColumnBeforeWithHeaderPromotion()
         return
       }
       if (!this.placeCursorInCell(0, targetCol)) return
       ;(this.editor.chain().focus() as any)[cmd]().run()
-    })
-  }
-
-  // When inserting a column to the left of the existing header column, promote the
-  // new column to be the header and demote the old header to a regular column in ONE transaction.
-  private addColumnBeforeWithHeaderPromotion(): boolean {
-    if (!this.editor) return false
-    return this.editor.commands.command(({state, tr, dispatch}: any) => {
-      const $from = state.selection.$from
-      let tablePos = -1
-      let tableNode: any = null
-      for (let d = $from.depth; d >= 0; d--) {
-        const ancestor = $from.node(d)
-        if (ancestor.type.name === 'table') {
-          tablePos = $from.before(d)
-          tableNode = ancestor
-          break
-        }
-      }
-      if (!tableNode || tablePos < 0) return false
-
-      // Confirm col 0 is a header column.
-      let isHeader = true
-      let anyRow = false
-      tableNode.content.forEach((rowNode: any) => {
-        if (rowNode.type.name !== 'tableRow') return
-        anyRow = true
-        const firstCell = rowNode.firstChild
-        if (!firstCell || firstCell.type.name !== 'tableHeader') isHeader = false
-      })
-      if (!anyRow || !isHeader) return false
-
-      // Add empty cells to all the rows.
-      const newRows: any[] = []
-      tableNode.content.forEach((rowNode: any) => {
-        if (rowNode.type.name !== 'tableRow') {
-          newRows.push(rowNode)
-          return
-        }
-        // Determine if this row is a header row.
-        let thisRowIsHeader = rowNode.childCount > 0
-        rowNode.content.forEach((c: any) => {
-          if (c.type.name !== 'tableHeader') thisRowIsHeader = false
-        })
-
-        const newCells: any[] = []
-        // New tableHeader cell at column 0.
-        const emptyPara = state.schema.nodes['paragraph'].createAndFill()
-        newCells.push(state.schema.nodes['tableHeader'].create({colspan: 1, rowspan: 1, colwidth: null}, emptyPara))
-        // Demote old col 0, except when the row is a header row.
-        rowNode.content.forEach((oldCell: any, _: number, idx: number) => {
-          if (idx === 0 && !thisRowIsHeader) {
-            const demoted = state.schema.nodes['tableCell'].create(oldCell.attrs, oldCell.content)
-            newCells.push(demoted)
-          } else {
-            newCells.push(oldCell)
-          }
-        })
-        newRows.push(state.schema.nodes['tableRow'].create(rowNode.attrs, newCells))
-      })
-
-      if (dispatch) {
-        // Replace the table's full content with the new rows in one step.
-        const tableContentStart = tablePos + 1
-        const tableContentEnd = tableContentStart + tableNode.content.size
-        tr.replaceWith(tableContentStart, tableContentEnd, newRows)
-        dispatch(tr)
-      }
-      return true
     })
   }
 
@@ -525,12 +378,15 @@ export class TableView implements NodeView {
           onClick: () => this.runRowCommand('toggleHeaderRow'),
         })
       }
-      items.push({
-        key: 'delete-row',
-        label: 'Delete row',
-        icon: createElement(Trash2, {className: 'size-4'}),
-        onClick: () => this.runRowCommand('deleteRow'),
-      })
+      // Hide "Delete row" when the table has only one row.
+      if (this.node.childCount > 1) {
+        items.push({
+          key: 'delete-row',
+          label: 'Delete row',
+          icon: createElement(Trash2, {className: 'size-4'}),
+          onClick: () => this.runRowCommand('deleteRow'),
+        })
+      }
       return items
     }
     const items: TableMenuItem[] = [
@@ -555,12 +411,16 @@ export class TableView implements NodeView {
         onClick: () => this.runColCommand('toggleHeaderColumn'),
       })
     }
-    items.push({
-      key: 'delete-col',
-      label: 'Delete column',
-      icon: createElement(Trash2, {className: 'size-4'}),
-      onClick: () => this.runColCommand('deleteColumn'),
-    })
+    // Hide "Delete column" when the table has only one column.
+    const colCount = this.node.firstChild ? this.node.firstChild.childCount : 0
+    if (colCount > 1) {
+      items.push({
+        key: 'delete-col',
+        label: 'Delete column',
+        icon: createElement(Trash2, {className: 'size-4'}),
+        onClick: () => this.runColCommand('deleteColumn'),
+      })
+    }
     return items
   }
 
