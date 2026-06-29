@@ -8,7 +8,6 @@ import {
   useDeleteKey,
   useDisconnectVault,
   useExportKey,
-  useForceVaultSync,
   useImportKey,
   useListKeys,
   useLogout,
@@ -71,7 +70,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {LogOut, RefreshCw, Vault} from 'lucide-react'
+import {LogOut, Vault} from 'lucide-react'
 import React, {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -296,7 +295,6 @@ export default function AccountSettingsPage() {
 function VaultSettings() {
   const vaultStatus = useVaultStatus()
   const disconnectVault = useDisconnectVault()
-  const forceVaultSync = useForceVaultSync()
   const logout = useLogout()
   const authDialog = useDesktopAuthDialog()
   const openUrl = useOpenUrl()
@@ -338,7 +336,7 @@ function VaultSettings() {
     setSelectedMode(isRemoteBackend ? 'remote' : 'local')
   }, [isRemoteBackend])
 
-  const isPending = forceVaultSync.isPending || disconnectVault.isPending || logout.isLoading
+  const isPending = disconnectVault.isPending || logout.isLoading
 
   function openConnectDialog() {
     // Open the normal login/register workflow (same as "Sign in" / "Create my
@@ -362,15 +360,6 @@ function VaultSettings() {
     } catch (error) {
       toast.error('Failed to switch to local vault: ' + (error instanceof Error ? error.message : String(error)))
       setSelectedMode('remote')
-    }
-  }
-
-  async function handleForceSync() {
-    try {
-      await forceVaultSync.mutateAsync()
-      toast.success('Sync completed')
-    } catch (error) {
-      toast.error('Sync failed: ' + (error instanceof Error ? error.message : String(error)))
     }
   }
 
@@ -405,7 +394,7 @@ function VaultSettings() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 p-6">
       <SizableText size="2xl" weight="bold">
         Identity Settings
       </SizableText>
@@ -450,23 +439,6 @@ function VaultSettings() {
               <>
                 <Separator />
                 <SettingsRow icon={<Vault />} label="Remote vault" description={remoteVaultUrl || 'Connected'} />
-                <Separator />
-                <SettingsRow
-                  icon={<RefreshCw />}
-                  label="Sync"
-                  description={
-                    syncStatus?.lastSyncError
-                      ? syncStatus.lastSyncError
-                      : syncStatus?.lastSyncTime
-                        ? `Last synced ${formattedDate(syncStatus.lastSyncTime)}`
-                        : 'Force a sync with the remote vault now.'
-                  }
-                  action={
-                    <Button variant="secondary" size="sm" onClick={handleForceSync} disabled={isPending}>
-                      {forceVaultSync.isPending ? 'Syncing…' : 'Sync now'}
-                    </Button>
-                  }
-                />
               </>
             ) : selectedMode === 'remote' ? (
               <>
@@ -531,6 +503,16 @@ function VaultSettings() {
                 }
               />
             </SettingsSection>
+          ) : null}
+
+          {isConnected && (syncStatus?.lastSyncTime || syncStatus?.lastSyncError) ? (
+            <div className="mt-auto flex justify-end pt-2">
+              <SizableText size="xs" color={syncStatus?.lastSyncError ? 'destructive' : 'muted'}>
+                {syncStatus?.lastSyncError
+                  ? `Sync error: ${syncStatus.lastSyncError}`
+                  : `Last synced ${formattedDate(syncStatus.lastSyncTime)}`}
+              </SizableText>
+            </div>
           ) : null}
         </>
       )}

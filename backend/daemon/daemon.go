@@ -374,6 +374,14 @@ func initGRPC(
 
 	if remoteVault, ok := repo.KeyStore().(*vault.Vault); ok {
 		remoteVault.ResumeRemoteConnection()
+		// Keep the local vault in sync with the remote in the background so the
+		// user doesn't have to trigger syncs manually.
+		syncCtx, cancelSync := context.WithCancel(context.Background())
+		clean.AddErrFunc(func() error {
+			cancelSync()
+			return nil
+		})
+		remoteVault.StartPeriodicRemoteSync(syncCtx, 0)
 	}
 
 	for _, extra := range opts.extraServices {
