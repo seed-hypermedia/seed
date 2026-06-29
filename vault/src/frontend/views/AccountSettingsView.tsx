@@ -10,6 +10,7 @@ import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
+import {UIAvatar} from '@shm/ui/avatar'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
@@ -166,7 +167,14 @@ export function AccountSettingsView() {
     return {
       id: a.principal,
       name,
-      icon: <AccountAvatar avatar={profile?.avatar} name={name} backendHttpBaseUrl={backendHttpBaseUrl} />,
+      icon: (
+        <AccountAvatar
+          principal={a.principal}
+          avatar={profile?.avatar}
+          name={name}
+          backendHttpBaseUrl={backendHttpBaseUrl}
+        />
+      ),
       menu: {
         onEditProfile: () => setEditTargetPrincipal(a.principal),
         onCopyId: () => void navigator.clipboard?.writeText(a.principal),
@@ -220,6 +228,7 @@ export function AccountSettingsView() {
                 name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
                 icon={
                   <AccountAvatar
+                    principal={selected.principal}
                     avatar={profiles[selected.principal]?.avatar}
                     name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
                     backendHttpBaseUrl={backendHttpBaseUrl}
@@ -322,26 +331,22 @@ export function AccountSettingsView() {
 }
 
 function AccountAvatar({
+  principal,
   avatar,
   name,
   backendHttpBaseUrl,
   size = 28,
 }: {
+  principal: string
   avatar?: string
   name: string
   backendHttpBaseUrl: string
   size?: number
 }) {
-  const src = avatar ? getProfileAvatarImageSrc(backendHttpBaseUrl, avatar) : ''
-  const style = {width: size, height: size}
-  if (src) {
-    return <img src={src} alt="" style={style} className="rounded-full object-cover" />
-  }
-  return (
-    <div style={style} className="bg-muted flex items-center justify-center rounded-full text-xs font-medium">
-      {(name || '?')[0]?.toUpperCase()}
-    </div>
-  )
+  const url = avatar ? getProfileAvatarImageSrc(backendHttpBaseUrl, avatar) : undefined
+  // Match desktop/web-app: the jdenticon fallback is keyed on the hypermedia id
+  // (`hm://<principal>`), so the generated avatar is identical across platforms.
+  return <UIAvatar id={`hm://${principal}`} label={name} url={url || undefined} size={size} className="rounded-full" />
 }
 
 function DevicesTabContent({account}: {account: vault.Account}) {
