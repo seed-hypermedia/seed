@@ -34,6 +34,8 @@ export type Config = {
   relyingParty: RelyingParty
   dbPath: string
   smtp: email.SmtpConfig | null
+  /** Public web reader base URL for "open profile" links ('' = same origin). */
+  webBaseUrl: string
 }
 
 function getDefaultNotificationServerUrl(env: NodeJS.ProcessEnv = process.env) {
@@ -84,6 +86,11 @@ export const flags = (env: NodeJS.ProcessEnv = process.env) => ({
     type: String,
     default: env.SEED_VAULT_BACKEND_GRPC_BASE_URL || '',
     description: 'Base URL for the backend daemon gRPC-Web server used by the Vault backend',
+  },
+  'web-base-url': {
+    type: String,
+    default: env.SEED_VAULT_WEB_BASE_URL || '',
+    description: 'Base URL of the public web reader, used for "open profile" links (empty = same origin)',
   },
 
   'smtp-host': {
@@ -188,5 +195,6 @@ export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env
     relyingParty,
     dbPath,
     smtp,
+    webBaseUrl: pflags['web-base-url'],
   }
 }

@@ -273,6 +273,8 @@ export type GetAccountResponse = Account
 export type GetConfigResponse = {
   backendHttpBaseUrl: string
   notificationServerUrl: string
+  /** Base URL of the public web reader (for "open profile" links); '' = same origin. */
+  webBaseUrl: string
 }
 
 // Change email start — initiates email change verification.

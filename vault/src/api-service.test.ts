@@ -58,6 +58,7 @@ function createService() {
     db,
     'https://daemon.example.com',
     'https://notify.example.com',
+    'https://web.example.com',
     mockGrpcClient,
     rp,
     hmacSecret,

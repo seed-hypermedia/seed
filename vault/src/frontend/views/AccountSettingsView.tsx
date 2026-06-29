@@ -94,6 +94,7 @@ export function AccountSettingsView() {
     profiles,
     profileLoadStates,
     backendHttpBaseUrl,
+    webBaseUrl,
     session,
     notificationServerUrl,
     vaultConnectionSuccessMessage,
@@ -226,10 +227,10 @@ export function AccountSettingsView() {
                   />
                 }
                 onOpenProfile={() => {
-                  // Public hypermedia profile URL: `${host}/hm/<principal>` (host-relative
-                  // when no backend host is configured). Built inline to avoid pulling
-                  // @shm/shared/constants — which reads process.env — into the browser bundle.
-                  const host = backendHttpBaseUrl?.trim().replace(/\/$/, '') ?? ''
+                  // Public hypermedia profile URL on the web reader host. Prefer the
+                  // configured web base URL (SEED_VAULT_WEB_BASE_URL); otherwise fall
+                  // back to the current origin (vault + reader share a host in prod).
+                  const host = (webBaseUrl?.trim() || window.location.origin).replace(/\/$/, '')
                   window.open(`${host}/hm/${selected.principal}`, '_blank', 'noopener,noreferrer')
                 }}
               />
