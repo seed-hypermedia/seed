@@ -1,4 +1,4 @@
-import {Copy, Import, KeyRound, MoreHorizontal, Plus, Trash, Vault} from 'lucide-react'
+import {Copy, Import, KeyRound, MoreHorizontal, Pencil, Plus, Trash, Vault} from 'lucide-react'
 import {type ReactNode} from 'react'
 import {cn} from '../utils'
 import {
@@ -11,6 +11,7 @@ import {
 
 /** Per-account options exposed via the row's 3-dots menu. */
 export type AccountSettingsAccountMenu = {
+  onEditProfile: () => void
   onCopyId: () => void
   onExportKey: () => void
   onDelete: () => void
@@ -156,6 +157,15 @@ function AccountOptionsMenu({menu}: {menu: AccountSettingsAccountMenu}) {
         <MoreHorizontal className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
+        <DropdownMenuItem
+          onClick={(event) => {
+            event.stopPropagation()
+            menu.onEditProfile()
+          }}
+        >
+          <Pencil className="size-4" />
+          Edit profile
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={(event) => {
             event.stopPropagation()
