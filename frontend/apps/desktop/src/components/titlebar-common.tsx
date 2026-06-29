@@ -23,7 +23,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
+import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -53,6 +53,7 @@ import {
   ArrowRightFromLine,
   Bell,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Lock,
   LogIn,
@@ -634,6 +635,42 @@ function getRouteLabel(route: NavRoute): string | null {
   }
 }
 
+const ACCOUNT_SETTINGS_TAB_LABELS: Record<string, string> = {
+  devices: 'Devices',
+  notifications: 'Notifications',
+}
+
+/**
+ * Breadcrumb shown in the omnibar for the Account Settings page: "Identity
+ * Settings" for the vault view, or "<Account name> › <Tab>" when an account is
+ * selected.
+ */
+function AccountSettingsOmnibarLabel({
+  accountUid,
+  tab,
+  isVault,
+}: {
+  accountUid?: string
+  tab?: string
+  isVault: boolean
+}) {
+  const account = useAccount(isVault ? undefined : accountUid)
+
+  if (isVault || !accountUid) {
+    return <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">Identity Settings</span>
+  }
+
+  const name = account.data?.metadata?.name || 'Account'
+  const tabLabel = ACCOUNT_SETTINGS_TAB_LABELS[tab ?? 'devices'] ?? 'Devices'
+  return (
+    <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1 truncate text-xs">
+      <span className="truncate">{name}</span>
+      <ChevronRight className="size-3 shrink-0 opacity-60" />
+      <span className="shrink-0">{tabLabel}</span>
+    </span>
+  )
+}
+
 /**
  * Hook to construct displayable URL from current route
  * Priority: validated custom siteUrl > gatewayUrl (never hm://)
@@ -1045,24 +1082,32 @@ export function Omnibar() {
         onClick={handleContainerClick}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <span
-            className={cn(
-              'text-muted-foreground min-w-0 flex-1 truncate text-xs',
-              // Drafts that haven't been published yet have no shareable URL
-              isUnsharable && 'select-none',
-            )}
-            style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
-            onCopy={
-              isUnsharable
-                ? (e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }
-                : undefined
-            }
-          >
-            {displayText}
-          </span>
+          {route.key === 'account-settings' ? (
+            <AccountSettingsOmnibarLabel
+              accountUid={route.accountUid}
+              tab={route.tab}
+              isVault={route.view === 'vault'}
+            />
+          ) : (
+            <span
+              className={cn(
+                'text-muted-foreground min-w-0 flex-1 truncate text-xs',
+                // Drafts that haven't been published yet have no shareable URL
+                isUnsharable && 'select-none',
+              )}
+              style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
+              onCopy={
+                isUnsharable
+                  ? (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  : undefined
+              }
+            >
+              {displayText}
+            </span>
+          )}
           {indicators}
         </div>
         {routeId ? (
