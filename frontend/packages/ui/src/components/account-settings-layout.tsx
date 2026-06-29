@@ -84,16 +84,22 @@ export function AccountSettingsLayout({
               menu={account.menu}
             />
           ))}
+          {onAddAccount ? (
+            <button
+              onClick={onAddAccount}
+              className="text-muted-foreground hover:text-foreground flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              <div className="border-muted-foreground/40 flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed">
+                <Plus className="size-4" />
+              </div>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">Add account</span>
+            </button>
+          ) : null}
         </div>
 
-        {onAddAccount || onImportKey ? (
+        {onImportKey ? (
           <div className="flex flex-col gap-1 border-t border-black/10 p-2 dark:border-white/10">
-            {onAddAccount ? (
-              <SidebarAction icon={<Plus className="size-4" />} label="Add account" onClick={onAddAccount} />
-            ) : null}
-            {onImportKey ? (
-              <SidebarAction icon={<Import className="size-4" />} label="Import key" onClick={onImportKey} />
-            ) : null}
+            <SidebarAction icon={<Import className="size-4" />} label="Import key" onClick={onImportKey} />
           </div>
         ) : null}
       </div>
