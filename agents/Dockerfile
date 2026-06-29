@@ -17,6 +17,20 @@ FROM oven/bun:1.3.10
 WORKDIR /app
 COPY --from=build /build/agents/package.json ./package.json
 COPY --from=build /build/agents/dist/ .
+
+# Version metadata, surfaced at /api/version and /api/health. Declared after the
+# COPY so changing them only rebuilds this trailing layer, not the app build.
+# COMMIT_HASH/BRANCH/DATE match the web and daemon image build args; VERSION is the
+# image tag. They are mapped to namespaced SEED_AGENTS_* runtime env.
+ARG VERSION=dev
+ARG COMMIT_HASH=unknown
+ARG BRANCH=unknown
+ARG DATE=unknown
+ENV SEED_AGENTS_VERSION=${VERSION} \
+    SEED_AGENTS_COMMIT=${COMMIT_HASH} \
+    SEED_AGENTS_BRANCH=${BRANCH} \
+    SEED_AGENTS_DATE=${DATE}
+
 VOLUME /data
 ENV NODE_ENV=production
 ENV SEED_AGENTS_DB_PATH=/data/agents.sqlite

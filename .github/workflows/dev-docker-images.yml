@@ -404,6 +404,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Get commit date
+        run: echo "COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})" >> "$GITHUB_ENV"
+
       - name: DockerHub Release seedhypermedia/agents:dev
         uses: docker/build-push-action@v4
         with:
@@ -411,6 +414,11 @@ jobs:
           push: true
           file: agents/Dockerfile
           tags: seedhypermedia/agents:dev
+          build-args: |
+            VERSION=dev
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
           cache-from: type=gha,scope=docker-agents-dev
           cache-to: type=gha,mode=max,scope=docker-agents-dev
 

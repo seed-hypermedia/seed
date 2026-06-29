@@ -39,6 +39,68 @@ Run the image with persistent state mounted at `/data`:
 docker run --rm -p 3050:3050 -v seed-agents-data:/data seedhypermedia/agents:dev
 ```
 
+## Versioning, build, and deploy
+
+The image records what it was built from and exposes it at runtime. `/api/version` (and `/agents/api/version`) returns:
+
+```json
+{"version": "2026.6.10", "commit": "<sha>", "branch": "<ref>", "date": "<date>"}
+```
+
+The `commit`/`branch`/`date` fields mirror the daemon `/debug/version` and web `/hm/api/version` shape; `version` (the
+image tag) is an agents-specific addition. `/api/health` also includes the `version` field for quick checks. To see what
+a host is running:
+
+```bash
+curl -s https://agentic.seed.hyper.media/agents/api/version
+```
+
+The values come from `agents/src/build-info.ts`, populated by Docker build args (`VERSION`, `COMMIT_HASH`, `BRANCH`,
+`DATE` — the same `COMMIT_HASH`/`BRANCH`/`DATE` names used by the web and daemon images) that `agents/Dockerfile` maps
+to namespaced `SEED_AGENTS_*` runtime `ENV`. Without build args (e.g. local `bun dev` or a plain `docker build`) they
+fall back to `dev`/`unknown`.
+
+### CI build + push
+
+`agents/Dockerfile` is built and pushed by two GitHub Actions workflows, both of which also accept a manual
+`workflow_dispatch` run from the Actions tab:
+
+- `.github/workflows/release-docker-images.yml` — on a `*.*.*` release tag push (or manual dispatch), pushes
+  `seedhypermedia/agents:<tag>`. The resolved tag is the version (`latest` for a manual run with no tag);
+  `agents-stable` on the host tracks `:latest`.
+- `.github/workflows/dev-docker-images.yml` — on push to `main` touching `agents/**` (or manual dispatch), pushes
+  `seedhypermedia/agents:dev`, which `agents-dev` tracks.
+
+### Manual build + push from a workstation
+
+To build and push an image yourself with correct version metadata baked in:
+
+```bash
+agents/scripts/build-and-push.sh dev      # or: latest
+```
+
+It stamps the current git `HEAD` (commit/branch/date) into the image and pushes `seedhypermedia/agents:<tag>`.
+
+### Deploy onto the agent host
+
+`agentic.seed.hyper.media` runs `/opt/agentic/docker-compose.yml` with Watchtower (`nickfedor/watchtower:1.18.1`,
+label-enabled, 5-minute interval) auto-pulling the `agents-stable` (`:latest`) and `agents-dev` (`:dev`) containers.
+After pushing a new image it deploys within the poll interval, or force it immediately:
+
+```bash
+# Force an update now (proves Watchtower works end to end and pulls labeled containers):
+ssh ubuntu@agentic.seed.hyper.media \
+  'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+     nickfedor/watchtower:1.18.1 --run-once --label-enable --cleanup'
+
+# Or with compose directly:
+ssh ubuntu@agentic.seed.hyper.media \
+  'cd /opt/agentic && docker compose pull agents-stable agents-dev && docker compose up -d'
+```
+
+> The host's `docker-compose.yml`/`Caddyfile` are not yet tracked in git (the `seed_infra/agentic` Terraform stack
+> provisions a bare Docker host only). Treat the file on the host as authoritative until that drift is captured.
+
 ## Configuration
 
 Config source: `agents/src/config.ts`.
@@ -164,8 +226,10 @@ artifacts/state.
 | `/`                                  | `GET`     | Redirects to `/agents`.                    |
 | `/api/message`                       | `POST`    | Signed CBOR action API.                    |
 | `/agents/api/message`                | `POST`    | Same action API under `/agents`.           |
-| `/api/health`                        | `GET`     | JSON health.                               |
+| `/api/health`                        | `GET`     | JSON health (includes `version`).          |
 | `/agents/api/health`                 | `GET`     | JSON health under `/agents`.               |
+| `/api/version`                       | `GET`     | Build metadata of the deployed image.      |
+| `/agents/api/version`                | `GET`     | Build metadata under `/agents`.            |
 | `/agents/api/status`                 | `GET`     | Debug overview for inspector UI.           |
 | `/agents/api/session?id=<sessionId>` | `GET`     | Debug session event data for inspector UI. |
 | `/agents`                            | `GET`     | Built-in session inspector UI.             |

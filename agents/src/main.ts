@@ -1,6 +1,7 @@
 import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
+import {getBuildInfo} from '@/build-info'
 import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
@@ -139,16 +140,26 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
   }
 
   const options = () => new Response(null, {status: 204, headers: corsHeaders()})
+  const buildInfo = getBuildInfo()
   const health = () =>
     Response.json(
-      {status: 'ok', uptime: process.uptime(), hmServerUrl: svc.hmServerUrl, webTools: svc.webToolCapabilities()},
+      {
+        status: 'ok',
+        uptime: process.uptime(),
+        version: buildInfo.version,
+        hmServerUrl: svc.hmServerUrl,
+        webTools: svc.webToolCapabilities(),
+      },
       {headers: corsHeaders()},
     )
+  const version = () => Response.json(buildInfo, {headers: corsHeaders()})
   return {
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
     '/api/health': {GET: health},
     '/agents/api/health': {GET: health},
+    '/api/version': {GET: version},
+    '/agents/api/version': {GET: version},
   }
 }
 
