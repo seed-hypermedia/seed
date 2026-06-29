@@ -69,7 +69,7 @@ import {SettingsRow, SettingsSection} from '@shm/ui/settings-list'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {Vault} from 'lucide-react'
+import {Key, Vault} from 'lucide-react'
 import {useEffect, useId, useRef, useState} from 'react'
 
 export default function AccountSettingsPage() {
@@ -392,6 +392,8 @@ function VaultSettings() {
     })
   }
 
+  const remoteVaultHost = remoteVaultUrl ? new URL(remoteVaultUrl).host : null
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 p-6">
       <SizableText size="2xl" weight="bold">
@@ -404,14 +406,14 @@ function VaultSettings() {
         </div>
       ) : (
         <>
-          <SettingsSection label="STORAGE">
+          <SettingsSection label="IDENTITY STORAGE">
             <SettingsRow
-              icon={<Vault />}
-              label="Identity key storage"
+              icon={<Key />}
+              label="Secure Identity Storage"
               description={
                 selectedMode === 'remote'
-                  ? 'Synced to a remote server for multi-device continuity.'
-                  : 'Stored on this device only.'
+                  ? `Synced to ${remoteVaultHost} for multi-device account syncing.`
+                  : 'Your account keys are stored on this device only.'
               }
               action={
                 <RadioGroup
@@ -434,12 +436,7 @@ function VaultSettings() {
                 </RadioGroup>
               }
             />
-            {isConnected ? (
-              <>
-                <Separator />
-                <SettingsRow icon={<Vault />} label="Remote vault" description={remoteVaultUrl || 'Connected'} />
-              </>
-            ) : selectedMode === 'remote' ? (
+            {isConnected ? null : selectedMode === 'remote' ? (
               <>
                 <Separator />
                 <SettingsRow
