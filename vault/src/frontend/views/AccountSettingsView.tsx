@@ -15,7 +15,6 @@ import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
-import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
@@ -227,9 +226,11 @@ export function AccountSettingsView() {
                   />
                 }
                 onOpenProfile={() => {
-                  const host = backendHttpBaseUrl?.trim()
-                  const url = createWebHMUrl(selected.principal, {hostname: host ? host.replace(/\/$/, '') : null})
-                  window.open(url, '_blank', 'noopener,noreferrer')
+                  // Public hypermedia profile URL: `${host}/hm/<principal>` (host-relative
+                  // when no backend host is configured). Built inline to avoid pulling
+                  // @shm/shared/constants — which reads process.env — into the browser bundle.
+                  const host = backendHttpBaseUrl?.trim().replace(/\/$/, '') ?? ''
+                  window.open(`${host}/hm/${selected.principal}`, '_blank', 'noopener,noreferrer')
                 }}
               />
               <AccountSettingsTabs
