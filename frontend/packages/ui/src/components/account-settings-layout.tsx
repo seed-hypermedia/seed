@@ -28,8 +28,8 @@ export type AccountSettingsAccount = {
 
 /**
  * Shared account-settings shell used by both the desktop app and the web vault:
- * a left sidebar (Vault Settings entry + selectable account list + Add account /
- * Import key) and a detail pane (`children`).
+ * a left sidebar (Identity Settings entry + selectable account list + Add account /
+ * Import identity) and a detail pane (`children`).
  *
  * Routing-agnostic: the platform wires `onSelect*` to its own router (the desktop
  * nav route, or react-router on the web) so every state gets a real URL, and
@@ -39,6 +39,7 @@ export function AccountSettingsLayout({
   accounts,
   selectedAccountId,
   isVaultSelected,
+  vaultEmail,
   onSelectVault,
   onSelectAccount,
   onAddAccount,
@@ -48,6 +49,8 @@ export function AccountSettingsLayout({
   accounts: AccountSettingsAccount[]
   selectedAccountId: string | null
   isVaultSelected: boolean
+  /** Email shown under the Identity Settings entry (the signed-in remote vault email). */
+  vaultEmail?: string
   onSelectVault: () => void
   onSelectAccount: (id: string) => void
   onAddAccount?: () => void
@@ -64,7 +67,8 @@ export function AccountSettingsLayout({
                 <Vault className="size-4" />
               </div>
             }
-            label="Vault Settings"
+            label="Identity Settings"
+            sublabel={vaultEmail}
             active={isVaultSelected}
             onClick={onSelectVault}
           />
@@ -113,12 +117,14 @@ export function AccountSettingsLayout({
 function SidebarItem({
   icon,
   label,
+  sublabel,
   active,
   onClick,
   menu,
 }: {
   icon: ReactNode
   label: string
+  sublabel?: string
   active: boolean
   onClick: () => void
   menu?: AccountSettingsAccountMenu
@@ -134,7 +140,12 @@ function SidebarItem({
         )}
       >
         <div className="shrink-0">{icon}</div>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-medium">{label}</span>
+          {sublabel ? (
+            <span className={cn('truncate text-xs', active ? 'opacity-80' : 'text-muted-foreground')}>{sublabel}</span>
+          ) : null}
+        </div>
       </button>
       {menu ? <AccountOptionsMenu menu={menu} /> : null}
     </div>
