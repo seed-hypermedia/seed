@@ -1,4 +1,4 @@
-import {Copy, ExternalLink, KeyRound, Trash, User} from 'lucide-react'
+import {Copy, KeyRound, Trash} from 'lucide-react'
 import {useState, type ReactNode} from 'react'
 import {Button} from '../button'
 import {SizableText} from '../text'
@@ -20,7 +20,7 @@ import {ExportKeyDialog} from './export-key-dialog'
  * - `avatar` is the platform-rendered icon (desktop HMIcon, web <img>/initial).
  * - `onExport(password)` performs the export; throw an Error to surface it.
  * - `onDelete()` removes the account key from the vault.
- * - `onEditProfile` / `onViewPublicProfile` are optional platform actions.
+ * - `onEditProfile` is an optional platform action.
  */
 export function AccountProfilePanel({
   name,
@@ -35,7 +35,6 @@ export function AccountProfilePanel({
   onEditProfile,
   editProfileLabel = 'Edit Profile',
   editProfileDisabled,
-  onViewPublicProfile,
 }: {
   name: string
   accountId: string
@@ -49,7 +48,6 @@ export function AccountProfilePanel({
   onEditProfile?: () => void
   editProfileLabel?: string
   editProfileDisabled?: boolean
-  onViewPublicProfile?: () => void
 }) {
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -76,13 +74,6 @@ export function AccountProfilePanel({
 
       {/* Actions */}
       <div className="flex flex-col gap-2">
-        {onViewPublicProfile ? (
-          <Button variant="outline" className="justify-start" onClick={onViewPublicProfile}>
-            <User className="size-4" />
-            View public profile
-            <ExternalLink className="ml-auto size-4" />
-          </Button>
-        ) : null}
         <Button variant="outline" className="justify-start" onClick={onCopyId}>
           <Copy className="size-4" />
           Copy account ID
