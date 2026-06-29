@@ -89,7 +89,11 @@ export default function AccountSettingsPage() {
   const exportKey = useExportKey()
   const deleteKey = useDeleteKey()
   const keys = useListKeys()
-  const vaultEmail = useVaultEmail()
+  // Only a remote-connected vault has an email; gate on connection status so it
+  // disappears immediately when switching to a local vault.
+  const vaultStatus = useVaultStatus()
+  const isRemoteConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const vaultEmail = useVaultEmail({enabled: isRemoteConnected})
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
 
@@ -173,7 +177,7 @@ export default function AccountSettingsPage() {
         }))}
         selectedAccountId={selectedUid}
         isVaultSelected={isVaultSelected}
-        vaultEmail={vaultEmail.data?.trim() || undefined}
+        vaultEmail={isRemoteConnected ? vaultEmail.data?.trim() || undefined : undefined}
         onSelectVault={() => replace({key: 'account-settings', view: 'vault'})}
         onSelectAccount={selectAccount}
         onAddAccount={() => createAccountDialog.open({})}
