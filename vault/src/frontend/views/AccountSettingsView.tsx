@@ -5,17 +5,11 @@ import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/aler
 import {Button} from '@/frontend/components/ui/button'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import {
-  type AccountProfileSummary,
-  getProfileAvatarImageSrc,
-  getProfileDisplayName,
-  type ProfileLoadState,
-} from '@/frontend/profile'
+import {type AccountProfileSummary, getProfileAvatarImageSrc, getProfileDisplayName} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
-import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
@@ -28,7 +22,8 @@ import {useEffect, useState, type ReactNode} from 'react'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {SettingsView} from './SettingsView'
 
-const ACCOUNT_TABS: AccountSettingsTab[] = ['account', 'notifications', 'devices']
+const ACCOUNT_TABS: AccountSettingsTab[] = ['devices', 'notifications']
+const DEFAULT_ACCOUNT_TAB: AccountSettingsTab = 'devices'
 
 /**
  * Parses the account selection out of the URL hash (`#/a/<principal>` or
@@ -43,7 +38,7 @@ function parseAccountHash(hash: string): {accountId: string; tab: AccountSetting
     const accountId = decodeURIComponent(segments[1])
     const tab = ACCOUNT_TABS.includes(segments[2] as AccountSettingsTab)
       ? (segments[2] as AccountSettingsTab)
-      : 'account'
+      : DEFAULT_ACCOUNT_TAB
     return {accountId, tab}
   } catch {
     return null
@@ -51,9 +46,9 @@ function parseAccountHash(hash: string): {accountId: string; tab: AccountSetting
 }
 
 /** Builds the `#/a/<principal>[/<tab>]` hash for an account selection. */
-function formatAccountHash(accountId: string, tab: AccountSettingsTab = 'account'): string {
+function formatAccountHash(accountId: string, tab: AccountSettingsTab = DEFAULT_ACCOUNT_TAB): string {
   const base = `#/a/${encodeURIComponent(accountId)}`
-  return tab === 'account' ? base : `${base}/${tab}`
+  return tab === DEFAULT_ACCOUNT_TAB ? base : `${base}/${tab}`
 }
 
 /** Builds an encrypted/plaintext `.hmkey.json` for an account and downloads it. */
@@ -102,6 +97,8 @@ export function AccountSettingsView() {
     session,
     notificationServerUrl,
     vaultConnectionSuccessMessage,
+    loading,
+    error,
   } = useAppState()
 
   const accounts = vaultData?.accounts ?? []
@@ -115,7 +112,7 @@ export function AccountSettingsView() {
   const isVaultSelected = location.pathname === '/settings'
   const route = parseAccountHash(location.hash)
   const selectedAccountId = route?.accountId ?? null
-  const tab = route?.tab ?? 'account'
+  const tab = route?.tab ?? DEFAULT_ACCOUNT_TAB
   const selected = accountList.find((a) => a.principal === selectedAccountId) ?? null
 
   const [importOpen, setImportOpen] = useState(false)
@@ -128,6 +125,7 @@ export function AccountSettingsView() {
   } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{principal: string; name: string} | null>(null)
   const [deletingTarget, setDeletingTarget] = useState(false)
+  const [editTargetPrincipal, setEditTargetPrincipal] = useState<string | null>(null)
 
   // Load profile metadata for each account (names + avatars).
   useEffect(() => {
@@ -169,6 +167,7 @@ export function AccountSettingsView() {
       name,
       icon: <AccountAvatar avatar={profile?.avatar} name={name} backendHttpBaseUrl={backendHttpBaseUrl} />,
       menu: {
+        onEditProfile: () => setEditTargetPrincipal(a.principal),
         onCopyId: () => void navigator.clipboard?.writeText(a.principal),
         onExportKey: () => setExportTarget({principal: a.principal, seed: a.account.seed, profile}),
         onDelete: () => setDeleteTarget({principal: a.principal, name}),
@@ -239,15 +238,6 @@ export function AccountSettingsView() {
                   navigate({pathname: '/', hash: formatAccountHash(selected.principal, nextTab)})
                 }
               />
-              {tab === 'account' ? (
-                <AccountTabContent
-                  principal={selected.principal}
-                  account={selected.account as vault.Account}
-                  profile={profiles[selected.principal]}
-                  profileLoadState={profileLoadStates[selected.principal]}
-                  backendHttpBaseUrl={backendHttpBaseUrl}
-                />
-              ) : null}
               {tab === 'notifications' ? (
                 <AccountNotificationsSection
                   seed={selected.account.seed}
@@ -297,6 +287,34 @@ export function AccountSettingsView() {
           }
         }}
       />
+      {(() => {
+        const editProfile = editTargetPrincipal ? profiles[editTargetPrincipal] : undefined
+        return (
+          <AccountProfileDialog
+            open={!!editTargetPrincipal}
+            onOpenChange={(open) => {
+              if (!open) setEditTargetPrincipal(null)
+            }}
+            title={editProfile ? 'Edit Profile' : 'Create Profile'}
+            descriptionText={
+              editProfile
+                ? 'Update the public profile attached to this Hypermedia identity.'
+                : 'Publish a profile for this Hypermedia identity so apps can display it correctly.'
+            }
+            submitLabel={editProfile ? 'Save Profile' : 'Create Profile'}
+            loading={loading}
+            error={error}
+            initialName={editProfile?.name ?? ''}
+            initialDescription={editProfile?.description ?? ''}
+            initialAvatar={editProfile?.avatar}
+            onSubmit={async (nextProfile) => {
+              if (!editTargetPrincipal) return
+              const didUpdate = await actions.updateAccountProfile(editTargetPrincipal, nextProfile)
+              if (didUpdate) setEditTargetPrincipal(null)
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
@@ -321,80 +339,6 @@ function AccountAvatar({
     <div style={style} className="bg-muted flex items-center justify-center rounded-full text-xs font-medium">
       {(name || '?')[0]?.toUpperCase()}
     </div>
-  )
-}
-
-function AccountTabContent({
-  principal,
-  account,
-  profile,
-  profileLoadState,
-  backendHttpBaseUrl,
-}: {
-  principal: string
-  account: vault.Account
-  profile?: AccountProfileSummary
-  profileLoadState?: ProfileLoadState
-  backendHttpBaseUrl: string
-}) {
-  const actions = useActions()
-  const {loading, error} = useAppState()
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-
-  const name = getProfileDisplayName(profile, profileLoadState)
-  const canEditProfile = profileLoadState !== 'unavailable'
-
-  async function handleExport(password: string) {
-    await downloadAccountKeyfile(principal, account.seed, profile, password)
-  }
-
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      await actions.deleteAccount(principal)
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  return (
-    <>
-      <AccountProfilePanel
-        name={name}
-        accountId={principal}
-        avatar={
-          <AccountAvatar avatar={profile?.avatar} name={name} backendHttpBaseUrl={backendHttpBaseUrl} size={56} />
-        }
-        onCopyId={() => void navigator.clipboard?.writeText(principal)}
-        onExport={handleExport}
-        onDelete={handleDelete}
-        deleteBusy={deleting}
-        onEditProfile={() => setEditingProfile(true)}
-        editProfileLabel={profile ? 'Edit Profile' : 'Create Profile'}
-        editProfileDisabled={loading || !canEditProfile}
-      />
-      <AccountProfileDialog
-        open={editingProfile}
-        onOpenChange={setEditingProfile}
-        title={profile ? 'Edit Profile' : 'Create Profile'}
-        descriptionText={
-          profile
-            ? 'Update the public profile attached to this Hypermedia identity.'
-            : 'Publish a profile for this Hypermedia identity so apps can display it correctly.'
-        }
-        submitLabel={profile ? 'Save Profile' : 'Create Profile'}
-        loading={loading}
-        error={error}
-        initialName={profile?.name ?? ''}
-        initialDescription={profile?.description ?? ''}
-        initialAvatar={profile?.avatar}
-        onSubmit={async (nextProfile) => {
-          const didUpdate = await actions.updateAccountProfile(principal, nextProfile)
-          if (didUpdate) setEditingProfile(false)
-        }}
-      />
-    </>
   )
 }
 

@@ -56,7 +56,6 @@ import {Label} from '@shm/ui/components/label'
 import {PanelContainer} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AccountProfilePanel} from '@shm/ui/components/account-profile-panel'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
@@ -84,6 +83,7 @@ export default function AccountSettingsPage() {
   const accountIds = myAccountIds.data || []
   const accountQueries = useAccounts(accountIds)
   const createAccountDialog = useCreateAccountDialog()
+  const editProfileDialog = useEditProfileDialog()
   const {pickKeyImportFile, pickKeyExportFile} = useAppContext()
   const importKey = useImportKey()
   const exportKey = useExportKey()
@@ -94,7 +94,7 @@ export default function AccountSettingsPage() {
 
   const isVaultSelected = accountSettingsRoute?.view === 'vault'
   const selectedUid = isVaultSelected ? null : accountSettingsRoute?.accountUid ?? null
-  const activeTab: AccountSettingsTab = accountSettingsRoute?.tab ?? 'account'
+  const activeTab: AccountSettingsTab = accountSettingsRoute?.tab ?? 'devices'
 
   const [pendingSelectUid, setPendingSelectUid] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -161,6 +161,7 @@ export default function AccountSettingsPage() {
             />
           ),
           menu: {
+            onEditProfile: () => editProfileDialog.open({accountUid: option.uid}),
             onCopyId: () => {
               copyTextToClipboard(option.uid)
               toast.success('Account ID copied to clipboard')
@@ -187,6 +188,7 @@ export default function AccountSettingsPage() {
         )}
       </AccountSettingsLayout>
       {createAccountDialog.content}
+      {editProfileDialog.content}
       <ImportKeyDialog
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -569,7 +571,6 @@ function AccountSettingsDetail({accountUid, tab}: {accountUid: string; tab: Acco
         activeTab={tab}
         onTabChange={(nextTab) => replace({key: 'account-settings', accountUid, tab: nextTab})}
       />
-      {tab === 'account' ? <AccountTab accountUid={accountUid} /> : null}
       {tab === 'notifications' ? <NotificationsTab accountUid={accountUid} /> : null}
       {tab === 'devices' ? <DevicesTab accountUid={accountUid} /> : null}
     </div>
@@ -689,65 +690,5 @@ function DevicesTab({accountUid}: {accountUid: string}) {
         dateLabel: cap.createTime ? formattedDate(cap.createTime) : undefined,
       }))}
     />
-  )
-}
-
-function AccountTab({accountUid}: {accountUid: string}) {
-  const account = useAccount(accountUid)
-  const editProfileDialog = useEditProfileDialog()
-  const {pickKeyExportFile} = useAppContext()
-  const exportKey = useExportKey()
-  const deleteKey = useDeleteKey()
-  const keys = useListKeys()
-  const selectedKey = keys.data?.find((key) => key.publicKey === accountUid)
-  const name = account.data?.metadata?.name || 'Account'
-
-  const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
-  const selectedIdentityValue = useStream(selectedIdentity)
-
-  function handleDeleteAccount() {
-    deleteKey
-      .mutateAsync({accountId: accountUid})
-      .then(() => {
-        if (selectedIdentityValue === accountUid) setSelectedIdentity?.(null)
-        toast.success('Account deleted')
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : 'Unknown error'
-        toast.error('Failed to delete account: ' + message)
-      })
-  }
-
-  async function handleExportKey(password: string) {
-    if (!selectedKey) throw new Error('Key is not available')
-    const filePath = await pickKeyExportFile(`${accountUid}.hmkey.json`)
-    if (!filePath) return
-    await exportKey.mutateAsync({
-      name: selectedKey.name,
-      filePath,
-      password: password.length > 0 ? password : undefined,
-    })
-    toast.success(`Key exported to ${filePath}`)
-  }
-
-  return (
-    <>
-      <AccountProfilePanel
-        name={name}
-        accountId={accountUid}
-        avatar={<HMIcon id={hmId(accountUid)} name={name} icon={account.data?.metadata?.icon} size={56} />}
-        onCopyId={() => {
-          copyTextToClipboard(accountUid)
-          toast.success('Account ID copied to clipboard')
-        }}
-        onExport={handleExportKey}
-        exportBusy={exportKey.isPending}
-        canExport={!!selectedKey}
-        onDelete={handleDeleteAccount}
-        deleteBusy={deleteKey.isPending}
-        onEditProfile={() => editProfileDialog.open({accountUid})}
-      />
-      {editProfileDialog.content}
-    </>
   )
 }

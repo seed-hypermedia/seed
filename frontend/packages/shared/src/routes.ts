@@ -258,7 +258,7 @@ export const settingsRouteSchema = z.object({
 })
 export type SettingsRoute = z.infer<typeof settingsRouteSchema>
 
-export const accountSettingsTabSchema = z.enum(['account', 'notifications', 'devices'])
+export const accountSettingsTabSchema = z.enum(['devices', 'notifications'])
 export type AccountSettingsTab = z.infer<typeof accountSettingsTabSchema>
 
 /** Route schema for the desktop Account Settings page (manage the logged-in account). */

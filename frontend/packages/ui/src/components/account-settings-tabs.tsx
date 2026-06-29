@@ -1,13 +1,12 @@
-import {Bell, MonitorSmartphone, User, type LucideIcon} from 'lucide-react'
+import {Bell, MonitorSmartphone, type LucideIcon} from 'lucide-react'
 import {Button} from '../button'
 import {cn} from '../utils'
 
-export type AccountSettingsTab = 'account' | 'notifications' | 'devices'
+export type AccountSettingsTab = 'devices' | 'notifications'
 
 const TABS: {key: AccountSettingsTab; label: string; icon: LucideIcon}[] = [
-  {key: 'account', label: 'Account', icon: User},
-  {key: 'notifications', label: 'Notifications', icon: Bell},
   {key: 'devices', label: 'Devices', icon: MonitorSmartphone},
+  {key: 'notifications', label: 'Notifications', icon: Bell},
 ]
 
 /**
