@@ -89,6 +89,7 @@ export default function AccountSettingsPage() {
   const exportKey = useExportKey()
   const deleteKey = useDeleteKey()
   const keys = useListKeys()
+  const vaultEmail = useVaultEmail()
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
 
@@ -172,6 +173,7 @@ export default function AccountSettingsPage() {
         }))}
         selectedAccountId={selectedUid}
         isVaultSelected={isVaultSelected}
+        vaultEmail={vaultEmail.data?.trim() || undefined}
         onSelectVault={() => replace({key: 'account-settings', view: 'vault'})}
         onSelectAccount={selectAccount}
         onAddAccount={() => createAccountDialog.open({})}
@@ -401,7 +403,7 @@ function VaultSettings() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <SizableText size="2xl" weight="bold">
-        Vault Settings
+        Identity Settings
       </SizableText>
 
       {vaultStatus.isLoading && !data ? (

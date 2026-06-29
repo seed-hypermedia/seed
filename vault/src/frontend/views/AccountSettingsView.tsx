@@ -205,6 +205,7 @@ export function AccountSettingsView() {
           accounts={sidebarAccounts}
           selectedAccountId={selectedAccountId}
           isVaultSelected={isVaultSelected}
+          vaultEmail={sessionEmail || undefined}
           onSelectVault={() => navigate('/settings')}
           onSelectAccount={(id) => navigate({pathname: '/', hash: formatAccountHash(id)})}
           onAddAccount={() => actions.setCreatingAccount(true)}
