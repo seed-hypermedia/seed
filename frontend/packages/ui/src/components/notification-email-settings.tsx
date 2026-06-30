@@ -1,8 +1,8 @@
-import { Loader2 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
-import { Button } from '../button'
-import { SizableText } from '../text'
-import { Input } from './input'
+import {Loader2} from 'lucide-react'
+import {useEffect, useState, type FormEvent} from 'react'
+import {Button} from '../button'
+import {SizableText} from '../text'
+import {Input} from './input'
 
 /**
  * Shared, cross-platform per-account email-notification settings UI.
@@ -24,6 +24,7 @@ export function NotificationEmailSettings({
   serverLabel,
   isRegistered,
   isNotifyServerConnected = true,
+  loading = false,
   email,
   isVerified,
   needsVerification,
@@ -45,6 +46,8 @@ export function NotificationEmailSettings({
   serverLabel: string | null
   isRegistered: boolean
   isNotifyServerConnected?: boolean
+  /** True while the current status is still being fetched and is not yet known. */
+  loading?: boolean
   email: string | null
   isVerified: boolean
   needsVerification: boolean
@@ -72,9 +75,18 @@ export function NotificationEmailSettings({
   }, [email, defaultEmail, isEditing])
 
   const hasServer = Boolean(serverLabel)
-  const showRegister = hasServer && !isRegistered && !registering && Boolean(onRegister)
+  // While the status is still loading (and we don't yet have an email to show),
+  // we don't know whether this account is signed up — never render the "set up
+  // email" form in that state, or it looks like the account isn't registered.
+  const isStatusUnknown = loading && !email
+  // If we can't reach the server we also can't trust an absent email to mean
+  // "not signed up", so suppress the empty-state form and show the warning.
+  const connectionFailed = hasServer && !isNotifyServerConnected
+  const showRegister =
+    hasServer && !isStatusUnknown && !connectionFailed && !isRegistered && !registering && Boolean(onRegister)
   const showEmailRow = hasServer && isRegistered && Boolean(email) && !isEditing
-  const showEmailForm = hasServer && isRegistered && Boolean(onSetEmail) && (!email || isEditing)
+  const showEmailForm =
+    hasServer && isRegistered && Boolean(onSetEmail) && !isStatusUnknown && (isEditing || (!email && !connectionFailed))
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -93,13 +105,29 @@ export function NotificationEmailSettings({
             ? 'Configure a notification server in vault settings before registering this account.'
             : registering
               ? `Registering this account with ${serverLabel}.`
-              : !isRegistered
-                ? `Register this account to receive notifications from ${serverLabel}.`
-                : 'Receive an email when there is activity involving this account.'}
+              : isStatusUnknown
+                ? 'Checking notification status…'
+                : showEmailRow
+                  ? 'You are signed up to receive email notifications for this account.'
+                  : !isRegistered
+                    ? `Register this account to receive notifications from ${serverLabel}.`
+                    : 'Receive an email when there is activity involving this account.'}
         </SizableText>
+        {hasServer ? (
+          <SizableText size="xs" color="muted">
+            Notification server: <span className="font-medium">{serverLabel}</span>
+          </SizableText>
+        ) : null}
       </div>
 
-      {hasServer && !isNotifyServerConnected ? (
+      {isStatusUnknown ? (
+        <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          <p>Checking notification status…</p>
+        </div>
+      ) : null}
+
+      {hasServer && !isStatusUnknown && !isNotifyServerConnected ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           You are not connected to the notification server.
         </div>
@@ -133,7 +161,7 @@ export function NotificationEmailSettings({
 
       {showEmailRow ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <SizableText size="sm" weight="bold" className="truncate">
               {email}
             </SizableText>

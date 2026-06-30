@@ -406,7 +406,7 @@ function VaultSettings() {
         </div>
       ) : (
         <>
-          <SettingsSection label="IDENTITY STORAGE">
+          <SettingsSection label="STORAGE">
             <SettingsRow
               icon={<Key />}
               label="Identity Key Storage Mode"
@@ -499,8 +499,10 @@ function VaultSettings() {
           <AlertDialogContent className="max-w-[600px] gap-4">
             <AlertDialogTitle className="text-2xl font-bold">Log out of remote vault?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will disconnect the remote vault and delete all local vault keys from this device, leaving you with a
-              local vault and zero accounts. Make sure your accounts are still recoverable before continuing.
+              This will disconnect the remote vault, and will delete all keys from this desktop device.
+            </AlertDialogDescription>
+            <AlertDialogDescription>
+              You will be able to log in with your passkey to use your accounts again.
             </AlertDialogDescription>
             <div className="flex justify-end gap-3">
               <AlertDialogCancel asChild>
@@ -571,8 +573,16 @@ function AccountSettingsDetail({accountUid, tab}: {accountUid: string; tab: Acco
  * service host) so an account can register an email to receive notifications.
  */
 function NotificationsTab({accountUid}: {accountUid: string}) {
-  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid)
+  // `useNotifyServiceHost()` is `undefined` until the vault notification server
+  // (and gateway setting) have loaded. Do NOT fall back to a hardcoded host: an
+  // earlier `|| 'https://notify.seed.hyper.media'` made every refresh send the
+  // production URL during the loading window, which poisoned the per-account
+  // host hint and triggered a sync against the wrong server that wiped the
+  // locally-stored (correct) config. Instead, gate the queries until the real
+  // host is known.
+  const notifyServiceHost = useNotifyServiceHost()
+  const hostResolved = Boolean(notifyServiceHost)
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid, {enabled: hostResolved})
   const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
   const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
   const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
@@ -585,14 +595,6 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
   const needsVerification = Boolean(currentEmail && !isVerified)
   const canResendVerification = needsVerification && (verificationExpired || !verificationSendTime)
 
-  if (isLoading && !config) {
-    return (
-      <div className="flex min-h-[200px] items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
-
   const verificationMessage =
     verificationSendTime && !verificationExpired
       ? 'Email verification is pending. Click the link in your inbox to activate notification emails.'
@@ -602,13 +604,15 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
 
   return (
     <NotificationEmailSettings
-      serverLabel={notifyServiceHost.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+      serverLabel={notifyServiceHost ? notifyServiceHost.replace(/^https?:\/\//, '').replace(/\/$/, '') : null}
       isRegistered
       isNotifyServerConnected={isNotifyServerConnected}
+      loading={!hostResolved || (isLoading && !config)}
       email={currentEmail}
       isVerified={isVerified}
       needsVerification={needsVerification}
       verificationMessage={verificationMessage}
+      error={config?.syncError ?? null}
       saving={setConfig.isLoading}
       removing={removeConfig.isLoading}
       resending={resendVerification.isLoading}

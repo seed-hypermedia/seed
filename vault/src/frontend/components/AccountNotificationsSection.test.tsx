@@ -205,7 +205,7 @@ describe('AccountNotificationsSection', () => {
       await waitFor(() => {
         expect(screen.getByText('test@example.com')).toBeDefined()
       })
-      expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
+      expect(screen.getByText('You are signed up to receive email notifications for this account.')).toBeDefined()
       expect(screen.getByRole('button', {name: 'Edit Email'})).toBeDefined()
       expect(findRequestPayload(fetchMock, 'set-notification-config')).toEqual(
         expect.objectContaining({

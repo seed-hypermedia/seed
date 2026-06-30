@@ -1,6 +1,6 @@
-import {KeyRound} from 'lucide-react'
-import {type ReactNode} from 'react'
-import {SizableText} from '../text'
+import { KeyRound } from 'lucide-react'
+import { type ReactNode } from 'react'
+import { SizableText } from '../text'
 
 export type DelegatedKeyItem = {
   id: string
@@ -26,8 +26,8 @@ export type DelegatedKeyItem = {
  */
 export function DelegatedKeysList({
   items,
-  emptyLabel = 'No Sites Signed-In',
-  emptyDescription = 'When you log into an a site on the web, your sessions will appear here.',
+  emptyLabel = 'No Sites Connected',
+  emptyDescription = 'When you log into a Hypermedia site, your session will appear here.',
 }: {
   items: DelegatedKeyItem[]
   emptyLabel?: string

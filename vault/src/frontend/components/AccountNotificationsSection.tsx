@@ -239,6 +239,7 @@ export function AccountNotificationsSection({
     <NotificationEmailSettings
       serverLabel={hasNotificationServer ? notificationServerLabel : null}
       isRegistered={hasNotificationRegistration}
+      loading={notificationStatus === 'loading' && !notificationConfig}
       email={notificationConfig?.email ?? null}
       isVerified={Boolean(notificationConfig?.verifiedTime)}
       needsVerification={hasPendingVerification}
