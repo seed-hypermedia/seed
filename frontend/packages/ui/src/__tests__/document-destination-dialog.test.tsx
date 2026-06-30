@@ -102,15 +102,15 @@ describe('DocumentDestinationDialog', () => {
   it('renders the shared destination picker and submits the selected parent plus slug', async () => {
     const {onSubmit} = renderDialog({})
 
-    expect(container.textContent).toContain('Choose a site')
+    expect(container.textContent).toContain('Location')
     expect(container.querySelector('input[placeholder="Search location…"]')).toBeTruthy()
     expect(container.textContent).toContain('URL Path')
 
-    const docsRow = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('Docs'),
-    )
+    const slugInput = container.querySelector('input[placeholder="url-path"]') as HTMLInputElement
     await act(async () => {
-      docsRow?.click()
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      nativeInputValueSetter?.call(slugInput, 'moved')
+      slugInput.dispatchEvent(new Event('input', {bubbles: true}))
     })
 
     const moveButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Move')
@@ -120,7 +120,7 @@ describe('DocumentDestinationDialog', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       from: sourceId,
-      to: hmId('site', {path: ['move-me']}),
+      to: hmId('site', {path: ['old-parent', 'moved']}),
       mode: 'move',
       signingAccountId: 'site',
     })

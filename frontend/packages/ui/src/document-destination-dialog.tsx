@@ -85,17 +85,19 @@ export function DocumentDestinationDialog({
   const document = resource?.type === 'document' ? resource.document : undefined
   const sourceId = resource?.type === 'document' ? resource.id : input.id
   const sourceTitle = document ? getMetadataName(document.metadata) : 'Untitled'
-  const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(null)
-  const [slug, setSlug] = useState(input.id.path?.at(-1) || '')
+  const initialTargetParent = useMemo(() => getSourceParentId(input.id), [input.id.id])
+  const initialSlug = input.id.path?.at(-1) || ''
+  const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(initialTargetParent)
+  const [slug, setSlug] = useState(initialSlug)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    setTargetParent(null)
-    setSlug(input.id.path?.at(-1) || '')
+    setTargetParent(initialTargetParent)
+    setSlug(initialSlug)
     setSearchQuery('')
     setIsSubmitting(false)
-  }, [input.id.id, input.mode])
+  }, [initialTargetParent, initialSlug, input.mode])
 
   const destinationId = useMemo(() => {
     if (!targetParent || !slug) return null
@@ -132,11 +134,13 @@ export function DocumentDestinationDialog({
                 ? 'Choose a location outside this document subtree.'
                 : pathInvalid
                   ? pathInvalid.error
-                  : destinationResource.isLoading
-                    ? 'Checking destination availability…'
-                    : destinationExists
-                      ? 'A document already exists at this URL. Choose a different path.'
-                      : null
+                  : destinationId?.id === sourceId.id
+                    ? 'Choose a new location or URL path.'
+                    : destinationResource.isLoading
+                      ? 'Checking destination availability…'
+                      : destinationExists
+                        ? 'A document already exists at this URL. Choose a different path.'
+                        : null
   const canSubmit = !!destinationId && !validationMessage && !isSubmitting
 
   if (!selectedAccountUid) {
@@ -496,6 +500,12 @@ function canWriteLocation(
     const accountsWithWrite = document.accountsWithWrite || [selectedAccountUid]
     return isIdParentOfOrEqual(document.id, location) && accountsWithWrite.includes(selectedAccountUid)
   })
+}
+
+function getSourceParentId(id: UnpackedHypermediaId) {
+  const path = id.path || []
+  if (!path.length) return null
+  return hmId(id.uid, {path: path.slice(0, -1)})
 }
 
 function getWritableRoots(writableDocuments: WritableDocumentDestination[], selectedAccountUid: string) {
