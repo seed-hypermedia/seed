@@ -720,6 +720,18 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/inspect/uid1/docs?tab=capabilities')
   })
 
+  test('inspect route preserves graph inspector tab query params', () => {
+    const url = routeToUrl(
+      {
+        key: 'inspect',
+        id: hmId('uid1', {path: ['docs']}),
+        inspectTab: 'graph',
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/inspect/uid1/docs?tab=graph')
+  })
+
   test('inspect ipfs route produces inspect ipfs url', () => {
     const url = routeToUrl(
       {
@@ -777,6 +789,15 @@ describe('routeToHmUrl', () => {
       inspectTab: 'contacts',
     })
     expect(url).toBe('hm://inspect/uid1?tab=contacts')
+  })
+
+  test('inspect route preserves graph inspector tab in hm urls', () => {
+    const url = routeToHmUrl({
+      key: 'inspect',
+      id: hmId('uid1'),
+      inspectTab: 'graph',
+    })
+    expect(url).toBe('hm://inspect/uid1?tab=graph')
   })
 
   test('inspect ipfs route produces hm inspect ipfs urls', () => {
