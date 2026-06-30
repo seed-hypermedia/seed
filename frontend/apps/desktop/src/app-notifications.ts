@@ -27,6 +27,10 @@ const NOTIFICATIONS_STORE_KEY = 'NotificationsState-v001'
 const NOTIFY_SERVICE_HOST_KEY = 'NotifyServiceHost'
 const SYNC_INTERVAL_MS = 30_000
 const SYNC_DEBOUNCE_MS = 1_000
+// While an account's email verification is pending, sync more aggressively so we
+// notice when the user clicks the verification link (and reflect the verified
+// state + saved email) within a few seconds instead of waiting a full interval.
+const PENDING_VERIFICATION_SYNC_MS = 3_000
 
 type AccountNotificationsState = {
   snapshot: NotificationStateSnapshot
@@ -55,6 +59,7 @@ type NotificationReadMutationResult = NotificationReadState &
 
 type NotificationConfigResponse = NotificationConfigState & {
   isNotifyServerConnected: boolean
+  syncError: string | null
 }
 
 type NotificationIngestStatus = {
@@ -105,10 +110,13 @@ async function getVaultNotifyHost(): Promise<string | null> {
 
 async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise<string> {
   const explicit = notifyServiceHost?.trim()
+  const vaultHost = await getVaultNotifyHost()
+  const fallback = getNotifyServiceHostDefault()
   // Prefer the synced vault notification server URL so background syncs hit the
   // same notify server the web vault and the UI use; fall back to the local
   // default (appStore / NOTIFY_SERVICE_HOST, seeded from the renderer).
-  const host = explicit || (await getVaultNotifyHost()) || getNotifyServiceHostDefault()
+  const host = explicit || vaultHost || fallback
+  log.error('🔔 NOTIFY resolveNotifyHost', {explicit: explicit ?? null, vaultHost, fallback, chosen: host ?? null})
   if (!host) {
     throw new Error('Notify service host is not configured')
   }
@@ -202,6 +210,7 @@ function toConfigResponse(accountUid: string, notifyServiceHost?: string): Notif
   return {
     ...account.snapshot.config,
     isNotifyServerConnected: hasHost && !account.lastSyncError,
+    syncError: hasHost ? account.lastSyncError : 'No notification server is configured.',
   }
 }
 
@@ -293,17 +302,44 @@ function createQueuedAction(action: NotificationMutationAction): QueuedNotificat
   }
 }
 
-function scheduleSync(accountUid: string, delayMs = SYNC_DEBOUNCE_MS, reason = 'unspecified') {
+// The notify host the renderer last used for each account. Background syncs and
+// debounced post-mutation syncs use this so they hit the SAME notify server the
+// UI registered against, instead of falling back to the build-time default
+// (which differs between the renderer's Vite env and the main process).
+const accountNotifyHostHints = new Map<string, string>()
+
+/**
+ * Persists the renderer-provided notify host so every later sync (background or
+ * post-mutation) resolves to it. The host is effectively a single app-wide
+ * setting, shared with `app-gateway-settings` via `NOTIFY_SERVICE_HOST_KEY`.
+ */
+function rememberNotifyHost(accountUid: string, notifyServiceHost?: string) {
+  const host = notifyServiceHost?.trim()
+  if (!host) return
+  accountNotifyHostHints.set(accountUid, host)
+  if (host !== getNotifyServiceHostDefault()) {
+    appStore.set(NOTIFY_SERVICE_HOST_KEY, host)
+  }
+}
+
+function scheduleSync(
+  accountUid: string,
+  delayMs = SYNC_DEBOUNCE_MS,
+  reason = 'unspecified',
+  notifyServiceHost?: string,
+) {
+  rememberNotifyHost(accountUid, notifyServiceHost)
   const existing = syncDebounceTimers.get(accountUid)
   if (existing) clearTimeout(existing)
   log.debug('Notification sync scheduled', {
     accountUid,
     reason,
     delayMs,
+    notifyServiceHost: notifyServiceHost ?? null,
   })
   const handle = setTimeout(() => {
     syncDebounceTimers.delete(accountUid)
-    void syncAccount(accountUid)
+    void syncAccount(accountUid, accountNotifyHostHints.get(accountUid))
   }, delayMs)
   syncDebounceTimers.set(accountUid, handle)
 }
@@ -343,7 +379,16 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
   const syncStart = Date.now()
 
   try {
+    const localConfigBefore = getOrCreateAccountState(accountUid).snapshot.config
     const remoteState = await getNotificationState(host, signer)
+    log.error('🔔 NOTIFY SYNC remote-state', {
+      accountUid,
+      host,
+      signingKeyName: signingKeyNameCache.get(accountUid) ?? '(unresolved)',
+      localBefore: {email: localConfigBefore.email, verifiedTime: localConfigBefore.verifiedTime},
+      remote: {email: remoteState.config.email, verifiedTime: remoteState.config.verifiedTime},
+      pendingActions: getOrCreateAccountState(accountUid).pendingActions.map((a) => a.type),
+    })
     updateAccountState(accountUid, (current) => ({
       ...current,
       snapshot: reduceNotificationStateActions(
@@ -356,6 +401,13 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
       lastSyncAtMs: syncStart,
       lastSyncError: null,
     }))
+    log.error('🔔 NOTIFY SYNC after-reduce', {
+      accountUid,
+      config: {
+        email: getOrCreateAccountState(accountUid).snapshot.config.email,
+        verifiedTime: getOrCreateAccountState(accountUid).snapshot.config.verifiedTime,
+      },
+    })
 
     const pendingBeforeApply = getOrCreateAccountState(accountUid).pendingActions
     if (pendingBeforeApply.length > 0) {
@@ -395,12 +447,22 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
 
 function syncAllAccountsInBackground() {
   for (const accountUid of Object.keys(store.accounts)) {
-    void syncAccount(accountUid)
+    void syncAccount(accountUid, accountNotifyHostHints.get(accountUid))
   }
 }
 
+/** True when any account has an email pending verification (email set, not yet verified). */
+function hasAnyPendingVerification() {
+  return Object.values(store.accounts).some((account) => {
+    const config = account.snapshot.config
+    return Boolean(config.email) && !config.verifiedTime
+  })
+}
+
 function scheduleNextNotificationSync() {
-  const intervalMs = SYNC_INTERVAL_MS * (isAnyWindowFocused() ? 1 : 10)
+  const intervalMs = hasAnyPendingVerification()
+    ? PENDING_VERIFICATION_SYNC_MS
+    : SYNC_INTERVAL_MS * (isAnyWindowFocused() ? 1 : 10)
   syncIntervalHandle = setTimeout(() => {
     syncAllAccountsInBackground()
     if (hasStartedSyncLoop) {
@@ -469,9 +531,10 @@ export function getLocalNotificationConfig(accountUid: string, notifyServiceHost
   // the main process can't (no Vite env). Learn it from the host the frontend
   // passes here so background syncs have a host to hit; re-sync if it changed.
   const host = notifyServiceHost?.trim()
-  if (host && host !== getNotifyServiceHostDefault()) {
-    appStore.set(NOTIFY_SERVICE_HOST_KEY, host)
-    scheduleSync(accountUid, 0, 'notify-host-learned')
+  const hostChanged = Boolean(host) && host !== accountNotifyHostHints.get(accountUid)
+  rememberNotifyHost(accountUid, host)
+  if (hostChanged) {
+    scheduleSync(accountUid, 0, 'notify-host-learned', host)
   }
   return toConfigResponse(accountUid, notifyServiceHost)
 }
@@ -522,7 +585,7 @@ export function setLocalNotificationConfig(input: {accountUid: string; email: st
     lastSyncError: null,
   }))
   invalidateAllNotificationQueries(input.accountUid)
-  scheduleSync(input.accountUid, 0, 'set-config')
+  scheduleSync(input.accountUid, 0, 'set-config', input.notifyServiceHost)
   return toConfigResponse(input.accountUid, input.notifyServiceHost)
 }
 
@@ -539,7 +602,7 @@ export function resendLocalNotificationVerification(input: {accountUid: string; 
     lastSyncError: null,
   }))
   invalidateAllNotificationQueries(input.accountUid)
-  scheduleSync(input.accountUid, 0, 'resend-config-verification')
+  scheduleSync(input.accountUid, 0, 'resend-config-verification', input.notifyServiceHost)
   return toConfigResponse(input.accountUid, input.notifyServiceHost)
 }
 
@@ -555,12 +618,13 @@ export function removeLocalNotificationConfig(input: {accountUid: string; notify
     lastSyncError: null,
   }))
   invalidateAllNotificationQueries(input.accountUid)
-  scheduleSync(input.accountUid, 0, 'remove-config')
+  scheduleSync(input.accountUid, 0, 'remove-config', input.notifyServiceHost)
   return toConfigResponse(input.accountUid, input.notifyServiceHost)
 }
 
 /** Forces an immediate desktop notification sync for one account. */
 export async function syncNotificationsNow(input: {accountUid: string; notifyServiceHost?: string}) {
+  rememberNotifyHost(input.accountUid, input.notifyServiceHost)
   return syncAccount(input.accountUid, input.notifyServiceHost)
 }
 

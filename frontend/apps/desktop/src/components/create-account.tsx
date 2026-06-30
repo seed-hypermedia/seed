@@ -87,7 +87,9 @@ export function useCreateAccountDialog() {
 
 function CreateAccountDialog({onClose}: {onClose: () => void}) {
   const {createAccount, isCreating} = useCreateAccount()
-  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  // No hardcoded fallback: defaulting to the production host would register the
+  // new account against the wrong notify server. Use the resolved host only.
+  const notifyServiceHost = useNotifyServiceHost()
   // Only a remote-connected vault has an email; gate the query so it isn't
   // requested on a local vault (the daemon errors with FailedPrecondition).
   const vaultStatus = useVaultStatus()
@@ -104,7 +106,7 @@ function CreateAccountDialog({onClose}: {onClose: () => void}) {
     })
     if (!createdAccount) return
 
-    if (shareEmailWithNotificationServer && email) {
+    if (shareEmailWithNotificationServer && email && notifyServiceHost) {
       try {
         await client.notificationConfig.setConfig.mutate({
           accountUid: createdAccount.accountId,
