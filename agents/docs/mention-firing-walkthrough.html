@@ -6,48 +6,178 @@
     <title>Agents: how a @mention fires (and why reply mentions were missed)</title>
     <style>
       :root {
-        --bg: #0f1115; --panel: #171a21; --ink: #e6e8ee; --muted: #99a0ad;
-        --accent: #6ea8fe; --good: #4cc38a; --bad: #f1707a; --warn: #e2b341; --line: #262b35;
+        --bg: #0f1115;
+        --panel: #171a21;
+        --ink: #e6e8ee;
+        --muted: #99a0ad;
+        --accent: #6ea8fe;
+        --good: #4cc38a;
+        --bad: #f1707a;
+        --warn: #e2b341;
+        --line: #262b35;
       }
-      * { box-sizing: border-box; }
-      body { margin: 0; background: var(--bg); color: var(--ink);
-        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-      .wrap { max-width: 940px; margin: 0 auto; padding: 32px 24px 80px; }
-      h1 { font-size: 26px; margin: 0 0 4px; }
-      h2 { font-size: 19px; margin: 36px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-      h3 { font-size: 15px; margin: 20px 0 6px; color: var(--accent); }
-      p, li { color: var(--ink); }
-      .sub { color: var(--muted); margin-top: 0; }
-      code { background: #11141a; padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-      pre { background: #0c0e13; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
-      pre .c { color: var(--muted); }
-      pre .k { color: var(--accent); }
-      pre .drop { color: var(--bad); font-weight: 600; }
-      .step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
-      .step .n { display: inline-block; background: var(--accent); color: #06101f; font-weight: 700; border-radius: 999px; width: 24px; height: 24px; text-align: center; line-height: 24px; margin-right: 8px; }
-      .file { color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; }
-      .dropbox { border-left: 3px solid var(--bad); background: #1c1316; }
-      .fixbox { border-left: 3px solid var(--good); background: #12190f; }
-      table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
-      th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
-      th { background: #11141a; color: var(--muted); font-weight: 600; }
-      .yes { color: var(--good); font-weight: 600; } .no { color: var(--bad); font-weight: 600; }
-      .pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-      .legend span { margin-right: 16px; }
-      .dot { display:inline-block; width:10px; height:10px; border-radius:50%; vertical-align: middle; margin-right:5px; }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 36px 0 10px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 6px;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 20px 0 6px;
+        color: var(--accent);
+      }
+      p,
+      li {
+        color: var(--ink);
+      }
+      .sub {
+        color: var(--muted);
+        margin-top: 0;
+      }
+      code {
+        background: #11141a;
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+      pre {
+        background: #0c0e13;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+      pre .c {
+        color: var(--muted);
+      }
+      pre .k {
+        color: var(--accent);
+      }
+      pre .drop {
+        color: var(--bad);
+        font-weight: 600;
+      }
+      .step {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin: 14px 0;
+      }
+      .step .n {
+        display: inline-block;
+        background: var(--accent);
+        color: #06101f;
+        font-weight: 700;
+        border-radius: 999px;
+        width: 24px;
+        height: 24px;
+        text-align: center;
+        line-height: 24px;
+        margin-right: 8px;
+      }
+      .file {
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+      .dropbox {
+        border-left: 3px solid var(--bad);
+        background: #1c1316;
+      }
+      .fixbox {
+        border-left: 3px solid var(--good);
+        background: #12190f;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 12px 0;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 7px 9px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #11141a;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .yes {
+        color: var(--good);
+        font-weight: 600;
+      }
+      .no {
+        color: var(--bad);
+        font-weight: 600;
+      }
+      .pill {
+        display: inline-block;
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .legend span {
+        margin-right: 16px;
+      }
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        vertical-align: middle;
+        margin-right: 5px;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
       <h1>How a @mention fires — and why reply mentions were silently missed</h1>
-      <p class="sub">Seed Agents activity pipeline · traced against the live 2026-06-29 incident on
-        <code>agentic.seed.hyper.media</code></p>
+      <p class="sub">
+        Seed Agents activity pipeline · traced against the live 2026-06-29 incident on
+        <code>agentic.seed.hyper.media</code>
+      </p>
 
       <h2>The pipeline at a glance</h2>
-      <p>One user comment that @mentions an account becomes <strong>two</strong> events in hyper.media's
-        <code>/api/ListEvents</code> feed — a <code>comment</code> event and a <code>citation</code> event — that
-        share the same comment-version CID. Both flow through this path. There are <span class="no">two places an
-        event can be dropped before it ever fires</span>.</p>
+      <p>
+        One user comment that @mentions an account becomes <strong>two</strong> events in hyper.media's
+        <code>/api/ListEvents</code> feed — a <code>comment</code> event and a <code>citation</code> event — that share
+        the same comment-version CID. Both flow through this path. There are
+        <span class="no">two places an event can be dropped before it ever fires</span>.
+      </p>
 
       <pre><span class="c">// per account, every ~5s — agents/src/activity-monitor.ts</span>
 ListEvents(currentAccount)  →  <span class="k">activityEventKey()</span>  →  <span class="drop">[DROP 1] staleness filter</span>  →
@@ -56,26 +186,33 @@ ListEvents(currentAccount)  →  <span class="k">activityEventKey()</span>  → 
          INSERT trigger_firings  →  createSession  →  run agent</pre>
 
       <p class="legend">
-        <span><span class="dot" style="background:var(--good)"></span>reaches matcher &amp; fires</span>
-        <span><span class="dot" style="background:var(--bad)"></span>dropped before matching</span>
-        <span><span class="dot" style="background:var(--warn)"></span>matched but suppressed</span>
+        <span><span class="dot" style="background: var(--good)"></span>reaches matcher &amp; fires</span>
+        <span><span class="dot" style="background: var(--bad)"></span>dropped before matching</span>
+        <span><span class="dot" style="background: var(--warn)"></span>matched but suppressed</span>
       </p>
 
-      <div class="step"><span class="n">1</span><strong>Poll the feed</strong>
+      <div class="step">
+        <span class="n">1</span><strong>Poll the feed</strong>
         <span class="file">activity-monitor.ts · #pollAccount</span>
-        <p>The monitor polls <code>/api/ListEvents?currentAccount=&lt;agentAccount&gt;</code> through the real
+        <p>
+          The monitor polls <code>/api/ListEvents?currentAccount=&lt;agentAccount&gt;</code> through the real
           <code>@seed-hypermedia/client</code>. It only sees blobs already indexed on the polled server — a comment
-          becomes visible a few seconds <em>after</em> it was authored (propagation + indexing lag).</p>
+          becomes visible a few seconds <em>after</em> it was authored (propagation + indexing lag).
+        </p>
       </div>
 
-      <div class="step"><span class="n">2</span><strong>Derive a stable key</strong>
+      <div class="step">
+        <span class="n">2</span><strong>Derive a stable key</strong>
         <span class="file">activity-triggers.ts · activityEventKey</span>
-        <p>Each event gets a key from its <code>feedEventId</code>: a comment event is
-          <code>blob-&lt;cid&gt;</code>; its citation twin is <code>mention-&lt;cid&gt;--&lt;target&gt;</code>. The
-          <code>&lt;cid&gt;</code> (the comment version) is identical in both.</p>
+        <p>
+          Each event gets a key from its <code>feedEventId</code>: a comment event is <code>blob-&lt;cid&gt;</code>; its
+          citation twin is <code>mention-&lt;cid&gt;--&lt;target&gt;</code>. The <code>&lt;cid&gt;</code> (the comment
+          version) is identical in both.
+        </p>
       </div>
 
-      <div class="step dropbox"><span class="n">3</span><strong>DROP 1 — the staleness watermark</strong>
+      <div class="step dropbox">
+        <span class="n">3</span><strong>DROP 1 — the staleness watermark</strong>
         <span class="file">activity-monitor.ts</span>
         <pre><span class="k">const</span> backfillAfter = Math.max(previous.lastSuccessAt || 0, startedAt - ACTIVITY_BACKFILL_MS)
 <span class="k">const</span> newEvents = fetched.filter((event) =&gt; {
@@ -84,32 +221,40 @@ ListEvents(currentAccount)  →  <span class="k">activityEventKey()</span>  → 
   <span class="k">const</span> eventAt = activityEventTimeMs(event)         <span class="c">// = the comment's createTime</span>
   <span class="drop">return eventAt === null || eventAt &gt;= backfillAfter  // ← the drop</span>
 })</pre>
-        <p><code>lastSuccessAt</code> is set to <code>Date.now()</code> at the end of <em>every</em> successful poll, so
+        <p>
+          <code>lastSuccessAt</code> is set to <code>Date.now()</code> at the end of <em>every</em> successful poll, so
           in steady state <code>backfillAfter ≈ now − 5s</code>. An event was only "new" if its
-          <code>eventAt ≥ lastSuccessAt</code>. <strong>So any event that became visible in the feed more than ~one
-          poll interval after its own timestamp was permanently dropped</strong> (and recorded in
-          <code>seenKeys</code>, so never reconsidered). The flaw: <code>eventAt</code> is the comment's
-          <em>create</em> time, but what we actually care about is <em>observe</em> time — when the event first
-          became visible to us. The feed carries no observe/index time (only create time), so the real
-          observe-time signal is <code>seenKeys</code> itself + the feed's observe-ordered page walk.</p>
-        <p class="fixbox" style="padding:8px 12px; border-radius:6px;"><strong>Fix (two parts):</strong>
-          <strong>(1) Request observed-time order.</strong> ListEvents defaults to <em>claimed</em> (create) time
-          order, so a late-propagating comment sits buried at its old position and the top-N page walk never
-          fetches it. The monitor now sends <code>order: 'observed'</code> so newly-arrived blobs surface at the
-          <em>top</em> when they propagate. (Plumbed through the client schema + web ListEvents handler.)
-          <strong>(2) Decide newness by observation, not create time</strong> — an event is "new" simply when its
-          key isn't in <code>seenKeys</code>: <code>fetched.filter(e =&gt; key &amp;&amp; !seenKeys.includes(key))</code>.
-          The watermark advances <em>per event</em> (immediately after each firing is durably recorded), so a
-          restart resumes from the last handled event. <code>trigger_firings</code> UNIQUE dedups; the create-time
-          bound survives only for the cold-start first poll.</p>
+          <code>eventAt ≥ lastSuccessAt</code>.
+          <strong
+            >So any event that became visible in the feed more than ~one poll interval after its own timestamp was
+            permanently dropped</strong
+          >
+          (and recorded in <code>seenKeys</code>, so never reconsidered). The flaw: <code>eventAt</code> is the
+          comment's <em>create</em> time, but what we actually care about is <em>observe</em> time — when the event
+          first became visible to us. The feed carries no observe/index time (only create time), so the real
+          observe-time signal is <code>seenKeys</code> itself + the feed's observe-ordered page walk.
+        </p>
+        <p class="fixbox" style="padding: 8px 12px; border-radius: 6px">
+          <strong>Fix (two parts):</strong> <strong>(1) Request observed-time order.</strong> ListEvents defaults to
+          <em>claimed</em> (create) time order, so a late-propagating comment sits buried at its old position and the
+          top-N page walk never fetches it. The monitor now sends <code>order: 'observed'</code> so newly-arrived blobs
+          surface at the <em>top</em> when they propagate. (Plumbed through the client schema + web ListEvents handler.)
+          <strong>(2) Decide newness by observation, not create time</strong> — an event is "new" simply when its key
+          isn't in <code>seenKeys</code>: <code>fetched.filter(e =&gt; key &amp;&amp; !seenKeys.includes(key))</code>.
+          The watermark advances <em>per event</em> (immediately after each firing is durably recorded), so a restart
+          resumes from the last handled event. <code>trigger_firings</code> UNIQUE dedups; the create-time bound
+          survives only for the cold-start first poll.
+        </p>
         <p class="sub">This was the primary reason reply mentions were missed — see the trace below.</p>
       </div>
 
-      <div class="step"><span class="n">4</span><strong>Match against each enabled trigger</strong>
+      <div class="step">
+        <span class="n">4</span><strong>Match against each enabled trigger</strong>
         <span class="file">api-service.ts · processActivityEvent → activity-triggers.ts · matchesSingleMention</span>
-        <p>Events that survive DROP 1 are checked against the polled account's triggers. A user-mention trigger
-          matches structurally — it does <strong>not</strong> care whether the comment is a top-level comment or a
-          reply:</p>
+        <p>
+          Events that survive DROP 1 are checked against the polled account's triggers. A user-mention trigger matches
+          structurally — it does <strong>not</strong> care whether the comment is a top-level comment or a reply:
+        </p>
         <pre><span class="k">if</span> (type === 'comment') {
   <span class="c">// true if any block embeds a mention link resolving to the account</span>
   <span class="k">return</span> commentMentionsAccount(event.comment, mentionedAccount)
@@ -120,78 +265,114 @@ ListEvents(currentAccount)  →  <span class="k">activityEventKey()</span>  → 
 }</pre>
       </div>
 
-      <div class="step dropbox"><span class="n">5</span><strong>DROP 2 — comment-sourced citation suppression (now removed)</strong>
+      <div class="step dropbox">
+        <span class="n">5</span><strong>DROP 2 — comment-sourced citation suppression (now removed)</strong>
         <span class="file">activity-triggers.ts · matchesSingleMention</span>
-        <p>The citation twin of a comment carries <code>citationType: 'c'</code>. The old code returned
-          <code>false</code> for it, trusting the comment event to fire instead. But when DROP 1 had already
-          discarded the comment event, the citation was the <em>only</em> sibling left — and it was thrown away
-          here. Net: nothing fired.</p>
+        <p>
+          The citation twin of a comment carries <code>citationType: 'c'</code>. The old code returned
+          <code>false</code> for it, trusting the comment event to fire instead. But when DROP 1 had already discarded
+          the comment event, the citation was the <em>only</em> sibling left — and it was thrown away here. Net: nothing
+          fired.
+        </p>
       </div>
 
-      <div class="step fixbox"><span class="n">6</span><strong>Dedup the two siblings &amp; fire once</strong>
+      <div class="step fixbox">
+        <span class="n">6</span><strong>Dedup the two siblings &amp; fire once</strong>
         <span class="file">activity-triggers.ts · activityFiringKey → api-service.ts</span>
         <pre><span class="c">// the citation's mention-&lt;cid&gt;--&lt;target&gt; collapses onto the comment's blob-&lt;cid&gt;</span>
 <span class="k">const</span> firingKey = activityFiringKey(event)   <span class="c">// both siblings → "blob-&lt;cid&gt;"</span>
 INSERT OR IGNORE INTO trigger_firings (... activity_key = firingKey ...)
 <span class="c">// UNIQUE(account_id, trigger_id, activity_key) ⇒ exactly one firing ⇒ one session</span></pre>
-        <p>Whichever sibling reaches this point first creates the session; the other is a no-op insert. Both
-          resolved siblings carry the full comment body (<code>loadCitationEvent</code> fetches it for
-          <code>'c'</code> citations), so context is identical either way.</p>
+        <p>
+          Whichever sibling reaches this point first creates the session; the other is a no-op insert. Both resolved
+          siblings carry the full comment body (<code>loadCitationEvent</code> fetches it for
+          <code>'c'</code> citations), so context is identical either way.
+        </p>
       </div>
 
       <h2>Why the reply mentions were missed — the live trace</h2>
       <p>Three comments in one thread, all mentioning the agent's account. Only the thread root fired.</p>
       <table>
-        <thead><tr><th>Comment</th><th>Authored</th><th>Comment event<br/>reached matcher?</th>
-          <th>Citation event<br/>reached matcher?</th><th>Fired?</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Comment</th>
+            <th>Authored</th>
+            <th>Comment event<br />reached matcher?</th>
+            <th>Citation event<br />reached matcher?</th>
+            <th>Fired?</th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
-            <td>Thread root — "Hey @agent research EDM…"</td><td>15:05:13</td>
+            <td>Thread root — "Hey @agent research EDM…"</td>
+            <td>15:05:13</td>
             <td><span class="yes">yes</span> (visible ~3s later, still fresh)</td>
             <td>suppressed</td>
             <td><span class="yes">YES</span> — fired from the comment event</td>
           </tr>
           <tr>
-            <td>Reply — "one document for each"</td><td>15:06:50</td>
-            <td><span class="no">no</span> — fetched every poll 15:06:56→, always <code>eventAt &lt; lastSuccessAt</code> → DROP 1</td>
+            <td>Reply — "one document for each"</td>
+            <td>15:06:50</td>
+            <td>
+              <span class="no">no</span> — fetched every poll 15:06:56→, always
+              <code>eventAt &lt; lastSuccessAt</code> → DROP 1
+            </td>
             <td><span class="no">no</span> — same DROP 1</td>
             <td><span class="no">NO</span> — neither sibling ever reached the matcher</td>
           </tr>
           <tr>
-            <td>Reply — "can you hear me?"</td><td>15:08:15</td>
+            <td>Reply — "can you hear me?"</td>
+            <td>15:08:15</td>
             <td><span class="no">no</span> — visible ~5s later → DROP 1</td>
-            <td><span class="warn" style="color:var(--warn)">reached, but DROP 2</span> (visible ~2s later, fresh)</td>
+            <td><span class="warn" style="color: var(--warn)">reached, but DROP 2</span> (visible ~2s later, fresh)</td>
             <td><span class="no">NO</span> — citation was suppressed</td>
           </tr>
         </tbody>
       </table>
-      <p>The thread root won the race only because its comment event happened to surface within one poll interval
-        of its timestamp. Both replies had <code>&gt;5s</code> indexing lag, so DROP 1 discarded their comment
-        events on every poll. The "can you hear me?" reply additionally had a <em>fresh</em> citation that reached
-        the matcher — but DROP 2 suppressed it.</p>
+      <p>
+        The thread root won the race only because its comment event happened to surface within one poll interval of its
+        timestamp. Both replies had <code>&gt;5s</code> indexing lag, so DROP 1 discarded their comment events on every
+        poll. The "can you hear me?" reply additionally had a <em>fresh</em> citation that reached the matcher — but
+        DROP 2 suppressed it.
+      </p>
 
       <h2>What the current fix covers — and what it doesn't</h2>
       <table>
-        <thead><tr><th>Change</th><th>Status</th><th>Fixes "can you hear me?"<br/>(fresh citation)</th>
-          <th>Fixes "one document for each"<br/>(both siblings stale)</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Change</th>
+            <th>Status</th>
+            <th>Fixes "can you hear me?"<br />(fresh citation)</th>
+            <th>Fixes "one document for each"<br />(both siblings stale)</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr><td><strong>A.</strong> Remove DROP 2 (un-suppress citation) + dedup siblings on shared CID</td>
-            <td class="yes">landed</td><td class="yes">✓ citation now fires</td>
-            <td class="no">✗ neither sibling reaches the matcher</td></tr>
-          <tr><td><strong>B.</strong> Request <code>order: 'observed'</code> + decide newness by observation
-            (key not in <code>seenKeys</code>), watermark advances per-event</td>
+          <tr>
+            <td><strong>A.</strong> Remove DROP 2 (un-suppress citation) + dedup siblings on shared CID</td>
+            <td class="yes">landed</td>
+            <td class="yes">✓ citation now fires</td>
+            <td class="no">✗ neither sibling reaches the matcher</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>B.</strong> Request <code>order: 'observed'</code> + decide newness by observation (key not in
+              <code>seenKeys</code>), watermark advances per-event
+            </td>
             <td class="yes">landed (needs web deploy)</td>
             <td class="yes">✓ (comment event also survives)</td>
-            <td class="yes">✓ even an hours-late comment surfaces at top → fires</td></tr>
+            <td class="yes">✓ even an hours-late comment surfaces at top → fires</td>
+          </tr>
         </tbody>
       </table>
-      <p><strong>Conclusion:</strong> Fix&nbsp;A (committed) resolves the originally-reported "can you hear me?"
-        miss, verified end-to-end. But the broader "reply mentions don't fire" problem is fundamentally
+      <p>
+        <strong>Conclusion:</strong> Fix&nbsp;A (committed) resolves the originally-reported "can you hear me?" miss,
+        verified end-to-end. But the broader "reply mentions don't fire" problem is fundamentally
         <span class="no">DROP 1</span>. Fix&nbsp;B addresses the root: a feed event's freshness is decided by whether
         we've already <em>observed</em> it (<code>seenKeys</code>), not by its create timestamp — so a comment that
         propagates arbitrarily late still fires when it first appears to us (extreme propagation lag is expected and
         should trigger anyway; the policy may become configurable later). A&nbsp;+&nbsp;B compose cleanly: B lets the
-        late comment event through; A's shared-CID firing key prevents the citation twin from double-firing.</p>
+        late comment event through; A's shared-CID firing key prevents the citation twin from double-firing.
+      </p>
     </div>
   </body>
 </html>
