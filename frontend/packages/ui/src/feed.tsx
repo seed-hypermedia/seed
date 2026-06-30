@@ -95,6 +95,15 @@ export function canShowRestoreVersionButton(input: {
   )
 }
 
+/** Copy and button variants for the restore-version confirmation dialog. */
+export const RESTORE_VERSION_DIALOG = {
+  title: 'Restore this version?',
+  description:
+    'Your current draft will be discarded. This version will become the new latest version — you can always restore back later if needed.',
+  cancelVariant: 'ghost',
+  restoreVariant: 'danger',
+} as const
+
 export function Feed({
   filterResource,
   filterAuthors,
@@ -513,16 +522,16 @@ function EventHeaderContent({
         </Tooltip>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Restore this version?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will create a new latest version using this version’s content and metadata. Any current draft for
-              this document will be removed after the restore succeeds.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{RESTORE_VERSION_DIALOG.title}</AlertDialogTitle>
+            <AlertDialogDescription>{RESTORE_VERSION_DIALOG.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isRestoring} variant={RESTORE_VERSION_DIALOG.cancelVariant}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={isRestoring}
+              variant={RESTORE_VERSION_DIALOG.restoreVariant}
               onClick={async (e) => {
                 e.preventDefault()
                 e.stopPropagation()

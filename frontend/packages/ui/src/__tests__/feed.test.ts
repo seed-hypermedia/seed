@@ -4,6 +4,7 @@ import {
   getDraftVersionInsertIndex,
   getLatestDocUpdateVersion,
   isSelectedDocUpdateVersion,
+  RESTORE_VERSION_DIALOG,
   shouldShowDraftVersionEntry,
 } from '../feed'
 
@@ -67,6 +68,16 @@ describe('version selection helpers', () => {
 })
 
 describe('restore version action helpers', () => {
+  it('uses the requested confirmation dialog copy and button variants', () => {
+    expect(RESTORE_VERSION_DIALOG).toEqual({
+      title: 'Restore this version?',
+      description:
+        'Your current draft will be discarded. This version will become the new latest version — you can always restore back later if needed.',
+      cancelVariant: 'ghost',
+      restoreVariant: 'danger',
+    })
+  })
+
   it('allows restore when the provider exposes a selected account and restore action', () => {
     expect(
       canShowRestoreVersionButton({
