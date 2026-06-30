@@ -295,6 +295,13 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
   const {id, commentId, gatewayUrl} = input
   const effectiveRange: BlockRange | null | undefined =
     id.blockRef && (id.blockRange === undefined || id.blockRange === null) ? {expanded: true} : id.blockRange
+  const siteHostname =
+    id.hostname &&
+    gatewayUrl &&
+    /^https?:\/\/localhost(?::\d+)?(?:\/|$)/.test(gatewayUrl) &&
+    id.hostname === 'localhost'
+      ? gatewayUrl
+      : id.hostname
 
   if (commentId) {
     const tsid = commentId.path?.[0]
@@ -302,17 +309,17 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     return createCommentUrl({
       docId: id,
       commentId: packedCommentId,
-      siteUrl: id.hostname ?? null,
+      siteUrl: siteHostname ?? null,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
       latest: id.latest ?? null,
     })
   }
 
-  if (id.hostname) {
+  if (siteHostname) {
     return createSiteUrl({
       path: id.path,
-      hostname: id.hostname,
+      hostname: siteHostname,
       version: id.version,
       latest: id.latest ?? undefined,
       blockRef: id.blockRef,

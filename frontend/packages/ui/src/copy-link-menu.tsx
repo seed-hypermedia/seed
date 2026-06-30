@@ -1,4 +1,5 @@
 import {Globe, Link, Link2} from 'lucide-react'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {MenuItemType} from './options-dropdown'
 
 type CopyAction = (() => Promise<void> | void) | null | undefined
@@ -6,6 +7,21 @@ type CopyAction = (() => Promise<void> | void) | null | undefined
 type CopyChoice = {
   label?: string
   copy: CopyAction
+}
+
+function hasHttpScheme(value: string) {
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
+/** Returns the origin to use when copying a web gateway link from browser UI. */
+export function getWebCopyLinkHostname(origin?: string | null) {
+  if (origin && hasHttpScheme(origin)) return origin
+  const currentOrigin =
+    typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null'
+      ? window.location.origin
+      : null
+  if (currentOrigin && hasHttpScheme(currentOrigin)) return currentOrigin
+  return origin ?? DEFAULT_GATEWAY_URL
 }
 
 export type CopyLinkMenuOptions = {

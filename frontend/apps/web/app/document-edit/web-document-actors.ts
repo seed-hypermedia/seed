@@ -43,6 +43,7 @@ import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
 import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, type WebDocDraft} from './web-draft-db'
+import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
@@ -268,6 +269,13 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     invalidateAfterPublish(deps.docId, after.document)
   }
   invalidateQueries(['web-doc-draft', deps.docId.id])
+  enqueueParentCardAfterFirstPublish({
+    shouldEnqueue: !editDocument,
+    publishedDocId,
+    signingAccountUid: signerAccountUid,
+    capabilityId: capabilityCid || undefined,
+    client: deps.client,
+  })
 
   // Refetch draft query only — clears existingDraftContent in the UI.
   try {
@@ -279,6 +287,36 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   deps.onPublishSuccess?.(after.document)
 
   return after.document
+}
+
+function enqueueParentCardAfterFirstPublish({
+  shouldEnqueue,
+  publishedDocId,
+  signingAccountUid,
+  capabilityId,
+  client,
+}: {
+  shouldEnqueue: boolean
+  publishedDocId: UnpackedHypermediaId
+  signingAccountUid: string
+  capabilityId?: string
+  client: UniversalClient
+}) {
+  const path = publishedDocId.path || []
+  if (!shouldEnqueue || !path.length) return
+
+  void enqueueWebDocumentCardCleanup(
+    {
+      operation: 'add',
+      parentDocumentId: hmId(publishedDocId.uid, {path: path.slice(0, -1)}).id,
+      targetDocumentId: publishedDocId.id,
+      signingAccountUid,
+      capabilityId,
+    },
+    {client},
+  ).catch((error) => {
+    console.warn('Document published, but parent document card cleanup failed to enqueue', error)
+  })
 }
 
 /** Delete a parent draft plus any removed child drafts. */

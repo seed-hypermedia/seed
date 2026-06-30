@@ -1,4 +1,9 @@
-import {type HMBlockNode, type HMDocument, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import {
+  type HMBlockNode,
+  type HMDocument,
+  type UnpackedHypermediaId,
+  unpackHmId,
+} from '@seed-hypermedia/client/hm-types'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 
 /** Result of planning embed cleanup for a deleted document. */
@@ -22,6 +27,94 @@ export type DocumentCardAppendPlan = {
 export type DocumentCardRewritePlan = {
   changes: DocumentChange[]
   rewrittenBlockIds: string[]
+}
+
+/** Operation needed to keep document cards accurate after a document move. */
+export type DocumentCardMoveCleanupOperation =
+  | {
+      operation: 'remove'
+      parentDocumentId: string
+      sourceDocumentId: string
+    }
+  | {
+      operation: 'add'
+      parentDocumentId: string
+      targetDocumentId: string
+    }
+  | {
+      operation: 'rewrite'
+      parentDocumentId: string
+      sourceDocumentId: string
+      targetDocumentId: string
+    }
+
+/** Input for applying a card cleanup operation to draft block-node content. */
+export type DocumentCardCleanupOperationInput =
+  | {
+      operation: 'remove'
+      sourceDocumentId?: string
+      deletedDocumentId?: string
+    }
+  | {
+      operation: 'add'
+      parentDocumentId: string
+      targetDocumentId: string
+      newBlockId: string
+    }
+  | {
+      operation: 'rewrite'
+      sourceDocumentId: string
+      targetDocumentId: string
+    }
+
+/** Result of applying a card cleanup operation to draft block-node content. */
+export type DocumentCardCleanupContentResult = {
+  content: HMBlockNode[]
+  changedBlockIds: string[]
+}
+
+function documentIdForPath(uid: string, path: string[]) {
+  return `hm://${uid}${path.length ? `/${path.join('/')}` : ''}`
+}
+
+function getMoveParentId(id: Pick<UnpackedHypermediaId, 'uid' | 'path'>) {
+  const path = id.path || []
+  if (!path.length) return null
+  return documentIdForPath(id.uid, path.slice(0, -1))
+}
+
+/** Plans card cleanup operations needed after a document moves from one path to another. */
+export function planDocumentCardMoveOperations(
+  from: Pick<UnpackedHypermediaId, 'uid' | 'path' | 'id'>,
+  to: Pick<UnpackedHypermediaId, 'uid' | 'path' | 'id'>,
+): DocumentCardMoveCleanupOperation[] {
+  const oldParentId = getMoveParentId(from)
+  const newParentId = getMoveParentId(to)
+  if (!oldParentId || !newParentId) return []
+
+  if (oldParentId === newParentId) {
+    return [
+      {
+        operation: 'rewrite',
+        parentDocumentId: oldParentId,
+        sourceDocumentId: from.id,
+        targetDocumentId: to.id,
+      },
+    ]
+  }
+
+  return [
+    {
+      operation: 'remove',
+      parentDocumentId: oldParentId,
+      sourceDocumentId: from.id,
+    },
+    {
+      operation: 'add',
+      parentDocumentId: newParentId,
+      targetDocumentId: to.id,
+    },
+  ]
 }
 
 type PlannedMove = {
@@ -285,4 +378,80 @@ export function planDocumentCardRewrite(
     }),
     rewrittenBlockIds: matchingEmbeds.map((node) => node.block.id),
   }
+}
+
+/** Applies a document card cleanup operation directly to draft block-node content. */
+export function applyDocumentCardCleanupToBlockNodes(
+  content: HMBlockNode[],
+  input: DocumentCardCleanupOperationInput,
+): DocumentCardCleanupContentResult {
+  if (input.operation === 'remove') {
+    const sourceDocumentId = input.sourceDocumentId || input.deletedDocumentId
+    const sourceDocumentKey = sourceDocumentId ? hmDocumentKey(sourceDocumentId) : null
+    if (!sourceDocumentKey) return {content, changedBlockIds: []}
+
+    const changedBlockIds: string[] = []
+    const removeMatching = (nodes: HMBlockNode[]): HMBlockNode[] => {
+      return nodes.flatMap((node) => {
+        if (isEmbedLinkToDocument(node, sourceDocumentKey)) {
+          if (node.block.id) changedBlockIds.push(node.block.id)
+          return removeMatching(node.children || [])
+        }
+        return [{...node, children: removeMatching(node.children || [])}]
+      })
+    }
+
+    return {content: removeMatching(content), changedBlockIds}
+  }
+
+  if (input.operation === 'add') {
+    const targetDocumentKey = hmDocumentKey(input.targetDocumentId)
+    if (!targetDocumentKey || !input.newBlockId) return {content, changedBlockIds: []}
+    if (hasSelfQueryBlock(content, input.parentDocumentId)) return {content, changedBlockIds: []}
+    if (documentContainsLinkToDocument(content, targetDocumentKey)) return {content, changedBlockIds: []}
+
+    return {
+      content: [
+        ...content,
+        {
+          block: {
+            id: input.newBlockId,
+            type: 'Embed',
+            link: input.targetDocumentId,
+            attributes: {view: 'Card'},
+          } as HMBlockNode['block'],
+          children: [],
+        },
+      ],
+      changedBlockIds: [input.newBlockId],
+    }
+  }
+
+  const sourceDocumentKey = hmDocumentKey(input.sourceDocumentId)
+  const targetDocumentKey = hmDocumentKey(input.targetDocumentId)
+  if (!sourceDocumentKey || !targetDocumentKey || sourceDocumentKey === targetDocumentKey) {
+    return {content, changedBlockIds: []}
+  }
+  if (documentContainsLinkToDocument(content, targetDocumentKey)) return {content, changedBlockIds: []}
+
+  const changedBlockIds: string[] = []
+  const rewrite = (nodes: HMBlockNode[]): HMBlockNode[] => {
+    return nodes.map((node) => {
+      const children = rewrite(node.children || [])
+      if (isEmbedLinkToDocument(node, sourceDocumentKey)) {
+        if (node.block.id) changedBlockIds.push(node.block.id)
+        return {
+          ...node,
+          block: {
+            ...(node.block as any),
+            link: input.targetDocumentId,
+          },
+          children,
+        }
+      }
+      return {...node, children}
+    })
+  }
+
+  return {content: rewrite(content), changedBlockIds}
 }

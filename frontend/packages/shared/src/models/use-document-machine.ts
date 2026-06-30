@@ -125,8 +125,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             if (
               event.type !== 'draft.externallyModified' ||
               event.source !== 'document-card-cleanup' ||
-              event.draftId !== context.draftId ||
-              !event.deletedDocumentId
+              event.draftId !== context.draftId
             ) {
               return
             }
@@ -137,10 +136,16 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
               removedBlockIds: event.removedBlockIds ?? [],
               hasEditorHandlers: !!editorHandlersRef.current,
             })
-            editorHandlersRef.current?.applyDocumentCardCleanup?.({
-              deletedDocumentId: event.deletedDocumentId,
-              removedBlockIds: event.removedBlockIds,
-            })
+            if (event.content) {
+              editorHandlersRef.current?.replaceCurrentContent?.(
+                hmBlocksToEditorContent(event.content, {childrenType: 'Group'}),
+              )
+            } else if (event.deletedDocumentId) {
+              editorHandlersRef.current?.applyDocumentCardCleanup?.({
+                deletedDocumentId: event.deletedDocumentId,
+                removedBlockIds: event.removedBlockIds,
+              })
+            }
             const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
             console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied cleanup to editor`, {
               documentId: context.documentId.id,

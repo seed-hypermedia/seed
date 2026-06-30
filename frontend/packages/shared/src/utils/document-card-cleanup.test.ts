@@ -1,6 +1,8 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {
+  applyDocumentCardCleanupToBlockNodes,
+  planDocumentCardMoveOperations,
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
   planDocumentCardRemoval,
@@ -296,5 +298,94 @@ describe('planDocumentCardRewrite', () => {
 
     expect(result.changes).toEqual([])
     expect(result.rewrittenBlockIds).toEqual([])
+  })
+})
+
+describe('applyDocumentCardCleanupToBlockNodes', () => {
+  it('removes matching embeds from draft block nodes and preserves their children', () => {
+    const result = applyDocumentCardCleanupToBlockNodes(
+      [
+        paragraph('before'),
+        embedCard('card', 'hm://target/doc', [paragraph('child')]),
+        embed('comments', 'hm://target/doc', 'Comments'),
+        paragraph('after'),
+      ],
+      {
+        operation: 'remove',
+        sourceDocumentId: 'hm://target/doc',
+      },
+    )
+
+    expect(result.changedBlockIds).toEqual(['card', 'comments'])
+    expect(result.content.map((node) => node.block.id)).toEqual(['before', 'child', 'after'])
+  })
+
+  it('appends a missing child card to draft block nodes', () => {
+    const result = applyDocumentCardCleanupToBlockNodes([paragraph('intro')], {
+      operation: 'add',
+      parentDocumentId: 'hm://parent/site',
+      targetDocumentId: 'hm://parent/site/child',
+      newBlockId: 'new-card',
+    })
+
+    expect(result.changedBlockIds).toEqual(['new-card'])
+    expect(result.content.map((node) => node.block.id)).toEqual(['intro', 'new-card'])
+    expect(result.content.at(-1)?.block.id).toBe('new-card')
+    expect(result.content.at(-1)?.block.type).toBe('Embed')
+    expect((result.content.at(-1)?.block as any).link).toBe('hm://parent/site/child')
+    expect((result.content.at(-1)?.block as any).attributes).toEqual({view: 'Card'})
+  })
+
+  it('rewrites matching draft embed links without duplicating an existing target', () => {
+    const result = applyDocumentCardCleanupToBlockNodes(
+      [paragraph('intro'), embedCard('card', 'hm://parent/site/old'), paragraph('tail')],
+      {
+        operation: 'rewrite',
+        sourceDocumentId: 'hm://parent/site/old',
+        targetDocumentId: 'hm://parent/site/new',
+      },
+    )
+
+    expect(result.changedBlockIds).toEqual(['card'])
+    expect((result.content[1]?.block as any).link).toBe('hm://parent/site/new')
+    expect(result.content.map((node) => node.block.id)).toEqual(['intro', 'card', 'tail'])
+  })
+})
+
+describe('planDocumentCardMoveOperations', () => {
+  it('plans a rewrite when a document stays under the same parent', () => {
+    const result = planDocumentCardMoveOperations(
+      {uid: 'site', path: ['parent', 'old'], id: 'hm://site/parent/old'} as any,
+      {uid: 'site', path: ['parent', 'new'], id: 'hm://site/parent/new'} as any,
+    )
+
+    expect(result).toEqual([
+      {
+        operation: 'rewrite',
+        parentDocumentId: 'hm://site/parent',
+        sourceDocumentId: 'hm://site/parent/old',
+        targetDocumentId: 'hm://site/parent/new',
+      },
+    ])
+  })
+
+  it('plans remove and add operations when a document moves to a different parent', () => {
+    const result = planDocumentCardMoveOperations(
+      {uid: 'site', path: ['old-parent', 'doc'], id: 'hm://site/old-parent/doc'} as any,
+      {uid: 'site', path: ['new-parent', 'doc'], id: 'hm://site/new-parent/doc'} as any,
+    )
+
+    expect(result).toEqual([
+      {
+        operation: 'remove',
+        parentDocumentId: 'hm://site/old-parent',
+        sourceDocumentId: 'hm://site/old-parent/doc',
+      },
+      {
+        operation: 'add',
+        parentDocumentId: 'hm://site/new-parent',
+        targetDocumentId: 'hm://site/new-parent/doc',
+      },
+    ])
   })
 })

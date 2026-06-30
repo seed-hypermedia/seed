@@ -556,6 +556,17 @@ export function DocumentEditor({
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
       getCurrentBlocks: () => editor.topLevelBlocks as any,
+      replaceCurrentContent: (blocks) => {
+        suppressChangeRef.current = true
+        try {
+          editor.replaceBlocks(editor.topLevelBlocks, blocks as any)
+        } finally {
+          suppressChangeRef.current = false
+        }
+        lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
+        actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
+        actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
+      },
       applyDocumentCardCleanup: (input) => {
         const {content, removedBlockIds} = removeDeletedDocumentEmbedsFromEditorBlocks(editor.topLevelBlocks, input)
         if (!removedBlockIds.length) return

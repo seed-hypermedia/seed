@@ -1,6 +1,7 @@
 import type {CreateRedirectRefInput} from '@seed-hypermedia/client/ref'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {planDocumentCardMoveOperations} from '@shm/shared/utils/document-card-cleanup'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
 /** Returns true when a path is a strict descendant of a parent document path. */
@@ -28,12 +29,6 @@ function parentIdForDocument(id: UnpackedHypermediaId) {
   return hmId(id.uid, {path: path.slice(0, -1)})
 }
 
-function sameParent(a: UnpackedHypermediaId, b: UnpackedHypermediaId) {
-  const aParentPath = (a.path || []).slice(0, -1)
-  const bParentPath = (b.path || []).slice(0, -1)
-  return a.uid === b.uid && aParentPath.join('/') === bParentPath.join('/')
-}
-
 export function getDocumentCardReconciliationInputsForMove({
   from,
   to,
@@ -47,39 +42,16 @@ export function getDocumentCardReconciliationInputsForMove({
   sourceCapabilityId?: string
   targetCapabilityId?: string
 }): DocumentCardReconciliationInput[] {
-  const oldParent = parentIdForDocument(from)
-  const newParent = parentIdForDocument(to)
-  if (!oldParent || !newParent) return []
-
-  if (sameParent(from, to)) {
-    return [
-      {
-        operation: 'rewrite',
-        parentDocumentId: oldParent.id,
-        sourceDocumentId: from.id,
-        targetDocumentId: to.id,
-        signingAccountUid,
-        capabilityId: sourceCapabilityId || targetCapabilityId,
-      },
-    ]
-  }
-
-  return [
-    {
-      operation: 'remove',
-      parentDocumentId: oldParent.id,
-      sourceDocumentId: from.id,
-      signingAccountUid,
-      capabilityId: sourceCapabilityId,
-    },
-    {
-      operation: 'add',
-      parentDocumentId: newParent.id,
-      targetDocumentId: to.id,
-      signingAccountUid,
-      capabilityId: targetCapabilityId,
-    },
-  ]
+  return planDocumentCardMoveOperations(from, to).map((operation) => ({
+    ...operation,
+    signingAccountUid,
+    capabilityId:
+      operation.operation === 'remove'
+        ? sourceCapabilityId
+        : operation.operation === 'add'
+          ? targetCapabilityId
+          : sourceCapabilityId || targetCapabilityId,
+  }))
 }
 
 export function getDocumentCardReconciliationInputForRepublish({

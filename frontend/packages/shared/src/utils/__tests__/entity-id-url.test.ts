@@ -1298,6 +1298,18 @@ describe('buildCopyLinkUrl', () => {
     ).toBe('https://example.com/doc-path?v=v1hash#blk1+')
   })
 
+  test('localhost site-style copy links use the provided development origin', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {
+          path: ['doc-path'],
+          hostname: 'localhost',
+        }),
+        gatewayUrl: 'http://localhost:3000',
+      }),
+    ).toBe('http://localhost:3000/doc-path')
+  })
+
   test('comment link only (no blockRef) — delegates to createCommentUrl', () => {
     const commentId = hmId('z6MkAuthor', {path: ['tsid123']})
     expect(

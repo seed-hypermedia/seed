@@ -5,6 +5,7 @@ const createTombstoneRefMock = vi.hoisted(() =>
   vi.fn(async () => ({blobs: [{cid: 'ref-cid', data: new Uint8Array([1])}]})),
 )
 const invalidateQueriesMock = vi.hoisted(() => vi.fn())
+const enqueueCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
 vi.mock('@seed-hypermedia/client', async () => {
   const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
@@ -16,6 +17,10 @@ vi.mock('@seed-hypermedia/client', async () => {
 
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,
+}))
+
+vi.mock('./document-edit/web-document-card-cleanup', () => ({
+  enqueueWebDocumentCardCleanup: enqueueCleanupMock,
 }))
 
 import {deleteWebDocuments} from './web-delete-document-dialog'
@@ -82,6 +87,14 @@ describe('deleteWebDocuments', () => {
     )
     expect(publish).toHaveBeenCalledTimes(2)
     expect(invalidateQueriesMock).toHaveBeenCalled()
+    expect(enqueueCleanupMock).toHaveBeenCalledWith(
+      {
+        deletedDocumentId: ids[0]!.id,
+        signingAccountUid: 'uid-1',
+        capabilityId: 'cap-cid',
+      },
+      {client: expect.anything()},
+    )
   })
 
   it('rejects non-document resources', async () => {

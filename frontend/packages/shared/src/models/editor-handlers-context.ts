@@ -16,6 +16,8 @@ export type EditorHandlers = {
   placeCursor: (position?: EditCursorPosition | null) => void
   /** Live snapshot of the editor's top-level blocks. Used for unpublished-change diffs. */
   getCurrentBlocks: () => EditorBlock[]
+  /** Replace the live editor content after an external draft write. */
+  replaceCurrentContent?: (blocks: EditorBlock[]) => void
   /** Apply a deleted-document-card cleanup to the live editor without forcing a full draft reload. */
   applyDocumentCardCleanup?: (input: {deletedDocumentId: string; removedBlockIds?: string[]}) => void
 }
