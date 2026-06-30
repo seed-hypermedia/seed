@@ -14,6 +14,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
+import {enqueueWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
 
 export type WebDeleteDocumentDialogInput = {
   id: UnpackedHypermediaId
@@ -126,6 +127,18 @@ export async function deleteWebDocuments(
       await client.publish(refInput)
     }),
   )
+
+  const selectedDeletedDocument = input.ids[0]
+  if (selectedDeletedDocument) {
+    await enqueueWebDocumentCardCleanup(
+      {
+        deletedDocumentId: selectedDeletedDocument.id,
+        signingAccountUid: input.signingAccountId,
+        capabilityId: input.capabilityId,
+      },
+      {client},
+    )
+  }
 
   invalidateQueries([])
   input.ids.forEach((id) => {

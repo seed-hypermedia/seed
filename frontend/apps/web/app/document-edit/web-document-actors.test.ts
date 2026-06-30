@@ -12,6 +12,12 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {publishWebDocument, type CreateWebDocumentMachineDeps, type WebEditorAccessor} from './web-document-actors'
 import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft} from './web-draft-db'
 
+const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
+
+vi.mock('./web-document-card-cleanup', () => ({
+  enqueueWebDocumentCardCleanup: enqueueWebDocumentCardCleanupMock,
+}))
+
 const cborCodec = {
   code: 0x71 as const,
   encode: cborEncode,
@@ -161,6 +167,7 @@ const baseInput: PublishInput = {
 
 describe('publishWebDocument', () => {
   beforeEach(async () => {
+    enqueueWebDocumentCardCleanupMock.mockClear()
     _resetWebDocDraftDBForTesting()
     await dropDB()
   })
@@ -354,6 +361,54 @@ describe('publishWebDocument', () => {
 
     const finalResourceCall = deps.requestMock.mock.calls.filter((c: any) => c[0] === 'Resource').at(-1)!
     expect(finalResourceCall[1].path).toEqual(['hello-web'])
+  })
+
+  it('first-publish public child document enqueues parent card creation after publish succeeds', async () => {
+    const docId = makeDocId(OWNER, ['parent', `-${draftId}`])
+    const after = makeBaselineDoc([], {path: '/parent/hello-web'})
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {name: 'Hello Web'},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: ['parent'],
+      editUid: OWNER,
+      editPath: ['parent', `-${draftId}`],
+      visibility: 'PUBLIC',
+      cursorPosition: null,
+    })
+
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
+      if (key === 'Resource') {
+        resourceCalls += 1
+        return resourceCalls === 1 ? ({type: 'not-found'} as any) : ({type: 'document', document: after} as any)
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({docId, request: requestMock, after})
+
+    await publishWebDocument({...baseInput, documentId: docId}, deps)
+
+    expect(enqueueWebDocumentCardCleanupMock).toHaveBeenCalledWith(
+      {
+        operation: 'add',
+        parentDocumentId: `hm://${OWNER}/parent`,
+        targetDocumentId: `hm://${OWNER}/parent/hello-web`,
+        signingAccountUid: OWNER,
+        capabilityId: undefined,
+      },
+      {client: deps.client},
+    )
   })
 
   it('first-publish private draft keeps generated path and private visibility', async () => {

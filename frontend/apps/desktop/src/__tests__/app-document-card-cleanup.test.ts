@@ -325,6 +325,96 @@ describe('document card cleanup actor', () => {
     expect(getDocumentCardCleanupSnapshotForTest().jobs[0]?.state).toBe('skippedTerminal')
   })
 
+  it('appends a moved or republished document card to a parent draft', async () => {
+    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
+      await loadCleanupModule()
+    const caller = documentCardCleanupApi.createCaller({})
+    const parentDocumentId = hmId('alice', {path: ['new-parent']}).id
+    const targetDocumentId = hmId('alice', {path: ['new-parent', 'child']}).id
+
+    findDraftByEditMock.mockResolvedValue({id: 'draft-parent'})
+    getDraftMock.mockResolvedValue({
+      id: 'draft-parent',
+      editUid: 'alice',
+      editPath: ['new-parent'],
+      metadata: {name: 'New parent'},
+      deps: ['parent-version'],
+      visibility: 'PUBLIC',
+      content: [
+        {
+          id: 'before',
+          type: 'paragraph',
+          props: {},
+          content: [{type: 'text', text: 'Before', styles: {}}],
+          children: [],
+        },
+      ],
+    })
+
+    await caller.enqueue({
+      operation: 'add',
+      parentDocumentId,
+      targetDocumentId,
+      signingAccountUid: 'alice',
+    } as any)
+    await runNextDocumentCardCleanupForTest({now: () => 1_000})
+
+    expect(writeDraftMock).toHaveBeenCalledTimes(1)
+    const draftWriteInput = writeDraftMock.mock.calls[0]?.[0] as any
+    expect(draftWriteInput.content).toHaveLength(2)
+    expect(draftWriteInput.content.at(-1)).toMatchObject({
+      type: 'embed',
+      props: {url: targetDocumentId, view: 'Card'},
+    })
+    expect(publishDocumentMock).not.toHaveBeenCalled()
+    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      operation: 'add',
+      state: 'done',
+      parentDocumentId,
+      targetDocumentId,
+    })
+  })
+
+  it('rewrites an existing card link in place for a same-parent move', async () => {
+    const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
+      await loadCleanupModule()
+    const caller = documentCardCleanupApi.createCaller({})
+    const parentDocumentId = hmId('alice', {path: ['parent']}).id
+    const sourceDocumentId = hmId('alice', {path: ['parent', 'old']}).id
+    const targetDocumentId = hmId('alice', {path: ['parent', 'new']}).id
+
+    getDocumentMock.mockResolvedValue(
+      makeParentDocument([
+        {
+          block: {id: 'card', type: 'Embed', link: sourceDocumentId, attributes: {view: 'Card'}},
+          children: [{block: {id: 'nested', type: 'Paragraph', text: 'Nested', attributes: {}}, children: []}],
+        },
+      ]),
+    )
+
+    await caller.enqueue({
+      operation: 'rewrite',
+      parentDocumentId,
+      sourceDocumentId,
+      targetDocumentId,
+      signingAccountUid: 'alice',
+    } as any)
+    await runNextDocumentCardCleanupForTest({now: () => 1_000})
+
+    expect(publishDocumentMock).toHaveBeenCalledTimes(1)
+    const changes = (publishDocumentMock.mock.calls[0] as any[])[0].changes
+    expect(changes.map((change: any) => change.op.case)).toEqual(['replaceBlock'])
+    expect(changes[0]!.op.value.id).toBe('card')
+    expect(changes[0]!.op.value.link).toBe(targetDocumentId)
+    expect(getDocumentCardCleanupSnapshotForTest().jobs[0]).toMatchObject({
+      operation: 'rewrite',
+      state: 'done',
+      parentDocumentId,
+      sourceDocumentId,
+      targetDocumentId,
+    })
+  })
+
   it('retries retryable publish failures three times before failing needs attention', async () => {
     const {documentCardCleanupApi, getDocumentCardCleanupSnapshotForTest, runNextDocumentCardCleanupForTest} =
       await loadCleanupModule()

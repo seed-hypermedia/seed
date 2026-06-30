@@ -62,8 +62,14 @@ import type {ParentCardsAfterRelocationResult} from './auto-link-parent'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
-import {createRepublishRefOperation, getMovedChildPath, isChildDocumentPath} from './document-relocation'
 import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
+import {
+  createRepublishRefOperation,
+  getDocumentCardReconciliationInputForRepublish,
+  getDocumentCardReconciliationInputsForMove,
+  getMovedChildPath,
+  isChildDocumentPath,
+} from './document-relocation'
 
 /**
  * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
@@ -1392,6 +1398,16 @@ export function useMoveDocument() {
         push(moveRefs.targetId)
         // console.groupEnd()
       }
+      const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
+        from,
+        to,
+        signingAccountUid: signingAccountId,
+        sourceCapabilityId,
+        targetCapabilityId,
+      })
+      for (const reconciliationInput of reconciliationInputs) {
+        await client.documentCardCleanup.enqueue.mutate(reconciliationInput as any)
+      }
       // console.log(`[move-document] recursive move complete`, {moves})
 
       if (origin) {
@@ -1467,6 +1483,14 @@ export function useRepublishDocument() {
       await universalClient.publish(refInput)
       push(from)
       push(to)
+      const reconciliationInput = getDocumentCardReconciliationInputForRepublish({
+        to,
+        signingAccountUid: signingAccountId,
+        capabilityId,
+      })
+      if (reconciliationInput) {
+        await client.documentCardCleanup.enqueue.mutate(reconciliationInput as any)
+      }
       if (origin) {
         const parentCardResult = await updateParentCardsAfterDocumentRelocation({
           from,

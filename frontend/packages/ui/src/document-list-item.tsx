@@ -16,7 +16,6 @@ import {
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {canShowMoveDocumentAction, canShowRepublishDocumentAction} from '@shm/shared/utils/document-actions'
@@ -27,7 +26,7 @@ import {Fragment, useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {createCopyLinkMenuItem} from './copy-link-menu'
+import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
 import {FacePile} from './face-pile'
 import {DraftBadge} from './draft-badge'
 import {useHighlighter} from './highlight-context'
@@ -154,7 +153,7 @@ export function DocumentListItem({
     if (actions.onCopyLink) {
       const copyCanonical = onCopyReference ? () => onCopyReference(id) : null
       const copyGateway = async () => {
-        const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+        const gwUrl = getWebCopyLinkHostname(origin)
         const url = createWebHMUrl(id.uid, {
           path: id.path,
           version: id.version,

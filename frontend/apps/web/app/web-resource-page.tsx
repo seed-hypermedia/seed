@@ -6,11 +6,13 @@ import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
+import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
 import {useCommentNavigation} from '@shm/shared/utils/comment-navigation'
+import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
@@ -28,11 +30,17 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
+import {FileInput} from 'lucide-react'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
+import {
+  loadWebCleanupDraft,
+  startWebDocumentCardCleanupCoordinator,
+  subscribeWebDraftExternallyModified,
+} from './document-edit/web-document-card-cleanup'
 import {WebDraftActionsProvider} from './document-edit/web-draft-actions-provider'
 import {WebDraftBreadcrumbProvider} from './document-edit/web-draft-breadcrumb-provider'
 import {cleanupOldWebDocDrafts, getLatestWebDocDraftForDoc, getWebDocDraft} from './document-edit/web-draft-db'
@@ -44,6 +52,7 @@ import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
+import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -56,6 +65,31 @@ function renderWebInlineEditor(props: InlineEditCommentProps) {
       <LazyWebInlineEditor {...props} />
     </Suspense>
   )
+}
+
+function WebDraftExternalModificationListener() {
+  const actorRef = useDocumentMachineRef()
+
+  useEffect(() => {
+    return subscribeWebDraftExternallyModified(async (event) => {
+      const context = selectContext(actorRef.getSnapshot())
+      if (event.source !== 'document-card-cleanup' || event.draftId !== context.draftId) return
+      const draft = await loadWebCleanupDraft(event.draftId)
+      actorRef.send({
+        type: 'draft.externallyModified',
+        draftId: event.draftId,
+        source: event.source,
+        deletedDocumentId: event.deletedDocumentId || event.sourceDocumentId,
+        removedBlockIds: event.changedBlockIds,
+        content: draft?.content ?? null,
+        cursorPosition: draft?.cursorPosition ?? null,
+        metadata: draft?.metadata ?? null,
+        deps: draft?.deps ?? null,
+      })
+    })
+  }, [actorRef])
+
+  return null
 }
 
 export interface WebResourcePageProps {
@@ -201,6 +235,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     })
   }, [docId.id, universalClient, editorAccessor, effectiveCapabilityCid, onPublishSuccess])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    startWebDocumentCardCleanupCoordinator({client: universalClient})
+  }, [universalClient])
+
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
     if (!effectiveCanEdit) return false
     if (draftQuery.isLoading) return undefined
@@ -336,12 +375,37 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     capabilityId: deleteCapabilityId,
     canDelete: effectiveCanEdit,
   })
+  const destinationDialog = useWebDocumentDestinationDialog({
+    signingAccountId: signingAccountId ?? undefined,
+    capabilityId: deleteCapabilityId,
+    writableLocationId: capability?.id === '_owner' ? hmId(docId.uid) : capability?.grantId,
+    canMove: !!signingAccountId,
+  })
   const onDeleteDocument = useCallback(
     (id: UnpackedHypermediaId, onSuccess?: () => void) => {
       deleteDialog.open({id, onSuccess})
     },
     [deleteDialog],
   )
+  const onMoveDocument = useMemo(() => {
+    if (!signingAccountId) return undefined
+    return (id: UnpackedHypermediaId, origin?: DocumentCardActionOrigin) =>
+      destinationDialog.open({id, mode: 'move', origin})
+  }, [destinationDialog, signingAccountId])
+  const canWriteDocument = useCallback(
+    (id: UnpackedHypermediaId) =>
+      !!signingAccountId && (id.uid === signingAccountId || (effectiveCanEdit && id.uid === docId.uid)),
+    [docId.uid, effectiveCanEdit, signingAccountId],
+  )
+  const moveMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
+    return {
+      key: 'move',
+      label: 'Move',
+      icon: <FileInput className="size-4" />,
+      onClick: () => destinationDialog.open({id: docId, mode: 'move'}),
+    }
+  }, [destinationDialog, docId, effectiveCanEdit, signingAccountId])
   const deleteMenuItem = useMemo<MenuItemType | null>(() => {
     if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
     return {
@@ -360,8 +424,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [newMenuItem, ...webMenuItems, deleteMenuItem].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, newMenuItem, webMenuItems],
+    () => [newMenuItem, ...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
+    [deleteMenuItem, moveMenuItem, newMenuItem, webMenuItems],
   )
 
   // Inline subscribe box for non-members
@@ -436,6 +500,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           onCopyLink={() => {}}
           selectedAccountUid={signingAccountId ?? undefined}
           myAccountIds={signingAccountId ? [signingAccountId] : []}
+          canWriteDocument={canWriteDocument}
+          onMoveDocument={onMoveDocument}
           onDeleteDocument={onDeleteDocument}
           onRestoreDocumentVersion={effectiveCanEdit && signingAccountId ? onRestoreDocumentVersion : undefined}
         >
@@ -467,6 +533,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   linkExtensionOptions={linkExtensionOptions}
                   canEdit={effectiveCanEdit}
                   machine={machine}
+                  machineExtras={<WebDraftExternalModificationListener />}
                   signingAccountId={signingAccountId ?? undefined}
                   publishAccountUid={signingAccountId ?? undefined}
                   onEditorReady={onEditorReady}
@@ -489,6 +556,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {followAccountContent}
       {newMenuContent}
       {deleteDialog.content}
+      {destinationDialog.content}
       {vaultSuccessContent}
     </WebSitePageShell>
   )

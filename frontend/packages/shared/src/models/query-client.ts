@@ -66,6 +66,13 @@ export function setQueriesDataByKey(queryKey: QueryKey, data: unknown) {
   }
 }
 
+/** Update cached data for all queries matching a key prefix. */
+export function updateQueriesDataByKey(queryKey: QueryKey, updater: (data: unknown) => unknown) {
+  if (registeredClient) {
+    registeredClient.setQueriesData({queryKey}, updater)
+  }
+}
+
 /**
  * Force an immediate background refetch of all queries matching a key prefix.
  * Use after mutations when `invalidateQueries` alone doesn't trigger the

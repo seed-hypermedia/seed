@@ -7,7 +7,6 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -21,8 +20,8 @@ import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, useMemo} from 'react'
 import {Button} from './button'
-import {createCopyLinkMenuItem} from './copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
 import {createDocumentVersionsPanelRoute} from './document-versions-panel'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
@@ -91,7 +90,7 @@ export function useDocumentCardMenuItems(
     if (actions.onCopyLink) {
       const copyCanonical = onCopyReference ? () => onCopyReference(docId) : null
       const copyGateway = async () => {
-        const gwUrl = origin ?? DEFAULT_GATEWAY_URL
+        const gwUrl = getWebCopyLinkHostname(origin)
         const url = createWebHMUrl(docId.uid, {
           path: docId.path,
           version: docId.version,

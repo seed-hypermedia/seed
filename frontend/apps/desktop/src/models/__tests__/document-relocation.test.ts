@@ -1,6 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {createRepublishRefOperation, getMovedChildPath, isChildDocumentPath} from '../document-relocation'
+import {
+  createRepublishRefOperation,
+  getDocumentCardReconciliationInputsForMove,
+  getDocumentCardReconciliationInputForRepublish,
+  getMovedChildPath,
+  isChildDocumentPath,
+} from '../document-relocation'
 
 describe('document relocation path helpers', () => {
   it('detects descendants and preserves relative child paths when moving a subtree', () => {
@@ -41,6 +47,54 @@ describe('republish ref operation', () => {
       targetPath: '/specs/api',
       republish: true,
       capability: 'bafy-capability',
+    })
+  })
+})
+
+describe('document card reconciliation inputs', () => {
+  it('plans remove and add jobs for a move across parents', () => {
+    const from = hmId('site', {path: ['old-parent', 'child']})
+    const to = hmId('site', {path: ['new-parent', 'child']})
+
+    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'site'})).toEqual([
+      {
+        operation: 'remove',
+        parentDocumentId: 'hm://site/old-parent',
+        sourceDocumentId: from.id,
+        signingAccountUid: 'site',
+      },
+      {
+        operation: 'add',
+        parentDocumentId: 'hm://site/new-parent',
+        targetDocumentId: to.id,
+        signingAccountUid: 'site',
+      },
+    ])
+  })
+
+  it('plans a rewrite job for a same-parent move', () => {
+    const from = hmId('site', {path: ['parent', 'old']})
+    const to = hmId('site', {path: ['parent', 'new']})
+
+    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'site'})).toEqual([
+      {
+        operation: 'rewrite',
+        parentDocumentId: 'hm://site/parent',
+        sourceDocumentId: from.id,
+        targetDocumentId: to.id,
+        signingAccountUid: 'site',
+      },
+    ])
+  })
+
+  it('plans an add job for a republish destination parent', () => {
+    const to = hmId('site', {path: ['library', 'copy']})
+
+    expect(getDocumentCardReconciliationInputForRepublish({to, signingAccountUid: 'site'})).toEqual({
+      operation: 'add',
+      parentDocumentId: 'hm://site/library',
+      targetDocumentId: to.id,
+      signingAccountUid: 'site',
     })
   })
 })

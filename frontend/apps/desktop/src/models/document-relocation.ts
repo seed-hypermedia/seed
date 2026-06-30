@@ -1,5 +1,7 @@
 import type {CreateRedirectRefInput} from '@seed-hypermedia/client/ref'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {planDocumentCardMoveOperations} from '@shm/shared/utils/document-card-cleanup'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 
 /** Returns true when a path is a strict descendant of a parent document path. */
@@ -10,6 +12,66 @@ export function isChildDocumentPath(path: string[], parentPath: string[]) {
 /** Returns the destination path for a child document when its parent subtree is moved. */
 export function getMovedChildPath(childPath: string[], fromPath: string[], toPath: string[]) {
   return [...toPath, ...childPath.slice(fromPath.length)]
+}
+
+export type DocumentCardReconciliationInput = {
+  operation: 'remove' | 'add' | 'rewrite'
+  parentDocumentId: string
+  sourceDocumentId?: string
+  targetDocumentId?: string
+  signingAccountUid: string
+  capabilityId?: string
+}
+
+function parentIdForDocument(id: UnpackedHypermediaId) {
+  const path = id.path || []
+  if (!path.length) return null
+  return hmId(id.uid, {path: path.slice(0, -1)})
+}
+
+export function getDocumentCardReconciliationInputsForMove({
+  from,
+  to,
+  signingAccountUid,
+  sourceCapabilityId,
+  targetCapabilityId,
+}: {
+  from: UnpackedHypermediaId
+  to: UnpackedHypermediaId
+  signingAccountUid: string
+  sourceCapabilityId?: string
+  targetCapabilityId?: string
+}): DocumentCardReconciliationInput[] {
+  return planDocumentCardMoveOperations(from, to).map((operation) => ({
+    ...operation,
+    signingAccountUid,
+    capabilityId:
+      operation.operation === 'remove'
+        ? sourceCapabilityId
+        : operation.operation === 'add'
+          ? targetCapabilityId
+          : sourceCapabilityId || targetCapabilityId,
+  }))
+}
+
+export function getDocumentCardReconciliationInputForRepublish({
+  to,
+  signingAccountUid,
+  capabilityId,
+}: {
+  to: UnpackedHypermediaId
+  signingAccountUid: string
+  capabilityId?: string
+}): DocumentCardReconciliationInput | null {
+  const parent = parentIdForDocument(to)
+  if (!parent) return null
+  return {
+    operation: 'add',
+    parentDocumentId: parent.id,
+    targetDocumentId: to.id,
+    signingAccountUid,
+    capabilityId,
+  }
 }
 
 /** Builds the signed-ref operation for creating a protocol-level republish redirect. */
