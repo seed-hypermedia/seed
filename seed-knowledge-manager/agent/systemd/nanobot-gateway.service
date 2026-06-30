@@ -1,0 +1,14 @@
+[Unit]
+Description=Nanobot Gateway (Knowledge Manager)
+After=default.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/km/.nanobot/secrets.env
+ExecStart=/home/km/.local/bin/nanobot gateway --port 18791
+Restart=always
+RestartSec=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

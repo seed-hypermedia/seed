@@ -1,0 +1,11 @@
+[Unit]
+Description=Knowledge Manager — gap detection schedule
+
+[Timer]
+# Wednesdays 10:00 UTC.
+OnCalendar=Wed *-*-* 10:00:00 UTC
+Persistent=true
+Unit=km-gap.service
+
+[Install]
+WantedBy=timers.target
