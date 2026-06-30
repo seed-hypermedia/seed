@@ -23,7 +23,12 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${GITHUB_REF_TYPE}" == "branch" ]]; then
+          # `latest` is the production tag. It is published by:
+          #   - pushing a version tag (`*.*.*`), or
+          #   - manually running this workflow from the `main` branch.
+          # A manual run from any OTHER branch publishes branch-named images instead, so you can build
+          # and test a branch's images without touching production `latest`.
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${GITHUB_REF_TYPE}" == "branch" && "${GITHUB_REF_NAME}" != "main" ]]; then
             tag="$(printf '%s' "${GITHUB_REF_NAME}" | sed -E 's#[^A-Za-z0-9_.-]+#-#g')"
             tag="${tag:0:128}"
             if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
