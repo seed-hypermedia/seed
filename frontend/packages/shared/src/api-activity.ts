@@ -1,6 +1,7 @@
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
 import {HMListEventsRequest} from '@seed-hypermedia/client/hm-types'
+import {FeedOrder} from './client/.generated/activity/v1alpha/activity_pb'
 import {
   getEventAtMs,
   getFeedEventId,
@@ -84,8 +85,9 @@ async function resolveEvent(
 
 export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
   async getData(grpcClient: GRPCClient, input) {
-    // Get raw events from gRPC
-    const response = await listEventsImpl(grpcClient, input)
+    // Get raw events from gRPC. Map the wire `order` string to the gRPC FeedOrder enum.
+    const order = input.order === 'observed' ? FeedOrder.OBSERVED_TIME : FeedOrder.CLAIMED_TIME
+    const response = await listEventsImpl(grpcClient, {...input, order})
 
     // Create request-scoped cache to deduplicate resource fetches
     // This ensures that if multiple events reference the same account/document/comment,

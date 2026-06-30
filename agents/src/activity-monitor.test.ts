@@ -107,7 +107,10 @@ describe('activity monitor', () => {
     }
   })
 
-  test('backfills an old watermark for at most one hour', async () => {
+  test('processes every unseen event regardless of create time (no steady-state create-time cutoff)', async () => {
+    // A comment can become visible to us long after it was authored (propagation/indexing lag, sometimes
+    // extreme). Once we have a watermark, "new" is decided by whether we've already observed the event,
+    // NOT by how old its timestamp is — so a late-propagating mention still fires.
     const {db, dataDir, cleanup} = createTestState()
     const account = blobs.principalToString(blobs.generateNobleKeyPair().principal)
     const processed: Array<Record<string, unknown>> = []
@@ -132,22 +135,25 @@ describe('activity monitor', () => {
         maxPagesPerPoll: 1,
         client: {
           request: async () => ({
-            events: [commentEvent('recent', recent), commentEvent('too-old', recent - 2 * 60 * 60 * 1000)],
+            events: [commentEvent('recent', recent), commentEvent('ancient', recent - 2 * 60 * 60 * 1000)],
             nextPageToken: '',
           }),
         } as never,
       })
 
       await monitor.pollOnce()
-      expect(processed).toHaveLength(1)
-      expect(JSON.stringify(processed[0])).toContain('recent')
+      // Both are unseen, so both fire — the two-hour-old "ancient" event is no longer dropped.
+      expect(processed).toHaveLength(2)
+      const dump = JSON.stringify(processed)
+      expect(dump).toContain('recent')
+      expect(dump).toContain('ancient')
     } finally {
       db.close()
       cleanup()
     }
   })
 
-  test('ignores old fetched events for existing empty-key watermarks', async () => {
+  test('processes an unseen event even when its create time predates the watermark', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const account = blobs.principalToString(blobs.generateNobleKeyPair().principal)
     const processed: Array<Record<string, unknown>> = []
@@ -175,7 +181,9 @@ describe('activity monitor', () => {
       })
 
       await monitor.pollOnce()
-      expect(processed).toEqual([])
+      // Unseen key (seenKeys was empty) => processed, even though create time (1_500) is far in the past.
+      expect(processed).toHaveLength(1)
+      expect(JSON.stringify(processed[0])).toContain('existing')
       const watermark = db
         .query<{cursor_cbor: Uint8Array}, []>(`SELECT cursor_cbor FROM activity_watermarks LIMIT 1`)
         .get()

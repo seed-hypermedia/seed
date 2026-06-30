@@ -193,12 +193,41 @@ describe('comment/citation mention race (real monitor + HTTP + service)', () => 
       feed = {events: [citationEvent(COMMENT_CID, commentCreatedAt)], nextPageToken: ''}
       await monitor.pollOnce() // processes the citation; advances lastSuccessAt PAST commentCreatedAt
 
-      // The comment event now appears, but its eventAtMs is the (older) comment create time, so the
-      // staleness watermark drops it. Pre-fix this left ZERO firings (citation was suppressed, comment
-      // dropped). Post-fix the citation already fired, and the comment dedups onto it.
+      // The comment event now appears (older create time, but newly visible to us). Pre-fix the citation
+      // was suppressed AND the comment was dropped by the create-time cutoff, leaving ZERO firings.
+      // Post-fix the citation already fired; the comment is now also processed but dedups onto it.
       await Bun.sleep(15)
       feed = {
         events: [commentEvent(COMMENT_CID, commentCreatedAt), citationEvent(COMMENT_CID, commentCreatedAt)],
+        nextPageToken: '',
+      }
+      await monitor.pollOnce()
+
+      expect(firingCount(agentId)).toBe(1)
+      expect(sessionCount(agentId)).toBe(1)
+    } finally {
+      await svc.drainTriggerSessions()
+    }
+  })
+
+  test('REPLY SCENARIO: both siblings surface late (older create time) — still fires (no create-time cutoff)', async () => {
+    // Reproduces the "one document for each" reply: a reply comment whose comment AND citation events
+    // only became visible in the feed after the comment's own timestamp. Under the old create-time cutoff
+    // BOTH siblings were dropped on every poll and the mention was silently lost (un-suppressing the
+    // citation does not help — nothing reaches the matcher). With freshness decided by observation
+    // (seenKeys) rather than create time, the late events are processed once when they first appear and
+    // deduped to a single firing.
+    const {svc, monitor, agentId} = await setupMentionTrigger()
+    try {
+      await monitor.pollOnce() // baseline; advances lastSuccessAt to ~now
+      const baselineSuccess = Date.now()
+
+      await Bun.sleep(20)
+      // The reply was authored just before the baseline poll (older than lastSuccessAt) but only surfaces
+      // in the feed now. Its (old) create time must NOT prevent it from being processed.
+      const replyCreatedAt = baselineSuccess - 1_000
+      feed = {
+        events: [commentEvent(COMMENT_CID, replyCreatedAt), citationEvent(COMMENT_CID, replyCreatedAt)],
         nextPageToken: '',
       }
       await monitor.pollOnce()

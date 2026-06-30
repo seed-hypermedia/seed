@@ -19,7 +19,6 @@ export type ActivityMonitorOptions = {
   client?: Pick<SeedClient, 'request'>
 }
 
-const ACTIVITY_BACKFILL_MS = 60 * 60 * 1000
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000
 const DEFAULT_POLL_TIMEOUT_MS = 60_000
 
@@ -85,6 +84,10 @@ export class ActivityMonitor {
             pageSize: this.#options.pageSize,
             pageToken,
             currentAccount: accountId,
+            // Order by local observation, not the event's claimed/create time, so a comment that
+            // propagates late (old create time) surfaces at the TOP of the feed when it finally arrives —
+            // instead of being buried at its create-time position where the page walk never reaches it.
+            order: 'observed',
           },
           {signal: AbortSignal.timeout(this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS)},
         )
@@ -107,8 +110,10 @@ export class ActivityMonitor {
         }
       }
 
-      const seenKeys = uniqueKeys(fetched).slice(0, this.#options.pageSize)
       if (!previous) {
+        // Cold start: baseline so we don't replay the account's whole history. Only events created at/after
+        // the earliest enabled trigger are processed; everything fetched is recorded as already-seen.
+        const seenKeys = uniqueKeys(fetched).slice(0, this.#options.pageSize)
         const firstRunEvents = fetched.filter((event) => {
           const eventAt = activityTriggers.activityEventTimeMs(event)
           return eventAt !== null && eventAt >= this.#earliestEnabledTriggerCreatedAt(accountId)
@@ -126,25 +131,37 @@ export class ActivityMonitor {
         return
       }
 
-      const backfillAfter = Math.max(previous.lastSuccessAt || 0, startedAt - ACTIVITY_BACKFILL_MS)
+      // Steady state: an event is "new" purely when we have not already observed its key (it isn't in the
+      // previous watermark). We do NOT gate on the event's create time — the feed is ordered by local
+      // observation (see the `order: 'observed'` request above), so a comment that propagated late surfaces
+      // at the top when it arrives and is processed then, regardless of how old its timestamp is.
       const newEvents = fetched.filter((event) => {
         const key = activityTriggers.activityEventKey(event)
-        if (!key || previous.seenKeys.includes(key)) return false
-        const eventAt = activityTriggers.activityEventTimeMs(event)
-        return eventAt === null || eventAt >= backfillAfter
+        return !!key && !previous.seenKeys.includes(key)
       })
       console.log('[Agents Activity] Processing feed events', {
         accountId,
         fetched: fetched.length,
         newEvents: newEvents.length,
-        backfillAfter,
         remainingPageToken: pageToken,
         newEventSamples: newEvents.slice(0, 5).map((event) => activityTriggers.activityDebugInfo(event)),
       })
+      // Advance the watermark immediately after EACH event is handled, not once at the end of the poll, so a
+      // restart resumes from the last handled event instead of re-observing the whole batch. processActivityEvent
+      // durably records any firing (`trigger_firings`) before it returns, so the cursor only ever moves past
+      // events whose firing is already persisted. In-flight agent runs interrupted by a restart are recovered
+      // separately (planned session auto-restart), not by re-observing the triggering event.
+      let cursor = previous.seenKeys
       for (const event of newEvents.reverse()) {
         await this.#service.processActivityEvent(accountId, event)
+        const key = activityTriggers.activityEventKey(event)
+        if (key) cursor = [key, ...cursor.filter((seen) => seen !== key)].slice(0, this.#options.pageSize)
+        this.#setWatermark(accountId, {seenKeys: cursor}, startedAt, Date.now())
       }
-      this.#setWatermark(accountId, {seenKeys}, startedAt, Date.now())
+      if (newEvents.length === 0) {
+        // Nothing new this poll: still record success (refresh lastSuccessAt) and keep the cursor.
+        this.#setWatermark(accountId, {seenKeys: previous.seenKeys}, startedAt, Date.now())
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       console.error('[Agents Activity] Poll failed', {accountId, serverUrl: this.#options.hmServerUrl, error: message})

@@ -1391,6 +1391,10 @@ export const HMListEventsInputSchema = z.object({
   filterEventType: z.array(z.string()).optional(),
   filterResource: z.string().optional(),
   currentAccount: z.string().optional(),
+  // Feed ordering. 'claimed' (default) orders by the event's claimed/create time; 'observed' orders by
+  // when the server locally observed the blob — needed by pollers that must see late-propagating events
+  // (which carry an old create time) as soon as they arrive, instead of buried at their create position.
+  order: z.union([z.literal('claimed'), z.literal('observed')]).optional(),
 })
 export type HMListEventsInput = z.infer<typeof HMListEventsInputSchema>
 
