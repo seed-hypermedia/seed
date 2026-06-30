@@ -45,6 +45,13 @@ procs:
     autostart: true
 
   # Electron desktop on mainnet; builds + spawns its own Go daemon (Metal GPU).
+  # SEED_LOG_ONLY silences every daemon subsystem except the vault key-merge
+  # logger (grep the daemon pane for "VAULT-MERGE"), so the local→remote vault
+  # sign-in / key-merge is easy to watch. The desktop process passes its env to
+  # the spawned Go daemon (see frontend/apps/desktop/src/daemon.ts). Remove this
+  # env block to restore normal daemon logging.
   desktop:
     shell: './dev run-desktop-mainnet'
+    env:
+      SEED_LOG_ONLY: seed/vault-merge
     autostart: true

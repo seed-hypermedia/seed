@@ -14,6 +14,20 @@ export function isQuietNodeLogsEnabled() {
   return process.env.QUIET_NODE_LOGS === 'true'
 }
 
+/**
+ * When SEED_LOG_ONLY is set we mirror the Go daemon's behavior on the JS side:
+ * the daemon's forwarded (raw) lines have already been narrowed by SEED_LOG_ONLY
+ * to the allowlisted subsystem (e.g. seed/vault-merge), so on the console we keep
+ * only those raw lines and drop the desktop app's own structured logs. This is a
+ * console-only filter — the rotating log file still receives everything.
+ */
+const suppressNonRawWhenLogOnly = winston.format((info: any) => {
+  if (process.env.SEED_LOG_ONLY && !info.isRaw) {
+    return false
+  }
+  return info
+})
+
 const customJSONFormatter = winston.format((info: any) => {
   if (info.isRaw) {
     info[MESSAGE] = info.message
@@ -53,7 +67,10 @@ if (!IS_PROD_DESKTOP && !isQuietNodeLogsEnabled()) {
   winstonLogger.add(
     new winston.transports.Console({
       level: 'debug',
-      format: customJSONFormatter(),
+      format: winston.format.combine(
+        suppressNonRawWhenLogOnly(),
+        customJSONFormatter(),
+      ),
     }),
   )
 }

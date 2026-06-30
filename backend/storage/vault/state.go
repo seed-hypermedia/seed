@@ -232,6 +232,27 @@ func findAccountByName(accounts []AccountInfo, name string) (AccountInfo, bool) 
 	return AccountInfo{}, false
 }
 
+// findAccountByPrincipal returns the account whose principal (public key /
+// account ID, derived from its seed) equals the given identifier.
+//
+// A key's NAME is not guaranteed to equal its principal — imported and renamed
+// keys keep a name that differs from the z6Mk… account ID. Callers that hold a
+// principal must resolve via this, never by name. Accounts with an unusable seed
+// are skipped rather than failing the whole lookup.
+func findAccountByPrincipal(accounts []AccountInfo, principal string) (AccountInfo, bool) {
+	for _, account := range accounts {
+		id, err := accountIDFromAccount(account)
+		if err != nil {
+			continue
+		}
+		if id == principal {
+			return account, true
+		}
+	}
+
+	return AccountInfo{}, false
+}
+
 func findAccountIndexByName(accounts []AccountInfo, name string) int {
 	for idx, account := range accounts {
 		if account.Name == name {

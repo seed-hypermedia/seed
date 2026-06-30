@@ -15,6 +15,44 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+// TestGetKeyResolvesByPrincipalWhenNameDiffers covers the case where a key's
+// name does not equal its principal (e.g. imported keys). GetKey must resolve
+// such a key when the caller passes the principal as the identifier — never rely
+// on name == principal.
+func TestGetKeyResolvesByPrincipalWhenNameDiffers(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
+	secretStore, err := NewMemorySecretStore()
+	require.NoError(t, err)
+	require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
+
+	ks, err := New(dir, secretStore)
+	require.NoError(t, err)
+
+	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+
+	// Store under an arbitrary name that is NOT the principal, as an imported key would be.
+	require.NoError(t, ks.StoreKey(ctx, "imported-alice", kp))
+	principal := kp.Principal().String()
+	require.NotEqual(t, "imported-alice", principal)
+
+	// Lookup by name still works.
+	byName, err := ks.GetKey(ctx, "imported-alice")
+	require.NoError(t, err)
+	require.Equal(t, kp.Principal(), byName.Principal())
+
+	// Lookup by principal (what SignData callers pass) resolves the same key.
+	byPrincipal, err := ks.GetKey(ctx, principal)
+	require.NoError(t, err)
+	require.Equal(t, kp.Principal(), byPrincipal.Principal())
+
+	// A genuinely unknown identifier still errors.
+	_, err = ks.GetKey(ctx, "z6MkUnknownPrincipalThatDoesNotExist")
+	require.Error(t, err)
+}
+
 func TestLocal(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()

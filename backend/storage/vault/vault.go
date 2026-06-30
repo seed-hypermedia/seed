@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"seed/backend/core"
+	"seed/backend/logging"
 	"sort"
 	"strings"
 	"sync"
@@ -24,8 +25,26 @@ import (
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/zalando/go-keyring"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/chacha20poly1305"
 )
+
+// vaultMergeLogPrefix is a deliberately loud, greppable marker prepended to
+// every vault key-merge log line. When a user signs in from a local vault to a
+// remote vault, all the keys/identities from both vaults are merged into one
+// list. This merge has been observed to lose identities, so we log the full set
+// of identities in the local vault, in the remote vault, and in the final
+// merged-and-synced state. Grep the daemon (Electron main process) logs for
+// this prefix to follow exactly what happened.
+//
+// To watch ONLY these logs, run the daemon with SEED_LOG_ONLY=seed/vault-merge
+// (see backend/logging) which silences every other subsystem.
+const vaultMergeLogPrefix = "🔑 VAULT-MERGE"
+
+// vaultMergeLog is the dedicated logger for the local→remote key merge. It is
+// kept at debug level so the merge is always traceable; pair it with
+// SEED_LOG_ONLY=seed/vault-merge to suppress all other logging.
+var vaultMergeLog = logging.New("seed/vault-merge", "debug")
 
 // Vault is a the main vault implementation with local file and optional remote syncing.
 type Vault struct {
@@ -467,6 +486,14 @@ func (ks *Vault) GetKey(_ context.Context, name string) (*core.KeyPair, error) {
 	}
 
 	account, ok := findAccountByName(state.Accounts, name)
+	if !ok {
+		// A key's name is not guaranteed to equal its principal (public key):
+		// imported and renamed keys keep a name that differs from the z6Mk…
+		// account ID. Many callers (e.g. SignData via notification sync) pass a
+		// principal as the identifier, so fall back to resolving by principal
+		// when the name lookup misses. Never rely on name == principal.
+		account, ok = findAccountByPrincipal(state.Accounts, name)
+	}
 	if !ok {
 		return nil, fmt.Errorf("%s: %w", name, errLocalKeyNotFound)
 	}
@@ -1135,6 +1162,97 @@ func (ks *Vault) validateVaultConnectPayloadLocked(connectToken string, remoteUR
 	return nil
 }
 
+// describeStateIdentities returns one greppable line per identity in the given
+// vault state: the human-readable key name plus the account ID (principal)
+// derived from the seed. This is what we compare across local/remote/merged to
+// see where an identity is lost.
+func describeStateIdentities(state State) []string {
+	out := make([]string, 0, len(state.Accounts))
+	for _, account := range state.Accounts {
+		principal, err := principalStringFromSeed(account.Seed)
+		if err != nil {
+			principal = fmt.Sprintf("<invalid-seed:%v>", err)
+		}
+		out = append(out, fmt.Sprintf("name=%q id=%s createTime=%d delegations=%d", account.Name, principal, account.CreateTime, len(account.Delegations)))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// describeTombstones returns one line per deleted-account tombstone. A stale
+// local tombstone can suppress a live remote identity during the merge, so this
+// is logged alongside the live identities.
+func describeTombstones(state State) []string {
+	out := make([]string, 0, len(state.DeletedAccounts))
+	for id, deletedAt := range state.DeletedAccounts {
+		out = append(out, fmt.Sprintf("id=%s deletedAt=%d", id, deletedAt))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// logVaultMergeBeforeMerge dumps the local and remote identity sets right before
+// the merge runs, so a lost key can be traced to its source. Logging-only:
+// every failure is logged and swallowed so it can never affect the connection.
+func (ks *Vault) logVaultMergeBeforeMerge(remoteURL, userID, credentialID, secret string, credential Credential, remoteSnapshot GetVaultResponse) {
+	localState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to read LOCAL vault state for logging", zap.Error(err))
+	} else {
+		vaultMergeLog.Info(vaultMergeLogPrefix+" sign-in started: LOCAL vault identities (before merge)",
+			zap.String("remoteVaultUrl", remoteURL),
+			zap.String("userId", userID),
+			zap.String("credentialId", credentialID),
+			zap.Int("localVersion", localVersion),
+			zap.Int("localIdentityCount", len(localState.Accounts)),
+			zap.Strings("localIdentities", describeStateIdentities(localState)),
+			zap.Strings("localTombstones", describeTombstones(localState)),
+		)
+	}
+
+	if remoteSnapshot.Unchanged || strings.TrimSpace(remoteSnapshot.EncryptedData) == "" {
+		vaultMergeLog.Info(vaultMergeLogPrefix+" REMOTE vault has no decodable snapshot (empty or unchanged) — nothing to merge in from remote",
+			zap.String("remoteVaultUrl", remoteURL),
+			zap.Bool("remoteUnchanged", remoteSnapshot.Unchanged),
+			zap.Int("remoteVersion", remoteSnapshot.RemoteVersion),
+		)
+		return
+	}
+
+	remoteState, err := decodeRemoteState(secret, credential.WrappedDEK, remoteSnapshot)
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to decode REMOTE vault state for logging", zap.Error(err))
+		return
+	}
+	vaultMergeLog.Info(vaultMergeLogPrefix+" REMOTE vault identities (before merge)",
+		zap.String("remoteVaultUrl", remoteURL),
+		zap.Int("remoteVersion", remoteSnapshot.RemoteVersion),
+		zap.Int("remoteIdentityCount", len(remoteState.Accounts)),
+		zap.Strings("remoteIdentities", describeStateIdentities(remoteState)),
+		zap.Strings("remoteTombstones", describeTombstones(remoteState)),
+	)
+}
+
+// logVaultMergeAfterMerge dumps the final merged identity set after it has been
+// persisted locally and synced up to the remote vault, so the result of the
+// merge can be compared against the two inputs logged above.
+func (ks *Vault) logVaultMergeAfterMerge(remoteURL string, uploadedToRemote bool, remoteVersion int) {
+	mergedState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to read MERGED vault state for logging", zap.Error(err))
+		return
+	}
+	vaultMergeLog.Info(vaultMergeLogPrefix+" merge complete: MERGED identities (now in local vault and synced to remote)",
+		zap.String("remoteVaultUrl", remoteURL),
+		zap.Bool("uploadedLocalStateToRemote", uploadedToRemote),
+		zap.Int("localVersion", localVersion),
+		zap.Int("remoteVersion", remoteVersion),
+		zap.Int("mergedIdentityCount", len(mergedState.Accounts)),
+		zap.Strings("mergedIdentities", describeStateIdentities(mergedState)),
+		zap.Strings("mergedTombstones", describeTombstones(mergedState)),
+	)
+}
+
 func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) error {
 	bearerAuth, err := buildRemoteBearerAuth(credentialID, secret)
 	if err != nil {
@@ -1150,6 +1268,7 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if err != nil {
 		return err
 	}
+	ks.logVaultMergeBeforeMerge(remoteURL, userID, credentialID, secret, credential, remoteSnapshot)
 	if err := ks.mergeRemoteSnapshot(credentialID, secret, credential.WrappedDEK, remoteSnapshot); err != nil {
 		return fmt.Errorf("failed to merge remote snapshot: %w", err)
 	}
@@ -1205,6 +1324,8 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if oldCredentialID != "" && oldSecret != "" {
 		ks.cleanupOldRemoteCredential(ctx, remoteURL, userID, oldCredentialID, oldSecret)
 	}
+
+	ks.logVaultMergeAfterMerge(remoteURL, needsUpload, remoteVersion)
 
 	return nil
 }
@@ -1878,6 +1999,21 @@ func (ks *Vault) mergeRemoteAccounts(
 	if err != nil {
 		return err
 	}
+
+	// Log the authoritative merge decision. This is the single chokepoint both
+	// the sign-in (finishConnection) and the background sync paths flow through,
+	// so it captures any identity that the merge drops regardless of trigger.
+	vaultMergeLog.Info(vaultMergeLogPrefix+" mergeNormalizedStates result (local ⊕ remote → merged)",
+		zap.Int("localVersion", localVersion),
+		zap.Int("remoteVersion", remoteVersion),
+		zap.Bool("changedLocalVault", changed),
+		zap.Int("localIdentityCount", len(localNormalized.Accounts)),
+		zap.Int("remoteIdentityCount", len(remoteNormalized.Accounts)),
+		zap.Int("mergedIdentityCount", len(mergedState.Accounts)),
+		zap.Strings("mergedIdentities", describeStateIdentities(mergedState)),
+		zap.Strings("mergedTombstones", describeTombstones(mergedState)),
+	)
+
 	if !changed {
 		return nil
 	}
