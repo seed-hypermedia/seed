@@ -39,7 +39,6 @@ const (
 	Daemon_SetVaultNotificationServer_FullMethodName = "/com.seed.daemon.v1alpha.Daemon/SetVaultNotificationServer"
 	Daemon_ForceReindex_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName                   = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
-	Daemon_UpdateKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
 	Daemon_DeleteKey_FullMethodName                  = "/com.seed.daemon.v1alpha.Daemon/DeleteKey"
 	Daemon_DeleteAllKeys_FullMethodName              = "/com.seed.daemon.v1alpha.Daemon/DeleteAllKeys"
 	Daemon_StoreBlobs_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/StoreBlobs"
@@ -102,8 +101,6 @@ type DaemonClient interface {
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
 	ListKeys(ctx context.Context, in *ListKeysRequest, opts ...grpc.CallOption) (*ListKeysResponse, error)
-	// Updates the existing key.
-	UpdateKey(ctx context.Context, in *UpdateKeyRequest, opts ...grpc.CallOption) (*NamedKey, error)
 	// Deletes a key from the underlying key store.
 	DeleteKey(ctx context.Context, in *DeleteKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Deletes all Seed keys from the underlying key store.
@@ -323,16 +320,6 @@ func (c *daemonClient) ListKeys(ctx context.Context, in *ListKeysRequest, opts .
 	return out, nil
 }
 
-func (c *daemonClient) UpdateKey(ctx context.Context, in *UpdateKeyRequest, opts ...grpc.CallOption) (*NamedKey, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(NamedKey)
-	err := c.cc.Invoke(ctx, Daemon_UpdateKey_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *daemonClient) DeleteKey(ctx context.Context, in *DeleteKeyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -474,8 +461,6 @@ type DaemonServer interface {
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
 	ListKeys(context.Context, *ListKeysRequest) (*ListKeysResponse, error)
-	// Updates the existing key.
-	UpdateKey(context.Context, *UpdateKeyRequest) (*NamedKey, error)
 	// Deletes a key from the underlying key store.
 	DeleteKey(context.Context, *DeleteKeyRequest) (*emptypb.Empty, error)
 	// Deletes all Seed keys from the underlying key store.
@@ -560,9 +545,6 @@ func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequ
 }
 func (UnimplementedDaemonServer) ListKeys(context.Context, *ListKeysRequest) (*ListKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListKeys not implemented")
-}
-func (UnimplementedDaemonServer) UpdateKey(context.Context, *UpdateKeyRequest) (*NamedKey, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateKey not implemented")
 }
 func (UnimplementedDaemonServer) DeleteKey(context.Context, *DeleteKeyRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteKey not implemented")
@@ -953,24 +935,6 @@ func _Daemon_ListKeys_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Daemon_UpdateKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateKeyRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DaemonServer).UpdateKey(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Daemon_UpdateKey_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServer).UpdateKey(ctx, req.(*UpdateKeyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Daemon_DeleteKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteKeyRequest)
 	if err := dec(in); err != nil {
@@ -1215,10 +1179,6 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListKeys",
 			Handler:    _Daemon_ListKeys_Handler,
-		},
-		{
-			MethodName: "UpdateKey",
-			Handler:    _Daemon_UpdateKey_Handler,
 		},
 		{
 			MethodName: "DeleteKey",

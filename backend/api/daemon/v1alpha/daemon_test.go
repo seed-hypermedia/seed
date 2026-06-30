@@ -303,7 +303,6 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 
 	resp, err := srv.RegisterKey(ctx, &daemon.RegisterKeyRequest{
-		Name:       "main",
 		Mnemonic:   testMnemonic,
 		Passphrase: testPassphrase,
 	})
@@ -311,10 +310,10 @@ func TestRegister(t *testing.T) {
 	require.Equal(t, "z6MkujA2tVCu6hcYvnuehpVZuhijVXNAqHgk3rpYtsgxebeb", resp.PublicKey)
 
 	_, err = srv.RegisterKey(ctx, &daemon.RegisterKeyRequest{
-		Name:     "main",
-		Mnemonic: testMnemonic,
+		Mnemonic:   testMnemonic,
+		Passphrase: testPassphrase,
 	})
-	require.Error(t, err, "calling Register more than once must fail")
+	require.Error(t, err, "registering the same key (same principal) again must fail")
 
 	stat, ok := status.FromError(err)
 	require.True(t, ok)
@@ -338,13 +337,11 @@ func TestImportKey(t *testing.T) {
 
 	resp, err := srv.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath})
 	require.NoError(t, err)
-	require.NotEmpty(t, resp.AccountId)
-	require.Equal(t, resp.AccountId, resp.Name)
-	require.Equal(t, resp.AccountId, resp.PublicKey)
+	require.NotEmpty(t, resp.PublicKey)
 
-	stored, err := srv.store.KeyStore().GetKey(ctx, resp.AccountId)
+	stored, err := srv.store.KeyStore().GetKey(ctx, resp.PublicKey)
 	require.NoError(t, err)
-	require.Equal(t, resp.AccountId, stored.PublicKey.String())
+	require.Equal(t, resp.PublicKey, stored.PublicKey.String())
 
 	t.Run("duplicate import", func(t *testing.T) {
 		_, err := srv.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath})
@@ -439,7 +436,7 @@ func TestImportKey(t *testing.T) {
 
 		resp, err := encryptedSrv.ImportKey(encryptedCtx, &daemon.ImportKeyRequest{FilePath: path, Password: password})
 		require.NoError(t, err)
-		require.NotEmpty(t, resp.AccountId)
+		require.NotEmpty(t, resp.PublicKey)
 	})
 
 	t.Run("encrypted file missing password", func(t *testing.T) {
@@ -503,8 +500,8 @@ func TestExportKey(t *testing.T) {
 		filePath := filepath.Join(t.TempDir(), "plaintext.hmkey.json")
 
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "main",
-			FilePath: filePath,
+			PublicKey: "main",
+			FilePath:  filePath,
 		})
 		require.NoError(t, err)
 
@@ -523,9 +520,9 @@ func TestExportKey(t *testing.T) {
 		password := "correct horse battery staple"
 
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "main",
-			FilePath: filePath,
-			Password: password,
+			PublicKey: "main",
+			FilePath:  filePath,
+			Password:  password,
 		})
 		require.NoError(t, err)
 
@@ -555,8 +552,8 @@ func TestExportKey(t *testing.T) {
 
 	t.Run("missing key", func(t *testing.T) {
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "unknown",
-			FilePath: filepath.Join(t.TempDir(), "missing-key.hmkey.json"),
+			PublicKey: "unknown",
+			FilePath:  filepath.Join(t.TempDir(), "missing-key.hmkey.json"),
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -566,8 +563,8 @@ func TestExportKey(t *testing.T) {
 
 	t.Run("relative path", func(t *testing.T) {
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "main",
-			FilePath: "relative.hmkey.json",
+			PublicKey: "main",
+			FilePath:  "relative.hmkey.json",
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -577,8 +574,8 @@ func TestExportKey(t *testing.T) {
 
 	t.Run("wrong file suffix", func(t *testing.T) {
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "main",
-			FilePath: filepath.Join(t.TempDir(), "wrong.json"),
+			PublicKey: "main",
+			FilePath:  filepath.Join(t.TempDir(), "wrong.json"),
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -588,8 +585,8 @@ func TestExportKey(t *testing.T) {
 
 	t.Run("missing parent directory", func(t *testing.T) {
 		_, err := srv.ExportKey(ctx, &daemon.ExportKeyRequest{
-			Name:     "main",
-			FilePath: filepath.Join(t.TempDir(), "missing", "dir.hmkey.json"),
+			PublicKey: "main",
+			FilePath:  filepath.Join(t.TempDir(), "missing", "dir.hmkey.json"),
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -610,8 +607,8 @@ func TestSignData(t *testing.T) {
 	// Test successful signing
 	testData := []byte("hello world")
 	resp, err := srv.SignData(ctx, &daemon.SignDataRequest{
-		SigningKeyName: "main",
-		Data:           testData,
+		SigningKey: "main",
+		Data:       testData,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -630,7 +627,7 @@ func TestSignData(t *testing.T) {
 
 	t.Run("missing data", func(t *testing.T) {
 		_, err := srv.SignData(ctx, &daemon.SignDataRequest{
-			SigningKeyName: "main",
+			SigningKey: "main",
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)
@@ -640,8 +637,8 @@ func TestSignData(t *testing.T) {
 
 	t.Run("non-existent key", func(t *testing.T) {
 		_, err := srv.SignData(ctx, &daemon.SignDataRequest{
-			SigningKeyName: "non-existent-key",
-			Data:           testData,
+			SigningKey: "non-existent-key",
+			Data:       testData,
 		})
 		require.Error(t, err)
 		stat, ok := status.FromError(err)

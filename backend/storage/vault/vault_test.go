@@ -91,8 +91,7 @@ func TestRemote(t *testing.T) {
 		"main":   kp.Principal(),
 		"second": kp2.Principal(),
 	}, principalsByName)
-	require.NoError(t, ks.ChangeKeyName(ctx, "main", "renamed"))
-	require.NoError(t, ks.DeleteKey(ctx, "renamed"))
+	require.NoError(t, ks.DeleteKey(ctx, "main"))
 	require.NoError(t, ks.DeleteAllKeys(ctx))
 
 	keys, err = ks.ListKeys(ctx)
@@ -104,7 +103,7 @@ func TestRemote(t *testing.T) {
 	require.NotNil(t, envelope)
 	require.NotNil(t, envelope.Remote)
 	require.Equal(t, remoteURL, envelope.Remote.VaultURL)
-	require.Equal(t, 5, envelope.Remote.LocalVersion)
+	require.Equal(t, 4, envelope.Remote.LocalVersion)
 }
 
 func TestRemoteDeleteKeyRecordsTombstone(t *testing.T) {

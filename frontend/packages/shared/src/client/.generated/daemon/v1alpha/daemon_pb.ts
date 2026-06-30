@@ -364,14 +364,6 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
    */
   passphrase = "";
 
-  /**
-   * Required. Private name/label for the signing key, to easily identify keys when they are more than one.
-   * Name must be unique across all the registered keys.
-   *
-   * @generated from field: string name = 3;
-   */
-  name = "";
-
   constructor(data?: PartialMessage<RegisterKeyRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -382,7 +374,6 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "mnemonic", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 2, name: "passphrase", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegisterKeyRequest {
@@ -458,11 +449,11 @@ export class ImportKeyRequest extends Message<ImportKeyRequest> {
  */
 export class ExportKeyRequest extends Message<ExportKeyRequest> {
   /**
-   * Required. Name of the key to export.
+   * Required. Public key (Multikey) of the key to export.
    *
-   * @generated from field: string name = 1;
+   * @generated from field: string public_key = 1;
    */
-  name = "";
+  publicKey = "";
 
   /**
    * Required. Absolute path to a .hmkey.json key export file.
@@ -486,7 +477,7 @@ export class ExportKeyRequest extends Message<ExportKeyRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.ExportKeyRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "public_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "file_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
@@ -1497,66 +1488,17 @@ export class ListKeysResponse extends Message<ListKeysResponse> {
 }
 
 /**
- * Request to change the key name.
- *
- * @generated from message com.seed.daemon.v1alpha.UpdateKeyRequest
- */
-export class UpdateKeyRequest extends Message<UpdateKeyRequest> {
-  /**
-   * Current name of the key.
-   *
-   * @generated from field: string current_name = 1;
-   */
-  currentName = "";
-
-  /**
-   * New name for the key.
-   *
-   * @generated from field: string new_name = 2;
-   */
-  newName = "";
-
-  constructor(data?: PartialMessage<UpdateKeyRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.UpdateKeyRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "current_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "new_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined, b: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateKeyRequest, a, b);
-  }
-}
-
-/**
  * Request to delete an existing key.
  *
  * @generated from message com.seed.daemon.v1alpha.DeleteKeyRequest
  */
 export class DeleteKeyRequest extends Message<DeleteKeyRequest> {
   /**
-   * Name of the key to delete.
+   * Public key (Multikey) of the key to delete.
    *
-   * @generated from field: string name = 1;
+   * @generated from field: string public_key = 1;
    */
-  name = "";
+  publicKey = "";
 
   constructor(data?: PartialMessage<DeleteKeyRequest>) {
     super();
@@ -1566,7 +1508,7 @@ export class DeleteKeyRequest extends Message<DeleteKeyRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.DeleteKeyRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "public_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteKeyRequest {
@@ -1677,11 +1619,11 @@ export class StoreBlobsResponse extends Message<StoreBlobsResponse> {
  */
 export class SignDataRequest extends Message<SignDataRequest> {
   /**
-   * Required. Name of the signing key to use for signing.
+   * Required. Public key (Multikey) of the signing key to use for signing.
    *
-   * @generated from field: string signing_key_name = 1;
+   * @generated from field: string signing_key = 1;
    */
-  signingKeyName = "";
+  signingKey = "";
 
   /**
    * Required. Data to be signed.
@@ -1698,7 +1640,7 @@ export class SignDataRequest extends Message<SignDataRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.SignDataRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "signing_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
   ]);
 
@@ -2131,26 +2073,12 @@ export class Task extends Message<Task> {
  */
 export class NamedKey extends Message<NamedKey> {
   /**
-   * Public key in Multikey format.
+   * Public key in Multikey format. This is the sole identifier for a key.
    * https://www.w3.org/TR/vc-data-integrity/#multikey.
    *
    * @generated from field: string public_key = 1;
    */
   publicKey = "";
-
-  /**
-   * Private name for the key. Useful to identify the keys when there're more than one.
-   *
-   * @generated from field: string name = 2;
-   */
-  name = "";
-
-  /**
-   * Account ID representation of this key.
-   *
-   * @generated from field: string account_id = 3;
-   */
-  accountId = "";
 
   constructor(data?: PartialMessage<NamedKey>) {
     super();
@@ -2161,8 +2089,6 @@ export class NamedKey extends Message<NamedKey> {
   static readonly typeName = "com.seed.daemon.v1alpha.NamedKey";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "public_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NamedKey {

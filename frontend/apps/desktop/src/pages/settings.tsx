@@ -772,7 +772,7 @@ function AccountKeys() {
 
   const selectedKey = keys.data?.find((key) => key.publicKey === selectedAccount)
 
-  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedKey?.name)
+  const {data: mnemonics, refetch: mnemonicsRefetch} = useSavedMnemonics(selectedKey?.publicKey)
 
   const selectedAccountId = selectedAccount ? hmId(selectedAccount) : undefined
 
@@ -793,10 +793,10 @@ function AccountKeys() {
   }, [keys.data])
 
   useEffect(() => {
-    if (selectedKey?.name) {
+    if (selectedKey?.publicKey) {
       mnemonicsRefetch()
     }
-  }, [mnemonicsRefetch, selectedKey?.name])
+  }, [mnemonicsRefetch, selectedKey?.publicKey])
 
   function handleDeleteCurrentAccount() {
     if (!selectedAccount) return
@@ -817,7 +817,7 @@ function AccountKeys() {
       if (!filePath) return
 
       await exportKey.mutateAsync({
-        name: selectedKey.name,
+        publicKey: selectedKey.publicKey,
         filePath,
         password: exportPassword.length > 0 ? exportPassword : undefined,
       })
@@ -978,7 +978,7 @@ function AccountKeys() {
                               <Button
                                 variant="destructive"
                                 onClick={() =>
-                                  deleteWords.mutateAsync(selectedKey?.name || selectedAccount).then(() => {
+                                  deleteWords.mutateAsync(selectedKey?.publicKey || selectedAccount).then(() => {
                                     toast.success('Words deleted!')
                                     invalidateQueries([queryKeys.SECURE_STORAGE])
                                   })

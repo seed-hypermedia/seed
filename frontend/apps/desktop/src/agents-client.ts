@@ -165,7 +165,7 @@ function createDaemonSigner(accountUid: string): blobs.Signer {
   return {
     principal,
     sign: async (data: Uint8Array) => {
-      const result = await grpcClient.daemon.signData({signingKeyName: accountUid, data: new Uint8Array(data)})
+      const result = await grpcClient.daemon.signData({signingKey: accountUid, data: new Uint8Array(data)})
       return new Uint8Array(result.signature)
     },
   }

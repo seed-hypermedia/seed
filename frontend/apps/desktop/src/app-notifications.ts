@@ -122,32 +122,14 @@ async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise
   return host
 }
 
-// Cache of accountUid (public key) -> daemon key name for signing. The daemon
-// signs by key NAME, which is not necessarily the public key (e.g. imported
-// keys keep their original name), so we must resolve it.
-const signingKeyNameCache = new Map<string, string>()
-
-async function resolveSigningKeyName(accountUid: string): Promise<string> {
-  const cached = signingKeyNameCache.get(accountUid)
-  if (cached) return cached
-  try {
-    const {keys} = await grpcClient.daemon.listKeys({})
-    const match = keys.find((key) => key.publicKey === accountUid)
-    const name = match?.name || accountUid
-    signingKeyNameCache.set(accountUid, name)
-    return name
-  } catch {
-    return accountUid
-  }
-}
-
 function buildDesktopSigner(accountUid: string): NotificationSigner {
   return {
     publicKey: Uint8Array.from(base58btc.decode(accountUid)),
     sign: async (data: Uint8Array) => {
-      const signingKeyName = await resolveSigningKeyName(accountUid)
+      // Keys are identified by their public key (principal), so sign directly
+      // with the accountUid — no name resolution needed.
       const signed = await grpcClient.daemon.signData({
-        signingKeyName,
+        signingKey: accountUid,
         data: Uint8Array.from(data),
       })
       return Uint8Array.from(signed.signature)
@@ -382,7 +364,6 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
     log.error('🔔 NOTIFY SYNC remote-state', {
       accountUid,
       host,
-      signingKeyName: signingKeyNameCache.get(accountUid) ?? '(unresolved)',
       localBefore: {email: localConfigBefore.email, verifiedTime: localConfigBefore.verifiedTime},
       remote: {email: remoteState.config.email, verifiedTime: remoteState.config.verifiedTime},
       pendingActions: getOrCreateAccountState(accountUid).pendingActions.map((a) => a.type),

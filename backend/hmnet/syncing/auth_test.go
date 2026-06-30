@@ -94,10 +94,6 @@ func (f *fakeAuthKeyStore) DeleteAllKeys(context.Context) error {
 	panic("unexpected DeleteAllKeys call")
 }
 
-func (f *fakeAuthKeyStore) ChangeKeyName(context.Context, string, string) error {
-	panic("unexpected ChangeKeyName call")
-}
-
 func (f *fakeAuthKeyStore) ListKeyPairs(context.Context) ([]core.NamedKeyPair, error) {
 	f.listKeyPairsCalls++
 	return f.keyPairs, nil

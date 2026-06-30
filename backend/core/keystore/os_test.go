@@ -57,16 +57,11 @@ func TestOS(t *testing.T) {
 		"keyName":        kp.Principal(),
 		"anotherKeyName": kp2.Principal(),
 	}, principalsByName)
-	require.Error(t, ks.ChangeKeyName(ctx, "wrongKeyName", "someName"))
-	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "changedName"))
-	emptyKey, err = ks.GetKey(ctx, "keyName")
-	require.Error(t, err)
-	require.Empty(t, emptyKey)
-	key, err = ks.GetKey(ctx, "changedName")
+	key, err = ks.GetKey(ctx, "keyName")
 	require.NoError(t, err)
 	require.Equal(t, kp, key)
 	require.Error(t, ks.DeleteKey(ctx, "wrongKeyName"))
-	require.NoError(t, ks.DeleteKey(ctx, "changedName"))
+	require.NoError(t, ks.DeleteKey(ctx, "keyName"))
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 1)

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -228,17 +228,6 @@ export const Daemon = {
       name: "ListKeys",
       I: ListKeysRequest,
       O: ListKeysResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Updates the existing key.
-     *
-     * @generated from rpc com.seed.daemon.v1alpha.Daemon.UpdateKey
-     */
-    updateKey: {
-      name: "UpdateKey",
-      I: UpdateKeyRequest,
-      O: NamedKey,
       kind: MethodKind.Unary,
     },
     /**

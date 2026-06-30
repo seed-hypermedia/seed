@@ -84,16 +84,6 @@ func (s *stubKeyStore) DeleteAllKeys(_ context.Context) error {
 	return nil
 }
 
-func (s *stubKeyStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	kp, ok := s.keys[currentName]
-	if !ok {
-		return fmt.Errorf("missing key %q", currentName)
-	}
-	delete(s.keys, currentName)
-	s.keys[newName] = kp
-	return nil
-}
-
 func TestNewProductionLoadsKeysAndMigratesLegacyKeys(t *testing.T) {
 	ctx := context.Background()
 	dataDir := t.TempDir()

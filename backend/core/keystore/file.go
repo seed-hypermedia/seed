@@ -164,27 +164,3 @@ func (fks *fileStore) DeleteKey(_ context.Context, name string) error {
 	delete(collection, name)
 	return fks.writeCollection(collection)
 }
-
-func (fks *fileStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
-
-	if !nameFormat.MatchString(newName) {
-		return fmt.Errorf("invalid new name format")
-	}
-
-	collection, err := fks.readCollection()
-	if err != nil {
-		return err
-	}
-
-	privBytes, ok := collection[currentName]
-	if !ok {
-		return errKeyNotFound
-	}
-
-	delete(collection, currentName)
-	collection[newName] = privBytes
-	return fks.writeCollection(collection)
-}

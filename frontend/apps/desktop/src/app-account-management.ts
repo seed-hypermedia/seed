@@ -26,22 +26,21 @@ export async function deleteAccount(accountId: string) {
     }
 
     log.info('Found key to delete', {
-      keyName: keyToDelete.name,
-      accountId: keyToDelete.accountId,
+      publicKey: keyToDelete.publicKey,
     })
     const deletedAccountId = keyToDelete.publicKey
-    const deletedAccountIds = new Set([keyToDelete.publicKey, keyToDelete.accountId].filter(Boolean))
+    const deletedAccountIds = new Set([keyToDelete.publicKey].filter(Boolean))
 
-    // Delete the key from daemon
+    // Delete the key from daemon (identified by its public key).
     const deletedKey = await grpcClient.daemon.deleteKey({
-      name: keyToDelete.name,
+      publicKey: keyToDelete.publicKey,
     })
 
     // Delete from secure storage
     const {secureStorageApi} = await import('./app-secure-storage')
     // We need to create a TRPC caller to use the secure storage API
     const secureStorageCaller = secureStorageApi.createCaller({})
-    await secureStorageCaller.delete(keyToDelete.name)
+    await secureStorageCaller.delete(keyToDelete.publicKey)
 
     // Get remaining available keys after deletion
     const updatedKeysResponse = await grpcClient.daemon.listKeys({})

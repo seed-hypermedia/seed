@@ -11,7 +11,6 @@ type KeyStore interface {
 	ListKeys(ctx context.Context) ([]NamedKey, error)
 	DeleteKey(ctx context.Context, name string) error
 	DeleteAllKeys(ctx context.Context) error
-	ChangeKeyName(ctx context.Context, currentName, newName string) error
 	ListKeyPairs(ctx context.Context) ([]NamedKeyPair, error)
 }
 

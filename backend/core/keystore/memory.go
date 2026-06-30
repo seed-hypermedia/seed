@@ -53,11 +53,3 @@ func (mks *memoryStore) DeleteAllKeys(_ context.Context) error {
 	mks.keys = map[string]*core.KeyPair{}
 	return nil
 }
-
-func (mks *memoryStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	if key, exists := mks.keys[currentName]; exists {
-		mks.keys[newName] = key
-		delete(mks.keys, currentName)
-	}
-	return nil
-}

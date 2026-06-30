@@ -246,46 +246,6 @@ func (ks *osStore) DeleteKey(_ context.Context, name string) error {
 	return keyring.Set(ks.serviceName, collectionName, string(b))
 }
 
-func (ks *osStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
-
-	if !nameFormat.MatchString(newName) {
-		return fmt.Errorf("invalid new name format")
-	}
-
-	secret, err := keyring.Get(ks.serviceName, collectionName)
-	if err != nil {
-		return errEmptyEnvironment
-	}
-
-	decoded, err := decodeKeyringSecret(secret)
-	if err != nil {
-		return err
-	}
-
-	collection := keyCollection{}
-	if err := json.Unmarshal([]byte(decoded), &collection); err != nil {
-		return err
-	}
-
-	privBytes, ok := collection[currentName]
-	if !ok {
-		return errKeyNotFound
-	}
-
-	delete(collection, currentName)
-	collection[newName] = privBytes
-
-	b, err := json.Marshal(collection)
-	if err != nil {
-		return err
-	}
-
-	return keyring.Set(ks.serviceName, collectionName, string(b))
-}
-
 // decodeKeyringSecret handles keyring values that may be stored in either
 // plain text or with a "go-keyring-base64:" prefix (as written by the Seed CLI).
 // It returns the decoded string suitable for JSON unmarshaling.

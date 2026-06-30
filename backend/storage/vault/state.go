@@ -263,6 +263,24 @@ func findAccountIndexByName(accounts []AccountInfo, name string) int {
 	return -1
 }
 
+// findAccountIndexByPrincipal returns the index of the account whose principal
+// (public key / account ID) equals the given identifier, or -1. A key's name is
+// not guaranteed to equal its principal, so callers holding a principal must
+// resolve via this. Accounts with an unusable seed are skipped.
+func findAccountIndexByPrincipal(accounts []AccountInfo, principal string) int {
+	for idx, account := range accounts {
+		id, err := accountIDFromAccount(account)
+		if err != nil {
+			continue
+		}
+		if id == principal {
+			return idx
+		}
+	}
+
+	return -1
+}
+
 func recordAccountDeletion(state *State, accountID string, deleteTime int64) {
 	if state == nil || strings.TrimSpace(accountID) == "" || deleteTime == 0 {
 		return

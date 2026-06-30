@@ -83,20 +83,20 @@ async function computeDesiredSubscriptions(): Promise<Set<string>> {
     desired.add(defaultJoinedSiteUid)
   }
   for (const key of keys.keys) {
-    desired.add(key.accountId)
+    desired.add(key.publicKey)
   }
 
   // For each local key, add contacts with subscriptions
   for (const key of keys.keys) {
     try {
-      const contacts = await fetchContactsForAccount(key.accountId)
+      const contacts = await fetchContactsForAccount(key.publicKey)
       for (const contact of contacts) {
         if (shouldSubscribeToContact(contact)) {
           desired.add(contact.subject)
         }
       }
     } catch (e) {
-      logger.error(`Failed to fetch contacts for ${key.accountId}: ${(e as Error).message}`)
+      logger.error(`Failed to fetch contacts for ${key.publicKey}: ${(e as Error).message}`)
     }
   }
 

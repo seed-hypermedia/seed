@@ -101,15 +101,12 @@ func TestLocal(t *testing.T) {
 		"second": kp2.Principal(),
 	}, principalsByName)
 
-	require.NoError(t, ks.ChangeKeyName(ctx, "main", "renamed"))
-	_, err = ks.GetKey(ctx, "main")
-	require.Error(t, err)
-	got, err = ks.GetKey(ctx, "renamed")
+	got, err = ks.GetKey(ctx, "main")
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), got.Principal())
 
 	require.Error(t, ks.DeleteKey(ctx, "missing"))
-	require.NoError(t, ks.DeleteKey(ctx, "renamed"))
+	require.NoError(t, ks.DeleteKey(ctx, "main"))
 
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)

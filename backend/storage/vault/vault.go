@@ -602,6 +602,12 @@ func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
 		accountIdx := findAccountIndexByName(state.Accounts, name)
 		if accountIdx < 0 {
+			// A key's name is not guaranteed to equal its principal (imported or
+			// renamed keys), and callers pass a principal as the identifier, so
+			// fall back to resolving by principal. Never rely on name == principal.
+			accountIdx = findAccountIndexByPrincipal(state.Accounts, name)
+		}
+		if accountIdx < 0 {
 			return false, errLocalKeyNotFound
 		}
 
@@ -640,37 +646,6 @@ func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
 			recordAccountDeletion(state, deleteKey, deleteTime)
 		}
 		state.Accounts = []AccountInfo{}
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-	if shouldSync {
-		ks.scheduleRemoteSync()
-	}
-
-	return nil
-}
-
-// ChangeKeyName renames a stored key and schedules remote sync when remote mode is active.
-func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
-	if !localKeyNameFormat.MatchString(newName) {
-		return fmt.Errorf("invalid new name format")
-	}
-
-	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
-		accountIdx := findAccountIndexByName(state.Accounts, currentName)
-		if accountIdx < 0 {
-			return false, errLocalKeyNotFound
-		}
-		if _, exists := findAccountByName(state.Accounts, newName); exists {
-			return false, fmt.Errorf("name already exists, delete it first")
-		}
-
-		state.Accounts[accountIdx].Name = newName
 		return true, nil
 	})
 	if err != nil {
