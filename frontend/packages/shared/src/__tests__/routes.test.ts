@@ -354,11 +354,28 @@ describe('navRouteSchema', () => {
   test('parses the api inspector route', () => {
     expect(navRouteSchema.parse({key: 'api-inspector'})).toEqual({key: 'api-inspector'})
   })
+
+  test('parses the graph inspector tab', () => {
+    expect(navRouteSchema.parse({key: 'inspect', id: testDocId, inspectTab: 'graph'})).toEqual({
+      key: 'inspect',
+      id: testDocId,
+      inspectTab: 'graph',
+    })
+  })
 })
 
 describe('createRouteFromInspectNavRoute', () => {
   test('opens document changes via the activity route', () => {
     expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'changes')).toEqual({
+      key: 'activity',
+      id: testDocId,
+      filterEventType: ['Ref'],
+      panel: null,
+    })
+  })
+
+  test('opens document graph via the versions activity route', () => {
+    expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'graph')).toEqual({
       key: 'activity',
       id: testDocId,
       filterEventType: ['Ref'],
@@ -549,6 +566,11 @@ describe('routeToHref', () => {
     test('inspect route supports explorer parity tabs in query params', () => {
       const href = routeToHref({key: 'inspect', id: hmId('uid1'), inspectTab: 'versions'}, {originHomeId: originHome})
       expect(href).toBe('/inspect?tab=versions')
+    })
+
+    test('inspect route supports graph tabs in query params', () => {
+      const href = routeToHref({key: 'inspect', id: hmId('uid1'), inspectTab: 'graph'}, {originHomeId: originHome})
+      expect(href).toBe('/inspect?tab=graph')
     })
 
     test('inspect ipfs route generates inspect ipfs href', () => {

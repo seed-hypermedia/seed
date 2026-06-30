@@ -32,11 +32,23 @@ import {activityFilterToSlug, getCommentTargetId} from '@shm/shared/utils/entity
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from './button'
 import {DataViewer} from './data-viewer'
+import {DocumentVersionGraphView} from './document-version-graph-view'
 import {DocumentTools} from './document-tools'
 import {InspectorShell} from './inspector-shell'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {Spinner} from './spinner'
-import {FileText, Folder, History, LucideIcon, MessageSquare, MessagesSquare, Quote, Shield, Users} from 'lucide-react'
+import {
+  FileText,
+  Folder,
+  GitGraph,
+  History,
+  LucideIcon,
+  MessageSquare,
+  MessagesSquare,
+  Quote,
+  Shield,
+  Users,
+} from 'lucide-react'
 import {ReactNode, useCallback, useMemo} from 'react'
 import type {InspectTab} from '@shm/shared/routes'
 
@@ -170,6 +182,7 @@ function InspectorContent({
 
   const isLoading =
     (resource.type === 'document' && inspectTab === 'changes' && inspectData.changes.isLoading) ||
+    (resource.type === 'document' && inspectTab === 'graph' && inspectData.changes.isLoading) ||
     (inspectTab === 'versions' && inspectData.commentVersions.isLoading) ||
     (inspectTab === 'comments' && inspectData.commentsQuery.isLoading) ||
     (inspectTab === 'citations' && inspectData.citations.isLoading) ||
@@ -196,6 +209,12 @@ function InspectorContent({
         <div className="flex items-center justify-center py-8">
           <Spinner />
         </div>
+      ) : resource.type === 'document' && inspectTab === 'graph' ? (
+        <DocumentVersionGraphView
+          changes={inspectData.changes.data?.changes}
+          latestVersion={inspectData.changes.data?.latestVersion}
+          docId={docId}
+        />
       ) : Array.isArray(inspectPayload) && inspectPayload.length === 0 ? (
         <div className="text-muted-foreground text-sm">{emptyMessage}</div>
       ) : (
@@ -328,6 +347,13 @@ function getInspectToolTabs(
       icon: History,
       count: inspectData.changes.data?.changes?.length,
     })
+    tabs.push({
+      tab: 'graph',
+      label: 'Graph',
+      tooltip: 'Inspect document version graph',
+      icon: GitGraph,
+      count: inspectData.changes.data?.changes?.length,
+    })
   }
 
   if (isComment || route.targetOpenComment) {
@@ -428,6 +454,8 @@ function getInspectPayload(
     switch (inspectTab) {
       case 'changes':
         return prepareInspectChangesData(inspectData.changes.data?.changes, docId)
+      case 'graph':
+        return prepareInspectChangesData(inspectData.changes.data?.changes, docId)
       case 'versions':
         return prepareInspectCommentVersionsData(inspectData.commentVersions.data?.versions)
       case 'comments':
@@ -470,6 +498,8 @@ function getInspectEmptyMessage(
   switch (inspectTab) {
     case 'changes':
       return 'No changes found.'
+    case 'graph':
+      return 'No changes found.'
     case 'versions':
       return 'No comment versions found.'
     case 'comments':
@@ -511,7 +541,7 @@ function getInspectorOpenTarget(
 
   const openRoute = createRouteFromInspectNavRoute(route, route.inspectTab)
 
-  if (route.inspectTab === 'changes') {
+  if (route.inspectTab === 'changes' || route.inspectTab === 'graph') {
     return {label: 'Open Document Versions', route: openRoute}
   }
   if (route.inspectTab === 'citations') {

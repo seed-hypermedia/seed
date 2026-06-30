@@ -130,6 +130,14 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
+  test('converts graph inspector tabs from URL query params', () => {
+    expect(hypermediaUrlToRoute('hm://inspect/uid1?tab=graph')).toEqual({
+      key: 'inspect',
+      id: unpackHmId('hm://uid1'),
+      inspectTab: 'graph',
+    })
+  })
+
   test('converts an inspect ipfs URL into an inspect ipfs route', () => {
     expect(hypermediaUrlToRoute('hm://inspect/ipfs/bafy123/path/to/node')).toEqual({
       key: 'inspect-ipfs',

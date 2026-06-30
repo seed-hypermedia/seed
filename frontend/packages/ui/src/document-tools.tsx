@@ -12,6 +12,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {
   FileText,
   Folder,
+  GitGraph,
   History,
   LucideIcon,
   MessageSquare,
@@ -141,6 +142,12 @@ export function DocumentTools({
               label: 'Changes',
               tooltip: 'Inspect Document Changes',
               icon: History,
+            },
+            {
+              tab: 'graph' as const,
+              label: 'Graph',
+              tooltip: 'Inspect Document Version Graph',
+              icon: GitGraph,
             },
             {
               tab: 'comments' as const,

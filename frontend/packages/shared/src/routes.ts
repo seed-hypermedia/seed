@@ -59,6 +59,7 @@ const inspectTargetViewSchema = z.enum(INSPECT_TARGET_VIEW_KEYS).optional()
 export const INSPECT_TABS = [
   'document',
   'changes',
+  'graph',
   'versions',
   'comments',
   'citations',
@@ -610,6 +611,7 @@ export function createInspectIpfsNavRoute(ipfsPath: string): InspectIpfsRoute {
 export function createRouteFromInspectNavRoute(route: InspectRoute, inspectTab?: InspectTab | null): NavRoute {
   switch (inspectTab) {
     case 'changes':
+    case 'graph':
       return {
         key: 'activity',
         id: route.id,
