@@ -38,8 +38,20 @@ foundation (value editor, `raw-blob` route, publish path, `.dagjson` daemon endp
 
 ## Status
 
-**Phase: implementation (phase 1 — schema core).** Research and planning are done;
-see [`plan.md`](./plan.md) for live task status. One notable planning outcome: there
-is **no separate schema-editor page** — a schema is an instance of a published
-meta-schema, so the schema editor is the blob editor with the meta-schema attached
-(see the decision table in [`architecture.md`](./architecture.md)).
+**Phases 1–3 implemented and committed; phase 4 (hardening) in progress.** See
+[`plan.md`](./plan.md) for live task status. One notable planning outcome: there
+is **no separate schema-editor page** — a schema is an instance of the built-in
+meta-schema, so the schema editor is the blob editor in schema mode (see the
+decision table in [`architecture.md`](./architecture.md)).
+
+Quick tour of what works now (desktop):
+- Document options → **New Schema** opens the blob editor pre-linked to the
+  meta-schema; author `type`/`properties`/`required`/`enum`/`kind` fields with
+  suggestions; **Publish** stores the schema (and the meta-schema) and shows its
+  `ipfs://` URL.
+- On a published schema, the options menu offers **New Instance of this Schema** —
+  a new blob pre-shaped by defaults and required fields, `schema` link set.
+- Any object blob: options → **Attach Schema…**, paste a schema CID/URL. The editor
+  then shows advisory warning badges, enum selects, required-field chips, and key
+  suggestions. Non-conforming data is kept as-is, always editable, always
+  publishable.

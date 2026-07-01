@@ -2,71 +2,93 @@
 
 Source of truth for progress. Status values: `todo` / `in progress` / `review` / `done`.
 
-## Phase 1 — Schema core (pure logic) — `in progress`
+## Phase 1 — Schema core (pure logic) — `done`
 
-New module `frontend/packages/ui/src/blob-schema.ts` + tests. No React, no IO.
-Everything below is unit-testable in isolation.
+`frontend/packages/ui/src/blob-schema.ts` + 61 tests in
+`__tests__/blob-schema.test.ts`. Delivered as planned:
 
-- [ ] Dialect TS types (`BlobSchema`, `Warning`) per [`schema-dialect.md`](./schema-dialect.md)
-- [ ] `resolveSubschema(root, path, registry)` — properties/items walker, internal
-      `#/$defs` refs (cycle-guarded), external link refs via registry
-- [ ] `collectSchemaRefs(schema)` — transitive external ref CIDs for prefetch
-- [ ] `validateValue(value, schema, registry) → Warning[]` — multi-error, advisory,
-      unknown keywords ignored, `kind` via `isDagJsonLink`/`isDagJsonBytes`
-- [ ] `instantiateSchema(schema, registry)` — defaults, required seeding, enum heads
-- [ ] `isSchemaBlob(value)` + `BLOB_META_SCHEMA` + `BLOB_META_SCHEMA_CID`
-      (test asserts the CID constant matches the encoded meta-schema)
-- [ ] Tests: `packages/ui/src/__tests__/blob-schema.test.ts` covering every keyword,
-      ref cycles, unresolved refs, kind mismatches, bigint/precision tolerance
+- [x] Dialect TS types (`BlobSchema`, `SchemaWarning`, `SchemaRegistry`)
+- [x] `resolveSubschema` — properties/items walker; internal `#/…` JSON-pointer
+      refs (cycle-guarded via visited set, cycles → `'unresolved'`); external
+      link refs via registry; ref-chain roots tracked so pointers resolve within
+      the blob the ref appears in
+- [x] `collectSchemaRefs` — external `$ref` + `targetSchema` CIDs, transitive
+      through present registry entries (callers fetch iteratively)
+- [x] `validateValue` — multi-error, advisory, never throws, depth-guarded,
+      unknown/malformed keywords ignored, bigint-tolerant numbers
+- [x] `instantiateSchema` — default → const → enum[0] → per-type zero values;
+      required-only object seeding; link/bytes omitted (can't be fabricated)
+- [x] `isSchemaBlob`, `BLOB_META_SCHEMA`, `BLOB_META_SCHEMA_CID`
+      (`bafyreialsztuxfggquxs4vskfz44kqcmbchtdb6i2fscupnbywzc4l4x5m`; a test
+      recomputes the CID from the encoded value so drift is impossible)
 
-## Phase 2 — Schema-aware value editor — `todo`
+## Phase 2 — Schema-aware value editor — `done`
 
-`frontend/packages/ui/src/` — SchemaContext + surgical touches to `value-editor.tsx`.
-Must not regress schemaless editing (all consumption optional).
+- [x] `blob-schema-context.tsx`: `BlobSchemaProvider` (memo-stable, separate
+      from ValueEditorProvider) computes warnings once per committed change,
+      keyed by pathId; hooks: `useSubschema`, `useSchemaWarnings`,
+      `useBlobSchema`, `useSchemaWarningCount`. The reserved `schema` key is
+      excluded from warnings.
+- [x] `value-editor-schema.tsx`: `SchemaWarningBadge` (amber, tooltip),
+      `EnumValueSelect`, `suggestedFieldType`, `useSchemaFieldSuggestions`,
+      `SchemaFieldChips`
+- [x] Badges on `FieldRow`/`ListItemRow`
+- [x] Enum → select for **string** leaves whose value is an enum member
+      (non-members keep free text + warning; number enums deferred)
+- [x] `AddFieldForm`: `path` prop; "Schema fields:" suggestion chips set
+      key + type; list add pre-selects the items type
+- [x] `SchemaFieldChips` in `ObjectEditor`: instant-add for **required**
+      missing fields with instantiated values (optional fields live in the add
+      form's suggestions; link/bytes always go through the form)
+- [x] All additive — schemaless editing unchanged; full ui suite passes (224)
 
-- [ ] `SchemaContext` (separate from ValueEditorProvider, memo-stable value):
-      `subschemaAtPath`, `warningsByPath`
-- [ ] Warning badges on `FieldRow`/`ListItemRow` (amber, tooltip, never gating)
-- [ ] Enum → select for string/number leaves (member values only; never coerce)
-- [ ] `AddFieldForm`: add `path` prop; key suggestions from `properties`; type
-      pre-selection; options reordered not restricted
-- [ ] Required-but-missing "Add ‹name›" chips in `ObjectEditor`
-- [ ] Root warnings recompute on committed changes; positional-path invalidation on
-      structural edits
+Deviation from plan: the add-form's type Select options are not reordered by
+schema — the suggestion chips pre-select the type instead, which is clearer.
 
-## Phase 3 — Page & route integration (desktop) — `todo`
+## Phase 3 — Page & route integration (desktop) — `done`
 
-- [ ] `rawBlobRouteSchema` gains optional `schemaCid`; `getRouteKey` includes it
-- [ ] `useSchemaRegistry(cid)` model: fetch schema + transitive refs (retry treatment
-      matching the existing blob-searching loop)
-- [ ] Attach/detach schema UX in `raw-blob.tsx` (paste `ipfs://` URL / CID,
-      validate codec 0x71, set `value.schema` via normal undoable update)
-- [ ] Schema mode: detection via `isSchemaBlob`, "Schema" chrome, meta-schema
-      attached for authoring, **New instance** action (published schemas only)
-- [ ] New-instance seeding from `schemaCid` route param (`instantiateSchema` +
-      `schema` link)
-- [ ] "New Schema" menu item next to "New Blob" (`desktop-resource.tsx`)
-- [ ] Meta-schema auto-published alongside any schema publish (same `PublishBlobs`
-      call)
-- [ ] Warnings summary banner near the CID line; publish never blocked
-- [ ] Forbid `"/"` property names in schema authoring
+- [x] `rawBlobRouteSchema.schemaCid` + mount-key separation (`getRouteKey`)
+- [x] `useSchemaRegistry` (desktop model): useQueries over the iteratively
+      discovered ref closure, same cache keys as `useCID`, 15s refetch for
+      still-missing blobs, `isComplete` signal
+- [x] Attach/Change Schema: inline bar from the options menu; accepts CID or
+      `ipfs://` URL, requires DAG-CBOR codec; sets `value.schema` via the
+      normal undoable update. Detach = remove the field like any other.
+- [x] Schema mode: `isSchemaBlob` detection; the meta-schema is **built into
+      the app** and never fetched (bootstrap: it can't link itself, and it must
+      work before ever being published); "New Instance of this Schema" menu
+      action on published schemas
+- [x] New-instance seeding from `schemaCid` (`NewInstanceEditor`):
+      `instantiateSchema` + `schema` link; non-object starters fall back to
+      `{schema}` only
+- [x] "New Schema" menu item = new instance of the meta-schema
+- [x] Meta-schema published alongside any schema publish (same `PublishBlobs`
+      call; pinned-CID drift test runs the exact publish pipeline)
+- [x] `SchemaStatusRow`: schema identity + open button, loading state,
+      "N fields don't match the schema — kept as-is" / "Matches schema";
+      publish never blocked
+- [ ] Forbid `"/"` property names in schema authoring (still open — currently
+      only documented)
 
-## Phase 4 — Hardening & docs — `todo`
+## Phase 4 — Hardening & docs — `in progress`
 
-- [ ] Adversarial review pass: fresh agents hunting data-loss paths ("can schema
-      state ever block/destroy user data?") and validator wrong-warning cases
-- [ ] Tests: desktop encode round-trip of a schema-linked instance; route param
-      tests; schema-mode detection tests
-- [ ] Decide/implement mitigation for the daemon indexer `"type"+KnownType`
-      byte-match collision (client-side pre-publish check at minimum)
-- [ ] Update all docs in this dir to as-built state; add a user-facing walkthrough
+- [ ] Adversarial review workflow: data-loss paths, validator wrong-warnings,
+      React correctness (hook rules, effect loops in useSchemaRegistry),
+      publish-path correctness
+- [x] Tests: schema-linked instance encode round-trip; meta-schema pinned CID
+      through the publish pipeline; new-schema starter recognized by
+      `isSchemaBlob`; route param tests (shared)
+- [ ] Manual/verify pass in the running app
+- [ ] Daemon indexer `"type"+KnownType` byte-match collision mitigation
+      (client-side pre-publish check at minimum)
+- [ ] Final docs sweep to as-built state; user-facing walkthrough
 
 ## Deliberately out of scope (v1)
 
 - `oneOf`/`anyOf`/`allOf`, conditionals, type arrays, `format` (see dialect doc)
-- Deep `targetSchema` validation (hint-only: UI labels + create-linked-blob)
+- Number-enum selects (string enums only; number enums still validate)
+- Deep `targetSchema` validation (hint-only)
 - Schema support in the metadata editor (tombstone/null semantics conflict)
 - A dedicated `schema-editor` route (schema mode lives in `raw-blob`)
-- Web surface for the blob/schema editor (primitives all work on web already)
-- Export converter to portable vanilla JSON Schema (`{"/": cid} ⇄ ipfs://` strings,
-  `kind` → structural form) — designed in the dialect doc, build when needed
+- Web surface for the blob/schema editor
+- Export converter to portable vanilla JSON Schema
