@@ -10,7 +10,7 @@ import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
+import {CBOR_VALUE_RULES, useValueHistory, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import {Braces, Check, Copy, Search, UploadCloud} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -123,6 +123,20 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const [jsonMode, setJsonMode] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
 
+  const history = useValueHistory(value)
+  const update = (newValue: unknown) => {
+    history.record()
+    setValue(newValue)
+  }
+  const handleUndo = () => {
+    const snapshot = history.undo()
+    if (snapshot) setValue(snapshot.value)
+  }
+  const handleRedo = () => {
+    const snapshot = history.redo()
+    if (snapshot) setValue(snapshot.value)
+  }
+
   const isDirty = useMemo(() => JSON.stringify(value) !== JSON.stringify(initialValue), [value, initialValue])
   const canPublish = (!cid || isDirty) && !isPublishing
 
@@ -171,7 +185,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   }
 
   return (
-    <>
+    <ValueEditorProvider onUndo={handleUndo} onRedo={handleRedo}>
       <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm md:top-4 md:right-4">
         {canPublish && (
           <Button variant="default" size="sm" disabled={isPublishing} onClick={publish}>
@@ -202,19 +216,17 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
             <BlobJsonMode
               value={value}
               onApply={(next) => {
-                setValue(next)
+                update(next)
                 setJsonMode(false)
               }}
               onCancel={() => setJsonMode(false)}
             />
           ) : (
-            <ValueEditorProvider>
-              <ValueEditor value={value} onValue={setValue} rules={CBOR_VALUE_RULES} />
-            </ValueEditorProvider>
+            <ValueEditor value={value} onValue={update} rules={CBOR_VALUE_RULES} />
           )}
         </div>
       </div>
-    </>
+    </ValueEditorProvider>
   )
 }
 
