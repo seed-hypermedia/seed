@@ -81,7 +81,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Copy, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
+import {Braces, Copy, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -846,6 +846,13 @@ export default function DesktopResourcePage() {
     label: 'All Documents',
     icon: <LayoutList className="size-4" />,
     onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
+  })
+
+  menuItems.push({
+    key: 'new-raw-blob',
+    label: 'New Blob',
+    icon: <Braces className="size-4" />,
+    onClick: () => navigate({key: 'raw-blob'}),
   })
 
   // Publish / Unpublish site options (only for home documents)
