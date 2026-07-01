@@ -39,16 +39,13 @@ inline session:
 2. **Schema-aware value editor**: thread a schema context through the recursive
    editor — constrained add-field picker, enum selects, required hints, warning
    badges. Must not regress schemaless editing.
-3. **Schema editor page**: new desktop route + page for authoring schemas (itself a
-   schema-aware value-editor instance — the dialect has a meta-schema), publish flow,
-   "create instance" action.
-4. **Blob editor integration**: attach-schema-by-URL UI, `schema` link field
-   handling, fetching the schema blob, validation warnings, new-instance route
-   parameters.
+3. **Page & route integration**: schema mode in the `raw-blob` page (research
+   killed the separate schema-editor route — see `architecture.md`), attach-schema
+   UX, schema-graph fetching, new-instance route param, "New Schema" menu entry.
 
-Tracks 2–4 depend on 1; 2 and 3 can run in parallel after 1. Adversarial review
-passes (fresh agents told to break the validator / find data-loss paths) run before
-each track merges.
+Tracks 2–3 depend on 1 and run sequentially (both touch the editor/page seam).
+Adversarial review passes (fresh agents told to break the validator / find
+data-loss paths) run in a final hardening phase.
 
 ## Commit strategy
 

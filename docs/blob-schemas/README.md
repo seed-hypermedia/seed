@@ -38,6 +38,8 @@ foundation (value editor, `raw-blob` route, publish path, `.dagjson` daemon endp
 
 ## Status
 
-**Phase: research.** A multi-agent research workflow is mapping the value editor
-internals, publish path, routing, validation ecosystem, and prior art. Architecture
-and dialect docs land when it completes.
+**Phase: implementation (phase 1 — schema core).** Research and planning are done;
+see [`plan.md`](./plan.md) for live task status. One notable planning outcome: there
+is **no separate schema-editor page** — a schema is an instance of a published
+meta-schema, so the schema editor is the blob editor with the meta-schema attached
+(see the decision table in [`architecture.md`](./architecture.md)).
