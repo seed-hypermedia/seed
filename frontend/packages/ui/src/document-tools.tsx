@@ -14,6 +14,7 @@ import {
   Folder,
   GitGraph,
   History,
+  Info,
   LucideIcon,
   MessageSquare,
   MessagesSquare,
@@ -42,7 +43,7 @@ export function DocumentTools({
   rightAction,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata'
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
@@ -248,6 +249,18 @@ export function DocumentTools({
               panel: panelFor(),
             },
           },
+          // Hidden tab: only shown while the metadata view is active (opened from the options menu)
+          ...(activeTab === 'metadata'
+            ? [
+                {
+                  label: 'Metadata',
+                  tooltip: 'Open Document Metadata',
+                  icon: Info,
+                  active: true,
+                  route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
+                },
+              ]
+            : []),
         ]
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =

@@ -600,6 +600,17 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:comments')
   })
 
+  test('metadata route includes :metadata viewTerm', () => {
+    const url = routeToUrl(
+      {
+        key: 'metadata',
+        id: hmId('uid1'),
+      },
+      {hostname: 'https://gw.com'},
+    )
+    expect(url).toBe('https://gw.com/hm/uid1/:metadata')
+  })
+
   test('comments route with openComment includes commentId in path', () => {
     const url = routeToUrl(
       {
@@ -826,6 +837,11 @@ describe('extractViewTermFromUrl', () => {
   test('extracts :comments view term', () => {
     const result = extractViewTermFromUrl('https://site.com/path/:comments')
     expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':comments'})
+  })
+
+  test('extracts :metadata view term', () => {
+    const result = extractViewTermFromUrl('https://site.com/path/:metadata')
+    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':metadata'})
   })
 
   test('extracts :comments/UID/TSID pattern', () => {

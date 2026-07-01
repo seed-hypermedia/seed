@@ -49,6 +49,7 @@ export const VIEW_TERMS = [
   ':directory',
   ':feed',
   ':all-documents',
+  ':metadata',
   ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
@@ -61,6 +62,7 @@ export type ViewRouteKey =
   | 'directory'
   | 'feed'
   | 'all-documents'
+  | 'metadata'
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
@@ -164,6 +166,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':directory': 'directory',
     ':feed': 'feed',
     ':all-documents': 'all-documents',
+    ':metadata': 'metadata',
     ':profile': 'profile',
     ':membership': 'membership',
     ':followers': 'followers',
@@ -511,6 +514,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
       route.key === 'comments' ||
       route.key === 'collaborators' ||
       route.key === 'directory' ||
+      route.key === 'metadata' ||
       route.key === 'feed') &&
     route.panel
   ) {
@@ -569,7 +573,8 @@ export function routeToUrl(
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
     // View-term routes use /:viewTerm in the path
     let viewTermPath = `:${route.key}`
@@ -644,7 +649,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
     let viewTermPath = `:${route.key}`
     if (route.key === 'activity') {
@@ -697,7 +703,8 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
     return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
   }
