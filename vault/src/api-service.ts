@@ -186,6 +186,7 @@ export class Service implements api.ServerInterface {
   private sessions: sess.Store
   private backendHttpBaseUrl: string
   private notificationServerUrl: string
+  private webBaseUrl: string
   private grpcClient: MinimalGRPCClient
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
@@ -194,6 +195,7 @@ export class Service implements api.ServerInterface {
     db: Database,
     backendHttpBaseUrl: string,
     notificationServerUrl: string,
+    webBaseUrl: string,
     grpcClient: MinimalGRPCClient,
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
@@ -203,6 +205,7 @@ export class Service implements api.ServerInterface {
     this.sessions = new sess.Store(db)
     this.backendHttpBaseUrl = backendHttpBaseUrl
     this.notificationServerUrl = notificationServerUrl
+    this.webBaseUrl = webBaseUrl
     this.grpcClient = grpcClient
     this.rp = rp
     this.hmacSecret = hmacSecret
@@ -459,6 +462,7 @@ export class Service implements api.ServerInterface {
     return {
       backendHttpBaseUrl: this.backendHttpBaseUrl,
       notificationServerUrl: this.notificationServerUrl,
+      webBaseUrl: this.webBaseUrl,
     }
   }
 
@@ -612,20 +616,21 @@ export class Service implements api.ServerInterface {
    * Add the authenticated user's password credential.
    */
   async addPassword(req: api.AddPasswordRequest, ctx: api.ServerContext): Promise<api.AddPasswordResponse> {
-    const session = this.requireCookieSession(ctx)
+    // Accept a browser cookie session or a daemon secret-credential bearer.
+    const access = this.requireVaultAccess(ctx)
 
     if (!req.wrappedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
-    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
     if (!user) {
       throw new APIError('User not found', 404)
     }
 
     const existing = this.db
       .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
-      .get(session.user_id, 'password')
+      .get(access.userId, 'password')
 
     if (existing) {
       throw new APIError('Password already set', 409)
@@ -638,14 +643,7 @@ export class Service implements api.ServerInterface {
 
     this.db.run(
       `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        sess.randomId(),
-        session.user_id,
-        'password',
-        base64.decode(req.wrappedDEK),
-        JSON.stringify(metadata),
-        Date.now(),
-      ],
+      [sess.randomId(), access.userId, 'password', base64.decode(req.wrappedDEK), JSON.stringify(metadata), Date.now()],
     )
 
     return {success: true}
@@ -655,20 +653,21 @@ export class Service implements api.ServerInterface {
    * Change the authenticated user's password credential.
    */
   async changePassword(req: api.ChangePasswordRequest, ctx: api.ServerContext): Promise<api.ChangePasswordResponse> {
-    const session = this.requireCookieSession(ctx)
+    // Accept a browser cookie session or a daemon secret-credential bearer.
+    const access = this.requireVaultAccess(ctx)
 
     if (!req.wrappedDEK || !req.authKey || !req.salt) {
       throw new APIError('Missing required fields', 400)
     }
 
-    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
     if (!user) {
       throw new APIError('User not found', 404)
     }
 
     const existing = this.db
       .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
-      .get(session.user_id, 'password')
+      .get(access.userId, 'password')
 
     if (!existing) {
       throw new APIError('Password not set', 409)
@@ -951,14 +950,11 @@ export class Service implements api.ServerInterface {
     req: api.ChangeEmailStartRequest,
     ctx: api.ServerContext,
   ): Promise<api.ChangeEmailStartResponse> {
-    if (!ctx.sessionId) {
-      throw new APIError('Not authenticated', 401)
-    }
-
-    const session = this.sessions.getSession(ctx.sessionId)
-    if (!session) {
-      throw new APIError('Session expired', 401)
-    }
+    // Accept either a browser cookie session or a daemon secret-credential
+    // bearer. For the bearer flow there is no cookie, so the binding is returned
+    // to the caller (which must send it back on verify).
+    const access = this.requireVaultAccess(ctx)
+    const isDaemon = !!ctx.bearerAuth
 
     this.cleanupExpiredChallenges()
 
@@ -978,7 +974,7 @@ export class Service implements api.ServerInterface {
     }
 
     // Get current user email for reference in the challenge.
-    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
 
     if (!user) {
       throw new APIError('User not found', 404)
@@ -1024,6 +1020,17 @@ export class Service implements api.ServerInterface {
       throw error
     }
 
+    if (isDaemon) {
+      // No browser cookie available; hand the binding back to the daemon, which
+      // must present it on verify (same anti-phishing guarantee as the cookie).
+      return {
+        message: 'Verification code sent to new email',
+        expireTime,
+        resendAllowedTime,
+        binding,
+      }
+    }
+
     ctx.outboundEmailChallengeCookie = cookies.createEmailCookieHeader(
       cookies.encodeEmailCookieValue({binding, email: user.email, newEmail: normalizedNewEmail}),
       EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS,
@@ -1042,6 +1049,11 @@ export class Service implements api.ServerInterface {
     ctx: api.ServerContext,
   ): Promise<api.ChangeEmailVerifyResponse> {
     assertEmailCode(req.code)
+
+    // Daemon bearer flow carries the binding in the request instead of a cookie.
+    if (ctx.bearerAuth) {
+      return this.changeEmailVerifyDaemon(req, ctx)
+    }
 
     const session = this.requireCookieSession(ctx)
     const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
@@ -1101,6 +1113,82 @@ export class Service implements api.ServerInterface {
       verified: true,
       newEmail: normalizedNewEmail,
     }
+  }
+
+  /**
+   * Daemon/bearer variant of email-change verify. The binding (returned by
+   * changeEmailStart) is supplied in the request instead of an httpOnly cookie.
+   * Mirrors the browser verify checks: same binding-hash + code-hash validation,
+   * attempt limiting, and availability re-check.
+   */
+  private async changeEmailVerifyDaemon(
+    req: api.ChangeEmailVerifyRequest,
+    ctx: api.ServerContext,
+  ): Promise<api.ChangeEmailVerifyResponse> {
+    const access = this.requireSecretCredentialAccess(ctx.bearerAuth!)
+    if (!req.binding || typeof req.binding !== 'string') {
+      throw new APIError('Verification binding required', 400)
+    }
+    const binding = req.binding
+
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
+    if (!user) {
+      throw new APIError('User not found', 404)
+    }
+
+    this.cleanupExpiredChallenges()
+
+    const challengeRow = this.db
+      .query<Challenge, [string, number]>(`SELECT * FROM email_challenges WHERE email = ? AND expire_time > ?`)
+      .get(user.email, Date.now())
+
+    if (
+      !challengeRow ||
+      challengeRow.new_email === null ||
+      !timingSafeEqual(base64.decode(challengeRow.binding_hash), hashEmailBinding(binding))
+    ) {
+      throw new APIError('Invalid or expired verification code', 400)
+    }
+
+    const normalizedNewEmail = normalizeEmail(challengeRow.new_email)
+    const expectedCodeHash = base64.decode(challengeRow.code_hash)
+    const providedCodeHash = hashEmailCode(binding, req.code, user.email, normalizedNewEmail)
+    if (!timingSafeEqual(providedCodeHash, expectedCodeHash)) {
+      const attempts = challengeRow.attempt_count + 1
+      if (attempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+        this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+      } else {
+        this.db.run(`UPDATE email_challenges SET attempt_count = ? WHERE email = ?`, [attempts, user.email])
+      }
+      throw new APIError('Invalid or expired verification code', 400)
+    }
+
+    const existingUser = this.db
+      .query<{id: string}, [string, string]>(`SELECT id FROM users WHERE email = ? AND id != ?`)
+      .get(normalizedNewEmail, access.userId)
+
+    if (existingUser) {
+      this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+      throw new APIError('Email already in use', 409)
+    }
+
+    this.db.run(`UPDATE users SET email = ? WHERE id = ?`, [normalizedNewEmail, access.userId])
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [user.email])
+
+    return {
+      verified: true,
+      newEmail: normalizedNewEmail,
+    }
+  }
+
+  /** Returns the current vault user email. Accepts bearer or cookie auth. */
+  async getVaultEmail(ctx: api.ServerContext): Promise<api.GetVaultEmailResponse> {
+    const access = this.requireVaultAccess(ctx)
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(access.userId)
+    if (!user) {
+      throw new APIError('User not found', 404)
+    }
+    return {email: user.email}
   }
 
   // ==========================================================================

@@ -7,11 +7,7 @@ import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState} from './store'
-import {AddPasswordView} from './views/AddPasswordView'
-import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
-import {ChangeEmailView} from './views/ChangeEmailView'
-import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
-import {ChangePasswordView} from './views/ChangePasswordView'
+import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
@@ -19,7 +15,6 @@ import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
 import {SetPasswordView} from './views/SetPasswordView'
-import {VaultView} from './views/VaultView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
 /**
@@ -130,9 +125,13 @@ function hasVaultConnectionFragment() {
   return params.has('token') || params.has('callback')
 }
 
+/** How often the unlocked vault polls the server for changes made elsewhere. */
+const VAULT_REFRESH_POLL_MS = 15_000
+
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
+  const isUnlocked = !!useAppState().decryptedDEK
 
   useEffect(() => {
     void actions.checkSession().catch((error) => {
@@ -141,6 +140,15 @@ export function RootLayout() {
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
   }, [actions])
+
+  // While unlocked, poll for vault data changed on other devices (e.g. desktop).
+  useEffect(() => {
+    if (!isUnlocked) return
+    const intervalId = window.setInterval(() => {
+      void actions.refreshVaultData()
+    }, VAULT_REFRESH_POLL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [isUnlocked, actions])
 
   return (
     <>
@@ -175,7 +183,7 @@ function RootView() {
 
     return (
       <div className="w-full max-w-5xl">
-        <VaultView />
+        <AccountSettingsView />
       </div>
     )
   }
@@ -259,28 +267,8 @@ export function createRouter() {
                 element: <EnsureUnlocked />,
                 children: [
                   {
-                    path: '/password/add',
-                    element: <AddPasswordView />,
-                  },
-                  {
-                    path: '/password/change',
-                    element: <ChangePasswordView />,
-                  },
-                  {
                     path: '/profile/create',
                     element: <CreateProfileView />,
-                  },
-                  {
-                    path: '/email/change',
-                    element: <ChangeEmailView />,
-                  },
-                  {
-                    path: '/notify-server/change',
-                    element: <ChangeNotifyServerUrlView />,
-                  },
-                  {
-                    path: '/email/change-pending',
-                    element: <ChangeEmailPendingView />,
                   },
                   {
                     path: '/delegate',
@@ -298,7 +286,7 @@ export function createRouter() {
                 children: [
                   {
                     path: '/settings',
-                    element: <VaultView initialTab="settings" />,
+                    element: <AccountSettingsView />,
                   },
                 ],
               },

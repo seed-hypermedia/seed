@@ -1,8 +1,6 @@
-import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
-import {Button} from '@/frontend/components/ui/button'
 import * as notificationApi from '@/frontend/notification-api'
 import * as blobs from '@shm/shared/blobs'
-import {AlertTriangle, Loader2} from 'lucide-react'
+import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
 import {useEffect, useState} from 'react'
 
 type AccountNotificationsSectionProps = {
@@ -54,7 +52,6 @@ export function AccountNotificationsSection({
   const [registrationSyncDeadline, setRegistrationSyncDeadline] = useState(0)
   const hasNotificationServer = Boolean(notificationServerUrl)
   const hasNotificationRegistration = Boolean(notificationConfig?.isRegistered || notificationConfig?.email)
-  const hasNotificationEmail = Boolean(notificationConfig?.email)
   const hasPendingVerification = Boolean(notificationConfig?.email && !notificationConfig?.verifiedTime)
   const isRegisteringNotificationSetup = notificationStatus === 'registering'
   const notificationServerLabel = getNotificationServerLabel(notificationServerUrl)
@@ -194,8 +191,9 @@ export function AccountNotificationsSection({
     }
   }
 
-  async function handleSetEmail() {
-    if (!notificationServerUrl || !normalizedSessionEmail) {
+  async function handleSetEmail(targetEmail: string) {
+    const nextEmail = targetEmail.trim()
+    if (!notificationServerUrl || !nextEmail) {
       return
     }
 
@@ -206,7 +204,7 @@ export function AccountNotificationsSection({
       if (!notificationConfig?.isRegistered) {
         await notificationApi.registerNotificationInbox(notificationServerUrl, kp)
       }
-      const config = await notificationApi.setNotificationConfig(notificationServerUrl, kp, normalizedSessionEmail)
+      const config = await notificationApi.setNotificationConfig(notificationServerUrl, kp, nextEmail)
       setNotificationConfig(config)
       setNotificationStatus('ready')
       setRegistrationSyncDeadline(0)
@@ -238,85 +236,23 @@ export function AccountNotificationsSection({
   }
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-medium">Notifications</h3>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-muted-foreground mt-1 text-sm">
-            {!hasNotificationServer
-              ? 'Configure a notification server in vault settings before registering this account.'
-              : isRegisteringNotificationSetup
-                ? `Registering this account with ${notificationServerLabel}.`
-                : !hasNotificationRegistration
-                  ? `Register this account to receive notifications from ${notificationServerLabel}.`
-                  : `This account is registered with ${notificationServerLabel}.`}
-          </p>
-          {hasNotificationServer &&
-          hasNotificationRegistration &&
-          !hasNotificationEmail &&
-          !isRegisteringNotificationSetup ? (
-            <Button
-              size="sm"
-              onClick={handleSetEmail}
-              loading={notificationStatus === 'saving-email'}
-              disabled={disabled || !normalizedSessionEmail}
-            >
-              Set Notification Email
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      {hasNotificationServer && notificationStatusMessage ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="size-4 animate-spin" />
-          <p>{notificationStatusMessage}</p>
-        </div>
-      ) : null}
-
-      {hasNotificationServer && !hasNotificationRegistration && !isRegisteringNotificationSetup ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRegister}
-          disabled={disabled || notificationStatus === 'loading'}
-        >
-          Register Account
-        </Button>
-      ) : null}
-
-      {hasNotificationServer && hasNotificationRegistration ? (
-        hasNotificationEmail ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{notificationConfig?.email}</p>
-              {!notificationConfig?.verifiedTime ? (
-                <p className="text-muted-foreground mt-1 text-xs">Verification pending</p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRemoveEmail}
-                loading={notificationStatus === 'removing-email'}
-              >
-                Remove Email
-              </Button>
-            </div>
-          </div>
-        ) : null
-      ) : null}
-
-      {notificationError ? (
-        <Alert variant="destructive">
-          <AlertTriangle />
-          <AlertTitle>Notification Update Failed</AlertTitle>
-          <AlertDescription>
-            <p>{notificationError}</p>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-    </div>
+    <NotificationEmailSettings
+      serverLabel={hasNotificationServer ? notificationServerLabel : null}
+      isRegistered={hasNotificationRegistration}
+      loading={notificationStatus === 'loading' && !notificationConfig}
+      email={notificationConfig?.email ?? null}
+      isVerified={Boolean(notificationConfig?.verifiedTime)}
+      needsVerification={hasPendingVerification}
+      statusMessage={hasNotificationServer && notificationStatusMessage ? notificationStatusMessage : undefined}
+      error={notificationError || null}
+      defaultEmail={normalizedSessionEmail}
+      disabled={disabled}
+      registering={isRegisteringNotificationSetup}
+      saving={notificationStatus === 'saving-email'}
+      removing={notificationStatus === 'removing-email'}
+      onRegister={handleRegister}
+      onSetEmail={handleSetEmail}
+      onRemoveEmail={handleRemoveEmail}
+    />
   )
 }

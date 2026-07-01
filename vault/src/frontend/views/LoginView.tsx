@@ -1,4 +1,5 @@
 import type React from 'react'
+import {useEffect, useState} from 'react'
 import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import * as navigation from '@/frontend/navigation'
@@ -15,6 +16,18 @@ export function LoginView() {
     useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
+
+  const hasPasskeyOption = passkeySupported && userHasPasskey
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+
+  // The master-password form is shown directly when there's no passkey to try,
+  // and otherwise behind a fallback the user can reveal — or that appears
+  // automatically when a passkey attempt fails.
+  const passwordVisible = userHasPassword && (!hasPasskeyOption || showPasswordForm)
+
+  useEffect(() => {
+    if (error && userHasPassword) setShowPasswordForm(true)
+  }, [error, userHasPassword])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -34,16 +47,26 @@ export function LoginView() {
       <CardContent>
         <ErrorMessage message={error} />
 
-        {passkeySupported && userHasPasskey && (
+        {hasPasskeyOption && (
           <>
             <Button variant="secondary" onClick={actions.handlePasskeyLogin} loading={loading} className="w-full">
               🔑 Sign in with Passkey
             </Button>
-            {userHasPassword && <Divider>or</Divider>}
+            {userHasPassword && !passwordVisible && (
+              <Button
+                variant="ghost"
+                className="mt-2 w-full"
+                disabled={loading}
+                onClick={() => setShowPasswordForm(true)}
+              >
+                Enter master password instead
+              </Button>
+            )}
+            {passwordVisible && <Divider>or</Divider>}
           </>
         )}
 
-        {userHasPassword && (
+        {passwordVisible && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <input type="text" name="username" value={email} autoComplete="username" className="hidden" readOnly />
             <PasswordInput
@@ -52,7 +75,7 @@ export function LoginView() {
               value={password}
               onChange={actions.setPassword}
               autoComplete="current-password"
-              autoFocus={!passkeySupported || !userHasPasskey}
+              autoFocus={!hasPasskeyOption || showPasswordForm}
             />
 
             <Button type="submit" loading={loading} className="w-full">

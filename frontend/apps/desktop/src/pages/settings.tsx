@@ -26,25 +26,13 @@ import {
   useUpdateProvider,
 } from '@/models/ai-config'
 import {useAutoUpdatePreference} from '@/models/app-settings'
-import {
-  useDaemonInfo,
-  useDeleteKey,
-  useDisconnectVault,
-  useExportKey,
-  useForceVaultSync,
-  useListKeys,
-  useSavedMnemonics,
-  useStartVaultConnection,
-  useVaultStatus,
-} from '@/models/daemon'
+import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
-  useNotifyServiceHost,
   usePushOnCopy,
   usePushOnPublish,
   useSetGatewayUrl,
-  useSetNotifyServiceHost,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
@@ -60,10 +48,8 @@ import {
 } from '@/openai-models'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
 import {useUniversalAppContext} from '@shm/shared'
-import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
-import {COMMIT_HASH, DAEMON_HTTP_URL, LIGHTNING_API_URL, SEED_HOST_URL, VERSION} from '@shm/shared/constants'
+import {COMMIT_HASH, LIGHTNING_API_URL, SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -532,7 +518,6 @@ function GeneralSettings() {
           }
         />
       </SettingsCard>
-      <VaultBackendSettings />
       <SettingsCard label="HISTORY">
         <SettingsRow
           label="Clear all your recent document search history."
@@ -642,189 +627,6 @@ function ClearHistoryButton() {
     >
       Clear history
     </Button>
-  )
-}
-
-export function VaultBackendSettings() {
-  const openUrl = useOpenUrl()
-  const vaultStatus = useVaultStatus()
-  const startVaultConnection = useStartVaultConnection()
-  const disconnectVault = useDisconnectVault()
-  const forceVaultSync = useForceVaultSync()
-  const id = useId()
-  const gatewayUrl = useGatewayUrl().data || 'https://hyper.media'
-  const [selectedMode, setSelectedMode] = useState<'local' | 'remote'>('local')
-  const [remoteVaultURL, setRemoteVaultURL] = useState(gatewayUrl + '/vault')
-  const [vaultConnectURL, setVaultConnectURL] = useState('')
-
-  useEffect(() => {
-    setSelectedMode(vaultStatus.data?.backendMode === VaultBackendMode.REMOTE ? 'remote' : 'local')
-  }, [vaultStatus.data?.backendMode])
-
-  useEffect(() => {
-    if (vaultStatus.data?.remoteVaultUrl) {
-      setRemoteVaultURL(vaultStatus.data.remoteVaultUrl)
-    }
-  }, [vaultStatus.data?.remoteVaultUrl])
-
-  const connectionState =
-    vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED ? 'connected' : 'disconnected'
-  const syncStatus = vaultStatus.data?.syncStatus
-  const isPending = startVaultConnection.isPending || disconnectVault.isPending || forceVaultSync.isPending
-
-  const handleDisconnect = async () => {
-    try {
-      await disconnectVault.mutateAsync()
-      setSelectedMode('local')
-      toast.success('Remote vault disconnected')
-      return true
-    } catch (error) {
-      toast.error('Failed to disconnect remote vault: ' + (error instanceof Error ? error.message : String(error)))
-      return false
-    }
-  }
-
-  const handleModeChange = async (nextMode: 'local' | 'remote') => {
-    setSelectedMode(nextMode)
-    if (nextMode === 'remote') return
-    const daemonMode = vaultStatus.data?.backendMode === VaultBackendMode.REMOTE ? 'remote' : 'local'
-    if (daemonMode === 'remote' || connectionState === 'connected') {
-      const disconnected = await handleDisconnect()
-      if (!disconnected) setSelectedMode('remote')
-    }
-  }
-
-  const handleStartConnection = async () => {
-    let normalizedVaultURL = ''
-    try {
-      normalizedVaultURL = normalizeVaultOriginURL(remoteVaultURL, 'vault URL')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid vault URL')
-      return
-    }
-    try {
-      const vaultConnect = await startVaultConnection.mutateAsync({
-        vaultUrl: normalizedVaultURL,
-        force: true,
-      })
-      const browserURL = buildVaultConnectionURL(vaultConnect.vaultUrl, vaultConnect.connectToken, DAEMON_HTTP_URL)
-      setVaultConnectURL(browserURL)
-      openUrl(browserURL)
-      toast.success('Opened Vault Connect. Complete sign-in, then return here.')
-    } catch (error) {
-      toast.error('Failed to start vault connection: ' + (error instanceof Error ? error.message : String(error)))
-    }
-  }
-
-  const handleForceSync = async () => {
-    try {
-      await forceVaultSync.mutateAsync()
-      toast.success('Sync completed')
-    } catch (error) {
-      toast.error('Sync failed: ' + (error instanceof Error ? error.message : String(error)))
-    }
-  }
-
-  return (
-    <SettingsCard label="VAULT">
-      <SettingsRow
-        label="Identity Key Storage Mode"
-        description={
-          selectedMode === 'remote'
-            ? 'Your encrypted vault syncs remotely for multi-device continuity.'
-            : 'Your encrypted vault is stored on this device only.'
-        }
-        right={
-          <RadioGroup
-            value={selectedMode}
-            onValueChange={(value) => {
-              const nextMode = value === 'remote' ? 'remote' : 'local'
-              void handleModeChange(nextMode)
-            }}
-            className="flex items-center gap-4"
-          >
-            <div className="flex items-center gap-1.5">
-              <RadioGroupItem value="local" id={`${id}-vault-backend-local`} disabled={isPending} />
-              <Label htmlFor={`${id}-vault-backend-local`} className="text-sm">
-                Local
-              </Label>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <RadioGroupItem value="remote" id={`${id}-vault-backend-remote`} disabled={isPending} />
-              <Label htmlFor={`${id}-vault-backend-remote`} className="text-sm">
-                Remote
-              </Label>
-            </div>
-          </RadioGroup>
-        }
-      />
-      {selectedMode === 'remote' && (
-        <>
-          <SettingsRow
-            label="Remote Vault URL"
-            right={
-              <Input
-                id="vault-remote-url"
-                value={remoteVaultURL}
-                onChange={(e) => setRemoteVaultURL(e.currentTarget.value)}
-                placeholder="Vault server URL…"
-                disabled={isPending}
-                className="w-[260px]"
-              />
-            }
-          />
-          <SettingsRow
-            label="Connection"
-            description={
-              connectionState === 'connected'
-                ? `Connected to ${vaultStatus.data?.remoteVaultUrl || 'remote vault'}.`
-                : 'Not connected. Open the Vault Connect to sign in.'
-            }
-            right={
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={handleStartConnection} disabled={isPending || !remoteVaultURL.trim()}>
-                  {connectionState === 'connected' ? 'Reconnect' : 'Connect Vault'}
-                </Button>
-                {connectionState === 'connected' && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={handleForceSync} disabled={isPending}>
-                      Sync Now
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleDisconnect} disabled={isPending}>
-                      Disconnect
-                    </Button>
-                  </>
-                )}
-              </div>
-            }
-          />
-          {vaultConnectURL && (
-            <SettingsRow
-              label="Vault Connect URL"
-              description="Use this URL if you need to continue in another browser."
-              right={
-                <div className="flex items-center gap-2">
-                  <Input id="vault-connect-url" value={vaultConnectURL} readOnly className="w-[360px]" />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    aria-label="Copy Vault Connect URL"
-                    title="Copy Vault Connect URL"
-                    onClick={() => {
-                      copyTextToClipboard(vaultConnectURL)
-                      toast.success('Vault Connect URL copied')
-                    }}
-                  >
-                    <Copy className="size-4" />
-                  </Button>
-                </div>
-              }
-            />
-          )}
-          {syncStatus?.lastSyncError && <SettingsRow label="Sync Error" description={syncStatus.lastSyncError} />}
-        </>
-      )}
-    </SettingsCard>
   )
 }
 
@@ -1334,12 +1136,9 @@ const EXPERIMENTS: ExperimentType[] = []
 
 function GatewaySettings() {
   const gatewayUrl = useGatewayUrl()
-  const notifyServiceHost = useNotifyServiceHost()
 
   const setGatewayUrl = useSetGatewayUrl()
-  const setNotifyServiceHost = useSetNotifyServiceHost()
   const [gwUrl, setGWUrl] = useState('')
-  const [notifyHost, setNotifyHost] = useState('')
 
   useEffect(() => {
     if (gatewayUrl.data) {
@@ -1347,14 +1146,7 @@ function GatewaySettings() {
     }
   }, [gatewayUrl.data])
 
-  useEffect(() => {
-    if (notifyServiceHost !== undefined) {
-      setNotifyHost(notifyServiceHost)
-    }
-  }, [notifyServiceHost])
-
   const gwChanged = gwUrl !== (gatewayUrl.data || '')
-  const notifyChanged = notifyHost !== (notifyServiceHost || '')
 
   return (
     <>
@@ -1376,33 +1168,6 @@ function GatewaySettings() {
                   onClick={() => {
                     setGatewayUrl.mutate(gwUrl)
                     toast.success('Gateway URL saved!')
-                  }}
-                >
-                  Save
-                </Button>
-              ) : null}
-            </div>
-          }
-        />
-        <Separator />
-        <SettingsRow
-          label="Notify service host"
-          description="Push notification relay server"
-          right={
-            <div className="relative w-[220px]">
-              <Input
-                className={cn('w-full', notifyChanged && 'pr-14')}
-                value={notifyHost}
-                onChangeText={setNotifyHost}
-              />
-              {notifyChanged ? (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  className="absolute top-1/2 right-1 -translate-y-1/2"
-                  onClick={() => {
-                    setNotifyServiceHost.mutate(notifyHost)
-                    toast.success('Notify service host saved!')
                   }}
                 >
                   Save

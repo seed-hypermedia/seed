@@ -1,13 +1,17 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {grpcClient} from '@/grpc-client'
-import {useRegisterKey} from '@/models/daemon'
+import {useRegisterKey, useVaultEmail, useVaultStatus} from '@/models/daemon'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {postAccountCreateAction, useUniversalAppContext} from '@shm/shared'
+import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import type {SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useCallback, useState} from 'react'
@@ -83,16 +87,63 @@ export function useCreateAccountDialog() {
 
 function CreateAccountDialog({onClose}: {onClose: () => void}) {
   const {createAccount, isCreating} = useCreateAccount()
+  // No hardcoded fallback: defaulting to the production host would register the
+  // new account against the wrong notify server. Use the resolved host only.
+  const notifyServiceHost = useNotifyServiceHost()
+  // Only a remote-connected vault has an email; gate the query so it isn't
+  // requested on a local vault (the daemon errors with FailedPrecondition).
+  const vaultStatus = useVaultStatus()
+  const isRemoteConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const {data: vaultEmail} = useVaultEmail({enabled: isRemoteConnected})
+  const email = isRemoteConnected ? vaultEmail?.trim() || '' : ''
+  const [shareEmailWithNotificationServer, setShareEmailWithNotificationServer] = useState(true)
 
-  async function handleSubmit(profile: SiteMetaFields) {
-    const createdAccount = await createAccount(profile)
-    if (createdAccount) onClose()
+  async function handleSubmit(values: AccountProfileFormValues) {
+    const createdAccount = await createAccount({
+      name: values.name,
+      icon: values.imageFile ?? null,
+      description: values.description ?? '',
+    })
+    if (!createdAccount) return
+
+    if (shareEmailWithNotificationServer && email && notifyServiceHost) {
+      try {
+        await client.notificationConfig.setConfig.mutate({
+          accountUid: createdAccount.accountId,
+          notifyServiceHost,
+          email,
+        })
+        invalidateQueries([queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, createdAccount.accountId])
+      } catch (error) {
+        toast.error(
+          'Account created, but notification setup failed: ' + (error instanceof Error ? error.message : String(error)),
+        )
+      }
+    }
+
+    onClose()
   }
 
   return (
     <>
-      <DialogTitle>Create Profile</DialogTitle>
-      <EditProfileForm onSubmit={handleSubmit} submitLabel={isCreating ? 'Creating…' : 'Create Profile'} />
+      <DialogTitle>Create Account</DialogTitle>
+      <AccountProfileForm
+        submitLabel={isCreating ? 'Creating…' : 'Create Account'}
+        loading={isCreating}
+        onCancel={onClose}
+        onSubmit={handleSubmit}
+        notificationOption={
+          email
+            ? {
+                label: `Notify me at ${email}`,
+                description:
+                  'Leave this on to register notifications with that email. If you turn it off, the account will still be created without an email address.',
+                checked: shareEmailWithNotificationServer,
+                onCheckedChange: setShareEmailWithNotificationServer,
+              }
+            : undefined
+        }
+      />
     </>
   )
 }
