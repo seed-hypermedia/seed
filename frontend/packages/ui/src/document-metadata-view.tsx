@@ -1,5 +1,5 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {Braces, Check, Plus, X} from 'lucide-react'
+import {Braces, Check, ChevronDown, ChevronUp, Plus, X} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -10,8 +10,8 @@ import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 /**
- * A staged partial update: keys map to their new value, or `null` to remove
- * the field (publishes a nullValue attribute op).
+ * A staged partial update: top-level keys map to their new value, or `null`
+ * to remove the field (publishes a nullValue attribute op).
  */
 export type MetadataPatch = Record<string, unknown>
 
@@ -19,21 +19,60 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+const utf8 = new TextEncoder()
+
 /**
- * Document attributes only publish strings, integers, booleans, null, and
- * nested plain objects of those (see `getDocAttributeChanges`). Anything else
- * would silently drop on publish, so the editor rejects it upfront.
+ * Canonical map key order per the IPLD DAG-CBOR spec: shorter UTF-8 keys sort
+ * first; equal-length keys compare bytewise.
  */
-function findUnpublishableValue(value: unknown, path: string[] = []): string | null {
+export function dagCborKeyCompare(a: string, b: string): number {
+  const aBytes = utf8.encode(a)
+  const bBytes = utf8.encode(b)
+  if (aBytes.length !== bBytes.length) return aBytes.length - bBytes.length
+  for (let i = 0; i < aBytes.length; i++) {
+    if (aBytes[i] !== bBytes[i]) return aBytes[i]! - bBytes[i]!
+  }
+  return 0
+}
+
+/** Entries of an object in canonical DAG-CBOR key order, hiding null/undefined (deleted) values. */
+function canonicalVisibleEntries(value: Record<string, unknown>): [string, unknown][] {
+  return Object.entries(value)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .sort(([a], [b]) => dagCborKeyCompare(a, b))
+}
+
+/** Rebuild a value with all nested object keys in canonical order (for JSON display). */
+function toCanonicalOrder(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toCanonicalOrder)
+  if (isPlainObject(value)) {
+    return Object.fromEntries(canonicalVisibleEntries(value).map(([k, v]) => [k, toCanonicalOrder(v)]))
+  }
+  return value
+}
+
+/**
+ * Values must survive the publish pipeline: strings, whole numbers, booleans,
+ * null, plain objects, and lists of those. Floats would silently drop, so they
+ * are rejected upfront. (Lists stage into the draft but are not yet published —
+ * see the notice rendered when a list is present.)
+ */
+function findInvalidValue(value: unknown, path: string[] = []): string | null {
   if (value === null || value === undefined) return null
   if (typeof value === 'string' || typeof value === 'boolean') return null
   if (typeof value === 'number') {
     return Number.isInteger(value) ? null : `"${path.join('.')}" must be a whole number`
   }
-  if (Array.isArray(value)) return `"${path.join('.')}" is an array — arrays cannot be published`
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const problem = findInvalidValue(value[i], [...path, String(i)])
+      if (problem) return problem
+    }
+    return null
+  }
   if (isPlainObject(value)) {
     for (const [key, child] of Object.entries(value)) {
-      const problem = findUnpublishableValue(child, [...path, key])
+      const problem = findInvalidValue(child, [...path, key])
       if (problem) return problem
     }
     return null
@@ -41,36 +80,57 @@ function findUnpublishableValue(value: unknown, path: string[] = []): string | n
   return `"${path.join('.')}" has an unsupported type`
 }
 
-/** Compute the staged patch that turns `prev` into `next` (removed keys → null). */
-function diffMetadata(prev: Record<string, unknown>, next: Record<string, unknown>): MetadataPatch {
+/** True when the value (or any nested value) contains a list. */
+function containsList(value: unknown): boolean {
+  if (Array.isArray(value)) return true
+  if (isPlainObject(value)) return Object.values(value).some(containsList)
+  return false
+}
+
+/**
+ * Publish ops are generated from the draft metadata without a base document,
+ * so a nested key that simply disappears emits no op and its old value would
+ * survive. Removed nested object keys therefore become explicit `null`
+ * tombstones, which publish as nullValue ops and clear the attribute.
+ */
+function withNestedTombstones(prev: unknown, next: unknown): unknown {
+  if (!isPlainObject(prev) || !isPlainObject(next)) return next
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(next)) {
+    result[key] = withNestedTombstones(prev[key], value)
+  }
+  // Keys absent from `next` become (or remain) null tombstones.
+  for (const [key, value] of Object.entries(prev)) {
+    if (value !== undefined && !(key in next)) result[key] = null
+  }
+  return result
+}
+
+/**
+ * Compute the staged patch that turns `prev` into `next` (removed keys → null
+ * tombstones). `prev` must be the raw draft metadata including existing null
+ * tombstones so they survive unrelated edits.
+ */
+export function diffMetadata(prev: Record<string, unknown>, next: Record<string, unknown>): MetadataPatch {
   const patch: MetadataPatch = {}
   for (const [key, value] of Object.entries(next)) {
-    if (JSON.stringify(prev[key]) !== JSON.stringify(value)) patch[key] = value
+    const merged = withNestedTombstones(prev[key], value)
+    if (JSON.stringify(prev[key]) !== JSON.stringify(merged)) patch[key] = merged
   }
-  for (const key of Object.keys(prev)) {
-    if (!(key in next)) patch[key] = null
+  for (const [key, value] of Object.entries(prev)) {
+    if (value !== undefined && !(key in next)) patch[key] = null
   }
   return patch
 }
 
-function formatMetadataValue(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return JSON.stringify(value, null, 2)
-}
-
-/** Visible entries: null/undefined means deleted (or never set) and is hidden. */
-function visibleEntries(metadata: Record<string, unknown>): [string, unknown][] {
-  return Object.entries(metadata).filter(([, value]) => value !== undefined && value !== null)
-}
-
 const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium tracking-wide uppercase'
+const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-2 border-l-2 pl-3'
 
 /**
  * Metadata view for the `:metadata` document route. Read-only without edit
- * permission; with `canEdit` + `onMetadata` it becomes an inline editor where
- * every change is staged as a draft patch and published via the standard
- * publish flow. A raw JSON mode allows full editing in one place.
+ * permission; with `canEdit` + `onMetadata` it becomes a recursive editor
+ * where every change is staged as a draft patch and published via the
+ * standard publish flow. A raw JSON mode allows full editing in one place.
  */
 export function DocumentMetadataView({
   metadata,
@@ -83,8 +143,9 @@ export function DocumentMetadataView({
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
-  const entries = visibleEntries(current)
+  const entries = canonicalVisibleEntries(current)
   const editable = canEdit && !!onMetadata
+  const hasList = useMemo(() => containsList(current), [current])
 
   return (
     <div className="flex flex-col gap-4 py-6">
@@ -109,109 +170,241 @@ export function DocumentMetadataView({
             <p className="text-muted-foreground text-sm">This document has no metadata.</p>
           ) : (
             <dl className="flex flex-col">
-              {entries.map(([key, value]) =>
-                editable ? (
-                  <MetadataFieldRow
-                    key={key}
-                    fieldKey={key}
-                    value={value}
-                    onValue={(newValue) => onMetadata!({[key]: newValue})}
-                    onRemove={() => onMetadata!({[key]: null})}
-                  />
-                ) : (
-                  <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+              {entries.map(([key, value]) => (
+                <div key={key} className="group border-border flex items-start gap-2 border-b py-3 last:border-b-0">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <dt className={FIELD_LABEL_CLASS}>{key}</dt>
-                    <dd className="font-mono text-sm break-words whitespace-pre-wrap">{formatMetadataValue(value)}</dd>
+                    <dd>
+                      {editable ? (
+                        <ValueEditor value={value} onValue={(newValue) => onMetadata!({[key]: newValue})} />
+                      ) : (
+                        <ValueDisplay value={value} />
+                      )}
+                    </dd>
                   </div>
-                ),
-              )}
+                  {editable && <RemoveButton label={`Remove ${key}`} onClick={() => onMetadata!({[key]: null})} />}
+                </div>
+              ))}
             </dl>
           )}
           {editable && (
-            <AddMetadataField existingKeys={Object.keys(current)} onAdd={(key, value) => onMetadata!({[key]: value})} />
+            <AddFieldForm
+              existingKeys={entries.map(([key]) => key)}
+              onAdd={(key, value) => onMetadata!({[key]: value})}
+            />
           )}
         </>
+      )}
+      {hasList && (
+        <p className="text-muted-foreground text-xs">
+          Lists are saved in your draft, but the publishing format does not support them yet — list fields are skipped
+          when the document is published.
+        </p>
       )}
     </div>
   )
 }
 
-/** One editable metadata field: type-aware control + remove button on hover. */
-function MetadataFieldRow({
-  fieldKey,
-  value,
-  onValue,
-  onRemove,
-}: {
-  fieldKey: string
-  value: unknown
-  onValue: (value: unknown) => void
-  onRemove: () => void
-}) {
+function RemoveButton({label, onClick, className}: {label: string; onClick: () => void; className?: string}) {
   return (
-    <div className="group border-border flex items-start gap-2 border-b py-3 last:border-b-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <dt className={FIELD_LABEL_CLASS}>{fieldKey}</dt>
-        <dd>
-          <MetadataValueEditor fieldKey={fieldKey} value={value} onValue={onValue} />
-        </dd>
-      </div>
-      <Tooltip content={`Remove ${fieldKey}`}>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Remove ${fieldKey}`}
-          className="text-muted-foreground hover:text-destructive mt-4 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-          onClick={onRemove}
-        >
-          <X className="size-4" />
-        </Button>
-      </Tooltip>
-    </div>
+    <Tooltip content={label}>
+      <Button
+        variant="ghost"
+        size="iconSm"
+        aria-label={label}
+        className={cn(
+          'text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
+          className,
+        )}
+        onClick={onClick}
+      >
+        <X className="size-4" />
+      </Button>
+    </Tooltip>
   )
 }
 
-function MetadataValueEditor({
-  fieldKey,
-  value,
-  onValue,
-}: {
-  fieldKey: string
-  value: unknown
-  onValue: (value: unknown) => void
-}) {
+/** Read-only recursive rendering of a metadata value. */
+function ValueDisplay({value}: {value: unknown}) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <p className="text-muted-foreground text-sm">Empty list</p>
+    return (
+      <div className={NESTED_GROUP_CLASS}>
+        {value.map((item, index) => (
+          <div key={index} className="flex items-baseline gap-2">
+            <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
+            <ValueDisplay value={item} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (isPlainObject(value)) {
+    const entries = canonicalVisibleEntries(value)
+    if (entries.length === 0) return <p className="text-muted-foreground text-sm">No fields</p>
+    return (
+      <div className={NESTED_GROUP_CLASS}>
+        {entries.map(([key, child]) => (
+          <div key={key} className="flex flex-col gap-1">
+            <span className={FIELD_LABEL_CLASS}>{key}</span>
+            <ValueDisplay value={child} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (value === '') return <span className="text-muted-foreground text-sm">(empty)</span>
+  return <span className="font-mono text-sm break-words whitespace-pre-wrap">{String(value)}</span>
+}
+
+/** Recursive type-aware editor for one metadata value. */
+function ValueEditor({value, onValue}: {value: unknown; onValue: (value: unknown) => void}) {
   if (typeof value === 'boolean') {
-    return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} aria-label={fieldKey} />
+    return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
   }
   if (typeof value === 'number') {
-    return (
-      <CommitOnBlurInput
-        key={String(value)}
-        initialValue={String(value)}
-        inputMode="numeric"
-        onCommit={(text) => {
-          const parsed = Number(text)
-          if (Number.isInteger(parsed)) onValue(parsed)
-        }}
-      />
-    )
+    return <NumberInput value={value} onValue={onValue} />
   }
   if (typeof value === 'string') {
     return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
   }
-  // Objects (and anything else) edit as JSON
-  return <InlineJsonValueEditor value={value} onValue={onValue} />
+  if (Array.isArray(value)) {
+    return <ListEditor value={value} onValue={onValue} />
+  }
+  if (isPlainObject(value)) {
+    return <ObjectEditor value={value} onValue={onValue} />
+  }
+  return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
+}
+
+/**
+ * Recursive object editor: one row per (non-tombstoned) key. Removing a key
+ * stages a `null` tombstone so the deletion actually publishes; changes bubble
+ * up by rebuilding this object and calling `onValue`.
+ */
+function ObjectEditor({value, onValue}: {value: Record<string, unknown>; onValue: (value: unknown) => void}) {
+  const entries = canonicalVisibleEntries(value)
+  return (
+    <div className={NESTED_GROUP_CLASS}>
+      {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
+      {entries.map(([key, child]) => (
+        <div key={key} className="group/child flex items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className={FIELD_LABEL_CLASS}>{key}</span>
+            <ValueEditor value={child} onValue={(newChild) => onValue({...value, [key]: newChild})} />
+          </div>
+          <RemoveButton
+            label={`Remove ${key}`}
+            className="group-focus-within/child:opacity-100 group-hover/child:opacity-100"
+            onClick={() => onValue({...value, [key]: null})}
+          />
+        </div>
+      ))}
+      <AddFieldForm
+        compact
+        existingKeys={entries.map(([key]) => key)}
+        onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
+      />
+    </div>
+  )
+}
+
+/** Recursive list editor: edit, reorder, remove, and append items. */
+function ListEditor({value, onValue}: {value: unknown[]; onValue: (value: unknown) => void}) {
+  const move = (from: number, to: number) => {
+    const next = [...value]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    onValue(next)
+  }
+  return (
+    <div className={NESTED_GROUP_CLASS}>
+      {value.length === 0 && <p className="text-muted-foreground text-sm">Empty list</p>}
+      {value.map((item, index) => (
+        <div key={index} className="group/item flex items-start gap-2">
+          <span className="text-muted-foreground mt-2 font-mono text-xs">{index + 1}.</span>
+          <div className="min-w-0 flex-1">
+            <ValueEditor
+              value={item}
+              onValue={(newItem) => onValue(value.map((v, i) => (i === index ? newItem : v)))}
+            />
+          </div>
+          <div className="flex items-center opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100">
+            <Button
+              variant="ghost"
+              size="iconSm"
+              aria-label="Move up"
+              disabled={index === 0}
+              onClick={() => move(index, index - 1)}
+            >
+              <ChevronUp className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="iconSm"
+              aria-label="Move down"
+              disabled={index === value.length - 1}
+              onClick={() => move(index, index + 1)}
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+            <RemoveButton
+              label="Remove item"
+              className="opacity-100"
+              onClick={() => onValue(value.filter((_, i) => i !== index))}
+            />
+          </div>
+        </div>
+      ))}
+      <AddFieldForm compact itemMode onAdd={(_key, item) => onValue([...value, item])} />
+    </div>
+  )
+}
+
+/** Integer input that stages on blur/Enter, flags non-integers, resets on Escape. */
+function NumberInput({value, onValue}: {value: number; onValue: (value: unknown) => void}) {
+  const initial = String(value)
+  const [text, setText] = useState(initial)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    setText(initial)
+    setError(null)
+  }, [initial])
+  return (
+    <div className="flex flex-col gap-1">
+      <Input
+        value={text}
+        inputMode="numeric"
+        onChange={(e) => {
+          setText(e.target.value)
+          setError(null)
+        }}
+        onBlur={() => {
+          if (text === initial) return
+          const parsed = Number(text)
+          if (text.trim() === '' || !Number.isInteger(parsed)) {
+            setError('Enter a whole number')
+            return
+          }
+          onValue(parsed)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Escape') setText(initial)
+        }}
+      />
+      {error && <p className="text-destructive text-xs">{error}</p>}
+    </div>
+  )
 }
 
 /** Text input that stages its value on blur or Enter, resets on Escape. */
 function CommitOnBlurInput({
   initialValue,
-  inputMode,
   placeholder,
   onCommit,
 }: {
   initialValue: string
-  inputMode?: 'numeric'
   placeholder?: string
   onCommit: (text: string) => void
 }) {
@@ -219,7 +412,6 @@ function CommitOnBlurInput({
   return (
     <Input
       value={text}
-      inputMode={inputMode}
       placeholder={placeholder}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
@@ -233,52 +425,22 @@ function CommitOnBlurInput({
   )
 }
 
-/** Per-field JSON editor for object values. Applies on blur when valid. */
-function InlineJsonValueEditor({value, onValue}: {value: unknown; onValue: (value: unknown) => void}) {
-  const serialized = useMemo(() => JSON.stringify(value, null, 2), [value])
-  const [text, setText] = useState(serialized)
-  const [error, setError] = useState<string | null>(null)
-  useEffect(() => {
-    setText(serialized)
-    setError(null)
-  }, [serialized])
+type NewFieldType = 'text' | 'number' | 'toggle' | 'object' | 'list' | 'json'
 
-  return (
-    <div className="flex flex-col gap-1">
-      <Textarea
-        value={text}
-        rows={Math.min(12, text.split('\n').length)}
-        className={cn('font-mono text-sm', error && 'border-destructive')}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => {
-          if (text === serialized) return
-          try {
-            const parsed = JSON.parse(text)
-            const problem = findUnpublishableValue(parsed, ['value'])
-            if (problem) {
-              setError(problem)
-              return
-            }
-            setError(null)
-            onValue(parsed)
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'Invalid JSON')
-          }
-        }}
-      />
-      {error && <p className="text-destructive text-xs">{error}</p>}
-    </div>
-  )
-}
-
-type NewFieldType = 'text' | 'number' | 'toggle' | 'json'
-
-/** Collapsed "+ Add field" affordance that expands into an inline form. */
-function AddMetadataField({
-  existingKeys,
+/**
+ * Collapsed "+ Add field" affordance that expands into an inline form.
+ * `itemMode` drops the key input for appending list items. Object and List
+ * create empty containers that are then edited in place.
+ */
+function AddFieldForm({
+  existingKeys = [],
+  itemMode = false,
+  compact = false,
   onAdd,
 }: {
-  existingKeys: string[]
+  existingKeys?: string[]
+  itemMode?: boolean
+  compact?: boolean
   onAdd: (key: string, value: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -300,9 +462,14 @@ function AddMetadataField({
   if (!open) {
     return (
       <div>
-        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setOpen(true)}>
-          <Plus className="size-4" />
-          Add field
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('text-muted-foreground', compact && 'h-6 px-1 text-xs')}
+          onClick={() => setOpen(true)}
+        >
+          <Plus className={compact ? 'size-3' : 'size-4'} />
+          {itemMode ? 'Add item' : 'Add field'}
         </Button>
       </div>
     )
@@ -310,17 +477,21 @@ function AddMetadataField({
 
   const submit = () => {
     const trimmedKey = key.trim()
-    if (!trimmedKey) {
-      setError('Enter a field name')
-      return
-    }
-    if (existingKeys.includes(trimmedKey)) {
-      setError(`"${trimmedKey}" already exists — edit it above`)
-      return
+    if (!itemMode) {
+      if (!trimmedKey) {
+        setError('Enter a field name')
+        return
+      }
+      if (existingKeys.includes(trimmedKey)) {
+        setError(`"${trimmedKey}" already exists — edit it above`)
+        return
+      }
     }
     let value: unknown
     if (type === 'text') value = textValue
     else if (type === 'toggle') value = toggleValue
+    else if (type === 'object') value = {}
+    else if (type === 'list') value = []
     else if (type === 'number') {
       const parsed = Number(textValue)
       if (!Number.isInteger(parsed) || textValue.trim() === '') {
@@ -335,7 +506,7 @@ function AddMetadataField({
         setError(e instanceof Error ? e.message : 'Invalid JSON')
         return
       }
-      const problem = findUnpublishableValue(value, [trimmedKey])
+      const problem = findInvalidValue(value, [trimmedKey || 'item'])
       if (problem) {
         setError(problem)
         return
@@ -345,23 +516,27 @@ function AddMetadataField({
     reset()
   }
 
+  const needsValueInput = type === 'text' || type === 'number'
+
   return (
     <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={key}
-          placeholder="Field name"
-          className="w-44"
-          autoFocus
-          onChange={(e) => {
-            setKey(e.target.value)
-            setError(null)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submit()
-            if (e.key === 'Escape') reset()
-          }}
-        />
+        {!itemMode && (
+          <Input
+            value={key}
+            placeholder="Field name"
+            className="w-44"
+            autoFocus
+            onChange={(e) => {
+              setKey(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submit()
+              if (e.key === 'Escape') reset()
+            }}
+          />
+        )}
         <Select value={type} onValueChange={(v) => setType(v as NewFieldType)}>
           <SelectTrigger className="w-28">
             <SelectValue />
@@ -370,17 +545,19 @@ function AddMetadataField({
             <SelectItem value="text">Text</SelectItem>
             <SelectItem value="number">Number</SelectItem>
             <SelectItem value="toggle">Toggle</SelectItem>
+            <SelectItem value="object">Object</SelectItem>
+            <SelectItem value="list">List</SelectItem>
             <SelectItem value="json">JSON</SelectItem>
           </SelectContent>
         </Select>
-        {type === 'toggle' ? (
-          <Switch checked={toggleValue} onCheckedChange={setToggleValue} aria-label="New field value" />
-        ) : type === 'json' ? null : (
+        {type === 'toggle' && <Switch checked={toggleValue} onCheckedChange={setToggleValue} />}
+        {needsValueInput && (
           <Input
             value={textValue}
             placeholder="Value"
             inputMode={type === 'number' ? 'numeric' : undefined}
             className="min-w-40 flex-1"
+            autoFocus={itemMode}
             onChange={(e) => {
               setTextValue(e.target.value)
               setError(null)
@@ -426,7 +603,10 @@ function MetadataJsonEditor({
   editable: boolean
   onMetadata?: (patch: MetadataPatch) => void
 }) {
-  const currentVisible = useMemo(() => Object.fromEntries(visibleEntries(metadata)), [metadata])
+  const currentVisible = useMemo(
+    () => toCanonicalOrder(Object.fromEntries(canonicalVisibleEntries(metadata))) as Record<string, unknown>,
+    [metadata],
+  )
   const serialized = useMemo(() => JSON.stringify(currentVisible, null, 2), [currentVisible])
   const [text, setText] = useState(serialized)
   useEffect(() => setText(serialized), [serialized])
@@ -436,7 +616,7 @@ function MetadataJsonEditor({
     try {
       const parsed: unknown = JSON.parse(text)
       if (!isPlainObject(parsed)) return {dirty: true as const, error: 'Metadata must be a JSON object'}
-      const problem = findUnpublishableValue(parsed)
+      const problem = findInvalidValue(parsed)
       if (problem) return {dirty: true as const, error: problem}
       return {dirty: true as const, value: parsed}
     } catch (e) {
@@ -466,7 +646,7 @@ function MetadataJsonEditor({
               <Button
                 size="sm"
                 onClick={() => {
-                  onMetadata!(diffMetadata(currentVisible, validation.value!))
+                  onMetadata!(diffMetadata(metadata, validation.value!))
                 }}
               >
                 <Check className="size-4" />
@@ -479,7 +659,7 @@ function MetadataJsonEditor({
           )
         ) : (
           <p className="text-muted-foreground text-xs">
-            Values may be text, whole numbers, true/false, or nested objects.
+            Values may be text, whole numbers, true/false, lists, or nested objects.
           </p>
         )}
       </div>
