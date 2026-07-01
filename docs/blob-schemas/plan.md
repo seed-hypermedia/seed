@@ -89,8 +89,11 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
       echoed all three; served back with the full IPLD link chain intact
       (instance→schema→meta); served schema passes `isSchemaBlob`; served
       instance validates clean; a mutated instance warns without throwing.
-- [ ] Daemon indexer `"type"+KnownType` byte-match collision mitigation
-      (client-side pre-publish check at minimum)
+- [x] Daemon indexer `"type"+KnownType` collision: `findSeedIndexerCollision`
+      reproduces the daemon matcher client-side; publish failures now explain
+      the collision instead of the opaque Internal error. Never pre-blocks.
+      **Verified live**: `{type:"Comment"}` rejected by the daemon with the
+      predicted error; JSON-Schema-style `{type:"object"}` stores fine.
 - [ ] Final docs sweep to as-built state; user-facing walkthrough
 
 ## Deliberately out of scope (v1)
