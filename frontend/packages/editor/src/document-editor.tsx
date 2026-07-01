@@ -812,12 +812,20 @@ export function DocumentEditor({
       }
     }
 
+    // The table NodeView can't enter edit mode itself, so register an event.
+    const handleTableEditRequest = () => {
+      if (view.editable || !canEditRef.current) return
+      onEditStart(null)
+    }
+
     domRoot.addEventListener('mousedown', handleMousedown)
     domRoot.addEventListener('click', handleClick)
+    domRoot.addEventListener('hm-table-request-edit', handleTableEditRequest)
 
     return () => {
       domRoot.removeEventListener('mousedown', handleMousedown)
       domRoot.removeEventListener('click', handleClick)
+      domRoot.removeEventListener('hm-table-request-edit', handleTableEditRequest)
     }
   }, [editor, onEditStart])
 

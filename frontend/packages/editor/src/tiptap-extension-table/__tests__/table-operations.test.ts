@@ -619,18 +619,42 @@ describe('table operations', () => {
       expect(colIds[1]?.[0]).toBe(colIds[2]?.[0])
       editor._tiptapEditor.destroy()
     })
+
+    it('toggleHeaderRow preserves cell ids, columnId and row id', () => {
+      const editor = createEditor([buildTestTable({rows: 3, cols: 3, text: labels})])
+      const before = getTable(editor)
+      const cellIdsBefore = cellIdsOf(before)
+      const colIdsBefore = columnIdsOf(before)
+      const rowIdsBefore = rowIdsOf(before)
+
+      positionCursor(editor, 'cell-0-0')
+      editor._tiptapEditor.commands.toggleHeaderRow()
+
+      const after = getTable(editor)
+      expect(cellIdsOf(after)).toEqual(cellIdsBefore)
+      expect(columnIdsOf(after)).toEqual(colIdsBefore)
+      expect(rowIdsOf(after)).toEqual(rowIdsBefore)
+      editor._tiptapEditor.destroy()
+    })
+
+    it('toggleHeaderColumn preserves cell ids, columnId and row id', () => {
+      const editor = createEditor([buildTestTable({rows: 3, cols: 3, text: labels})])
+      const before = getTable(editor)
+      const cellIdsBefore = cellIdsOf(before)
+      const colIdsBefore = columnIdsOf(before)
+      const rowIdsBefore = rowIdsOf(before)
+
+      positionCursor(editor, 'cell-0-0')
+      editor._tiptapEditor.commands.toggleHeaderColumn()
+
+      const after = getTable(editor)
+      expect(cellIdsOf(after)).toEqual(cellIdsBefore)
+      expect(columnIdsOf(after)).toEqual(colIdsBefore)
+      expect(rowIdsOf(after)).toEqual(rowIdsBefore)
+      editor._tiptapEditor.destroy()
+    })
   })
 
-  // These tests document what the converters ACTUALLY do today when handed a
-  // "conflicted" table hierarchy — the kind of state the CRDT merge can produce
-  // when two clients edit concurrently. They are NOT asserting the desired
-  // end-state from the design doc; they pin the current behavior so the team
-  // can see the gap.
-  //
-  // The conflict resolution lives entirely in `tableBlockToNode`
-  // (editorblock → PM) in nodeConversions.ts. We exercise it via the editor's
-  // load path (initialContent → blockToNode → tableBlockToNode) and read the
-  // result back through `tableNodeToBlock`.
   describe('conflict edge cases', () => {
     // Build a table where row 0 has explicit, possibly conflicting cell defs.
     function buildConflictTable(cols: number, row0Cells: any[]): PartialBlock<any> {
@@ -728,7 +752,7 @@ describe('table operations', () => {
       editor._tiptapEditor.destroy()
     })
 
-    // Edge Case 2: Orphan Cells
+    // Edge Case: Orphan Cells
     // A cell whose columnId references a column that
     // no longer exists is an orphan and is ignored.
     it('a cell whose columnId matches no column is dropped', () => {
