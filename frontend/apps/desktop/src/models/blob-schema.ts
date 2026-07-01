@@ -1,11 +1,20 @@
 import {useUniversalClient} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useQueries} from '@tanstack/react-query'
 import {collectSchemaRefs, type BlobSchema, type SchemaRegistry} from '@shm/ui/blob-schema'
-import {useEffect, useMemo, useState} from 'react'
+import {useQueries} from '@tanstack/react-query'
+import {useEffect, useRef, useState} from 'react'
 
 function asSchemaBlob(value: unknown): BlobSchema | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as BlobSchema) : undefined
+}
+
+function sameRegistry(a: SchemaRegistry, b: SchemaRegistry): boolean {
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  // Blobs are immutable and react-query keeps data references stable, so
+  // same key set + same value references means the registry is unchanged.
+  return aKeys.every((key) => a[key] === b[key])
 }
 
 /**
@@ -17,6 +26,9 @@ function asSchemaBlob(value: unknown): BlobSchema | undefined {
  * query caches forever under the same key `useCID` uses. While any ref is
  * still loading (or unfindable), `isComplete` stays false and validation
  * treats those refs as neutral — never as violations.
+ *
+ * The returned registry is referentially stable across renders while its
+ * contents are unchanged, so consumers (BlobSchemaProvider) can memoize on it.
  */
 export function useSchemaRegistry(schemaCid: string | undefined): {
   rootSchema: BlobSchema | undefined
@@ -42,22 +54,29 @@ export function useSchemaRegistry(schemaCid: string | undefined): {
     })),
   })
 
-  const {registry, rootSchema, missing} = useMemo(() => {
-    const registry: SchemaRegistry = {}
-    queries.forEach((query, i) => {
-      const schema = asSchemaBlob((query.data as {value?: unknown} | undefined)?.value)
-      if (schema) registry[cids[i]] = schema
-    })
-    const rootSchema = schemaCid ? registry[schemaCid] : undefined
-    const missing = rootSchema ? collectSchemaRefs(rootSchema, registry).filter((cid) => !registry[cid]) : []
-    return {registry, rootSchema, missing}
-  }, [queries, cids, schemaCid])
+  // useQueries returns a fresh array every render, so build the registry each
+  // time but keep the previous object identity while nothing changed.
+  const registryRef = useRef<SchemaRegistry>({})
+  const built: SchemaRegistry = {}
+  queries.forEach((query, i) => {
+    const schema = asSchemaBlob((query.data as {value?: unknown} | undefined)?.value)
+    if (schema) built[cids[i]!] = schema
+  })
+  const registry = sameRegistry(registryRef.current, built) ? registryRef.current : built
+  registryRef.current = registry
+
+  const rootSchema = schemaCid ? registry[schemaCid] : undefined
+  const missing = rootSchema ? collectSchemaRefs(rootSchema, registry).filter((cid) => !registry[cid]) : []
 
   // Fold newly-discovered refs into the fetch set until the closure converges.
+  const missingKey = missing.join('\n')
   useEffect(() => {
-    const next = missing.filter((cid) => !cids.includes(cid))
-    if (next.length > 0) setCids((prev) => [...prev, ...next])
-  }, [missing, cids])
+    if (!missingKey) return
+    setCids((prev) => {
+      const next = missingKey.split('\n').filter((cid) => !prev.includes(cid))
+      return next.length > 0 ? [...prev, ...next] : prev
+    })
+  }, [missingKey])
 
   return {
     rootSchema,
