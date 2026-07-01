@@ -10,7 +10,7 @@ import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {CBOR_VALUE_RULES, ValueEditor} from '@shm/ui/value-editor'
+import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import {Braces, Check, Copy, Search, UploadCloud} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -208,7 +208,9 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
               onCancel={() => setJsonMode(false)}
             />
           ) : (
-            <ValueEditor value={value} onValue={setValue} rules={CBOR_VALUE_RULES} />
+            <ValueEditorProvider>
+              <ValueEditor value={value} onValue={setValue} rules={CBOR_VALUE_RULES} />
+            </ValueEditorProvider>
           )}
         </div>
       </div>

@@ -1,5 +1,5 @@
-import {Check, ChevronDown, ChevronUp, Plus, X} from 'lucide-react'
-import {useEffect, useState} from 'react'
+import {Check, ChevronDown, ChevronRight, ChevronUp, Copy, Plus, X} from 'lucide-react'
+import {createContext, useContext, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Switch} from './components/switch'
@@ -108,7 +108,152 @@ export function findInvalidValue(value: unknown, rules: ValueEditorRules, path: 
 
 // No text-transform: keys are case-sensitive data, so they display verbatim.
 export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium'
-const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-2 border-l-2 pl-3'
+const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-1 border-l-2 pl-3'
+
+// ---------------------------------------------------------------------------
+// Selection + clipboard
+// ---------------------------------------------------------------------------
+
+export type ValuePath = (string | number)[]
+
+function pathId(path: ValuePath): string {
+  return JSON.stringify(path)
+}
+
+type SelectionHandlers = {
+  getValue: () => unknown
+  setValue: (value: unknown) => void
+  remove?: () => void
+  rules: ValueEditorRules
+}
+
+type SelectionContextValue = {
+  selectedId: string | null
+  select: (id: string) => void
+  clear: () => void
+  register: (id: string, handlers: SelectionHandlers) => void
+  unregister: (id: string) => void
+}
+
+const SelectionContext = createContext<SelectionContextValue | null>(null)
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]')
+}
+
+/**
+ * Enables row selection and clipboard support for all value editors below it.
+ * Click a row to select it, then Cmd/Ctrl+C copies the value as JSON,
+ * Cmd/Ctrl+V pastes over it (validated), Delete removes it, Escape deselects.
+ */
+export function ValueEditorProvider({children}: {children: React.ReactNode}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const registry = useRef(new Map<string, SelectionHandlers>())
+
+  const ctx = useRef<SelectionContextValue>({
+    selectedId: null,
+    select: (id) => setSelectedId(id),
+    clear: () => setSelectedId(null),
+    register: (id, handlers) => registry.current.set(id, handlers),
+    unregister: (id) => registry.current.delete(id),
+  })
+  ctx.current = {...ctx.current, selectedId}
+
+  useEffect(() => {
+    if (!selectedId) return
+
+    const getHandlers = () => registry.current.get(selectedId)
+
+    const onCopy = (e: ClipboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      // Don't hijack copying of regular text selections.
+      if (document.getSelection()?.toString()) return
+      const handlers = getHandlers()
+      if (!handlers) return
+      e.preventDefault()
+      e.clipboardData?.setData('text/plain', JSON.stringify(toCanonicalOrder(handlers.getValue()), null, 2))
+    }
+
+    const onPaste = (e: ClipboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      const handlers = getHandlers()
+      if (!handlers) return
+      const text = e.clipboardData?.getData('text/plain')
+      if (!text) return
+      e.preventDefault()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        // Non-JSON clipboard content pastes as plain text.
+        parsed = text
+      }
+      const problem = findInvalidValue(parsed, handlers.rules)
+      if (problem) {
+        toast.error(`Cannot paste: ${problem}`)
+        return
+      }
+      handlers.setValue(parsed)
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
+      if (e.key === 'Escape') {
+        setSelectedId(null)
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const handlers = getHandlers()
+        if (handlers?.remove) {
+          e.preventDefault()
+          handlers.remove()
+          setSelectedId(null)
+        }
+      }
+    }
+
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('paste', onPaste)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('paste', onPaste)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [selectedId])
+
+  return <SelectionContext.Provider value={ctx.current}>{children}</SelectionContext.Provider>
+}
+
+/** Row-level wiring for selection: click to select (ignoring interactive elements). */
+function useRowSelection(id: string, handlers: SelectionHandlers) {
+  const ctx = useContext(SelectionContext)
+  const isSelected = ctx?.selectedId === id
+
+  // Keep the registry fresh with the latest value/handlers on every render.
+  useEffect(() => {
+    if (!ctx) return
+    ctx.register(id, handlers)
+    return () => ctx.unregister(id)
+  })
+
+  const onRowClick = ctx
+    ? (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement
+        if (target.closest('input,textarea,button,select,a,[contenteditable="true"],[role="combobox"]')) return
+        e.stopPropagation()
+        if (isSelected) ctx.clear()
+        else ctx.select(id)
+      }
+    : undefined
+
+  return {isSelected: !!isSelected, onRowClick}
+}
+
+const ROW_CLASS = '-mx-1 rounded-md px-1 py-0.5 transition-colors'
+const ROW_SELECTED_CLASS = 'bg-accent/70 ring-border ring-1'
+
+// ---------------------------------------------------------------------------
+// Key + row components
+// ---------------------------------------------------------------------------
 
 /**
  * Inline-editable object key. Styled like the field label until focused;
@@ -164,10 +309,7 @@ export function RemoveButton({label, onClick, className}: {label: string; onClic
         variant="ghost"
         size="iconSm"
         aria-label={label}
-        className={cn(
-          'text-muted-foreground hover:text-destructive opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
-          className,
-        )}
+        className={cn('text-muted-foreground hover:text-destructive', className)}
         onClick={onClick}
       >
         <X className="size-4" />
@@ -175,6 +317,133 @@ export function RemoveButton({label, onClick, className}: {label: string; onClic
     </Tooltip>
   )
 }
+
+function CopyValueButton({getValue}: {getValue: () => unknown}) {
+  return (
+    <Tooltip content="Copy value as JSON">
+      <Button
+        variant="ghost"
+        size="iconSm"
+        aria-label="Copy value as JSON"
+        className="text-muted-foreground"
+        onClick={() => {
+          navigator.clipboard.writeText(JSON.stringify(toCanonicalOrder(getValue()), null, 2))
+          toast.success('Copied value')
+        }}
+      >
+        <Copy className="size-3.5" />
+      </Button>
+    </Tooltip>
+  )
+}
+
+function CollapseToggle({collapsed, onToggle}: {collapsed: boolean; onToggle: () => void}) {
+  return (
+    <button
+      type="button"
+      aria-label={collapsed ? 'Expand' : 'Collapse'}
+      aria-expanded={!collapsed}
+      className="text-muted-foreground hover:text-foreground flex size-4 shrink-0 items-center justify-center"
+      onClick={onToggle}
+    >
+      {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+    </button>
+  )
+}
+
+/** Summary line shown in place of a collapsed container's editor. */
+function CollapsedSummary({value, onExpand}: {value: unknown; onExpand: () => void}) {
+  const summary = Array.isArray(value)
+    ? `List · ${value.length} ${value.length === 1 ? 'item' : 'items'}`
+    : (() => {
+        const count = canonicalEntries(value as Record<string, unknown>).length
+        return `Object · ${count} ${count === 1 ? 'field' : 'fields'}`
+      })()
+  return (
+    <button
+      type="button"
+      className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
+      onClick={onExpand}
+    >
+      {summary}
+    </button>
+  )
+}
+
+/**
+ * One keyed field row: collapsible for container values, selectable (click),
+ * with rename, copy, and remove. Shared by nested object editors and the
+ * top-level metadata field list.
+ */
+export function FieldRow({
+  fieldKey,
+  value,
+  siblingKeys,
+  onValue,
+  onRename,
+  onRemove,
+  rules,
+  path,
+  className,
+}: {
+  fieldKey: string
+  value: unknown
+  /** Sibling keys (excluding this one) used for rename collision checks. */
+  siblingKeys: string[]
+  onValue: (value: unknown) => void
+  onRename: (newKey: string) => void
+  onRemove: () => void
+  rules: ValueEditorRules
+  path: ValuePath
+  className?: string
+}) {
+  const isContainer = Array.isArray(value) || isPlainObject(value)
+  const [collapsed, setCollapsed] = useState(false)
+  const {isSelected, onRowClick} = useRowSelection(pathId(path), {
+    getValue: () => value,
+    setValue: onValue,
+    remove: onRemove,
+    rules,
+  })
+
+  return (
+    <div
+      onClick={onRowClick}
+      className={cn('group/row flex items-start gap-2', ROW_CLASS, isSelected && ROW_SELECTED_CLASS, className)}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center gap-1">
+          {isContainer ? (
+            <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+          ) : (
+            <span className="size-4 shrink-0" />
+          )}
+          <EditableFieldKey fieldKey={fieldKey} existingKeys={siblingKeys} onRename={onRename} />
+        </div>
+        <div className="pl-5">
+          {isContainer && collapsed ? (
+            <CollapsedSummary value={value} onExpand={() => setCollapsed(false)} />
+          ) : (
+            <ValueEditor value={value} onValue={onValue} rules={rules} path={path} />
+          )}
+        </div>
+      </div>
+      <div
+        className={cn(
+          'flex items-center opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100',
+          isSelected && 'opacity-100',
+        )}
+      >
+        <CopyValueButton getValue={() => value} />
+        <RemoveButton label={`Remove ${fieldKey}`} onClick={onRemove} />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Display + editors
+// ---------------------------------------------------------------------------
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
@@ -214,10 +483,12 @@ export function ValueEditor({
   value,
   onValue,
   rules,
+  path = [],
 }: {
   value: unknown
   onValue: (value: unknown) => void
   rules: ValueEditorRules
+  path?: ValuePath
 }) {
   if (typeof value === 'boolean') {
     return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
@@ -229,10 +500,10 @@ export function ValueEditor({
     return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
   }
   if (Array.isArray(value)) {
-    return <ListEditor value={value} onValue={onValue} rules={rules} />
+    return <ListEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   if (isPlainObject(value)) {
-    return <ObjectEditor value={value} onValue={onValue} rules={rules} />
+    return <ObjectEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
 }
@@ -245,10 +516,12 @@ export function ObjectEditor({
   value,
   onValue,
   rules,
+  path = [],
 }: {
   value: Record<string, unknown>
   onValue: (value: unknown) => void
   rules: ValueEditorRules
+  path?: ValuePath
 }) {
   const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
   const removeKey = (key: string) => {
@@ -274,21 +547,17 @@ export function ObjectEditor({
     <div className={NESTED_GROUP_CLASS}>
       {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
       {entries.map(([key, child]) => (
-        <div key={key} className="group/child flex items-start gap-2">
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <EditableFieldKey
-              fieldKey={key}
-              existingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-              onRename={(newKey) => renameKey(key, newKey)}
-            />
-            <ValueEditor value={child} onValue={(newChild) => onValue({...value, [key]: newChild})} rules={rules} />
-          </div>
-          <RemoveButton
-            label={`Remove ${key}`}
-            className="group-focus-within/child:opacity-100 group-hover/child:opacity-100"
-            onClick={() => removeKey(key)}
-          />
-        </div>
+        <FieldRow
+          key={key}
+          fieldKey={key}
+          value={child}
+          siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+          onValue={(newChild) => onValue({...value, [key]: newChild})}
+          onRename={(newKey) => renameKey(key, newKey)}
+          onRemove={() => removeKey(key)}
+          rules={rules}
+          path={[...path, key]}
+        />
       ))}
       <AddFieldForm
         compact
@@ -300,15 +569,17 @@ export function ObjectEditor({
   )
 }
 
-/** Recursive list editor: edit, reorder, remove, and append items. */
+/** Recursive list editor: edit, collapse, select, reorder, remove, and append items. */
 export function ListEditor({
   value,
   onValue,
   rules,
+  path = [],
 }: {
   value: unknown[]
   onValue: (value: unknown) => void
   rules: ValueEditorRules
+  path?: ValuePath
 }) {
   const move = (from: number, to: number) => {
     const next = [...value]
@@ -320,43 +591,99 @@ export function ListEditor({
     <div className={NESTED_GROUP_CLASS}>
       {value.length === 0 && <p className="text-muted-foreground text-sm">Empty list</p>}
       {value.map((item, index) => (
-        <div key={index} className="group/item flex items-start gap-2">
-          <span className="text-muted-foreground mt-2 font-mono text-xs">{index + 1}.</span>
-          <div className="min-w-0 flex-1">
-            <ValueEditor
-              value={item}
-              onValue={(newItem) => onValue(value.map((v, i) => (i === index ? newItem : v)))}
-              rules={rules}
-            />
-          </div>
-          <div className="flex items-center opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100">
-            <Button
-              variant="ghost"
-              size="iconSm"
-              aria-label="Move up"
-              disabled={index === 0}
-              onClick={() => move(index, index - 1)}
-            >
-              <ChevronUp className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              aria-label="Move down"
-              disabled={index === value.length - 1}
-              onClick={() => move(index, index + 1)}
-            >
-              <ChevronDown className="size-4" />
-            </Button>
-            <RemoveButton
-              label="Remove item"
-              className="opacity-100"
-              onClick={() => onValue(value.filter((_, i) => i !== index))}
-            />
-          </div>
-        </div>
+        <ListItemRow
+          key={index}
+          item={item}
+          index={index}
+          count={value.length}
+          onItem={(newItem) => onValue(value.map((v, i) => (i === index ? newItem : v)))}
+          onMove={move}
+          onRemove={() => onValue(value.filter((_, i) => i !== index))}
+          rules={rules}
+          path={[...path, index]}
+        />
       ))}
       <AddFieldForm compact itemMode rules={rules} onAdd={(_key, item) => onValue([...value, item])} />
+    </div>
+  )
+}
+
+function ListItemRow({
+  item,
+  index,
+  count,
+  onItem,
+  onMove,
+  onRemove,
+  rules,
+  path,
+}: {
+  item: unknown
+  index: number
+  count: number
+  onItem: (item: unknown) => void
+  onMove: (from: number, to: number) => void
+  onRemove: () => void
+  rules: ValueEditorRules
+  path: ValuePath
+}) {
+  const isContainer = Array.isArray(item) || isPlainObject(item)
+  const [collapsed, setCollapsed] = useState(false)
+  const {isSelected, onRowClick} = useRowSelection(pathId(path), {
+    getValue: () => item,
+    setValue: onItem,
+    remove: onRemove,
+    rules,
+  })
+  return (
+    <div
+      onClick={onRowClick}
+      className={cn('group/item flex items-start gap-2', ROW_CLASS, isSelected && ROW_SELECTED_CLASS)}
+    >
+      <div className="mt-1.5 flex shrink-0 items-center gap-1">
+        {isContainer ? (
+          <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        ) : (
+          <span className="size-4 shrink-0" />
+        )}
+        <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        {isContainer && collapsed ? (
+          <div className="pt-1">
+            <CollapsedSummary value={item} onExpand={() => setCollapsed(false)} />
+          </div>
+        ) : (
+          <ValueEditor value={item} onValue={onItem} rules={rules} path={path} />
+        )}
+      </div>
+      <div
+        className={cn(
+          'flex items-center opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100',
+          isSelected && 'opacity-100',
+        )}
+      >
+        <CopyValueButton getValue={() => item} />
+        <Button
+          variant="ghost"
+          size="iconSm"
+          aria-label="Move up"
+          disabled={index === 0}
+          onClick={() => onMove(index, index - 1)}
+        >
+          <ChevronUp className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          aria-label="Move down"
+          disabled={index === count - 1}
+          onClick={() => onMove(index, index + 1)}
+        >
+          <ChevronDown className="size-4" />
+        </Button>
+        <RemoveButton label="Remove item" onClick={onRemove} />
+      </div>
     </div>
   )
 }

@@ -8,15 +8,14 @@ import {cn} from './utils'
 import {
   AddFieldForm,
   canonicalEntries,
-  EditableFieldKey,
   FIELD_LABEL_CLASS,
+  FieldRow,
   findInvalidValue,
   isPlainObject,
   METADATA_VALUE_RULES,
-  RemoveButton,
   toCanonicalOrder,
   ValueDisplay,
-  ValueEditor,
+  ValueEditorProvider,
 } from './value-editor'
 
 /**
@@ -98,51 +97,47 @@ export function DocumentMetadataView({
       </div>
       {jsonMode ? (
         <MetadataJsonEditor metadata={current} editable={editable} onMetadata={onMetadata} />
-      ) : (
-        <>
+      ) : editable ? (
+        <ValueEditorProvider>
           {entries.length === 0 ? (
             <p className="text-muted-foreground text-sm">This document has no metadata.</p>
           ) : (
-            <dl className="flex flex-col">
+            <div className="flex flex-col">
               {entries.map(([key, value]) => (
-                <div key={key} className="group border-border flex items-start gap-2 border-b py-3 last:border-b-0">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <dt className={editable ? undefined : FIELD_LABEL_CLASS}>
-                      {editable ? (
-                        <EditableFieldKey
-                          fieldKey={key}
-                          existingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-                          onRename={(newKey) => onMetadata!({[key]: null, [newKey]: value})}
-                        />
-                      ) : (
-                        key
-                      )}
-                    </dt>
-                    <dd>
-                      {editable ? (
-                        <ValueEditor
-                          value={value}
-                          onValue={(newValue) => onMetadata!({[key]: newValue})}
-                          rules={METADATA_VALUE_RULES}
-                        />
-                      ) : (
-                        <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
-                      )}
-                    </dd>
-                  </div>
-                  {editable && <RemoveButton label={`Remove ${key}`} onClick={() => onMetadata!({[key]: null})} />}
-                </div>
+                <FieldRow
+                  key={key}
+                  className="border-border border-b py-3 last:border-b-0"
+                  fieldKey={key}
+                  value={value}
+                  siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                  onValue={(newValue) => onMetadata!({[key]: newValue})}
+                  onRename={(newKey) => onMetadata!({[key]: null, [newKey]: value})}
+                  onRemove={() => onMetadata!({[key]: null})}
+                  rules={METADATA_VALUE_RULES}
+                  path={[key]}
+                />
               ))}
-            </dl>
+            </div>
           )}
-          {editable && (
-            <AddFieldForm
-              rules={METADATA_VALUE_RULES}
-              existingKeys={entries.map(([key]) => key)}
-              onAdd={(key, value) => onMetadata!({[key]: value})}
-            />
-          )}
-        </>
+          <AddFieldForm
+            rules={METADATA_VALUE_RULES}
+            existingKeys={entries.map(([key]) => key)}
+            onAdd={(key, value) => onMetadata!({[key]: value})}
+          />
+        </ValueEditorProvider>
+      ) : entries.length === 0 ? (
+        <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+      ) : (
+        <dl className="flex flex-col">
+          {entries.map(([key, value]) => (
+            <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+              <dt className={FIELD_LABEL_CLASS}>{key}</dt>
+              <dd>
+                <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
+              </dd>
+            </div>
+          ))}
+        </dl>
       )}
     </div>
   )
