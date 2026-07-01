@@ -14,7 +14,7 @@ import {CBOR_VALUE_RULES, ValueEditor} from '@shm/ui/value-editor'
 import {Braces, Check, Copy, Search, UploadCloud} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 
 /** Multicodec code for DAG-CBOR, the only codec this editor can decode/encode. */
 const DAG_CBOR_CODE = 0x71
@@ -58,16 +58,43 @@ function ExistingBlobEditor({cid}: {cid: string}) {
     )
   }
   if (blob.isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner />
-      </div>
-    )
+    return <BlobSearching cid={cid} />
   }
   if (blob.isError || blob.data?.value === undefined) {
-    return <BlobFallback cid={cid} message="This blob could not be loaded or decoded from the local IPFS store." />
+    return <BlobSearching cid={cid} notFoundYet onRetry={() => blob.refetch()} />
   }
   return <BlobEditor cid={cid} initialValue={blob.data.value} />
+}
+
+/**
+ * Shown while the daemon searches its local store and the IPFS network for
+ * the blob. When a search times out, keeps retrying so the blob appears as
+ * soon as it becomes available.
+ */
+function BlobSearching({cid, notFoundYet, onRetry}: {cid: string; notFoundYet?: boolean; onRetry?: () => void}) {
+  useEffect(() => {
+    if (!notFoundYet || !onRetry) return
+    const interval = setInterval(onRetry, 10_000)
+    return () => clearInterval(interval)
+  }, [notFoundYet, onRetry])
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-3 px-6 py-16 text-center">
+        <Spinner />
+        <span className="text-muted-foreground w-full truncate font-mono text-xs">ipfs://{cid}</span>
+        <p className="text-muted-foreground text-sm">
+          {notFoundYet
+            ? 'Not found yet — this blob is not available locally or from currently connected peers. Still searching…'
+            : 'Searching your node and the IPFS network…'}
+        </p>
+        {notFoundYet && onRetry ? (
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            Search Again
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
 }
 
 function BlobFallback({cid, message, children}: {cid: string; message: string; children?: React.ReactNode}) {
