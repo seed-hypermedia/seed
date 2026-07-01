@@ -491,6 +491,12 @@ export function EditableFieldKey({
       setText(fieldKey)
       return
     }
+    if (next === '/') {
+      // DAG-JSON reserves the single "/" key for link and bytes forms.
+      toast.error('"/" is a reserved field name in DAG-CBOR blobs')
+      setText(fieldKey)
+      return
+    }
     onRename(next)
   }
   return (
@@ -1341,6 +1347,11 @@ export function AddFieldForm({
       }
       if (existingKeys.includes(trimmedKey)) {
         setError(`"${trimmedKey}" already exists — edit it above`)
+        return
+      }
+      if (trimmedKey === '/') {
+        // DAG-JSON reserves the single "/" key for link and bytes forms.
+        setError('"/" is a reserved field name in DAG-CBOR blobs')
         return
       }
     }
