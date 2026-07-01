@@ -48,7 +48,7 @@ func TestRbsrIndex_BuildMatchesLoadRBSRStore(t *testing.T) {
 		if err := materializeScope(conn, id, dkey); err != nil {
 			return err
 		}
-		return buildStoreFromScopes(conn, []int64{id}, ProtocolVersionLegacy, got)
+		return buildStoreFromScopes(conn, []int64{id}, got)
 	}))
 	require.NoError(t, got.Seal())
 

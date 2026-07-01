@@ -182,11 +182,10 @@ var qScopeItems = dqb.Str(`SELECT
 	ORDER BY sb.ts, b.multihash;`)
 
 // buildStoreFromScopes fills store from the union of the given scopes' persisted
-// rbsr_item rows in a single ordered pass, applying codec canonicalization for
-// the protocol version and per-item visibility — the same shape loadRBSRStore
-// produces, but without re-running the closure. The store is not sealed here;
-// the caller seals and filters it.
-func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, protocolVersion string, store *authorizedStore) (err error) {
+// rbsr_item rows in a single ordered pass, applying per-item visibility — the
+// same shape loadRBSRStore produces, but without re-running the closure. The
+// store is not sealed here; the caller seals and filters it.
+func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorizedStore) (err error) {
 	if len(scopeIDs) == 0 {
 		return nil
 	}
@@ -215,7 +214,7 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, protocolVersion s
 			visibilityJSON = row.ColumnTextUnsafe(inc())
 		)
 
-		c := cid.NewCidV1(uint64(codecForProtocol(codec, protocolVersion)), hash) //nolint:gosec
+		c := cid.NewCidV1(uint64(codec), hash) //nolint:gosec
 		if err := store.Insert(ts, unsafeutil.BytesFromString(c.KeyString())); err != nil {
 			return fmt.Errorf("failed to insert blob %s into RBSR store: %w", c, err)
 		}

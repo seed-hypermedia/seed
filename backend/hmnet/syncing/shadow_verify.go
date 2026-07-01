@@ -100,11 +100,11 @@ func listMaterializedScopeRows(conn *sqlite.Conn) (rows []scopeRow, err error) {
 	return rows, nil
 }
 
-// ShadowVerifySweep runs shadow-verify across every materialized scope, each in
+// shadowVerifySweep runs shadow-verify across every materialized scope, each in
 // its own write transaction so the sweep never holds the writer lock for the
 // whole pass. Returns how many scopes were checked and how many drifted (and
 // were marked for re-materialization). Driven by a periodic background loop.
-func ShadowVerifySweep(ctx context.Context, db *sqlitex.Pool) (checked, drifted int, err error) {
+func shadowVerifySweep(ctx context.Context, db *sqlitex.Pool) (checked, drifted int, err error) {
 	var scopes []scopeRow
 	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var e error

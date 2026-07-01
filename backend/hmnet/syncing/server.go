@@ -390,7 +390,7 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 	// to the authoritative legacy rebuild, so a problem in the maintained index
 	// can never break sync.
 	if st := s.index.ReindexInfo().State; st != blob.ReindexStatePending && st != blob.ReindexStateInProgress {
-		store, err := s.loadStoreFromIndex(ctx, dkeys, authorizedSpaces, protocolVersionFromContext(ctx))
+		store, err := s.loadStoreFromIndex(ctx, dkeys, authorizedSpaces)
 		if err == nil {
 			return store, nil
 		}
@@ -420,7 +420,7 @@ func (s *Server) loadStoreLegacy(ctx context.Context, dkeys colx.HashSet[Discove
 // once (the only place the expensive collectBlobs closure runs), then build the
 // tree-backed store from the union of persisted rows. The incremental oracle
 // keeps the set current so reconciliation no longer rebuilds it per round.
-func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal, protocolVersion string) (rbsr.Store, error) {
+func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal) (rbsr.Store, error) {
 	store := newAuthorizedTreeStore()
 	if err := s.db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		scopeIDs := make([]int64, 0, len(dkeys))
@@ -440,7 +440,7 @@ func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[Disc
 			}
 			scopeIDs = append(scopeIDs, id)
 		}
-		return buildStoreFromScopes(conn, scopeIDs, protocolVersion, store)
+		return buildStoreFromScopes(conn, scopeIDs, store)
 	}); err != nil {
 		return nil, err
 	}
