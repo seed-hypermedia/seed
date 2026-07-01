@@ -25,6 +25,13 @@ type BlockHighlightAction =
  * Build a `DecorationSet` that applies `className` to every `blockNode` whose
  * `id` attribute is present in `blockIds`.
  */
+// A node that carries a block id we highlight. Either the blockNode
+// wrapper, or a table cell/header.
+function isHighlightableBlock(node: ProseMirrorNode): boolean {
+  const name = node.type.name
+  return name === 'blockNode' || name === 'tableCell' || name === 'tableHeader'
+}
+
 function buildDecorations(
   doc: Parameters<typeof DecorationSet.create>[0],
   blockIds: string[],
@@ -33,7 +40,7 @@ function buildDecorations(
   const decorations: Decoration[] = []
 
   doc.descendants((node, pos) => {
-    if (node.type.name === 'blockNode' && blockIds.includes(node.attrs['id'] as string)) {
+    if (isHighlightableBlock(node) && blockIds.includes(node.attrs['id'] as string)) {
       decorations.push(Decoration.node(pos, pos + node.nodeSize, {class: className}))
     }
   })
@@ -54,7 +61,7 @@ function findBlockContent(
 
   doc.descendants((node, pos) => {
     if (result) return false
-    if (node.type.name === 'blockNode' && node.attrs['id'] === blockId) {
+    if (isHighlightableBlock(node) && node.attrs['id'] === blockId) {
       const blockBeforePos = pos
       let contentBeforePos = blockBeforePos
       node.forEach((child, offset) => {

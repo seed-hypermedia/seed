@@ -789,3 +789,88 @@ NESTED BLOCKS
 :global(.dark) :global(.comment-editor) .blockContent[data-content-type='code-block'] {
   background-color: rgb(255 255 255 / 0.1);
 }
+
+/* Table block styles */
+.blockContent[data-content-type='table'] {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.blockContent[data-content-type='table'] th,
+.blockContent[data-content-type='table'] td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  text-align: left;
+  min-width: 4em;
+}
+
+.blockContent[data-content-type='table'] th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
+:global(.dark) .blockContent[data-content-type='table'] th {
+  background-color: color-mix(in srgb, var(--muted) 85%, black);
+}
+
+/* The paragraph inside a cell carries its own block level margins from
+ * .hm-prose. Clear them so cells stay compact. */
+.blockContent[data-content-type='table'] th > p,
+.blockContent[data-content-type='table'] td > p {
+  margin: 0;
+}
+
+/* Cell selection highlight. `prosemirror-tables` adds the `.selectedCell`
+ * class to <th>/<td> elements covered by a CellSelection. */
+.blockContent[data-content-type='table'] td:global(.selectedCell),
+.blockContent[data-content-type='table'] th:global(.selectedCell) {
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+:global(.dark) .blockContent[data-content-type='table'] td:global(.selectedCell),
+:global(.dark) .blockContent[data-content-type='table'] th:global(.selectedCell) {
+  background-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+/* Table row and column hover strips */
+:global(.hm-table-row-strip),
+:global(.hm-table-col-strip) {
+  position: absolute;
+  background-color: var(--muted-foreground);
+  opacity: 0.4;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 0.1s ease;
+  z-index: 2;
+}
+
+:global(.hm-table-row-strip:hover),
+:global(.hm-table-col-strip:hover) {
+  opacity: 0.7;
+}
+
+:global(.hm-table-row-strip) {
+  width: 3px;
+}
+
+:global(.hm-table-col-strip) {
+  height: 3px;
+}
+
+:global(.dark) :global(.hm-table-row-strip),
+:global(.dark) :global(.hm-table-col-strip) {
+  opacity: 0.5;
+}
+
+:global(.dark) :global(.hm-table-row-strip:hover),
+:global(.dark) :global(.hm-table-col-strip:hover) {
+  opacity: 0.8;
+}
+
+/* Anchor div for the table row and column action menus */
+:global(.hm-table-menu-anchor) {
+  pointer-events: none;
+}

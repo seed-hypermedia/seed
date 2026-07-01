@@ -64,6 +64,16 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
   },
   keepSelection?: boolean,
 ) {
+  if (
+    oldNodeType.name === 'table' ||
+    newNodeType.name === 'table' ||
+    block.type === 'table' ||
+    block.type === 'tableRow' ||
+    block.type === 'tableColumn'
+  ) {
+    return
+  }
+
   let content: PMNode[] | 'keep' = 'keep'
 
   // Has there been any custom content provided?
@@ -145,6 +155,9 @@ function updateChildren<BSchema extends BlockSchema>(
   // editor: BlockNoteEditor<BSchema>,
   blockInfo: BlockInfo,
 ) {
+  // Skip the children update for table blocks.
+  if (block.type === 'table' || blockInfo.blockContentType === 'table') return
+
   if (block.children && block.children.length > 0) {
     const childNodes = block.children.map((child) => {
       return blockToNode(child, state.schema)

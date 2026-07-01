@@ -5,7 +5,7 @@ import {EditorView} from 'prosemirror-view'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
-import {getNearestBlockPos} from '../Blocks/helpers/getBlockInfoFromPos'
+import {getNearestBlockOrCellPos} from '../Blocks/helpers/getBlockInfoFromPos'
 
 /**
  * The state emitted to React subscribers whenever the text selection changes in
@@ -172,12 +172,12 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
     const from = $from.pos
     const to = $to.pos
 
-    // Locate the blockNode that contains the selection start.
+    // Locate the nearest addressable container that holds the selection.
     let blockNode: import('prosemirror-model').Node | null = null
     let blockBeforePos = 0
 
     try {
-      const posInfo = getNearestBlockPos(state.doc, from)
+      const posInfo = getNearestBlockOrCellPos(state.doc, from)
       blockNode = posInfo.node
       blockBeforePos = posInfo.posBeforeNode
     } catch {
@@ -185,9 +185,10 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    // Only show the bubble when the entire selection is within a single block.
+    // Only show the bubble when the entire selection is within a single
+    // addressable container (single block, or single cell when inside a table).
     try {
-      const endBlockInfo = getNearestBlockPos(state.doc, to)
+      const endBlockInfo = getNearestBlockOrCellPos(state.doc, to)
       if (endBlockInfo.posBeforeNode !== blockBeforePos) {
         this.hide()
         return
@@ -199,7 +200,7 @@ class RangeSelectionView<BSchema extends BlockSchema> implements PluginView {
 
     const blockId: string | null = blockNode?.attrs?.id ?? null
 
-    // Find the blockContent node start position (first child of blockNode).
+    // Find the blockContent node start position (first child of blockNode or tableCell / tableHeader).
     let blockContentBeforePos = blockBeforePos
     blockNode.forEach((child, offset) => {
       if (child.type.spec.group === 'block') {

@@ -206,7 +206,15 @@ export const HMBlockParagraphSchema = z
     type: z.literal('Paragraph'),
     ...blockBaseProperties,
     ...textBlockProperties,
-    attributes: z.object(parentBlockAttributes).optional().default({}),
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        // Present if this Paragraph is a cell inside a TableRow. References a TableColumn
+        // block by id.
+        columnId: z.string().optional(),
+      })
+      .optional()
+      .default({}),
   })
   .strict()
 
@@ -754,6 +762,43 @@ export type HMQuery = z.infer<typeof HMQuerySchema>
 
 export type HMTimestamp = z.infer<typeof HMTimestampSchema>
 
+export const HMBlockTableSchema = z
+  .object({
+    type: z.literal('Table'),
+    ...blockBaseProperties,
+    attributes: z.object(parentBlockAttributes).optional().default({}),
+  })
+  .strict()
+
+export const HMBlockTableRowSchema = z
+  .object({
+    type: z.literal('TableRow'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        isHeader: z.boolean().optional(),
+      })
+      .optional()
+      .default({}),
+  })
+  .strict()
+
+export const HMBlockTableColumnSchema = z
+  .object({
+    type: z.literal('TableColumn'),
+    ...blockBaseProperties,
+    attributes: z
+      .object({
+        ...parentBlockAttributes,
+        width: z.number().optional(),
+        isHeader: z.boolean().optional(),
+      })
+      .optional()
+      .default({}),
+  })
+  .strict()
+
 export const HMBlockQuerySchema = z
   .object({
     type: z.literal('Query'),
@@ -792,6 +837,9 @@ export const HMBlockKnownSchema = z.discriminatedUnion('type', [
   HMBlockEmbedSchema,
   HMBlockWebEmbedSchema,
   HMBlockNostrSchema,
+  HMBlockTableSchema,
+  HMBlockTableRowSchema,
+  HMBlockTableColumnSchema,
   HMBlockQuerySchema,
   HMBlockGroupSchema,
   HMBlockLinkSchema,
@@ -830,6 +878,9 @@ export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
 export type HMBlock = z.infer<typeof HMBlockKnownSchema>
 export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
+export type HMBlockTable = z.infer<typeof HMBlockTableSchema>
+export type HMBlockTableRow = z.infer<typeof HMBlockTableRowSchema>
+export type HMBlockTableColumn = z.infer<typeof HMBlockTableColumnSchema>
 
 export const HMDocumentSchema = z.object({
   content: z.array(HMBlockNodeSchema).default([]),
