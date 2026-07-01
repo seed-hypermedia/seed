@@ -1,5 +1,7 @@
+import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {getDocumentSelectionObserverKey, shouldCancelEditOnOutsidePointer} from './document-editor'
+import {getDocumentSelectionObserverKey} from './document-editor'
 
 describe('getDocumentSelectionObserverKey', () => {
   it('returns a key for collapsed selections', () => {
@@ -11,14 +13,11 @@ describe('getDocumentSelectionObserverKey', () => {
   })
 })
 
-describe('shouldCancelEditOnOutsidePointer', () => {
-  it('does not cancel editing while changes are unsaved or saving', () => {
-    expect(shouldCancelEditOnOutsidePointer('changed')).toBe(false)
-    expect(shouldCancelEditOnOutsidePointer('saving')).toBe(false)
-  })
+describe('outside pointer editing behavior', () => {
+  it('does not install a document-level pointerdown listener that exits edit mode', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/document-editor.tsx'), 'utf8')
 
-  it('allows outside pointer cancellation when content is idle or saved', () => {
-    expect(shouldCancelEditOnOutsidePointer('idle')).toBe(true)
-    expect(shouldCancelEditOnOutsidePointer('saved')).toBe(true)
+    expect(source).not.toContain("document.addEventListener('pointerdown'")
+    expect(source).not.toContain('document.addEventListener("pointerdown"')
   })
 })

@@ -2,7 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, NodeSelection, TextSelection} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
 import {beforeEach, describe, expect, it} from 'vitest'
-import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
+import {applyReadOnlyClickSelectionGuard} from './click-edit-mode-guard'
 
 /**
  * Regression tests for the "click while selecting" guard wired into the
@@ -127,34 +127,5 @@ describe('applyReadOnlyClickSelectionGuard', () => {
 
     expect(consumed).toBe(false)
     expect(view.state.selection).toBe(before)
-  })
-})
-
-describe('shouldKeepEditModeForPointerTarget', () => {
-  it('keeps edit mode for clicks inside the editor root', () => {
-    const root = document.createElement('div')
-    const child = document.createElement('p')
-    root.appendChild(child)
-
-    expect(shouldKeepEditModeForPointerTarget(child, root)).toBe(true)
-  })
-
-  it('keeps edit mode for interactive controls outside the editor root', () => {
-    const root = document.createElement('div')
-    const button = document.createElement('button')
-    const popover = document.createElement('div')
-    const popoverChild = document.createElement('span')
-    popover.setAttribute('data-radix-popper-content-wrapper', '')
-    popover.appendChild(popoverChild)
-
-    expect(shouldKeepEditModeForPointerTarget(button, root)).toBe(true)
-    expect(shouldKeepEditModeForPointerTarget(popoverChild, root)).toBe(true)
-  })
-
-  it('exits edit mode for non-interactive clicks outside the editor root', () => {
-    const root = document.createElement('div')
-    const outside = document.createElement('div')
-
-    expect(shouldKeepEditModeForPointerTarget(outside, root)).toBe(false)
   })
 })

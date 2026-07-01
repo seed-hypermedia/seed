@@ -9,7 +9,6 @@ import {useEditorHandlersRef} from '@shm/shared/models/editor-handlers-context'
 import {
   selectCanEdit,
   selectIsEditing,
-  selectSaveStatus,
   useDocumentMachineRef,
   useDocumentSelector,
 } from '@shm/shared/models/use-document-machine'
@@ -37,7 +36,7 @@ import {
 } from './blocknote'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
-import {applyReadOnlyClickSelectionGuard, shouldKeepEditModeForPointerTarget} from './click-edit-mode-guard'
+import {applyReadOnlyClickSelectionGuard} from './click-edit-mode-guard'
 import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
@@ -82,11 +81,6 @@ export function shouldRequirePublishForBlockAction({
 }): boolean {
   if (isBlockInPublishedVersion) return !isBlockInPublishedVersion(blockId)
   return !!isUnpublishedDraft
-}
-
-/** Return whether an outside pointer should exit edit mode for the current autosave state. */
-export function shouldCancelEditOnOutsidePointer(saveStatus: 'idle' | 'changed' | 'saving' | 'saved'): boolean {
-  return saveStatus !== 'changed' && saveStatus !== 'saving'
 }
 
 function shouldClearBlockHighlightOnMouseDown(target: EventTarget | null): boolean {
@@ -826,30 +820,6 @@ export function DocumentEditor({
       domRoot.removeEventListener('click', handleClick)
     }
   }, [editor, onEditStart])
-
-  // Exit edit mode when the user clicks outside the editable document body.
-  // Keep controls usable: publish toolbar/popovers, inputs, buttons, links, and
-  // other interactive surfaces should not disappear before their click handler
-  // can run.
-  useEffect(() => {
-    if (!isEditing) return
-
-    const view = editor._tiptapEditor?.view
-    if (!view) return
-
-    const domRoot = view.dom as HTMLElement
-
-    const handlePointerDown = (e: PointerEvent) => {
-      if (shouldKeepEditModeForPointerTarget(e.target, domRoot)) return
-      if (!shouldCancelEditOnOutsidePointer(selectSaveStatus(actorRef.getSnapshot()))) return
-      actorRef.send({type: 'edit.cancel'})
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [editor, isEditing, actorRef])
 
   const editable = isEditing
 
