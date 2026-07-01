@@ -569,7 +569,17 @@ NESTED BLOCKS
  * renders the 700 shade and dark mode changes to 400 for
  * text and a 900 for highlights, so the same annotation reads
  * correctly against either canvas without needing two stored values.
- */
+*/
+/* Grayscale (neutral) shades. In dark mode the pairs are inverted */
+[data-text-color='neutral-light'] {
+  color: var(--color-neutral-400);
+}
+[data-text-color='neutral'] {
+  color: var(--color-neutral-500);
+}
+[data-text-color='neutral-dark'] {
+  color: var(--color-neutral-600);
+}
 [data-text-color='red'] {
   color: var(--color-red-700);
 }
@@ -613,6 +623,15 @@ NESTED BLOCKS
   color: var(--color-pink-700);
 }
 
+:global(.dark) [data-text-color='neutral-light'] {
+  color: var(--color-neutral-600);
+}
+:global(.dark) [data-text-color='neutral'] {
+  color: var(--color-neutral-500);
+}
+:global(.dark) [data-text-color='neutral-dark'] {
+  color: var(--color-neutral-400);
+}
 :global(.dark) [data-text-color='red'] {
   color: var(--color-red-400);
 }
@@ -656,6 +675,15 @@ NESTED BLOCKS
   color: var(--color-pink-400);
 }
 
+[data-background-color='neutral-light'] {
+  background-color: var(--color-neutral-100);
+}
+[data-background-color='neutral'] {
+  background-color: var(--color-neutral-200);
+}
+[data-background-color='neutral-dark'] {
+  background-color: var(--color-neutral-300);
+}
 [data-background-color='red'] {
   background-color: var(--color-red-100);
 }
@@ -699,6 +727,15 @@ NESTED BLOCKS
   background-color: var(--color-pink-100);
 }
 
+:global(.dark) [data-background-color='neutral-light'] {
+  background-color: color-mix(in srgb, var(--color-neutral-800) 40%, transparent);
+}
+:global(.dark) [data-background-color='neutral'] {
+  background-color: color-mix(in srgb, var(--color-neutral-700) 40%, transparent);
+}
+:global(.dark) [data-background-color='neutral-dark'] {
+  background-color: color-mix(in srgb, var(--color-neutral-600) 40%, transparent);
+}
 :global(.dark) [data-background-color='red'] {
   background-color: color-mix(in srgb, var(--color-red-900) 40%, transparent);
 }

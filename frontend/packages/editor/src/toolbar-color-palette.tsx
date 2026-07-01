@@ -6,6 +6,11 @@ import {BlockNoteEditor, BlockSchema} from './blocknote'
 
 export const TOOLBAR_COLOR_NAMES = [
   'default',
+  // Neutral (gray) shades.
+  'neutral-light',
+  'neutral',
+  'neutral-dark',
+  // Chromatic shades.
   'red',
   'amber',
   'yellow',
@@ -25,6 +30,9 @@ export const TOOLBAR_COLOR_NAMES = [
 export type ToolbarColorName = (typeof TOOLBAR_COLOR_NAMES)[number]
 
 export const TEXT_SWATCH_CLASS: Record<Exclude<ToolbarColorName, 'default'>, string> = {
+  'neutral-light': 'bg-neutral-400 dark:bg-neutral-600',
+  neutral: 'bg-neutral-500 dark:bg-neutral-500',
+  'neutral-dark': 'bg-neutral-600 dark:bg-neutral-400',
   red: 'bg-red-700 dark:bg-red-400',
   amber: 'bg-amber-700 dark:bg-amber-400',
   yellow: 'bg-yellow-700 dark:bg-yellow-400',
@@ -42,6 +50,9 @@ export const TEXT_SWATCH_CLASS: Record<Exclude<ToolbarColorName, 'default'>, str
 }
 
 const HIGHLIGHT_SWATCH_CLASS: Record<Exclude<ToolbarColorName, 'default'>, string> = {
+  'neutral-light': 'bg-neutral-100 dark:bg-neutral-900/40',
+  neutral: 'bg-neutral-200 dark:bg-neutral-800/40',
+  'neutral-dark': 'bg-neutral-300 dark:bg-neutral-700/40',
   red: 'bg-red-100 dark:bg-red-900/40',
   amber: 'bg-amber-100 dark:bg-amber-900/40',
   yellow: 'bg-yellow-100 dark:bg-yellow-900/40',
