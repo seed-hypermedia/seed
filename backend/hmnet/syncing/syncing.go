@@ -518,24 +518,30 @@ func (s *Service) Run(ctx context.Context) error {
 const shadowVerifyInterval = 5 * time.Minute
 
 func (s *Service) runShadowVerify(ctx context.Context) {
-	ticker := time.NewTicker(shadowVerifyInterval)
-	defer ticker.Stop()
+	// Timer, not Ticker: the sweep recomputes every scope via collectBlobs and
+	// can run long; a Ticker would keep firing on a fixed cadence regardless,
+	// stacking runs. Fire once at 0, then reset to the interval after each cycle.
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			checked, drifted, err := ShadowVerifySweep(ctx, s.db)
-			switch {
-			case err != nil:
-				s.log.Warn("ShadowVerifyFailed", zap.Error(err))
-			case drifted > 0:
-				s.log.Warn("ShadowVerifyDrift", zap.Int("checked", checked), zap.Int("drifted", drifted))
-			default:
-				s.log.Debug("ShadowVerifyClean", zap.Int("checked", checked))
-			}
+		case <-timer.C:
 		}
+
+		checked, drifted, err := shadowVerifySweep(ctx, s.db)
+		switch {
+		case err != nil:
+			s.log.Warn("ShadowVerifyFailed", zap.Error(err))
+		case drifted > 0:
+			s.log.Warn("ShadowVerifyDrift", zap.Int("checked", checked), zap.Int("drifted", drifted))
+		default:
+			s.log.Debug("ShadowVerifyClean", zap.Int("checked", checked))
+		}
+
+		timer.Reset(shadowVerifyInterval)
 	}
 }
 
