@@ -71,6 +71,7 @@ import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {BLOB_META_SCHEMA_CID} from '@shm/ui/blob-schema'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
@@ -81,7 +82,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Braces, Copy, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
+import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -870,6 +871,13 @@ export default function DesktopResourcePage() {
     label: 'New Blob',
     icon: <Braces className="size-4" />,
     onClick: () => navigate({key: 'raw-blob'}),
+  })
+
+  menuItems.push({
+    key: 'new-schema',
+    label: 'New Schema',
+    icon: <FileCode2 className="size-4" />,
+    onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
   })
 
   // Publish / Unpublish site options (only for home documents)

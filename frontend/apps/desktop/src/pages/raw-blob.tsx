@@ -4,16 +4,27 @@ import {useCID} from '@shm/shared/models/entity'
 import {createInspectIpfsNavRoute} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ipfsUrlToRoute} from '@/omnibar-url'
+import {useSchemaRegistry} from '@/models/blob-schema'
 import {Button} from '@shm/ui/button'
+import {Input} from '@shm/ui/components/input'
 import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {dagJsonToIpld} from '@shm/ui/dag-json'
+import {dagJsonToIpld, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
+import {
+  BLOB_META_SCHEMA,
+  BLOB_META_SCHEMA_CID,
+  instantiateSchema,
+  isSchemaBlob,
+  type SchemaRegistry,
+} from '@shm/ui/blob-schema'
+import {BlobSchemaProvider, useSchemaWarningCount} from '@shm/ui/blob-schema-context'
+import {isPlainObject} from '@shm/ui/value-editor'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {CBOR_VALUE_RULES, useValueHistory, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
-import {Braces, Check, Copy, Search, UploadCloud} from 'lucide-react'
+import {Braces, Check, Copy, FileCode2, Link2, Search, TriangleAlert, UploadCloud} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {useEffect, useMemo, useState} from 'react'
@@ -29,7 +40,13 @@ export default function RawBlobPage() {
   }
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white dark:bg-black">
-      {route.cid ? <ExistingBlobEditor key={route.cid} cid={route.cid} /> : <BlobEditor initialValue={{}} />}
+      {route.cid ? (
+        <ExistingBlobEditor key={route.cid} cid={route.cid} />
+      ) : route.schemaCid ? (
+        <NewInstanceEditor key={route.schemaCid} schemaCid={route.schemaCid} />
+      ) : (
+        <BlobEditor initialValue={{}} />
+      )}
     </div>
   )
 }
@@ -66,6 +83,29 @@ function ExistingBlobEditor({cid}: {cid: string}) {
     return <BlobSearching cid={cid} notFoundYet onRetry={() => blob.refetch()} />
   }
   return <BlobEditor cid={cid} initialValue={blob.data.value} />
+}
+
+/**
+ * "New instance" flow: loads the schema blob, materializes a starter value
+ * shaped by it (defaults + required fields), links it via the reserved
+ * `schema` key, and hands off to the editor. The meta-schema is built in, so
+ * "New Schema" needs no fetch.
+ */
+function NewInstanceEditor({schemaCid}: {schemaCid: string}) {
+  const isMeta = schemaCid === BLOB_META_SCHEMA_CID
+  const fetched = useSchemaRegistry(isMeta ? undefined : schemaCid)
+  const schema = isMeta ? BLOB_META_SCHEMA : fetched.rootSchema
+  const registry: SchemaRegistry = isMeta ? {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA} : fetched.registry
+
+  if (!schema) {
+    return <BlobSearching cid={schemaCid} notFoundYet={!fetched.isLoading} />
+  }
+  const starter = instantiateSchema(schema, registry)
+  const initialValue = {
+    ...(isPlainObject(starter) ? starter : {}),
+    schema: {'/': schemaCid},
+  }
+  return <BlobEditor initialValue={initialValue} />
 }
 
 /**
@@ -116,6 +156,11 @@ function BlobFallback({cid, message, children}: {cid: string; message: string; c
  * computes the CIDv1 (sha2-256), stores it via PublishBlobs, and replaces the
  * route with the new CID. Blobs are immutable: editing a published blob and
  * publishing again creates a new blob with a new CID.
+ *
+ * When the value carries a `schema` IPLD link, the linked schema drives
+ * advisory hints and warnings throughout the editor (never blocking). A blob
+ * whose schema link targets the built-in meta-schema IS a schema; publishing
+ * it also stores the meta-schema blob so the link always resolves.
  */
 function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) {
   const client = useUniversalClient()
@@ -123,6 +168,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const replace = useNavigate('replace')
   const [value, setValue] = useState<unknown>(initialValue)
   const [jsonMode, setJsonMode] = useState(false)
+  const [attachMode, setAttachMode] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
 
   const history = useValueHistory(value)
@@ -139,6 +185,20 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
     if (snapshot) setValue(snapshot.value)
   }
 
+  // Attached schema: a `schema` key holding a valid DAG-CBOR link. The
+  // meta-schema is built into the app, so schemas-being-edited never wait on
+  // a fetch (and work before the meta-schema blob is ever published).
+  const attachedSchemaCid = useMemo(() => {
+    if (!isPlainObject(value) || !isDagJsonLink(value.schema)) return undefined
+    const parsed = parseCidString(value.schema['/'])
+    return parsed?.code === DAG_CBOR_CODE ? value.schema['/'] : undefined
+  }, [value])
+  const isMetaAttached = attachedSchemaCid === BLOB_META_SCHEMA_CID
+  const fetched = useSchemaRegistry(isMetaAttached ? undefined : attachedSchemaCid)
+  const schema = isMetaAttached ? BLOB_META_SCHEMA : fetched.rootSchema
+  const registry: SchemaRegistry = isMetaAttached ? {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA} : fetched.registry
+  const valueIsSchema = isSchemaBlob(value)
+
   const isDirty = useMemo(() => JSON.stringify(value) !== JSON.stringify(initialValue), [value, initialValue])
   const canPublish = (!cid || isDirty) && !isPublishing
 
@@ -150,7 +210,13 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       const data = cbor.encode(dagJsonToIpld(value))
       const digest = await sha256.digest(data)
       const newCid = CID.createV1(DAG_CBOR_CODE, digest).toString()
-      await client.request('PublishBlobs', {blobs: [{cid: newCid, data}]})
+      const blobs: {cid: string; data: Uint8Array}[] = [{cid: newCid, data}]
+      if (isMetaAttached) {
+        // Publishing a schema: store the meta-schema alongside it so the
+        // schema's own `schema` link resolves on any node that has this blob.
+        blobs.push({cid: BLOB_META_SCHEMA_CID, data: cbor.encode(dagJsonToIpld(BLOB_META_SCHEMA))})
+      }
+      await client.request('PublishBlobs', {blobs})
       toast.success(`Published ipfs://${newCid}`)
       replace({key: 'raw-blob', cid: newCid})
     } catch (e) {
@@ -168,6 +234,22 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       onClick: () => setJsonMode((mode) => !mode),
     },
   ]
+  if (isPlainObject(value)) {
+    menuItems.push({
+      key: 'attach-schema',
+      label: attachedSchemaCid ? 'Change Schema…' : 'Attach Schema…',
+      icon: <FileCode2 className="size-4" />,
+      onClick: () => setAttachMode(true),
+    })
+  }
+  if (valueIsSchema && cid && !isDirty) {
+    menuItems.push({
+      key: 'new-instance',
+      label: 'New Instance of this Schema',
+      icon: <Copy className="size-4" />,
+      onClick: () => navigate({key: 'raw-blob', schemaCid: cid}),
+    })
+  }
   if (cid) {
     menuItems.push(
       {
@@ -197,47 +279,182 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
         if (route) navigate(route)
       }}
     >
-      <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm md:top-4 md:right-4">
-        {canPublish && (
-          <Button variant="default" size="sm" disabled={isPublishing} onClick={publish}>
-            {isPublishing ? <Spinner className="size-4" /> : <UploadCloud className="size-4" />}
-            Publish
-          </Button>
-        )}
-        <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
-      </div>
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 pt-14 pb-24 md:pt-16">
-          {cid ? (
-            <div className="text-muted-foreground flex items-center gap-2 text-xs">
-              <span className="truncate font-mono">ipfs://{cid}</span>
-              {!isDirty && (
-                <span className="flex shrink-0 items-center gap-1">
-                  <Check className="size-3" />
-                  Published
-                </span>
-              )}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              New blob — publish to encode as DAG-CBOR and store it on your IPFS node.
-            </p>
+      <BlobSchemaProvider schema={schema} registry={registry} value={value}>
+        <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm md:top-4 md:right-4">
+          {canPublish && (
+            <Button variant="default" size="sm" disabled={isPublishing} onClick={publish}>
+              {isPublishing ? <Spinner className="size-4" /> : <UploadCloud className="size-4" />}
+              Publish
+            </Button>
           )}
-          {jsonMode ? (
-            <BlobJsonMode
-              value={value}
-              onApply={(next) => {
-                update(next)
-                setJsonMode(false)
-              }}
-              onCancel={() => setJsonMode(false)}
-            />
-          ) : (
-            <ValueEditor value={value} onValue={update} rules={CBOR_VALUE_RULES} />
-          )}
+          <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
         </div>
-      </div>
+        <div className="h-full overflow-y-auto">
+          <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 pt-14 pb-24 md:pt-16">
+            {cid ? (
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                <span className="truncate font-mono">ipfs://{cid}</span>
+                {!isDirty && (
+                  <span className="flex shrink-0 items-center gap-1">
+                    <Check className="size-3" />
+                    Published
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {valueIsSchema
+                  ? 'New schema — publish to store it and create instances from it.'
+                  : 'New blob — publish to encode as DAG-CBOR and store it on your IPFS node.'}
+              </p>
+            )}
+            <SchemaStatusRow
+              attachedSchemaCid={attachedSchemaCid}
+              valueIsSchema={valueIsSchema}
+              schemaLoaded={!!schema}
+              schemaLoading={!isMetaAttached && !!attachedSchemaCid && fetched.isLoading}
+              onOpenSchema={
+                attachedSchemaCid && !isMetaAttached
+                  ? () => navigate({key: 'raw-blob', cid: attachedSchemaCid})
+                  : undefined
+              }
+            />
+            {attachMode && (
+              <AttachSchemaBar
+                onCancel={() => setAttachMode(false)}
+                onAttach={(schemaCid) => {
+                  if (!isPlainObject(value)) return
+                  update({...value, schema: {'/': schemaCid}})
+                  setAttachMode(false)
+                }}
+              />
+            )}
+            {jsonMode ? (
+              <BlobJsonMode
+                value={value}
+                onApply={(next) => {
+                  update(next)
+                  setJsonMode(false)
+                }}
+                onCancel={() => setJsonMode(false)}
+              />
+            ) : (
+              <ValueEditor value={value} onValue={update} rules={CBOR_VALUE_RULES} />
+            )}
+          </div>
+        </div>
+      </BlobSchemaProvider>
     </ValueEditorProvider>
+  )
+}
+
+/**
+ * One quiet line about the attached schema: what it is, whether it loaded,
+ * and how many advisory warnings the current value has. Warnings never block
+ * editing or publishing.
+ */
+function SchemaStatusRow({
+  attachedSchemaCid,
+  valueIsSchema,
+  schemaLoaded,
+  schemaLoading,
+  onOpenSchema,
+}: {
+  attachedSchemaCid: string | undefined
+  valueIsSchema: boolean
+  schemaLoaded: boolean
+  schemaLoading: boolean
+  onOpenSchema?: () => void
+}) {
+  const warningCount = useSchemaWarningCount()
+  if (!attachedSchemaCid) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="text-muted-foreground flex items-center gap-1">
+        <FileCode2 className="size-3.5" />
+        {valueIsSchema ? 'This blob is a schema' : 'Schema attached'}
+      </span>
+      {!valueIsSchema && (
+        <button
+          className={cn(
+            'text-muted-foreground flex max-w-56 items-center gap-1 truncate font-mono',
+            onOpenSchema && 'hover:underline',
+          )}
+          onClick={onOpenSchema}
+          disabled={!onOpenSchema}
+        >
+          <Link2 className="size-3 shrink-0" />
+          <span className="truncate">{attachedSchemaCid}</span>
+        </button>
+      )}
+      {schemaLoading && (
+        <span className="text-muted-foreground flex items-center gap-1">
+          <Spinner className="size-3" />
+          Loading schema…
+        </span>
+      )}
+      {schemaLoaded && warningCount > 0 && (
+        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-500">
+          <TriangleAlert className="size-3.5" />
+          {warningCount} field{warningCount === 1 ? " doesn't" : "s don't"} match the schema — kept as-is
+        </span>
+      )}
+      {schemaLoaded && warningCount === 0 && !valueIsSchema && (
+        <span className="text-muted-foreground flex items-center gap-1">
+          <Check className="size-3" />
+          Matches schema
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Inline bar for attaching a schema by CID or ipfs:// URL. */
+function AttachSchemaBar({onAttach, onCancel}: {onAttach: (cid: string) => void; onCancel: () => void}) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = () => {
+    const cidText = text.trim().replace(/^ipfs:\/\//, '')
+    const parsed = parseCidString(cidText)
+    if (!parsed) {
+      setError('Enter a valid CID or ipfs:// URL')
+      return
+    }
+    if (parsed.code !== DAG_CBOR_CODE) {
+      setError('Schemas are DAG-CBOR blobs — this CID has a different codec')
+      return
+    }
+    onAttach(cidText)
+  }
+
+  return (
+    <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={text}
+          placeholder="Schema CID or ipfs:// URL"
+          className="min-w-64 flex-1 font-mono text-xs"
+          autoFocus
+          onChange={(e) => {
+            setText(e.target.value)
+            setError(null)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+            if (e.key === 'Escape') onCancel()
+          }}
+        />
+        <Button size="sm" onClick={submit}>
+          <Check className="size-4" />
+          Attach
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      {error && <p className="text-destructive text-xs">{error}</p>}
+    </div>
   )
 }
 
