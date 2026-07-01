@@ -74,11 +74,21 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
 
 - [ ] Adversarial review workflow: data-loss paths, validator wrong-warnings,
       React correctness (hook rules, effect loops in useSchemaRegistry),
-      publish-path correctness
+      publish-path correctness — *in flight (first run lost to rate limits,
+      resumed)*
 - [x] Tests: schema-linked instance encode round-trip; meta-schema pinned CID
       through the publish pipeline; new-schema starter recognized by
-      `isSchemaBlob`; route param tests (shared)
-- [ ] Manual/verify pass in the running app
+      `isSchemaBlob`; route param tests (shared); jsdom rendering tests for
+      badges/enum-select/chips/no-schema-unchanged
+- [x] `"/"` field name reserved in add-field and rename (DAG-JSON reservation)
+- [x] `useSchemaRegistry` registry identity stabilized (provider memo works;
+      closure-folding effect keyed on content, not array identity)
+- [x] **Live-daemon end-to-end verification** (local seed-daemon, gRPC
+      `StoreBlobs` + HTTP `.dagjson`): meta-schema, an Article schema, and an
+      instance published with client-computed CIDs — daemon verified and
+      echoed all three; served back with the full IPLD link chain intact
+      (instance→schema→meta); served schema passes `isSchemaBlob`; served
+      instance validates clean; a mutated instance warns without throwing.
 - [ ] Daemon indexer `"type"+KnownType` byte-match collision mitigation
       (client-side pre-publish check at minimum)
 - [ ] Final docs sweep to as-built state; user-facing walkthrough
