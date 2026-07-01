@@ -448,6 +448,40 @@ const (
 	C_PublicKeysPrincipal = "public_keys.principal"
 )
 
+// Table rbsr_item.
+const (
+	RbsrItem      sqlitegen.Table  = "rbsr_item"
+	RbsrItemBlob  sqlitegen.Column = "rbsr_item.blob"
+	RbsrItemScope sqlitegen.Column = "rbsr_item.scope"
+)
+
+// Table rbsr_item. Plain strings.
+const (
+	T_RbsrItem      = "rbsr_item"
+	C_RbsrItemBlob  = "rbsr_item.blob"
+	C_RbsrItemScope = "rbsr_item.scope"
+)
+
+// Table rbsr_scope.
+const (
+	RbsrScope             sqlitegen.Table  = "rbsr_scope"
+	RbsrScopeID           sqlitegen.Column = "rbsr_scope.id"
+	RbsrScopeIRI          sqlitegen.Column = "rbsr_scope.iri"
+	RbsrScopeKind         sqlitegen.Column = "rbsr_scope.kind"
+	RbsrScopeLastAccess   sqlitegen.Column = "rbsr_scope.last_access"
+	RbsrScopeMaterialized sqlitegen.Column = "rbsr_scope.materialized"
+)
+
+// Table rbsr_scope. Plain strings.
+const (
+	T_RbsrScope             = "rbsr_scope"
+	C_RbsrScopeID           = "rbsr_scope.id"
+	C_RbsrScopeIRI          = "rbsr_scope.iri"
+	C_RbsrScopeKind         = "rbsr_scope.kind"
+	C_RbsrScopeLastAccess   = "rbsr_scope.last_access"
+	C_RbsrScopeMaterialized = "rbsr_scope.materialized"
+)
+
 // Table resource_links.
 const (
 	ResourceLinks           sqlitegen.Table  = "resource_links"
@@ -724,6 +758,13 @@ var Schema = sqlitegen.Schema{
 		PublicBlobsID:                           {Table: PublicBlobs, SQLType: "INTEGER"},
 		PublicKeysID:                            {Table: PublicKeys, SQLType: "INTEGER"},
 		PublicKeysPrincipal:                     {Table: PublicKeys, SQLType: "BLOB"},
+		RbsrItemBlob:                            {Table: RbsrItem, SQLType: "INTEGER"},
+		RbsrItemScope:                           {Table: RbsrItem, SQLType: "INTEGER"},
+		RbsrScopeID:                             {Table: RbsrScope, SQLType: "INTEGER"},
+		RbsrScopeIRI:                            {Table: RbsrScope, SQLType: "TEXT"},
+		RbsrScopeKind:                           {Table: RbsrScope, SQLType: "INTEGER"},
+		RbsrScopeLastAccess:                     {Table: RbsrScope, SQLType: "INTEGER"},
+		RbsrScopeMaterialized:                   {Table: RbsrScope, SQLType: "INTEGER"},
 		ResourceLinksExtraAttrs:                 {Table: ResourceLinks, SQLType: "JSONB"},
 		ResourceLinksID:                         {Table: ResourceLinks, SQLType: "INTEGER"},
 		ResourceLinksIsPinned:                   {Table: ResourceLinks, SQLType: "INTEGER"},

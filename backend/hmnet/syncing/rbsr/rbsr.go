@@ -380,11 +380,26 @@ func (n *Session) checkMessageSize(size int) (ok bool) {
 	return n.msgSizeLimit != 0 && size > int(n.msgSizeLimit)-200 //nolint:gosec
 }
 
-// Fingerprint computes the fingerprint of the given range.
+// Fingerprint computes the fingerprint of the given range. When the underlying
+// store implements [RangeFingerprinter] it answers in O(log n) via cached
+// aggregates; otherwise it falls back to a linear fold over the range. Both
+// paths produce identical fingerprints.
 func (n *Session) Fingerprint(begin, end int) (Fingerprint, error) {
+	if rf, ok := n.store.(RangeFingerprinter); ok {
+		return rf.RangeFingerprint(begin, end)
+	}
+
+	return FoldFingerprint(n.store, begin, end)
+}
+
+// FoldFingerprint computes a range's fingerprint by folding every item's hash
+// over the accumulator — the canonical definition every fingerprint must match.
+// It's exported so visibility-filtering store wrappers can fold over their own
+// (filtered) ForEach when the unfiltered fast path would be wrong.
+func FoldFingerprint(store Store, begin, end int) (Fingerprint, error) {
 	var out accumulator
 
-	if err := n.store.ForEach(begin, end, func(_ int, item Item) bool {
+	if err := store.ForEach(begin, end, func(_ int, item Item) bool {
 		out.Add(item.Hash)
 		return true
 	}); err != nil {

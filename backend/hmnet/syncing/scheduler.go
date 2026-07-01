@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultHotTTL      = 40 * time.Second
-	defaultHotCooldown = 20 * time.Second
+	defaultHotCooldown = 10 * time.Second
 	// progressGrace is how recently a running task must have downloaded a block to
 	// be considered "actively progressing" and therefore protected from
 	// preemption. Under a discovery storm (many docs/cards discovered at once)
