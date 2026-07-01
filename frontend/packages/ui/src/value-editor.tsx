@@ -9,15 +9,20 @@ import {
   ClipboardPaste,
   Copy,
   CopyPlus,
+  Download,
+  ExternalLink,
+  FileUp,
   GripVertical,
+  Link2,
   Plus,
   X,
 } from 'lucide-react'
-import {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {Textarea} from './components/textarea'
+import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
@@ -40,6 +45,8 @@ export type ValueEditorRules = {
   removeKeys: 'tombstone' | 'delete'
   /** Hide null-valued object entries (metadata treats null as deleted). */
   hideNullEntries: boolean
+  /** Allow IPLD kinds in DAG-JSON form: links `{"/": cid}` and bytes `{"/": {bytes}}`. */
+  ipld: boolean
 }
 
 /** Rules for document metadata: what SetAttribute ops can publish. */
@@ -48,6 +55,7 @@ export const METADATA_VALUE_RULES: ValueEditorRules = {
   floats: false,
   removeKeys: 'tombstone',
   hideNullEntries: true,
+  ipld: false,
 }
 
 /** Rules for raw DAG-CBOR blobs: the full CBOR data model (as JSON types). */
@@ -56,6 +64,12 @@ export const CBOR_VALUE_RULES: ValueEditorRules = {
   floats: true,
   removeKeys: 'delete',
   hideNullEntries: false,
+  ipld: true,
+}
+
+/** Containers the editor recurses into — excludes the IPLD link/bytes leaf forms. */
+function isEditableContainer(value: unknown): boolean {
+  return (Array.isArray(value) || isPlainObject(value)) && !isDagJsonLink(value) && !isDagJsonBytes(value)
 }
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -101,6 +115,19 @@ export function findInvalidValue(value: unknown, rules: ValueEditorRules, path: 
   if (typeof value === 'number') {
     if (rules.floats) return Number.isFinite(value) ? null : `"${path.join('.')}" must be a finite number`
     return Number.isInteger(value) ? null : `"${path.join('.')}" must be a whole number`
+  }
+  if (isDagJsonLink(value)) {
+    if (!rules.ipld) return `"${path.join('.')}" is an IPLD link — links cannot be published in metadata`
+    return parseCidString(value['/']) ? null : `"${path.join('.')}" is not a valid CID link`
+  }
+  if (isDagJsonBytes(value)) {
+    if (!rules.ipld) return `"${path.join('.')}" is IPLD bytes — bytes cannot be published in metadata`
+    try {
+      base64ToBytes(value['/'].bytes)
+      return null
+    } catch {
+      return `"${path.join('.')}" has invalid base64 bytes`
+    }
   }
   if (Array.isArray(value)) {
     if (!rules.lists) return `"${path.join('.')}" is a list — lists cannot be published in metadata`
@@ -195,6 +222,8 @@ type SelectionContextValue = {
   register: (id: string, handlers: SelectionHandlers) => void
   unregister: (id: string) => void
   openContextMenu: (position: {x: number; y: number}, actions: ContextMenuAction[]) => void
+  /** Opens ipfs://... URLs from link values, when the host page provides navigation. */
+  openUrl?: (url: string) => void
 }
 
 const SelectionContext = createContext<SelectionContextValue | null>(null)
@@ -247,10 +276,12 @@ export function ValueEditorProvider({
   children,
   onUndo,
   onRedo,
+  openUrl,
 }: {
   children: React.ReactNode
   onUndo?: () => void
   onRedo?: () => void
+  openUrl?: (url: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{x: number; y: number; actions: ContextMenuAction[]} | null>(null)
@@ -271,7 +302,7 @@ export function ValueEditorProvider({
     unregister: (id) => registry.current.delete(id),
     openContextMenu: (position, actions) => setMenu({...position, actions}),
   })
-  ctx.current = {...ctx.current, selectedId}
+  ctx.current = {...ctx.current, selectedId, openUrl}
 
   useEffect(() => {
     const getSelectedHandlers = () => {
@@ -602,7 +633,7 @@ export function FieldRow({
   path: ValuePath
   className?: string
 }) {
-  const isContainer = Array.isArray(value) || isPlainObject(value)
+  const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
   const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
@@ -658,6 +689,27 @@ export function FieldRow({
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
+  if (isDagJsonLink(value)) {
+    return (
+      <span className="flex items-center gap-1 font-mono text-sm break-all">
+        <Link2 className="text-muted-foreground size-3.5 shrink-0" />
+        {value['/']}
+      </span>
+    )
+  }
+  if (isDagJsonBytes(value)) {
+    let size: number | null = null
+    try {
+      size = base64ToBytes(value['/'].bytes).length
+    } catch {
+      // fall through to invalid display
+    }
+    return (
+      <span className="font-mono text-sm">
+        {size === null ? 'Invalid base64 data' : `${formatByteSize(size)} binary`}
+      </span>
+    )
+  }
   if (Array.isArray(value)) {
     if (value.length === 0) return <p className="text-muted-foreground text-sm">Empty list</p>
     return (
@@ -710,6 +762,12 @@ export function ValueEditor({
   if (typeof value === 'string') {
     return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
   }
+  if (isDagJsonLink(value)) {
+    return <LinkValueEditor value={value} onValue={onValue} />
+  }
+  if (isDagJsonBytes(value)) {
+    return <BytesValueEditor value={value} onValue={onValue} />
+  }
   if (Array.isArray(value)) {
     return <ListEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
@@ -717,6 +775,115 @@ export function ValueEditor({
     return <ObjectEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
+}
+
+/** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
+function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
+  const ctx = useContext(SelectionContext)
+  const cid = value['/']
+  const isValid = !!parseCidString(cid)
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip content="IPLD link">
+        <Link2 className={cn('size-3.5 shrink-0', isValid ? 'text-muted-foreground' : 'text-destructive')} />
+      </Tooltip>
+      <CommitOnBlurInput
+        key={cid}
+        initialValue={cid}
+        className="font-mono text-xs"
+        onCommit={(text) => {
+          const next = text.trim()
+          if (!parseCidString(next)) {
+            toast.error('Not a valid CID')
+            return
+          }
+          onValue({'/': next})
+        }}
+      />
+      {ctx?.openUrl && isValid && (
+        <Tooltip content={`Open ipfs://${cid}`}>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label={`Open ipfs://${cid}`}
+            className="text-muted-foreground"
+            onClick={() => ctx.openUrl!(`ipfs://${cid}`)}
+          >
+            <ExternalLink className="size-3.5" />
+          </Button>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
+/** IPLD bytes (`{"/": {bytes}}`): size readout with download and replace-from-file. */
+function BytesValueEditor({value, onValue}: {value: {'/': {bytes: string}}; onValue: (value: unknown) => void}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const b64 = value['/'].bytes
+  const size = useMemo(() => {
+    try {
+      return base64ToBytes(b64).length
+    } catch {
+      return null
+    }
+  }, [b64])
+
+  const download = () => {
+    const bytes = base64ToBytes(b64)
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], {type: 'application/octet-stream'}))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'bytes.bin'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className={cn('font-mono text-sm', size === null && 'text-destructive')}>
+        {size === null ? 'Invalid base64 data' : `${formatByteSize(size)} binary`}
+      </span>
+      {size !== null && size > 0 && (
+        <Tooltip content="Download binary data">
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label="Download binary data"
+            className="text-muted-foreground"
+            onClick={download}
+          >
+            <Download className="size-3.5" />
+          </Button>
+        </Tooltip>
+      )}
+      <Tooltip content="Replace with file…">
+        <Button
+          variant="ghost"
+          size="iconSm"
+          aria-label="Replace with file"
+          className="text-muted-foreground"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <FileUp className="size-3.5" />
+        </Button>
+      </Tooltip>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (!file) return
+          file
+            .arrayBuffer()
+            .then((buffer) => onValue({'/': {bytes: bytesToBase64(new Uint8Array(buffer))}}))
+            .catch(() => toast.error('Failed to read file'))
+        }}
+      />
+    </div>
+  )
 }
 
 /**
@@ -877,7 +1044,7 @@ function ListItemRow({
   path: ValuePath
   drag: ListItemDrag
 }) {
-  const isContainer = Array.isArray(item) || isPlainObject(item)
+  const isContainer = isEditableContainer(item)
   const [collapsed, setCollapsed] = useState(false)
   const handlers: SelectionHandlers = {getValue: () => item, setValue: onItem, remove: onRemove, rules}
   const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
@@ -1037,10 +1204,12 @@ function NumberInput({
 function CommitOnBlurInput({
   initialValue,
   placeholder,
+  className,
   onCommit,
 }: {
   initialValue: string
   placeholder?: string
+  className?: string
   onCommit: (text: string) => void
 }) {
   const [text, setText] = useState(initialValue)
@@ -1048,6 +1217,7 @@ function CommitOnBlurInput({
     <Input
       value={text}
       placeholder={placeholder}
+      className={className}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         if (text !== initialValue) onCommit(text)
@@ -1060,7 +1230,7 @@ function CommitOnBlurInput({
   )
 }
 
-type NewFieldType = 'text' | 'number' | 'toggle' | 'object' | 'list' | 'null' | 'json'
+type NewFieldType = 'text' | 'number' | 'toggle' | 'object' | 'list' | 'null' | 'link' | 'bytes' | 'json'
 
 /**
  * Collapsed "+ Add field" affordance that expands into an inline form.
@@ -1086,6 +1256,7 @@ export function AddFieldForm({
   const [type, setType] = useState<NewFieldType>('text')
   const [textValue, setTextValue] = useState('')
   const [toggleValue, setToggleValue] = useState(true)
+  const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const reset = () => {
@@ -1094,6 +1265,7 @@ export function AddFieldForm({
     setType('text')
     setTextValue('')
     setToggleValue(true)
+    setFile(null)
     setError(null)
   }
 
@@ -1131,7 +1303,27 @@ export function AddFieldForm({
     else if (type === 'object') value = {}
     else if (type === 'list') value = []
     else if (type === 'null') value = null
-    else if (type === 'number') {
+    else if (type === 'link') {
+      const cidText = textValue.trim().replace(/^ipfs:\/\//, '')
+      if (!parseCidString(cidText)) {
+        setError('Enter a valid CID (or ipfs:// URL)')
+        return
+      }
+      value = {'/': cidText}
+    } else if (type === 'bytes') {
+      if (!file) {
+        setError('Choose a file')
+        return
+      }
+      file
+        .arrayBuffer()
+        .then((buffer) => {
+          onAdd(trimmedKey, {'/': {bytes: bytesToBase64(new Uint8Array(buffer))}})
+          reset()
+        })
+        .catch(() => setError('Failed to read file'))
+      return
+    } else if (type === 'number') {
       const parsed = Number(textValue)
       const valid = textValue.trim() !== '' && (rules.floats ? Number.isFinite(parsed) : Number.isInteger(parsed))
       if (!valid) {
@@ -1156,7 +1348,7 @@ export function AddFieldForm({
     reset()
   }
 
-  const needsValueInput = type === 'text' || type === 'number'
+  const needsValueInput = type === 'text' || type === 'number' || type === 'link'
 
   return (
     <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
@@ -1188,16 +1380,34 @@ export function AddFieldForm({
             <SelectItem value="object">Object</SelectItem>
             {rules.lists && <SelectItem value="list">List</SelectItem>}
             {!rules.hideNullEntries && <SelectItem value="null">Null</SelectItem>}
+            {rules.ipld && <SelectItem value="link">Link</SelectItem>}
+            {rules.ipld && <SelectItem value="bytes">Bytes</SelectItem>}
             <SelectItem value="json">JSON</SelectItem>
           </SelectContent>
         </Select>
         {type === 'toggle' && <Switch checked={toggleValue} onCheckedChange={setToggleValue} />}
+        {type === 'bytes' && (
+          <label className="border-input hover:bg-accent flex h-9 min-w-40 flex-1 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
+            <FileUp className="text-muted-foreground size-4 shrink-0" />
+            <span className={cn('truncate', !file && 'text-muted-foreground')}>
+              {file ? file.name : 'Choose a file…'}
+            </span>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null)
+                setError(null)
+              }}
+            />
+          </label>
+        )}
         {needsValueInput && (
           <Input
             value={textValue}
-            placeholder="Value"
+            placeholder={type === 'link' ? 'CID or ipfs:// URL' : 'Value'}
             inputMode={type === 'number' ? 'numeric' : undefined}
-            className="min-w-40 flex-1"
+            className={cn('min-w-40 flex-1', type === 'link' && 'font-mono text-xs')}
             autoFocus={itemMode}
             onChange={(e) => {
               setTextValue(e.target.value)
