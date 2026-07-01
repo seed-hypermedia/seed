@@ -55,7 +55,8 @@ export function getRouteKey(route: NavRoute): string {
     return `draft:${route.id}`
   }
   if (route.key === 'raw-blob') {
-    return `raw-blob:${route.cid || 'new'}`
+    // schemaCid distinguishes "New Blob" from "New instance of schema X" mounts
+    return `raw-blob:${route.cid || `new:${route.schemaCid || ''}`}`
   }
   if (route.key === 'site-profile') {
     const accountUid = route.accountUid || route.id.uid
