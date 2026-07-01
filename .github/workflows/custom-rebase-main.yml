@@ -1,0 +1,63 @@
+name: Custom - Rebase Main from Upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Keep Horacio's fork close to upstream once per day.
+    - cron: '17 5 * * *'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-main
+  cancel-in-progress: false
+
+jobs:
+  rebase-main:
+    name: Rebase horacioh/seed:main on upstream/main
+    runs-on: ubuntu-latest
+    if: github.repository == 'horacioh/seed'
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure actions bot identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Record starting HEAD
+        id: before
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Add and fetch upstream
+        run: |
+          git remote add upstream https://github.com/seed-hypermedia/seed.git
+          git fetch --prune upstream main
+
+      - name: Rebase main on upstream/main
+        run: git rebase upstream/main
+
+      - name: Record rebased HEAD
+        id: after
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push rebased main
+        if: steps.after.outputs.sha != steps.before.outputs.sha
+        run: git push --force-with-lease origin HEAD:main
+
+      - name: Dispatch custom image workflow
+        if: steps.after.outputs.sha != steps.before.outputs.sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run custom-ghcr-images.yml --ref main
+
+      - name: Branch protection note
+        run: |
+          echo 'If this workflow cannot push to main, update branch protection to allow this GitHub Actions workflow/bot to bypass or satisfy the rule.'

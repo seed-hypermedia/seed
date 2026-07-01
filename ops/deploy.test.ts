@@ -31,12 +31,16 @@ import {
   checkContainersHealthy,
   getContainerImages,
   checkForNewImages,
+  expectedServiceImages,
+  rollbackImageTargets,
+  rollbackTagRefs,
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
   configWarnings,
   DEFAULT_RELEASE_CHANNEL,
   validateDockerImageTag,
+  validateDockerImageRef,
   buildCrontab,
   parseArgs,
   extractSeedCronLines,
@@ -311,6 +315,22 @@ describe('validateDockerImageTag', () => {
   })
 })
 
+describe('validateDockerImageRef', () => {
+  test('accepts full image refs with registries and tags', () => {
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:main')).toBeUndefined()
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-site:sha-abcdef123456')).toBeUndefined()
+    expect(validateDockerImageRef('registry.example.com:5000/ns/image:v1.2.3')).toBeUndefined()
+  })
+
+  test('rejects invalid full image refs', () => {
+    expect(validateDockerImageRef('')).toBeUndefined()
+    expect(validateDockerImageRef(' ghcr.io/horacioh/seed-web:main')).toContain('spaces')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web')).toContain('tag')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:bad tag')).toContain('spaces')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:-bad')).toContain('tag')
+  })
+})
+
 // ---------------------------------------------------------------------------
 // generateCaddyfile
 // ---------------------------------------------------------------------------
@@ -569,6 +589,25 @@ describe('buildComposeEnv', () => {
     )
   })
 
+  test('reflects configured full image references', () => {
+    const env = buildComposeEnv(
+      makeTestConfig({
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      }),
+      makePaths(),
+    )
+
+    expect(env).toContain('SEED_WEB_IMAGE="ghcr.io/horacioh/seed-web:main"')
+    expect(env).toContain('SEED_SITE_IMAGE="ghcr.io/horacioh/seed-site:main"')
+  })
+
+  test('omits full image references when official defaults are used', () => {
+    const env = buildComposeEnv(makeTestConfig(), makePaths())
+    expect(env).not.toContain('SEED_WEB_IMAGE=')
+    expect(env).not.toContain('SEED_SITE_IMAGE=')
+  })
+
   test('reflects log level', () => {
     expect(
       buildComposeEnv(
@@ -686,16 +725,26 @@ describe('config read/write/exists', () => {
   })
 
   test('config preserves all SeedConfig fields', async () => {
-    await writeConfig(makeTestConfig(), paths)
+    await writeConfig(
+      makeTestConfig({
+        deploy_url: 'https://raw.githubusercontent.com/horacioh/seed/main/ops',
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      }),
+      paths,
+    )
     const loaded = await readConfig(paths)
     const expectedKeys: (keyof SeedConfig)[] = [
       'domain',
       'email',
+      'deploy_url',
       'compose_url',
       'compose_sha',
       'compose_envs',
       'environment',
       'release_channel',
+      'web_image',
+      'site_image',
       'testnet',
       'link_secret',
       'analytics',
@@ -705,6 +754,91 @@ describe('config read/write/exists', () => {
     for (const key of expectedKeys) {
       expect(loaded).toHaveProperty(key)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// docker-compose image refs
+// ---------------------------------------------------------------------------
+
+describe('docker-compose image refs', () => {
+  test('web and site images can be overridden by full image refs while preserving defaults', async () => {
+    const compose = await readFile(join(import.meta.dir, 'docker-compose.yml'), 'utf-8')
+
+    expect(compose).toContain('image: ${SEED_WEB_IMAGE:-seedhypermedia/web:${SEED_SITE_TAG:-latest}}')
+    expect(compose).toContain('image: ${SEED_SITE_IMAGE:-seedhypermedia/site:${SEED_SITE_TAG:-latest}}')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// expectedServiceImages
+// ---------------------------------------------------------------------------
+
+describe('expectedServiceImages', () => {
+  test('uses official image refs for default channels', () => {
+    expect(expectedServiceImages(makeTestConfig({release_channel: 'dev'}))).toEqual([
+      {container: 'seed-web', expectedImage: 'seedhypermedia/web:dev'},
+      {container: 'seed-daemon', expectedImage: 'seedhypermedia/site:dev'},
+    ])
+  })
+
+  test('uses configured full image refs when present', () => {
+    expect(
+      expectedServiceImages(
+        makeTestConfig({
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toEqual([
+      {container: 'seed-web', expectedImage: 'ghcr.io/horacioh/seed-web:main'},
+      {container: 'seed-daemon', expectedImage: 'ghcr.io/horacioh/seed-site:main'},
+    ])
+  })
+})
+
+describe('rollbackImageTargets', () => {
+  test('retags official rollback images to the configured release channel', () => {
+    expect(rollbackImageTargets(makeTestConfig({release_channel: 'dev'}))).toEqual([
+      {base: 'seedhypermedia/web', target: 'seedhypermedia/web:dev'},
+      {base: 'seedhypermedia/site', target: 'seedhypermedia/site:dev'},
+    ])
+  })
+
+  test('retags custom rollback images to the exact full image refs compose uses', () => {
+    expect(
+      rollbackImageTargets(
+        makeTestConfig({
+          web_image: 'ghcr.io/horacioh/seed-web:sha-abcdef123456',
+          site_image: 'ghcr.io/horacioh/seed-site:sha-abcdef123456',
+        }),
+      ),
+    ).toEqual([
+      {base: 'ghcr.io/horacioh/seed-web', target: 'ghcr.io/horacioh/seed-web:sha-abcdef123456'},
+      {base: 'ghcr.io/horacioh/seed-site', target: 'ghcr.io/horacioh/seed-site:sha-abcdef123456'},
+    ])
+  })
+})
+
+describe('rollbackTagRefs', () => {
+  test('tags current and configured image bases when migrating to custom refs', () => {
+    expect(
+      rollbackTagRefs(
+        'seed-web',
+        'seedhypermedia/web:latest',
+        makeTestConfig({web_image: 'ghcr.io/horacioh/seed-web:main'}),
+      ),
+    ).toEqual(['seedhypermedia/web:rollback', 'ghcr.io/horacioh/seed-web:rollback'])
+  })
+
+  test('dedupes rollback tags when image base is unchanged', () => {
+    expect(rollbackTagRefs('seed-web', 'seedhypermedia/web:dev', makeTestConfig({release_channel: 'dev'}))).toEqual([
+      'seedhypermedia/web:rollback',
+    ])
+  })
+
+  test('only tags current base for unmanaged containers', () => {
+    expect(rollbackTagRefs('seed-proxy', 'caddy:2', makeTestConfig())).toEqual(['caddy:rollback'])
   })
 })
 
@@ -895,6 +1029,32 @@ describe('checkForNewImages', () => {
       "image inspect seedhypermedia/site:feature-branch --format '{{.Id}}'": 'sha256:ccc',
     })
     const result = await checkForNewImages({...config, release_channel: 'feature-branch'}, paths, shell)
+    expect(result).toBe(false)
+  })
+
+  test('uses configured full image refs when cron checks for updates', async () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      'docker compose': '',
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-site:main',
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      "image inspect ghcr.io/horacioh/seed-web:main --format '{{.Id}}'": 'sha256:bbb',
+      "image inspect ghcr.io/horacioh/seed-site:main --format '{{.Id}}'": 'sha256:ccc',
+    })
+
+    const result = await checkForNewImages(
+      {
+        ...config,
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      },
+      paths,
+      shell,
+    )
     expect(result).toBe(false)
   })
 })
@@ -1721,6 +1881,12 @@ describe('getDeployScriptUrl', () => {
     const url = await getDeployScriptUrl('latest')
     // Should be either a GitHub release asset URL or the legacy fallback
     expect(url).toContain('deploy.js')
+  })
+
+  test('uses configured deploy source before official release channels', async () => {
+    const url = await getDeployScriptUrl('main', 'https://raw.githubusercontent.com/horacioh/seed/main/ops')
+
+    expect(url).toBe('https://raw.githubusercontent.com/horacioh/seed/main/ops/dist/deploy.js')
   })
 
   test('returns constants with expected values', () => {
