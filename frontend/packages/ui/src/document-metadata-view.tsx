@@ -8,6 +8,7 @@ import {cn} from './utils'
 import {
   AddFieldForm,
   canonicalEntries,
+  EditableFieldKey,
   FIELD_LABEL_CLASS,
   findInvalidValue,
   isPlainObject,
@@ -106,7 +107,17 @@ export function DocumentMetadataView({
               {entries.map(([key, value]) => (
                 <div key={key} className="group border-border flex items-start gap-2 border-b py-3 last:border-b-0">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <dt className={FIELD_LABEL_CLASS}>{key}</dt>
+                    <dt className={editable ? undefined : FIELD_LABEL_CLASS}>
+                      {editable ? (
+                        <EditableFieldKey
+                          fieldKey={key}
+                          existingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                          onRename={(newKey) => onMetadata!({[key]: null, [newKey]: value})}
+                        />
+                      ) : (
+                        key
+                      )}
+                    </dt>
                     <dd>
                       {editable ? (
                         <ValueEditor
