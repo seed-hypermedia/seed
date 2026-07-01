@@ -27,6 +27,15 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './s
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+import {useSubschema} from './blob-schema-context'
+import {
+  EnumValueSelect,
+  isStringEnumSchema,
+  SchemaFieldChips,
+  SchemaWarningBadge,
+  suggestedFieldType,
+  useSchemaFieldSuggestions,
+} from './value-editor-schema'
 
 /**
  * Behavior rules for the recursive value editor, so it can serve both the
@@ -661,6 +670,7 @@ export function FieldRow({
             <span className="size-4 shrink-0" />
           )}
           <EditableFieldKey fieldKey={fieldKey} existingKeys={siblingKeys} onRename={onRename} />
+          <SchemaWarningBadge path={path} />
         </div>
         <div className="pl-5">
           {isContainer && collapsed ? (
@@ -753,6 +763,9 @@ export function ValueEditor({
   rules: ValueEditorRules
   path?: ValuePath
 }) {
+  // Advisory schema hint for this node (undefined when editing schemaless).
+  const subschema = useSubschema(path)
+  const resolvedSchema = subschema && subschema !== 'unresolved' ? subschema : undefined
   if (typeof value === 'boolean') {
     return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
   }
@@ -760,6 +773,11 @@ export function ValueEditor({
     return <NumberInput value={value} onValue={onValue} rules={rules} />
   }
   if (typeof value === 'string') {
+    // Enum member values render as a select; anything else stays free text
+    // (plus a row warning) — the schema suggests, never coerces.
+    if (resolvedSchema && isStringEnumSchema(resolvedSchema) && resolvedSchema.enum.includes(value)) {
+      return <EnumValueSelect value={value} options={resolvedSchema.enum} onValue={onValue} />
+    }
     return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
   }
   if (isDagJsonLink(value)) {
@@ -937,9 +955,15 @@ export function ObjectEditor({
           path={[...path, key]}
         />
       ))}
+      <SchemaFieldChips
+        path={path}
+        existingKeys={Object.keys(value)}
+        onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
+      />
       <AddFieldForm
         compact
         rules={rules}
+        path={path}
         existingKeys={entries.map(([key]) => key)}
         onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
       />
@@ -1006,7 +1030,7 @@ export function ListEditor({
           }}
         />
       ))}
-      <AddFieldForm compact itemMode rules={rules} onAdd={(_key, item) => onValue([...value, item])} />
+      <AddFieldForm compact itemMode rules={rules} path={path} onAdd={(_key, item) => onValue([...value, item])} />
     </div>
   )
 }
@@ -1131,6 +1155,7 @@ function ListItemRow({
           <span className="size-4 shrink-0" />
         )}
         <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
+        <SchemaWarningBadge path={path} />
       </div>
       <div className="min-w-0 flex-1">
         {isContainer && collapsed ? (
@@ -1243,12 +1268,15 @@ export function AddFieldForm({
   itemMode = false,
   compact = false,
   rules,
+  path,
   onAdd,
 }: {
   existingKeys?: string[]
   itemMode?: boolean
   compact?: boolean
   rules: ValueEditorRules
+  /** Path of the container being added to; enables schema suggestions. */
+  path?: ValuePath
   onAdd: (key: string, value: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1258,6 +1286,12 @@ export function AddFieldForm({
   const [toggleValue, setToggleValue] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Schema hints: declared-but-absent keys for objects, the items schema for
+  // lists. Both are empty/undefined when no schema is attached.
+  const keySuggestions = useSchemaFieldSuggestions(path ?? [], existingKeys)
+  const itemsSubschema = useSubschema(path ? [...path, 0] : [])
+  const suggestions = itemMode || !path ? [] : keySuggestions
 
   const reset = () => {
     setOpen(false)
@@ -1276,7 +1310,20 @@ export function AddFieldForm({
           variant="ghost"
           size="sm"
           className={cn('text-muted-foreground', compact && 'h-6 px-1 text-xs')}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true)
+            // Pre-select the type a list's items schema calls for.
+            if (itemMode && itemsSubschema && itemsSubschema !== 'unresolved') {
+              const suggested = suggestedFieldType(itemsSubschema)
+              if (
+                suggested &&
+                (suggested !== 'list' || rules.lists) &&
+                ((suggested !== 'link' && suggested !== 'bytes') || rules.ipld)
+              ) {
+                setType(suggested)
+              }
+            }
+          }}
         >
           <Plus className={compact ? 'size-3' : 'size-4'} />
           {itemMode ? 'Add item' : 'Add field'}
@@ -1352,6 +1399,34 @@ export function AddFieldForm({
 
   return (
     <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-muted-foreground text-xs">Schema fields:</span>
+          {suggestions.map((suggestion) => (
+            <Button
+              key={suggestion.key}
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 font-mono text-xs"
+              onClick={() => {
+                setKey(suggestion.key)
+                setError(null)
+                const suggested = suggestion.type
+                if (
+                  suggested &&
+                  (suggested !== 'list' || rules.lists) &&
+                  ((suggested !== 'link' && suggested !== 'bytes') || rules.ipld)
+                ) {
+                  setType(suggested)
+                }
+              }}
+            >
+              {suggestion.key}
+              {suggestion.required ? ' *' : ''}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {!itemMode && (
           <Input
