@@ -172,18 +172,14 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create account: %v", err)
 	}
 
-	if req.Name == "" {
-		req.Name = acc.PublicKey.String()
-	}
-
-	if err := srv.RegisterAccount(ctx, req.Name, acc); err != nil {
+	// Keys are identified solely by their public key (principal); there is no
+	// separate name. We store under the principal.
+	if err := srv.RegisterAccount(ctx, acc.PublicKey.String(), acc); err != nil {
 		return nil, err
 	}
 
 	return &daemon.NamedKey{
 		PublicKey: acc.PublicKey.String(),
-		Name:      req.Name,
-		AccountId: acc.PublicKey.String(),
 	}, nil
 }
 
@@ -217,7 +213,7 @@ func (srv *Server) ImportKey(ctx context.Context, req *daemon.ImportKeyRequest) 
 	}
 	for _, key := range existingKeys {
 		if key.PublicKey.String() == accountID {
-			return nil, status.Errorf(codes.AlreadyExists, "key for account %s already exists as %s", accountID, key.Name)
+			return nil, status.Errorf(codes.AlreadyExists, "key for account %s already exists", accountID)
 		}
 	}
 
@@ -227,24 +223,22 @@ func (srv *Server) ImportKey(ctx context.Context, req *daemon.ImportKeyRequest) 
 
 	return &daemon.NamedKey{
 		PublicKey: accountID,
-		Name:      accountID,
-		AccountId: accountID,
 	}, nil
 }
 
 // ExportKey implements the corresponding gRPC method.
 func (srv *Server) ExportKey(ctx context.Context, req *daemon.ExportKeyRequest) (*emptypb.Empty, error) {
-	if req.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "name is required")
+	if req.PublicKey == "" {
+		return nil, status.Error(codes.InvalidArgument, "public key is required")
 	}
 
 	if err := validateExportKeyFilePath(req.FilePath); err != nil {
 		return nil, err
 	}
 
-	keyPair, err := srv.store.KeyStore().GetKey(ctx, req.Name)
+	keyPair, err := srv.store.KeyStore().GetKey(ctx, req.PublicKey)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "key not found: %s", req.Name)
+		return nil, status.Errorf(codes.NotFound, "key not found: %s", req.PublicKey)
 	}
 
 	seed, err := exportedSeed(keyPair)
@@ -272,7 +266,7 @@ func (srv *Server) ExportKey(ctx context.Context, req *daemon.ExportKeyRequest) 
 
 // DeleteKey implement the corresponding gRPC method.
 func (srv *Server) DeleteKey(ctx context.Context, req *daemon.DeleteKeyRequest) (*emptypb.Empty, error) {
-	if err := srv.store.KeyStore().DeleteKey(ctx, req.Name); err != nil {
+	if err := srv.store.KeyStore().DeleteKey(ctx, req.PublicKey); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil
@@ -296,30 +290,10 @@ func (srv *Server) ListKeys(ctx context.Context, req *daemon.ListKeysRequest) (*
 	out.Keys = make([]*daemon.NamedKey, len(keys))
 	for i, key := range keys {
 		out.Keys[i] = &daemon.NamedKey{
-			Name:      key.Name,
 			PublicKey: key.PublicKey.String(),
-			AccountId: key.PublicKey.String(),
 		}
 	}
 	return out, nil
-}
-
-// UpdateKey implement the corresponding gRPC method.
-func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) (*daemon.NamedKey, error) {
-	if err := srv.store.KeyStore().ChangeKeyName(ctx, req.CurrentName, req.NewName); err != nil {
-		return &daemon.NamedKey{}, err
-	}
-
-	kp, err := srv.store.KeyStore().GetKey(ctx, req.NewName)
-	if err != nil {
-		return &daemon.NamedKey{}, err
-	}
-
-	return &daemon.NamedKey{
-		PublicKey: kp.PublicKey.String(),
-		Name:      req.NewName,
-		AccountId: kp.PublicKey.String(),
-	}, nil
 }
 
 // RegisterAccount stores the keypair in the key store.
@@ -1004,17 +978,17 @@ func (srv *Server) StoreBlobs(ctx context.Context, in *daemon.StoreBlobsRequest)
 
 // SignData implements the corresponding gRPC method.
 func (srv *Server) SignData(ctx context.Context, in *daemon.SignDataRequest) (*daemon.SignDataResponse, error) {
-	if in.SigningKeyName == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "signing key name is required")
+	if in.SigningKey == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "signing key is required")
 	}
 
 	if len(in.Data) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "data to sign is required")
 	}
 
-	keyPair, err := srv.store.KeyStore().GetKey(ctx, in.SigningKeyName)
+	keyPair, err := srv.store.KeyStore().GetKey(ctx, in.SigningKey)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "key %s: %v", in.SigningKeyName, err)
+		return nil, status.Errorf(codes.NotFound, "key %s: %v", in.SigningKey, err)
 	}
 
 	signature, err := keyPair.Sign(in.Data)

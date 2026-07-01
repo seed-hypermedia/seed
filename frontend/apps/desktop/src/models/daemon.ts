@@ -347,7 +347,7 @@ export function useMyAccountIds() {
         return [...q?.keys]
           .sort((a, b) => {
             // alphabetical based on public key:
-            return a.accountId.localeCompare(b.accountId)
+            return a.publicKey.localeCompare(b.publicKey)
             // ideally we would sort based on creation time, but that is not available with this data
           })
           .map((k) => k.publicKey)
@@ -373,7 +373,7 @@ export function useListKeys(opts: UseQueryOptions<NamedKey[]> = {}) {
     queryKey: [queryKeys.LOCAL_ACCOUNT_ID_LIST, 'keys'],
     queryFn: async () => {
       const q = await grpcClient.daemon.listKeys({})
-      return [...q.keys].sort((a, b) => a.accountId.localeCompare(b.accountId))
+      return [...q.keys].sort((a, b) => a.publicKey.localeCompare(b.publicKey))
     },
     ...opts,
   })
@@ -385,16 +385,14 @@ export function useRegisterKey(
     unknown,
     {
       mnemonic: RegisterKeyRequest['mnemonic']
-      name?: RegisterKeyRequest['name']
       passphrase?: RegisterKeyRequest['passphrase']
     }
   >,
 ) {
   return useMutation({
     ...opts,
-    mutationFn: async ({name = '', mnemonic, passphrase}) => {
+    mutationFn: async ({mnemonic, passphrase}) => {
       const registration = await grpcClient.daemon.registerKey({
-        name,
         mnemonic,
         passphrase,
       })
@@ -455,13 +453,13 @@ export function useImportKey(opts?: UseMutationOptions<NamedKey, unknown, {fileP
  * Exports an existing account key to a daemon-writable file path.
  */
 export function useExportKey(
-  opts?: UseMutationOptions<void, unknown, {name: string; filePath: string; password?: string}>,
+  opts?: UseMutationOptions<void, unknown, {publicKey: string; filePath: string; password?: string}>,
 ) {
   return useMutation({
     ...opts,
-    mutationFn: async ({name, filePath, password}) => {
+    mutationFn: async ({publicKey, filePath, password}) => {
       await grpcClient.daemon.exportKey({
-        name,
+        publicKey,
         filePath,
         password,
       })

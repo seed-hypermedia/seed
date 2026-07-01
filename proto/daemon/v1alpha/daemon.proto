@@ -73,9 +73,6 @@ service Daemon {
   // Lists all the signing keys registered on this Daemon.
   rpc ListKeys(ListKeysRequest) returns (ListKeysResponse);
 
-  // Updates the existing key.
-  rpc UpdateKey(UpdateKeyRequest) returns (NamedKey);
-
   // Deletes a key from the underlying key store.
   rpc DeleteKey(DeleteKeyRequest) returns (google.protobuf.Empty);
 
@@ -150,10 +147,6 @@ message RegisterKeyRequest {
 
   // Optional. Passphrase for the seed.
   string passphrase = 2;
-
-  // Required. Private name/label for the signing key, to easily identify keys when they are more than one.
-  // Name must be unique across all the registered keys.
-  string name = 3;
 }
 
 // Request to import an existing account key from a .hmkey.json file path.
@@ -167,8 +160,8 @@ message ImportKeyRequest {
 
 // Request to export an existing account key to a .hmkey.json file path.
 message ExportKeyRequest {
-  // Required. Name of the key to export.
-  string name = 1;
+  // Required. Public key (Multikey) of the key to export.
+  string public_key = 1;
 
   // Required. Absolute path to a .hmkey.json key export file.
   string file_path = 2;
@@ -315,19 +308,10 @@ message ListKeysResponse {
   repeated NamedKey keys = 1;
 }
 
-// Request to change the key name.
-message UpdateKeyRequest {
-  // Current name of the key.
-  string current_name = 1;
-
-  // New name for the key.
-  string new_name = 2;
-}
-
 // Request to delete an existing key.
 message DeleteKeyRequest {
-  // Name of the key to delete.
-  string name = 1;
+  // Public key (Multikey) of the key to delete.
+  string public_key = 1;
 }
 
 // Request to store blobs.
@@ -346,8 +330,8 @@ message StoreBlobsResponse {
 
 // Request to sign data.
 message SignDataRequest {
-  // Required. Name of the signing key to use for signing.
-  string signing_key_name = 1;
+  // Required. Public key (Multikey) of the signing key to use for signing.
+  string signing_key = 1;
 
   // Required. Data to be signed.
   bytes data = 2;
@@ -494,15 +478,9 @@ message Task {
 
 // Signing key with an internal name.
 message NamedKey {
-  // Public key in Multikey format.
+  // Public key in Multikey format. This is the sole identifier for a key.
   // https://www.w3.org/TR/vc-data-integrity/#multikey.
   string public_key = 1;
-
-  // Private name for the key. Useful to identify the keys when there're more than one.
-  string name = 2;
-
-  // Account ID representation of this key.
-  string account_id = 3;
 }
 
 // Request to get domain info.

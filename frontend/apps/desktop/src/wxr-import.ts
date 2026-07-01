@@ -15,7 +15,6 @@ import {grpcClient} from './app-grpc'
 import {uploadFile} from './app-web-importing'
 import {parseWXR, WXRParseResult, WXRPost} from './wxr-parser'
 import {
-  createAuthorKeyName,
   extractSlugFromLink,
   fallbackAuthorLogin,
   getAuthorDisplayName,
@@ -162,8 +161,6 @@ async function executeImport(
   const progress = onProgress || (() => {})
 
   try {
-    const authorKeyScope = `${state.destinationUid}:${data.source.siteUrl}`
-
     // Phase: Register/verify author keys (for authored mode).
     // This runs on both initial import and resume to ensure keys exist.
     if (state.isAuthored) {
@@ -183,22 +180,23 @@ async function executeImport(
       })
 
       // Get list of existing keys to check if author keys need registration.
+      // Keys are identified by their public key (principal); each author's public
+      // key is persisted in the import file once registered.
       const existingKeys = await grpcClient.daemon.listKeys({})
-      const existingKeysByName = new Map(existingKeys.keys.map((key) => [key.name, key]))
+      const existingKeyPublicKeys = new Set(existingKeys.keys.map((key) => key.publicKey))
 
       let authorCount = 0
       for (const login of authoredEligibleLogins) {
         const author = data.authors[login]
-        const keyName = createAuthorKeyName(authorKeyScope, login)
-        const existingKey = existingKeysByName.get(keyName)
+        const alreadyRegistered = !!author.publicKey && existingKeyPublicKeys.has(author.publicKey)
 
-        if (author.mnemonic && !existingKey) {
+        if (author.mnemonic && !alreadyRegistered) {
           // Register key for this author.
           const result = await grpcClient.daemon.registerKey({
             mnemonic: author.mnemonic,
-            name: keyName,
           })
           author.publicKey = result.publicKey
+          existingKeyPublicKeys.add(result.publicKey)
 
           // Update saved data with public key.
           const file = getImportFile()
@@ -206,8 +204,6 @@ async function executeImport(
             ;(file.data as SeedImportData).authors[login] = author
             setImportFile(file)
           }
-        } else if (existingKey && !author.publicKey) {
-          author.publicKey = existingKey.publicKey
         }
         authorCount++
         progress({
@@ -271,10 +267,9 @@ async function executeImport(
 
       const displayAuthor = state.isAuthored && canUseAuthoredSigner ? undefined : authorDisplayName
 
-      // Determine signing key - use author's key for authored mode, publisher's key for ghostwritten.
-      const signingKeyName = canUseAuthoredSigner
-        ? createAuthorKeyName(authorKeyScope, normalizedAuthorLogin)
-        : state.publisherKeyName
+      // Determine signing key (a public key / principal) — the author's key for
+      // authored mode, the publisher's key for ghostwritten.
+      const signingKeyName = canUseAuthoredSigner && author?.publicKey ? author.publicKey : state.publisherKeyName
 
       // In authored mode, grant write capability to the author's ephemeral key for this specific post path.
       if (canUseAuthoredSigner && author?.publicKey) {
@@ -556,7 +551,7 @@ function getWxrSigner(signingKeyName: string, signerPublicKey: string): HMSigner
   return {
     getPublicKey: async () => new Uint8Array(base58btc.decode(signerPublicKey)),
     sign: async (data: Uint8Array) => {
-      const result = await grpcClient.daemon.signData({signingKeyName, data: new Uint8Array(data)})
+      const result = await grpcClient.daemon.signData({signingKey: signingKeyName, data: new Uint8Array(data)})
       return new Uint8Array(result.signature)
     },
   }

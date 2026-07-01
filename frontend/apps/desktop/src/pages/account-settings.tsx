@@ -244,7 +244,7 @@ export default function AccountSettingsPage() {
           const filePath = await pickKeyExportFile(`${exportTargetUid}.hmkey.json`)
           if (!filePath) return
           await exportKey.mutateAsync({
-            name: key.name,
+            publicKey: key.publicKey,
             filePath,
             password: password.length > 0 ? password : undefined,
           })

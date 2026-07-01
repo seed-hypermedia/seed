@@ -55,14 +55,11 @@ func TestFile(t *testing.T) {
 		"anotherKey": kp2.Principal(),
 	}, principalsByName)
 
-	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "renamedKey"))
-	_, err = ks.GetKey(ctx, "keyName")
-	require.Error(t, err)
-	key, err = ks.GetKey(ctx, "renamedKey")
+	key, err = ks.GetKey(ctx, "keyName")
 	require.NoError(t, err)
 	require.Equal(t, kp.Principal(), key.Principal())
 
-	require.NoError(t, ks.DeleteKey(ctx, "renamedKey"))
+	require.NoError(t, ks.DeleteKey(ctx, "keyName"))
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 1)

@@ -218,7 +218,6 @@ func TestDaemonRegisterKey(t *testing.T) {
 	require.NoError(t, err)
 
 	reg, err := dc.RegisterKey(ctx, &daemon.RegisterKeyRequest{
-		Name:     "main",
 		Mnemonic: seed.Mnemonic,
 	})
 	require.NoError(t, err)
@@ -228,7 +227,7 @@ func TestDaemonRegisterKey(t *testing.T) {
 	_, err = core.DecodePrincipal(reg.PublicKey)
 	require.NoError(t, err, "account must have principal encoding")
 
-	me := must.Do2(dmn.Storage.KeyStore().GetKey(ctx, "main"))
+	me := must.Do2(dmn.Storage.KeyStore().GetKey(ctx, reg.PublicKey))
 	require.Equal(t, me.String(), reg.PublicKey)
 
 	keys, err := dc.ListKeys(ctx, &daemon.ListKeysRequest{})
@@ -240,7 +239,6 @@ func TestDaemonRegisterKey(t *testing.T) {
 		require.NoError(t, err)
 
 		reg, err := dc.RegisterKey(ctx, &daemon.RegisterKeyRequest{
-			Name:     "secondary",
 			Mnemonic: seed.Mnemonic,
 		})
 		require.NoError(t, err)
@@ -273,14 +271,11 @@ func TestDaemonImportKey(t *testing.T) {
 	reg, err := dc.ImportKey(ctx, &daemon.ImportKeyRequest{FilePath: filePath})
 	require.NoError(t, err)
 	require.NotEmpty(t, reg.PublicKey)
-	require.Equal(t, reg.PublicKey, reg.AccountId)
-	require.Equal(t, reg.PublicKey, reg.Name)
 
 	keys, err := dc.ListKeys(ctx, &daemon.ListKeysRequest{})
 	require.NoError(t, err)
 	require.Len(t, keys.Keys, 1)
 	require.Equal(t, reg.PublicKey, keys.Keys[0].PublicKey)
-	require.Equal(t, reg.PublicKey, keys.Keys[0].AccountId)
 }
 
 func TestDaemonCORS(t *testing.T) {

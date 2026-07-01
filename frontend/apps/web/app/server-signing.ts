@@ -2,12 +2,12 @@ import {grpcClient} from './client.server'
 
 async function listSortedServerKeys() {
   const keys = await grpcClient.daemon.listKeys({})
-  return [...(keys.keys || [])].filter((key) => key.accountId).sort((a, b) => a.accountId.localeCompare(b.accountId))
+  return [...(keys.keys || [])].filter((key) => key.publicKey).sort((a, b) => a.publicKey.localeCompare(b.publicKey))
 }
 
 async function getOrCreateServerSignerAccountUidUncached(): Promise<string> {
   const existingKeys = await listSortedServerKeys()
-  const existingSignerAccountUid = existingKeys[0]?.accountId
+  const existingSignerAccountUid = existingKeys[0]?.publicKey
   if (existingSignerAccountUid) {
     return existingSignerAccountUid
   }
@@ -22,13 +22,13 @@ async function getOrCreateServerSignerAccountUidUncached(): Promise<string> {
     const registration = await grpcClient.daemon.registerKey({
       mnemonic: mnemonicResponse.mnemonic,
     })
-    const createdSignerAccountUid = registration.accountId || registration.publicKey
+    const createdSignerAccountUid = registration.publicKey
     if (createdSignerAccountUid) {
       return createdSignerAccountUid
     }
   } catch (error) {
     const concurrentKeys = await listSortedServerKeys()
-    const concurrentSignerAccountUid = concurrentKeys[0]?.accountId
+    const concurrentSignerAccountUid = concurrentKeys[0]?.publicKey
     if (concurrentSignerAccountUid) {
       return concurrentSignerAccountUid
     }
@@ -36,7 +36,7 @@ async function getOrCreateServerSignerAccountUidUncached(): Promise<string> {
   }
 
   const createdKeys = await listSortedServerKeys()
-  const createdSignerAccountUid = createdKeys[0]?.accountId
+  const createdSignerAccountUid = createdKeys[0]?.publicKey
   if (!createdSignerAccountUid) {
     throw new Error('Daemon did not expose a signing key after registration')
   }
