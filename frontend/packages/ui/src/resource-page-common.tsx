@@ -74,7 +74,7 @@ import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shar
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {FilePen, Search} from 'lucide-react'
+import {FilePen, Info, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
@@ -83,6 +83,7 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
+import {DocumentMetadataView} from './document-metadata-view'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
@@ -160,6 +161,7 @@ export type ActiveView =
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
+  | 'metadata'
 
 /** Selects the action controls shown for document content. */
 export function getDocumentContentAction({
@@ -359,6 +361,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'all-documents'
     case 'site-profile':
       return 'site-profile'
+    case 'metadata':
+      return 'metadata'
     default:
       return 'content'
   }
@@ -1497,6 +1501,7 @@ function DocumentBody({
       directory: 'Sub documents',
       activity: 'Activity',
       'all-documents': 'All Documents',
+      metadata: 'Metadata',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
       items.push({label: panelLabels[activeView]})
@@ -1755,11 +1760,23 @@ function DocumentBody({
       },
     }
   }, [canEdit, panelKey, route, replaceRoute])
+  const metadataMenuItem = useMemo<MenuItemType | null>(() => {
+    if (route.key === 'inspect' || route.key === 'metadata') return null
+    return {
+      key: 'metadata',
+      label: 'Metadata',
+      icon: <Info className="size-4" />,
+      onClick: () => {
+        navigate({key: 'metadata', id: {...docId, blockRef: null, blockRange: null}})
+      },
+    }
+  }, [docId, navigate, route.key])
 
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
     // Drop share/copy-link entries while the doc is an unpublished draft —
     // its URL won't resolve for anyone else, so any "share" action is a footgun.
     if (isUnpublishedDraft) {
@@ -1771,6 +1788,7 @@ function DocumentBody({
       'new',
       'versions',
       'options',
+      'metadata',
       'copy-link',
       'link-site',
       'link',
@@ -1799,7 +1817,7 @@ function DocumentBody({
       if (item.variant === 'destructive') orderedItems.push(item)
     }
     return orderedItems
-  }, [optionsMenuItems, extraMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
+  }, [optionsMenuItems, extraMenuItems, inspectMenuItem, documentOptionsMenuItem, metadataMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
@@ -1862,6 +1880,7 @@ function DocumentBody({
                                   directory: 'Sub documents',
                                   'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
+                                  metadata: 'Metadata',
                                 } as Record<string, string>
                               )[activeView] || '',
                           },
@@ -1923,6 +1942,7 @@ function DocumentBody({
                                 directory: 'Sub documents',
                                 'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
+                                metadata: 'Metadata',
                               } as Record<string, string>
                             )[activeView] || '',
                         },
@@ -2000,14 +2020,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'metadata' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'metadata'
+                          >,
                           id: docId,
                         }
                   }
@@ -2634,6 +2660,13 @@ function MainContent({
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
           <CollaboratorsPage docId={docId} />
+        </PageLayout>
+      )
+
+    case 'metadata':
+      return (
+        <PageLayout contentMaxWidth={contentMaxWidth}>
+          <DocumentMetadataView metadata={document.metadata} />
         </PageLayout>
       )
 

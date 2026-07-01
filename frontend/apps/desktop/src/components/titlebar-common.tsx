@@ -83,6 +83,7 @@ const DOC_OPTIONS_ROUTE_KEYS = [
   'collaborators',
   'inspect',
   'all-documents',
+  'metadata',
 ] as const
 
 type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
@@ -821,6 +822,7 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents' ||
+    route.key === 'metadata' ||
     route.key === 'profile' ||
     route.key === 'contact' ||
     route.key === 'site-profile' ||
@@ -848,6 +850,7 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents' ||
+    route.key === 'metadata' ||
     route.key === 'site-profile' ||
     route.key === 'site-settings-emails' ||
     route.key === 'site-settings'

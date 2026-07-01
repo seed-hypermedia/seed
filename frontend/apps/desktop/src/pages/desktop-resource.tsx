@@ -213,6 +213,7 @@ export default function DesktopResourcePage() {
     'comments',
     'site-profile',
     'all-documents',
+    'metadata',
   ]
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)

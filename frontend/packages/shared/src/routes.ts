@@ -52,6 +52,7 @@ const INSPECT_TARGET_VIEW_KEYS = [
   'directory',
   'feed',
   'all-documents',
+  'metadata',
   ...SITE_PROFILE_TABS,
 ] as const
 const inspectTargetViewSchema = z.enum(INSPECT_TARGET_VIEW_KEYS).optional()
@@ -196,6 +197,21 @@ export const commentsRouteSchema = z.object({
   panel: commentsPagePanelSchema.nullable().optional(),
 })
 export type CommentsRoute = z.infer<typeof commentsRouteSchema>
+
+// Metadata page panel options
+const metadataPagePanelSchema = z.discriminatedUnion('key', [
+  activityPanelSchema,
+  commentsPanelSchema,
+  collaboratorsPanelSchema,
+  directoryPanelSchema,
+])
+
+export const metadataRouteSchema = z.object({
+  key: z.literal('metadata'),
+  id: unpackedHmIdSchema,
+  panel: metadataPagePanelSchema.nullable().optional(),
+})
+export type MetadataRoute = z.infer<typeof metadataRouteSchema>
 
 const documentPanelRoute = z.discriminatedUnion('key', [
   activityRouteSchema,
@@ -392,6 +408,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   collaboratorsRouteSchema,
   activityRouteSchema,
   commentsRouteSchema,
+  metadataRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 
@@ -430,6 +447,9 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
   } else if (route.key === 'comments') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
+  } else if (route.key === 'metadata') {
     panel = route.panel as DocumentPanelRoute | null
     routeId = route.id
   }
@@ -479,6 +499,7 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
     case 'collaborators':
     case 'activity':
     case 'comments':
+    case 'metadata':
       return {
         ...route,
         id: targetId,
@@ -605,6 +626,8 @@ export function createDocumentNavRoute(
       return {key: 'all-documents', id: docId}
     case 'site-settings':
       return {key: 'site-settings', id: docId}
+    case 'metadata':
+      return {key: 'metadata', id: docId, panel}
     default: {
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}
