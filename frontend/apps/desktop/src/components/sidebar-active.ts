@@ -10,6 +10,7 @@ export function isSiteDocumentsActiveRoute(route: NavRoute, siteId: UnpackedHype
     case 'activity':
     case 'directory':
     case 'collaborators':
+    case 'metadata':
     case 'feed':
       return route.id.uid === siteId.uid
     default:

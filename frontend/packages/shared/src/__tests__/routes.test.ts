@@ -290,6 +290,11 @@ describe('createDocumentNavRoute', () => {
       expect(route).toEqual({key: 'collaborators', id: testDocId, panel: null})
     })
 
+    test('metadata viewTerm returns metadata route', () => {
+      const route = createDocumentNavRoute(testDocId, 'metadata', null)
+      expect(route).toEqual({key: 'metadata', id: testDocId, panel: null})
+    })
+
     test('feed viewTerm with panel preserves panel', () => {
       const route = createDocumentNavRoute(testDocId, 'feed', 'collaborators')
       expect(route).toEqual({
