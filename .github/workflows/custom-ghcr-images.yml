@@ -15,14 +15,101 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  AWS_REGION: us-east-1
   REGISTRY: ghcr.io
   WEB_IMAGE: ghcr.io/horacioh/seed-web
   SITE_IMAGE: ghcr.io/horacioh/seed-site
 
 jobs:
-  web-check:
-    name: Web checks and build
+  image-tag:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Resolve Docker image tag
+        id: resolve
+        shell: bash
+        run: |
+          tag="main"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Resolved Docker image tag: $tag"
+
+  frontend-tests:
+    uses: ./.github/workflows/test-frontend-parallel.yml
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libvulkan-dev glslc
+
+      - name: Compute llama-go submodule sha
+        id: llama-sha
+        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache llama.cpp build (Vulkan)
+        id: llama-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/util/llama-go/libbinding.a
+            backend/util/llama-go/libllama.a
+            backend/util/llama-go/libggml*.a
+            backend/util/llama-go/libcommon.a
+            backend/util/llama-go/build
+          key: llama-vulkan-linux-portable-${{ steps.llama-sha.outputs.sha }}
+
+      - name: Build llama.cpp (with Vulkan GPU support)
+        if: steps.llama-cache.outputs.cache-hit != 'true'
+        run: |
+          cd backend/util/llama-go
+          BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF" make libbinding.a
+
+      - name: Run tests
+        run: go test --count 1 ./backend/...
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
+
+      - name: Run tests with race detector
+        run: go test --count 1 -race ./backend/...
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
+
+  build-and-perf-test:
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,98 +121,53 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: 'pnpm'
 
-      - name: Install native build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-
-      - name: Install dependencies
+      - name: Install Dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Run web tests
-        run: pnpm web:test
-
-      - name: Build web app
+      - name: Build Web App
         run: pnpm web:prod
 
-      - name: Upload web build artifact
+      - name: Run Notify Tests
+        run: pnpm --filter @shm/notify test
+
+      - name: Build Notify App
+        run: pnpm notify:build
+
+      - name: Start Web Server
+        run: |
+          pnpm web:start &
+          sleep 5 # Wait for server to start
+
+      - name: Run Performance Tests
+        run: |
+          cd frontend/apps/perf-web
+          pnpm start --url http://localhost:3000 --app web
+
+      - name: Upload web build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: custom-web-build
+          name: web-build
           path: frontend/apps/web/build/
           retention-days: 1
 
-  daemon-check:
-    name: Site daemon checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.26.2'
-
-      - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake g++
-
-      - name: Compute llama-go submodule sha
-        id: llama-sha
-        run: echo "sha=$(git -C backend/util/llama-go rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache llama.cpp build
-        id: llama-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            backend/util/llama-go/libbinding.a
-            backend/util/llama-go/libllama.a
-            backend/util/llama-go/libggml*.a
-            backend/util/llama-go/libcommon.a
-            backend/util/llama-go/build
-          key: llama-cpu-linux-${{ runner.arch }}-${{ steps.llama-sha.outputs.sha }}
-
-      - name: Build llama.cpp
-        if: steps.llama-cache.outputs.cache-hit != 'true'
-        run: |
-          cd backend/util/llama-go
-          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
-
-      - name: Run daemon package tests
-        run: go test --count 1 ./backend/cmd/seed-daemon
-        env:
-          CGO_ENABLED: '1'
-          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
-          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
-          LLAMA_LOG: error
-
-      - name: Build daemon binary
-        run: go build -tags cpu ./backend/cmd/seed-daemon
-        env:
-          CGO_ENABLED: '1'
-          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
-          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
-          LLAMA_LOG: error
-
   docker-web:
-    name: Publish web image
     runs-on: ubuntu-latest
-    needs: [web-check]
-    if: github.ref == 'refs/heads/main'
+    needs: [image-tag, build-and-perf-test]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Get commit date
-        run: echo "COMMIT_DATE=$(git show -s --format='%cd' ${{ github.sha }})" >> "$GITHUB_ENV"
+        run: |
+          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
 
-      - name: Download web build artifact
+      - name: Download web build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: custom-web-build
+          name: web-build
           path: frontend/apps/web/build/
 
       - name: Set up Docker Buildx
@@ -138,14 +180,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push web image
+      - name: GHCR Release ${{ env.WEB_IMAGE }}:${{ needs.image-tag.outputs.tag }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: frontend/apps/web/Dockerfile
           push: true
+          file: frontend/apps/web/Dockerfile
           tags: |
-            ${{ env.WEB_IMAGE }}:main
+            ${{ env.WEB_IMAGE }}:${{ needs.image-tag.outputs.tag }}
             ${{ env.WEB_IMAGE }}:sha-${{ github.sha }}
           build-args: |
             PREBUILT=true
@@ -154,14 +196,12 @@ jobs:
             COMMIT_HASH=${{ github.sha }}
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
-          cache-from: type=gha,scope=custom-ghcr-web
-          cache-to: type=gha,mode=max,scope=custom-ghcr-web
+          cache-from: type=gha,scope=docker-web-custom-ghcr
+          cache-to: type=gha,mode=max,scope=docker-web-custom-ghcr
 
   docker-site:
-    name: Publish site daemon image
     runs-on: ubuntu-latest
-    needs: [daemon-check]
-    if: github.ref == 'refs/heads/main'
+    needs: [image-tag, frontend-tests, backend-tests]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -169,7 +209,9 @@ jobs:
           submodules: recursive
 
       - name: Get commit date
-        run: echo "COMMIT_DATE=$(git show -s --format='%cd' ${{ github.sha }})" >> "$GITHUB_ENV"
+        run: |
+          COMMIT_DATE=$(git show -s --format="%cd" ${{ github.sha }})
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
 
       - name: Cache GGUF model
         uses: actions/cache@v4
@@ -196,18 +238,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push site daemon image
+      - name: GHCR Release ${{ env.SITE_IMAGE }}:${{ needs.image-tag.outputs.tag }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: backend/cmd/seed-daemon/Dockerfile
           push: true
+          file: backend/cmd/seed-daemon/Dockerfile
           tags: |
-            ${{ env.SITE_IMAGE }}:main
+            ${{ env.SITE_IMAGE }}:${{ needs.image-tag.outputs.tag }}
             ${{ env.SITE_IMAGE }}:sha-${{ github.sha }}
           build-args: |
             COMMIT_HASH=${{ github.sha }}
             BRANCH=${{ github.ref }}
             DATE=${{ env.COMMIT_DATE }}
-          cache-from: type=gha,scope=custom-ghcr-site
-          cache-to: type=gha,mode=max,scope=custom-ghcr-site
+          cache-from: type=gha,scope=docker-site-custom-ghcr
+          cache-to: type=gha,mode=max,scope=docker-site-custom-ghcr
