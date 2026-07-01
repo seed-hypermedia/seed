@@ -69,6 +69,53 @@ export function formatByteSize(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Blob type names the Seed daemon dispatches indexers on (backend/blob/
+// index_registry.go makeCBORTypeMatch): the raw blob bytes are scanned for
+// CBOR("type") immediately followed by CBOR(<name>), at any nesting depth.
+// A match triggers a strict decode + signature verification whose failure
+// aborts the entire StoreBlobs call with an opaque Internal error.
+const SEED_INDEXED_TYPE_NAMES = ['Comment', 'Change', 'Ref', 'Capability', 'Contact', 'Profile']
+
+const utf8Encoder = new TextEncoder()
+
+// CBOR text-string header for lengths < 24: major type 3, single byte 0x60+len.
+function cborShortText(text: string): Uint8Array {
+  const body = utf8Encoder.encode(text)
+  const bytes = new Uint8Array(body.length + 1)
+  bytes[0] = 0x60 + body.length
+  bytes.set(body, 1)
+  return bytes
+}
+
+function bytesContain(haystack: Uint8Array, needle: Uint8Array): boolean {
+  outer: for (let i = 0; i + needle.length <= haystack.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i + j] !== needle[j]) continue outer
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Detect whether encoded DAG-CBOR bytes would be picked up by one of the Seed
+ * daemon's blob indexers (a `"type"` entry immediately followed by a known
+ * type name, at any depth). Returns the colliding type name or null. Used to
+ * turn the daemon's opaque store failure into an actionable message — never
+ * to block a publish attempt (a pasted genuine signed blob stores fine).
+ */
+export function findSeedIndexerCollision(data: Uint8Array): string | null {
+  const typeKey = cborShortText('type')
+  for (const name of SEED_INDEXED_TYPE_NAMES) {
+    const value = cborShortText(name)
+    const matcher = new Uint8Array(typeKey.length + value.length)
+    matcher.set(typeKey, 0)
+    matcher.set(value, typeKey.length)
+    if (bytesContain(data, matcher)) return name
+  }
+  return null
+}
+
 /**
  * Convert a DAG-JSON-form value into real IPLD values for DAG-CBOR encoding:
  * link forms become CID instances (encoded as tag 42), bytes forms become

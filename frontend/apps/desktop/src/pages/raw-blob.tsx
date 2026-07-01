@@ -9,7 +9,7 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {dagJsonToIpld, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
+import {dagJsonToIpld, findSeedIndexerCollision, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
 import {
   BLOB_META_SCHEMA,
   BLOB_META_SCHEMA_CID,
@@ -220,7 +220,22 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       toast.success(`Published ipfs://${newCid}`)
       replace({key: 'raw-blob', cid: newCid})
     } catch (e) {
-      toast.error(`Failed to publish blob: ${e instanceof Error ? e.message : String(e)}`)
+      // The daemon's indexers strict-decode any blob whose bytes look like a
+      // signed Seed blob ("type" + known type name at any depth) and reject
+      // the store when that decode fails — surface that instead of the
+      // opaque error.
+      let collision: string | null = null
+      try {
+        collision = findSeedIndexerCollision(cbor.encode(dagJsonToIpld(value)))
+      } catch {
+        // encoding itself failed; the original error already explains it
+      }
+      const message = e instanceof Error ? e.message : String(e)
+      toast.error(
+        collision
+          ? `Failed to publish: this blob contains a "type" field followed by "${collision}", which the Seed daemon reserves for its signed ${collision} blobs. Rename or restructure that field. (${message})`
+          : `Failed to publish blob: ${message}`,
+      )
     } finally {
       setIsPublishing(false)
     }

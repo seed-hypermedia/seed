@@ -1,5 +1,12 @@
 import {describe, expect, test} from 'vitest'
-import {base64ToBytes, bytesToBase64, dagJsonToIpld, isDagJsonBytes, isDagJsonLink} from '../dag-json'
+import {
+  base64ToBytes,
+  bytesToBase64,
+  dagJsonToIpld,
+  findSeedIndexerCollision,
+  isDagJsonBytes,
+  isDagJsonLink,
+} from '../dag-json'
 import {CBOR_VALUE_RULES, findInvalidValue, METADATA_VALUE_RULES} from '../value-editor'
 
 const CID_STR = 'bafyreigu5vewjq63sy3t2spkkpmchine3vo3jnuuvntx7ig4oef7hafuka'
@@ -72,5 +79,35 @@ describe('findInvalidValue with IPLD forms', () => {
   test('metadata rules reject IPLD forms', () => {
     expect(findInvalidValue({'/': CID_STR}, METADATA_VALUE_RULES)).toMatch(/link/)
     expect(findInvalidValue({'/': {bytes: 'AQID'}}, METADATA_VALUE_RULES)).toMatch(/bytes/)
+  })
+})
+
+describe('findSeedIndexerCollision', () => {
+  async function encode(value: unknown) {
+    const cbor = await import('@ipld/dag-cbor')
+    return cbor.encode(dagJsonToIpld(value))
+  }
+
+  test('detects a top-level type field with a reserved name', async () => {
+    expect(findSeedIndexerCollision(await encode({type: 'Comment', body: 'x'}))).toBe('Comment')
+    expect(findSeedIndexerCollision(await encode({type: 'Ref'}))).toBe('Ref')
+  })
+
+  test('detects nested occurrences (the daemon matches raw bytes at any depth)', async () => {
+    expect(findSeedIndexerCollision(await encode({a: {b: [{type: 'Capability'}]}}))).toBe('Capability')
+  })
+
+  test('ignores harmless values', async () => {
+    expect(findSeedIndexerCollision(await encode({type: 'object', properties: {}}))).toBeNull()
+    expect(findSeedIndexerCollision(await encode({type: 'comment'}))).toBeNull() // case-sensitive
+    expect(findSeedIndexerCollision(await encode({kind: 'Comment'}))).toBeNull() // wrong key
+    expect(findSeedIndexerCollision(await encode({type: 'Commentary'}))).toBeNull() // length prefix differs
+    expect(findSeedIndexerCollision(await encode({mytype: 'Comment'}))).toBeNull()
+  })
+
+  test('only matches adjacent key/value pairs, per the daemon matcher', async () => {
+    // "type" key with a different value, and "Comment" under another key:
+    // key order is canonical so these are not adjacent bytes.
+    expect(findSeedIndexerCollision(await encode({type: 'x', zz: 'Comment'}))).toBeNull()
   })
 })
