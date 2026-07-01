@@ -99,17 +99,18 @@ export function TextColorPalette<BSchema extends BlockSchema>({
                 data-testid={`text-color-${name}`}
                 className={cn(
                   'h-7 w-7 rounded-full border border-black/10 p-0 hover:opacity-80 dark:border-white/10',
-                  isDefault ? 'bg-background' : TEXT_SWATCH_CLASS[name],
+                  isDefault ? 'bg-foreground' : TEXT_SWATCH_CLASS[name],
                   current === name && 'ring-foreground ring-2 ring-offset-1',
                 )}
                 onClick={() => {
-                  applyColorStyle(editor, 'textColor', name)
+                  // Clicking the currently selected color clears it.
+                  applyColorStyle(editor, 'textColor', current === name ? 'default' : name)
                   onSelect?.()
                 }}
               >
                 {current === name ? (
                   <Check
-                    className={cn('size-3.5', isDefault ? 'text-foreground' : 'text-white mix-blend-difference')}
+                    className={cn('size-3.5', isDefault ? 'text-background' : 'text-white mix-blend-difference')}
                   />
                 ) : (
                   <span className="sr-only">{name}</span>
@@ -150,7 +151,8 @@ export function HighlightPalette<BSchema extends BlockSchema>({
                   current === name && 'ring-foreground ring-2',
                 )}
                 onClick={() => {
-                  applyColorStyle(editor, 'backgroundColor', name)
+                  // Clicking the currently selected highlight clears it.
+                  applyColorStyle(editor, 'backgroundColor', current === name ? 'default' : name)
                   onSelect?.()
                 }}
               >
