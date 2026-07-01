@@ -348,7 +348,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     [origin, originHomeId, navigate, replaceRoute, docId, route],
   )
 
-  const showPublishToolbar = route.key === 'document'
+  const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
 
   const editingFloatingActions =
     effectiveCanEdit && showPublishToolbar

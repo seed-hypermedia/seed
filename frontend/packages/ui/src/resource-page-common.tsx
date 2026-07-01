@@ -169,7 +169,7 @@ export function getDocumentContentAction({
   actionButtons: ReactNode
   allMenuItems: MenuItemType[]
 }) {
-  if (activeView !== 'content') return null
+  if (activeView !== 'content' && activeView !== 'metadata') return null
   if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
   return actionButtons
@@ -2488,6 +2488,28 @@ function CommentsPanelContent({
   )
 }
 
+/** Metadata view wired to the document machine: edits stage into the draft
+ * and publish through the standard publish flow. */
+function DocumentMetadataPage({document}: {document: HMDocument}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
+
+  // Draft metadata (partial) overrides published metadata, same as the options panel.
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+
+  return (
+    <DocumentMetadataView
+      metadata={metadata as any}
+      canEdit={canEdit}
+      onMetadata={(patch) => {
+        beginEditIfNeeded()
+        send({type: 'change', metadata: patch as any})
+      }}
+    />
+  )
+}
+
 function DocumentOptionsPanel({
   docId,
   fileUpload,
@@ -2645,7 +2667,7 @@ function MainContent({
     case 'metadata':
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          <DocumentMetadataView metadata={document.metadata} />
+          <DocumentMetadataPage document={document} />
         </PageLayout>
       )
 

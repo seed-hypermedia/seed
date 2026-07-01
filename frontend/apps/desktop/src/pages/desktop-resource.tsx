@@ -926,7 +926,7 @@ export default function DesktopResourcePage() {
     })
   }
 
-  const showPublishToolbar = route.key === 'document'
+  const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens
