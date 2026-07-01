@@ -141,6 +141,14 @@ export class TableView implements NodeView {
     }
   }
 
+  private get isEditable(): boolean {
+    return !!this.editor?.isEditable
+  }
+
+  private requestEditMode() {
+    this.dom.dispatchEvent(new CustomEvent('hm-table-request-edit', {bubbles: true}))
+  }
+
   private handleMouseMove = (event: MouseEvent) => {
     const target = event.target as HTMLElement | null
     const cell = target?.closest('td, th') as HTMLElement | null
@@ -237,12 +245,20 @@ export class TableView implements NodeView {
   private handleRowStripClick = (event: MouseEvent) => {
     event.stopPropagation()
     if (this.hoveredRow === null) return
+    if (!this.isEditable) {
+      this.requestEditMode()
+      return
+    }
     this.openMenu('row', this.hoveredRow, null)
   }
 
   private handleColStripClick = (event: MouseEvent) => {
     event.stopPropagation()
     if (this.hoveredCol === null) return
+    if (!this.isEditable) {
+      this.requestEditMode()
+      return
+    }
     this.openMenu('col', null, this.hoveredCol)
   }
 
@@ -264,21 +280,15 @@ export class TableView implements NodeView {
     this.renderReactMenu()
   }
 
+  // Anchor the menu just below the clicked strip so it opens adjacent to it.
   private positionMenu() {
+    const strip = this.menuKind === 'row' ? this.rowStrip : this.menuKind === 'col' ? this.colStrip : null
+    if (!strip) return
     const wrapperRect = this.dom.getBoundingClientRect()
-    if (this.menuKind === 'row' && this.menuRow !== null) {
-      const cell = this.cellAt(this.menuRow, 0)
-      if (!cell) return
-      const cellRect = cell.getBoundingClientRect()
-      this.menu.style.top = `${cellRect.bottom - wrapperRect.top}px`
-      this.menu.style.left = `${cellRect.left - wrapperRect.left}px`
-    } else if (this.menuKind === 'col' && this.menuCol !== null) {
-      const cell = this.cellAt(0, this.menuCol)
-      if (!cell) return
-      const cellRect = cell.getBoundingClientRect()
-      this.menu.style.top = `${cellRect.bottom - wrapperRect.top}px`
-      this.menu.style.left = `${cellRect.left - wrapperRect.left}px`
-    }
+    const stripRect = strip.getBoundingClientRect()
+    this.menu.style.top = `${stripRect.bottom - wrapperRect.top}px`
+    const left = this.menuKind === 'col' ? stripRect.left + stripRect.width / 2 : stripRect.left
+    this.menu.style.left = `${left - wrapperRect.left}px`
   }
 
   // Move the editor selection into the cell at (row, col) so subsequent
@@ -431,6 +441,7 @@ export class TableView implements NodeView {
     this.menuRoot.render(
       createElement(TableActionsMenu, {
         open,
+        align: 'start',
         onOpenChange: (next: boolean) => {
           if (!next) this.closeMenu()
         },

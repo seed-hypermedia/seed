@@ -77,6 +77,63 @@ describe('prosemirrorPosToBlockTextOffset', () => {
   })
 })
 
+// Table cells carry their block id on the tableCell / tableHeader node, not on
+// a blockNode wrapper, so the highlight plugin recognize them too.
+const tableSchema = new Schema({
+  nodes: {
+    doc: {content: 'table'},
+    table: {content: 'tableRow+', group: 'block'},
+    tableRow: {content: '(tableCell | tableHeader)+'},
+    tableCell: {content: 'blockContent+', attrs: {id: {default: ''}}},
+    tableHeader: {content: 'blockContent+', attrs: {id: {default: ''}}},
+    blockContent: {content: 'inline*', group: 'block'},
+    text: {group: 'inline'},
+  },
+})
+
+function tableDocWithCell(cellType: 'tableCell' | 'tableHeader', id: string, text: string) {
+  return tableSchema.nodes.doc.create(
+    null,
+    tableSchema.nodes.table.create(
+      null,
+      tableSchema.nodes.tableRow.create(
+        null,
+        tableSchema.nodes[cellType].create({id}, tableSchema.nodes.blockContent.create(null, [tableSchema.text(text)])),
+      ),
+    ),
+  )
+}
+
+describe('createBlockHighlightPlugin (table cells)', () => {
+  test('range-highlights a comment fragment inside a tableCell', () => {
+    const doc = tableDocWithCell('tableCell', 'cell-1', 'hello world')
+    let state = EditorState.create({doc, plugins: [createBlockHighlightPlugin()]})
+
+    state = state.apply(
+      state.tr.setMeta(blockHighlightPluginKey, {type: 'rangeFocus', blockId: 'cell-1', start: 0, end: 5}),
+    )
+    expect(blockHighlightPluginKey.getState(state)?.find()).toHaveLength(1)
+  })
+
+  test('range-highlights a comment fragment inside a tableHeader', () => {
+    const doc = tableDocWithCell('tableHeader', 'head-1', 'Revenue')
+    let state = EditorState.create({doc, plugins: [createBlockHighlightPlugin()]})
+
+    state = state.apply(
+      state.tr.setMeta(blockHighlightPluginKey, {type: 'rangeFocus', blockId: 'head-1', start: 0, end: 3}),
+    )
+    expect(blockHighlightPluginKey.getState(state)?.find()).toHaveLength(1)
+  })
+
+  test('block-focuses a whole tableCell by id', () => {
+    const doc = tableDocWithCell('tableCell', 'cell-1', 'hello world')
+    let state = EditorState.create({doc, plugins: [createBlockHighlightPlugin()]})
+
+    state = state.apply(state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: 'cell-1'}))
+    expect(blockHighlightPluginKey.getState(state)?.find()).toHaveLength(1)
+  })
+})
+
 describe('createBlockHighlightPlugin', () => {
   test('clears fragment highlight when the user selects other text', () => {
     const doc = blockSchema.nodes.doc.create(
