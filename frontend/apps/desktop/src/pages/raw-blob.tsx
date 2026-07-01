@@ -3,9 +3,11 @@ import {useUniversalClient} from '@shm/shared'
 import {useCID} from '@shm/shared/models/entity'
 import {createInspectIpfsNavRoute} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {ipfsUrlToRoute} from '@/omnibar-url'
 import {Button} from '@shm/ui/button'
 import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {dagJsonToIpld} from '@shm/ui/dag-json'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -143,7 +145,9 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const publish = async () => {
     setIsPublishing(true)
     try {
-      const data = cbor.encode(value)
+      // Convert DAG-JSON forms into real IPLD kinds: {"/": cid} links become
+      // CID instances (tag 42) and {"/": {bytes}} becomes raw bytes.
+      const data = cbor.encode(dagJsonToIpld(value))
       const digest = await sha256.digest(data)
       const newCid = CID.createV1(DAG_CBOR_CODE, digest).toString()
       await client.request('PublishBlobs', {blobs: [{cid: newCid, data}]})
@@ -185,7 +189,14 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   }
 
   return (
-    <ValueEditorProvider onUndo={handleUndo} onRedo={handleRedo}>
+    <ValueEditorProvider
+      onUndo={handleUndo}
+      onRedo={handleRedo}
+      openUrl={(url) => {
+        const route = ipfsUrlToRoute(url)
+        if (route) navigate(route)
+      }}
+    >
       <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm md:top-4 md:right-4">
         {canPublish && (
           <Button variant="default" size="sm" disabled={isPublishing} onClick={publish}>
