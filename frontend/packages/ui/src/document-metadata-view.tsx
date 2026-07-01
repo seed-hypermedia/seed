@@ -14,6 +14,7 @@ import {
   isPlainObject,
   METADATA_VALUE_RULES,
   toCanonicalOrder,
+  useValueHistory,
   ValueDisplay,
   ValueEditorProvider,
 } from './value-editor'
@@ -80,66 +81,84 @@ export function DocumentMetadataView({
   const entries = canonicalEntries(current, {hideNull: true})
   const editable = canEdit && !!onMetadata
 
+  // Undo/redo over snapshots of the merged metadata: `record()` before each
+  // staged patch; undo/redo apply the diff back to the snapshot.
+  const history = useValueHistory(current)
+  const stage = (patch: MetadataPatch) => {
+    history.record()
+    onMetadata!(patch)
+  }
+  const handleUndo = () => {
+    const snapshot = history.undo()
+    if (snapshot) onMetadata!(diffMetadata(current, snapshot.value))
+  }
+  const handleRedo = () => {
+    const snapshot = history.redo()
+    if (snapshot) onMetadata!(diffMetadata(current, snapshot.value))
+  }
+
   return (
-    <div className="flex flex-col gap-4 py-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Metadata</h2>
-        <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
-          <Button
-            variant={jsonMode ? 'secondary' : 'ghost'}
-            size="icon"
-            aria-label={jsonMode ? 'Edit as fields' : 'Edit as JSON'}
-            onClick={() => setJsonMode((mode) => !mode)}
-          >
-            <Braces className="size-4" />
-          </Button>
-        </Tooltip>
+    <ValueEditorProvider onUndo={editable ? handleUndo : undefined} onRedo={editable ? handleRedo : undefined}>
+      <div className="flex flex-col gap-4 py-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Metadata</h2>
+          <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
+            <Button
+              variant={jsonMode ? 'secondary' : 'ghost'}
+              size="icon"
+              aria-label={jsonMode ? 'Edit as fields' : 'Edit as JSON'}
+              onClick={() => setJsonMode((mode) => !mode)}
+            >
+              <Braces className="size-4" />
+            </Button>
+          </Tooltip>
+        </div>
+        {jsonMode ? (
+          <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
+        ) : editable ? (
+          <>
+            {entries.length === 0 ? (
+              <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+            ) : (
+              <div className="flex flex-col">
+                {entries.map(([key, value]) => (
+                  <FieldRow
+                    key={key}
+                    className="border-border border-b py-3 last:border-b-0"
+                    fieldKey={key}
+                    value={value}
+                    siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                    onValue={(newValue) => stage({[key]: newValue})}
+                    onRename={(newKey) => stage({[key]: null, [newKey]: value})}
+                    onRemove={() => stage({[key]: null})}
+                    rules={METADATA_VALUE_RULES}
+                    path={[key]}
+                  />
+                ))}
+              </div>
+            )}
+            <AddFieldForm
+              rules={METADATA_VALUE_RULES}
+              existingKeys={entries.map(([key]) => key)}
+              onAdd={(key, value) => stage({[key]: value})}
+            />
+          </>
+        ) : entries.length === 0 ? (
+          <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+        ) : (
+          <dl className="flex flex-col">
+            {entries.map(([key, value]) => (
+              <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+                <dt className={FIELD_LABEL_CLASS}>{key}</dt>
+                <dd>
+                  <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
-      {jsonMode ? (
-        <MetadataJsonEditor metadata={current} editable={editable} onMetadata={onMetadata} />
-      ) : editable ? (
-        <ValueEditorProvider>
-          {entries.length === 0 ? (
-            <p className="text-muted-foreground text-sm">This document has no metadata.</p>
-          ) : (
-            <div className="flex flex-col">
-              {entries.map(([key, value]) => (
-                <FieldRow
-                  key={key}
-                  className="border-border border-b py-3 last:border-b-0"
-                  fieldKey={key}
-                  value={value}
-                  siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-                  onValue={(newValue) => onMetadata!({[key]: newValue})}
-                  onRename={(newKey) => onMetadata!({[key]: null, [newKey]: value})}
-                  onRemove={() => onMetadata!({[key]: null})}
-                  rules={METADATA_VALUE_RULES}
-                  path={[key]}
-                />
-              ))}
-            </div>
-          )}
-          <AddFieldForm
-            rules={METADATA_VALUE_RULES}
-            existingKeys={entries.map(([key]) => key)}
-            onAdd={(key, value) => onMetadata!({[key]: value})}
-          />
-        </ValueEditorProvider>
-      ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">This document has no metadata.</p>
-      ) : (
-        <dl className="flex flex-col">
-          {entries.map(([key, value]) => (
-            <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
-              <dt className={FIELD_LABEL_CLASS}>{key}</dt>
-              <dd>
-                <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
+    </ValueEditorProvider>
   )
 }
 

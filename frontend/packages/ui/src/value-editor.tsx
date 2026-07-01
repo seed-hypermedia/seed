@@ -1,5 +1,19 @@
-import {Check, ChevronDown, ChevronRight, ChevronUp, Copy, Plus, X} from 'lucide-react'
-import {createContext, useContext, useEffect, useRef, useState} from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  GripVertical,
+  Plus,
+  X,
+} from 'lucide-react'
+import {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Switch} from './components/switch'
@@ -111,7 +125,46 @@ export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium'
 const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-1 border-l-2 pl-3'
 
 // ---------------------------------------------------------------------------
-// Selection + clipboard
+// Undo history
+// ---------------------------------------------------------------------------
+
+const HISTORY_LIMIT = 200
+
+/**
+ * Snapshot-based undo/redo history. Call `record()` immediately BEFORE
+ * applying an edit; `undo()`/`redo()` return the snapshot to restore, or null.
+ */
+export function useValueHistory<T>(current: T) {
+  const currentRef = useRef(current)
+  currentRef.current = current
+  const undoStack = useRef<T[]>([])
+  const redoStack = useRef<T[]>([])
+
+  const record = useCallback(() => {
+    undoStack.current.push(currentRef.current)
+    if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift()
+    redoStack.current = []
+  }, [])
+
+  const undo = useCallback((): {value: T} | null => {
+    if (undoStack.current.length === 0) return null
+    const value = undoStack.current.pop()!
+    redoStack.current.push(currentRef.current)
+    return {value}
+  }, [])
+
+  const redo = useCallback((): {value: T} | null => {
+    if (redoStack.current.length === 0) return null
+    const value = redoStack.current.pop()!
+    undoStack.current.push(currentRef.current)
+    return {value}
+  }, [])
+
+  return {record, undo, redo}
+}
+
+// ---------------------------------------------------------------------------
+// Selection, clipboard, context menu
 // ---------------------------------------------------------------------------
 
 export type ValuePath = (string | number)[]
@@ -127,12 +180,21 @@ type SelectionHandlers = {
   rules: ValueEditorRules
 }
 
+export type ContextMenuAction = {
+  key: string
+  label: string
+  icon?: React.ReactNode
+  destructive?: boolean
+  onClick: () => void
+}
+
 type SelectionContextValue = {
   selectedId: string | null
   select: (id: string) => void
   clear: () => void
   register: (id: string, handlers: SelectionHandlers) => void
   unregister: (id: string) => void
+  openContextMenu: (position: {x: number; y: number}, actions: ContextMenuAction[]) => void
 }
 
 const SelectionContext = createContext<SelectionContextValue | null>(null)
@@ -141,14 +203,65 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]')
 }
 
+/** Parse and validate clipboard-ish text for pasting. Non-JSON pastes as a string. */
+function parsePastedText(text: string, rules: ValueEditorRules): {value: unknown} | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    parsed = text
+  }
+  const problem = findInvalidValue(parsed, rules)
+  if (problem) {
+    toast.error(`Cannot paste: ${problem}`)
+    return null
+  }
+  return {value: parsed}
+}
+
+function copyValueToClipboard(value: unknown) {
+  navigator.clipboard.writeText(JSON.stringify(toCanonicalOrder(value), null, 2))
+  toast.success('Copied value')
+}
+
+async function pasteFromClipboard(handlers: SelectionHandlers) {
+  let text: string
+  try {
+    text = await navigator.clipboard.readText()
+  } catch {
+    toast.error('Clipboard unavailable')
+    return
+  }
+  if (!text) return
+  const result = parsePastedText(text, handlers.rules)
+  if (result) handlers.setValue(result.value)
+}
+
 /**
- * Enables row selection and clipboard support for all value editors below it.
- * Click a row to select it, then Cmd/Ctrl+C copies the value as JSON,
- * Cmd/Ctrl+V pastes over it (validated), Delete removes it, Escape deselects.
+ * Enables row selection, clipboard, context menus, and undo shortcuts for all
+ * value editors below it. Click a row to select it: Cmd/Ctrl+C copies the
+ * value as JSON, Cmd/Ctrl+V pastes over it (validated), Delete removes it,
+ * Escape deselects. Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z call onUndo/onRedo.
  */
-export function ValueEditorProvider({children}: {children: React.ReactNode}) {
+export function ValueEditorProvider({
+  children,
+  onUndo,
+  onRedo,
+}: {
+  children: React.ReactNode
+  onUndo?: () => void
+  onRedo?: () => void
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{x: number; y: number; actions: ContextMenuAction[]} | null>(null)
   const registry = useRef(new Map<string, SelectionHandlers>())
+
+  const selectedIdRef = useRef(selectedId)
+  selectedIdRef.current = selectedId
+  const undoRef = useRef(onUndo)
+  undoRef.current = onUndo
+  const redoRef = useRef(onRedo)
+  redoRef.current = onRedo
 
   const ctx = useRef<SelectionContextValue>({
     selectedId: null,
@@ -156,19 +269,21 @@ export function ValueEditorProvider({children}: {children: React.ReactNode}) {
     clear: () => setSelectedId(null),
     register: (id, handlers) => registry.current.set(id, handlers),
     unregister: (id) => registry.current.delete(id),
+    openContextMenu: (position, actions) => setMenu({...position, actions}),
   })
   ctx.current = {...ctx.current, selectedId}
 
   useEffect(() => {
-    if (!selectedId) return
-
-    const getHandlers = () => registry.current.get(selectedId)
+    const getSelectedHandlers = () => {
+      const id = selectedIdRef.current
+      return id ? registry.current.get(id) : undefined
+    }
 
     const onCopy = (e: ClipboardEvent) => {
       if (isEditableTarget(e.target)) return
       // Don't hijack copying of regular text selections.
       if (document.getSelection()?.toString()) return
-      const handlers = getHandlers()
+      const handlers = getSelectedHandlers()
       if (!handlers) return
       e.preventDefault()
       e.clipboardData?.setData('text/plain', JSON.stringify(toCanonicalOrder(handlers.getValue()), null, 2))
@@ -176,32 +291,32 @@ export function ValueEditorProvider({children}: {children: React.ReactNode}) {
 
     const onPaste = (e: ClipboardEvent) => {
       if (isEditableTarget(e.target)) return
-      const handlers = getHandlers()
+      const handlers = getSelectedHandlers()
       if (!handlers) return
       const text = e.clipboardData?.getData('text/plain')
       if (!text) return
       e.preventDefault()
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        // Non-JSON clipboard content pastes as plain text.
-        parsed = text
-      }
-      const problem = findInvalidValue(parsed, handlers.rules)
-      if (problem) {
-        toast.error(`Cannot paste: ${problem}`)
-        return
-      }
-      handlers.setValue(parsed)
+      const result = parsePastedText(text, handlers.rules)
+      if (result) handlers.setValue(result.value)
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        // Inputs keep their native text undo.
+        if (isEditableTarget(e.target)) return
+        const action = e.shiftKey ? redoRef.current : undoRef.current
+        if (action) {
+          e.preventDefault()
+          action()
+        }
+        return
+      }
       if (isEditableTarget(e.target)) return
       if (e.key === 'Escape') {
+        setMenu(null)
         setSelectedId(null)
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        const handlers = getHandlers()
+        const handlers = getSelectedHandlers()
         if (handlers?.remove) {
           e.preventDefault()
           handlers.remove()
@@ -218,13 +333,56 @@ export function ValueEditorProvider({children}: {children: React.ReactNode}) {
       document.removeEventListener('paste', onPaste)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [selectedId])
+  }, [])
 
-  return <SelectionContext.Provider value={ctx.current}>{children}</SelectionContext.Provider>
+  return (
+    <SelectionContext.Provider value={ctx.current}>
+      {children}
+      {menu && (
+        <div
+          className="fixed inset-0 z-[100]"
+          onClick={() => setMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setMenu(null)
+          }}
+        >
+          <div
+            className="bg-popover text-popover-foreground absolute flex min-w-44 flex-col rounded-md border p-1 shadow-md"
+            style={{
+              left: Math.min(menu.x, typeof window !== 'undefined' ? window.innerWidth - 200 : menu.x),
+              top: Math.min(
+                menu.y,
+                typeof window !== 'undefined' ? window.innerHeight - menu.actions.length * 34 - 12 : menu.y,
+              ),
+            }}
+          >
+            {menu.actions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                className={cn(
+                  'hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors',
+                  action.destructive && 'text-destructive',
+                )}
+                onClick={() => {
+                  setMenu(null)
+                  action.onClick()
+                }}
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </SelectionContext.Provider>
+  )
 }
 
-/** Row-level wiring for selection: click to select (ignoring interactive elements). */
-function useRowSelection(id: string, handlers: SelectionHandlers) {
+/** Row-level wiring for selection and the context menu. */
+function useRowSelection(id: string, handlers: SelectionHandlers, getMenuActions: () => ContextMenuAction[]) {
   const ctx = useContext(SelectionContext)
   const isSelected = ctx?.selectedId === id
 
@@ -245,7 +403,18 @@ function useRowSelection(id: string, handlers: SelectionHandlers) {
       }
     : undefined
 
-  return {isSelected: !!isSelected, onRowClick}
+  const onContextMenu = ctx
+    ? (e: React.MouseEvent) => {
+        // Right-click inside inputs keeps the native text menu.
+        if (isEditableTarget(e.target)) return
+        e.preventDefault()
+        e.stopPropagation()
+        ctx.select(id)
+        ctx.openContextMenu({x: e.clientX, y: e.clientY}, getMenuActions())
+      }
+    : undefined
+
+  return {isSelected: !!isSelected, onRowClick, onContextMenu}
 }
 
 const ROW_CLASS = '-mx-1 rounded-md px-1 py-0.5 transition-colors'
@@ -326,10 +495,7 @@ function CopyValueButton({getValue}: {getValue: () => unknown}) {
         size="iconSm"
         aria-label="Copy value as JSON"
         className="text-muted-foreground"
-        onClick={() => {
-          navigator.clipboard.writeText(JSON.stringify(toCanonicalOrder(getValue()), null, 2))
-          toast.success('Copied value')
-        }}
+        onClick={() => copyValueToClipboard(getValue())}
       >
         <Copy className="size-3.5" />
       </Button>
@@ -370,10 +536,49 @@ function CollapsedSummary({value, onExpand}: {value: unknown; onExpand: () => vo
   )
 }
 
+/** Shared context-menu actions for a value row. */
+function baseMenuActions({
+  value,
+  handlers,
+  isContainer,
+  collapsed,
+  setCollapsed,
+}: {
+  value: unknown
+  handlers: SelectionHandlers
+  isContainer: boolean
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
+}): ContextMenuAction[] {
+  const actions: ContextMenuAction[] = [
+    {
+      key: 'copy',
+      label: 'Copy',
+      icon: <Copy className="size-4" />,
+      onClick: () => copyValueToClipboard(value),
+    },
+    {
+      key: 'paste',
+      label: 'Paste',
+      icon: <ClipboardPaste className="size-4" />,
+      onClick: () => void pasteFromClipboard(handlers),
+    },
+  ]
+  if (isContainer) {
+    actions.push({
+      key: 'collapse',
+      label: collapsed ? 'Expand' : 'Collapse',
+      icon: collapsed ? <ChevronsUpDown className="size-4" /> : <ChevronsDownUp className="size-4" />,
+      onClick: () => setCollapsed(!collapsed),
+    })
+  }
+  return actions
+}
+
 /**
  * One keyed field row: collapsible for container values, selectable (click),
- * with rename, copy, and remove. Shared by nested object editors and the
- * top-level metadata field list.
+ * with a right-click menu, rename, copy, and remove. Shared by nested object
+ * editors and the top-level metadata field list.
  */
 export function FieldRow({
   fieldKey,
@@ -399,16 +604,22 @@ export function FieldRow({
 }) {
   const isContainer = Array.isArray(value) || isPlainObject(value)
   const [collapsed, setCollapsed] = useState(false)
-  const {isSelected, onRowClick} = useRowSelection(pathId(path), {
-    getValue: () => value,
-    setValue: onValue,
-    remove: onRemove,
-    rules,
-  })
+  const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
+  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
+    ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
+    {
+      key: 'remove',
+      label: `Remove ${fieldKey}`,
+      icon: <X className="size-4" />,
+      destructive: true,
+      onClick: onRemove,
+    },
+  ])
 
   return (
     <div
       onClick={onRowClick}
+      onContextMenu={onContextMenu}
       className={cn('group/row flex items-start gap-2', ROW_CLASS, isSelected && ROW_SELECTED_CLASS, className)}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -569,7 +780,7 @@ export function ObjectEditor({
   )
 }
 
-/** Recursive list editor: edit, collapse, select, reorder, remove, and append items. */
+/** Recursive list editor: edit, collapse, select, drag to reorder, remove, and append items. */
 export function ListEditor({
   value,
   onValue,
@@ -581,11 +792,19 @@ export function ListEditor({
   rules: ValueEditorRules
   path?: ValuePath
 }) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+
   const move = (from: number, to: number) => {
+    if (from === to) return
     const next = [...value]
     const [item] = next.splice(from, 1)
     next.splice(to, 0, item)
     onValue(next)
+  }
+  const endDrag = () => {
+    setDragIndex(null)
+    setOverIndex(null)
   }
   return (
     <div className={NESTED_GROUP_CLASS}>
@@ -598,14 +817,41 @@ export function ListEditor({
           count={value.length}
           onItem={(newItem) => onValue(value.map((v, i) => (i === index ? newItem : v)))}
           onMove={move}
+          onDuplicate={() => {
+            const next = [...value]
+            next.splice(index + 1, 0, structuredClone(item))
+            onValue(next)
+          }}
           onRemove={() => onValue(value.filter((_, i) => i !== index))}
           rules={rules}
           path={[...path, index]}
+          drag={{
+            isDragging: dragIndex === index,
+            isDragOver: dragIndex !== null && dragIndex !== index && overIndex === index,
+            onDragStart: () => setDragIndex(index),
+            onDragOver: () => setOverIndex(index),
+            onDrop: () => {
+              if (dragIndex !== null) move(dragIndex, index)
+              endDrag()
+            },
+            onDragEnd: endDrag,
+            active: dragIndex !== null,
+          }}
         />
       ))}
       <AddFieldForm compact itemMode rules={rules} onAdd={(_key, item) => onValue([...value, item])} />
     </div>
   )
+}
+
+type ListItemDrag = {
+  isDragging: boolean
+  isDragOver: boolean
+  active: boolean
+  onDragStart: () => void
+  onDragOver: () => void
+  onDrop: () => void
+  onDragEnd: () => void
 }
 
 function ListItemRow({
@@ -614,33 +860,104 @@ function ListItemRow({
   count,
   onItem,
   onMove,
+  onDuplicate,
   onRemove,
   rules,
   path,
+  drag,
 }: {
   item: unknown
   index: number
   count: number
   onItem: (item: unknown) => void
   onMove: (from: number, to: number) => void
+  onDuplicate: () => void
   onRemove: () => void
   rules: ValueEditorRules
   path: ValuePath
+  drag: ListItemDrag
 }) {
   const isContainer = Array.isArray(item) || isPlainObject(item)
   const [collapsed, setCollapsed] = useState(false)
-  const {isSelected, onRowClick} = useRowSelection(pathId(path), {
-    getValue: () => item,
-    setValue: onItem,
-    remove: onRemove,
-    rules,
-  })
+  const handlers: SelectionHandlers = {getValue: () => item, setValue: onItem, remove: onRemove, rules}
+  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
+    ...baseMenuActions({value: item, handlers, isContainer, collapsed, setCollapsed}),
+    {
+      key: 'duplicate',
+      label: 'Duplicate',
+      icon: <CopyPlus className="size-4" />,
+      onClick: onDuplicate,
+    },
+    ...(index > 0
+      ? [
+          {
+            key: 'move-up',
+            label: 'Move up',
+            icon: <ArrowUp className="size-4" />,
+            onClick: () => onMove(index, index - 1),
+          },
+        ]
+      : []),
+    ...(index < count - 1
+      ? [
+          {
+            key: 'move-down',
+            label: 'Move down',
+            icon: <ArrowDown className="size-4" />,
+            onClick: () => onMove(index, index + 1),
+          },
+        ]
+      : []),
+    {
+      key: 'remove',
+      label: 'Remove item',
+      icon: <X className="size-4" />,
+      destructive: true,
+      onClick: onRemove,
+    },
+  ])
+
   return (
     <div
       onClick={onRowClick}
-      className={cn('group/item flex items-start gap-2', ROW_CLASS, isSelected && ROW_SELECTED_CLASS)}
+      onContextMenu={onContextMenu}
+      onDragOver={(e) => {
+        if (!drag.active) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        drag.onDragOver()
+      }}
+      onDrop={(e) => {
+        if (!drag.active) return
+        e.preventDefault()
+        drag.onDrop()
+      }}
+      className={cn(
+        'group/item flex items-start gap-2',
+        ROW_CLASS,
+        isSelected && ROW_SELECTED_CLASS,
+        drag.isDragging && 'opacity-40',
+        drag.isDragOver && 'ring-primary/50 bg-accent/40 ring-2',
+      )}
     >
       <div className="mt-1.5 flex shrink-0 items-center gap-1">
+        <span
+          draggable
+          aria-label="Drag to reorder"
+          className={cn(
+            'text-muted-foreground -ml-1 flex cursor-grab items-center opacity-0 transition-opacity active:cursor-grabbing',
+            'group-focus-within/item:opacity-100 group-hover/item:opacity-100',
+            (isSelected || drag.active) && 'opacity-100',
+          )}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', JSON.stringify(toCanonicalOrder(item), null, 2))
+            drag.onDragStart()
+          }}
+          onDragEnd={drag.onDragEnd}
+        >
+          <GripVertical className="size-3.5" />
+        </span>
         {isContainer ? (
           <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
         ) : (
@@ -664,24 +981,6 @@ function ListItemRow({
         )}
       >
         <CopyValueButton getValue={() => item} />
-        <Button
-          variant="ghost"
-          size="iconSm"
-          aria-label="Move up"
-          disabled={index === 0}
-          onClick={() => onMove(index, index - 1)}
-        >
-          <ChevronUp className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="iconSm"
-          aria-label="Move down"
-          disabled={index === count - 1}
-          onClick={() => onMove(index, index + 1)}
-        >
-          <ChevronDown className="size-4" />
-        </Button>
         <RemoveButton label="Remove item" onClick={onRemove} />
       </div>
     </div>
