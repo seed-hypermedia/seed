@@ -53,9 +53,8 @@ function toCanonicalOrder(value: unknown): unknown {
 
 /**
  * Values must survive the publish pipeline: strings, whole numbers, booleans,
- * null, plain objects, and lists of those. Floats would silently drop, so they
- * are rejected upfront. (Lists stage into the draft but are not yet published —
- * see the notice rendered when a list is present.)
+ * null, and plain objects of those. Floats would silently drop, and the
+ * SetAttribute op has no list value type, so both are rejected upfront.
  */
 function findInvalidValue(value: unknown, path: string[] = []): string | null {
   if (value === null || value === undefined) return null
@@ -64,11 +63,7 @@ function findInvalidValue(value: unknown, path: string[] = []): string | null {
     return Number.isInteger(value) ? null : `"${path.join('.')}" must be a whole number`
   }
   if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      const problem = findInvalidValue(value[i], [...path, String(i)])
-      if (problem) return problem
-    }
-    return null
+    return `"${path.join('.')}" is a list — lists cannot be published in metadata`
   }
   if (isPlainObject(value)) {
     for (const [key, child] of Object.entries(value)) {
@@ -78,13 +73,6 @@ function findInvalidValue(value: unknown, path: string[] = []): string | null {
     return null
   }
   return `"${path.join('.')}" has an unsupported type`
-}
-
-/** True when the value (or any nested value) contains a list. */
-function containsList(value: unknown): boolean {
-  if (Array.isArray(value)) return true
-  if (isPlainObject(value)) return Object.values(value).some(containsList)
-  return false
 }
 
 /**
@@ -145,7 +133,6 @@ export function DocumentMetadataView({
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
   const entries = canonicalVisibleEntries(current)
   const editable = canEdit && !!onMetadata
-  const hasList = useMemo(() => containsList(current), [current])
 
   return (
     <div className="flex flex-col gap-4 py-6">
@@ -194,12 +181,6 @@ export function DocumentMetadataView({
             />
           )}
         </>
-      )}
-      {hasList && (
-        <p className="text-muted-foreground text-xs">
-          Lists are saved in your draft, but the publishing format does not support them yet — list fields are skipped
-          when the document is published.
-        </p>
       )}
     </div>
   )
@@ -425,7 +406,7 @@ function CommitOnBlurInput({
   )
 }
 
-type NewFieldType = 'text' | 'number' | 'toggle' | 'object' | 'list' | 'json'
+type NewFieldType = 'text' | 'number' | 'toggle' | 'object' | 'json'
 
 /**
  * Collapsed "+ Add field" affordance that expands into an inline form.
@@ -491,7 +472,6 @@ function AddFieldForm({
     if (type === 'text') value = textValue
     else if (type === 'toggle') value = toggleValue
     else if (type === 'object') value = {}
-    else if (type === 'list') value = []
     else if (type === 'number') {
       const parsed = Number(textValue)
       if (!Number.isInteger(parsed) || textValue.trim() === '') {
@@ -546,7 +526,6 @@ function AddFieldForm({
             <SelectItem value="number">Number</SelectItem>
             <SelectItem value="toggle">Toggle</SelectItem>
             <SelectItem value="object">Object</SelectItem>
-            <SelectItem value="list">List</SelectItem>
             <SelectItem value="json">JSON</SelectItem>
           </SelectContent>
         </Select>
@@ -659,7 +638,7 @@ function MetadataJsonEditor({
           )
         ) : (
           <p className="text-muted-foreground text-xs">
-            Values may be text, whole numbers, true/false, lists, or nested objects.
+            Values may be text, whole numbers, true/false, or nested objects.
           </p>
         )}
       </div>

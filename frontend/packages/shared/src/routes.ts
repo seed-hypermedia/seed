@@ -138,6 +138,14 @@ export const inspectIpfsRouteSchema = z.object({
 /** Navigation route for raw IPFS inspection inside the inspector. */
 export type InspectIpfsRoute = z.infer<typeof inspectIpfsRouteSchema>
 
+/** Route schema for the raw DAG-CBOR blob JSON editor page. No cid = new unpublished blob. */
+export const rawBlobRouteSchema = z.object({
+  key: z.literal('raw-blob'),
+  cid: z.string().optional(),
+})
+/** Navigation route for the raw DAG-CBOR blob JSON editor page. */
+export type RawBlobRoute = z.infer<typeof rawBlobRouteSchema>
+
 // Collaborators page panel options
 const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
@@ -367,6 +375,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
+  rawBlobRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   activityRouteSchema,
