@@ -5,6 +5,7 @@ import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {Textarea} from './components/textarea'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -105,8 +106,56 @@ export function findInvalidValue(value: unknown, rules: ValueEditorRules, path: 
   return `"${path.join('.')}" has an unsupported type`
 }
 
-export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium tracking-wide uppercase'
+// No text-transform: keys are case-sensitive data, so they display verbatim.
+export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium'
 const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-2 border-l-2 pl-3'
+
+/**
+ * Inline-editable object key. Styled like the field label until focused;
+ * commits the rename on blur/Enter, reverts on Escape, empty, or collision.
+ */
+export function EditableFieldKey({
+  fieldKey,
+  existingKeys,
+  onRename,
+}: {
+  fieldKey: string
+  /** Sibling keys (excluding this one) used for collision checks. */
+  existingKeys: string[]
+  onRename: (newKey: string) => void
+}) {
+  const [text, setText] = useState(fieldKey)
+  useEffect(() => setText(fieldKey), [fieldKey])
+  const commit = () => {
+    const next = text.trim()
+    if (!next || next === fieldKey) {
+      setText(fieldKey)
+      return
+    }
+    if (existingKeys.includes(next)) {
+      toast.error(`"${next}" already exists`)
+      setText(fieldKey)
+      return
+    }
+    onRename(next)
+  }
+  return (
+    <input
+      value={text}
+      aria-label={`Field name: ${fieldKey}`}
+      className={cn(
+        FIELD_LABEL_CLASS,
+        'hover:border-border focus:border-border focus:text-foreground w-full border-b border-transparent bg-transparent transition-colors outline-none',
+      )}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        if (e.key === 'Escape') setText(fieldKey)
+      }}
+    />
+  )
+}
 
 export function RemoveButton({label, onClick, className}: {label: string; onClick: () => void; className?: string}) {
   return (
@@ -211,13 +260,27 @@ export function ObjectEditor({
       onValue(next)
     }
   }
+  const renameKey = (key: string, newKey: string) => {
+    if (rules.removeKeys === 'tombstone') {
+      onValue({...value, [key]: null, [newKey]: value[key]})
+    } else {
+      const next = {...value}
+      delete next[key]
+      next[newKey] = value[key]
+      onValue(next)
+    }
+  }
   return (
     <div className={NESTED_GROUP_CLASS}>
       {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
       {entries.map(([key, child]) => (
         <div key={key} className="group/child flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className={FIELD_LABEL_CLASS}>{key}</span>
+            <EditableFieldKey
+              fieldKey={key}
+              existingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+              onRename={(newKey) => renameKey(key, newKey)}
+            />
             <ValueEditor value={child} onValue={(newChild) => onValue({...value, [key]: newChild})} rules={rules} />
           </div>
           <RemoveButton
