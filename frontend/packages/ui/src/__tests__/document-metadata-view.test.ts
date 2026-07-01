@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {dagCborKeyCompare, diffMetadata} from '../document-metadata-view'
+import {diffMetadata} from '../document-metadata-view'
+import {dagCborKeyCompare} from '../value-editor'
 
 describe('dagCborKeyCompare', () => {
   test('shorter keys sort first (length-first, per DAG-CBOR spec)', () => {
