@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
 import {documentMachine, DocumentMachineInput, PushDocumentInput, WriteDraftOutput} from '../document-machine'
+import {selectRenderableBlocks} from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 
 const mockDocumentId = {
@@ -127,6 +128,43 @@ describe('DocumentLifecycle machine', () => {
     await new Promise((r) => setTimeout(r, 50))
     expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftContent).toBeNull()
+    actor.stop()
+  })
+
+  it('renders published document content after publish even if stale draft props still exist', async () => {
+    const staleDraftContent: HMBlockNode[] = [
+      {block: {id: 'stale-draft', type: 'Paragraph', text: 'old draft', attributes: {}}, children: []},
+    ]
+    const publishedContent: HMBlockNode[] = [
+      {block: {id: 'published-block', type: 'Paragraph', text: 'published text', attributes: {}}, children: []},
+    ]
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async () => ({
+          id: 'my-draft',
+          content: staleDraftContent,
+        })),
+        publishDocument: fromPromise<HMDocument, any>(async () => ({
+          ...mockDocument,
+          version: 'bafy-published',
+          content: publishedContent,
+        })),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, existingDraftId: 'my-draft'},
+    })
+
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 0))
+
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toBe('loaded')
+    expect(snapshot.context.draftId).toBeNull()
+    expect(selectRenderableBlocks(snapshot)).toBe(publishedContent)
     actor.stop()
   })
 

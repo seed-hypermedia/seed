@@ -565,12 +565,15 @@ export function selectContext(snapshot: DocumentMachineSnapshot): DocumentMachin
   return snapshot.context
 }
 
-/** The blocks the editor should render: draft content (if available) or published document content. */
-export function selectBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
+/** The blocks the editor should render from the document machine's current source of truth. */
+export function selectRenderableBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
   const ctx = snapshot.context
   if (ctx.draftContent) return ctx.draftContent
   return ctx.document?.content ?? []
 }
+
+/** The blocks the editor should render: draft content (if available) or published document content. */
+export const selectBlocks = selectRenderableBlocks
 
 /** Published content in editor-block format. Baseline for unpublished-change diffs. */
 export function selectEditorBaseline(snapshot: DocumentMachineSnapshot): EditorBlock[] | null {
