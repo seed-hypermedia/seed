@@ -15,8 +15,9 @@ import z from 'zod'
 import {readConfig, resolveProviderForUsage, setLastUsedProvider, type AgentProvider} from './app-ai-config'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
+import {getRegisteredPluginTools, pluginToolCalls} from './app-plugins'
 import {t} from './app-trpc'
-import {getAllWindows} from './app-windows'
+import {getAllWindows, getFocusedWindow} from './app-windows'
 import {navigateDesktopUrl} from './assistant-navigation'
 import {executeChatSearch} from './chat-search'
 import {getChatProviderRequestOptions} from './chat-provider-options'
@@ -662,6 +663,63 @@ const chatTools: Record<string, any> = {
   },
 }
 
+// Plugin outputs flow into the model's context (a prompt-injection channel) and
+// can be arbitrarily large; cap them before they reach the model. Oversized
+// outputs are dropped with a note rather than truncated, since a half-cut JSON
+// blob is worse than useless to the model.
+const MAX_PLUGIN_OUTPUT_BYTES = 256 * 1024
+
+function pluginOutputByteSize(output: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(output) ?? '', 'utf8')
+  } catch {
+    return Infinity // circular / non-serializable
+  }
+}
+
+/**
+ * Build assistant tools for the currently enabled plugins. Each tool's
+ * `execute` dispatches a request to the focused renderer's plugin sandbox and
+ * awaits the result over the pending-call bridge (settled by
+ * plugins.submitToolResult). Rebuilt per request so newly enabled/disabled
+ * plugins take effect immediately.
+ */
+function buildPluginChatTools(): Record<string, any> {
+  const tools: Record<string, any> = {}
+  for (const descriptor of getRegisteredPluginTools()) {
+    tools[descriptor.toolName] = {
+      description: descriptor.description,
+      inputSchema: jsonSchema(descriptor.inputSchema),
+      execute: async (input: unknown) => {
+        const focusedWindow = getFocusedWindow()
+        if (!focusedWindow) {
+          return createToolErrorOutput('No app window available to run this plugin.')
+        }
+        const requestId = crypto.randomUUID()
+        const resultPromise = pluginToolCalls.request(requestId)
+        focusedWindow.webContents.send('appWindowEvent', {
+          type: 'pluginToolRequest',
+          requestId,
+          toolName: descriptor.toolName,
+          input,
+        })
+        try {
+          const output = await resultPromise
+          if (pluginOutputByteSize(output) > MAX_PLUGIN_OUTPUT_BYTES) {
+            return createToolErrorOutput(
+              `Plugin output exceeded the ${MAX_PLUGIN_OUTPUT_BYTES / 1024} KiB limit and was dropped.`,
+            )
+          }
+          return output
+        } catch (e) {
+          return createToolErrorOutput(`Error: ${(e as Error).message}`)
+        }
+      },
+    }
+  }
+  return tools
+}
+
 /** Chat-related TRPC routes backed by local session storage and live stream events. */
 export const chatApi = t.router({
   listSessions: t.procedure.query(async () => {
@@ -871,7 +929,7 @@ export const chatApi = t.router({
           model,
           ...getChatProviderRequestOptions(provider, system),
           messages,
-          tools: chatTools,
+          tools: {...chatTools, ...buildPluginChatTools()},
           stopWhen: stepCountIs(5),
           abortSignal: abortController.signal,
           onError: ({error}) => {

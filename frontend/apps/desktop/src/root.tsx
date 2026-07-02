@@ -17,6 +17,7 @@ import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DebugDialogs} from './components/debug-dialogs'
+import {PluginToolResponder} from './plugins/plugin-tool-responder'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -285,6 +286,7 @@ function MainApp({}: {}) {
   const mainContent = (
     <>
       <Main />
+      <PluginToolResponder />
       {!IS_PROD_DESKTOP && false && <DebugDialogs />}
     </>
   )

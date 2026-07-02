@@ -26,6 +26,9 @@ export type AppWindowEvent =
     }
   | {type: 'document_path_changed'; oldId: string; newId: string}
   | {type: 'create_new_document'}
+  // A plugin action was invoked by the assistant (main process); the focused
+  // renderer runs it in its sandbox and replies via plugins.submitToolResult.
+  | {type: 'pluginToolRequest'; requestId: string; toolName: string; input: unknown}
 
 // Helper type to extract payload for a given key
 type EventPayload<K extends AppWindowEvent['type']> = Extract<AppWindowEvent, {type: K}>

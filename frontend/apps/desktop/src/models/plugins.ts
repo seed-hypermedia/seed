@@ -1,11 +1,15 @@
+import {buildPluginToolDescriptors, type PluginToolSource} from '@/plugins/plugin-tool-descriptors'
 import {client} from '@/trpc'
 import {useUniversalClient} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {compileBlobSchemaForLLM} from '@shm/ui/blob-schema-compile'
+import {useSchemaRegistries} from '@shm/ui/blob-schema-registry'
 import {validatePluginManifest, type PluginManifest} from '@shm/ui/plugin-manifest'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {toast} from '@shm/ui/toast'
+import {useEffect, useMemo, useRef} from 'react'
 
 /** Installed plugin records (CIDs + enabled flags) from the main process. */
 export function useInstalledPlugins() {
@@ -88,6 +92,63 @@ export function useUninstallPlugin() {
     mutationFn: (input: {cid: string}) => client.plugins.uninstall.mutate(input),
     onSuccess: () => invalidateQueries([queryKeys.PLUGINS]),
   })
+}
+
+/**
+ * Register the enabled plugins' actions as assistant tools with the main
+ * process. Runs where manifests and schemas already live (renderer): it fetches
+ * each action's input schema closure, lowers it to plain JSON Schema for the
+ * model, and pushes the full descriptor list to `plugins.registerTools`
+ * (replace-all). Re-registers only when the serialized descriptors change, so
+ * schema convergence or enable/disable propagates without mutation loops.
+ *
+ * Mount once, app-wide (see PluginToolResponder).
+ */
+export function usePluginToolRegistration() {
+  const {plugins} = useLoadedPlugins()
+
+  const enabled = useMemo(
+    () =>
+      plugins.filter(
+        (plugin): plugin is typeof plugin & {manifest: PluginManifest} => plugin.enabled && !!plugin.manifest,
+      ),
+    [plugins],
+  )
+
+  // Every input-schema CID across all enabled plugins, fetched as one closure.
+  const inputCids = useMemo(() => {
+    const cids = new Set<string>()
+    for (const plugin of enabled) {
+      for (const action of plugin.manifest.actions) {
+        const cid = action.input?.['/']
+        if (cid) cids.add(cid)
+      }
+    }
+    return Array.from(cids)
+  }, [enabled])
+
+  const {registry} = useSchemaRegistries(inputCids)
+
+  const descriptors = useMemo(() => {
+    const sources: PluginToolSource[] = enabled.map((plugin) => {
+      const inputSchemas: Record<string, ReturnType<typeof compileBlobSchemaForLLM> | undefined> = {}
+      for (const action of plugin.manifest.actions) {
+        const cid = action.input?.['/']
+        const schema = cid ? registry[cid] : undefined
+        inputSchemas[action.name] = schema ? compileBlobSchemaForLLM(schema, registry) : undefined
+      }
+      return {cid: plugin.cid, manifest: plugin.manifest, inputSchemas}
+    })
+    return buildPluginToolDescriptors(sources)
+  }, [enabled, registry])
+
+  const lastRegistered = useRef<string | null>(null)
+  useEffect(() => {
+    const serialized = JSON.stringify(descriptors)
+    if (serialized === lastRegistered.current) return
+    lastRegistered.current = serialized
+    client.plugins.registerTools.mutate(descriptors).catch(() => {})
+  }, [descriptors])
 }
 
 /** Fetch a plugin's code blob (raw JS) by CID, as text. */
