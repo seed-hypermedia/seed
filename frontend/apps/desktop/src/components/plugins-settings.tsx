@@ -1,4 +1,12 @@
-import {useLoadedPlugins, useInstallPlugin, usePluginCode, usePluginManifestPreview, useSetPluginEnabled, useUninstallPlugin, type LoadedPlugin} from '@/models/plugins'
+import {
+  useLoadedPlugins,
+  useInstallPlugin,
+  usePluginCode,
+  usePluginManifestPreview,
+  useSetPluginEnabled,
+  useUninstallPlugin,
+  type LoadedPlugin,
+} from '@/models/plugins'
 import {createPluginBridge} from '@/plugins/plugin-bridge'
 import {PluginHost} from '@/plugins/plugin-host'
 import {useSchemaRegistry} from '@/models/blob-schema'
@@ -9,7 +17,12 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Switch} from '@shm/ui/components/switch'
 import {dagJsonToIpld, parseCidString} from '@shm/ui/dag-json'
-import {PLUGIN_PERMISSION_LABELS, validatePluginManifest, type PluginManifest, type PluginPermission} from '@shm/ui/plugin-manifest'
+import {
+  PLUGIN_PERMISSION_LABELS,
+  validatePluginManifest,
+  type PluginManifest,
+  type PluginPermission,
+} from '@shm/ui/plugin-manifest'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -42,7 +55,10 @@ export function PluginsSettings() {
           <PluginRow key={plugin.cid} plugin={plugin} />
         ))}
         {!isLoading && plugins.length === 0 && (
-          <SettingsRow label="No plugins installed" description="Paste a plugin manifest ipfs:// URL above to install one." />
+          <SettingsRow
+            label="No plugins installed"
+            description="Paste a plugin manifest ipfs:// URL above to install one."
+          />
         )}
       </SettingsCard>
     </>
@@ -91,9 +107,7 @@ function InstallPluginRow() {
           Install
         </Button>
       </div>
-      {validCid && preview.isLoading && (
-        <p className="text-muted-foreground text-xs">Fetching manifest…</p>
-      )}
+      {validCid && preview.isLoading && <p className="text-muted-foreground text-xs">Fetching manifest…</p>}
       {manifest && 'errors' in manifest && (
         <div className="text-destructive text-xs">
           Not a valid plugin manifest: {manifest.errors.slice(0, 3).join('; ')}
@@ -150,7 +164,9 @@ function PluginRow({plugin}: {plugin: LoadedPlugin}) {
           <span className="truncate text-sm font-medium">
             {manifest?.title ?? manifest?.name ?? (plugin.isLoading ? 'Loading…' : plugin.cid)}
           </span>
-          {manifest?.description && <span className="text-muted-foreground truncate text-xs">{manifest.description}</span>}
+          {manifest?.description && (
+            <span className="text-muted-foreground truncate text-xs">{manifest.description}</span>
+          )}
           {plugin.manifestErrors && (
             <span className="text-destructive flex items-center gap-1 text-xs">
               <TriangleAlert className="size-3" />
@@ -158,10 +174,7 @@ function PluginRow({plugin}: {plugin: LoadedPlugin}) {
             </span>
           )}
         </div>
-        <Switch
-          checked={plugin.enabled}
-          onCheckedChange={(enabled) => setEnabled.mutate({cid: plugin.cid, enabled})}
-        />
+        <Switch checked={plugin.enabled} onCheckedChange={(enabled) => setEnabled.mutate({cid: plugin.cid, enabled})} />
         <Button
           variant="ghost"
           size="iconSm"
@@ -234,7 +247,7 @@ function RunActionPanel({
   // Seed the form once the input schema arrives.
   const inputSchema = inputSchemas.rootSchema
   const effectiveInput =
-    input !== undefined ? input : inputSchema ? (instantiateSchema(inputSchema, inputSchemas.registry) ?? {}) : {}
+    input !== undefined ? input : inputSchema ? instantiateSchema(inputSchema, inputSchemas.registry) ?? {} : {}
 
   const outputWarnings: SchemaWarning[] =
     state.phase === 'done' && outputSchemas.rootSchema

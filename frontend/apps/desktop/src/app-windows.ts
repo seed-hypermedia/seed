@@ -505,7 +505,16 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
 
     // Only handle iframe navigations, not main frame
     if (!isMainFrame) {
-      // Allow embed domains to load their content
+      // Sandboxed plugin frames (srcdoc) must never navigate anywhere — and
+      // critically must never reach shell.openExternal, which would let a
+      // sandboxed plugin pop the user's real browser at an arbitrary URL.
+      if (event.frame?.url === 'about:srcdoc' || event.frame?.url === '') {
+        event.preventDefault()
+        return
+      }
+
+      // Allow embed domains to load their content (hostname match — a
+      // substring match would let evil.com/?youtube.com through)
       const allowedEmbedDomains = [
         'youtube.com',
         'youtube-nocookie.com',
@@ -516,7 +525,15 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
         'cdninstagram.com',
       ]
 
-      const isAllowedEmbed = allowedEmbedDomains.some((domain) => url.includes(domain))
+      let hostname = ''
+      try {
+        hostname = new URL(url).hostname
+      } catch {
+        // unparseable URLs are not allowed embeds
+      }
+      const isAllowedEmbed = allowedEmbedDomains.some(
+        (domain) => hostname === domain || hostname.endsWith('.' + domain),
+      )
 
       if (!isAllowedEmbed) {
         // If it's not an allowed embed domain, open in external browser

@@ -9,16 +9,18 @@ Status values: `todo` / `in progress` / `review` / `done`.
 - [x] `blob-schema-compile.ts` — dialect → plain JSON Schema lowering
 - [x] 48 tests across both modules
 
-## Phase 2 — Sandbox host (desktop) — `done` (hardening pending)
+## Phase 2 — Sandbox host (desktop) — `done`
 
 - [x] `plugin-shim.ts` — static srcdoc, network-closing CSP, worker per call
 - [x] `plugin-host.ts` — lifecycle, deadlines + terminate, permission gate
 - [x] `plugin-bridge.ts` — four capabilities, injected, size caps
 - [x] 9 protocol-level tests (jsdom cannot execute srcdoc/workers — the
       sandbox itself needs a manual/E2E pass in the real app)
-- [ ] Main-process hardening: `will-frame-navigate` srcdoc hard-deny +
-      hostname allowlist fix; webRequest frame filter; deny-by-default
-      permission handler — REQUIRED BEFORE SHIPPING
+- [x] Main-process hardening: `will-frame-navigate` hard-denies srcdoc
+      frames (no shell.openExternal) and the embed allowlist is hostname-
+      matched (was substring); webRequest cancels http(s) requests from
+      srcdoc frames (defense-in-depth behind the CSP for the open-CORS
+      daemon port); permission requests granted only to the app origin
 
 ## Phase 3 — Install & invoke UX — `done`
 

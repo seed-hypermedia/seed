@@ -290,6 +290,33 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Sandboxed plugin frames (srcdoc, opaque origin) must not reach the
+  // network at all. Their CSP (connect-src 'none') is the primary guard;
+  // this is defense-in-depth, specifically for the daemon HTTP port whose
+  // CORS is deliberately open. Requests initiated by an about:srcdoc frame
+  // are cancelled outright.
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    const frameUrl = details.frame?.url
+    if (frameUrl === 'about:srcdoc' && details.url.startsWith('http')) {
+      callback({cancel: true})
+      return
+    }
+    callback({})
+  })
+
+  // Permission requests (camera, geolocation, notifications, …): Electron
+  // default-grants when no handler is set. Preserve that only for the app's
+  // own origin; sandboxed plugin frames (opaque origin) and third-party
+  // embeds are denied.
+  session.defaultSession.setPermissionRequestHandler((webContents, _permission, callback, details) => {
+    const requestingUrl = details.requestingUrl || webContents.getURL()
+    const isAppOrigin =
+      requestingUrl.startsWith('http://localhost') ||
+      requestingUrl.startsWith('http://127.0.0.1') ||
+      requestingUrl.startsWith('file://')
+    callback(isAppOrigin)
+  })
+
   // Remove X-Frame-Options header to allow embeds
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = details.responseHeaders || {}

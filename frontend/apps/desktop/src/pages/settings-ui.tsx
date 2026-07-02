@@ -13,7 +13,15 @@ export function SettingsCard({label, children}: {label: string; children: React.
   )
 }
 
-export function SettingsRow({label, description, right}: {label: string; description?: string; right?: React.ReactNode}) {
+export function SettingsRow({
+  label,
+  description,
+  right,
+}: {
+  label: string
+  description?: string
+  right?: React.ReactNode
+}) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="flex min-w-0 flex-1 flex-col">
