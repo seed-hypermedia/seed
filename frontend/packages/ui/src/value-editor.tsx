@@ -779,12 +779,11 @@ export function ValueEditor({
     return <NumberInput value={value} onValue={onValue} rules={rules} />
   }
   if (typeof value === 'string') {
-    // Enum member values render as a select; anything else stays free text
-    // (plus a row warning) — the schema suggests, never coerces.
-    if (resolvedSchema && isStringEnumSchema(resolvedSchema) && resolvedSchema.enum.includes(value)) {
-      return <EnumValueSelect value={value} options={resolvedSchema.enum} onValue={onValue} />
-    }
-    return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
+    const enumOptions =
+      resolvedSchema && isStringEnumSchema(resolvedSchema) && resolvedSchema.enum.includes(value)
+        ? resolvedSchema.enum
+        : undefined
+    return <StringLeafEditor value={value} enumOptions={enumOptions} onValue={onValue} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -799,6 +798,48 @@ export function ValueEditor({
     return <ObjectEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
+}
+
+/**
+ * String leaf: free text, or a select when the value is a member of the
+ * schema's enum. The select never takes over an active edit — a late-arriving
+ * schema must not unmount a focused input (blur doesn't fire on unmount, so
+ * the draft would be silently lost) — and always offers "Custom value…" back
+ * to free text, so the schema never removes the ability to type.
+ */
+function StringLeafEditor({
+  value,
+  enumOptions,
+  onValue,
+}: {
+  value: string
+  enumOptions: string[] | undefined
+  onValue: (value: unknown) => void
+}) {
+  const [editingText, setEditingText] = useState(false)
+  if (enumOptions && !editingText) {
+    return (
+      <EnumValueSelect
+        value={value}
+        options={enumOptions}
+        onValue={onValue}
+        onEditAsText={() => setEditingText(true)}
+      />
+    )
+  }
+  return (
+    <CommitOnBlurInput
+      key={value}
+      initialValue={value}
+      autoFocus={editingText}
+      onCommit={(text) => onValue(text)}
+      onFocusChange={(focused) => {
+        // Focus latches free-text mode; blur (which commits) releases it so a
+        // conforming committed value can render as the select again.
+        setEditingText(focused)
+      }}
+    />
+  )
 }
 
 /** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
@@ -1236,12 +1277,16 @@ function CommitOnBlurInput({
   initialValue,
   placeholder,
   className,
+  autoFocus,
   onCommit,
+  onFocusChange,
 }: {
   initialValue: string
   placeholder?: string
   className?: string
+  autoFocus?: boolean
   onCommit: (text: string) => void
+  onFocusChange?: (focused: boolean) => void
 }) {
   const [text, setText] = useState(initialValue)
   return (
@@ -1249,9 +1294,12 @@ function CommitOnBlurInput({
       value={text}
       placeholder={placeholder}
       className={className}
+      autoFocus={autoFocus}
+      onFocus={() => onFocusChange?.(true)}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         if (text !== initialValue) onCommit(text)
+        onFocusChange?.(false)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()

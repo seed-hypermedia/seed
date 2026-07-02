@@ -9,7 +9,7 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {dagJsonToIpld, findSeedIndexerCollision, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
+import {dagJsonToIpld, findSeedIndexerCollision, isDagJsonBytes, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
 import {
   BLOB_META_SCHEMA,
   BLOB_META_SCHEMA_CID,
@@ -17,7 +17,7 @@ import {
   isSchemaBlob,
   type SchemaRegistry,
 } from '@shm/ui/blob-schema'
-import {BlobSchemaProvider, useSchemaWarningCount} from '@shm/ui/blob-schema-context'
+import {BlobSchemaProvider, useSchemaWarningCount, useSchemaWarnings} from '@shm/ui/blob-schema-context'
 import {isPlainObject} from '@shm/ui/value-editor'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -31,6 +31,10 @@ import {useEffect, useMemo, useState} from 'react'
 
 /** Multicodec code for DAG-CBOR, the only codec this editor can decode/encode. */
 const DAG_CBOR_CODE = 0x71
+
+// Module-level so its identity is stable across renders — BlobSchemaProvider
+// memoizes validation on (schema, registry, value) identity.
+const META_REGISTRY: SchemaRegistry = {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA}
 
 /** Full-page GUI editor for raw DAG-CBOR IPFS blobs. */
 export default function RawBlobPage() {
@@ -95,16 +99,19 @@ function NewInstanceEditor({schemaCid}: {schemaCid: string}) {
   const isMeta = schemaCid === BLOB_META_SCHEMA_CID
   const fetched = useSchemaRegistry(isMeta ? undefined : schemaCid)
   const schema = isMeta ? BLOB_META_SCHEMA : fetched.rootSchema
-  const registry: SchemaRegistry = isMeta ? {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA} : fetched.registry
+  const registry: SchemaRegistry = isMeta ? META_REGISTRY : fetched.registry
 
   if (!schema) {
     return <BlobSearching cid={schemaCid} notFoundYet={!fetched.isLoading} />
   }
   const starter = instantiateSchema(schema, registry)
-  const initialValue = {
-    ...(isPlainObject(starter) ? starter : {}),
-    schema: {'/': schemaCid},
-  }
+  // A non-object root (e.g. type: "string") can't carry the `schema` key —
+  // the starter value itself wins over the attachment convention.
+  const initialValue = isPlainObject(starter)
+    ? {...starter, schema: {'/': schemaCid}}
+    : starter !== undefined
+      ? starter
+      : {schema: {'/': schemaCid}}
   return <BlobEditor initialValue={initialValue} />
 }
 
@@ -196,7 +203,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const isMetaAttached = attachedSchemaCid === BLOB_META_SCHEMA_CID
   const fetched = useSchemaRegistry(isMetaAttached ? undefined : attachedSchemaCid)
   const schema = isMetaAttached ? BLOB_META_SCHEMA : fetched.rootSchema
-  const registry: SchemaRegistry = isMetaAttached ? {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA} : fetched.registry
+  const registry: SchemaRegistry = isMetaAttached ? META_REGISTRY : fetched.registry
   const valueIsSchema = isSchemaBlob(value)
 
   const isDirty = useMemo(() => JSON.stringify(value) !== JSON.stringify(initialValue), [value, initialValue])
@@ -249,7 +256,11 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       onClick: () => setJsonMode((mode) => !mode),
     },
   ]
-  if (isPlainObject(value)) {
+  // Attach requires a real map value: DAG-JSON link/bytes forms are leaf
+  // kinds a `schema` key would corrupt. Hidden in JSON mode — the textarea
+  // snapshots the value at open, so a concurrent attach would be silently
+  // reverted by Apply.
+  if (isPlainObject(value) && !isDagJsonLink(value) && !isDagJsonBytes(value) && !jsonMode) {
     menuItems.push({
       key: 'attach-schema',
       label: attachedSchemaCid ? 'Change Schema…' : 'Attach Schema…',
@@ -336,6 +347,9 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
             />
             {attachMode && (
               <AttachSchemaBar
+                // A `schema` key holding anything but an attachment link is
+                // the user's own data; replacing it needs their eyes open.
+                replacesUserData={isPlainObject(value) && value.schema !== undefined && attachedSchemaCid === undefined}
                 onCancel={() => setAttachMode(false)}
                 onAttach={(schemaCid) => {
                   if (!isPlainObject(value)) return
@@ -382,6 +396,9 @@ function SchemaStatusRow({
   onOpenSchema?: () => void
 }) {
   const warningCount = useSchemaWarningCount()
+  // Root-level warnings (missing required keys, root type mismatch…) have no
+  // field row to badge, so they surface here.
+  const rootWarnings = useSchemaWarnings([])
   if (!attachedSchemaCid) return null
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -412,6 +429,7 @@ function SchemaStatusRow({
         <span className="flex items-center gap-1 text-amber-600 dark:text-amber-500">
           <TriangleAlert className="size-3.5" />
           {warningCount} field{warningCount === 1 ? " doesn't" : "s don't"} match the schema — kept as-is
+          {rootWarnings.length > 0 && <>: {rootWarnings.map((warning) => warning.message).join('; ')}</>}
         </span>
       )}
       {schemaLoaded && warningCount === 0 && !valueIsSchema && (
@@ -425,7 +443,16 @@ function SchemaStatusRow({
 }
 
 /** Inline bar for attaching a schema by CID or ipfs:// URL. */
-function AttachSchemaBar({onAttach, onCancel}: {onAttach: (cid: string) => void; onCancel: () => void}) {
+function AttachSchemaBar({
+  replacesUserData,
+  onAttach,
+  onCancel,
+}: {
+  /** The value already has a non-attachment `schema` field the attach would replace. */
+  replacesUserData?: boolean
+  onAttach: (cid: string) => void
+  onCancel: () => void
+}) {
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -445,6 +472,12 @@ function AttachSchemaBar({onAttach, onCancel}: {onAttach: (cid: string) => void;
 
   return (
     <div className="border-border flex flex-col gap-2 rounded-md border border-dashed p-3">
+      {replacesUserData && (
+        <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500">
+          <TriangleAlert className="size-3.5 shrink-0" />
+          This blob already has a "schema" field with its own data — attaching will replace it (undo restores it).
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={text}
@@ -460,9 +493,9 @@ function AttachSchemaBar({onAttach, onCancel}: {onAttach: (cid: string) => void;
             if (e.key === 'Escape') onCancel()
           }}
         />
-        <Button size="sm" onClick={submit}>
+        <Button size="sm" variant={replacesUserData ? 'destructive' : 'default'} onClick={submit}>
           <Check className="size-4" />
-          Attach
+          {replacesUserData ? 'Replace "schema" field' : 'Attach'}
         </Button>
         <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel

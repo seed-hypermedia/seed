@@ -94,4 +94,26 @@ describe('schema-aware value editor rendering', () => {
     expect(inputs).toContain('kept')
     expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
+
+  it('an enum containing "" does not crash the editor (falls back to free text)', () => {
+    // Radix SelectItem throws at render for value="" — such enums must never
+    // reach the select path.
+    const schema: BlobSchema = {
+      type: 'object',
+      properties: {status: {type: 'string', enum: ['', 'draft']}},
+    }
+    renderEditor({status: 'draft'}, schema)
+    expect(container.querySelector('[role="combobox"]')).toBeNull()
+    const inputs = Array.from(container.querySelectorAll('input')).map((el) => el.value)
+    expect(inputs).toContain('draft')
+  })
+
+  it('an enum with duplicate members falls back to free text', () => {
+    const schema: BlobSchema = {
+      type: 'object',
+      properties: {status: {type: 'string', enum: ['draft', 'draft']}},
+    }
+    renderEditor({status: 'draft'}, schema)
+    expect(container.querySelector('[role="combobox"]')).toBeNull()
+  })
 })

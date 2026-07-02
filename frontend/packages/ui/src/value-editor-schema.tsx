@@ -1,5 +1,5 @@
 import {Plus, TriangleAlert} from 'lucide-react'
-import {instantiateSchema, resolveSubschema, type BlobSchema} from './blob-schema'
+import {instantiateAtPath, resolveSubschema, type BlobSchema} from './blob-schema'
 import {useBlobSchema, useSchemaWarnings} from './blob-schema-context'
 import {Button} from './button'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
@@ -25,29 +25,53 @@ export function SchemaWarningBadge({path}: {path: ValuePath}) {
   )
 }
 
-/** True when a subschema declares a usable all-string enum. */
+/**
+ * True when a subschema declares a usable all-string enum. Empty-string
+ * members disqualify the whole enum: Radix's SelectItem throws at render for
+ * value="" (which would crash the editor), so such enums keep the free-text
+ * input and rely on the warning badge. Duplicates are also rejected (they
+ * would produce duplicate React keys).
+ */
 export function isStringEnumSchema(schema: BlobSchema): schema is BlobSchema & {enum: string[]} {
   return (
-    Array.isArray(schema.enum) && schema.enum.length > 0 && schema.enum.every((option) => typeof option === 'string')
+    Array.isArray(schema.enum) &&
+    schema.enum.length > 0 &&
+    schema.enum.every((option) => typeof option === 'string' && option !== '') &&
+    new Set(schema.enum).size === schema.enum.length
   )
 }
+
+// Sentinel for the escape-hatch item; the NUL prefix cannot appear in a validated
+// enum (isStringEnumSchema requires plain non-empty strings, and a member
+// equal to this exact string would simply shadow the escape hatch).
+const EDIT_AS_TEXT = '\u0000edit-as-text'
 
 /**
  * Select rendered in place of the free-text input when the current value is a
  * member of the schema's enum. Values outside the enum keep free text plus a
- * warning badge — never coerced.
+ * warning badge — never coerced. The last item is an escape hatch back to
+ * free-text editing, so the schema never removes the ability to type an
+ * arbitrary value.
  */
 export function EnumValueSelect({
   value,
   options,
   onValue,
+  onEditAsText,
 }: {
   value: string
   options: string[]
   onValue: (value: unknown) => void
+  onEditAsText: () => void
 }) {
   return (
-    <Select value={value} onValueChange={onValue}>
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (next === EDIT_AS_TEXT) onEditAsText()
+        else onValue(next)
+      }}
+    >
       <SelectTrigger className="w-fit min-w-28">
         <SelectValue />
       </SelectTrigger>
@@ -57,6 +81,9 @@ export function EnumValueSelect({
             {option}
           </SelectItem>
         ))}
+        <SelectItem value={EDIT_AS_TEXT} className="text-muted-foreground">
+          Custom value…
+        </SelectItem>
       </SelectContent>
     </Select>
   )
@@ -109,6 +136,9 @@ export function useSchemaFieldSuggestions(path: ValuePath, existingKeys: string[
   const suggestions: SchemaFieldSuggestion[] = []
   for (const key of Object.keys(subschema.properties)) {
     if (existingKeys.includes(key)) continue
+    // "/" is reserved by DAG-JSON for link/bytes forms; never suggest
+    // creating it (the add/rename forms reject it for the same reason).
+    if (key === '/') continue
     const resolved = resolveSubschema(ctx.rootSchema, [...path, key], ctx.registry)
     if (!resolved || resolved === 'unresolved') continue
     suggestions.push({
@@ -155,7 +185,12 @@ export function SchemaFieldChips({
             variant="outline"
             size="sm"
             className="text-muted-foreground h-6 gap-1 px-2 text-xs"
-            onClick={() => onAdd(key, instantiateSchema(schema, ctx.registry))}
+            // instantiateAtPath keeps the subschema's own pointer root so its
+            // internal $refs (e.g. #/$defs/…) resolve correctly.
+            onClick={() => {
+              const starter = instantiateAtPath(ctx.rootSchema, [...path, key], ctx.registry)
+              if (starter !== undefined) onAdd(key, starter)
+            }}
           >
             <Plus className="size-3" />
             {label}

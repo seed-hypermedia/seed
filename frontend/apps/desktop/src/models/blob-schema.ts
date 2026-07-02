@@ -48,6 +48,12 @@ export function useSchemaRegistry(schemaCid: string | undefined): {
       queryKey: [queryKeys.CID, cid],
       queryFn: async () => client.request('GetCID', {cid}),
       staleTime: Infinity,
+      // Schema fetching is strictly advisory: an unfindable schema or ref
+      // must stay a neutral loading state forever, never throw to the page
+      // error boundary (the app's QueryClient defaults useErrorBoundary to
+      // true) — that would destroy the editor and any unpublished edits.
+      useErrorBoundary: false,
+      retry: false,
       // The daemon searches the network for up to 30s per attempt; keep
       // retrying periodically so late-discovered schema blobs appear.
       refetchInterval: (data: unknown) => (data === undefined ? 15_000 : false),
@@ -68,15 +74,19 @@ export function useSchemaRegistry(schemaCid: string | undefined): {
   const rootSchema = schemaCid ? registry[schemaCid] : undefined
   const missing = rootSchema ? collectSchemaRefs(rootSchema, registry).filter((cid) => !registry[cid]) : []
 
-  // Fold newly-discovered refs into the fetch set until the closure converges.
+  // Fold newly-discovered refs into the fetch set until the closure
+  // converges. Keyed on the content of BOTH lists: after a schemaCid switch
+  // shrinks `cids`, the same still-missing ref must be re-added even though
+  // `missing` itself didn't change.
   const missingKey = missing.join('\n')
+  const cidsKey = cids.join('\n')
   useEffect(() => {
     if (!missingKey) return
     setCids((prev) => {
       const next = missingKey.split('\n').filter((cid) => !prev.includes(cid))
       return next.length > 0 ? [...prev, ...next] : prev
     })
-  }, [missingKey])
+  }, [missingKey, cidsKey])
 
   return {
     rootSchema,
