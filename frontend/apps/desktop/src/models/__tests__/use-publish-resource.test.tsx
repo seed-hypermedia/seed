@@ -103,14 +103,9 @@ vi.mock('@shm/shared/models/entity', async (orig) => {
   }
 })
 
-// Keep proto Block.fromJson from crashing on simple mock attributes without
-// losing the other exports (GetDocumentRequest, etc.) other modules need.
 vi.mock('@shm/shared/client/.generated/documents/v3alpha/documents_pb', async () => {
   const actual = (await vi.importActual('@shm/shared/client/.generated/documents/v3alpha/documents_pb')) as any
-  return {
-    ...actual,
-    Block: {...actual.Block, fromJson: (b: any) => b},
-  }
+  return actual
 })
 
 import {usePublishResource} from '../documents'
@@ -234,6 +229,56 @@ describe('usePublishResource path resolution', () => {
     expect(arg.path).toBe('/parent/my-cool-doc')
     expect(arg.account).toBe('acct-1')
     expect(arg.visibility).toBe(ResourceVisibility.UNSPECIFIED)
+  })
+
+  it('retargets self query blocks from the placeholder path to the published path on first publish', async () => {
+    const editId = hmId('acct-1', {path: ['parent', '-draft-abc']})
+    getDocumentMock.mockImplementation(({path}) => {
+      if (path === '/parent/-draft-abc') throw new Error('not found')
+      return Promise.resolve({version: 'bafynew', account: 'acct-1', path, content: [], metadata: {}})
+    })
+
+    const {call, cleanup} = await renderHarness(editId)
+    try {
+      await act(async () => {
+        await call.mutateAsync({
+          draft: {
+            ...makeDraft(),
+            content: [
+              {
+                id: 'q1',
+                type: 'query',
+                props: {
+                  style: 'Card',
+                  columnCount: '3',
+                  queryIncludes: JSON.stringify([{space: 'acct-1', path: 'parent/-draft-abc', mode: 'Children'}]),
+                  querySort: '[{"term":"UpdateTime","reverse":false}]',
+                  queryLimit: '',
+                  banner: 'false',
+                },
+                content: [],
+                children: [],
+              },
+            ] as any,
+          },
+          destinationId: editId,
+          accountId: 'acct-1',
+        })
+      })
+    } finally {
+      cleanup()
+    }
+
+    const replaceBlock = publishDocumentMock.mock.calls[0][0].changes.find(
+      (change: any) => change.op?.case === 'replaceBlock' && change.op.value.id === 'q1',
+    )
+
+    const attrs = replaceBlock.op.value.attributes.toJson()
+    expect(attrs.query.includes[0]).toMatchObject({
+      space: 'acct-1',
+      path: 'parent/my-cool-doc',
+      mode: 'Children',
+    })
   })
 
   it('omits existing document genesis and generation when a placeholder path first-publishes', async () => {

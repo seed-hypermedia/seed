@@ -1,5 +1,6 @@
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
+  entityQueryPathToHmIdPath,
   HMBlockChildrenType,
   HMBlockNode,
   HMDocument,
@@ -16,6 +17,83 @@ const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
 function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
+}
+
+type QueryInclude = {
+  space?: unknown
+  path?: unknown
+  [key: string]: unknown
+}
+
+function includeTargetsDocument(include: QueryInclude, documentId: UnpackedHypermediaId) {
+  if (include.space !== documentId.uid) return false
+  const includePath = entityQueryPathToHmIdPath(typeof include.path === 'string' ? include.path : '')
+  return includePath.join('/') === (documentId.path ?? []).join('/')
+}
+
+function retargetQueryBlock(block: EditorBlock, fromId: UnpackedHypermediaId, toId: UnpackedHypermediaId) {
+  if (block.type !== 'query') return block
+  const rawIncludes = block.props.queryIncludes
+  if (!rawIncludes) return block
+
+  let includes: unknown
+  try {
+    includes = JSON.parse(rawIncludes)
+  } catch {
+    return block
+  }
+  if (!Array.isArray(includes)) return block
+
+  const targetPath = (toId.path ?? []).join('/')
+  let changed = false
+  const nextIncludes = includes.map((include) => {
+    if (!include || typeof include !== 'object') return include
+    const queryInclude = include as QueryInclude
+    if (!includeTargetsDocument(queryInclude, fromId)) return include
+    changed = true
+    return {
+      ...queryInclude,
+      space: toId.uid,
+      path: targetPath,
+    }
+  })
+
+  if (!changed) return block
+  return {
+    ...block,
+    props: {
+      ...block.props,
+      queryIncludes: JSON.stringify(nextIncludes),
+    },
+  } as EditorBlock
+}
+
+/**
+ * Retarget query-block includes that still point at the draft placeholder
+ * document to the final published document id.
+ */
+export function retargetQueryBlockIncludesForPublish(
+  blocks: EditorBlock[],
+  fromId: UnpackedHypermediaId,
+  toId: UnpackedHypermediaId,
+): EditorBlock[] {
+  if (fromId.uid === toId.uid && (fromId.path ?? []).join('/') === (toId.path ?? []).join('/')) return blocks
+
+  let changed = false
+  const nextBlocks = blocks.map((block) => {
+    const retargetedBlock = retargetQueryBlock(block, fromId, toId)
+    let nextBlock = retargetedBlock
+    if (block.children?.length) {
+      const nextChildren = retargetQueryBlockIncludesForPublish(block.children, fromId, toId)
+      if (nextChildren !== block.children) {
+        nextBlock = {...retargetedBlock, children: nextChildren} as EditorBlock
+      }
+    }
+    if (nextBlock !== block) changed = true
+    return nextBlock
+  })
+
+  return changed ? nextBlocks : blocks
 }
 
 // -- Types --

@@ -411,6 +411,73 @@ describe('publishWebDocument', () => {
     )
   })
 
+  it('first-publish public child document retargets self query blocks to the published path', async () => {
+    const docId = makeDocId(OWNER, ['parent', `-${draftId}`])
+    const after = makeBaselineDoc([], {path: '/parent/hello-web'})
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {name: 'Hello Web'},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: ['parent'],
+      editUid: OWNER,
+      editPath: ['parent', `-${draftId}`],
+      visibility: 'PUBLIC',
+      cursorPosition: null,
+    })
+
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
+      if (key === 'Resource') {
+        resourceCalls += 1
+        return resourceCalls === 1 ? ({type: 'not-found'} as any) : ({type: 'document', document: after} as any)
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({
+      docId,
+      request: requestMock,
+      after,
+      editorBlocks: [
+        {
+          id: 'q1',
+          type: 'query',
+          props: {
+            style: 'Card',
+            columnCount: '3',
+            queryIncludes: JSON.stringify([{space: OWNER, path: `parent/-${draftId}`, mode: 'Children'}]),
+            querySort: '[{"term":"UpdateTime","reverse":false}]',
+          },
+          content: [],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument({...baseInput, documentId: docId}, deps)
+
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    const replaceBlock = (prepareCall[1].changes as any[]).find(
+      (change) => change.op?.case === 'replaceBlock' && change.op.value.id === 'q1',
+    )
+
+    const attrs = replaceBlock.op.value.attributes.toJson()
+    expect(attrs.query.includes[0]).toMatchObject({
+      space: OWNER,
+      path: 'parent/hello-web',
+      mode: 'Children',
+    })
+  })
+
   it('first-publish private draft keeps generated path and private visibility', async () => {
     const docId = makeDocId(OWNER, ['secret-generated-path'])
     const after = makeBaselineDoc([], {path: '/secret-generated-path', visibility: 'PRIVATE'})

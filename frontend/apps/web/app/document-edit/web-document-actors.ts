@@ -19,6 +19,7 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import type {HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   documentMachine,
+  retargetQueryBlockIncludesForPublish,
   type DiscardDraftInput,
   type EditorAccessor,
   type PublishInput,
@@ -174,9 +175,25 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   const resource = await deps.client.request('Resource', deps.docId)
   const editDocument = resource.type === 'document' ? resource.document : null
+  const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
+  const currentPath = deps.docId.path ?? []
+  const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)
+  const publishPath = isPrivate
+    ? currentPath
+    : input.pathOverride
+      ? input.pathOverride
+      : !editDocument && isPlaceholderPath
+        ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
+        : currentPath
+  const publishedDocId =
+    publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
+  const publishBlocks = !editDocument
+    ? retargetQueryBlockIncludesForPublish(liveEditorBlocks, deps.docId, publishedDocId)
+    : liveEditorBlocks
+  const path = hmIdPathToEntityQueryPath(publishPath)
 
   const baselineMap = createBlocksMap(editDocument?.content ?? [], '')
-  const blockDiff = compareBlocksWithMap(baselineMap, liveEditorBlocks, '')
+  const blockDiff = compareBlocksWithMap(baselineMap, publishBlocks, '')
   const deleteChanges = extractDeletes(baselineMap, blockDiff.touchedBlocks)
 
   const navChanges = getNavigationChanges(
@@ -190,17 +207,6 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   const latestVersion = editDocument?.version ?? ''
   const baseVersion = draft.deps.length ? draft.deps.join('.') : latestVersion
-  const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
-  const currentPath = deps.docId.path ?? []
-  const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)
-  const publishPath = isPrivate
-    ? currentPath
-    : input.pathOverride
-      ? input.pathOverride
-      : !editDocument && isPlaceholderPath
-        ? computeInlineDraftPublishPath(currentPath, (draft.metadata as HMMetadata).name || '', draft.draftId)
-        : currentPath
-  const path = hmIdPathToEntityQueryPath(publishPath)
 
   if (!deps.client.publishDocument) {
     throw new Error('Universal client does not provide publishDocument; cannot publish on web')
@@ -262,8 +268,6 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
-  const publishedDocId =
-    publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
   invalidateAfterPublish(publishedDocId, after.document)
   if (publishedDocId.id !== deps.docId.id) {
     invalidateAfterPublish(deps.docId, after.document)

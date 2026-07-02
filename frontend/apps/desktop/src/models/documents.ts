@@ -30,6 +30,7 @@ import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/s
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
+import {retargetQueryBlockIncludesForPublish} from '@shm/shared/models/document-machine'
 import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
@@ -269,10 +270,6 @@ export function usePublishResource(
         newContent = fillEmptyQueryBlocks(newContent, destinationId)
       }
 
-      const changes = compareBlocksWithMap(blocksMap, newContent, '')
-
-      const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
-
       const navigationChanges = getNavigationChanges(draft.navigation, editDocument?.detachedBlocks?.navigation)
 
       if (accts.data?.length == 0) {
@@ -324,6 +321,12 @@ export function usePublishResource(
               pathOverride,
             })
           }
+
+          if (!existingDocVersion) {
+            newContent = retargetQueryBlockIncludesForPublish(newContent, destinationId, resolvedDestinationId)
+          }
+          const changes = compareBlocksWithMap(blocksMap, newContent, '')
+          const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
           const allChanges = [
             ...navigationChanges,

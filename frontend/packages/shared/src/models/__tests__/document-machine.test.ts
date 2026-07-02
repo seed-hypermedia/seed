@@ -1,8 +1,15 @@
 import {describe, expect, it} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
-import {documentMachine, DocumentMachineInput, PushDocumentInput, WriteDraftOutput} from '../document-machine'
+import {
+  documentMachine,
+  DocumentMachineInput,
+  PushDocumentInput,
+  retargetQueryBlockIncludesForPublish,
+  WriteDraftOutput,
+} from '../document-machine'
 import {selectRenderableBlocks} from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 
 const mockDocumentId = {
   id: 'hm://z6Mktest/doc',
@@ -58,6 +65,127 @@ function loadDocument(actor: ReturnType<typeof createTestActor>, doc = mockDocum
   actor.send({type: 'document.loaded', document: doc})
   actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
 }
+
+describe('retargetQueryBlockIncludesForPublish', () => {
+  const draftId = {...mockDocumentId, path: ['parent', '-draft-123']}
+  const publishedId = {...mockDocumentId, path: ['parent', 'published-title']}
+
+  it('rewrites query includes that target the current draft placeholder', () => {
+    const blocks: EditorBlock[] = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          style: 'Card',
+          queryIncludes: JSON.stringify([{space: mockDocumentId.uid, path: 'parent/-draft-123', mode: 'Children'}]),
+        },
+        content: [],
+        children: [],
+      },
+    ]
+
+    const result = retargetQueryBlockIncludesForPublish(blocks, draftId, publishedId)
+    const includes = JSON.parse((result[0] as any).props.queryIncludes)
+
+    expect(includes).toEqual([{space: mockDocumentId.uid, path: 'parent/published-title', mode: 'Children'}])
+  })
+
+  it('leaves query includes that do not target the current draft placeholder unchanged', () => {
+    const blocks: EditorBlock[] = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          style: 'Card',
+          queryIncludes: JSON.stringify([{space: mockDocumentId.uid, path: 'other/doc', mode: 'Children'}]),
+        },
+        content: [],
+        children: [],
+      },
+    ]
+
+    const result = retargetQueryBlockIncludesForPublish(blocks, draftId, publishedId)
+
+    expect(result).toBe(blocks)
+  })
+
+  it('rewrites matching query includes in nested blocks', () => {
+    const blocks: EditorBlock[] = [
+      {
+        id: 'p1',
+        type: 'paragraph',
+        props: {},
+        content: [],
+        children: [
+          {
+            id: 'q1',
+            type: 'query',
+            props: {
+              style: 'List',
+              queryIncludes: JSON.stringify([
+                {space: mockDocumentId.uid, path: '/parent/-draft-123', mode: 'Children'},
+              ]),
+            },
+            content: [],
+            children: [],
+          },
+        ],
+      },
+    ]
+
+    const result = retargetQueryBlockIncludesForPublish(blocks, draftId, publishedId)
+    const includes = JSON.parse((result[0]!.children[0] as any).props.queryIncludes)
+
+    expect(includes[0].path).toBe('parent/published-title')
+  })
+
+  it('leaves malformed query includes unchanged', () => {
+    const blocks: EditorBlock[] = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          style: 'Card',
+          queryIncludes: 'not-json',
+        },
+        content: [],
+        children: [],
+      },
+    ]
+
+    const result = retargetQueryBlockIncludesForPublish(blocks, draftId, publishedId)
+
+    expect(result).toBe(blocks)
+  })
+
+  it('rewrites every matching include', () => {
+    const blocks: EditorBlock[] = [
+      {
+        id: 'q1',
+        type: 'query',
+        props: {
+          style: 'Card',
+          queryIncludes: JSON.stringify([
+            {space: mockDocumentId.uid, path: 'parent/-draft-123', mode: 'Children'},
+            {space: 'someone-else', path: 'parent/-draft-123', mode: 'Children'},
+            {space: mockDocumentId.uid, path: '/parent/-draft-123', mode: 'AllDescendants'},
+          ]),
+        },
+        content: [],
+        children: [],
+      },
+    ]
+
+    const result = retargetQueryBlockIncludesForPublish(blocks, draftId, publishedId)
+    const includes = JSON.parse((result[0] as any).props.queryIncludes)
+
+    expect(includes.map((include: any) => include.path)).toEqual([
+      'parent/published-title',
+      'parent/-draft-123',
+      'parent/published-title',
+    ])
+  })
+})
 
 describe('DocumentLifecycle machine', () => {
   it('starts in loading state', () => {
