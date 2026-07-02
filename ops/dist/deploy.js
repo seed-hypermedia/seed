@@ -890,9 +890,13 @@ function makeShellRunner() {
     exec(cmd2) {
       return new Promise((resolve, reject) => {
         execCb(cmd2, { timeout: 120000 }, (err, stdout, stderr) => {
-          if (err)
+          if (err) {
+            const detail = stderr.toString().trim() || stdout.toString().trim();
+            if (detail)
+              err.message = `${err.message}
+${detail}`;
             reject(err);
-          else
+          } else
             resolve({
               stdout: stdout.toString().trim(),
               stderr: stderr.toString().trim()
@@ -1208,6 +1212,17 @@ function describeBindFailure(errMsg) {
     `Likely a leftover seed-daemon binary or systemd unit from an old installation.`,
     `Run \`ss -lntup '( sport = :${port} )'\` to identify it,`,
     `then stop it and re-run \`${cmd("deploy")}\`.`
+  ].join(" ");
+}
+function describePullFailure(errMsg, releaseChannel) {
+  const isPullFailure = /manifest\s+(?:for\s+\S+\s+)?(?:unknown|not found)/i.test(errMsg) || /not found:\s*manifest/i.test(errMsg) || /repository .* not found|pull access denied|requested access to the resource is denied/i.test(errMsg) || /Error response from daemon:.*(no such image|manifest)/i.test(errMsg);
+  if (!isPullFailure)
+    return null;
+  return [
+    `Could not pull the '${releaseChannel}' images from the registry.`,
+    `Both seedhypermedia/web:${releaseChannel} and seedhypermedia/site:${releaseChannel} must exist and be public.`,
+    `Check the tag is correct (and that a build was pushed for it), or run \`${cmd("deploy --reconfigure")}\``,
+    `and pick the Stable channel.`
   ].join(" ");
 }
 async function migrateDataFromOldInstall(paths, shell) {
@@ -1834,6 +1849,10 @@ async function deploy(config, paths, shell) {
     const bindMsg = describeBindFailure(String(err));
     if (bindMsg) {
       throw new Error(bindMsg);
+    }
+    const pullMsg = describePullFailure(String(err), config.release_channel);
+    if (pullMsg) {
+      throw new Error(pullMsg);
     }
     throw new Error(`Deployment failed: ${err}`);
   }
@@ -2604,6 +2623,7 @@ export {
   environmentPresets,
   ensureSeedDir,
   detectOldInstall,
+  describePullFailure,
   describeBindFailure,
   deploy,
   configWarnings,

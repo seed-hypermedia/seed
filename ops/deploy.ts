@@ -154,8 +154,16 @@ export function makeShellRunner(): ShellRunner {
     exec(cmd: string): Promise<{stdout: string; stderr: string}> {
       return new Promise((resolve, reject) => {
         execCb(cmd, {timeout: 120_000}, (err, stdout, stderr) => {
-          if (err) reject(err)
-          else
+          if (err) {
+            // child_process passes the command's output as separate args even
+            // on failure, but they're lost if we reject with `err` alone. Fold
+            // the real output into the message so callers (and the deploy log)
+            // see the actual reason — e.g. an unknown image manifest — instead
+            // of just "Command failed: <cmd>".
+            const detail = stderr.toString().trim() || stdout.toString().trim()
+            if (detail) err.message = `${err.message}\n${detail}`
+            reject(err)
+          } else
             resolve({
               stdout: stdout.toString().trim(),
               stderr: stderr.toString().trim(),
@@ -659,6 +667,27 @@ export function describeBindFailure(errMsg: string): string | null {
     `Likely a leftover seed-daemon binary or systemd unit from an old installation.`,
     `Run \`ss -lntup '( sport = :${port} )'\` to identify it,`,
     `then stop it and re-run \`${cmd('deploy')}\`.`,
+  ].join(' ')
+}
+
+/**
+ * Detect a missing/inaccessible image error from `docker compose pull/up`
+ * (manifest unknown, not found, access denied) and produce a user-friendly
+ * message naming the release channel that couldn't be pulled. Returns null
+ * when the error doesn't match a pull-failure pattern.
+ */
+export function describePullFailure(errMsg: string, releaseChannel: string): string | null {
+  const isPullFailure =
+    /manifest\s+(?:for\s+\S+\s+)?(?:unknown|not found)/i.test(errMsg) ||
+    /not found:\s*manifest/i.test(errMsg) ||
+    /repository .* not found|pull access denied|requested access to the resource is denied/i.test(errMsg) ||
+    /Error response from daemon:.*(no such image|manifest)/i.test(errMsg)
+  if (!isPullFailure) return null
+  return [
+    `Could not pull the '${releaseChannel}' images from the registry.`,
+    `Both seedhypermedia/web:${releaseChannel} and seedhypermedia/site:${releaseChannel} must exist and be public.`,
+    `Check the tag is correct (and that a build was pushed for it), or run \`${cmd('deploy --reconfigure')}\``,
+    `and pick the Stable channel.`,
   ].join(' ')
 }
 
@@ -1468,6 +1497,10 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
     const bindMsg = describeBindFailure(String(err))
     if (bindMsg) {
       throw new Error(bindMsg)
+    }
+    const pullMsg = describePullFailure(String(err), config.release_channel)
+    if (pullMsg) {
+      throw new Error(pullMsg)
     }
     throw new Error(`Deployment failed: ${err}`)
   }

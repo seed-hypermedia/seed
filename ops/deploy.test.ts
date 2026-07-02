@@ -53,6 +53,7 @@ import {
   removeLegacyHostCronLines,
   removeLegacyHostCron,
   describeBindFailure,
+  describePullFailure,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -1541,6 +1542,37 @@ describe('describeBindFailure', () => {
     const msg = describeBindFailure('Bind for 0.0.0.0:80 failed: port is already allocated')
     expect(msg).not.toBeNull()
     expect(msg!).toContain('Port 80')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// describePullFailure
+// ---------------------------------------------------------------------------
+
+describe('describePullFailure', () => {
+  test('detects an unknown manifest and names the release channel', () => {
+    const err =
+      'Error response from daemon: manifest for seedhypermedia/web:monoid not found: manifest unknown: manifest unknown'
+    const msg = describePullFailure(err, 'monoid')
+    expect(msg).not.toBeNull()
+    expect(msg!).toContain("'monoid'")
+    expect(msg!).toContain('seedhypermedia/web:monoid')
+    expect(msg!).toContain('seedhypermedia/site:monoid')
+  })
+
+  test('detects pull access denied', () => {
+    const err = 'pull access denied for seedhypermedia/site, repository does not exist or may require authorization'
+    expect(describePullFailure(err, 'feature-x')).not.toBeNull()
+  })
+
+  test('detects requested-access-denied phrasing', () => {
+    const err = 'denied: requested access to the resource is denied'
+    expect(describePullFailure(err, 'foo')).not.toBeNull()
+  })
+
+  test('returns null for unrelated errors (e.g. bind/port conflicts)', () => {
+    expect(describePullFailure('Bind for 0.0.0.0:80 failed: port is already allocated', 'dev')).toBeNull()
+    expect(describePullFailure('container exited with code 1', 'dev')).toBeNull()
   })
 })
 
