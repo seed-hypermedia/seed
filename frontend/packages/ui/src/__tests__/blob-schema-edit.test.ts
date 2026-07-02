@@ -2,6 +2,9 @@ import {describe, expect, test} from 'vitest'
 import type {BlobSchema} from '../blob-schema'
 import {
   addProperty,
+  buildSchemaKeyRoot,
+  collectSchemaKeyCids,
+  schemaKeyCid,
   literalLabel,
   parseLiteralInput,
   isRequiredProperty,
@@ -141,5 +144,33 @@ describe('literal and union kinds', () => {
     expect(literalLabel(42)).toBe('42')
     expect(literalLabel(true)).toBe('true')
     expect(literalLabel(null)).toBe('null')
+  })
+})
+
+describe('schema-keyed fields', () => {
+  const DAG_CBOR_CID = 'bafyreigu5vewjq63sy3t2spkkpmchine3vo3jnuuvntx7ig4oef7hafuka'
+  const RAW_CID = 'bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy' // raw codec 0x55
+
+  test('schemaKeyCid accepts only ipfs:// DAG-CBOR CID keys', () => {
+    expect(schemaKeyCid(`ipfs://${DAG_CBOR_CID}`)).toBe(DAG_CBOR_CID)
+    expect(schemaKeyCid('title')).toBeNull()
+    expect(schemaKeyCid('ipfs://')).toBeNull()
+    expect(schemaKeyCid('ipfs://not-a-cid')).toBeNull()
+    expect(schemaKeyCid(`ipfs://${RAW_CID}`)).toBeNull() // wrong codec
+    expect(schemaKeyCid(`ipfs://${DAG_CBOR_CID}/sub/path`)).toBeNull()
+  })
+
+  test('buildSchemaKeyRoot synthesizes $ref properties for schema keys only', () => {
+    const root = buildSchemaKeyRoot(['title', `ipfs://${DAG_CBOR_CID}`])
+    expect(root).toEqual({
+      type: 'object',
+      properties: {[`ipfs://${DAG_CBOR_CID}`]: {$ref: {'/': DAG_CBOR_CID}}},
+      additionalProperties: true,
+    })
+    expect(buildSchemaKeyRoot(['title', 'name'])).toBeUndefined()
+  })
+
+  test('collectSchemaKeyCids dedupes', () => {
+    expect(collectSchemaKeyCids([`ipfs://${DAG_CBOR_CID}`, `ipfs://${DAG_CBOR_CID}`, 'x'])).toEqual([DAG_CBOR_CID])
   })
 })

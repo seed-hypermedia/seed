@@ -1,34 +1,11 @@
-import {useUniversalClient} from '@shm/shared'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {collectSchemaRefs, type BlobSchema, type SchemaRegistry} from '@shm/ui/blob-schema'
-import {useQueries} from '@tanstack/react-query'
-import {useEffect, useRef, useState} from 'react'
-
-function asSchemaBlob(value: unknown): BlobSchema | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as BlobSchema) : undefined
-}
-
-function sameRegistry(a: SchemaRegistry, b: SchemaRegistry): boolean {
-  const aKeys = Object.keys(a)
-  const bKeys = Object.keys(b)
-  if (aKeys.length !== bKeys.length) return false
-  // Blobs are immutable and react-query keeps data references stable, so
-  // same key set + same value references means the registry is unchanged.
-  return aKeys.every((key) => a[key] === b[key])
-}
+import {useSchemaRegistries} from '@shm/ui/blob-schema-registry'
+import type {BlobSchema, SchemaRegistry} from '@shm/ui/blob-schema'
+import {useMemo} from 'react'
 
 /**
- * Fetch a schema blob plus the transitive closure of its external `$ref` /
- * `targetSchema` links into a plain synchronous registry for the validator.
- *
- * Discovery is iterative: loaded blobs reveal more ref CIDs, which are added
- * to the fetch set until the closure converges. Blobs are immutable, so every
- * query caches forever under the same key `useCID` uses. While any ref is
- * still loading (or unfindable), `isComplete` stays false and validation
- * treats those refs as neutral — never as violations.
- *
- * The returned registry is referentially stable across renders while its
- * contents are unchanged, so consumers (BlobSchemaProvider) can memoize on it.
+ * Single-root convenience over useSchemaRegistries (see that hook for the
+ * fetch/convergence semantics): fetch one schema blob and its transitive ref
+ * closure, exposing the root schema directly.
  */
 export function useSchemaRegistry(schemaCid: string | undefined): {
   rootSchema: BlobSchema | undefined
@@ -36,62 +13,12 @@ export function useSchemaRegistry(schemaCid: string | undefined): {
   isLoading: boolean
   isComplete: boolean
 } {
-  const client = useUniversalClient()
-  const [cids, setCids] = useState<string[]>(schemaCid ? [schemaCid] : [])
-
-  useEffect(() => {
-    setCids(schemaCid ? [schemaCid] : [])
-  }, [schemaCid])
-
-  const queries = useQueries({
-    queries: cids.map((cid) => ({
-      queryKey: [queryKeys.CID, cid],
-      queryFn: async () => client.request('GetCID', {cid}),
-      staleTime: Infinity,
-      // Schema fetching is strictly advisory: an unfindable schema or ref
-      // must stay a neutral loading state forever, never throw to the page
-      // error boundary (the app's QueryClient defaults useErrorBoundary to
-      // true) — that would destroy the editor and any unpublished edits.
-      useErrorBoundary: false,
-      retry: false,
-      // The daemon searches the network for up to 30s per attempt; keep
-      // retrying periodically so late-discovered schema blobs appear.
-      refetchInterval: (data: unknown) => (data === undefined ? 15_000 : false),
-    })),
-  })
-
-  // useQueries returns a fresh array every render, so build the registry each
-  // time but keep the previous object identity while nothing changed.
-  const registryRef = useRef<SchemaRegistry>({})
-  const built: SchemaRegistry = {}
-  queries.forEach((query, i) => {
-    const schema = asSchemaBlob((query.data as {value?: unknown} | undefined)?.value)
-    if (schema) built[cids[i]!] = schema
-  })
-  const registry = sameRegistry(registryRef.current, built) ? registryRef.current : built
-  registryRef.current = registry
-
-  const rootSchema = schemaCid ? registry[schemaCid] : undefined
-  const missing = rootSchema ? collectSchemaRefs(rootSchema, registry).filter((cid) => !registry[cid]) : []
-
-  // Fold newly-discovered refs into the fetch set until the closure
-  // converges. Keyed on the content of BOTH lists: after a schemaCid switch
-  // shrinks `cids`, the same still-missing ref must be re-added even though
-  // `missing` itself didn't change.
-  const missingKey = missing.join('\n')
-  const cidsKey = cids.join('\n')
-  useEffect(() => {
-    if (!missingKey) return
-    setCids((prev) => {
-      const next = missingKey.split('\n').filter((cid) => !prev.includes(cid))
-      return next.length > 0 ? [...prev, ...next] : prev
-    })
-  }, [missingKey, cidsKey])
-
+  const seeds = useMemo(() => (schemaCid ? [schemaCid] : []), [schemaCid])
+  const {registry, isLoading, isComplete} = useSchemaRegistries(seeds)
   return {
-    rootSchema,
+    rootSchema: schemaCid ? registry[schemaCid] : undefined,
     registry,
-    isLoading: !!schemaCid && !rootSchema && queries.some((query) => query.isLoading),
-    isComplete: !!rootSchema && missing.length === 0,
+    isLoading,
+    isComplete,
   }
 }

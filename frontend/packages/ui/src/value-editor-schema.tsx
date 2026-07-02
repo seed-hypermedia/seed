@@ -179,10 +179,13 @@ export function useSchemaFieldSuggestions(path: ValuePath, existingKeys: string[
 export function SchemaFieldChips({
   path,
   existingKeys,
+  rules,
   onAdd,
 }: {
   path: ValuePath
   existingKeys: string[]
+  /** The editor's hard structural rules; chips never offer what they forbid. */
+  rules?: {lists: boolean; floats: boolean; ipld: boolean}
   onAdd: (key: string, value: unknown) => void
 }) {
   const ctx = useBlobSchema()
@@ -190,7 +193,12 @@ export function SchemaFieldChips({
   if (!ctx) return null
   const addable = suggestions.filter(
     (suggestion) =>
-      suggestion.required && suggestion.type !== null && suggestion.type !== 'link' && suggestion.type !== 'bytes',
+      suggestion.required &&
+      suggestion.type !== null &&
+      suggestion.type !== 'link' &&
+      suggestion.type !== 'bytes' &&
+      (suggestion.type !== 'list' || (rules?.lists ?? true)) &&
+      (suggestion.type !== 'number' || (rules?.floats ?? true)),
   )
   if (addable.length === 0) return null
   return (

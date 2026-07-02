@@ -1,5 +1,5 @@
 import type {BlobSchema} from './blob-schema'
-import {isDagJsonLink} from './dag-json'
+import {isDagJsonLink, parseCidString} from './dag-json'
 
 /**
  * Pure editing helpers for the purpose-built schema form (blob-schema-editor):
@@ -167,6 +167,53 @@ export function parseLiteralInput(text: string): unknown {
 /** Display label for a literal: quoted strings, plain scalars. */
 export function literalLabel(value: unknown): string {
   return typeof value === 'string' ? JSON.stringify(value) : String(value)
+}
+
+// ---------------------------------------------------------------------------
+// Schema-keyed fields: a field whose KEY is a schema ipfs:// URL, and whose
+// value is expected to conform to that schema (used in document metadata).
+// ---------------------------------------------------------------------------
+
+/** The DAG-CBOR multicodec code — the only codec schema blobs use. */
+const DAG_CBOR_CODE = 0x71
+
+/**
+ * The schema CID of a field key in the `ipfs://<cid>` form, or null when the
+ * key is anything else (including non-DAG-CBOR CIDs).
+ */
+export function schemaKeyCid(key: string): string | null {
+  if (!key.startsWith('ipfs://')) return null
+  const cidText = key.slice('ipfs://'.length)
+  if (!cidText || cidText.includes('/')) return null
+  const parsed = parseCidString(cidText)
+  return parsed?.code === DAG_CBOR_CODE ? cidText : null
+}
+
+/**
+ * Synthesize a root schema for a value whose schema-keyed fields should
+ * validate against their key's schema: each `ipfs://<cid>` key becomes a
+ * property `$ref`ing that blob (resolved through the registry at validation
+ * time). Other keys stay unconstrained. Returns undefined when no key is a
+ * schema key.
+ */
+export function buildSchemaKeyRoot(keys: string[]): BlobSchema | undefined {
+  const properties: Record<string, BlobSchema> = {}
+  for (const key of keys) {
+    const cid = schemaKeyCid(key)
+    if (cid) properties[key] = {$ref: {'/': cid}}
+  }
+  if (Object.keys(properties).length === 0) return undefined
+  return {type: 'object', properties, additionalProperties: true}
+}
+
+/** The schema CIDs referenced by schema-keyed fields, deduped. */
+export function collectSchemaKeyCids(keys: string[]): string[] {
+  const cids = new Set<string>()
+  for (const key of keys) {
+    const cid = schemaKeyCid(key)
+    if (cid) cids.add(cid)
+  }
+  return Array.from(cids)
 }
 
 /** Whether `key` is in the parent object schema's `required` list. */
