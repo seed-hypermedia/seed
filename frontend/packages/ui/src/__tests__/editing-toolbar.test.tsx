@@ -77,7 +77,7 @@ function cleanup(root: Root, container: HTMLDivElement) {
   container.remove()
 }
 
-function findButtonByText(container: HTMLDivElement, label: string) {
+function findButtonByText(container: HTMLElement, label: string) {
   return Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.trim() === label) as
     | HTMLButtonElement
     | undefined
@@ -143,6 +143,41 @@ describe('editing-toolbar publish disabled states', () => {
       expect(publishTrigger).toBeTruthy()
       expect(publishTrigger?.className).not.toContain('bg-neutral-100')
       expect(publishTrigger?.className).not.toContain('text-neutral-500')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('opens the popover instead of immediately publishing after a previous publish', () => {
+    unpublishedChangeCountMock.mockReturnValue(2)
+    const docId = hmId('acct-1', {path: ['always-popover']})
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover docId={docId} existingMenuItems={[]} unpublishedChildCount={0} />,
+    )
+
+    try {
+      const publishTrigger = findButtonByText(container, 'Publish')!
+
+      act(() => {
+        publishTrigger.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+
+      const popoverPublishButton = findButtonByText(document.body, 'Publish: Make it live now')
+      expect(popoverPublishButton).toBeTruthy()
+
+      act(() => {
+        popoverPublishButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+
+      expect(sendMock).toHaveBeenCalledWith({type: 'publish.start', pathOverride: undefined})
+      sendMock.mockClear()
+
+      act(() => {
+        publishTrigger.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+
+      expect(findButtonByText(document.body, 'Publish: Make it live now')).toBeTruthy()
+      expect(sendMock).not.toHaveBeenCalled()
     } finally {
       cleanup(root, container)
     }

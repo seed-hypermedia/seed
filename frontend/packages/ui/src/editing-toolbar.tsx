@@ -44,8 +44,6 @@ export type EditingToolbarCallbacks = {
   getUnpublishedChildCount?: () => number
 }
 
-const publishTriggeredForDoc = new Set<string>()
-
 /** Dark pill shown top-right while autosave is saving or just saved. */
 export function SaveIndicator() {
   const status = useDocumentSelector(selectSaveIndicatorStatus)
@@ -361,11 +359,6 @@ export function PublishButtonWithPopover({
   })
   const send = useDocumentSend()
 
-  const [hasTriggeredPublish, setHasTriggeredPublishState] = useState(() => publishTriggeredForDoc.has(docId.id))
-  const setHasTriggeredPublish = () => {
-    publishTriggeredForDoc.add(docId.id)
-    setHasTriggeredPublishState(true)
-  }
   const popoverState = usePopoverState()
 
   const editingTrailingItems: MenuItemType[] = []
@@ -391,7 +384,6 @@ export function PublishButtonWithPopover({
   const publishNow = (pathOverride?: string[]) => {
     if (!canPublish) return
     popoverState.onOpenChange(false)
-    setHasTriggeredPublish()
     send({type: 'edit.start'})
     send({type: 'publish.start', pathOverride})
   }
@@ -403,11 +395,7 @@ export function PublishButtonWithPopover({
       popoverState.onOpenChange(true)
       return
     }
-    if (hasTriggeredPublish) {
-      publishNow()
-    } else {
-      popoverState.onOpenChange(!popoverState.open)
-    }
+    popoverState.onOpenChange(!popoverState.open)
   }
 
   return (
