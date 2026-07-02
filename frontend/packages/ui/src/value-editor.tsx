@@ -14,11 +14,13 @@ import {
   FileUp,
   GripVertical,
   Link2,
+  MoreHorizontal,
   Plus,
   X,
 } from 'lucide-react'
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {Textarea} from './components/textarea'
@@ -518,35 +520,52 @@ export function EditableFieldKey({
   )
 }
 
-export function RemoveButton({label, onClick, className}: {label: string; onClick: () => void; className?: string}) {
+/**
+ * All row actions grouped behind one floating trigger, so deep nesting
+ * doesn't accumulate button columns or shrink the editors. Mirrors the
+ * right-click context menu exactly.
+ */
+function RowActionsMenu({
+  label,
+  getActions,
+  className,
+}: {
+  label: string
+  getActions: () => ContextMenuAction[]
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
   return (
-    <Tooltip content={label}>
-      <Button
-        variant="ghost"
-        size="iconSm"
-        aria-label={label}
-        className={cn('text-muted-foreground hover:text-destructive', className)}
-        onClick={onClick}
-      >
-        <X className="size-4" />
-      </Button>
-    </Tooltip>
-  )
-}
-
-function CopyValueButton({getValue}: {getValue: () => unknown}) {
-  return (
-    <Tooltip content="Copy value as JSON">
-      <Button
-        variant="ghost"
-        size="iconSm"
-        aria-label="Copy value as JSON"
-        className="text-muted-foreground"
-        onClick={() => copyValueToClipboard(getValue())}
-      >
-        <Copy className="size-3.5" />
-      </Button>
-    </Tooltip>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          aria-label={label}
+          className={cn(
+            'text-muted-foreground bg-background/85 shadow-xs backdrop-blur-[2px]',
+            'opacity-0 transition-opacity',
+            open && 'opacity-100',
+            className,
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        {getActions().map((action) => (
+          <DropdownMenuItem
+            key={action.key}
+            variant={action.destructive ? 'destructive' : 'default'}
+            onClick={() => action.onClick()}
+          >
+            {action.icon}
+            {action.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -652,7 +671,7 @@ export function FieldRow({
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
-  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
+  const getMenuActions = () => [
     ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
     {
       key: 'remove',
@@ -661,13 +680,19 @@ export function FieldRow({
       destructive: true,
       onClick: onRemove,
     },
-  ])
+  ]
+  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, getMenuActions)
 
   return (
     <div
       onClick={onRowClick}
       onContextMenu={onContextMenu}
-      className={cn('group/row flex items-start gap-2', ROW_CLASS, isSelected && ROW_SELECTED_CLASS, className)}
+      className={cn(
+        'group/row relative flex items-start gap-2',
+        ROW_CLASS,
+        isSelected && ROW_SELECTED_CLASS,
+        className,
+      )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-1">
@@ -687,14 +712,13 @@ export function FieldRow({
           )}
         </div>
       </div>
-      <div
-        className={cn(
-          'flex items-center opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100',
-          isSelected && 'opacity-100',
-        )}
-      >
-        <CopyValueButton getValue={() => value} />
-        <RemoveButton label={`Remove ${fieldKey}`} onClick={onRemove} />
+      {/* Floating so nested rows keep their full width. */}
+      <div className="absolute top-1 right-0">
+        <RowActionsMenu
+          label={`Actions for ${fieldKey}`}
+          getActions={getMenuActions}
+          className={cn('group-focus-within/row:opacity-100 group-hover/row:opacity-100', isSelected && 'opacity-100')}
+        />
       </div>
     </div>
   )
@@ -1181,7 +1205,7 @@ function ListItemRow({
   const isContainer = isEditableContainer(item)
   const [collapsed, setCollapsed] = useState(false)
   const handlers: SelectionHandlers = {getValue: () => item, setValue: onItem, remove: onRemove, rules}
-  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, () => [
+  const getMenuActions = () => [
     ...baseMenuActions({value: item, handlers, isContainer, collapsed, setCollapsed}),
     {
       key: 'duplicate',
@@ -1216,7 +1240,8 @@ function ListItemRow({
       destructive: true,
       onClick: onRemove,
     },
-  ])
+  ]
+  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, getMenuActions)
 
   return (
     <div
@@ -1234,7 +1259,7 @@ function ListItemRow({
         drag.onDrop()
       }}
       className={cn(
-        'group/item flex items-start gap-2',
+        'group/item relative flex items-start gap-2',
         ROW_CLASS,
         isSelected && ROW_SELECTED_CLASS,
         drag.isDragging && 'opacity-40',
@@ -1276,14 +1301,16 @@ function ListItemRow({
           <ValueEditor value={item} onValue={onItem} rules={rules} path={path} />
         )}
       </div>
-      <div
-        className={cn(
-          'flex items-center opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100',
-          isSelected && 'opacity-100',
-        )}
-      >
-        <CopyValueButton getValue={() => item} />
-        <RemoveButton label="Remove item" onClick={onRemove} />
+      {/* Floating so nested rows keep their full width. */}
+      <div className="absolute top-1 right-0">
+        <RowActionsMenu
+          label={`Actions for item ${index + 1}`}
+          getActions={getMenuActions}
+          className={cn(
+            'group-focus-within/item:opacity-100 group-hover/item:opacity-100',
+            isSelected && 'opacity-100',
+          )}
+        />
       </div>
     </div>
   )

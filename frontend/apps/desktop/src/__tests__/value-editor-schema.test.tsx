@@ -130,6 +130,25 @@ describe('schema-aware value editor rendering', () => {
     expect(container.querySelector('[role="combobox"]')).toBeNull()
   })
 
+  it('row actions are grouped in one floating menu instead of inline buttons', () => {
+    renderEditor({title: 'Hello', nested: {inner: 'x'}})
+    // one trigger per row, no inline Copy/Remove buttons taking flex width
+    const triggers = Array.from(container.querySelectorAll('button[aria-label^="Actions for"]'))
+    expect(triggers.length).toBeGreaterThanOrEqual(2)
+    expect(container.querySelector('button[aria-label="Copy value as JSON"]')).toBeNull()
+    // the trigger floats (absolutely positioned wrapper) so it reserves no row width
+    expect(triggers.every((el) => el.parentElement?.className.includes('absolute'))).toBe(true)
+    // opening it shows the context-menu actions, including the destructive
+    // remove (Radix opens on pointerdown)
+    act(() => {
+      triggers[0]!.dispatchEvent(new MouseEvent('pointerdown', {bubbles: true, button: 0}))
+    })
+    const menu = document.body.querySelector('[role="menu"]')
+    expect(menu).not.toBeNull()
+    expect(menu!.textContent).toContain('Copy')
+    expect(menu!.textContent).toContain('Remove')
+  })
+
   it('adding a suggested enum field offers a dropdown of the options', () => {
     renderEditor({title: 'Hello'}, ARTICLE_SCHEMA)
     // open the add form
