@@ -13,10 +13,12 @@ import {isDagJsonLink} from './dag-json'
 export type SchemaNodeKind =
   | 'object'
   | 'text'
+  | 'literals'
   | 'integer'
   | 'number'
   | 'toggle'
   | 'list'
+  | 'union'
   | 'link'
   | 'bytes'
   | 'null'
@@ -26,10 +28,12 @@ export type SchemaNodeKind =
 export const SCHEMA_NODE_KIND_LABELS: Record<SchemaNodeKind, string> = {
   object: 'Object',
   text: 'Text',
+  literals: 'Literal Union',
   integer: 'Whole number',
   number: 'Number',
   toggle: 'Toggle',
   list: 'List',
+  union: 'Union',
   link: 'Link',
   bytes: 'Bytes',
   null: 'Null',
@@ -41,10 +45,12 @@ export const SCHEMA_NODE_KIND_LABELS: Record<SchemaNodeKind, string> = {
 export const SCHEMA_NODE_KINDS: SchemaNodeKind[] = [
   'object',
   'text',
+  'literals',
   'integer',
   'number',
   'toggle',
   'list',
+  'union',
   'link',
   'bytes',
   'null',
@@ -52,11 +58,18 @@ export const SCHEMA_NODE_KINDS: SchemaNodeKind[] = [
   'any',
 ]
 
-/** Classify a schema node for the form's type picker. */
+/**
+ * Classify a schema node for the form's type picker. Identity precedence:
+ * `$ref` > `kind` > `oneOf` (union) > `enum` (literal union) > `type`. A
+ * node with both `type` and `enum` is a literal union — the enum fully
+ * constrains the value, so that's the useful editing surface.
+ */
 export function schemaNodeKind(node: BlobSchema): SchemaNodeKind {
   if (node.$ref !== undefined) return 'ref'
   if (node.kind === 'link') return 'link'
   if (node.kind === 'bytes') return 'bytes'
+  if (Array.isArray(node.oneOf)) return 'union'
+  if (Array.isArray(node.enum)) return 'literals'
   switch (node.type) {
     case 'object':
       return 'object'
@@ -78,22 +91,28 @@ export function schemaNodeKind(node: BlobSchema): SchemaNodeKind {
 }
 
 /**
- * Re-kind a node. Only the identity keywords (`type`, `kind`, `$ref`) change;
- * everything else — title, description, constraints of other kinds, unknown
- * keywords — is preserved (inert keywords are harmless to the validator and
- * switching back restores their effect).
+ * Re-kind a node. Only the identity keywords (`type`, `kind`, `$ref`,
+ * `oneOf`, `enum`) change; everything else — title, description, constraints
+ * of other kinds, unknown keywords — is preserved (inert keywords are
+ * harmless to the validator). Switching away from a literal/union kind drops
+ * its members (they ARE that kind's identity); undo restores them.
  */
 export function setSchemaNodeKind(node: BlobSchema, kind: SchemaNodeKind): BlobSchema {
   const next: BlobSchema = {...node}
   delete next.type
   delete next.kind
   delete next.$ref
+  delete next.oneOf
+  delete next.enum
   switch (kind) {
     case 'object':
       next.type = 'object'
       break
     case 'text':
       next.type = 'string'
+      break
+    case 'literals':
+      next.enum = Array.isArray(node.enum) ? node.enum : []
       break
     case 'integer':
       next.type = 'integer'
@@ -106,6 +125,10 @@ export function setSchemaNodeKind(node: BlobSchema, kind: SchemaNodeKind): BlobS
       break
     case 'list':
       next.type = 'array'
+      break
+    case 'union':
+      // A useful union starts with two variants to fill in.
+      next.oneOf = Array.isArray(node.oneOf) ? node.oneOf : [{type: 'object'}, {type: 'object'}]
       break
     case 'null':
       next.type = 'null'
@@ -123,6 +146,27 @@ export function setSchemaNodeKind(node: BlobSchema, kind: SchemaNodeKind): BlobS
       break
   }
   return next
+}
+
+/**
+ * Parse the schema form's literal input: JSON scalars are detected (`42`,
+ * `true`, `null`, `"quoted text"`), anything else is plain text. Objects and
+ * arrays are not literals — those come back as text too.
+ */
+export function parseLiteralInput(text: string): unknown {
+  const trimmed = text.trim()
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed === null || ['string', 'number', 'boolean'].includes(typeof parsed)) return parsed
+    return text
+  } catch {
+    return text
+  }
+}
+
+/** Display label for a literal: quoted strings, plain scalars. */
+export function literalLabel(value: unknown): string {
+  return typeof value === 'string' ? JSON.stringify(value) : String(value)
 }
 
 /** Whether `key` is in the parent object schema's `required` list. */

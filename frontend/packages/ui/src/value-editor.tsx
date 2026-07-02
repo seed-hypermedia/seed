@@ -30,11 +30,12 @@ import {cn} from './utils'
 import {useSubschema} from './blob-schema-context'
 import {
   EnumValueSelect,
-  isStringEnumSchema,
+  literalEnumOptions,
   SchemaFieldChips,
   SchemaWarningBadge,
   suggestedFieldType,
   useSchemaFieldSuggestions,
+  type LiteralOption,
 } from './value-editor-schema'
 
 /**
@@ -772,18 +773,41 @@ export function ValueEditor({
   // Advisory schema hint for this node (undefined when editing schemaless).
   const subschema = useSubschema(path)
   const resolvedSchema = subschema && subschema !== 'unresolved' ? subschema : undefined
+  // A scalar that is a member of the schema's literal union renders as a
+  // dropdown of the options (mixed types supported).
+  const allLiteralOptions = resolvedSchema ? literalEnumOptions(resolvedSchema) : null
+  const literalOptions =
+    allLiteralOptions && allLiteralOptions.some((option) => option.value === value) ? allLiteralOptions : undefined
   if (typeof value === 'boolean') {
-    return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
+    return (
+      <ScalarLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        onValue={onValue}
+        renderFallback={() => <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />}
+      />
+    )
   }
   if (typeof value === 'number') {
-    return <NumberInput value={value} onValue={onValue} rules={rules} />
+    return (
+      <ScalarLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        onValue={onValue}
+        renderFallback={(onFocusChange, autoFocus) => (
+          <NumberInput
+            value={value}
+            onValue={onValue}
+            rules={rules}
+            autoFocus={autoFocus}
+            onFocusChange={onFocusChange}
+          />
+        )}
+      />
+    )
   }
   if (typeof value === 'string') {
-    const enumOptions =
-      resolvedSchema && isStringEnumSchema(resolvedSchema) && resolvedSchema.enum.includes(value)
-        ? resolvedSchema.enum
-        : undefined
-    return <StringLeafEditor value={value} enumOptions={enumOptions} onValue={onValue} />
+    return <StringLeafEditor value={value} literalOptions={literalOptions} onValue={onValue} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -801,27 +825,65 @@ export function ValueEditor({
 }
 
 /**
- * String leaf: free text, or a select when the value is a member of the
- * schema's enum. The select never takes over an active edit — a late-arriving
- * schema must not unmount a focused input (blur doesn't fire on unmount, so
- * the draft would be silently lost) — and always offers "Custom value…" back
- * to free text, so the schema never removes the ability to type.
+ * Non-string scalar leaf (number/boolean): the plain editor, or a literal
+ * dropdown when the value is a member of the schema's literal union.
+ * "Custom value…" temporarily reveals the plain editor (until the next
+ * commit), and an actively-focused editor is never unmounted by a
+ * late-arriving schema. The union never removes the ability to enter an
+ * arbitrary value.
  */
-function StringLeafEditor({
+function ScalarLeafEditor({
   value,
-  enumOptions,
+  literalOptions,
   onValue,
+  renderFallback,
 }: {
-  value: string
-  enumOptions: string[] | undefined
+  value: unknown
+  literalOptions: LiteralOption[] | undefined
   onValue: (value: unknown) => void
+  renderFallback: (onFocusChange: (focused: boolean) => void, autoFocus: boolean) => React.ReactNode
 }) {
-  const [editingText, setEditingText] = useState(false)
-  if (enumOptions && !editingText) {
+  const [editingCustom, setEditingCustom] = useState(false)
+  const [focused, setFocused] = useState(false)
+  useEffect(() => {
+    // A commit landed; a conforming value returns to the select.
+    setEditingCustom(false)
+  }, [value])
+  if (literalOptions && !editingCustom && !focused) {
     return (
       <EnumValueSelect
         value={value}
-        options={enumOptions}
+        options={literalOptions}
+        onValue={onValue}
+        onEditAsText={() => setEditingCustom(true)}
+      />
+    )
+  }
+  return <>{renderFallback(setFocused, editingCustom)}</>
+}
+
+/**
+ * String leaf: free text, or a select when the value is a member of the
+ * schema's literal union. The select never takes over an active edit — a
+ * late-arriving schema must not unmount a focused input (blur doesn't fire on
+ * unmount, so the draft would be silently lost) — and always offers "Custom
+ * value…" back to free text, so the schema never removes the ability to type.
+ */
+function StringLeafEditor({
+  value,
+  literalOptions,
+  onValue,
+}: {
+  value: string
+  literalOptions: LiteralOption[] | undefined
+  onValue: (value: unknown) => void
+}) {
+  const [editingText, setEditingText] = useState(false)
+  if (literalOptions && !editingText) {
+    return (
+      <EnumValueSelect
+        value={value}
+        options={literalOptions}
         onValue={onValue}
         onEditAsText={() => setEditingText(true)}
       />
@@ -1231,10 +1293,14 @@ function NumberInput({
   value,
   onValue,
   rules,
+  autoFocus,
+  onFocusChange,
 }: {
   value: number
   onValue: (value: unknown) => void
   rules: ValueEditorRules
+  autoFocus?: boolean
+  onFocusChange?: (focused: boolean) => void
 }) {
   const initial = String(value)
   const [text, setText] = useState(initial)
@@ -1248,11 +1314,14 @@ function NumberInput({
       <Input
         value={text}
         inputMode="numeric"
+        autoFocus={autoFocus}
+        onFocus={() => onFocusChange?.(true)}
         onChange={(e) => {
           setText(e.target.value)
           setError(null)
         }}
         onBlur={() => {
+          onFocusChange?.(false)
           if (text === initial) return
           const parsed = Number(text)
           const valid = text.trim() !== '' && (rules.floats ? Number.isFinite(parsed) : Number.isInteger(parsed))
@@ -1347,17 +1416,16 @@ export function AddFieldForm({
   const itemsSubschema = useSubschema(path ? [...path, 0] : [])
   const suggestions = itemMode || !path ? [] : keySuggestions
 
-  // When the field being added declares a string enum, the value input is a
-  // dropdown of the allowed options.
+  // When the field being added declares a literal union, the value input is a
+  // dropdown of the (possibly mixed-type) options; the commit maps the chosen
+  // label back to the typed literal.
   const enumSourceSchema = itemMode
     ? itemsSubschema && itemsSubschema !== 'unresolved'
       ? itemsSubschema
       : undefined
     : suggestions.find((suggestion) => suggestion.key === key.trim())?.schema
-  const enumOptions: string[] | undefined =
-    type === 'text' && enumSourceSchema && isStringEnumSchema(enumSourceSchema)
-      ? (enumSourceSchema.enum as string[])
-      : undefined
+  const enumOptions: LiteralOption[] | undefined =
+    type === 'text' && enumSourceSchema ? literalEnumOptions(enumSourceSchema) ?? undefined : undefined
 
   const reset = () => {
     setOpen(false)
@@ -1416,10 +1484,16 @@ export function AddFieldForm({
       }
     }
     let value: unknown
-    // With an enum dropdown, commit what the select displays (its fallback
-    // shows the first option before any interaction).
-    if (type === 'text') value = enumOptions && !enumOptions.includes(textValue) ? enumOptions[0] ?? '' : textValue
-    else if (type === 'toggle') value = toggleValue
+    if (type === 'text') {
+      if (enumOptions) {
+        // textValue holds the selected LABEL; commit the typed literal (the
+        // select's display fallback is the first option).
+        const chosen = enumOptions.find((option) => option.label === textValue) ?? enumOptions[0]
+        value = chosen ? chosen.value : ''
+      } else {
+        value = textValue
+      }
+    } else if (type === 'toggle') value = toggleValue
     else if (type === 'object') value = {}
     else if (type === 'list') value = []
     else if (type === 'null') value = null
@@ -1492,16 +1566,16 @@ export function AddFieldForm({
                 ) {
                   setType(suggested)
                 }
-                // Prefill from the schema so an enum field lands as a member
-                // (and immediately renders as its dropdown) instead of ''.
+                // Prefill from the schema so a literal-union field lands as
+                // a member (and immediately renders as its dropdown).
                 if (suggested === 'text') {
                   const {schema} = suggestion
-                  const prefill =
-                    typeof schema.default === 'string'
+                  const options = literalEnumOptions(schema)
+                  const prefill = options
+                    ? (options.find((option) => option.value === schema.default) ?? options[0])!.label
+                    : typeof schema.default === 'string'
                       ? schema.default
-                      : Array.isArray(schema.enum) && typeof schema.enum[0] === 'string'
-                        ? schema.enum[0]
-                        : ''
+                      : ''
                   setTextValue(prefill)
                 } else if (suggested === 'number') {
                   const {schema} = suggestion
@@ -1568,7 +1642,7 @@ export function AddFieldForm({
         {needsValueInput &&
           (enumOptions ? (
             <Select
-              value={enumOptions.includes(textValue) ? textValue : enumOptions[0] ?? ''}
+              value={enumOptions.some((option) => option.label === textValue) ? textValue : enumOptions[0]?.label ?? ''}
               onValueChange={(next) => {
                 setTextValue(next)
                 setError(null)
@@ -1579,8 +1653,8 @@ export function AddFieldForm({
               </SelectTrigger>
               <SelectContent>
                 {enumOptions.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+                  <SelectItem key={option.label} value={option.label}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>

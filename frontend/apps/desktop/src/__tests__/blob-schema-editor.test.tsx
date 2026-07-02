@@ -64,9 +64,26 @@ describe('BlobSchemaEditor', () => {
     expect(container.textContent).not.toContain('Allow fields beyond')
     expect(container.textContent).not.toContain('Add field')
     // string options are shown instead
-    expect(container.textContent).toContain('Options')
     expect(container.textContent).toContain('Min length')
     expect(container.textContent).toContain('Pattern')
+  })
+
+  it('literal unions get their own panel with typed value chips', () => {
+    render({...schemaLink, enum: ['draft', 42, true]})
+    expect(container.textContent).toContain('Allowed values')
+    expect(container.textContent).toContain('"draft"')
+    expect(container.textContent).toContain('42')
+    expect(container.textContent).toContain('true')
+    // not the text panel
+    expect(container.textContent).not.toContain('Pattern')
+  })
+
+  it('unions get a variants panel', () => {
+    render({...schemaLink, oneOf: [{type: 'object'}, {type: 'string'}]})
+    expect(container.textContent).toContain('Variant 1')
+    expect(container.textContent).toContain('Variant 2')
+    expect(container.textContent).toContain('Add variant')
+    expect(container.textContent).toContain('tagged union')
   })
 
   it('shows number bounds for numeric schemas and byte size for bytes', () => {

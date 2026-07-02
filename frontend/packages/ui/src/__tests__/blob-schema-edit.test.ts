@@ -2,6 +2,8 @@ import {describe, expect, test} from 'vitest'
 import type {BlobSchema} from '../blob-schema'
 import {
   addProperty,
+  literalLabel,
+  parseLiteralInput,
   isRequiredProperty,
   removeProperty,
   renameProperty,
@@ -104,5 +106,40 @@ describe('setSchemaKeyword', () => {
     const node: BlobSchema = {type: 'string', minLength: 1}
     expect(setSchemaKeyword(node, 'maxLength', 5)).toEqual({type: 'string', minLength: 1, maxLength: 5})
     expect(setSchemaKeyword(node, 'minLength', undefined)).toEqual({type: 'string'})
+  })
+})
+
+describe('literal and union kinds', () => {
+  test('classification precedence: oneOf > enum > type', () => {
+    expect(schemaNodeKind({oneOf: [{type: 'object'}]})).toBe('union')
+    expect(schemaNodeKind({enum: ['a', 1]})).toBe('literals')
+    expect(schemaNodeKind({type: 'string', enum: ['a']})).toBe('literals')
+    expect(schemaNodeKind({oneOf: [], enum: []})).toBe('union')
+  })
+
+  test('setSchemaNodeKind seeds literals and unions, drops them on switch-away', () => {
+    const literals = setSchemaNodeKind({type: 'string'}, 'literals')
+    expect(literals).toEqual({enum: []})
+    const union = setSchemaNodeKind({}, 'union')
+    expect(union.oneOf).toHaveLength(2)
+    // switching away drops the members (they are the kind's identity)
+    expect(setSchemaNodeKind({enum: ['a', 'b'], title: 'T'}, 'text')).toEqual({type: 'string', title: 'T'})
+    expect(setSchemaNodeKind({oneOf: [{type: 'object'}]}, 'object')).toEqual({type: 'object'})
+  })
+
+  test('parseLiteralInput detects typed scalars, keeps text otherwise', () => {
+    expect(parseLiteralInput('42')).toBe(42)
+    expect(parseLiteralInput('true')).toBe(true)
+    expect(parseLiteralInput('null')).toBe(null)
+    expect(parseLiteralInput('"42"')).toBe('42')
+    expect(parseLiteralInput('draft')).toBe('draft')
+    expect(parseLiteralInput('[1]')).toBe('[1]') // arrays are not literals
+  })
+
+  test('literalLabel quotes strings, leaves scalars plain', () => {
+    expect(literalLabel('draft')).toBe('"draft"')
+    expect(literalLabel(42)).toBe('42')
+    expect(literalLabel(true)).toBe('true')
+    expect(literalLabel(null)).toBe('null')
   })
 })

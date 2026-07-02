@@ -40,6 +40,10 @@ export type BlobSchema = {
   maxLength?: number
   pattern?: string
   $defs?: Record<string, BlobSchema>
+  // Union: the value must match one of these variants. Discriminated object
+  // unions (a shared tag property with a distinct const/single-enum literal
+  // per variant) get precise per-variant warnings.
+  oneOf?: BlobSchema[]
   // Internal JSON pointer (`#/$defs/Name`) or external IPLD link (`{"/": cid}`).
   $ref?: string | DagJsonLink
   // For kind:"link" — the schema the linked blob is expected to conform to. Hint-only.
@@ -212,6 +216,9 @@ function collectRefsInBlob(node: BlobSchema, onCid: (cid: string) => void, depth
     for (const child of Object.values(node.$defs)) collectRefsInBlob(child as BlobSchema, onCid, depth + 1)
   }
   if (isRecord(node.items)) collectRefsInBlob(node.items as BlobSchema, onCid, depth + 1)
+  if (Array.isArray(node.oneOf)) {
+    for (const child of node.oneOf) collectRefsInBlob(child as BlobSchema, onCid, depth + 1)
+  }
 }
 
 /**
@@ -391,6 +398,34 @@ function typeMatches(value: unknown, type: SchemaType): boolean {
 
 const KNOWN_TYPES: SchemaType[] = ['null', 'boolean', 'integer', 'number', 'string', 'array', 'object']
 
+// The single literal a union variant fixes for a property: its `const`, or a
+// one-member `enum` (how the schema form authors tags).
+function variantTagLiteral(node: unknown): unknown {
+  if (!isRecord(node)) return undefined
+  if ('const' in node) return node.const
+  if (Array.isArray(node.enum) && node.enum.length === 1) return node.enum[0]
+  return undefined
+}
+
+/**
+ * A discriminator for a set of object variants: a property key that every
+ * variant fixes to a distinct scalar literal (via const or one-member enum).
+ */
+export function findDiscriminator(variants: BlobSchema[]): string | undefined {
+  const first = variants[0]
+  if (!first || !isRecord(first.properties)) return undefined
+  for (const key of Object.keys(first.properties)) {
+    const literals = variants.map((variant) =>
+      isRecord(variant.properties) ? variantTagLiteral(variant.properties[key]) : undefined,
+    )
+    const allScalar = literals.every(
+      (literal) => typeof literal === 'string' || typeof literal === 'number' || typeof literal === 'boolean',
+    )
+    if (allScalar && new Set(literals).size === literals.length) return key
+  }
+  return undefined
+}
+
 function validateNode(
   value: unknown,
   schema: BlobSchema,
@@ -437,6 +472,44 @@ function validateNode(
   }
   if ('const' in schema) {
     if (!deepEqual(value, schema.const)) warn('value must equal the fixed value', 'const')
+  }
+
+  // Union: match any variant cleanly, else recurse into the discriminated
+  // variant for precise warnings, else one gentle summary warning. Any
+  // unresolved variant makes the whole check neutral (we can't judge).
+  if (Array.isArray(schema.oneOf) && schema.oneOf.length > 0) {
+    const variants: Deref[] = []
+    let unresolved = false
+    for (const raw of schema.oneOf) {
+      if (!isRecord(raw)) continue
+      const variant = derefSchema(raw as BlobSchema, root, registry, new Set())
+      if (variant === 'unresolved') {
+        unresolved = true
+        break
+      }
+      variants.push(variant)
+    }
+    if (!unresolved && variants.length > 0) {
+      const matched = variants.some((variant) => {
+        const scratch: SchemaWarning[] = []
+        validateNode(value, variant.schema, variant.root, registry, path, scratch, depth + 1)
+        return scratch.length === 0
+      })
+      if (!matched) {
+        const discriminator = findDiscriminator(variants.map((variant) => variant.schema))
+        const chosen =
+          discriminator && isPlainObjectValue(value) && hasOwn(value, discriminator)
+            ? variants.find((variant) =>
+                deepEqual(variantTagLiteral(variant.schema.properties?.[discriminator]), value[discriminator]),
+              )
+            : undefined
+        if (chosen) {
+          validateNode(value, chosen.schema, chosen.root, registry, path, warnings, depth + 1)
+        } else {
+          warn(`does not match any of the ${variants.length} allowed variants`, 'oneOf')
+        }
+      }
+    }
   }
 
   // Structural checks are gated by the actual JS type, so we never recurse into
@@ -545,6 +618,9 @@ function instantiateNode(
   if ('default' in node) return cloneValue(node.default)
   if ('const' in node) return cloneValue(node.const)
   if (Array.isArray(node.enum) && node.enum.length > 0) return cloneValue(node.enum[0])
+  if (Array.isArray(node.oneOf) && isRecord(node.oneOf[0])) {
+    return instantiateNode(node.oneOf[0] as BlobSchema, root, registry, visited, depth + 1)
+  }
 
   // Can't fabricate a real CID or bytes payload.
   if (node.kind === 'link' || node.kind === 'bytes') return undefined
@@ -662,6 +738,11 @@ export const BLOB_META_SCHEMA: BlobSchema = {
     minLength: {type: 'integer', title: 'Min length', minimum: 0},
     maxLength: {type: 'integer', title: 'Max length', minimum: 0},
     pattern: {type: 'string', title: 'Pattern', description: 'An ECMAScript regular expression (unanchored).'},
+    oneOf: {
+      type: 'array',
+      title: 'Union variants',
+      description: 'The value must match one of these subschemas.',
+    },
     $defs: {type: 'object', title: 'Definitions', description: 'Named subschemas for internal $ref reuse.'},
     $ref: {title: '$ref', description: 'Internal JSON pointer (#/$defs/Name) or external schema link.'},
     targetSchema: {kind: 'link', title: 'Target schema', description: 'Schema the linked blob should conform to.'},
@@ -680,7 +761,7 @@ export const SCHEMA_KEYWORDS: string[] = Object.keys(BLOB_META_SCHEMA.properties
  * can't contain its own CID; blob-schema.test.ts re-derives it from
  * BLOB_META_SCHEMA and asserts equality so this can never silently drift.
  */
-export const BLOB_META_SCHEMA_CID = 'bafyreifivk57ikxwkz7hg3mpo62cxi2hg5q3xyphfhiypajppfichiw3tu'
+export const BLOB_META_SCHEMA_CID = 'bafyreigui6zgijfpiqa7y35bp55bwc7q2debrhdphxwrleohax6j2unjle'
 
 /**
  * A blob is a schema iff its reserved `schema` key is a DAG-JSON link to the
