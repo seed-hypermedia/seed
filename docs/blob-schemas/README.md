@@ -35,6 +35,7 @@ foundation (value editor, `raw-blob` route, publish path, `.dagjson` daemon endp
 | [`architecture.md`](./architecture.md) | System design: modules, data flow, where each piece lives |
 | [`schema-dialect.md`](./schema-dialect.md) | The extended JSON Schema dialect: supported keywords, IPLD kinds, `$ref` over ipfs://, examples |
 | [`plan.md`](./plan.md) | Implementation plan: phases, tasks, status (kept current as work proceeds) |
+| [`walkthrough.md`](./walkthrough.md) | User-facing tour: create a schema, create instances, attach schemas, what validation does |
 
 ## Status
 
