@@ -112,9 +112,29 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
 - [x] Final docs sweep to as-built state; user-facing walkthrough
       ([`walkthrough.md`](./walkthrough.md))
 
+## Phase 5 — Purpose-built schema form — `done`
+
+Owner feedback: authoring schemas through the generic value editor (even with
+meta-schema hints) felt awkward — keyword names had to be typed, and nothing
+was type-sensitive. Replaced with `BlobSchemaEditor`, a dedicated form:
+
+- [x] Permanent Title/Description controls; a "Schema of" type picker
+      (Object/Text/Whole number/Number/Toggle/List/Link/Bytes/Null/Reference/Any)
+- [x] Type-sensitive option panels — `additionalProperties` ("allow extra
+      fields") appears **only** for object schemas; text gets enum chips,
+      bounds, pattern; lists get an "each item" sub-form; etc.
+- [x] Fields table for object schemas: add (name + type), inline rename,
+      per-field Required toggles, expandable nested editing
+- [x] Definitions (`$defs`) section at root; Reference nodes accept
+      `#/$defs/Name` or schema CIDs
+- [x] The form is a pure view over the dialect value — unowned/other-type
+      keywords preserved verbatim; "Edit as Raw Fields" and JSON mode remain
+- [x] "New Schema" seeds `{type: "object"}` so the form opens on the table
+- [x] Pure helpers in `blob-schema-edit.ts` (9 tests) + 7 jsdom form tests
+
 ## Final state
 
-All phases complete. Suites: ui 240, desktop 548, shared 927 — all green;
+All phases complete. Suites: ui 249, desktop 555, shared 927 — all green;
 full-workspace typecheck clean. End-to-end verified against a live local
 daemon (publish chain, read-back, validation, collision behavior).
 
