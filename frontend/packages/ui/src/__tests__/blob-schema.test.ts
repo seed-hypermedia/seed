@@ -7,6 +7,7 @@ import {
   BLOB_META_SCHEMA_CID,
   BlobSchema,
   collectSchemaRefs,
+  instantiateAtPath,
   instantiateSchema,
   isSchemaBlob,
   resolveSubschema,
@@ -464,5 +465,77 @@ describe('meta-schema', () => {
       additionalProperties: true,
     }
     expect(validateValue(articleSchema, BLOB_META_SCHEMA, registry)).toEqual([])
+  })
+})
+
+describe('hardening: adversarial review fixes', () => {
+  test('required/properties/additionalProperties use own properties, not the prototype chain', () => {
+    // required 'toString' on {} must warn despite Object.prototype.toString
+    expect(validateValue({}, {type: 'object', required: ['toString']}, {})).toHaveLength(1)
+    // a declared property named 'constructor' absent from the value must not
+    // produce a phantom warning against Object.prototype.constructor
+    expect(validateValue({}, {type: 'object', properties: {constructor: {type: 'string'}}}, {})).toEqual([])
+    // additionalProperties:false must catch a real key named like a prototype member
+    const warnings = validateValue({toString: 1}, {type: 'object', additionalProperties: false}, {})
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.keyword).toBe('additionalProperties')
+  })
+
+  test('bigint enum/const tolerance is numeric-only', () => {
+    expect(validateValue(10n, {enum: [10]}, {})).toEqual([])
+    expect(validateValue(10n, {enum: ['10']}, {})).toHaveLength(1)
+    expect(validateValue(1n, {enum: [true]}, {})).toHaveLength(1)
+    expect(validateValue(5n, {const: '5'}, {})).toHaveLength(1)
+  })
+
+  test('catastrophic-backtracking patterns are skipped (neutral), safe patterns still warn', () => {
+    const risky: BlobSchema = {type: 'string', pattern: '(a+)+$'}
+    const start = Date.now()
+    expect(validateValue('a'.repeat(40) + '!', risky, {})).toEqual([]) // skipped, not hung
+    expect(Date.now() - start).toBeLessThan(200)
+    expect(validateValue('a'.repeat(40) + '!', {type: 'string', pattern: '(?:a|a)+$'}, {})).toEqual([])
+    expect(validateValue('a'.repeat(40) + '!', {type: 'string', pattern: '((a+)b)+$'}, {})).toEqual([])
+    // plain patterns still validate both ways
+    expect(validateValue('abc', {type: 'string', pattern: '^a'}, {})).toEqual([])
+    expect(validateValue('xbc', {type: 'string', pattern: '^a'}, {})).toHaveLength(1)
+    // oversized subjects are neutral
+    expect(validateValue('x'.repeat(5000), {type: 'string', pattern: '^a'}, {})).toEqual([])
+  })
+
+  test('a $ref chain exceeding the depth guard is unresolved, not resolved-as-is', () => {
+    const defs: Record<string, BlobSchema> = {}
+    for (let i = 0; i < 250; i++) defs[`s${i}`] = {$ref: `#/$defs/s${i + 1}`}
+    defs.s250 = {type: 'string'}
+    const root: BlobSchema = {$defs: defs, properties: {a: {$ref: '#/$defs/s0'}}, type: 'object'}
+    expect(resolveSubschema(root, ['a'], {})).toBe('unresolved')
+    // unresolved is neutral: no warnings against the value
+    expect(validateValue({a: 42}, root, {})).toEqual([])
+  })
+
+  test('JSON pointers can traverse arrays', () => {
+    const root: BlobSchema = {
+      type: 'object',
+      $defs: {list: [{type: 'string'}] as any},
+      properties: {a: {$ref: '#/$defs/list/0'}},
+    }
+    expect(resolveSubschema(root, ['a'], {})).toEqual({type: 'string'})
+  })
+
+  test('instantiateAtPath resolves internal $defs refs against the correct root', () => {
+    const root: BlobSchema = {
+      type: 'object',
+      properties: {
+        author: {
+          type: 'object',
+          required: ['boss'],
+          properties: {boss: {$ref: '#/$defs/Person'}},
+        },
+      },
+      $defs: {Person: {type: 'object', required: ['name'], properties: {name: {type: 'string', default: 'N'}}}},
+    }
+    expect(instantiateAtPath(root, ['author'], {})).toEqual({boss: {name: 'N'}})
+    // the old path (instantiating the resolved subschema as its own root) lost the ref
+    const sub = resolveSubschema(root, ['author'], {}) as BlobSchema
+    expect(instantiateSchema(sub, {})).toEqual({})
   })
 })

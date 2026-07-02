@@ -1,4 +1,4 @@
-import {base64ToBytes, DagJsonLink, isDagJsonBytes, isDagJsonLink} from './dag-json'
+import {DagJsonLink, isDagJsonBytes, isDagJsonLink} from './dag-json'
 import type {ValuePath} from './value-editor'
 
 /**
@@ -80,18 +80,32 @@ function decodePointerSegment(segment: string): string {
   return segment.replace(/~1/g, '/').replace(/~0/g, '~')
 }
 
+// Own-property lookup that can't be fooled by Object.prototype members
+// ('constructor', 'toString', …) on JSON-parsed data.
+function hasOwn(obj: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key)
+}
+
 // Resolve a `#/a/b` JSON pointer within a single blob. Returns undefined when
-// the pointer is malformed or doesn't land on an object node.
+// the pointer is malformed or doesn't land on an object node. `#` and `#/`
+// both mean the root (documented dialect deviation from RFC 6901's ""-key
+// reading of `#/`).
 function resolveJsonPointer(root: BlobSchema, pointer: string): BlobSchema | undefined {
   if (pointer === '#' || pointer === '#/') return root
   if (!pointer.startsWith('#/')) return undefined
   const parts = pointer.slice(2).split('/').map(decodePointerSegment)
   let node: unknown = root
   for (const part of parts) {
-    if (!isRecord(node)) return undefined
-    node = node[part]
+    if (Array.isArray(node)) {
+      const index = /^\d+$/.test(part) ? Number(part) : NaN
+      node = Number.isInteger(index) ? node[index] : undefined
+    } else if (isRecord(node) && hasOwn(node, part)) {
+      node = node[part]
+    } else {
+      return undefined
+    }
   }
-  return isRecord(node) ? (node as BlobSchema) : undefined
+  return isRecord(node) && !Array.isArray(node) ? (node as BlobSchema) : undefined
 }
 
 /**
@@ -111,7 +125,9 @@ function derefSchema(
   let current: BlobSchema = node
   let currentRoot = root
   let guard = 0
-  while (isRecord(current) && current.$ref !== undefined && guard++ < MAX_DEPTH) {
+  while (isRecord(current) && current.$ref !== undefined) {
+    // A ref chain longer than the guard is unresolvable, not "resolved as-is".
+    if (guard++ >= MAX_DEPTH) return 'unresolved'
     const ref = current.$ref
     let target: BlobSchema | undefined
     let targetRoot = currentRoot
@@ -144,11 +160,11 @@ function derefSchema(
  * yet (a neutral loading state), or undefined when the schema simply says
  * nothing at that path (e.g. an undeclared property).
  */
-export function resolveSubschema(
+function resolveSubschemaDeref(
   root: BlobSchema,
   path: ValuePath,
   registry: SchemaRegistry,
-): BlobSchema | 'unresolved' | undefined {
+): Deref | 'unresolved' | undefined {
   const first = derefSchema(root, root, registry, new Set())
   if (first === 'unresolved') return 'unresolved'
   let node = first.schema
@@ -156,7 +172,7 @@ export function resolveSubschema(
   for (const segment of path) {
     let child: unknown
     if (typeof segment === 'string') {
-      child = isRecord(node.properties) ? node.properties[segment] : undefined
+      child = isRecord(node.properties) && hasOwn(node.properties, segment) ? node.properties[segment] : undefined
     } else {
       child = isRecord(node.items) ? node.items : undefined
     }
@@ -166,7 +182,17 @@ export function resolveSubschema(
     node = deref.schema
     currentRoot = deref.root
   }
-  return node
+  return {schema: node, root: currentRoot}
+}
+
+export function resolveSubschema(
+  root: BlobSchema,
+  path: ValuePath,
+  registry: SchemaRegistry,
+): BlobSchema | 'unresolved' | undefined {
+  const resolved = resolveSubschemaDeref(root, path, registry)
+  if (resolved === 'unresolved' || resolved === undefined) return resolved
+  return resolved.schema
 }
 
 // ---------------------------------------------------------------------------
@@ -221,14 +247,21 @@ export function collectSchemaRefs(schema: BlobSchema, registry?: SchemaRegistry)
 // Deep equality (for enum / const), tolerant of bigint vs number
 // ---------------------------------------------------------------------------
 
+function isNumeric(value: unknown): value is number | bigint {
+  return typeof value === 'bigint' || (typeof value === 'number' && Number.isFinite(value))
+}
+
 function deepEqual(a: unknown, b: unknown, depth = 0): boolean {
   if (a === b) return true
   if (depth > MAX_DEPTH) return false
   if (typeof a === 'bigint' || typeof b === 'bigint') {
+    // Bigint tolerance is numeric-only: a bigint never equals a string or
+    // boolean enum member, but 10n equals 10.
+    if (!isNumeric(a) || !isNumeric(b)) return false
     try {
-      return BigInt(a as never) === BigInt(b as never)
+      return BigInt(a) === BigInt(b)
     } catch {
-      return false
+      return false // non-integer number vs bigint
     }
   }
   if (typeof a !== typeof b) return false
@@ -253,6 +286,58 @@ function deepEqual(a: unknown, b: unknown, depth = 0): boolean {
 // ---------------------------------------------------------------------------
 // validateValue
 // ---------------------------------------------------------------------------
+
+// Schemas can arrive from the network, and validation runs synchronously on
+// the UI thread — an adversarial pattern like `(a+)+$` backtracks
+// exponentially and would freeze the window. JS has no linear-time regex
+// engine, so patterns are bounded instead: size caps plus a shape heuristic
+// rejecting the classic catastrophic forms (a quantified group containing a
+// quantifier or alternation, at any nesting depth). Skipped patterns are
+// neutral — no warning either way. Compiled patterns are memoized; the cache
+// doubles as the invalid/risky-pattern memo.
+const PATTERN_MAX_LENGTH = 100
+const PATTERN_SUBJECT_MAX_LENGTH = 200
+const patternCache = new Map<string, RegExp | null>()
+
+// Marker standing in for a collapsed group that contained a quantifier or
+// alternation ("backtracking fuel") — propagates risk to outer passes.
+const FUEL = '\x01'
+
+// Detects quantified groups whose body contains a quantifier or alternation
+// (`(a+)+`, `(a|a)*`, `((a+))+`…) by collapsing innermost groups outward.
+function isRiskyPattern(pattern: string): boolean {
+  let p = pattern
+  for (let i = 0; i < 25; i++) {
+    let risky = false
+    const next = p.replace(/\(\??:?([^()]*)\)([+*]|\{\d+(?:,\d*)?\})?/g, (_m, inner: string, quant?: string) => {
+      const innerHasBacktrackFuel = /[+*|{]/.test(inner) || inner.includes(FUEL)
+      if (quant && innerHasBacktrackFuel) risky = true
+
+      return innerHasBacktrackFuel ? FUEL : 'x'
+    })
+    if (risky) return true
+    if (next === p) break
+    p = next
+  }
+  return false
+}
+
+// true = matches, false = does not match, undefined = skipped/neutral.
+function testPattern(pattern: string, value: string): boolean | undefined {
+  if (pattern.length > PATTERN_MAX_LENGTH || value.length > PATTERN_SUBJECT_MAX_LENGTH) return undefined
+  let re = patternCache.get(pattern)
+  if (re === undefined) {
+    try {
+      re = isRiskyPattern(pattern) ? null : new RegExp(pattern) // unanchored, per spec
+    } catch {
+      re = null // invalid regex in the schema is ignored
+    }
+    if (patternCache.size > 500) patternCache.clear()
+    patternCache.set(pattern, re)
+  }
+  if (re === null) return undefined
+  return re.test(value)
+}
 
 // A finite JS number from a number or (tolerated) bigint; otherwise undefined.
 function asFiniteNumber(value: unknown): number | undefined {
@@ -333,11 +418,11 @@ function validateNode(
     } else {
       const max = keywordNumber(schema.maxBytes)
       if (max !== undefined) {
-        try {
-          if (base64ToBytes(value['/'].bytes).length > max) warn(`expected at most ${max} bytes`, 'maxBytes')
-        } catch {
-          // invalid base64 is the structural gate's concern, not ours
-        }
+        // Decoded size from the base64 text itself — no need to materialize
+        // (potentially large) byte arrays on every validation pass.
+        const b64 = value['/'].bytes.replace(/=+$/, '')
+        const size = Math.floor((b64.length * 3) / 4)
+        if (size > max) warn(`expected at most ${max} bytes`, 'maxBytes')
       }
     }
   } else if (typeof schema.type === 'string' && (KNOWN_TYPES as string[]).includes(schema.type)) {
@@ -359,12 +444,12 @@ function validateNode(
   if (isPlainObjectValue(value)) {
     if (Array.isArray(schema.required)) {
       for (const key of schema.required) {
-        if (typeof key === 'string' && !(key in value)) warn(`missing required property "${key}"`, 'required')
+        if (typeof key === 'string' && !hasOwn(value, key)) warn(`missing required property "${key}"`, 'required')
       }
     }
     if (isRecord(schema.properties)) {
       for (const [key, sub] of Object.entries(schema.properties)) {
-        if (key in value && isRecord(sub)) {
+        if (hasOwn(value, key) && isRecord(sub)) {
           validateNode(value[key], sub as BlobSchema, root, registry, [...path, key], warnings, depth + 1)
         }
       }
@@ -372,7 +457,7 @@ function validateNode(
     if (schema.additionalProperties === false) {
       const declared = isRecord(schema.properties) ? schema.properties : {}
       for (const key of Object.keys(value)) {
-        if (!(key in declared))
+        if (!hasOwn(declared, key))
           warn(`property "${key}" is not allowed by the schema`, 'additionalProperties', [...path, key])
       }
     }
@@ -400,13 +485,8 @@ function validateNode(
     if (max !== undefined && codepoints > max)
       warn(`expected at most ${max} character${max === 1 ? '' : 's'}`, 'maxLength')
     if (typeof schema.pattern === 'string') {
-      let re: RegExp | null = null
-      try {
-        re = new RegExp(schema.pattern) // unanchored, per spec
-      } catch {
-        re = null // invalid regex in the schema is ignored
-      }
-      if (re && !re.test(value)) warn('does not match the required pattern', 'pattern')
+      const verdict = testPattern(schema.pattern, value)
+      if (verdict === false) warn('does not match the required pattern', 'pattern')
     }
   }
 
@@ -515,6 +595,18 @@ function instantiateNode(
  */
 export function instantiateSchema(schema: BlobSchema, registry: SchemaRegistry): unknown {
   return instantiateNode(schema, schema, registry, new Set(), 0)
+}
+
+/**
+ * Instantiate the subschema at a value path while preserving the pointer root
+ * it lives in — a subschema's internal `#/$defs` refs resolve against its own
+ * blob, not against itself. Use this (not instantiateSchema on a resolved
+ * subschema) when seeding a nested field.
+ */
+export function instantiateAtPath(root: BlobSchema, path: ValuePath, registry: SchemaRegistry): unknown {
+  const resolved = resolveSubschemaDeref(root, path, registry)
+  if (resolved === 'unresolved' || resolved === undefined) return undefined
+  return instantiateNode(resolved.schema, resolved.root, registry, new Set(), 0)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import {createContext, useContext, useMemo, type ReactNode} from 'react'
 import {resolveSubschema, validateValue, type BlobSchema, type SchemaRegistry, type SchemaWarning} from './blob-schema'
+import {isDagJsonLink} from './dag-json'
 import type {ValuePath} from './value-editor'
 
 /**
@@ -38,11 +39,14 @@ export function BlobSchemaProvider({
   // editor's top-down immutable rebuild.
   const contextValue = useMemo(() => {
     if (!schema) return null
+    // When the top-level `schema` key is the attachment link itself, warnings
+    // about it are noise (app plumbing, not user data). Any other shape at
+    // that key is user data and warns normally.
+    const schemaKeyIsAttachment =
+      !!value && typeof value === 'object' && !Array.isArray(value) && isDagJsonLink((value as any).schema)
     const warningsByPath = new Map<string, SchemaWarning[]>()
     for (const warning of validateValue(value, schema, registry)) {
-      // The reserved `schema` attachment key is app plumbing, not user data —
-      // don't warn about it being undeclared by its own schema.
-      if (warning.path.length === 1 && warning.path[0] === 'schema') continue
+      if (schemaKeyIsAttachment && warning.path.length === 1 && warning.path[0] === 'schema') continue
       const key = warningKey(warning.path)
       const existing = warningsByPath.get(key)
       if (existing) existing.push(warning)
