@@ -282,12 +282,14 @@ function AddPropertyForm({parent, onParent}: {parent: BlobSchema; onParent: (par
   const [open, setOpen] = useState(false)
   const [key, setKey] = useState('')
   const [kind, setKind] = useState<SchemaNodeKind>('text')
+  const [required, setRequired] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const reset = () => {
     setOpen(false)
     setKey('')
     setKind('text')
+    setRequired(false)
     setError(null)
   }
   const submit = () => {
@@ -296,11 +298,12 @@ function AddPropertyForm({parent, onParent}: {parent: BlobSchema; onParent: (par
       setError('"/" is a reserved field name')
       return
     }
-    const next = addProperty(parent, trimmed, setSchemaNodeKind({}, kind))
+    let next = addProperty(parent, trimmed, setSchemaNodeKind({}, kind))
     if (!next) {
       setError(trimmed ? `"${trimmed}" already exists` : 'Enter a field name')
       return
     }
+    if (required) next = setRequiredProperty(next, trimmed, true)
     onParent(next)
     reset()
   }
@@ -349,6 +352,10 @@ function AddPropertyForm({parent, onParent}: {parent: BlobSchema; onParent: (par
             ))}
           </SelectContent>
         </Select>
+        <label className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+          <Switch checked={required} onCheckedChange={setRequired} />
+          Required
+        </label>
         <Button size="sm" onClick={submit}>
           Add
         </Button>
