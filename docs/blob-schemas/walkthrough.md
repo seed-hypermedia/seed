@@ -18,12 +18,21 @@ shown.
   label, help text, and type-specific options, toggle **Required** per field,
   and flip **"Allow fields beyond the ones declared above"**
   (`additionalProperties` — this switch only exists on object schemas).
-- Pick **Text** and you get **Options** (enum chips — instances then get a
-  dropdown), length bounds, a pattern, and a default. Numbers get min/max;
-  Lists get an "each item" sub-form; **Link** gets an optional target schema
-  CID; **Bytes** gets a max size; **Reference** takes `#/$defs/Name` or
-  another schema's CID.
+- Pick **Text** and you get length bounds, a pattern, and a default. Numbers
+  get min/max; Lists get an "each item" sub-form; **Link** gets an optional
+  target schema CID; **Bytes** gets a max size; **Reference** takes
+  `#/$defs/Name` or another schema's CID.
+- Pick **Literal Union** for a fixed set of allowed values — typed chips
+  where numbers, `true`/`false`, and `null` are detected and quotes force
+  text. Instances edit these as dropdowns.
+- Pick **Union** for a value matching one of several variants. For a tagged
+  (discriminated) union of objects, give every variant the same field (e.g.
+  `kind`) as a Literal Union with one distinct value — warnings then point
+  into the matching variant precisely.
 - A **Definitions** section manages reusable `$defs` at the root.
+- New fields are added with a name, type, and a **Required** toggle; each
+  existing field row has the same toggle (the schema's `required` list is
+  managed for you, never edited as a separate list).
 
 The form is a view over the plain dialect value: anything it doesn't surface
 is preserved untouched, and the options menu offers **Edit as Raw Fields**
@@ -91,7 +100,17 @@ Inside a schema, `$ref` comes in two forms:
 Because content addressing forbids forward references, schema→schema link
 cycles are impossible by construction.
 
-## 6. Sharp edges to know about
+## 6. Schema-typed document metadata
+
+A document metadata field whose **key** is a schema's `ipfs://` URL is
+schema-typed: its value gets the full advisory treatment (dropdowns for
+literal unions, required chips, warning badges) driven by that schema. In the
+document's Metadata view, use the schema button in the header, paste a
+schema's `ipfs://` URL, and the field is created with the URL as its key and
+a starter value shaped by the schema. Values stay within what metadata can
+publish (text, whole numbers, toggles, nested objects).
+
+## 7. Sharp edges to know about
 
 - **Reserved daemon types**: a blob containing a `type` field immediately
   followed by one of the daemon's signed-blob type names (`Comment`, `Change`,
