@@ -1,7 +1,10 @@
 # Walkthrough: schemas for blobs, end to end
 
 A user-level tour of the feature as built. Desktop app only (the underlying
-primitives all work on web, but no web surface exists yet).
+primitives all work on web, but no web surface exists yet). The document
+options entries (New Blob / New Schema) appear behind **Developer Mode**
+(Settings → Developers); the blob/schema editor's own options menu always
+offers them.
 
 ## 1. Create a schema
 
@@ -25,6 +28,10 @@ shown.
 - Pick **Literal Union** for a fixed set of allowed values — typed chips
   where numbers, `true`/`false`, and `null` are detected and quotes force
   text. Instances edit these as dropdowns.
+- Pick **HM Url** or **HM Profile** for hypermedia references. Instances get
+  a search box (documents, or accounts only for profiles) that also accepts a
+  pasted `hm://` URL; a chosen reference displays as its **title**, not the
+  URL. Profiles store the bare `hm://<accountUid>` form.
 - Pick **Union** for a value matching one of several variants. For a tagged
   (discriminated) union of objects, give every variant the same field (e.g.
   `kind`) as a Literal Union with one distinct value — warnings then point

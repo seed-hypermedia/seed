@@ -175,6 +175,22 @@ schema's ipfs:// URL.
       schema hints within what metadata can publish (no lists/floats).
       `useSchemaRegistries` (multi-seed) moved to `@shm/ui` for web parity.
 
+## Phase 7 — Developer Mode, editor entry points, HM reference types — `done`
+
+- [x] **Developer Mode** experiment (Settings → Developers): the document
+      options dropdown offers New Blob / New Schema only with it enabled. The
+      blob/schema editor's own options menu always offers both (it is its own
+      entry point), and pasted `ipfs://` URLs work regardless.
+- [x] **HM Url / HM Profile schema types**, backed by `format: "hm-url"` /
+      `"hm-profile"` on strings (unknown formats remain ignored; meta-schema
+      re-pinned → `bafyreihqpvo…ccta`). hm-profile requires a bare
+      `hm://<accountUid>` URL — a document path warns. Instances edit these
+      with a search-assisted field: conforming values display the resolved
+      document/profile **title** (URL in tooltip), editing searches documents
+      (or accounts only, for profiles — picked profiles commit the bare
+      account URL) or accepts pasted `hm://` URLs, and arbitrary text always
+      commits (advisory warnings, never blocked).
+
 ## Final state
 
 All phases complete. Suites: ui 249, desktop 560, shared 927 — all green;
