@@ -9,8 +9,15 @@ export async function fileUpload(file: File) {
       method: 'POST',
       body: formData,
     })
-    return await response.text()
   } catch (error: any) {
     throw new Error(error)
   }
+  // On failure the daemon returns a non-2xx status with the error in the body.
+  // Guard the status before returning it: otherwise the error text is used as
+  // the CID and ends up baked into a document as `ipfs://<error message>`.
+  const body = await response.text()
+  if (!response.ok) {
+    throw new Error(`File upload failed (${response.status}): ${body}`)
+  }
+  return body
 }

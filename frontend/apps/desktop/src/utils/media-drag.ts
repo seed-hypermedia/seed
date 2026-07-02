@@ -63,6 +63,9 @@ export async function handleDragMedia(file: File) {
       method: 'POST',
       body: formData,
     })
+    if (!response.ok) {
+      throw new Error(`File upload failed (${response.status}): ${await response.text()}`)
+    }
     const data = await response.text()
     return {
       url: data ? `ipfs://${data}` : '',

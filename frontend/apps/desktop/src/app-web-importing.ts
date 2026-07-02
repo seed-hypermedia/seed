@@ -28,7 +28,12 @@ export async function uploadFile(file: Blob | string) {
     method: 'POST',
     body: formData,
   })
+  // Guard the status: on failure the daemon returns a non-2xx with the error in
+  // the body, and returning that text lets it become a `ipfs://<error>` URL.
   const data = await response.text()
+  if (!response.ok) {
+    throw new Error(`File upload failed (${response.status}): ${data}`)
+  }
   return data
 }
 
