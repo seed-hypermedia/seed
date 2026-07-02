@@ -118,6 +118,16 @@ function SchemaNodeEditor({
       {kind === 'union' && <UnionOptions node={node} onNode={onNode} depth={depth} />}
       {kind === 'link' && <LinkOptions node={node} onNode={onNode} />}
       {kind === 'bytes' && <BytesOptions node={node} onNode={onNode} />}
+      {kind === 'hm-url' && (
+        <p className="text-muted-foreground text-xs">
+          A hypermedia document reference — instances pick a document by search or paste an hm:// URL.
+        </p>
+      )}
+      {kind === 'hm-profile' && (
+        <p className="text-muted-foreground text-xs">
+          A hypermedia account reference — instances pick an account by search or paste a bare hm:// account URL.
+        </p>
+      )}
       {kind === 'ref' && <RefOptions node={node} onNode={onNode} />}
     </div>
   )

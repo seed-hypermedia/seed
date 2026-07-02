@@ -30,6 +30,7 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {useSubschema} from './blob-schema-context'
+import {HMEntityField} from './hm-entity-field'
 import {
   EnumValueSelect,
   literalEnumOptions,
@@ -831,7 +832,13 @@ export function ValueEditor({
     )
   }
   if (typeof value === 'string') {
-    return <StringLeafEditor value={value} literalOptions={literalOptions} onValue={onValue} />
+    const hmMode =
+      resolvedSchema?.format === 'hm-profile'
+        ? ('profile' as const)
+        : resolvedSchema?.format === 'hm-url'
+          ? ('document' as const)
+          : undefined
+    return <StringLeafEditor value={value} literalOptions={literalOptions} hmMode={hmMode} onValue={onValue} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -896,13 +903,19 @@ function ScalarLeafEditor({
 function StringLeafEditor({
   value,
   literalOptions,
+  hmMode,
   onValue,
 }: {
   value: string
   literalOptions: LiteralOption[] | undefined
+  /** Schema format hm-url/hm-profile: search-assisted hypermedia reference input. */
+  hmMode?: 'document' | 'profile'
   onValue: (value: unknown) => void
 }) {
   const [editingText, setEditingText] = useState(false)
+  if (hmMode && !editingText) {
+    return <HMEntityField value={value} mode={hmMode} onValue={onValue} />
+  }
   if (literalOptions && !editingText) {
     return (
       <EnumValueSelect
