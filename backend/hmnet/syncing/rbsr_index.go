@@ -190,19 +190,11 @@ func buildStoreFromScopes(conn *sqlite.Conn, scopeIDs []int64, store *authorized
 		return nil
 	}
 
-	idsJSON := make([]byte, 0, len(scopeIDs)*4+2)
-	idsJSON = append(idsJSON, '[')
-	for i, id := range scopeIDs {
-		if i > 0 {
-			idsJSON = append(idsJSON, ',')
-		}
-		idsJSON = strconv.AppendInt(idsJSON, id, 10)
-	}
-	idsJSON = append(idsJSON, ']')
-
 	lookup := blob.NewLookupCache(conn)
 
-	rows, discard, check := sqlitex.Query(conn, qScopeItems(), idsJSON).All()
+	// int64SliceJSON returns a string so :ids binds as TEXT — a []byte would bind
+	// as a BLOB, which SQLite (>=3.45) reads as JSONB and rejects as malformed.
+	rows, discard, check := sqlitex.Query(conn, qScopeItems(), int64SliceJSON(scopeIDs)).All()
 	defer discard(&err)
 	var i int
 	for row := range rows {
@@ -420,8 +412,11 @@ func structuralFactsForBatch(conn *sqlite.Conn, ids []int64) (out []structuralFa
 	return out, err
 }
 
-// int64SliceJSON renders ids as a JSON array for json_each binding.
-func int64SliceJSON(ids []int64) []byte {
+// int64SliceJSON renders ids as a JSON array for json_each binding. It returns a
+// string (not []byte) so the driver binds it as TEXT: SQLite (>=3.45) interprets
+// a BLOB argument to json_each as JSONB, so a []byte would be mis-read as binary
+// JSON and fail with "malformed JSON".
+func int64SliceJSON(ids []int64) string {
 	b := make([]byte, 0, len(ids)*4+2)
 	b = append(b, '[')
 	for i, id := range ids {
@@ -430,5 +425,6 @@ func int64SliceJSON(ids []int64) []byte {
 		}
 		b = strconv.AppendInt(b, id, 10)
 	}
-	return append(b, ']')
+	b = append(b, ']')
+	return unsafeutil.StringFromBytes(b)
 }
