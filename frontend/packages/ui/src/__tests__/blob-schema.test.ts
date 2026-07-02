@@ -474,7 +474,8 @@ describe('hardening: adversarial review fixes', () => {
     expect(validateValue({}, {type: 'object', required: ['toString']}, {})).toHaveLength(1)
     // a declared property named 'constructor' absent from the value must not
     // produce a phantom warning against Object.prototype.constructor
-    expect(validateValue({}, {type: 'object', properties: {constructor: {type: 'string'}}}, {})).toEqual([])
+    const ctorSchema = {type: 'object', properties: {constructor: {type: 'string'}}} as BlobSchema
+    expect(validateValue({}, ctorSchema, {})).toEqual([])
     // additionalProperties:false must catch a real key named like a prototype member
     const warnings = validateValue({toString: 1}, {type: 'object', additionalProperties: false}, {})
     expect(warnings).toHaveLength(1)

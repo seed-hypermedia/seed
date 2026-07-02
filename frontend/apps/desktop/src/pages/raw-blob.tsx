@@ -18,6 +18,7 @@ import {
   type SchemaRegistry,
 } from '@shm/ui/blob-schema'
 import {BlobSchemaProvider, useSchemaWarningCount, useSchemaWarnings} from '@shm/ui/blob-schema-context'
+import {BlobSchemaEditor} from '@shm/ui/blob-schema-editor'
 import {isPlainObject} from '@shm/ui/value-editor'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
@@ -101,6 +102,11 @@ function NewInstanceEditor({schemaCid}: {schemaCid: string}) {
   const schema = isMeta ? BLOB_META_SCHEMA : fetched.rootSchema
   const registry: SchemaRegistry = isMeta ? META_REGISTRY : fetched.registry
 
+  if (isMeta) {
+    // "New Schema": most schemas describe documents, so start as an object —
+    // the schema form opens straight into the fields table.
+    return <BlobEditor initialValue={{schema: {'/': schemaCid}, type: 'object'}} />
+  }
   if (!schema) {
     return <BlobSearching cid={schemaCid} notFoundYet={!fetched.isLoading} />
   }
@@ -177,6 +183,9 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const [jsonMode, setJsonMode] = useState(false)
   const [attachMode, setAttachMode] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  // Schema blobs open in the purpose-built schema form; raw fields remain an
+  // escape hatch for keywords the form doesn't surface.
+  const [rawFieldsMode, setRawFieldsMode] = useState(false)
 
   const history = useValueHistory(value)
   const update = (newValue: unknown) => {
@@ -256,6 +265,14 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       onClick: () => setJsonMode((mode) => !mode),
     },
   ]
+  if (valueIsSchema && !jsonMode) {
+    menuItems.push({
+      key: 'schema-form-mode',
+      label: rawFieldsMode ? 'Edit as Schema Form' : 'Edit as Raw Fields',
+      icon: <FileCode2 className="size-4" />,
+      onClick: () => setRawFieldsMode((mode) => !mode),
+    })
+  }
   // Attach requires a real map value: DAG-JSON link/bytes forms are leaf
   // kinds a `schema` key would corrupt. Hidden in JSON mode — the textarea
   // snapshots the value at open, so a concurrent attach would be silently
@@ -367,6 +384,8 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
                 }}
                 onCancel={() => setJsonMode(false)}
               />
+            ) : valueIsSchema && !rawFieldsMode && isPlainObject(value) ? (
+              <BlobSchemaEditor value={value} onValue={update} />
             ) : (
               <ValueEditor value={value} onValue={update} rules={CBOR_VALUE_RULES} />
             )}
