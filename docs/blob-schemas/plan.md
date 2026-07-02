@@ -146,6 +146,35 @@ was type-sensitive. Replaced with `BlobSchemaEditor`, a dedicated form:
       prefill the default/first option), and required-field chips seed the
       enum head — so enum fields are dropdowns from the moment they exist.
 
+## Phase 6 — Unions & schema-keyed metadata — `done`
+
+Owner asks: unions as first-class schema types (not enum-on-Text), and
+attaching a schema to a *document* as a metadata field whose key is the
+schema's ipfs:// URL.
+
+- [x] **Literal Union** picker type: `enum` with mixed-type members (text,
+      numbers, true/false, null), edited as typed value chips in the schema
+      form (JSON-scalar detection; quotes force text). Instances render
+      member values as dropdowns for string/number/boolean leaves alike,
+      with JSON-quoted labels mapping back to typed literals on commit (and
+      making `""` safely representable). Classification precedence:
+      `$ref` > `kind` > `oneOf` > `enum` > `type`.
+- [x] **Union** picker type: `oneOf` joins the dialect. Advisory validation:
+      clean variant match → silent; **discriminated object unions** (a shared
+      tag property each variant fixes via `const`/one-member `enum` to a
+      distinct literal) recurse into the matching variant for precise
+      warnings; otherwise one summary warning. Unresolved variants are
+      neutral. Refs collected through variants; instantiate uses the first.
+      Schema form edits variants as nested node editors with a tagging tip.
+      Meta-schema re-pinned (`bafyreigui…njle`).
+- [x] **Schema-keyed metadata**: `ipfs://<schemaCid>` as a metadata field key
+      makes the value schema-typed — the metadata view fetches those schemas,
+      synthesizes a root (`$ref` per key), and provides it to the rows;
+      an attach bar in the header stages new schema-keyed fields with
+      instantiated starters (prefetched while typing). Hard-rule guards keep
+      schema hints within what metadata can publish (no lists/floats).
+      `useSchemaRegistries` (multi-seed) moved to `@shm/ui` for web parity.
+
 ## Final state
 
 All phases complete. Suites: ui 249, desktop 560, shared 927 — all green;
