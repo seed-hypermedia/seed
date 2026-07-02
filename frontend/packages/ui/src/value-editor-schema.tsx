@@ -1,5 +1,6 @@
 import {Plus, TriangleAlert} from 'lucide-react'
 import {instantiateAtPath, resolveSubschema, type BlobSchema} from './blob-schema'
+import {schemaKeyCid} from './blob-schema-edit'
 import {useBlobSchema, useSchemaWarnings} from './blob-schema-context'
 import {Button} from './button'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
@@ -131,6 +132,19 @@ export function suggestedFieldType(schema: BlobSchema): SuggestedFieldType | nul
     default:
       return null
   }
+}
+
+/**
+ * The display label for a field key: a schema-keyed field (`ipfs://<cid>`)
+ * shows its schema's TITLE once the schema is loaded; anything else (or an
+ * unloaded schema) returns null and the raw key is shown.
+ */
+export function useSchemaKeyLabel(fieldKey: string): string | null {
+  const ctx = useBlobSchema()
+  const cid = schemaKeyCid(fieldKey)
+  if (!ctx || !cid) return null
+  const schema = ctx.registry[cid]
+  return typeof schema?.title === 'string' && schema.title ? schema.title : null
 }
 
 export type SchemaFieldSuggestion = {
