@@ -8,12 +8,7 @@ import {
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {useRouteLink} from '@shm/shared'
 import {useAddCapabilities, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
-import {
-  useCapabilities,
-  useCollaborators,
-  useSelectedAccountId,
-  useSiteMembers,
-} from '@shm/shared/models/entity'
+import {useCapabilities, useCollaborators, useSelectedAccountId, useSiteMembers} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
