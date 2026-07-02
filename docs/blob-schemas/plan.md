@@ -70,12 +70,27 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
 - [ ] Forbid `"/"` property names in schema authoring (still open — currently
       only documented)
 
-## Phase 4 — Hardening & docs — `in progress`
+## Phase 4 — Hardening & docs — `done`
 
-- [ ] Adversarial review workflow: data-loss paths, validator wrong-warnings,
-      React correctness (hook rules, effect loops in useSchemaRegistry),
-      publish-path correctness — *in flight (first run lost to rate limits,
-      resumed)*
+- [x] Adversarial review workflow (4 review dimensions × per-finding
+      adversarial verification, 27 agents): **20 confirmed findings, all
+      fixed** in commit `7f1340467`; 3 rejected as not-real. Highlights:
+      - *Critical*: an enum containing `""` crashed the whole editor (Radix
+        SelectItem throws) → such enums fall back to free text. An unfindable
+        schema CID threw to the page error boundary after query retries
+        (app-default `useErrorBoundary: true`), destroying unpublished edits
+        → schema fetches and `useCID` never throw to the boundary.
+      - *Major*: ReDoS via a remote schema's `pattern` (`(a+)+$` froze the
+        renderer) → size caps + nested-quantifier heuristic + memoization,
+        skipped patterns are neutral. A late-arriving schema unmounted a
+        focused text input, silently dropping the draft → string leaves latch
+        free-text mode while focused; the enum select gained a "Custom
+        value…" escape hatch.
+      - Plus 16 smaller correctness/UX fixes (prototype-chain-safe property
+        checks, numeric-only bigint equality, `$ref` depth-guard semantics,
+        attach-schema guards for user-owned `schema` fields / link roots /
+        JSON mode, root-warning visibility, registry identity, ref fold-in
+        re-arming). 16 regression tests added.
 - [x] Tests: schema-linked instance encode round-trip; meta-schema pinned CID
       through the publish pipeline; new-schema starter recognized by
       `isSchemaBlob`; route param tests (shared); jsdom rendering tests for
@@ -94,7 +109,14 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
       the collision instead of the opaque Internal error. Never pre-blocks.
       **Verified live**: `{type:"Comment"}` rejected by the daemon with the
       predicted error; JSON-Schema-style `{type:"object"}` stores fine.
-- [ ] Final docs sweep to as-built state; user-facing walkthrough
+- [x] Final docs sweep to as-built state; user-facing walkthrough
+      ([`walkthrough.md`](./walkthrough.md))
+
+## Final state
+
+All phases complete. Suites: ui 240, desktop 548, shared 927 — all green;
+full-workspace typecheck clean. End-to-end verified against a live local
+daemon (publish chain, read-back, validation, collision behavior).
 
 ## Deliberately out of scope (v1)
 

@@ -39,8 +39,9 @@ foundation (value editor, `raw-blob` route, publish path, `.dagjson` daemon endp
 
 ## Status
 
-**Phases 1–3 implemented and committed; phase 4 (hardening) in progress.** See
-[`plan.md`](./plan.md) for live task status. One notable planning outcome: there
+**Complete.** All four phases (core, editor, page integration, hardening) are
+implemented, adversarially reviewed (20 confirmed findings fixed), and verified
+end-to-end against a live daemon. See [`plan.md`](./plan.md) for the record. One notable planning outcome: there
 is **no separate schema-editor page** — a schema is an instance of the built-in
 meta-schema, so the schema editor is the blob editor in schema mode (see the
 decision table in [`architecture.md`](./architecture.md)).
