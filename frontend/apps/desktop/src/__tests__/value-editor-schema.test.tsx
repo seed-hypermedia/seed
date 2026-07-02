@@ -95,17 +95,30 @@ describe('schema-aware value editor rendering', () => {
     expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
-  it('an enum containing "" does not crash the editor (falls back to free text)', () => {
-    // Radix SelectItem throws at render for value="" — such enums must never
-    // reach the select path.
+  it('an enum containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
     const schema: BlobSchema = {
       type: 'object',
       properties: {status: {type: 'string', enum: ['', 'draft']}},
     }
     renderEditor({status: 'draft'}, schema)
+    const combo = container.querySelector('[role="combobox"]')
+    expect(combo).not.toBeNull()
+    expect(combo!.textContent).toContain('"draft"')
+  })
+
+  it('mixed-type literal unions render number members as a dropdown too', () => {
+    const schema: BlobSchema = {
+      type: 'object',
+      properties: {level: {enum: ['low', 1, 2, true]}},
+    }
+    renderEditor({level: 1}, schema)
+    const combo = container.querySelector('[role="combobox"]')
+    expect(combo).not.toBeNull()
+    expect(combo!.textContent).toContain('1')
+    // a non-member number stays a plain input + warning
+    renderEditor({level: 99}, schema)
     expect(container.querySelector('[role="combobox"]')).toBeNull()
-    const inputs = Array.from(container.querySelectorAll('input')).map((el) => el.value)
-    expect(inputs).toContain('draft')
+    expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
   it('an enum with duplicate members falls back to free text', () => {

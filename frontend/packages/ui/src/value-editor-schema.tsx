@@ -25,33 +25,46 @@ export function SchemaWarningBadge({path}: {path: ValuePath}) {
   )
 }
 
-/**
- * True when a subschema declares a usable all-string enum. Empty-string
- * members disqualify the whole enum: Radix's SelectItem throws at render for
- * value="" (which would crash the editor), so such enums keep the free-text
- * input and rely on the warning badge. Duplicates are also rejected (they
- * would produce duplicate React keys).
- */
-export function isStringEnumSchema(schema: BlobSchema): schema is BlobSchema & {enum: string[]} {
-  return (
-    Array.isArray(schema.enum) &&
-    schema.enum.length > 0 &&
-    schema.enum.every((option) => typeof option === 'string' && option !== '') &&
-    new Set(schema.enum).size === schema.enum.length
-  )
+export type LiteralOption = {label: string; value: unknown}
+
+function literalLabel(value: unknown): string {
+  return typeof value === 'string' ? JSON.stringify(value) : String(value)
 }
 
-// Sentinel for the escape-hatch item; the NUL prefix cannot appear in a validated
-// enum (isStringEnumSchema requires plain non-empty strings, and a member
-// equal to this exact string would simply shadow the escape hatch).
+/**
+ * The dropdown options for a literal-union subschema, or null when the enum
+ * isn't dropdown-safe. Members may be mixed scalars (string/number/boolean/
+ * null). Disqualifiers: non-scalar members, an empty label (Radix's
+ * SelectItem throws at render for value=""), or duplicate labels (ambiguous
+ * mapping + duplicate React keys) — those enums keep the free-form inputs and
+ * rely on the warning badge.
+ */
+export function literalEnumOptions(schema: BlobSchema): LiteralOption[] | null {
+  if (!Array.isArray(schema.enum) || schema.enum.length === 0) return null
+  const options: LiteralOption[] = []
+  for (const member of schema.enum) {
+    const scalar =
+      member === null || typeof member === 'string' || typeof member === 'number' || typeof member === 'boolean'
+    if (!scalar) return null
+    const label = literalLabel(member)
+    if (label === '') return null
+    options.push({label, value: member})
+  }
+  if (new Set(options.map((option) => option.label)).size !== options.length) return null
+  return options
+}
+
+// Sentinel for the escape-hatch item; a NUL prefix cannot survive
+// literalLabel (strings are JSON-quoted), so no member can shadow it.
 const EDIT_AS_TEXT = '\u0000edit-as-text'
 
 /**
- * Select rendered in place of the free-text input when the current value is a
- * member of the schema's enum. Values outside the enum keep free text plus a
+ * Select rendered in place of the plain input when the current value is a
+ * member of the schema's literal union. Options may be mixed scalars —
+ * committing maps the label back to the typed literal (string/number/
+ * boolean/null). Values outside the union keep the free-form input plus a
  * warning badge — never coerced. The last item is an escape hatch back to
- * free-text editing, so the schema never removes the ability to type an
- * arbitrary value.
+ * free editing, so the schema never removes the ability to type.
  */
 export function EnumValueSelect({
   value,
@@ -59,17 +72,19 @@ export function EnumValueSelect({
   onValue,
   onEditAsText,
 }: {
-  value: string
-  options: string[]
+  value: unknown
+  options: LiteralOption[]
   onValue: (value: unknown) => void
   onEditAsText: () => void
 }) {
+  const current = options.find((option) => option.value === value)
   return (
     <Select
-      value={value}
+      value={current?.label ?? ''}
       onValueChange={(next) => {
-        if (next === EDIT_AS_TEXT) onEditAsText()
-        else onValue(next)
+        if (next === EDIT_AS_TEXT) return onEditAsText()
+        const chosen = options.find((option) => option.label === next)
+        if (chosen) onValue(chosen.value)
       }}
     >
       <SelectTrigger className="w-fit min-w-28">
@@ -77,8 +92,8 @@ export function EnumValueSelect({
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
+          <SelectItem key={option.label} value={option.label}>
+            {option.label}
           </SelectItem>
         ))}
         <SelectItem value={EDIT_AS_TEXT} className="text-muted-foreground">
@@ -96,6 +111,9 @@ export type SuggestedFieldType = 'text' | 'number' | 'toggle' | 'object' | 'list
 export function suggestedFieldType(schema: BlobSchema): SuggestedFieldType | null {
   if (schema.kind === 'link') return 'link'
   if (schema.kind === 'bytes') return 'bytes'
+  // Literal unions route through the text form; its value input becomes a
+  // dropdown of the options and the commit maps back to the typed literal.
+  if (literalEnumOptions(schema)) return 'text'
   switch (schema.type) {
     case 'string':
       return 'text'

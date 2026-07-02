@@ -4,6 +4,8 @@ import type {BlobSchema} from './blob-schema'
 import {
   addProperty,
   isRequiredProperty,
+  literalLabel,
+  parseLiteralInput,
   removeProperty,
   renameProperty,
   SCHEMA_NODE_KIND_LABELS,
@@ -21,6 +23,10 @@ import {isDagJsonLink, parseCidString} from './dag-json'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+
+function isRecord(value: unknown): value is BlobSchema {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
 
 /**
  * Purpose-built form for authoring Seed Blob Schemas — the schema editor is
@@ -105,9 +111,11 @@ function SchemaNodeEditor({
       </div>
       {kind === 'object' && <ObjectOptions node={node} onNode={onNode} depth={depth} />}
       {kind === 'text' && <TextOptions node={node} onNode={onNode} />}
+      {kind === 'literals' && <LiteralsOptions node={node} onNode={onNode} />}
       {(kind === 'integer' || kind === 'number') && <NumberOptions node={node} onNode={onNode} />}
       {kind === 'toggle' && <ToggleOptions node={node} onNode={onNode} />}
       {kind === 'list' && <ListOptions node={node} onNode={onNode} depth={depth} />}
+      {kind === 'union' && <UnionOptions node={node} onNode={onNode} depth={depth} />}
       {kind === 'link' && <LinkOptions node={node} onNode={onNode} />}
       {kind === 'bytes' && <BytesOptions node={node} onNode={onNode} />}
       {kind === 'ref' && <RefOptions node={node} onNode={onNode} />}
@@ -360,7 +368,6 @@ function AddPropertyForm({parent, onParent}: {parent: BlobSchema; onParent: (par
 function TextOptions({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchema) => void}) {
   return (
     <div className="flex flex-col gap-2">
-      <EnumChips node={node} onNode={onNode} />
       <div className="flex flex-wrap items-end gap-3">
         <LabeledField label="Min length">
           <IntField
@@ -394,33 +401,41 @@ function TextOptions({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchem
   )
 }
 
-/** Tag-style editor for a string enum ("Options"). */
-function EnumChips({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchema) => void}) {
+/**
+ * Literal Union: the value must be one of these fixed literals — instances
+ * pick from a dropdown. Literals may mix types: numbers, true/false, and
+ * null are detected as typed; anything else is text (use "quotes" to force
+ * a numeric-looking string).
+ */
+function LiteralsOptions({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchema) => void}) {
   const [draft, setDraft] = useState('')
-  const options = Array.isArray(node.enum)
-    ? node.enum.filter((option): option is string => typeof option === 'string')
-    : []
+  const options = Array.isArray(node.enum) ? node.enum : []
   const commit = () => {
     const text = draft.trim()
-    if (!text || options.includes(text)) return
-    onNode(setSchemaKeyword(node, 'enum', [...options, text]))
+    if (!text) return
+    const literal = parseLiteralInput(text)
+    if (options.some((existing) => existing === literal)) return
+    onNode(setSchemaKeyword(node, 'enum', [...options, literal]))
     setDraft('')
   }
   return (
-    <LabeledField label="Options" hint="Leave empty for free text; instances pick from these in a dropdown">
+    <LabeledField
+      label="Allowed values"
+      hint='Numbers, true/false, and null are detected; anything else is text. Use "quotes" to force text.'
+    >
       <div className="flex flex-wrap items-center gap-1">
-        {options.map((option) => (
+        {options.map((option, index) => (
           <span
-            key={option}
+            key={`${literalLabel(option)}-${index}`}
             className="bg-accent text-accent-foreground flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2 font-mono text-xs"
           >
-            {option}
+            {literalLabel(option)}
             <button
-              aria-label={`Remove option ${option}`}
+              aria-label={`Remove value ${literalLabel(option)}`}
               className="hover:text-destructive"
               onClick={() => {
-                const remaining = options.filter((existing) => existing !== option)
-                onNode(setSchemaKeyword(node, 'enum', remaining.length > 0 ? remaining : undefined))
+                const remaining = options.filter((_, existingIndex) => existingIndex !== index)
+                onNode(setSchemaKeyword(node, 'enum', remaining))
               }}
             >
               <X className="size-3" />
@@ -429,8 +444,8 @@ function EnumChips({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchema)
         ))}
         <Input
           value={draft}
-          placeholder="Add option…"
-          className="h-7 w-32 text-xs"
+          placeholder="Add value…"
+          className="h-7 w-36 text-xs"
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
@@ -440,6 +455,66 @@ function EnumChips({node, onNode}: {node: BlobSchema; onNode: (node: BlobSchema)
         />
       </div>
     </LabeledField>
+  )
+}
+
+/**
+ * Union: the value must match one of the variant subschemas. For a
+ * discriminated union of objects, give each variant a shared tag field
+ * declared as a Literal Union with a single distinct value — the validator
+ * then reports precise warnings for the matching variant.
+ */
+function UnionOptions({node, onNode, depth}: {node: BlobSchema; onNode: (node: BlobSchema) => void; depth: number}) {
+  const variants = Array.isArray(node.oneOf) ? node.oneOf : []
+  const setVariants = (next: BlobSchema[]) => onNode(setSchemaKeyword(node, 'oneOf', next))
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="border-border ml-1 flex flex-col gap-3 border-l-2 pl-3">
+        {variants.map((variant, index) => (
+          <div key={index} className="group/variant flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium">Variant {index + 1}</span>
+              <span className="flex-1" />
+              {variants.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  aria-label={`Remove variant ${index + 1}`}
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-focus-within/variant:opacity-100 group-hover/variant:opacity-100"
+                  onClick={() => setVariants(variants.filter((_, existingIndex) => existingIndex !== index))}
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+            <div className="border-border ml-1 border-l-2 pl-3">
+              <SchemaNodeEditor
+                node={isRecord(variant) ? variant : {}}
+                onNode={(next) =>
+                  setVariants(variants.map((existing, existingIndex) => (existingIndex === index ? next : existing)))
+                }
+                depth={depth + 1}
+              />
+            </div>
+          </div>
+        ))}
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground h-6 px-1 text-xs"
+            onClick={() => setVariants([...variants, {type: 'object'}])}
+          >
+            <Plus className="size-3" />
+            Add variant
+          </Button>
+        </div>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Tip: for a tagged union of objects, give every variant the same field (e.g. “kind”) as a Literal Union with one
+        distinct value.
+      </p>
+    </div>
   )
 }
 

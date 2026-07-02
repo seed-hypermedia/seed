@@ -7,6 +7,7 @@ import {
   BLOB_META_SCHEMA_CID,
   BlobSchema,
   collectSchemaRefs,
+  findDiscriminator,
   instantiateAtPath,
   instantiateSchema,
   isSchemaBlob,
@@ -538,5 +539,73 @@ describe('hardening: adversarial review fixes', () => {
     // the old path (instantiating the resolved subschema as its own root) lost the ref
     const sub = resolveSubschema(root, ['author'], {}) as BlobSchema
     expect(instantiateSchema(sub, {})).toEqual({})
+  })
+})
+
+describe('oneOf unions', () => {
+  const CIRCLE: BlobSchema = {
+    type: 'object',
+    required: ['kind', 'radius'],
+    properties: {kind: {enum: ['circle']}, radius: {type: 'number'}},
+  }
+  const SQUARE: BlobSchema = {
+    type: 'object',
+    required: ['kind', 'side'],
+    properties: {kind: {const: 'square'}, side: {type: 'number'}},
+  }
+  const SHAPE: BlobSchema = {oneOf: [CIRCLE, SQUARE]}
+
+  test('a clean variant match produces no warnings', () => {
+    expect(validateValue({kind: 'circle', radius: 2}, SHAPE, {})).toEqual([])
+    expect(validateValue({kind: 'square', side: 3}, SHAPE, {})).toEqual([])
+  })
+
+  test('mixed-type literal unions validate any member', () => {
+    const schema: BlobSchema = {enum: ['draft', 42, true, null]}
+    expect(validateValue('draft', schema, {})).toEqual([])
+    expect(validateValue(42, schema, {})).toEqual([])
+    expect(validateValue(true, schema, {})).toEqual([])
+    expect(validateValue(null, schema, {})).toEqual([])
+    expect(validateValue('other', schema, {})).toHaveLength(1)
+  })
+
+  test('discriminated mismatch recurses into the tagged variant', () => {
+    const warnings = validateValue({kind: 'circle', radius: 'big'}, SHAPE, {})
+    expect(warnings.some((warning) => warning.path.join('.') === 'radius')).toBe(true)
+    expect(warnings.some((warning) => warning.keyword === 'oneOf')).toBe(false)
+  })
+
+  test('no variant match yields one gentle summary warning', () => {
+    const warnings = validateValue({kind: 'triangle'}, SHAPE, {})
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.keyword).toBe('oneOf')
+  })
+
+  test('an unresolved variant makes the union check neutral', () => {
+    const schema: BlobSchema = {oneOf: [{$ref: {'/': 'bafyMissing'}}, CIRCLE]}
+    expect(validateValue({kind: 'nope'}, schema, {})).toEqual([])
+  })
+
+  test('external-ref variants resolve through the registry', () => {
+    const registry: SchemaRegistry = {bafyCircle: CIRCLE}
+    const schema: BlobSchema = {oneOf: [{$ref: {'/': 'bafyCircle'}}, SQUARE]}
+    expect(validateValue({kind: 'circle', radius: 1}, schema, registry)).toEqual([])
+    const warnings = validateValue({kind: 'circle', radius: 'big'}, schema, registry)
+    expect(warnings.some((warning) => warning.path.join('.') === 'radius')).toBe(true)
+  })
+
+  test('collectSchemaRefs walks oneOf variants', () => {
+    const schema: BlobSchema = {oneOf: [{$ref: {'/': 'bafyA'}}, {properties: {x: {$ref: {'/': 'bafyB'}}}}]}
+    expect(collectSchemaRefs(schema, {}).sort()).toEqual(['bafyA', 'bafyB'])
+  })
+
+  test('instantiateSchema materializes the first variant', () => {
+    expect(instantiateSchema(SHAPE, {})).toEqual({kind: 'circle', radius: 0})
+  })
+
+  test('findDiscriminator finds the shared tag and rejects non-distinct tags', () => {
+    expect(findDiscriminator([CIRCLE, SQUARE])).toBe('kind')
+    expect(findDiscriminator([CIRCLE, CIRCLE])).toBeUndefined()
+    expect(findDiscriminator([{type: 'string'} as BlobSchema, SQUARE])).toBeUndefined()
   })
 })
