@@ -11,7 +11,7 @@ and [`schema-dialect.md`](./schema-dialect.md) for what schemas can express.
 | Validator | **Hand-rolled subset validator**, pure module, no new deps | The editor needs a subschema-at-path *navigator* anyway (for type suggestions); once you have the walker the validator is a thin pass. ajv is a phantom dep here (only transitively via MCP SDK), uses `new Function` codegen (CSP hazard for web, which shares `@shm/ui`), rejects our `kind` keyword in strict mode, and its magic `$ref` resolution fights our pre-fetched ipfs refs. `@cfworker/json-schema` has no custom-keyword API. In-repo precedent exists: `api-lab.ts` already hand-walks JSON Schema (`resolveSchemaNode`, `createStarterPayload`). |
 | Validation posture | **Advisory only** — multi-error warnings, never blocking | Product invariant: schema-violating data is warned about, kept editable, publishable. The existing `findInvalidValue` stays untouched as the *hard* structural gate (what CBOR can encode); schema warnings are a parallel *soft* channel. Never wired into paste/JSON-apply rejection paths. |
 | `$ref` resolution | **Pre-fetched registry, sync validation** | External refs are IPLD links fetched via the existing `/ipfs/{cid}.dagjson` path (react-query, cached forever — immutable content). The validator receives `Record<cid, schema>` and stays pure/sync. Unresolved ref = neutral "schema loading/unknown", never a warning. |
-| Schema editor | **No new route** — the `raw-blob` page grows a schema mode | A schema is an instance of the meta-schema, so the schema editor *is* the blob editor with the meta-schema attached, plus schema-specific chrome (title, "New instance" action). Avoids: a new route key (window-state downgrade risk), and the unsolvable routing ambiguity — `ipfsUrlToRoute` decides synchronously from the CID codec alone, and schema blobs share codec 0x71 with every other DAG-CBOR blob. Detection happens post-load in the page. A dedicated route can be added later as pure presentation. |
+| Schema editor | **No new route** — the `raw-blob` page grows a schema mode with a **purpose-built form** | Routing: a schema is detected post-load (an instance of the meta-schema), avoiding a new route key and the codec-only routing ambiguity. UI: schema blobs render `BlobSchemaEditor` — a dedicated form where every dialect keyword has a permanent, type-sensitive control (a type picker drives per-type option panels; `additionalProperties` only appears for object schemas; enum chips, bounds, `$defs` management). The generic value editor remains as the "Edit as Raw Fields" escape hatch, and both edit the same plain dialect value — the form preserves keywords it doesn't own. |
 | Attachment | Plain `schema` key holding a DAG-JSON link, stored *in the value* | Rides through undo history, JSON mode, copy/paste, dirty-check, and publish (`dagJsonToIpld` already converts it to a tag-42 link) with zero new machinery. Daemon-safe: indexers only byte-match `"type"+<KnownType>`, nothing keys off `schema`. |
 | New instance | **Materialize defaults into a concrete value** at creation, passed via a `schemaCid` route param | The value editor's dispatch is value-driven — it cannot render an input for a field absent from the value. So "new instance" builds `{schema: {"/": cid}, ...defaults}` up front (extending the `createStarterPayload` idea from `api-lab.ts`). |
 
@@ -21,11 +21,15 @@ and [`schema-dialect.md`](./schema-dialect.md) for what schemas can express.
 frontend/packages/ui/src/
   blob-schema.ts            ← pure core: dialect types, subschema walker,
                               validator, instantiator, isSchemaBlob, meta-schema
+  blob-schema-edit.ts       ← pure form-editing helpers: node kind mapping,
+                              required/property/keyword patch operations
+  blob-schema-editor.tsx    ← the purpose-built schema form (type picker,
+                              per-type panels, fields table, $defs section)
   blob-schema-context.tsx   ← SchemaContext + provider glue for the value editor
   value-editor.tsx          ← surgical schema-aware touches (badges, enum select,
                               add-field constraints, required chips)
-  dag-json.ts               ← unchanged; its predicates are the kind checks
-  __tests__/blob-schema.test.ts
+  dag-json.ts               ← + findSeedIndexerCollision; predicates are the kind checks
+  __tests__/blob-schema.test.ts, blob-schema-edit.test.ts
 
 frontend/apps/desktop/src/
   models/blob-schema.ts     ← useSchemaRegistry: fetch schema + transitive $refs

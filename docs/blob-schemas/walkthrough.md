@@ -5,21 +5,29 @@ primitives all work on web, but no web surface exists yet).
 
 ## 1. Create a schema
 
-Document options dropdown → **New Schema**. This opens the blob editor seeded
-with a `schema` link to the built-in **meta-schema** — meaning the editor
-already knows the vocabulary of schemas and helps you author one:
+Document options dropdown → **New Schema**. This opens a **purpose-built
+schema form** (not the generic field editor): every schema attribute has a
+permanent control, and only the controls relevant to the current type are
+shown.
 
-- The add-field form suggests schema keywords (`title`, `type`, `properties`,
-  `required`, `enum`, …) with the right input types.
-- `type` values render as a select (`null`/`boolean`/`integer`/`number`/
-  `string`/`array`/`object`); `kind` offers `link`/`bytes` for IPLD fields.
-- Anything the meta-schema doesn't recognize just gets a gentle amber badge —
-  you can author whatever you want.
+- **Title** and **Description** sit at the top.
+- **"Schema of"** picks what the schema describes: Object, Text, Whole number,
+  Number, Toggle, List, Link, Bytes, Null, Reference, or Any.
+- Pick **Object** (the default for a new schema) and you get a **fields
+  table**: add fields by name + type, rename inline, expand a row to edit its
+  label, help text, and type-specific options, toggle **Required** per field,
+  and flip **"Allow fields beyond the ones declared above"**
+  (`additionalProperties` — this switch only exists on object schemas).
+- Pick **Text** and you get **Options** (enum chips — instances then get a
+  dropdown), length bounds, a pattern, and a default. Numbers get min/max;
+  Lists get an "each item" sub-form; **Link** gets an optional target schema
+  CID; **Bytes** gets a max size; **Reference** takes `#/$defs/Name` or
+  another schema's CID.
+- A **Definitions** section manages reusable `$defs` at the root.
 
-Describe your data under `properties`, list `required` keys, add `enum`s,
-bounds, `default`s. For IPLD fields use `kind: "link"` (optionally with
-`targetSchema` linking another schema blob) or `kind: "bytes"` (optionally
-`maxBytes`).
+The form is a view over the plain dialect value: anything it doesn't surface
+is preserved untouched, and the options menu offers **Edit as Raw Fields**
+and **Edit as JSON** for full access.
 
 Hit **Publish**. The schema is encoded as canonical DAG-CBOR, stored on your
 node under its `ipfs://CID` URL (shown in the omnibar, copyable from the
