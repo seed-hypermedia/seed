@@ -21,6 +21,8 @@ export type SchemaNodeKind =
   | 'union'
   | 'link'
   | 'bytes'
+  | 'hm-url'
+  | 'hm-profile'
   | 'null'
   | 'ref'
   | 'any'
@@ -36,6 +38,8 @@ export const SCHEMA_NODE_KIND_LABELS: Record<SchemaNodeKind, string> = {
   union: 'Union',
   link: 'Link',
   bytes: 'Bytes',
+  'hm-url': 'HM Url',
+  'hm-profile': 'HM Profile',
   null: 'Null',
   ref: 'Reference',
   any: 'Any',
@@ -53,6 +57,8 @@ export const SCHEMA_NODE_KINDS: SchemaNodeKind[] = [
   'union',
   'link',
   'bytes',
+  'hm-url',
+  'hm-profile',
   'null',
   'ref',
   'any',
@@ -70,6 +76,8 @@ export function schemaNodeKind(node: BlobSchema): SchemaNodeKind {
   if (node.kind === 'bytes') return 'bytes'
   if (Array.isArray(node.oneOf)) return 'union'
   if (Array.isArray(node.enum)) return 'literals'
+  if (node.format === 'hm-url') return 'hm-url'
+  if (node.format === 'hm-profile') return 'hm-profile'
   switch (node.type) {
     case 'object':
       return 'object'
@@ -104,6 +112,7 @@ export function setSchemaNodeKind(node: BlobSchema, kind: SchemaNodeKind): BlobS
   delete next.$ref
   delete next.oneOf
   delete next.enum
+  delete next.format
   switch (kind) {
     case 'object':
       next.type = 'object'
@@ -138,6 +147,14 @@ export function setSchemaNodeKind(node: BlobSchema, kind: SchemaNodeKind): BlobS
       break
     case 'bytes':
       next.kind = 'bytes'
+      break
+    case 'hm-url':
+      next.type = 'string'
+      next.format = 'hm-url'
+      break
+    case 'hm-profile':
+      next.type = 'string'
+      next.format = 'hm-profile'
       break
     case 'ref':
       next.$ref = typeof node.$ref === 'string' || isDagJsonLink(node.$ref) ? node.$ref : ''

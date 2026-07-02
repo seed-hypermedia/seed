@@ -609,3 +609,35 @@ describe('oneOf unions', () => {
     expect(findDiscriminator([{type: 'string'} as BlobSchema, SQUARE])).toBeUndefined()
   })
 })
+
+describe('hm formats', () => {
+  test('hm-url accepts any hm:// reference, warns otherwise', () => {
+    const schema: BlobSchema = {type: 'string', format: 'hm-url'}
+    expect(validateValue('hm://z6Mkv5nGGGwSRRp5t9Q9Wf2xgV1n9y8mYw1a5cW1w6nUqV4d/some/path', schema, {})).toEqual([])
+    expect(validateValue('hm://z6Mkv5nGGGwSRRp5t9Q9Wf2xgV1n9y8mYw1a5cW1w6nUqV4d', schema, {})).toEqual([])
+    const warnings = validateValue('not a url', schema, {})
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]!.keyword).toBe('format')
+  })
+
+  test('hm-profile requires a bare account URL with no path', () => {
+    const schema: BlobSchema = {type: 'string', format: 'hm-profile'}
+    expect(validateValue('hm://z6Mkv5nGGGwSRRp5t9Q9Wf2xgV1n9y8mYw1a5cW1w6nUqV4d', schema, {})).toEqual([])
+    const withPath = validateValue('hm://z6Mkv5nGGGwSRRp5t9Q9Wf2xgV1n9y8mYw1a5cW1w6nUqV4d/blog', schema, {})
+    expect(withPath).toHaveLength(1)
+    expect(withPath[0]!.message).toContain('bare account URL')
+  })
+
+  test('unknown formats are ignored', () => {
+    expect(validateValue('anything', {type: 'string', format: 'email'}, {})).toEqual([])
+  })
+
+  test('instantiate omits hm-format fields (a reference cannot be fabricated)', () => {
+    const schema: BlobSchema = {
+      type: 'object',
+      required: ['author', 'title'],
+      properties: {author: {type: 'string', format: 'hm-profile'}, title: {type: 'string'}},
+    }
+    expect(instantiateSchema(schema, {})).toEqual({title: ''})
+  })
+})

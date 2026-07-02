@@ -1,3 +1,4 @@
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {DagJsonLink, isDagJsonBytes, isDagJsonLink} from './dag-json'
 import type {ValuePath} from './value-editor'
 
@@ -39,6 +40,10 @@ export type BlobSchema = {
   minLength?: number
   maxLength?: number
   pattern?: string
+  // Known string formats: 'hm-url' (any hm:// document reference) and
+  // 'hm-profile' (a bare hm://<accountUid> URL, no path). Unknown formats
+  // are ignored (annotation semantics, like the rest of the dialect).
+  format?: string
   $defs?: Record<string, BlobSchema>
   // Union: the value must match one of these variants. Discriminated object
   // unions (a shared tag property with a distinct const/single-enum literal
@@ -561,6 +566,17 @@ function validateNode(
       const verdict = testPattern(schema.pattern, value)
       if (verdict === false) warn('does not match the required pattern', 'pattern')
     }
+    if (schema.format === 'hm-url' || schema.format === 'hm-profile') {
+      const unpacked = unpackHmId(value)
+      if (!unpacked) {
+        warn(
+          schema.format === 'hm-profile' ? 'expected a profile (hm:// URL)' : 'expected a document (hm:// URL)',
+          'format',
+        )
+      } else if (schema.format === 'hm-profile' && unpacked.path?.length) {
+        warn('expected a bare account URL (no document path)', 'format')
+      }
+    }
   }
 
   const numeric = asFiniteNumber(value)
@@ -622,8 +638,9 @@ function instantiateNode(
     return instantiateNode(node.oneOf[0] as BlobSchema, root, registry, visited, depth + 1)
   }
 
-  // Can't fabricate a real CID or bytes payload.
+  // Can't fabricate a real CID, bytes payload, or hm:// reference.
   if (node.kind === 'link' || node.kind === 'bytes') return undefined
+  if (node.format === 'hm-url' || node.format === 'hm-profile') return undefined
 
   switch (node.type) {
     case 'string':
@@ -738,6 +755,12 @@ export const BLOB_META_SCHEMA: BlobSchema = {
     minLength: {type: 'integer', title: 'Min length', minimum: 0},
     maxLength: {type: 'integer', title: 'Max length', minimum: 0},
     pattern: {type: 'string', title: 'Pattern', description: 'An ECMAScript regular expression (unanchored).'},
+    format: {
+      type: 'string',
+      title: 'Format',
+      description: 'A known string format: hm-url (document reference) or hm-profile (bare account URL).',
+      enum: ['hm-url', 'hm-profile'],
+    },
     oneOf: {
       type: 'array',
       title: 'Union variants',
@@ -761,7 +784,7 @@ export const SCHEMA_KEYWORDS: string[] = Object.keys(BLOB_META_SCHEMA.properties
  * can't contain its own CID; blob-schema.test.ts re-derives it from
  * BLOB_META_SCHEMA and asserts equality so this can never silently drift.
  */
-export const BLOB_META_SCHEMA_CID = 'bafyreigui6zgijfpiqa7y35bp55bwc7q2debrhdphxwrleohax6j2unjle'
+export const BLOB_META_SCHEMA_CID = 'bafyreihqpvo4ucogztowxwrwaym6wh3awqdlcf3vu3q5dv4633wrqbccta'
 
 /**
  * A blob is a schema iff its reserved `schema` key is a DAG-JSON link to the
