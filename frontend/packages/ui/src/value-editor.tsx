@@ -1067,6 +1067,7 @@ export function ObjectEditor({
       <SchemaFieldChips
         path={path}
         existingKeys={Object.keys(value)}
+        rules={rules}
         onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
       />
       <AddFieldForm
