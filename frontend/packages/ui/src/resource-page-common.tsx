@@ -102,7 +102,7 @@ import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
-import {GotoLatestBanner, SiteHeader} from './site-header'
+import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
@@ -124,6 +124,20 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
 /** Returns a stable key for the exact document resource being viewed, including version state. */
 export function getDocumentResourceRouteKey(id: UnpackedHypermediaId): string {
   return `${id.id}@${id.version ?? ''}@${id.latest ? 'latest' : ''}`
+}
+
+/** Returns the current route pointed at the latest document version while preserving route UI state. */
+export function getLatestRouteForCurrentDocumentRoute(route: NavRoute): NavRoute {
+  if (!('id' in route) || typeof route.id !== 'object' || route.id === null) return route
+
+  return {
+    ...route,
+    id: {
+      ...route.id,
+      version: null,
+      latest: true,
+    },
+  } as NavRoute
 }
 
 export type ActiveView =
@@ -1226,6 +1240,25 @@ function DocumentBody({
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
 
+  useEffect(() => {
+    if (isLatest) return
+
+    const toastId = `older-version-linked:${docId.id}:${docId.version ?? document.version ?? ''}`
+    toast('Older version linked', {
+      id: toastId,
+      description: 'The author has published updates since this document version was created',
+      duration: 10_000,
+      position: 'bottom-right',
+      action: {
+        label: 'Go to latest',
+        onClick: () => {
+          replaceRoute(getLatestRouteForCurrentDocumentRoute(route))
+          toast.dismiss(toastId)
+        },
+      },
+    })
+  }, [docId.id, docId.version, document.version, isLatest, replaceRoute, route])
+
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
@@ -2038,7 +2071,6 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
-          <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
           {mainPageContent}
           {floatingButtonsAction}
         </div>
@@ -2116,7 +2148,6 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
-        <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
         {/* Floating action buttons — when editing, show editing toolbar;
             when a draft exists but not editing, show draft toolbar (publish + menu);
             otherwise show the options menu */}

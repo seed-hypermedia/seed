@@ -1,4 +1,4 @@
-import {hmId} from '@shm/shared'
+import {hmId, type NavRoute} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
@@ -8,6 +8,7 @@ import {
   getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
   getDocumentContentAction,
+  getLatestRouteForCurrentDocumentRoute,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -110,6 +111,46 @@ describe('getDocumentContentAction', () => {
         actionButtons: 'options-actions',
       }),
     ).toBeNull()
+  })
+})
+
+describe('getLatestRouteForCurrentDocumentRoute', () => {
+  it('removes the route document version while preserving other route params', () => {
+    const route: Extract<NavRoute, {key: 'comments'}> = {
+      key: 'comments',
+      id: hmId('alice', {
+        path: ['doc'],
+        version: 'old-version',
+        latest: false,
+        blockRef: 'block-1',
+      }),
+      openComment: 'alice/comment-tsid',
+      width: 420,
+      panel: {
+        key: 'activity',
+        id: hmId('alice', {path: ['doc'], version: 'panel-version'}),
+        filterEventType: ['Change'],
+      },
+    }
+
+    const nextRoute = getLatestRouteForCurrentDocumentRoute(route)
+    if (!('id' in nextRoute)) throw new Error('Expected route with document id')
+
+    expect(nextRoute).toMatchObject({
+      key: 'comments',
+      openComment: 'alice/comment-tsid',
+      width: 420,
+      panel: route.panel,
+    })
+    expect(nextRoute.id).toMatchObject({
+      uid: 'alice',
+      path: ['doc'],
+      blockRef: 'block-1',
+      version: null,
+      latest: true,
+    })
+    expect(route.id.version).toBe('old-version')
+    expect(route.id.latest).toBe(false)
   })
 })
 

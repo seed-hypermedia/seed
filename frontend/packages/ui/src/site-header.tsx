@@ -6,12 +6,11 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, NavRoute, SearchResult, useRouteLink, useValidatedWebRouteLink} from '@shm/shared'
-import {useTxString, useTxUtils} from '@shm/shared/translation'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
-import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
+import {ChevronDown, Close, Menu} from './icons'
 import {SmallListItem} from './list-item'
 import {useResponsiveItems} from './use-responsive-items'
 
@@ -587,53 +586,6 @@ export function MobileMenu({
       </ScrollArea>
     </div>
   )
-}
-
-export function GotoLatestBanner({
-  isLatest = true,
-  id,
-  document,
-}: {
-  isLatest: boolean
-  id: UnpackedHypermediaId
-  document: HMDocument
-}) {
-  const [hideVersionBanner, setHideVersionBanner] = useState(false)
-
-  const tx = useTxString()
-  const {formattedDateLong} = useTxUtils()
-  const show = useMemo(() => {
-    if (hideVersionBanner) return false
-    return !isLatest
-  }, [isLatest, hideVersionBanner])
-
-  const latestLinkProps = useRouteLink({
-    key: 'document',
-    id: {
-      ...id,
-      latest: true,
-      version: null,
-    },
-  })
-
-  return show ? (
-    <div className={cn('pointer-events-none absolute top-3 right-0 left-0 z-50 flex w-full justify-center px-4')}>
-      <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
-        <Button variant="ghost" size="icon" onClick={() => setHideVersionBanner(true)}>
-          <X color="var(--color-muted-foreground)" size={20} />
-        </Button>
-        <p className="text-muted-foreground text-sm" suppressHydrationWarning>
-          {tx('version_from', ({date}: {date: string}) => `Version from ${date}`, {
-            date: formattedDateLong(document.updateTime),
-          })}
-        </p>
-        <Button variant="outline" size="sm" {...latestLinkProps}>
-          <span className="text-muted-foreground">{tx('Go to Latest')}</span>
-          <ArrowRight color="var(--color-muted-foreground)" size={20} />
-        </Button>
-      </div>
-    </div>
-  ) : null
 }
 
 export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'
