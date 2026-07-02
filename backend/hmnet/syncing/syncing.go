@@ -438,6 +438,15 @@ type Service struct {
 	// connection. Started lazily via globalPersistFeeder; lives for the process.
 	persistOnce   sync.Once
 	persistFeeder *persistFeeder
+
+	// inflight is a daemon-wide claim on blocks currently being fetched, keyed by
+	// multihash. The per-task claimedBlocks dedups the shared session's fan-out
+	// within one discovery; inflight extends that ACROSS concurrent discoveries so
+	// two tasks don't each pull the same not-yet-persisted block over the network
+	// (the dominant `exists` waste). A CID is claimed just before its tier fetch
+	// and released when that fetch returns; anything skipped is persisted by the
+	// owning task or re-driven next discovery cycle.
+	inflight sync.Map
 }
 
 // authInfo holds pre-computed authentication information for syncing.
@@ -1047,7 +1056,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
 
-	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, eids, blobTypes, filteredStore, prog, claimedBlocks, &lastPhase, connCachedBefore, pf)
+	return syncResources(ctx, pid, c, s.index, s.classifyMediaTiers, bswap, s.log, eids, blobTypes, filteredStore, prog, claimedBlocks, &s.inflight, &lastPhase, connCachedBefore, pf)
 }
 
 // classifySyncOutcome maps a (phase, err) pair to a counter label.
@@ -1087,6 +1096,7 @@ func syncResources(
 	store rbsr.Store,
 	prog *Progress,
 	claimedBlocks *sync.Map,
+	inflight *sync.Map,
 	phase *string,
 	connCachedAtStart bool,
 	pf *persistFeeder,
@@ -1286,6 +1296,36 @@ func syncResources(
 		if len(wants) == 0 {
 			return true
 		}
+		// Two guards right before we pull a tier over the network — this is what
+		// closes the re-fetch (`exists`) waste. The single up-front preflight Has
+		// (see above) is a stale snapshot by the time a tier runs: tiers fetch
+		// sequentially over seconds while other discovery tasks persist the same
+		// blocks, so blocks that landed since preflight are still in our wantlist.
+		//   1. Fresh Has re-check — skip anything already on disk now (persisted
+		//      since preflight, by us or a concurrent task). This is the dominant
+		//      win; the up-front preflight alone can't catch these.
+		//   2. Daemon-wide in-flight claim — skip blocks another task is fetching
+		//      right now, so two tasks don't both pull the same not-yet-persisted
+		//      block. Claims release when this tier returns; a skipped CID is
+		//      persisted by its owner or re-driven next discovery cycle.
+		claimed := make([]cid.Cid, 0, len(wants))
+		for _, w := range wants {
+			if has, herr := idx.Has(ctx, w); herr == nil && has {
+				continue
+			}
+			if _, dup := inflight.LoadOrStore(string(w.Hash()), struct{}{}); !dup {
+				claimed = append(claimed, w)
+			}
+		}
+		defer func() {
+			for _, w := range claimed {
+				inflight.Delete(string(w.Hash()))
+			}
+		}()
+		if len(claimed) == 0 {
+			return true
+		}
+		wants = claimed
 		ch, gerr := sess.GetBlocks(ctx, wants)
 		if gerr != nil {
 			bitswapOutcome = "ctx_done"
