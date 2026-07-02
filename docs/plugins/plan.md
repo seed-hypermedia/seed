@@ -33,12 +33,24 @@ Status values: `todo` / `in progress` / `review` / `done`.
 - [x] Example plugin fixture (`example-plugin.json`, slugify, deterministic
       CIDs) + publish instructions in README
 
-## Phase 4 — Agent merge (desktop assistant) — `todo`
+## Phase 4 — Agent merge (desktop assistant) — `done`
 
-- [ ] `DynamicToolDescriptor` + per-request `chatTools` builder in
-      `app-chat.ts` appending enabled plugin actions
-- [ ] Main ↔ renderer host IPC for tool execution
-- [ ] Compiled input schemas for the model; original CIDs kept for forms
+- [x] `PluginToolDescriptor` built renderer-side (where manifests + schema
+      blobs live), compiled via `blob-schema-compile`, registered with main
+      through `plugins.registerTools` (replace-all, change-detected)
+- [x] Per-request `chatTools` merge in `app-chat.ts`: `plugin_<name>__<action>`
+      tools whose execute dispatches `pluginToolRequest` to the focused window
+      and awaits the pending-call bridge (60s timeout, fast-fail with no
+      window, 256KiB output cap — oversized outputs dropped with a note)
+- [x] `PluginToolResponder` mounted once in the window root (inside
+      navigation + universal-client context): resolves plugin + action,
+      per-plugin PluginHost pool (torn down on disable/uninstall/unmount),
+      exactly one `submitToolResult` reply per request
+- [x] Bridge capabilities for agent calls: blob.get / blob.publish, and
+      document.read from the focused window's current document route.
+      document.updateMetadata intentionally unwired this phase (clear error)
+- [x] Tests: pending-call manager (resolve/reject/timeout/double-settle),
+      descriptor building
 
 ## Phase 5 — Hosted agent-service (designed, deferred)
 
