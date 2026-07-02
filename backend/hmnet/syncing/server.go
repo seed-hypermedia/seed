@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"runtime"
 	"seed/backend/blob"
@@ -394,7 +395,19 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		if err == nil {
 			return store, nil
 		}
-		s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
+		// Expected fallbacks, logged at Debug so they don't drown the logs:
+		// errScopeNotRepresentable (a filter the flattened index doesn't maintain),
+		// and anything that happens once the serve context is done — the peer sync
+		// was torn down mid-serve, which surfaces as context.Canceled OR as a
+		// SQLITE_INTERRUPT/SQLITE_BUSY from a query aborted by the interrupt handler.
+		// Keying on ctx.Err() catches all of those without enumerating error codes.
+		// Anything else is a real index-path failure worth a Warn.
+		switch {
+		case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable):
+			s.log.Debug("RBSRIndexServeFallback", zap.Error(err))
+		default:
+			s.log.Warn("RBSRIndexServeFallback", zap.Error(err))
+		}
 	}
 
 	return s.loadStoreLegacy(ctx, dkeys, authorizedSpaces)
