@@ -831,6 +831,7 @@ export function VaultBackendSettings() {
 export function DeveloperSettings() {
   const experiments = useUniversalAppContext().experiments
   const writeExperiments = useWriteExperiments()
+  const enabledDeveloperMode = experiments?.developerMode
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
   const enabledAdvancedCopyLinkOptions = experiments?.advancedCopyLinkOptions
@@ -872,6 +873,20 @@ export function DeveloperSettings() {
   return (
     <>
       <SettingsCard label="DEVELOPERS">
+        <SettingsRow
+          label="Developer Mode"
+          description="Unlocks experimental building blocks in regular menus: raw IPFS blob and schema authoring from document options, and other in-progress features."
+          right={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => writeExperiments.mutate({developerMode: !enabledDeveloperMode})}
+            >
+              {enabledDeveloperMode ? 'Disable Developer Mode' : 'Enable Developer Mode'}
+            </Button>
+          }
+        />
+        <Separator />
         <SettingsRow
           label="Embedding / AI Features"
           description="Enable AI-powered document embeddings for semantic search and related content features. This will restart the background service."

@@ -32,6 +32,8 @@ export const appExperimentsSchema = z
     embeddingEnabled: z.boolean().optional(),
     notifications: z.boolean().optional(),
     advancedCopyLinkOptions: z.boolean().optional(),
+    /** Surfaces experimental building-block features (blob editor, schemas, …) in regular menus. */
+    developerMode: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>

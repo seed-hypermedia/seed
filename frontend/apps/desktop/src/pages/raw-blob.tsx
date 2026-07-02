@@ -312,6 +312,23 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       },
     )
   }
+  // The editor is its own entry point for the building blocks: creating more
+  // blobs and schemas is always available here (the document options menu
+  // offers these only behind Developer Mode).
+  menuItems.push(
+    {
+      key: 'new-raw-blob',
+      label: 'New Blob',
+      icon: <Braces className="size-4" />,
+      onClick: () => navigate({key: 'raw-blob'}),
+    },
+    {
+      key: 'new-schema',
+      label: 'New Schema',
+      icon: <FileCode2 className="size-4" />,
+      onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
+    },
+  )
 
   return (
     <ValueEditorProvider

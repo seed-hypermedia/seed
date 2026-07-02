@@ -849,19 +849,23 @@ export default function DesktopResourcePage() {
     onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
   })
 
-  menuItems.push({
-    key: 'new-raw-blob',
-    label: 'New Blob',
-    icon: <Braces className="size-4" />,
-    onClick: () => navigate({key: 'raw-blob'}),
-  })
+  // Experimental building blocks live behind Developer Mode (Settings →
+  // Developers); the blob/schema editor pages themselves offer these too.
+  if (experiments?.developerMode) {
+    menuItems.push({
+      key: 'new-raw-blob',
+      label: 'New Blob',
+      icon: <Braces className="size-4" />,
+      onClick: () => navigate({key: 'raw-blob'}),
+    })
 
-  menuItems.push({
-    key: 'new-schema',
-    label: 'New Schema',
-    icon: <FileCode2 className="size-4" />,
-    onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
-  })
+    menuItems.push({
+      key: 'new-schema',
+      label: 'New Schema',
+      icon: <FileCode2 className="size-4" />,
+      onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
+    })
+  }
 
   // Publish / Unpublish site options (only for home documents)
   if (!docId.path?.length && canEdit) {
