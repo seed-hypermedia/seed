@@ -116,4 +116,31 @@ describe('schema-aware value editor rendering', () => {
     renderEditor({status: 'draft'}, schema)
     expect(container.querySelector('[role="combobox"]')).toBeNull()
   })
+
+  it('adding a suggested enum field offers a dropdown of the options', () => {
+    renderEditor({title: 'Hello'}, ARTICLE_SCHEMA)
+    // open the add form
+    const addButton = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.includes('Add field'),
+    ) as HTMLButtonElement
+    act(() => addButton.click())
+    // click the "status" schema-field suggestion in the add form (required
+    // fields render as "status *")
+    const statusChip = Array.from(container.querySelectorAll('button')).find((el) => {
+      const text = el.textContent?.trim()
+      return text === 'status' || text === 'status *'
+    }) as HTMLButtonElement
+    expect(statusChip).toBeTruthy()
+    act(() => statusChip.click())
+    // the value input is now a select showing the first enum option
+    const combos = Array.from(container.querySelectorAll('[role="combobox"]'))
+    const valueSelect = combos.find((el) => el.textContent?.includes('draft'))
+    expect(valueSelect).toBeTruthy()
+    // submitting commits an enum member, which then renders as a dropdown row
+    const commit = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Add',
+    ) as HTMLButtonElement
+    act(() => commit.click())
+    expect(container.querySelector('.lucide-triangle-alert')).toBeNull()
+  })
 })

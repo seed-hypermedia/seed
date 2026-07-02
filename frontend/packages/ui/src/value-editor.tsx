@@ -1347,6 +1347,18 @@ export function AddFieldForm({
   const itemsSubschema = useSubschema(path ? [...path, 0] : [])
   const suggestions = itemMode || !path ? [] : keySuggestions
 
+  // When the field being added declares a string enum, the value input is a
+  // dropdown of the allowed options.
+  const enumSourceSchema = itemMode
+    ? itemsSubschema && itemsSubschema !== 'unresolved'
+      ? itemsSubschema
+      : undefined
+    : suggestions.find((suggestion) => suggestion.key === key.trim())?.schema
+  const enumOptions: string[] | undefined =
+    type === 'text' && enumSourceSchema && isStringEnumSchema(enumSourceSchema)
+      ? (enumSourceSchema.enum as string[])
+      : undefined
+
   const reset = () => {
     setOpen(false)
     setKey('')
@@ -1404,7 +1416,9 @@ export function AddFieldForm({
       }
     }
     let value: unknown
-    if (type === 'text') value = textValue
+    // With an enum dropdown, commit what the select displays (its fallback
+    // shows the first option before any interaction).
+    if (type === 'text') value = enumOptions && !enumOptions.includes(textValue) ? enumOptions[0] ?? '' : textValue
     else if (type === 'toggle') value = toggleValue
     else if (type === 'object') value = {}
     else if (type === 'list') value = []
@@ -1478,6 +1492,21 @@ export function AddFieldForm({
                 ) {
                   setType(suggested)
                 }
+                // Prefill from the schema so an enum field lands as a member
+                // (and immediately renders as its dropdown) instead of ''.
+                if (suggested === 'text') {
+                  const {schema} = suggestion
+                  const prefill =
+                    typeof schema.default === 'string'
+                      ? schema.default
+                      : Array.isArray(schema.enum) && typeof schema.enum[0] === 'string'
+                        ? schema.enum[0]
+                        : ''
+                  setTextValue(prefill)
+                } else if (suggested === 'number') {
+                  const {schema} = suggestion
+                  setTextValue(typeof schema.default === 'number' ? String(schema.default) : '')
+                }
               }}
             >
               {suggestion.key}
@@ -1536,23 +1565,43 @@ export function AddFieldForm({
             />
           </label>
         )}
-        {needsValueInput && (
-          <Input
-            value={textValue}
-            placeholder={type === 'link' ? 'CID or ipfs:// URL' : 'Value'}
-            inputMode={type === 'number' ? 'numeric' : undefined}
-            className={cn('min-w-40 flex-1', type === 'link' && 'font-mono text-xs')}
-            autoFocus={itemMode}
-            onChange={(e) => {
-              setTextValue(e.target.value)
-              setError(null)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submit()
-              if (e.key === 'Escape') reset()
-            }}
-          />
-        )}
+        {needsValueInput &&
+          (enumOptions ? (
+            <Select
+              value={enumOptions.includes(textValue) ? textValue : enumOptions[0] ?? ''}
+              onValueChange={(next) => {
+                setTextValue(next)
+                setError(null)
+              }}
+            >
+              <SelectTrigger className="w-fit min-w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {enumOptions.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={textValue}
+              placeholder={type === 'link' ? 'CID or ipfs:// URL' : 'Value'}
+              inputMode={type === 'number' ? 'numeric' : undefined}
+              className={cn('min-w-40 flex-1', type === 'link' && 'font-mono text-xs')}
+              autoFocus={itemMode}
+              onChange={(e) => {
+                setTextValue(e.target.value)
+                setError(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submit()
+                if (e.key === 'Escape') reset()
+              }}
+            />
+          ))}
         <Button size="sm" onClick={submit}>
           <Check className="size-4" />
           Add

@@ -2,6 +2,10 @@ import {resolve} from 'path'
 import {defineConfig} from 'vitest/config'
 
 export default defineConfig({
+  // The app builds with the automatic JSX runtime (vite plugin-react); the
+  // desktop tsconfig says "preserve", which esbuild would otherwise treat as
+  // classic and demand a React import in every .tsx under test.
+  esbuild: {jsx: 'automatic'},
   test: {
     testTimeout: 10000, // 10 seconds
     setupFiles: ['fake-indexeddb/auto'],
