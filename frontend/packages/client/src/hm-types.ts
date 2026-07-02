@@ -750,15 +750,31 @@ export const HMQueryFilterSchema = z.discriminatedUnion('type', [
 ])
 export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
 
-function removeUnsupportedQueryFilters(val: unknown) {
-  if (!Array.isArray(val)) return val
+/** Returns only query filters supported by this client, dropping malformed or future filter types. */
+export function getSupportedHMQueryFilters(val: unknown): HMQueryFilter[] {
+  if (!Array.isArray(val)) return []
   return val.filter(
-    (filter) =>
-      filter &&
+    (filter): filter is HMQueryFilter =>
+      filter !== null &&
       typeof filter === 'object' &&
       (filter as {type?: unknown}).type === 'Author' &&
       typeof (filter as {uid?: unknown}).uid === 'string',
   )
+}
+
+/** Parses stored query filter JSON, returning an empty list for invalid or unsupported payloads. */
+export function parseHMQueryFiltersJSON(rawFilters: string | undefined): HMQueryFilter[] {
+  if (!rawFilters) return []
+  try {
+    return getSupportedHMQueryFilters(JSON.parse(rawFilters))
+  } catch {
+    return []
+  }
+}
+
+function removeUnsupportedQueryFilters(val: unknown) {
+  if (val === undefined) return undefined
+  return getSupportedHMQueryFilters(val)
 }
 
 export const HMQuerySchema = z.object({

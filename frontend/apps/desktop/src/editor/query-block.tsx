@@ -7,7 +7,7 @@ import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockQuery, parseHMQueryFiltersJSON, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -255,13 +255,7 @@ type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
 type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
 
 function parseQueryFilters(rawFilters: string | undefined): HMQueryBlockFilters {
-  return JSON.parse(rawFilters || defaultQueryFilters).filter(
-    (filter: unknown) =>
-      filter &&
-      typeof filter === 'object' &&
-      (filter as {type?: unknown}).type === 'Author' &&
-      typeof (filter as {uid?: unknown}).uid === 'string',
-  )
+  return parseHMQueryFiltersJSON(rawFilters || defaultQueryFilters)
 }
 
 function QuerySettings({

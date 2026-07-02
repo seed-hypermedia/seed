@@ -856,6 +856,63 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('query block ignores unsupported or malformed filters', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          banner: 'false',
+          queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          querySort: '[]',
+          queryFilters:
+            '[{"type":"Author","uid":"author-a"},{"type":"PublishDate","after":"2026-01-01"},{"type":"Author","uid":42}]',
+          queryLimit: '',
+          style: 'Card',
+          columnCount: '1',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect((val as HMBlockQuery).attributes.query.filters).toEqual([{type: 'Author', uid: 'author-a'}])
+    })
+
+    test('query block treats invalid filter JSON as no filters', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          banner: 'false',
+          queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          querySort: '[]',
+          queryFilters: '{"type":"PublishDate"}',
+          queryLimit: '',
+          style: 'Card',
+          columnCount: '1',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect((val as HMBlockQuery).attributes.query.filters).toEqual([])
+    })
+
     // test('nostr', () => {
     //   const editorBlock: EditorNostrBlock = {
     //     id: 'foo',
