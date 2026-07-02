@@ -263,7 +263,7 @@ export function computeEntityBreadcrumbs(params: {
     }
   }
   if (panel?.key === 'directory') {
-    crumbs.push({name: 'Subdocuments', id: null, crumbKey: 'directory'})
+    crumbs.push({name: 'Sub documents', id: null, crumbKey: 'directory'})
   }
   if (panel?.key === 'activity') {
     crumbs.push({name: 'Activity', id: null, crumbKey: 'activity'})

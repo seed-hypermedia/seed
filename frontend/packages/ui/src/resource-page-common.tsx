@@ -439,7 +439,7 @@ function getPanelTitle(panelKey: string | null): string {
     case 'comments':
       return 'Discussions'
     case 'directory':
-      return 'Subdocuments'
+      return 'Sub documents'
     case 'collaborators':
       return 'Collaborators'
     case 'all-documents':
@@ -1448,7 +1448,7 @@ function DocumentBody({
     const panelLabels: Record<string, string> = {
       comments: 'Comments',
       collaborators: 'People',
-      directory: 'Subdocuments',
+      directory: 'Sub documents',
       activity: 'Activity',
       'all-documents': 'All Documents',
     }
@@ -1813,7 +1813,7 @@ function DocumentBody({
                                   comments: 'Comments',
                                   collaborators: 'People',
                                   activity: 'Activity',
-                                  directory: 'Subdocuments',
+                                  directory: 'Sub documents',
                                   'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
                                 } as Record<string, string>
@@ -1874,7 +1874,7 @@ function DocumentBody({
                                 comments: 'Comments',
                                 collaborators: 'People',
                                 activity: 'Activity',
-                                directory: 'Subdocuments',
+                                directory: 'Sub documents',
                                 'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
                               } as Record<string, string>

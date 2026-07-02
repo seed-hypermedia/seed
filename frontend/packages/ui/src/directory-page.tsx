@@ -83,7 +83,7 @@ export function DirectoryPageContent({
 
   return (
     <PageLayout
-      title={showTitle ? 'Subdocuments' : undefined}
+      title={showTitle ? 'Sub documents' : undefined}
       headerRight={
         <>
           {searchBox}

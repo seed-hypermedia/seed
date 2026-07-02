@@ -155,7 +155,7 @@ describe('accessory shortcut logic', () => {
         {key: 'activity' as PanelSelectionOptions, label: 'Activity'}, // Cmd+1 → index 0
         {key: 'comments' as PanelSelectionOptions, label: 'Discussions'}, // Cmd+2 → index 1
         {key: 'collaborators' as PanelSelectionOptions, label: 'Collaborators'}, // Cmd+3 → index 2
-        {key: 'directory' as PanelSelectionOptions, label: 'Subdocuments'}, // Cmd+4 → index 3
+        {key: 'directory' as PanelSelectionOptions, label: 'Sub documents'}, // Cmd+4 → index 3
         {key: 'options' as PanelSelectionOptions, label: 'Options'}, // Cmd+5 → index 4
       ]
 

@@ -48,7 +48,7 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
     case 'comments':
       return 'Discussions'
     case 'directory':
-      return 'Subdocuments'
+      return 'Sub documents'
     case 'collaborators':
       return 'Collaborators'
     case 'options':
@@ -97,7 +97,7 @@ export function PanelLayout({
     prevPanelKey.current = panelKey
   }, [panelKey, onPanelWidthChange])
 
-  const title = isVersionsPanel ? 'Document Versions' : getPanelTitle(panelKey)
+  const title = isVersionsPanel ? 'Versions history' : getPanelTitle(panelKey)
 
   return (
     <div ref={containerRef} className="flex h-full flex-1">

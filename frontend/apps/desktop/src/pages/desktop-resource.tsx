@@ -822,7 +822,7 @@ export default function DesktopResourcePage() {
 
   menuItems.push({
     key: 'versions',
-    label: 'Document Versions',
+    label: 'Versions history',
     icon: <History className="size-4" />,
     onClick: () => {
       replace({
@@ -835,7 +835,7 @@ export default function DesktopResourcePage() {
 
   menuItems.push({
     key: 'directory',
-    label: 'Subdocuments',
+    label: 'Sub documents',
     icon: <Layers className="size-4" />,
     onClick: () => navigate({key: 'directory', id: docId}),
   })

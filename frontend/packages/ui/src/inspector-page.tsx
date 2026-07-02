@@ -542,7 +542,7 @@ function getInspectorOpenTarget(
   const openRoute = createRouteFromInspectNavRoute(route, route.inspectTab)
 
   if (route.inspectTab === 'changes' || route.inspectTab === 'graph') {
-    return {label: 'Open Document Versions', route: openRoute}
+    return {label: 'Open Versions history', route: openRoute}
   }
   if (route.inspectTab === 'citations') {
     return {label: 'Open Document Citations', route: openRoute}
@@ -554,7 +554,7 @@ function getInspectorOpenTarget(
     return {label: 'Open Comment', route: openRoute}
   }
   if (route.inspectTab === 'children') {
-    return {label: 'Open Directory', route: openRoute}
+    return {label: 'Open Sub documents', route: openRoute}
   }
   switch (route.targetView) {
     case 'activity':
@@ -568,7 +568,7 @@ function getInspectorOpenTarget(
     case 'comments':
       return {label: route.targetOpenComment ? 'Open Comment' : 'Open Document Comments', route: openRoute}
     case 'directory':
-      return {label: 'Open Directory', route: openRoute}
+      return {label: 'Open Sub documents', route: openRoute}
     case 'collaborators':
       return {label: 'Open People', route: openRoute}
     case 'feed':

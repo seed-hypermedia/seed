@@ -170,7 +170,7 @@ export function useDocumentCardMenuItems(
     }
     items.push({
       key: 'directory',
-      label: 'Subdocuments',
+      label: 'Sub documents',
       icon: <Layers className="size-4" />,
       onClick: (e) => {
         e?.stopPropagation()

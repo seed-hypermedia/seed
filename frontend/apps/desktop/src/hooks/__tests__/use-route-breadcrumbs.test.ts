@@ -330,7 +330,7 @@ describe('computeEntityBreadcrumbs', () => {
       contacts: [],
       panel: {key: 'directory'},
     })
-    expect(items.at(-1)?.name).toBe('Subdocuments')
+    expect(items.at(-1)?.name).toBe('Sub documents')
     expect(items.at(-1)?.crumbKey).toBe('directory')
   })
 
