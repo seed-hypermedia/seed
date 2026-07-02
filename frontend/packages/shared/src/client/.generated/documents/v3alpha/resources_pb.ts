@@ -9,6 +9,109 @@ import { Contact, Document } from "./documents_pb";
 import { Comment } from "./comments_pb";
 
 /**
+ * Describes the state of the discovery task.
+ *
+ * @generated from enum com.seed.documents.v3alpha.DiscoveryTaskState
+ */
+export enum DiscoveryTaskState {
+  /**
+   * The task has just started.
+   *
+   * @generated from enum value: DISCOVERY_TASK_STARTED = 0;
+   */
+  DISCOVERY_TASK_STARTED = 0,
+
+  /**
+   * The task is in progess — we keep looking for peers who can provide the content,
+   * and downloading the content we are finding.
+   *
+   * @generated from enum value: DISCOVERY_TASK_IN_PROGRESS = 1;
+   */
+  DISCOVERY_TASK_IN_PROGRESS = 1,
+
+  /**
+   * The task has completed and the result is cached for the duration of the duration of the TTL.
+   *
+   * @generated from enum value: DISCOVERY_TASK_COMPLETED = 2;
+   */
+  DISCOVERY_TASK_COMPLETED = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DiscoveryTaskState)
+proto3.util.setEnumType(DiscoveryTaskState, "com.seed.documents.v3alpha.DiscoveryTaskState", [
+  { no: 0, name: "DISCOVERY_TASK_STARTED" },
+  { no: 1, name: "DISCOVERY_TASK_IN_PROGRESS" },
+  { no: 2, name: "DISCOVERY_TASK_COMPLETED" },
+]);
+
+/**
+ * Describes the state of the discovery task.
+ *
+ * @generated from enum com.seed.documents.v3alpha.SearchType
+ */
+export enum SearchType {
+  /**
+   * Keyword-based search.
+   *
+   * @generated from enum value: SEARCH_KEYWORD = 0;
+   */
+  SEARCH_KEYWORD = 0,
+
+  /**
+   * Semantic search.
+   *
+   * @generated from enum value: SEARCH_SEMANTIC = 1;
+   */
+  SEARCH_SEMANTIC = 1,
+
+  /**
+   * Hybrid search. with RRFusion.
+   *
+   * @generated from enum value: SEARCH_HYBRID = 2;
+   */
+  SEARCH_HYBRID = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(SearchType)
+proto3.util.setEnumType(SearchType, "com.seed.documents.v3alpha.SearchType", [
+  { no: 0, name: "SEARCH_KEYWORD" },
+  { no: 1, name: "SEARCH_SEMANTIC" },
+  { no: 2, name: "SEARCH_HYBRID" },
+]);
+
+/**
+ * Content type to filter search results by.
+ *
+ * @generated from enum com.seed.documents.v3alpha.ContentTypeFilter
+ */
+export enum ContentTypeFilter {
+  /**
+   * @generated from enum value: CONTENT_TYPE_TITLE = 0;
+   */
+  CONTENT_TYPE_TITLE = 0,
+
+  /**
+   * @generated from enum value: CONTENT_TYPE_DOCUMENT = 1;
+   */
+  CONTENT_TYPE_DOCUMENT = 1,
+
+  /**
+   * @generated from enum value: CONTENT_TYPE_COMMENT = 2;
+   */
+  CONTENT_TYPE_COMMENT = 2,
+
+  /**
+   * @generated from enum value: CONTENT_TYPE_CONTACT = 3;
+   */
+  CONTENT_TYPE_CONTACT = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ContentTypeFilter)
+proto3.util.setEnumType(ContentTypeFilter, "com.seed.documents.v3alpha.ContentTypeFilter", [
+  { no: 0, name: "CONTENT_TYPE_TITLE" },
+  { no: 1, name: "CONTENT_TYPE_DOCUMENT" },
+  { no: 2, name: "CONTENT_TYPE_COMMENT" },
+  { no: 3, name: "CONTENT_TYPE_CONTACT" },
+]);
+
+/**
  * Request to get a single resource by its IRI.
  *
  * @generated from message com.seed.documents.v3alpha.GetResourceRequest
@@ -482,3 +585,567 @@ export class Citation_BlobInfo extends Message<Citation_BlobInfo> {
   }
 }
 
+/**
+ * Request to discover a resource.
+ *
+ * The discovery target is specified EITHER by `id` (preferred — single hm:// URL,
+ * suitable as a dedup key for clients that aggregate concurrent discovery requests)
+ * OR by the decomposed `account` + `path` pair (with optional `recursive`).
+ * Setting both forms in the same request is an error.
+ *
+ * @generated from message com.seed.documents.v3alpha.DiscoverResourceRequest
+ */
+export class DiscoverResourceRequest extends Message<DiscoverResourceRequest> {
+  /**
+   * The hm:// URL identifying the discovery target. Mutually exclusive with
+   * `account` + `path` + `recursive`.
+   *
+   * Examples — exact path:
+   *   "hm://ACCOUNT_ID"                   — everything at account root
+   *   "hm://ACCOUNT_ID/notes/foo"         — everything at /notes/foo
+   * Examples — wildcards (must be the final path segment):
+   *   "hm://ACCOUNT_ID/notes/*"           — direct children of /notes only
+   *   "hm://ACCOUNT_ID/notes/**"          — /notes and everything under it
+   *   "hm://ACCOUNT_ID/**"                — entire account
+   * Examples — scope keyword (suffix on the last path segment):
+   *   "hm://ACCOUNT_ID/:profile"          — profile blobs at account root
+   *   "hm://ACCOUNT_ID/notes/foo:profile" — profile blobs at /notes/foo
+   *
+   * Wildcards and scope keywords are mutually exclusive in a single URL.
+   * Reserved (not yet implemented): "/path:directory".
+   *
+   * @generated from field: string id = 5;
+   */
+  id = "";
+
+  /**
+   * The account the resource belongs to. Mutually exclusive with `id`.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * The path of the wanted resource. Mutually exclusive with `id`.
+   *
+   * @generated from field: string path = 2;
+   */
+  path = "";
+
+  /**
+   * Optional. Version of the resource to discover.
+   *
+   * @generated from field: string version = 3;
+   */
+  version = "";
+
+  /**
+   * Optional. If true, we sync the document and the child documents as well.
+   * Mutually exclusive with `id` — when using `id`, encode recursion via the
+   * `**` suffix instead. Prefer the `id` form for new callers.
+   *
+   * @generated from field: bool recursive = 4;
+   */
+  recursive = false;
+
+  constructor(data?: PartialMessage<DiscoverResourceRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DiscoverResourceRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 5, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverResourceRequest {
+    return new DiscoverResourceRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoverResourceRequest {
+    return new DiscoverResourceRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoverResourceRequest {
+    return new DiscoverResourceRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DiscoverResourceRequest | PlainMessage<DiscoverResourceRequest> | undefined, b: DiscoverResourceRequest | PlainMessage<DiscoverResourceRequest> | undefined): boolean {
+    return proto3.util.equals(DiscoverResourceRequest, a, b);
+  }
+}
+
+/**
+ * Response to discover a resource.
+ *
+ * @generated from message com.seed.documents.v3alpha.DiscoverResourceResponse
+ */
+export class DiscoverResourceResponse extends Message<DiscoverResourceResponse> {
+  /**
+   * The cached version of the document we've discovered within the last discovery process.
+   *
+   * @generated from field: string version = 1;
+   */
+  version = "";
+
+  /**
+   * The state of the discovery task.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DiscoveryTaskState state = 2;
+   */
+  state = DiscoveryTaskState.DISCOVERY_TASK_STARTED;
+
+  /**
+   * The timestamp of the last result we've found.
+   * It can be empty if the discovery is still in progress.
+   *
+   * @generated from field: google.protobuf.Timestamp last_result_time = 4;
+   */
+  lastResultTime?: Timestamp;
+
+  /**
+   * The cached error message of the last discovery attempt if it failed.
+   *
+   * @generated from field: string last_error = 5;
+   */
+  lastError = "";
+
+  /**
+   * The time when the currently cached result will expire, and a new discovery attempt will be made,
+   * if the client keeps calling the discovery RPC.
+   * Can be empty if no results have been found yet.
+   *
+   * @generated from field: google.protobuf.Timestamp result_expire_time = 6;
+   */
+  resultExpireTime?: Timestamp;
+
+  /**
+   * The progress of the discovery process.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DiscoveryProgress progress = 7;
+   */
+  progress?: DiscoveryProgress;
+
+  constructor(data?: PartialMessage<DiscoverResourceResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DiscoverResourceResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "state", kind: "enum", T: proto3.getEnumType(DiscoveryTaskState) },
+    { no: 4, name: "last_result_time", kind: "message", T: Timestamp },
+    { no: 5, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "result_expire_time", kind: "message", T: Timestamp },
+    { no: 7, name: "progress", kind: "message", T: DiscoveryProgress },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverResourceResponse {
+    return new DiscoverResourceResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoverResourceResponse {
+    return new DiscoverResourceResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoverResourceResponse {
+    return new DiscoverResourceResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DiscoverResourceResponse | PlainMessage<DiscoverResourceResponse> | undefined, b: DiscoverResourceResponse | PlainMessage<DiscoverResourceResponse> | undefined): boolean {
+    return proto3.util.equals(DiscoverResourceResponse, a, b);
+  }
+}
+
+/**
+ * Various metrics reporting on the progress of the discovery process.
+ *
+ * @generated from message com.seed.documents.v3alpha.DiscoveryProgress
+ */
+export class DiscoveryProgress extends Message<DiscoveryProgress> {
+  /**
+   * Number of peers we have found so far.
+   *
+   * @generated from field: int32 peers_found = 1;
+   */
+  peersFound = 0;
+
+  /**
+   * Number of peers we have successfully synced with.
+   *
+   * @generated from field: int32 peers_synced_ok = 2;
+   */
+  peersSyncedOk = 0;
+
+  /**
+   * Number of peers we have failed to sync with.
+   *
+   * @generated from field: int32 peers_failed = 3;
+   */
+  peersFailed = 0;
+
+  /**
+   * Number of blobs we have discovered so far.
+   *
+   * @generated from field: int32 blobs_discovered = 4;
+   */
+  blobsDiscovered = 0;
+
+  /**
+   * Number of blobs we have successfully downloaded.
+   *
+   * @generated from field: int32 blobs_downloaded = 5;
+   */
+  blobsDownloaded = 0;
+
+  /**
+   * Number of blobs we have failed to download.
+   *
+   * @generated from field: int32 blobs_failed = 6;
+   */
+  blobsFailed = 0;
+
+  constructor(data?: PartialMessage<DiscoveryProgress>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DiscoveryProgress";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peers_found", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "peers_synced_ok", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "peers_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "blobs_discovered", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "blobs_downloaded", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "blobs_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoveryProgress {
+    return new DiscoveryProgress().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined, b: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined): boolean {
+    return proto3.util.equals(DiscoveryProgress, a, b);
+  }
+}
+
+/**
+ * A resource record found
+ *
+ * @generated from message com.seed.documents.v3alpha.ResourceSearchResult
+ */
+export class ResourceSearchResult extends Message<ResourceSearchResult> {
+  /**
+   * IRI of the resource, including version, block id and range
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * Blob Id of the resource containing the matching record.
+   *
+   * @generated from field: string blob_id = 2;
+   */
+  blobId = "";
+
+  /**
+   * The time of the version of the resource.
+   *
+   * @generated from field: google.protobuf.Timestamp version_time = 3;
+   */
+  versionTime?: Timestamp;
+
+  /**
+   * In the case of comments, the document id
+   * containing the comment.
+   *
+   * @generated from field: string doc_id = 4;
+   */
+  docId = "";
+
+  /**
+   * Content of the resource, depending on the type:
+   * Alias in the case of account.
+   * Title/Body in the case of groups and documents.
+   * Body in the case of comments. We don't fill up the whole
+   * block, just the part that contains the search term, with
+   * the surrounding context. The context size is defined by
+   * the context_size parameter.
+   *
+   * @generated from field: string content = 5;
+   */
+  content = "";
+
+  /**
+   * The owner of the resource
+   *
+   * @generated from field: string owner = 6;
+   */
+  owner = "";
+
+  /**
+   * The type of the resource it coud be Title, Document, Comment, ...
+   *
+   * @generated from field: string type = 7;
+   */
+  type = "";
+
+  /**
+   * Icon of the document containing that resource
+   *
+   * @generated from field: string icon = 8;
+   */
+  icon = "";
+
+  /**
+   * Parent document names
+   *
+   * @generated from field: repeated string parent_names = 9;
+   */
+  parentNames: string[] = [];
+
+  /**
+   * Metadata of the document containing that resource.
+   *
+   * @generated from field: string metadata = 10;
+   */
+  metadata = "";
+
+  constructor(data?: PartialMessage<ResourceSearchResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ResourceSearchResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "version_time", kind: "message", T: Timestamp },
+    { no: 4, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 10, name: "metadata", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ResourceSearchResult {
+    return new ResourceSearchResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ResourceSearchResult {
+    return new ResourceSearchResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ResourceSearchResult {
+    return new ResourceSearchResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ResourceSearchResult | PlainMessage<ResourceSearchResult> | undefined, b: ResourceSearchResult | PlainMessage<ResourceSearchResult> | undefined): boolean {
+    return proto3.util.equals(ResourceSearchResult, a, b);
+  }
+}
+
+/**
+ * Request to search resources.
+ *
+ * @generated from message com.seed.documents.v3alpha.SearchResourcesRequest
+ */
+export class SearchResourcesRequest extends Message<SearchResourcesRequest> {
+  /**
+   * Query to find. We support wildcards and phrases.
+   * See https://sqlite.org/fts5.html#full_text_query_syntax.
+   *
+   * @generated from field: string query = 1;
+   */
+  query = "";
+
+  /**
+   * Deprecated, use content_type_filters instead to specify
+   * which content types to include in the search.
+   *
+   * @generated from field: bool include_body = 2 [deprecated = true];
+   * @deprecated
+   */
+  includeBody = false;
+
+  /**
+   * Optional. The size of the text accompanying the search match.
+   * Half of the size is before the match, and half after.
+   * Default is 48 runes.
+   *
+   * @generated from field: int32 context_size = 3;
+   */
+  contextSize = 0;
+
+  /**
+   * Deprecated. Use iri_filter instead.
+   *
+   * @generated from field: string account_uid = 4 [deprecated = true];
+   * @deprecated
+   */
+  accountUid = "";
+
+  /**
+   * Optional. The account uid the user is logged in with.
+   * This is used to filter out contacts that the user doesn't have access to.
+   * If not set, we won't provide any contact resources in the response.
+   *
+   * @generated from field: string logged_account_uid = 5;
+   */
+  loggedAccountUid = "";
+
+  /**
+   * Optional. Type of search to perform. Could be keyword, semantic or hybrid.
+   * if not set, keyword search is used.
+   *
+   * @generated from field: com.seed.documents.v3alpha.SearchType search_type = 6;
+   */
+  searchType = SearchType.SEARCH_KEYWORD;
+
+  /**
+   * Optional. hm:// URL with optional GLOB wildcards to scope search.
+   * Examples: "hm://<account>/cars/honda" (single doc), "hm://<account>/cars/*" (subtree).
+   * When empty, falls back to account_uid if set, otherwise matches all.
+   *
+   * @generated from field: string iri_filter = 7;
+   */
+  iriFilter = "";
+
+  /**
+   * Optional. Fine-grained content type selection. Overrides include_body when set.
+   * When empty, legacy behavior (title + body types based on include_body).
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.ContentTypeFilter content_type_filter = 8;
+   */
+  contentTypeFilter: ContentTypeFilter[] = [];
+
+  /**
+   * Optional. Authority weight for citation-based ranking. Range [0, 1].
+   * 0 (default) disables authority scoring. Higher values increase citation influence.
+   * Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
+   *
+   * @generated from field: float authority_weight = 9;
+   */
+  authorityWeight = 0;
+
+  /**
+   * Optional. Maximum number of results per page.
+   * When 0 (default), all results are returned (backwards compatible).
+   *
+   * @generated from field: int32 page_size = 10;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Token from a previous SearchResourcesResponse to get the next page.
+   *
+   * @generated from field: string page_token = 11;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<SearchResourcesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.SearchResourcesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "logged_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "search_type", kind: "enum", T: proto3.getEnumType(SearchType) },
+    { no: 7, name: "iri_filter", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "content_type_filter", kind: "enum", T: proto3.getEnumType(ContentTypeFilter), repeated: true },
+    { no: 9, name: "authority_weight", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
+    { no: 10, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 11, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchResourcesRequest {
+    return new SearchResourcesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchResourcesRequest {
+    return new SearchResourcesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchResourcesRequest {
+    return new SearchResourcesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SearchResourcesRequest | PlainMessage<SearchResourcesRequest> | undefined, b: SearchResourcesRequest | PlainMessage<SearchResourcesRequest> | undefined): boolean {
+    return proto3.util.equals(SearchResourcesRequest, a, b);
+  }
+}
+
+/**
+ * A list of resources matching the request.
+ *
+ * @generated from message com.seed.documents.v3alpha.SearchResourcesResponse
+ */
+export class SearchResourcesResponse extends Message<SearchResourcesResponse> {
+  /**
+   * Resources matching the input title
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.ResourceSearchResult resources = 1;
+   */
+  resources: ResourceSearchResult[] = [];
+
+  /**
+   * Token for the next page if there's any.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<SearchResourcesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.SearchResourcesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "resources", kind: "message", T: ResourceSearchResult, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchResourcesResponse {
+    return new SearchResourcesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchResourcesResponse {
+    return new SearchResourcesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchResourcesResponse {
+    return new SearchResourcesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SearchResourcesResponse | PlainMessage<SearchResourcesResponse> | undefined, b: SearchResourcesResponse | PlainMessage<SearchResourcesResponse> | undefined): boolean {
+    return proto3.util.equals(SearchResourcesResponse, a, b);
+  }
+}

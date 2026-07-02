@@ -71,7 +71,7 @@ async function timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
  * Discovery diagnostics. Always logs key transitions/errors with a `[discovery]` prefix so an operator can
  * trace why a clicked hm:// resource does or doesn't resolve. These run in the desktop MAIN process, so the
  * output appears in the terminal running the app (e.g. `./dev run-desktop`), not the renderer DevTools console.
- * Set SEED_DEBUG_DISCOVERY=1 to also log every per-poll discoverEntity response (verbose).
+ * Set SEED_DEBUG_DISCOVERY=1 to also log every per-poll discoverResource response (verbose).
  */
 const DISCOVERY_VERBOSE = process.env.SEED_DEBUG_DISCOVERY === '1' || process.env.SEED_DEBUG_DISCOVERY === 'true'
 // Generic per-resource discovery logging is OFF unless SEED_DEBUG_DISCOVERY is set — it fires for every
@@ -744,10 +744,10 @@ export async function discoverDocument(
 
   return await tryUntilSuccess(
     async () => {
-      const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+      const discoverResp = await grpcClient.resources.discoverResource(discoverRequest)
       const progress = discoverResp.progress
       if (DISCOVERY_VERBOSE || discoverResp.lastError) {
-        discoveryLog('discoverEntity response', {
+        discoveryLog('discoverResource response', {
           id: discoverRequest.id,
           state: discoverResp.state,
           version: discoverResp.version || '(empty)',

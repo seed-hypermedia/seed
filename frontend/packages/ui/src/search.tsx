@@ -8,7 +8,7 @@ import {
   useSearch,
   useUniversalAppContext,
 } from '@shm/shared'
-import {ContentTypeFilter, SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {ContentTypeFilter, SearchType} from '@shm/shared/client/.generated/documents/v3alpha/resources_pb'
 import {useResource} from '@shm/shared/models/entity'
 import {Fragment, PropsWithChildren, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'

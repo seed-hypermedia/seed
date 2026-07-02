@@ -202,7 +202,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 	// Live libp2p connections are the source of truth for immediate
 	// discovery. The peers table is updated asynchronously by peerWriter after
-	// Connect/Identify, so a caller can ForceConnect and then DiscoverEntity
+	// Connect/Identify, so a caller can ForceConnect and then DiscoverResource
 	// before the row is committed. We still require already-known protocol
 	// support before using a live peer: unsupported/unknown peers are skipped
 	// here and can be retried by the hot-task scheduler once Identify catches

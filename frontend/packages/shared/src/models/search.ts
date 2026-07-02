@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query'
-import {ContentTypeFilter, SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
+import {ContentTypeFilter, SearchType} from '../client/.generated/documents/v3alpha/resources_pb'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'

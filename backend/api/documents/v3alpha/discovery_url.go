@@ -1,4 +1,4 @@
-package entities
+package documents
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// discoveryTarget is the parsed shape of a DiscoverEntityRequest.id URL.
+// discoveryTarget is the parsed shape of a DiscoverResourceRequest.id URL.
 //
 // Wildcards (* and **) collapse into the depth-one and recursive flags.
 // Scope keywords (e.g. :profile) map via discoveryScopes to a server-owned

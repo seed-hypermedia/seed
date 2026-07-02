@@ -134,10 +134,10 @@ describe('handleApiAction', () => {
 
 describe('handleApiRequest schema introspection', () => {
   it('handles Search GET query options including zero enum values', async () => {
-    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+    const searchResources = vi.fn().mockResolvedValue({resources: []})
     const grpcClient = {
-      entities: {
-        searchEntities,
+      resources: {
+        searchResources,
       },
     } as any
     const queryDaemon = vi.fn()
@@ -152,7 +152,7 @@ describe('handleApiRequest schema introspection', () => {
 
     expect(result.status).toBe(200)
     expect(deserialize(JSON.parse(result.body))).toEqual({entities: [], searchQuery: 'slow'})
-    expect(searchEntities).toHaveBeenCalledWith({
+    expect(searchResources).toHaveBeenCalledWith({
       query: 'slow',
       includeBody: true,
       contextSize: 44,

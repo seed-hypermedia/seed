@@ -11,7 +11,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {CID} from 'multiformats'
 import {FeedOrder} from '../client/.generated/activity/v1alpha/activity_pb'
-import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
+import {Citation} from '../client/.generated/documents/v3alpha/resources_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
 import {RequestCache} from '../request-cache'
@@ -40,7 +40,7 @@ export type HMActivityEvent =
       observeTime: HMTimestamp | null
     }
   | {
-      newMention: Mention
+      newCitation: Citation
       account: string
       eventTime: HMTimestamp | null
       observeTime: HMTimestamp | null
@@ -55,7 +55,7 @@ export type HMNewBlobEvent = {
   blobId: string
   isPinned: boolean
   // For citations, store the mention data
-  mention?: Mention
+  mention?: Citation
 }
 
 export type HMResourceItem = {
@@ -152,13 +152,13 @@ export type LoadedEventWithNotifMeta = LoadedEvent & {
 }
 
 /**
- * Helper to get event type from either newBlob or newMention
+ * Helper to get event type from either newBlob or newCitation
  */
 export function getEventType(event: HMActivityEvent): string | null {
-  // Check for newMention using 'in' operator for proper type narrowing
-  if ('newMention' in event) {
-    // For newMention events, sourceType contains the full type like "doc/Embed" or "comment/Link"
-    const sourceType = event.newMention.sourceType?.toLowerCase()
+  // Check for newCitation using 'in' operator for proper type narrowing
+  if ('newCitation' in event) {
+    // For newCitation events, sourceType contains the full type like "doc/Embed" or "comment/Link"
+    const sourceType = event.newCitation.sourceType?.toLowerCase()
 
     if (sourceType) {
       return sourceType
@@ -181,12 +181,12 @@ export function getFeedEventId(event: HMActivityEvent): string | null {
     const cid = normalizeFeedCid(event.newBlob?.cid)
     return cid ? `blob-${cid}` : null
   }
-  if ('newMention' in event) {
-    const mention = event.newMention
+  if ('newCitation' in event) {
+    const mention = event.newCitation
     const sourceCid = normalizeFeedCid(mention.sourceBlob?.cid)
     const target = normalizeRequiredFeedValue(mention.target)
     if (!sourceCid || !target) return null
-    return `mention-${sourceCid}-${mention.mentionType || ''}-${target}`
+    return `mention-${sourceCid}-${mention.citationType || ''}-${target}`
   }
   return null
 }
@@ -270,7 +270,7 @@ export async function loadCommentEvent(
   currentAccount: string | undefined,
   cache: RequestCache,
 ): Promise<LoadedCommentEvent | null> {
-  if ('newMention' in event) {
+  if ('newCitation' in event) {
     console.error('Event: missing newBlob for comment event:', event)
     return null
   }
@@ -338,7 +338,7 @@ export async function loadCapabilityEvent(
   currentAccount: string | undefined,
   cache: RequestCache,
 ): Promise<LoadedCapabilityEvent | null> {
-  if ('newMention' in event) {
+  if ('newCitation' in event) {
     console.error('Event: missing newBlob for capability event:', event)
     return null
   }
@@ -427,7 +427,7 @@ export async function loadContactEvent(
   currentAccount: string | undefined,
   cache: RequestCache,
 ): Promise<LoadedContactEvent | null> {
-  if ('newMention' in event) {
+  if ('newCitation' in event) {
     console.error('Event: missing newBlob for contact event:', event)
     return null
   }
@@ -507,7 +507,7 @@ export async function loadRefEvent(
   currentAccount: string | undefined,
   cache: RequestCache,
 ): Promise<LoadedRefEvent | null> {
-  if ('newMention' in event) {
+  if ('newCitation' in event) {
     console.error('Event: missing newBlob for ref event:', event)
     return null
   }
@@ -528,7 +528,7 @@ export async function loadRefEvent(
       version: docId?.version || undefined,
     })
 
-    // const change = await grpcClient.entities.getEntityTimeline({
+    // Resource timelines are no longer exposed by the API.
     //   id: grpcDocument.,
     // })
 
@@ -560,10 +560,10 @@ export async function loadCitationEvent(
   }
 
   try {
-    const targetFragment = parseFragment(event.newMention.targetFragment)
+    const targetFragment = parseFragment(event.newCitation.targetFragment)
 
     // Determine citationType: 'd' = document reference, 'c' = comment reference
-    const sourceTypeLower = event.newMention.sourceType?.toLowerCase() || ''
+    const sourceTypeLower = event.newCitation.sourceType?.toLowerCase() || ''
     const citationType =
       sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref'
         ? 'd'
@@ -577,9 +577,9 @@ export async function loadCitationEvent(
     }
 
     const sourceHref =
-      citationType === 'c' ? event.newMention.sourceDocument || event.newMention.source : event.newMention.source
+      citationType === 'c' ? event.newCitation.sourceDocument || event.newCitation.source : event.newCitation.source
 
-    // Create source UnpackedHmId from event.newMention.source
+    // Create source UnpackedHmId from event.newCitation.source
     const sourceUnpacked = unpackHmId(sourceHref)
     if (!sourceUnpacked) {
       console.error('Event: Could not unpack source:', sourceHref)
@@ -588,25 +588,25 @@ export async function loadCitationEvent(
 
     const sourceVersion =
       citationType === 'd'
-        ? event.newMention.sourceBlob?.cid || sourceUnpacked.version || null
+        ? event.newCitation.sourceBlob?.cid || sourceUnpacked.version || null
         : sourceUnpacked.version || null
 
     const sourceId = hmId(sourceUnpacked.uid, {
       path: sourceUnpacked.path,
       version: sourceVersion,
-      blockRef: citationType === 'd' ? event.newMention.sourceContext || null : null,
+      blockRef: citationType === 'd' ? event.newCitation.sourceContext || null : null,
     })
 
-    // Create target UnpackedHmId from event.newMention.target
-    const targetUnpacked = unpackHmId(event.newMention.target)
+    // Create target UnpackedHmId from event.newCitation.target
+    const targetUnpacked = unpackHmId(event.newCitation.target)
     if (!targetUnpacked) {
-      console.error('Event: Could not unpack target:', event.newMention.target)
+      console.error('Event: Could not unpack target:', event.newCitation.target)
       return null
     }
 
     const targetId = hmId(targetUnpacked.uid, {
       path: targetUnpacked.path,
-      version: event.newMention.targetVersion || null,
+      version: event.newCitation.targetVersion || null,
       blockRef: targetFragment?.blockId || null,
       blockRange:
         targetFragment?.start != null && targetFragment?.end != null
@@ -618,7 +618,7 @@ export async function loadCitationEvent(
     })
 
     // Resolve author
-    const authorUid = event.newMention.sourceBlob?.author || event.account
+    const authorUid = event.newCitation.sourceBlob?.author || event.account
     const author = await cache.getAccount(authorUid, currentAccount)
 
     // Fetch source document metadata (best effort; keep event if metadata fails)
@@ -653,7 +653,7 @@ export async function loadCitationEvent(
       const targetDocument = await cache.getDocument({
         account: targetUnpacked.uid,
         path: targetUnpacked.path?.length ? `/${targetUnpacked.path.join('/')}` : '',
-        version: event.newMention.targetVersion || undefined,
+        version: event.newCitation.targetVersion || undefined,
       })
       targetMetadata = targetDocument?.metadata?.toJson({
         emitDefaultValues: true,
@@ -662,7 +662,7 @@ export async function loadCitationEvent(
       targetAuthorUids = normalizeAuthorUids((targetDocument as any)?.authors)
     } catch (error) {
       console.warn('Event: Failed to fetch target document metadata', {
-        target: event.newMention.target,
+        target: event.newCitation.target,
         sourceTypeLower,
         error,
       })
@@ -674,16 +674,16 @@ export async function loadCitationEvent(
     }
 
     // Generate unique event ID
-    const eventId = event.newMention.targetFragment
-      ? `${event.newMention.sourceBlob?.cid}-${event.newMention.targetFragment}`
-      : event.newMention.sourceBlob?.cid || ''
+    const eventId = event.newCitation.targetFragment
+      ? `${event.newCitation.sourceBlob?.cid}-${event.newCitation.targetFragment}`
+      : event.newCitation.sourceBlob?.cid || ''
 
     // Fetch comment content if this is a comment citation
     let comment: HMComment | null = null
     let replyCount: number | undefined = undefined
     if (citationType === 'c') {
       try {
-        const commentCid = event.newMention.sourceBlob?.cid
+        const commentCid = event.newCitation.sourceBlob?.cid
         if (commentCid) {
           const grpcComment = await cache.getComment(commentCid)
           comment = prepareHMComment(grpcComment)
@@ -706,7 +706,7 @@ export async function loadCitationEvent(
       source,
       target,
       targetAuthorUids,
-      targetFragment: event.newMention.targetFragment || undefined,
+      targetFragment: event.newCitation.targetFragment || undefined,
       comment,
       replyCount,
     }

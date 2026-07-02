@@ -4,7 +4,6 @@ import (
 	activity "seed/backend/api/activity/v1alpha"
 	daemon "seed/backend/api/daemon/v1alpha"
 	documentsv3 "seed/backend/api/documents/v3alpha"
-	entities "seed/backend/api/entities/v1alpha"
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
 	telemetryapi "seed/backend/api/telemetry/v1alpha"
@@ -26,7 +25,6 @@ import (
 type Server struct {
 	Daemon      *daemon.Server
 	Networking  *networking.Server
-	Entities    *entities.Server
 	Activity    *activity.Server
 	Syncing     *syncing.Service
 	DocumentsV3 *documentsv3.Server
@@ -58,14 +56,13 @@ func New(
 	tel := telemetryapi.NewServer(logging.New("seed/telemetry", LogLevel))
 	activity.SetTelemetry(tel)
 
-	docs := documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node)
+	docs := documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node, sync, embedder)
 	docs.SetTelemetry(tel)
 
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, node, idx, taskMgr, logging.New("seed/daemon-api", LogLevel)),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
-		Entities:    entities.NewServer(cfg, db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: docs,
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
@@ -79,7 +76,6 @@ func (s Server) Register(srv *grpc.Server) {
 	s.Daemon.RegisterServer(srv)
 	s.Activity.RegisterServer(srv)
 	s.Networking.RegisterServer(srv)
-	s.Entities.RegisterServer(srv)
 	s.DocumentsV3.RegisterServer(srv)
 	s.Payments.RegisterServer(srv)
 	s.Telemetry.RegisterServer(srv)

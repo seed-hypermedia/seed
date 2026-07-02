@@ -6,7 +6,6 @@ import {
   Comments,
   Daemon,
   Documents,
-  Entities,
   Invoices,
   Networking,
   Resources,
@@ -21,7 +20,6 @@ export type GRPCClient = {
   daemon: PromiseClient<typeof Daemon>
   comments: PromiseClient<typeof Comments>
   documents: PromiseClient<typeof Documents>
-  entities: PromiseClient<typeof Entities>
   networking: PromiseClient<typeof Networking>
   accessControl: PromiseClient<typeof AccessControl>
   subscriptions: PromiseClient<typeof Subscriptions>
@@ -38,7 +36,6 @@ export function createGRPCClient(transport: any): GRPCClient {
     daemon: createPromiseClient(Daemon, transport),
     comments: createPromiseClient(Comments, transport),
     documents: createPromiseClient(Documents, transport),
-    entities: createPromiseClient(Entities, transport),
     networking: createPromiseClient(Networking, transport),
     accessControl: createPromiseClient(AccessControl, transport),
     subscriptions: createPromiseClient(Subscriptions, transport),
