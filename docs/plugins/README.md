@@ -35,8 +35,31 @@ CIDs, edited and validated by the same machinery.
 | [`design.md`](./design.md) | Architecture: manifest format, sandbox, bridge protocol, permissions, agent-tool merge |
 | [`plan.md`](./plan.md) | Implementation phases and live status |
 
+## Trying it
+
+Settings → Plugins (desktop). Install by pasting a plugin manifest
+`ipfs://` URL — the manager previews the manifest, its permissions, and its
+actions before you confirm. Enabled plugins expose per-action **Run**
+buttons: the input form is auto-generated from the action's input schema
+(literal-union dropdowns, HM references, links — the full schema-driven
+editor), execution happens in the sandbox, and the output is validated
+against the output schema and rendered as structured data.
+
+### The example plugin
+
+[`example-plugin.json`](./example-plugin.json) contains a complete
+deterministic plugin (slugify: text → URL slug; zero permissions). Publish
+its blobs to your local daemon (gRPC port from your running app):
+
+```sh
+python3 -c "import json; d=json.load(open('docs/plugins/example-plugin.json')); print(json.dumps({'blobs':[{'cid':b['cid'],'data':b['data']} for b in d['blobs']]}))"   | grpcurl -plaintext -d @ localhost:58002 com.seed.daemon.v1alpha.Daemon/StoreBlobs
+```
+
+then install `ipfs://bafyreifgwbw4eeadsm4anb3hz54fyxh7klrq4pdzf2aenbvttal6a2ntda`.
+
 ## Status
 
-**Phase: research.** Parallel readers are mapping the agents server's tool
-registry (the merge target), the desktop integration surfaces, and the
-Electron sandboxing constraints. The design doc lands when they report.
+**Phases 1–3 implemented** (see [`plan.md`](./plan.md)): manifest core +
+LLM schema compiler, the worker-in-iframe sandbox with permission-gated
+bridge, and the plugin manager with schema-driven invocation. Next: the
+main-process hardening patches and the Phase-A agent-tool merge.

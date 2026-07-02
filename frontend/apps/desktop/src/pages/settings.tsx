@@ -113,6 +113,8 @@ import {InfoListHeader, InfoListItem, TableList} from '@shm/ui/table-list'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {PluginsSettings} from '@/components/plugins-settings'
+import {SettingsCard, SettingsRow} from './settings-ui'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQuery} from '@tanstack/react-query'
@@ -129,6 +131,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Puzzle,
   RadioTower,
   Server,
   Trash,
@@ -145,6 +148,7 @@ const SETTINGS_TABS = [
   'sync',
   'app-info',
   'agent-servers',
+  'plugins',
   'advanced',
 ] as const satisfies readonly SettingsTab[]
 
@@ -159,6 +163,7 @@ const SETTINGS_TAB_CONFIG: SettingsTabConfig[] = [
   {key: 'sync', icon: RadioTower, label: 'Sync options'},
   {key: 'app-info', icon: Info, label: 'App info'},
   {key: 'agent-servers', icon: Server, label: 'Agent Servers'},
+  {key: 'plugins', icon: Puzzle, label: 'Plugins'},
   {key: 'advanced', icon: Code2, label: 'Advanced'},
 ]
 
@@ -192,6 +197,7 @@ export default function Settings() {
                 {activeTab === 'sync' && <GatewaySettings />}
                 {activeTab === 'app-info' && <AppSettings />}
                 {activeTab === 'agent-servers' && <AgentServersSettingsPage />}
+                {activeTab === 'plugins' && <PluginsSettings />}
                 {activeTab === 'advanced' && <AdvancedSettings />}
               </div>
             </ScrollArea>
@@ -541,35 +547,6 @@ function GeneralSettings() {
         />
       </SettingsCard>
     </>
-  )
-}
-
-function SettingsCard({label, children}: {label: string; children: React.ReactNode}) {
-  return (
-    <div>
-      <SizableText size="xs" weight="bold" className="text-muted-foreground mb-2 tracking-wider">
-        {label}
-      </SizableText>
-      <div className="bg-muted dark:bg-background rounded-lg border">{children}</div>
-    </div>
-  )
-}
-
-function SettingsRow({label, description, right}: {label: string; description?: string; right?: React.ReactNode}) {
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <SizableText size="sm" weight="medium">
-          {label}
-        </SizableText>
-        {description ? (
-          <SizableText size="xs" className="text-muted-foreground">
-            {description}
-          </SizableText>
-        ) : null}
-      </div>
-      {right ? <div className="shrink-0">{right}</div> : null}
-    </div>
   )
 }
 

@@ -274,7 +274,7 @@ export const draftsSchema = z.object({
 })
 export type DraftsRoute = z.infer<typeof draftsSchema>
 
-export const settingsTabSchema = z.enum(['general', 'sync', 'app-info', 'agent-servers', 'advanced'])
+export const settingsTabSchema = z.enum(['general', 'sync', 'app-info', 'agent-servers', 'plugins', 'advanced'])
 export type SettingsTab = z.infer<typeof settingsTabSchema>
 
 export const settingsRouteSchema = z.object({

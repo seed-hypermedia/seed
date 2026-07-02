@@ -2,39 +2,34 @@
 
 Status values: `todo` / `in progress` / `review` / `done`.
 
-## Phase 1 — Pure core — `in progress`
+## Phase 1 — Pure core — `done`
 
-- [ ] `plugin-manifest.ts`: manifest + action types, permission vocabulary,
-      `validatePluginManifest` (advisory-style, precise errors),
-      `PLUGIN_MANIFEST_SCHEMA` blob + pinned CID (drift-checked by test),
-      `pluginToolName`/`parsePluginToolName` (`plugin_<name>__<action>`)
-- [ ] `blob-schema-compile.ts`: blob dialect → plain JSON Schema subset for
-      LLM-facing tool inputs (inline internal+registry refs, lower kinds/
-      formats/literal unions/unions, strip unknown keywords), with tests
-- [ ] Tests for both modules
+- [x] `plugin-manifest.ts` (pinned schema CID
+      `bafyreihqfltqulazz4erxr37nel6exe34fknmyrb26fixzzsimuhdwdqta`)
+- [x] `blob-schema-compile.ts` — dialect → plain JSON Schema lowering
+- [x] 48 tests across both modules
 
-## Phase 2 — Sandbox host (desktop) — `todo`
+## Phase 2 — Sandbox host (desktop) — `done` (hardening pending)
 
-- [ ] `plugin-shim.ts`: static srcdoc bootstrap (CSP, worker-per-invocation,
-      MessageChannel protocol, `seed.action`/`seed.call` SDK)
-- [ ] `plugin-host.tsx`: iframe lifecycle, handshake, invocation with
-      deadline + terminate, bridge routing
-- [ ] `plugin-bridge.ts`: permission-checked `document.read`,
-      `document.updateMetadata`, `blob.get`, `blob.publish`
+- [x] `plugin-shim.ts` — static srcdoc, network-closing CSP, worker per call
+- [x] `plugin-host.ts` — lifecycle, deadlines + terminate, permission gate
+- [x] `plugin-bridge.ts` — four capabilities, injected, size caps
+- [x] 9 protocol-level tests (jsdom cannot execute srcdoc/workers — the
+      sandbox itself needs a manual/E2E pass in the real app)
 - [ ] Main-process hardening: `will-frame-navigate` srcdoc hard-deny +
       hostname allowlist fix; webRequest frame filter; deny-by-default
-      permission handler
+      permission handler — REQUIRED BEFORE SHIPPING
 
-## Phase 3 — Install & invoke UX — `todo`
+## Phase 3 — Install & invoke UX — `done`
 
-- [ ] `plugin-store.ts` trpc router + app-store persistence (installed CIDs,
-      enabled flag)
-- [ ] `models/plugins.ts`: installed manifests via `useSchemaRegistries`-style
-      fetching
-- [ ] Plugin manager UI (behind Developer Mode): install by `ipfs://` URL,
-      shows title/description/permissions/actions, enable/disable
-- [ ] Run-action dialog: schema-driven input form → run → output view with
-      advisory output validation
+- [x] `app-plugins.ts` trpc router + app-store persistence
+- [x] `models/plugins.ts`: records + validated manifests + code fetching
+- [x] Settings → Plugins tab: install-by-URL with manifest/permission
+      preview, enable/disable, uninstall
+- [x] Run-action panel: schema-driven input form (instantiated starter),
+      sandboxed run, output with advisory validation
+- [x] Example plugin fixture (`example-plugin.json`, slugify, deterministic
+      CIDs) + publish instructions in README
 
 ## Phase 4 — Agent merge (desktop assistant) — `todo`
 

@@ -21,6 +21,7 @@ import {diagnosisApi} from './app-diagnosis'
 import {documentCardCleanupApi, startDocumentCardCleanupCoordinator} from './app-document-card-cleanup'
 import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
+import {pluginsApi} from './app-plugins'
 import {bookmarksApi} from './app-bookmarks'
 import {notificationConfigApi} from './app-notification-config'
 import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
@@ -242,6 +243,7 @@ export const router = t.router({
   chat: chatApi,
   drafts: draftsApi,
   experiments: experimentsApi,
+  plugins: pluginsApi,
   diagnosis: diagnosisApi,
   documentCardCleanup: documentCardCleanupApi,
   welcoming: welcomingApi,

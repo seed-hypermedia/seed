@@ -122,6 +122,7 @@ export const queryKeys = {
 
   // tRPC-migrated query keys
   EXPERIMENTS: 'EXPERIMENTS',
+  PLUGINS: 'PLUGINS',
   BOOKMARKS: 'BOOKMARKS',
   HOST_STATE: 'HOST_STATE',
   RECENT_SIGNERS: 'RECENT_SIGNERS',
