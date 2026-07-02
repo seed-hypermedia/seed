@@ -131,10 +131,24 @@ was type-sensitive. Replaced with `BlobSchemaEditor`, a dedicated form:
       keywords preserved verbatim; "Edit as Raw Fields" and JSON mode remain
 - [x] "New Schema" seeds `{type: "object"}` so the form opens on the table
 - [x] Pure helpers in `blob-schema-edit.ts` (9 tests) + 7 jsdom form tests
+- [x] **Blob parity, proven**: schemas are regular IPFS blobs. A page-level
+      test mounts `RawBlobPage` on both the New Blob and New Schema routes and
+      asserts the identical Publish affordance, identical `PublishBlobs` call
+      shape (explicit sha256 CIDs; schemas co-publish the meta blob), and the
+      identical post-publish route replace to `{key:'raw-blob', cid}` — the
+      route the omnibar/titlebar renders as `ipfs://<cid>`. Omnibar paste of a
+      schema URL routes like any DAG-CBOR blob (content detection opens the
+      form post-load).
+- [x] **Enum dropdown UX end to end**: schema authors define string options
+      via chips in the schema form; instance editors render enum-member values
+      as dropdowns (with a "Custom value…" escape); the add-field form shows a
+      dropdown of the options when adding a declared enum field (suggestions
+      prefill the default/first option), and required-field chips seed the
+      enum head — so enum fields are dropdowns from the moment they exist.
 
 ## Final state
 
-All phases complete. Suites: ui 249, desktop 555, shared 927 — all green;
+All phases complete. Suites: ui 249, desktop 560, shared 927 — all green;
 full-workspace typecheck clean. End-to-end verified against a live local
 daemon (publish chain, read-back, validation, collision behavior).
 
