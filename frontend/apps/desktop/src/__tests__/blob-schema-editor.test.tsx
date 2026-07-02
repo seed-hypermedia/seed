@@ -117,6 +117,34 @@ describe('BlobSchemaEditor', () => {
     expect((latest as Record<string, unknown>).schema).toEqual(schemaLink.schema)
   })
 
+  it('the add-field form has a Required toggle that stages required membership', () => {
+    render({...schemaLink, type: 'object'})
+    const addButton = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Add field',
+    ) as HTMLButtonElement
+    act(() => addButton.click())
+    const nameInput = Array.from(container.querySelectorAll('input')).find((el) =>
+      el.placeholder.includes('Field name'),
+    ) as HTMLInputElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      setter.call(nameInput, 'headline')
+      nameInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    const requiredSwitch = Array.from(container.querySelectorAll('button[role="switch"]')).find(
+      (el) => el.closest('label')?.textContent?.includes('Required'),
+    ) as HTMLButtonElement
+    act(() => requiredSwitch.click())
+    const addCommit = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Add',
+    ) as HTMLButtonElement
+    act(() => addCommit.click())
+    expect(latest as BlobSchema).toMatchObject({
+      properties: {headline: {type: 'string'}},
+      required: ['headline'],
+    })
+  })
+
   it('preserves unknown keywords through form edits', () => {
     render({...schemaLink, type: 'object', 'x-custom': {nested: true}})
     const extraSwitch = Array.from(container.querySelectorAll('button[role="switch"]')).find(
