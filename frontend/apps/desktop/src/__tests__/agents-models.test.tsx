@@ -114,18 +114,6 @@ describe('agent server models', () => {
     process.env.NODE_ENV = originalNodeEnv
   })
 
-  it('does not inject a built-in server into the configured server list', async () => {
-    vi.resetModules()
-    const mod = await import('../models/agents')
-    const rendered = renderHook(() => mod.useAgentServerUrls())
-
-    await waitForCondition(() => rendered.result().data !== undefined)
-
-    expect(rendered.result().data).toEqual([])
-
-    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
-  })
-
   it('seeds the configured server list with the built-in default in development', async () => {
     process.env.NODE_ENV = 'development'
 
@@ -140,8 +128,22 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('does not re-seed the built-in default after the list is emptied in development', async () => {
-    process.env.NODE_ENV = 'development'
+  it('seeds the configured server list with the hosted default in production', async () => {
+    process.env.NODE_ENV = 'production'
+
+    vi.resetModules()
+    const mod = await import('../models/agents')
+    const rendered = renderHook(() => mod.useAgentServerUrls())
+
+    await waitForCondition(() => rendered.result().data !== undefined)
+
+    expect(rendered.result().data).toEqual(['https://agentic.seed.hyper.media'])
+
+    cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+  })
+
+  it('does not re-seed the built-in default after the list is emptied in production', async () => {
+    process.env.NODE_ENV = 'production'
     storeData['agent-server-urls'] = []
 
     vi.resetModules()

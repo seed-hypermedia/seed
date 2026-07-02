@@ -142,11 +142,12 @@ export function useAgentServerUrls() {
         const normalized = tryNormalizeAgentServerUrl(storedDefault)
         if (normalized) urls.add(normalized)
       }
-      // In local development, seed the list with the built-in default the first
-      // time the app runs so there is a server to connect to out of the box.
+      // Seed the list with the built-in default the first time the app runs so
+      // there is a server to connect to out of the box — the hosted
+      // `agentic.seed.hyper.media` in production, `localhost:3050` in dev.
       // Once the list has been configured (even to empty), respect that choice
       // so removing the last server still sticks.
-      if (urls.size === 0 && !Array.isArray(storedList) && process.env.NODE_ENV === 'development') {
+      if (urls.size === 0 && !Array.isArray(storedList)) {
         urls.add(DEFAULT_AGENT_SERVER_URL)
       }
       return Array.from(urls)
