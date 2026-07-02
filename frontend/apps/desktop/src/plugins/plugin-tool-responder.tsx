@@ -1,17 +1,12 @@
 import {useLoadedPlugins, usePluginToolRegistration, type LoadedPlugin} from '@/models/plugins'
-import {createPluginBridge} from '@/plugins/plugin-bridge'
 import {PluginHost} from '@/plugins/plugin-host'
 import {client} from '@/trpc'
 import {useListenAppEvent} from '@/utils/window-events'
-import * as cbor from '@ipld/dag-cbor'
-import {useUniversalClient, type NavRoute} from '@shm/shared'
+import {useUniversalClient} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {dagJsonToIpld} from '@shm/ui/dag-json'
 import {parsePluginToolName, type PluginManifest} from '@shm/ui/plugin-manifest'
-import {CID} from 'multiformats/cid'
-import {sha256} from 'multiformats/hashes/sha2'
 import {useCallback, useEffect, useRef} from 'react'
+import {createDesktopPluginBridge} from './desktop-plugin-bridge'
 
 /**
  * App-wide responder that runs assistant-invoked plugin actions in the renderer
@@ -28,16 +23,13 @@ export function PluginToolResponder() {
   usePluginToolRegistration()
 
   const {plugins} = useLoadedPlugins()
-  const route = useNavRoute()
   const universalClient = useUniversalClient()
 
   // The event handler is stable; it reads the latest values through refs so it
   // never needs to re-subscribe (which would drop in-flight sandbox state).
   const pluginsRef = useRef<LoadedPlugin[]>(plugins)
-  const routeRef = useRef<NavRoute>(route)
   const clientRef = useRef(universalClient)
   pluginsRef.current = plugins
-  routeRef.current = route
   clientRef.current = universalClient
 
   // Per-plugin sandbox hosts (reused across calls) and a code-blob fetch cache.
@@ -61,34 +53,7 @@ export function PluginToolResponder() {
       const existing = hostsRef.current.get(plugin.cid)
       if (existing) return existing
       const created = loadCode(plugin.manifest.code['/']).then((code) => {
-        const bridge = createPluginBridge({
-          getBlob: async (cid) => {
-            const result = (await clientRef.current.request('GetCID', {cid})) as {value?: unknown}
-            return result.value
-          },
-          publishBlob: async (value) => {
-            const data = cbor.encode(dagJsonToIpld(value))
-            const digest = await sha256.digest(data)
-            const cid = CID.createV1(0x71, digest).toString()
-            await clientRef.current.request('PublishBlobs', {blobs: [{cid, data}]})
-            return {cid}
-          },
-          // `document:read` — the focused window's current document, if any.
-          readDocument: async () => {
-            const current = routeRef.current
-            const id = current && (current.key === 'document' || current.key === 'feed') ? current.id : undefined
-            if (!id) throw new Error('No document is open')
-            const resource = (await clientRef.current.request('Resource', id)) as {
-              type?: string
-              document?: {metadata?: Record<string, unknown>}
-            }
-            if (resource?.type !== 'document' || !resource.document)
-              throw new Error('The current resource is not a document')
-            return {id: id.id, metadata: resource.document.metadata ?? {}}
-          },
-          // `document:write` (updateDocumentMetadata) is intentionally unwired in
-          // this phase — the bridge surfaces a clear "unavailable" error.
-        })
+        const bridge = createDesktopPluginBridge(clientRef.current)
         return new PluginHost(plugin.manifest, code, bridge)
       })
       hostsRef.current.set(plugin.cid, created)

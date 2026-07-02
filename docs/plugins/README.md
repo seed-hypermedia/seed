@@ -32,6 +32,7 @@ CIDs, edited and validated by the same machinery.
 
 | Doc | Contents |
 | --- | --- |
+| [`authoring.md`](./authoring.md) | **How to write a plugin** — SDK, schemas, manifest, publishing, debugging |
 | [`design.md`](./design.md) | Architecture: manifest format, sandbox, bridge protocol, permissions, agent-tool merge |
 | [`plan.md`](./plan.md) | Implementation phases and live status |
 
@@ -56,6 +57,14 @@ python3 -c "import json; d=json.load(open('docs/plugins/example-plugin.json')); 
 ```
 
 then install `ipfs://bafyreifgwbw4eeadsm4anb3hz54fyxh7klrq4pdzf2aenbvttal6a2ntda`.
+
+A second example, [`example-find-replace.json`](./example-find-replace.json)
+(install `ipfs://bafyreidyf666rpikc7dskkwihuvzjiskphqnzhtyyopojliuil2ulk2mz4`),
+exercises the document capabilities: give it a document URL (HM Url field with
+search), a find string, and a replace string — it rewrites the open document's
+metadata and **stages the change into the draft** (nothing publishes; you
+review and publish). Run it from the document's options menu (Developer Mode)
+so the document capabilities are live.
 
 ## Status
 

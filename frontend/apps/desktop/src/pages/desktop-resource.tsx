@@ -71,6 +71,9 @@ import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {useLoadedPlugins} from '@/models/plugins'
+import {PluginActionDialog} from '@/plugins/plugin-action-dialog'
+import {RegisterDocumentPluginCapabilities} from '@/plugins/register-document-capabilities'
 import {BLOB_META_SCHEMA_CID} from '@shm/ui/blob-schema'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
@@ -82,7 +85,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation} from '@tanstack/react-query'
-import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
+import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Puzzle, Split} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -697,6 +700,8 @@ export default function DesktopResourcePage() {
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
+  const pluginActionDialog = useAppDialog(PluginActionDialog, {className: 'w-full max-w-2xl'})
+  const {plugins: loadedPlugins} = useLoadedPlugins()
 
   const menuItems: MenuItemType[] = []
 
@@ -865,6 +870,21 @@ export default function DesktopResourcePage() {
       icon: <FileCode2 className="size-4" />,
       onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
     })
+
+    // Enabled plugins' actions run against THIS document: the machine is
+    // mounted, so document.read / document.updateMetadata (staged draft
+    // changes) are live for the sandbox.
+    for (const plugin of loadedPlugins) {
+      if (!plugin.enabled || !plugin.manifest) continue
+      for (const action of plugin.manifest.actions) {
+        menuItems.push({
+          key: `plugin-${plugin.cid}-${action.name}`,
+          label: `${plugin.manifest.title ?? plugin.manifest.name}: ${action.title ?? action.name}`,
+          icon: <Puzzle className="size-4" />,
+          onClick: () => pluginActionDialog.open({manifest: plugin.manifest!, actionName: action.name}),
+        })
+      }
+    }
   }
 
   // Publish / Unpublish site options (only for home documents)
@@ -1028,7 +1048,12 @@ export default function DesktopResourcePage() {
                     DocumentContentComponent={DocumentEditorWithImport}
                     machine={machine}
                     onEditorReady={handleEditorReady}
-                    machineExtras={<DraftExternalModificationMachineLogger />}
+                    machineExtras={
+                      <>
+                        <DraftExternalModificationMachineLogger />
+                        <RegisterDocumentPluginCapabilities />
+                      </>
+                    }
                     editingFloatingActions={editingFloatingActions}
                     signingAccountId={selectedAccountId || undefined}
                     publishAccountUid={selectedAccount?.id?.uid || undefined}
@@ -1050,6 +1075,7 @@ export default function DesktopResourcePage() {
       {copySiteUrlContent}
       {deleteEntity.content}
       {destinationDialog.content}
+      {pluginActionDialog.content}
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}
