@@ -13,6 +13,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const SCHEMA_CID = 'bafyreigu5vewjq63sy3t2spkkpmchine3vo3jnuuvntx7ig4oef7hafuka'
 const SCHEMA_KEY = `ipfs://${SCHEMA_CID}`
+const LITERAL_CID = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+const LITERAL_KEY = `ipfs://${LITERAL_CID}`
 
 const ARTICLE_SCHEMA = {
   title: 'Article',
@@ -24,10 +26,21 @@ const ARTICLE_SCHEMA = {
   },
 }
 
-// The registry fetch hook is network-bound; supply the schema directly.
+// A schema that is a literal union at its root.
+const STATUS_SCHEMA = {
+  title: 'Status',
+  enum: ['todo', 'doing', 'done'],
+}
+
+const KNOWN_SCHEMAS: Record<string, unknown> = {
+  [SCHEMA_CID]: ARTICLE_SCHEMA,
+  [LITERAL_CID]: STATUS_SCHEMA,
+}
+
+// The registry fetch hook is network-bound; supply the schemas directly.
 vi.mock('@shm/ui/blob-schema-registry', () => ({
   useSchemaRegistries: (seedCids: string[]) => ({
-    registry: seedCids.includes(SCHEMA_CID) ? {[SCHEMA_CID]: ARTICLE_SCHEMA} : {},
+    registry: Object.fromEntries(seedCids.filter((cid) => KNOWN_SCHEMAS[cid]).map((cid) => [cid, KNOWN_SCHEMAS[cid]])),
     isLoading: false,
     isComplete: true,
   }),
@@ -106,6 +119,44 @@ describe('schema-keyed metadata fields', () => {
     expect(patches).toHaveLength(1)
     // instantiated from the schema: required fields seeded, enum head chosen
     expect(patches[0]).toEqual({[SCHEMA_KEY]: {headline: '', status: 'draft'}})
+  })
+
+  it('typing a schema URL as the field NAME adopts the schema immediately', () => {
+    render({})
+    // open the add-field form and type the schema URL as the field name
+    const addButton = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.includes('Add field'),
+    ) as HTMLButtonElement
+    act(() => addButton.click())
+    const nameInput = Array.from(container.querySelectorAll('input')).find((el) =>
+      el.placeholder.includes('Field name'),
+    ) as HTMLInputElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      setter.call(nameInput, LITERAL_KEY)
+      nameInput.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    // the value input immediately becomes a dropdown of the literal options
+    // (the first combobox is the add-form's type picker)
+    const combos = Array.from(container.querySelectorAll('[role="combobox"]'))
+    const valueSelect = combos.find((el) => el.textContent?.includes('todo'))
+    expect(valueSelect).toBeTruthy()
+    // committing stages the enum head under the schema-URL key
+    const addCommit = Array.from(container.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Add',
+    ) as HTMLButtonElement
+    act(() => addCommit.click())
+    expect(patches).toEqual([{[LITERAL_KEY]: 'todo'}])
+  })
+
+  it('a schema-keyed row shows the schema TITLE, not the URL, and a dropdown', () => {
+    render({[LITERAL_KEY]: 'doing'})
+    expect(container.textContent).toContain('Status')
+    expect(container.textContent).not.toContain(LITERAL_CID)
+    const combo = container.querySelector('[role="combobox"]')
+    expect(combo).not.toBeNull()
+    expect(combo!.textContent).toContain('doing')
+    expect(container.querySelector('.lucide-triangle-alert')).toBeNull()
   })
 
   it('rejects attaching a non-schema key', () => {

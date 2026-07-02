@@ -11,6 +11,7 @@ import {
   CopyPlus,
   Download,
   ExternalLink,
+  FileCode2,
   FileUp,
   GripVertical,
   Link2,
@@ -38,6 +39,7 @@ import {
   SchemaWarningBadge,
   suggestedFieldType,
   useSchemaFieldSuggestions,
+  useSchemaKeyLabel,
   type LiteralOption,
 } from './value-editor-schema'
 
@@ -683,6 +685,9 @@ export function FieldRow({
     },
   ]
   const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, getMenuActions)
+  // A schema-keyed field (key = the schema's ipfs:// URL) labels itself with
+  // the schema's title; the raw key stays available in a tooltip.
+  const schemaKeyLabel = useSchemaKeyLabel(fieldKey)
 
   return (
     <div
@@ -702,7 +707,16 @@ export function FieldRow({
           ) : (
             <span className="size-4 shrink-0" />
           )}
-          <EditableFieldKey fieldKey={fieldKey} existingKeys={siblingKeys} onRename={onRename} />
+          {schemaKeyLabel ? (
+            <Tooltip content={fieldKey}>
+              <span className={cn(FIELD_LABEL_CLASS, 'flex items-center gap-1 truncate')}>
+                <FileCode2 className="size-3 shrink-0" />
+                {schemaKeyLabel}
+              </span>
+            </Tooltip>
+          ) : (
+            <EditableFieldKey fieldKey={fieldKey} existingKeys={siblingKeys} onRename={onRename} />
+          )}
           <SchemaWarningBadge path={path} />
         </div>
         <div className="pl-5">
@@ -1433,6 +1447,7 @@ export function AddFieldForm({
   compact = false,
   rules,
   path,
+  onKeyTextChange,
   onAdd,
 }: {
   existingKeys?: string[]
@@ -1441,6 +1456,8 @@ export function AddFieldForm({
   rules: ValueEditorRules
   /** Path of the container being added to; enables schema suggestions. */
   path?: ValuePath
+  /** Reports the field-name text as it's typed (e.g. to prefetch schema-URL keys). */
+  onKeyTextChange?: (keyText: string) => void
   onAdd: (key: string, value: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1468,6 +1485,20 @@ export function AddFieldForm({
   const enumOptions: LiteralOption[] | undefined =
     type === 'text' && enumSourceSchema ? literalEnumOptions(enumSourceSchema) ?? undefined : undefined
 
+  // Typing a key the schema declares (including a just-fetched schema-URL
+  // key) immediately adopts that field's type, so e.g. a literal union shows
+  // its dropdown without any extra step.
+  const matchedSuggestionType = suggestions.find((suggestion) => suggestion.key === key.trim())?.type ?? null
+  useEffect(() => {
+    if (
+      matchedSuggestionType &&
+      (matchedSuggestionType !== 'list' || rules.lists) &&
+      ((matchedSuggestionType !== 'link' && matchedSuggestionType !== 'bytes') || rules.ipld)
+    ) {
+      setType(matchedSuggestionType)
+    }
+  }, [matchedSuggestionType])
+
   const reset = () => {
     setOpen(false)
     setKey('')
@@ -1476,6 +1507,7 @@ export function AddFieldForm({
     setToggleValue(true)
     setFile(null)
     setError(null)
+    onKeyTextChange?.('')
   }
 
   if (!open) {
@@ -1640,6 +1672,7 @@ export function AddFieldForm({
             onChange={(e) => {
               setKey(e.target.value)
               setError(null)
+              onKeyTextChange?.(e.target.value)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit()

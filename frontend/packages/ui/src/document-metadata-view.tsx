@@ -102,7 +102,13 @@ export function DocumentMetadataView({
     return cids
   }, [keysDep, pendingSchemaCid])
   const {registry} = useSchemaRegistries(seedCids)
-  const schemaRoot = useMemo(() => buildSchemaKeyRoot(visibleKeys), [keysDep])
+  // Include the pending key so the add-field form is schema-driven the moment
+  // a schema URL is typed as the field name (dropdowns for literal unions,
+  // matching value inputs) — before the field even exists.
+  const schemaRoot = useMemo(
+    () => buildSchemaKeyRoot(pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys),
+    [keysDep, pendingSchemaCid],
+  )
 
   // Undo/redo over snapshots of the merged metadata: `record()` before each
   // staged patch; undo/redo apply the diff back to the snapshot.
@@ -193,8 +199,16 @@ export function DocumentMetadataView({
               )}
               <AddFieldForm
                 rules={METADATA_VALUE_RULES}
+                path={[]}
                 existingKeys={entries.map(([key]) => key)}
-                onAdd={(key, value) => stage({[key]: value})}
+                onKeyTextChange={(keyText) => {
+                  const cidText = keyText.trim().replace(/^ipfs:\/\//, '')
+                  setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
+                }}
+                onAdd={(key, value) => {
+                  stage({[key]: value})
+                  setPendingSchemaCid(null)
+                }}
               />
             </>
           ) : entries.length === 0 ? (
