@@ -67,8 +67,8 @@ schema — the suggestion chips pre-select the type instead, which is clearer.
 - [x] `SchemaStatusRow`: schema identity + open button, loading state,
       "N fields don't match the schema — kept as-is" / "Matches schema";
       publish never blocked
-- [ ] Forbid `"/"` property names in schema authoring (still open — currently
-      only documented)
+- [x] Forbid `"/"` property names in schema authoring (add/rename in both the
+      generic editor and the schema form; suggestion chips skip it)
 
 ## Phase 4 — Hardening & docs — `done`
 
