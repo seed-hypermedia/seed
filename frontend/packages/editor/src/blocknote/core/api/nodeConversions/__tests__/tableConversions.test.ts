@@ -27,7 +27,7 @@ function createTableSchema(): Schema {
         },
       },
       blockNode: {content: 'blockContent blockChildren?', attrs: {id: {default: ''}}},
-      paragraph: {content: 'inline*', group: 'blockContent'},
+      paragraph: {content: 'inline*', group: 'blockContent', attrs: {revision: {default: ''}}},
       table: {content: 'tableRow+', group: 'blockContent'},
       tableRow: {content: '(tableCell | tableHeader)+', attrs: {id: {default: null}}},
       tableCell: {content: 'paragraph+', attrs: CELL_ATTRS},
@@ -232,6 +232,29 @@ describe('tableBlockToNode (editor block to PM)', () => {
     expect(grid[0]!.map((c) => c.text)).toEqual(['a', '', 'c'])
     const allIds = grid.flat().map((c) => c.id)
     expect(allIds).not.toContain('orphan')
+  })
+
+  it('preserves paragraph props on table cells while keeping columnId on the cell node', () => {
+    const table = editorTable(
+      [col('col-0')],
+      [
+        row('row-0', [
+          {
+            ...cell('c00', 'col-0', 'a'),
+            props: {columnId: 'col-0', revision: 'rev-cell-1'},
+          } as any,
+        ]),
+      ],
+    )
+
+    const pm = blockToNode(table, schema)
+    const tableNode = pm.firstChild!
+    const cellNode = tableNode.firstChild!.firstChild!
+    const paragraphNode = cellNode.firstChild!
+
+    expect(cellNode.attrs.columnId).toBe('col-0')
+    expect((cellNode.attrs as any).revision).toBeUndefined()
+    expect(paragraphNode.attrs.revision).toBe('rev-cell-1')
   })
 })
 

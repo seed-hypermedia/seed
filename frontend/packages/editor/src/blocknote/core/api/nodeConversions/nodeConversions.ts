@@ -657,8 +657,18 @@ function tableBlockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSche
 
       const inlineNodes: Node[] =
         cellBlock && cellBlock.content ? inlineContentToNodes(cellBlock.content as any, schema) : []
+      const paragraphProps: Record<string, any> = {}
+      const paragraphType = schema.nodes['paragraph']!
+      const paragraphAttrs = paragraphType.spec.attrs ?? {}
+      if (cellBlock) {
+        for (const [key, value] of Object.entries((cellBlock as any).props ?? {})) {
+          if (key !== 'columnId' && key in paragraphAttrs) {
+            paragraphProps[key] = value
+          }
+        }
+      }
       // @ts-ignore
-      const paragraphNode = schema.nodes['paragraph'].create(null, inlineNodes)
+      const paragraphNode = paragraphType.create(cellBlock ? paragraphProps : null, inlineNodes)
 
       const cellAttrs: Record<string, any> = {
         id: cellBlock?.id ?? null,
