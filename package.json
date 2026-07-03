@@ -217,6 +217,7 @@
       "dompurify@<=3.4.6": "3.4.7",
       "markdown-it@<=14.1.1": "14.2.0",
       "@opentelemetry/core@<2.8.0": "2.8.0",
+      "@opentelemetry/sdk-trace-base@<2.7.0": "2.7.0",
       "hono@<4.12.25": "4.12.25",
       "nodemailer@<=9.0.0": "9.0.1",
       "dompurify@<=3.4.10": "3.4.11",
