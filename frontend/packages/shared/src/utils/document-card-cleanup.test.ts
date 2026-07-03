@@ -1,12 +1,14 @@
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {
+  appendDraftCardToEditorBlocks,
   applyDocumentCardCleanupToBlockNodes,
   planDocumentCardMoveOperations,
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
   planDocumentCardRemoval,
   planDocumentCardRewrite,
+  removeDraftCardFromEditorBlocks,
 } from './document-card-cleanup'
 
 function doc(content: HMBlockNode[]): Pick<HMDocument, 'content'> {
@@ -387,5 +389,54 @@ describe('planDocumentCardMoveOperations', () => {
         targetDocumentId: 'hm://site/new-parent/doc',
       },
     ])
+  })
+})
+
+describe('draft-card editor block helpers', () => {
+  it('removes only the matching draft card and preserves its children', () => {
+    const result = removeDraftCardFromEditorBlocks(
+      [
+        {
+          id: 'target-card',
+          type: 'embed',
+          props: {draftId: 'draft-1', view: 'Card'},
+          children: [{id: 'child', type: 'paragraph', children: []}],
+        },
+        {id: 'other-card', type: 'embed', props: {draftId: 'draft-1', view: 'Card'}, children: []},
+      ],
+      'draft-1',
+      'target-card',
+    )
+
+    expect(result.removedBlockIds).toEqual(['target-card'])
+    expect(result.content).toEqual([
+      {id: 'child', type: 'paragraph', children: []},
+      {id: 'other-card', type: 'embed', props: {draftId: 'draft-1', view: 'Card'}, children: []},
+    ])
+  })
+
+  it('appends a draft card unless the draft is already linked', () => {
+    const initial = [{id: 'paragraph', type: 'paragraph', children: []}]
+
+    expect(appendDraftCardToEditorBlocks(initial, 'draft-1', 'new-card')).toEqual({
+      content: [
+        {id: 'paragraph', type: 'paragraph', children: []},
+        {
+          id: 'new-card',
+          type: 'embed',
+          props: {url: '', draftId: 'draft-1', view: 'Card', defaultOpen: 'false'},
+          content: [],
+          children: [],
+        },
+      ],
+      addedBlockIds: ['new-card'],
+    })
+    expect(
+      appendDraftCardToEditorBlocks(
+        [{id: 'existing-card', type: 'embed', props: {draftId: 'draft-1'}, children: []}],
+        'draft-1',
+        'new-card',
+      ).addedBlockIds,
+    ).toEqual([])
   })
 })

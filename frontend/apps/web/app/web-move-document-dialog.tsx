@@ -8,10 +8,15 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
-import {planDocumentCardMoveOperations} from '@shm/shared/utils/document-card-cleanup'
+import {
+  appendDraftCardToEditorBlocks,
+  planDocumentCardMoveOperations,
+  removeDraftCardFromEditorBlocks,
+} from '@shm/shared/utils/document-card-cleanup'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {
   DocumentDestinationDialog,
+  type DocumentDestinationDialogInput,
   type DocumentDestinationSubmitInput,
   type WritableDocumentDestination,
 } from '@shm/ui/document-destination-dialog'
@@ -20,12 +25,15 @@ import {useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {enqueueWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
+import {
+  getLatestWebDocDraftForDoc,
+  getWebDocDraft,
+  listWebDocDraftsForAccount,
+  putWebDocDraft,
+  type WebDocDraft,
+} from './document-edit/web-draft-db'
 
-export type WebMoveDocumentDialogInput = {
-  id: UnpackedHypermediaId
-  mode: WebDocumentDestinationMode
-  origin?: DocumentCardActionOrigin
-}
+export type WebMoveDocumentDialogInput = DocumentDestinationDialogInput
 
 export type WebDocumentDestinationMode = 'move' | 'republish'
 
@@ -69,6 +77,15 @@ export function WebDocumentDestinationDialog({
   async function onSubmit(submitInput: DocumentDestinationSubmitInput) {
     if (submitInput.mode !== 'move') throw new Error('Republish is not available on web yet')
     if (!canMove) throw new Error('You are not allowed to move this document')
+    if (submitInput.draft?.draftId) {
+      await moveWebDraft({
+        draftId: submitInput.draft.draftId,
+        from: submitInput.from,
+        to: submitInput.to,
+        origin: submitInput.origin,
+      })
+      return
+    }
     await moveWebDocuments(client, {
       from: submitInput.from,
       to: submitInput.to,
@@ -177,6 +194,8 @@ export async function moveWebDocuments(
     )
   }
 
+  await retargetWebDraftAfterPublishedMove(input.from, input.to)
+
   for (const cleanupInput of getMoveCleanupInputs(input.from, input.to, input.signingAccountId, input.capabilityId)) {
     enqueuePostMoveCleanup(cleanupInput, client)
   }
@@ -237,6 +256,117 @@ function getParentId(id: UnpackedHypermediaId) {
   const path = id.path || []
   if (!path.length) return null
   return hmId(id.uid, {path: path.slice(0, -1)})
+}
+
+function pathsEqual(left: string[] | null | undefined, right: string[] | null | undefined) {
+  const a = left || []
+  const b = right || []
+  return a.length === b.length && a.every((segment, index) => segment === b[index])
+}
+
+async function findWebDraftEditing(parentId: UnpackedHypermediaId): Promise<WebDocDraft | null> {
+  const drafts = await listWebDocDraftsForAccount(parentId.uid)
+  return (
+    drafts.find((draft) => draft.docId === parentId.id) ||
+    drafts.find((draft) => draft.editUid === parentId.uid && pathsEqual(draft.editPath, parentId.path || [])) ||
+    null
+  )
+}
+
+async function writeWebDraftContent(draft: WebDocDraft, content: any[]) {
+  await putWebDocDraft({...draft, content, updatedAt: Date.now()})
+  invalidateQueries([queryKeys.DRAFT, draft.draftId])
+  invalidateQueries([queryKeys.DRAFTS_LIST])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+}
+
+async function moveWebDraftCardBetweenParentDrafts({
+  draftId,
+  fromParentId,
+  toParentId,
+  sourceBlockId,
+}: {
+  draftId: string
+  fromParentId: UnpackedHypermediaId | null
+  toParentId: UnpackedHypermediaId
+  sourceBlockId?: string
+}) {
+  if (fromParentId) {
+    const oldParentDraft = await findWebDraftEditing(fromParentId)
+    if (oldParentDraft) {
+      const removed = removeDraftCardFromEditorBlocks((oldParentDraft.content || []) as any[], draftId, sourceBlockId)
+      if (removed.removedBlockIds.length) await writeWebDraftContent(oldParentDraft, removed.content)
+    }
+  }
+
+  const newParentDraft = await findWebDraftEditing(toParentId)
+  if (newParentDraft) {
+    const added = appendDraftCardToEditorBlocks((newParentDraft.content || []) as any[], draftId, `${draftId}-card`)
+    if (added.addedBlockIds.length) await writeWebDraftContent(newParentDraft, added.content)
+  }
+}
+
+export async function moveWebDraft(input: {
+  draftId: string
+  from: UnpackedHypermediaId
+  to: UnpackedHypermediaId
+  origin?: DocumentCardActionOrigin
+}) {
+  const draft = await getWebDocDraft(input.draftId)
+  if (!draft) throw new Error(`Draft ${input.draftId} not found`)
+  const toParent = getParentId(input.to)
+  if (!toParent) throw new Error('Choose a destination location.')
+  const fromParent = draft.locationUid
+    ? hmId(draft.locationUid, {path: draft.locationPath || []})
+    : getParentId(input.from)
+
+  await putWebDocDraft({
+    ...draft,
+    docId: input.to.id,
+    locationUid: toParent.uid,
+    locationPath: toParent.path || [],
+    editUid: input.to.uid,
+    editPath: input.to.path || [],
+    updatedAt: Date.now(),
+  })
+  await moveWebDraftCardBetweenParentDrafts({
+    draftId: input.draftId,
+    fromParentId: fromParent,
+    toParentId: toParent,
+    sourceBlockId: input.origin?.embedBlockId,
+  })
+  invalidateQueries([queryKeys.DRAFT, input.draftId])
+  invalidateQueries([queryKeys.DRAFTS_LIST])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.from.uid])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, input.to.uid])
+  if (fromParent) invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, fromParent.id])
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, toParent.id])
+  return {draftId: input.draftId, from: input.from, to: input.to}
+}
+
+async function retargetWebDraftAfterPublishedMove(from: UnpackedHypermediaId, to: UnpackedHypermediaId) {
+  const draft = await getLatestWebDocDraftForDoc(from.id)
+  if (!draft) return
+  const fromParent = getParentId(from)
+  const toParent = getParentId(to)
+  const shouldMoveLocation =
+    !!fromParent &&
+    !!toParent &&
+    draft.locationUid === fromParent.uid &&
+    pathsEqual(draft.locationPath, fromParent.path || [])
+  await putWebDocDraft({
+    ...draft,
+    docId: to.id,
+    locationUid: shouldMoveLocation ? toParent!.uid : draft.locationUid,
+    locationPath: shouldMoveLocation ? toParent!.path || [] : draft.locationPath,
+    editUid: to.uid,
+    editPath: to.path || [],
+    updatedAt: Date.now(),
+  })
+  invalidateQueries([queryKeys.DRAFT, draft.draftId])
+  invalidateQueries([queryKeys.DRAFTS_LIST])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, from.uid])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, to.uid])
 }
 
 function getMoveCleanupInputs(

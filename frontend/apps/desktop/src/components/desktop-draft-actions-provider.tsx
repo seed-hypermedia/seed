@@ -1,12 +1,14 @@
 import {useDraft} from '@/models/accounts'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
+import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {DraftActions, DraftActionsContext} from '@shm/editor/draft-actions-context'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {nanoid} from 'nanoid'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {PropsWithChildren, useMemo, useState} from 'react'
 
 /**
@@ -19,6 +21,7 @@ export function DesktopDraftActionsProvider({
   children,
 }: PropsWithChildren<{canCreateInlineDraft?: boolean}>) {
   const navigate = useNavigate()
+  const moveDraftDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
   const [lastCreatedInlineDraftId, setLastCreatedInlineDraftId] = useState<string | null>(null)
 
   const value = useMemo<DraftActions>(
@@ -56,6 +59,25 @@ export function DesktopDraftActionsProvider({
           navigate({key: 'document', id: hmId(editUid, {path: editPath})})
         })
       },
+      onMoveDraft: (draftId, origin) => {
+        client.drafts.get.query(draftId).then((draft) => {
+          if (!draft) return
+          const editUid = draft.editUid ?? draft.locationUid
+          if (!editUid) return
+          const editPath = draft.editPath?.length ? draft.editPath : [...(draft.locationPath ?? []), `-${draftId}`]
+          moveDraftDialog.open({
+            id: hmId(editUid, {path: editPath}),
+            mode: 'move',
+            origin: draft.locationUid
+              ? {
+                  parentDocumentId: hmId(draft.locationUid, {path: draft.locationPath ?? []}),
+                  embedBlockId: origin?.embedBlockId,
+                }
+              : undefined,
+            draft: {draftId, title: draft.metadata?.name, icon: draft.metadata?.icon},
+          })
+        })
+      },
       onUpdateDraftName: async (draftId, name) => {
         const draft = await client.drafts.get.query(draftId)
         if (!draft) throw new Error(`Draft ${draftId} not found`)
@@ -80,8 +102,13 @@ export function DesktopDraftActionsProvider({
         setLastCreatedInlineDraftId((current) => (current === draftId ? null : current))
       },
     }),
-    [navigate, canCreateInlineDraft, lastCreatedInlineDraftId],
+    [navigate, canCreateInlineDraft, lastCreatedInlineDraftId, moveDraftDialog],
   )
 
-  return <DraftActionsContext.Provider value={value}>{children}</DraftActionsContext.Provider>
+  return (
+    <DraftActionsContext.Provider value={value}>
+      {children}
+      {moveDraftDialog.content}
+    </DraftActionsContext.Provider>
+  )
 }

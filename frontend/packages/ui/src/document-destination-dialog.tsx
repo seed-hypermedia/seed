@@ -1,4 +1,4 @@
-import type {HMDocument, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -13,7 +13,9 @@ import {getMetadataName} from '@shm/shared/content'
 import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {
   canUseDocumentAsDestinationParent,
+  canUseMoveTargetParent,
   isMoveTargetParentBlocked,
+  isMoveTargetSameSite,
   type DocumentCardActionOrigin,
 } from '@shm/shared/utils/document-actions'
 import {validatePath} from '@shm/shared/utils/document-path'
@@ -39,6 +41,11 @@ export type DocumentDestinationDialogInput = {
   id: UnpackedHypermediaId
   mode: DocumentDestinationMode
   origin?: DocumentCardActionOrigin
+  draft?: {
+    draftId: string
+    title?: string | null
+    icon?: HMMetadata['icon'] | null
+  }
 }
 
 /** Writable location root that can be selected or browsed in the destination dialog. */
@@ -56,6 +63,7 @@ export type DocumentDestinationSubmitInput = {
   mode: DocumentDestinationMode
   signingAccountId: string
   origin?: DocumentCardActionOrigin
+  draft?: DocumentDestinationDialogInput['draft']
 }
 
 const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
@@ -81,12 +89,18 @@ export function DocumentDestinationDialog({
   onSubmit: (input: DocumentDestinationSubmitInput) => Promise<void>
   onSuccess?: (input: DocumentDestinationSubmitInput) => void
 }) {
-  const {data: resource, isLoading, isError, error} = useResource(input.id)
+  const isDraftSource = !!input.draft
+  const {data: resource, isLoading, isError, error} = useResource(isDraftSource ? null : input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
-  const sourceId = resource?.type === 'document' ? resource.id : input.id
-  const sourceTitle = document ? getMetadataName(document.metadata) : 'Untitled'
-  const initialTargetParent = useMemo(() => getSourceParentId(input.id), [input.id.id])
-  const initialSlug = input.id.path?.at(-1) || ''
+  const sourceId = input.id
+  const sourceTitle = isDraftSource
+    ? input.draft?.title || 'Untitled draft'
+    : document
+      ? getMetadataName(document.metadata)
+      : 'Untitled'
+  const sourceIcon = isDraftSource ? input.draft?.icon : document?.metadata.icon
+  const initialTargetParent = useMemo(() => getSourceParentId(sourceId), [sourceId.id])
+  const initialSlug = sourceId.path?.at(-1) || ''
   const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(initialTargetParent)
   const [slug, setSlug] = useState(initialSlug)
   const [searchQuery, setSearchQuery] = useState('')
@@ -115,6 +129,7 @@ export function DocumentDestinationDialog({
     [destinationId?.id],
   )
   const modeDisabled = !enabledModes.includes(input.mode)
+  const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
   const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
   const sourceIsHomeDocument = !sourceId.path?.length
   const destinationExists = destinationResource.data?.type === 'document'
@@ -130,30 +145,32 @@ export function DocumentDestinationDialog({
             ? 'Private documents cannot contain child documents.'
             : !slug
               ? 'Enter a URL path.'
-              : moveTargetBlocked
-                ? 'Choose a location outside this document subtree.'
-                : pathInvalid
-                  ? pathInvalid.error
-                  : destinationId?.id === sourceId.id
-                    ? 'Choose a new location or URL path.'
-                    : destinationResource.isLoading
-                      ? 'Checking destination availability…'
-                      : destinationExists
-                        ? 'A document already exists at this URL. Choose a different path.'
-                        : null
+              : moveTargetWrongSite
+                ? 'Moves must stay inside the current site.'
+                : moveTargetBlocked
+                  ? 'Choose a location outside this document subtree.'
+                  : pathInvalid
+                    ? pathInvalid.error
+                    : destinationId?.id === sourceId.id
+                      ? 'Choose a new location or URL path.'
+                      : destinationResource.isLoading
+                        ? 'Checking destination availability…'
+                        : destinationExists
+                          ? 'A document already exists at this URL. Choose a different path.'
+                          : null
   const canSubmit = !!destinationId && !validationMessage && !isSubmitting
 
   if (!selectedAccountUid) {
     return <DialogError message="Select an account before moving or republishing documents." />
   }
-  if (isLoading || !document) {
+  if (!isDraftSource && (isLoading || !document)) {
     return (
       <div className="flex min-h-48 items-center justify-center">
         <Spinner />
       </div>
     )
   }
-  if (isError || resource?.type !== 'document') {
+  if (!isDraftSource && (isError || resource?.type !== 'document')) {
     return <DialogError message={error ? String(error) : 'Could not load document.'} />
   }
 
@@ -165,6 +182,7 @@ export function DocumentDestinationDialog({
       mode: input.mode,
       signingAccountId: selectedAccountUid,
       origin: input.origin,
+      draft: input.draft,
     }
     setIsSubmitting(true)
     try {
@@ -186,7 +204,7 @@ export function DocumentDestinationDialog({
           {modeCopy[input.mode].eyebrow}
         </SizableText>
         <DialogTitle className="flex items-center gap-2 text-2xl leading-tight font-semibold">
-          <HMIcon id={sourceId} name={sourceTitle} icon={document.metadata.icon} size={30} />
+          <HMIcon id={sourceId} name={sourceTitle} icon={sourceIcon} size={30} />
           <span className="min-w-0 truncate">{sourceTitle}</span>
         </DialogTitle>
       </div>
@@ -235,12 +253,18 @@ export function DocumentDestinationDialog({
             <Help className="text-muted-foreground size-4" />
           </Tooltip>
         </div>
-        <Input
-          className="h-11 rounded-xl text-base"
-          value={slug}
-          onChange={(event) => setSlug(pathNameify(event.target.value))}
-          placeholder="url-path"
-        />
+        {isDraftSource ? (
+          <SizableText className="text-muted-foreground text-sm">
+            Draft moves keep the draft placeholder path until publish.
+          </SizableText>
+        ) : (
+          <Input
+            className="h-11 rounded-xl text-base"
+            value={slug}
+            onChange={(event) => setSlug(pathNameify(event.target.value))}
+            placeholder="url-path"
+          />
+        )}
         {destinationUrl ? (
           <SizableText
             className={cn('text-sm break-all', validationMessage ? 'text-muted-foreground' : 'text-primary')}
@@ -296,9 +320,16 @@ function DestinationBrowser({
     )
   }
   if (!targetParent) {
-    return <WritableRoots roots={getWritableRoots(writableDocuments, selectedAccountUid)} onSelect={onSelect} />
+    return (
+      <WritableRoots
+        mode={mode}
+        sourceId={sourceId}
+        roots={getWritableRoots(writableDocuments, selectedAccountUid)}
+        onSelect={onSelect}
+      />
+    )
   }
-  return <ChildLocations parent={targetParent} onSelect={onSelect} onClear={onClear} />
+  return <ChildLocations mode={mode} sourceId={sourceId} parent={targetParent} onSelect={onSelect} onClear={onClear} />
 }
 
 function SearchResults({
@@ -320,14 +351,18 @@ function SearchResults({
   const writableResults =
     search.data?.entities
       .filter((item) => canWriteLocation(writableDocuments, item.id, selectedAccountUid))
-      .filter((item) => mode !== 'move' || !isMoveTargetParentBlocked(sourceId, item.id)) || []
+      .filter((item) => mode !== 'move' || canUseMoveTargetParent(sourceId, item.id)) || []
   const resultResources = useResources(writableResults.map((item) => item.id))
   const results: HMMetadataPayload[] = writableResults
     .filter((_, index) => {
       const resource = resultResources[index]?.data
       return resource?.type === 'document' && canUseDocumentAsDestinationParent(resource.document)
     })
-    .map((item) => ({id: item.id, metadata: {name: item.title}}))
+    .map((item, index) => {
+      const resource = resultResources[index]?.data
+      const document = resource?.type === 'document' ? resource.document : null
+      return {id: item.id, metadata: {name: item.title, icon: document?.metadata.icon || (item as any).icon}}
+    })
   const loadingLabel =
     search.isLoading || resultResources.some((result) => result.isLoading)
       ? 'Loading locations…'
@@ -335,34 +370,59 @@ function SearchResults({
   return (
     <LocationList emptyLabel={loadingLabel}>
       {results.map((item) => (
-        <LocationRow key={item.id.id} id={item.id} title={item.metadata?.name || 'Untitled'} onSelect={onSelect} />
+        <LocationRow
+          key={item.id.id}
+          id={item.id}
+          title={item.metadata?.name || 'Untitled'}
+          icon={item.metadata?.icon}
+          onSelect={onSelect}
+        />
       ))}
     </LocationList>
   )
 }
 
 function WritableRoots({
+  mode,
+  sourceId,
   roots,
   onSelect,
 }: {
+  mode: DocumentDestinationMode
+  sourceId: UnpackedHypermediaId
   roots: WritableDocumentDestination[]
   onSelect: (location: UnpackedHypermediaId) => void
 }) {
   return (
     <LocationList emptyLabel="No writable destinations available for the selected account.">
-      {roots.filter(isPublicWritableDocument).map((item) => {
-        const title = item.title || (item.document ? getMetadataName(item.document.metadata) : item.id.uid)
-        return <LocationRow key={item.id.id} id={item.id} title={title} onSelect={onSelect} />
-      })}
+      {roots
+        .filter((item) => mode !== 'move' || canUseMoveTargetParent(sourceId, item.id))
+        .filter(isPublicWritableDocument)
+        .map((item) => {
+          const title = item.title || (item.document ? getMetadataName(item.document.metadata) : item.id.uid)
+          return (
+            <LocationRow
+              key={item.id.id}
+              id={item.id}
+              title={title}
+              icon={item.document?.metadata.icon}
+              onSelect={onSelect}
+            />
+          )
+        })}
     </LocationList>
   )
 }
 
 function ChildLocations({
+  mode,
+  sourceId,
   parent,
   onSelect,
   onClear,
 }: {
+  mode: DocumentDestinationMode
+  sourceId: UnpackedHypermediaId
   parent: UnpackedHypermediaId
   onSelect: (location: UnpackedHypermediaId) => void
   onClear: () => void
@@ -378,12 +438,14 @@ function ChildLocations({
         </Button>
       </div>
       {directory
-        ?.filter(canUseDocumentAsDestinationParent)
+        ?.filter((item) => mode !== 'move' || canUseMoveTargetParent(sourceId, item.id))
+        .filter(canUseDocumentAsDestinationParent)
         .map((item) => (
           <LocationRow
             key={item.id.id}
             id={item.id}
             title={getMetadataName(item.metadata)}
+            icon={item.metadata.icon}
             suffix={item.path?.at(-1)}
             onSelect={onSelect}
           />
@@ -406,11 +468,13 @@ function LocationList({children, emptyLabel}: {children: React.ReactNode; emptyL
 function LocationRow({
   id,
   title,
+  icon,
   suffix,
   onSelect,
 }: {
   id: UnpackedHypermediaId
   title: string
+  icon?: HMMetadata['icon'] | null
   suffix?: string
   onSelect: (location: UnpackedHypermediaId) => void
 }) {
@@ -420,7 +484,7 @@ function LocationRow({
       onClick={() => onSelect(id)}
       className="hover:bg-muted/70 focus-visible:ring-ring border-border flex min-h-14 items-center gap-3 border-b px-5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
     >
-      <HMIcon id={id} name={title} size={28} />
+      <HMIcon id={id} name={title} icon={icon} size={28} />
       <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <SizableText className="truncate text-base font-medium">{title}</SizableText>
         {suffix ? <SizableText className="text-muted-foreground truncate text-xs">{suffix}</SizableText> : null}

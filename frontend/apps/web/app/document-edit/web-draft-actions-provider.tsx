@@ -7,6 +7,7 @@ import {buildInlineDraftWrite} from '@shm/shared/utils/inline-draft'
 import {useQuery} from '@tanstack/react-query'
 import {nanoid} from 'nanoid'
 import {PropsWithChildren, useMemo, useState} from 'react'
+import {useWebDocumentDestinationDialog} from '../web-move-document-dialog'
 import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, webDraftToListedDraft} from './web-draft-db'
 
 /** Hook returning a reactive web draft, shaped as a HMListedDraftWithLocation
@@ -44,6 +45,11 @@ export function WebDraftActionsProvider({
   capabilityCid?: string
 }>) {
   const navigate = useNavigate()
+  const moveDraftDialog = useWebDocumentDestinationDialog({
+    signingAccountId,
+    capabilityId: capabilityCid,
+    canMove: !!signingAccountId,
+  })
   const [lastCreatedInlineDraftId, setLastCreatedInlineDraftId] = useState<string | null>(null)
 
   const value = useMemo<DraftActions>(
@@ -104,6 +110,25 @@ export function WebDraftActionsProvider({
           navigate({key: 'document', id: hmId(editUid, {path: editPath})})
         })
       },
+      onMoveDraft: (draftId, origin) => {
+        getWebDocDraft(draftId).then((draft) => {
+          if (!draft) return
+          const editUid = draft.editUid ?? draft.locationUid
+          if (!editUid) return
+          const editPath = draft.editPath?.length ? draft.editPath : [...(draft.locationPath ?? []), `-${draftId}`]
+          moveDraftDialog.open({
+            id: hmId(editUid, {path: editPath}),
+            mode: 'move',
+            origin: draft.locationUid
+              ? {
+                  parentDocumentId: hmId(draft.locationUid, {path: draft.locationPath ?? []}),
+                  embedBlockId: origin?.embedBlockId,
+                }
+              : undefined,
+            draft: {draftId, title: (draft.metadata as any)?.name, icon: (draft.metadata as any)?.icon},
+          })
+        })
+      },
       onUpdateDraftName: async (draftId, name) => {
         const draft = await getWebDocDraft(draftId)
         if (!draft) throw new Error(`Draft ${draftId} not found`)
@@ -120,8 +145,13 @@ export function WebDraftActionsProvider({
         setLastCreatedInlineDraftId((current) => (current === draftId ? null : current))
       },
     }),
-    [canCreateInlineDraft, signingAccountId, capabilityCid, navigate, lastCreatedInlineDraftId],
+    [canCreateInlineDraft, signingAccountId, capabilityCid, navigate, lastCreatedInlineDraftId, moveDraftDialog],
   )
 
-  return <DraftActionsContext.Provider value={value}>{children}</DraftActionsContext.Provider>
+  return (
+    <DraftActionsContext.Provider value={value}>
+      {children}
+      {moveDraftDialog.content}
+    </DraftActionsContext.Provider>
+  )
 }

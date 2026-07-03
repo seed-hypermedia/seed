@@ -13,7 +13,7 @@ export function buildSlotItems(
   hasQueryResults = false,
 ): {prependItems?: ReactNode[]; bannerContent?: ReactNode} {
   if (!slot) return {}
-  const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onUpdateDraftName} = slot
+  const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onMoveDraft, onUpdateDraftName} = slot
   const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
   const shouldHideCreateButton = style === 'Card' && banner && (hasDrafts || hasQueryResults)
 
@@ -38,6 +38,7 @@ export function buildSlotItems(
         autoFocus={autoFocus}
         onOpenDraft={onOpenDraft!}
         onDeleteDraft={onDeleteDraft!}
+        onMoveDraft={onMoveDraft}
         onUpdateDraftName={onUpdateDraftName!}
       />
     ))
@@ -51,6 +52,7 @@ export function buildSlotItems(
           banner
           onOpenDraft={onOpenDraft!}
           onDeleteDraft={onDeleteDraft!}
+          onMoveDraft={onMoveDraft}
           onUpdateDraftName={onUpdateDraftName!}
         />
       )
@@ -70,6 +72,7 @@ export function buildSlotItems(
       autoFocus={autoFocus}
       onOpenDraft={onOpenDraft!}
       onDeleteDraft={onDeleteDraft!}
+      onMoveDraft={onMoveDraft}
       onUpdateDraftName={onUpdateDraftName!}
     />
   ))

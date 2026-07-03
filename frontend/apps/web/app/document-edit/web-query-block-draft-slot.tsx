@@ -6,6 +6,7 @@ import {QueryBlockDraftSlotProps, useQueryBlockDrafts} from '@shm/shared/query-b
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
+import {useWebDocumentDestinationDialog} from '../web-move-document-dialog'
 import {useCallback, useMemo} from 'react'
 import {useLocalKeyPair} from '../auth'
 import {createWebDocumentDraft} from './web-create-draft'
@@ -26,6 +27,10 @@ export function WebQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlot
   const navigate = useNavigate()
   const userKeyPair = useLocalKeyPair()
   const signingAccountId = userKeyPair?.delegatedAccountUid ?? null
+  const moveDraftDialog = useWebDocumentDestinationDialog({
+    signingAccountId: signingAccountId ?? undefined,
+    canMove: !!signingAccountId,
+  })
   const capability = useSelectedAccountCapability(targetId ?? undefined)
   const canEdit = roleCanWrite(capability?.role)
 
@@ -108,8 +113,19 @@ export function WebQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlot
         onCreateDraft,
         onOpenDraft,
         onDeleteDraft,
+        onMoveDraft: (draftId) => {
+          const draft = childDraftsQuery.data?.find((draft) => draft.id === draftId)
+          if (!draft?.editId) return
+          moveDraftDialog.open({
+            id: draft.editId,
+            mode: 'move',
+            origin: draft.locationId ? {parentDocumentId: draft.locationId} : undefined,
+            draft: {draftId, title: draft.metadata?.name, icon: draft.metadata?.icon},
+          })
+        },
         onUpdateDraftName,
       })}
+      {moveDraftDialog.content}
     </>
   )
 }

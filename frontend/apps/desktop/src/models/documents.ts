@@ -58,7 +58,7 @@ import {pathNameify} from '../utils/path'
 import {computeNewDraftParams, resolvePublishPath} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useBroadcastWindowEvent} from '../utils/window-events'
-import {updateParentCardsAfterDocumentRelocation} from './auto-link-parent'
+import {moveDraftCardBetweenParentDrafts, updateParentCardsAfterDocumentRelocation} from './auto-link-parent'
 import type {ParentCardsAfterRelocationResult} from './auto-link-parent'
 import {useMyAccountIds} from './daemon'
 import {useGatewayUrl} from './gateway-settings'
@@ -1254,6 +1254,50 @@ async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHy
   return capability.id
 }
 
+function getDocumentParentId(id: UnpackedHypermediaId) {
+  const path = id.path || []
+  if (!path.length) return null
+  return hmId(id.uid, {path: path.slice(0, -1)})
+}
+
+function pathsEqual(left: string[] | null | undefined, right: string[] | null | undefined) {
+  const a = left || []
+  const b = right || []
+  return a.length === b.length && a.every((segment, index) => segment === b[index])
+}
+
+async function retargetDraftAfterPublishedMove(from: UnpackedHypermediaId, to: UnpackedHypermediaId) {
+  const existingDraft = await client.drafts.findByEdit.query({editUid: from.uid, editPath: from.path || []})
+  if (!existingDraft?.id) return null
+  const draft = await client.drafts.get.query(existingDraft.id)
+  if (!draft) return null
+  const fromParent = getDocumentParentId(from)
+  const toParent = getDocumentParentId(to)
+  const shouldMoveLocation =
+    !!fromParent &&
+    !!toParent &&
+    draft.locationUid === fromParent.uid &&
+    pathsEqual(draft.locationPath, fromParent.path || [])
+
+  await client.drafts.write.mutate({
+    id: draft.id,
+    locationUid: shouldMoveLocation ? toParent!.uid : draft.locationUid,
+    locationPath: shouldMoveLocation ? toParent!.path || [] : draft.locationPath,
+    editUid: to.uid,
+    editPath: to.path || [],
+    metadata: draft.metadata,
+    content: draft.content,
+    deps: draft.deps,
+    navigation: draft.navigation,
+    visibility: draft.visibility,
+  })
+  invalidateQueries([queryKeys.DRAFT, draft.id])
+  invalidateQueries([queryKeys.DRAFTS_LIST])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, from.uid])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, to.uid])
+  return draft.id
+}
+
 function broadcastRelocatedParentDraftChanges(
   broadcastWindowEvent: ReturnType<typeof useBroadcastWindowEvent>,
   result: ParentCardsAfterRelocationResult,
@@ -1275,6 +1319,65 @@ function broadcastRelocatedParentDraftChanges(
       source: 'document-card-cleanup',
     })
   }
+}
+
+export function useMoveDraft() {
+  return useMutation({
+    mutationFn: async ({
+      draftId,
+      from,
+      to,
+      origin,
+    }: {
+      draftId: string
+      from: UnpackedHypermediaId
+      to: UnpackedHypermediaId
+      signingAccountId: string
+      origin?: DocumentCardActionOrigin
+    }) => {
+      const draft = await client.drafts.get.query(draftId)
+      if (!draft) throw new Error(`Draft ${draftId} not found`)
+      const toParent = getDocumentParentId(to)
+      if (!toParent) throw new Error('Choose a destination location.')
+      const fromParent = draft.locationUid
+        ? hmId(draft.locationUid, {path: draft.locationPath || []})
+        : getDocumentParentId(from)
+
+      await client.drafts.write.mutate({
+        id: draft.id,
+        locationUid: toParent.uid,
+        locationPath: toParent.path || [],
+        editUid: to.uid,
+        editPath: to.path || [],
+        metadata: draft.metadata,
+        content: draft.content,
+        deps: draft.deps,
+        navigation: draft.navigation,
+        visibility: draft.visibility,
+      })
+
+      await moveDraftCardBetweenParentDrafts({
+        draftId,
+        fromParentId: fromParent,
+        toParentId: toParent,
+        sourceBlockId: origin?.embedBlockId,
+      })
+
+      return {draftId, from, to, fromParent, toParent}
+    },
+    onSuccess: ({draftId, from, to, fromParent, toParent}) => {
+      invalidateQueries([queryKeys.DRAFT, draftId])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, from.uid])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, to.uid])
+      if (fromParent) invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, fromParent.id])
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, toParent.id])
+      invalidateQueries([queryKeys.ENTITY, from.id])
+      invalidateQueries([queryKeys.ENTITY, to.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, from.id])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, to.id])
+    },
+  })
 }
 
 export function useMoveDocument() {
@@ -1401,6 +1504,8 @@ export function useMoveDocument() {
         push(moveRefs.targetId)
         // console.groupEnd()
       }
+      await retargetDraftAfterPublishedMove(from, to)
+
       const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
         from,
         to,
