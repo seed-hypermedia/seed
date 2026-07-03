@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   LogIn,
   Radical,
+  Table as TableIcon,
   Video,
 } from 'lucide-react'
 import {Node} from 'prosemirror-model'
@@ -355,6 +356,19 @@ export function getSlashMenuItems({
         })
       }
 
+      const {state, view} = editor._tiptapEditor
+      view.dispatch(state.tr.scrollIntoView())
+    },
+  })
+  slashMenuItems.push({
+    name: 'Table',
+    aliases: ['table', 'cells', 'rows', 'columns'],
+    group: 'Layout',
+    icon: <TableIcon size={18} />,
+    hint: 'Insert a 3×3 table',
+    execute: (editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>) => {
+      // The vendored insertTable command handles container aware insertion of the table.
+      editor._tiptapEditor.commands.insertTable({rows: 3, cols: 3, withHeaderRow: true})
       const {state, view} = editor._tiptapEditor
       view.dispatch(state.tr.scrollIntoView())
     },

@@ -19,6 +19,7 @@ import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
 import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
+import {TableCell, TableHeader, TableRow} from '../../tiptap-extension-table'
 import {BackgroundColorMark} from './extensions/BackgroundColor/BackgroundColorMark'
 import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
@@ -68,7 +69,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     extensions.Tabindex,
 
     UniqueID.configure({
-      types: ['blockNode'],
+      // Table cells need stable ids for anchored data like comments and
+      // quote ranges that target a specific cell.
+      types: ['blockNode', 'tableCell', 'tableHeader', 'tableRow'],
     }),
 
     // basics:
@@ -108,6 +111,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       domAttributes: opts.domAttributes,
       editor: opts.editor,
     }),
+    TableRow,
+    TableCell,
+    TableHeader,
   ]
 
   const isViewer = opts.editor.renderType === 'viewer'

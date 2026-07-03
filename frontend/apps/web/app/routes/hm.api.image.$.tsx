@@ -5,11 +5,7 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
-
-import fileTypePkg from 'file-type'
-const {fromBuffer} = fileTypePkg as {
-  fromBuffer: (buf: Buffer) => Promise<{ext: string; mime: string} | undefined>
-}
+import {fileTypeFromBuffer} from 'file-type'
 
 const CACHE_PATH = path.resolve(path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'))
 const IMG_SIZE_WIDTHS: Record<OptimizedImageSize, number> = {
@@ -88,7 +84,7 @@ async function loadImage(params: Record<string, string | undefined>, request: Re
         // GIF cache doesn't exist. Let's verify the original isn't actually a GIF.
         // If it is, we'll delete the PNG cache and re-process as GIF.
         try {
-          const type = await fromBuffer(sourceImage.buffer)
+          const type = await fileTypeFromBuffer(sourceImage.buffer)
           const isGif = type?.ext === 'gif' || type?.mime === 'image/gif'
 
           if (isGif) {
@@ -122,7 +118,7 @@ async function loadImage(params: Record<string, string | undefined>, request: Re
     const imageBuffer = sourceImage.buffer
 
     // Detect type from bytes buffer
-    const type = await fromBuffer(imageBuffer)
+    const type = await fileTypeFromBuffer(imageBuffer)
     const isGif = type?.ext === 'gif' || type?.mime === 'image/gif'
 
     if (isGif) {

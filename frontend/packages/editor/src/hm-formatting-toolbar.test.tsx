@@ -64,6 +64,7 @@ vi.mock('./blocknote/react', () => ({
 const {getNearestBlockPosMock} = vi.hoisted(() => ({getNearestBlockPosMock: vi.fn()}))
 vi.mock('./blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos', () => ({
   getNearestBlockPos: getNearestBlockPosMock,
+  getNearestBlockOrCellPos: getNearestBlockPosMock,
 }))
 
 vi.mock('./blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos', () => ({

@@ -60,6 +60,13 @@ export function InlineAddBlockButton({editor}: {editor: HyperMediaEditor}) {
       // Code blocks are textblocks too, but inserting a block from an empty
       // line inside them makes no sense — suppress the button there.
       if (textblock.type.name === 'code-block' || textblock.type.spec.code) return null
+      // Disable the button for table cells.
+      for (let d = $anchor.depth; d > 0; d--) {
+        const ancestor = $anchor.node(d)
+        if (ancestor.type.name === 'tableCell' || ancestor.type.name === 'tableHeader') {
+          return null
+        }
+      }
       // Check if the cursor's block is a list item.
       let inList = false
       for (let d = $anchor.depth; d > 0; d--) {

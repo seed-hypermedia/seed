@@ -34,24 +34,65 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Embed') return 'embed'
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Query') return 'query'
+  if (hmBlockType === 'Table') return 'table'
+  if (hmBlockType === 'TableRow') return 'tableRow'
+  if (hmBlockType === 'TableColumn') return 'tableColumn'
   return 'unknown'
 }
 
-/** Convert an array of HMBlockNode trees into BlockNote EditorBlock arrays. */
+/** Convert an array of HMBlockNode trees into BlockNote EditorBlock arrays.
+ *
+ * parentType is the BlockNode type of the surrounding block. Used to drop
+ * orphan table row and column blocks that ended up outside a table parent. */
 export function hmBlocksToEditorContent(
   blocks: HMBlockNode[],
   opts: ServerToEditorRecursiveOpts & {
     childrenType?: HMBlockChildrenType
     listLevel?: string
     start?: string
+    parentType?: HMBlockType
   } = {level: 1},
 ): Array<EditorBlock> {
   const childRecursiveOpts: ServerToEditorRecursiveOpts = {
     level: opts.level || 0,
   }
+  const parentIsTable = opts.parentType === 'Table'
+  // Track index of each TableRow / TableColumn within a Table parent to
+  // enforce the position-0 invariant on the load path: only row 0 / col 0
+  // may carry isHeader=true. Wire format coming from older servers or buggy
+  // clients may violate this; we normalize on read.
+  let rowIdx = 0
+  let colIdx = 0
   return blocks
+    .filter((hmBlock: HMBlockNode) => {
+      const t = hmBlock.block?.type
+      if ((t === 'TableRow' || t === 'TableColumn') && !parentIsTable) {
+        console.warn(
+          `[hmBlocksToEditorContent] dropping orphan ${t} block (parent type: ${opts.parentType ?? 'root'})`,
+          hmBlock.block?.id,
+        )
+        return false
+      }
+      return true
+    })
     .map((hmBlock: HMBlockNode) => {
+      let positionIdx: number | undefined
+      if (parentIsTable) {
+        const t = hmBlock.block?.type
+        if (t === 'TableRow') positionIdx = rowIdx++
+        else if (t === 'TableColumn') positionIdx = colIdx++
+      }
+
       let res = hmBlock.block ? hmBlockToEditorBlock(hmBlock.block as unknown as HMBlock) : null
+
+      // Position-0 invariant: strip isHeader from editor-block props for
+      // non-position-0 rows / columns.
+      if (res && positionIdx !== undefined && positionIdx > 0) {
+        const props = res.props as any
+        if (props && 'isHeader' in props) {
+          delete props.isHeader
+        }
+      }
 
       if (res && hmBlock.children?.length) {
         const childrenType = ((hmBlock.block as any)?.attributes || {})?.childrenType
@@ -68,6 +109,7 @@ export function hmBlocksToEditorContent(
         res.children = hmBlocksToEditorContent(hmBlock.children, {
           level: childRecursiveOpts.level ? childRecursiveOpts.level + 1 : 1,
           childrenType: validChildrenType,
+          parentType: hmBlock.block?.type as HMBlockType | undefined,
         })
       }
       return res as EditorBlock
@@ -156,6 +198,31 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
 
     // return out
+  }
+
+  if (block.type === 'Paragraph') {
+    const columnId = (block as any).attributes?.columnId
+    if (typeof columnId === 'string' && columnId) {
+      ;(out.props as EditorBlockProps).columnId = columnId
+    }
+  }
+
+  if (block.type === 'TableColumn') {
+    const width = (block as any).attributes?.width
+    if (typeof width === 'number') {
+      ;(out.props as any).width = String(width)
+    }
+    const isHeader = (block as any).attributes?.isHeader
+    if (isHeader === true) {
+      ;(out.props as any).isHeader = true
+    }
+  }
+
+  if (block.type === 'TableRow') {
+    const isHeader = (block as any).attributes?.isHeader
+    if (isHeader === true) {
+      ;(out.props as any).isHeader = true
+    }
   }
 
   if (block.type === 'Query') {

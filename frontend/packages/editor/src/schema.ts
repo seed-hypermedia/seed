@@ -1,3 +1,4 @@
+import {common, createLowlight} from 'lowlight'
 import {BlockSchema, TypesMatch} from './blocknote'
 import {defaultBlockSchema, defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {ButtonBlock} from './button'
@@ -6,12 +7,12 @@ import {FileBlock} from './file'
 import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
-import CodeBlockLowlight from './tiptap-extension-code-block'
 import {QueryBlock} from './query-block'
+import CodeBlockLowlight from './tiptap-extension-code-block'
+import {Table} from './tiptap-extension-table'
 import {UnknownBlock} from './unknown-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
-import {common, createLowlight} from 'lowlight'
 
 export const hmBlockSchema: BlockSchema = {
   paragraph: defaultBlockSchema.paragraph,
@@ -42,6 +43,13 @@ export const hmBlockSchema: BlockSchema = {
   ['web-embed']: WebEmbed,
   embed: EmbedBlock,
   query: QueryBlock,
+  table: {
+    propSchema: {
+      ...defaultProps,
+    },
+    // @ts-ignore
+    node: Table,
+  },
   unknown: UnknownBlock,
 }
 
