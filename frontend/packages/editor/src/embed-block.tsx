@@ -1,15 +1,13 @@
 import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {useResource} from '@shm/shared/models/entity'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
@@ -30,7 +28,6 @@ import {
   CreditCard,
   ExternalLink as ExternalLinkIcon,
   Link2,
-  MessageSquare,
   Pencil,
   SquareMinus,
   SquarePen,
@@ -566,13 +563,9 @@ function SelectedEmbedActions({
 }) {
   const url = block.props.url as string
   const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
-  const summary = useInteractionSummary(docId)
-  const commentCount = summary.data?.comments ?? 0
-  const navigate = useNavigate()
-  const {onCopyReference} = useUniversalAppContext()
 
-  // External URLs have no action bar
-  if (!docId) return null
+  // External URLs and unselected embeds have no embed-specific action bar.
+  if (!docId || !isSelected) return null
 
   return (
     <div
@@ -584,42 +577,7 @@ function SelectedEmbedActions({
         isSelected && 'border-border bg-background border px-1 py-0.5 shadow-sm',
       )}
     >
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1 px-2"
-        aria-label="View comments"
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          navigate({key: 'comments', id: docId} as any)
-        }}
-      >
-        <MessageSquare className="size-3.5" />
-        <SizableText size="xs">{commentCount}</SizableText>
-      </Button>
-      {isSelected && (
-        <>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label="Copy link"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              if (onCopyReference) {
-                onCopyReference(docId)
-              } else if (url) {
-                void navigator.clipboard.writeText(url).then(() => toast.success('Copied link'))
-              }
-            }}
-          >
-            <Link2 className="size-3.5" />
-          </Button>
-          <SubdocumentMenu editor={editor} block={block} docId={docId} />
-        </>
-      )}
+      <SubdocumentMenu editor={editor} block={block} docId={docId} />
     </div>
   )
 }

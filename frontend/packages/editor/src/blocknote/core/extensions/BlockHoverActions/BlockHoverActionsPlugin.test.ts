@@ -1,10 +1,11 @@
 import {Schema} from 'prosemirror-model'
-import {EditorState, TextSelection} from 'prosemirror-state'
+import {EditorState, NodeSelection, TextSelection} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
 import {afterEach, describe, expect, it} from 'vitest'
 import {BlockHoverActionsProsemirrorPlugin, BlockHoverActionsState} from './BlockHoverActionsPlugin'
 
-const contentTypes = ['query', 'embed', 'image', 'video', 'file'] as const
+const suppressedContentTypes = ['query'] as const
+const hoverableAtomicContentTypes = ['embed', 'image', 'video', 'file'] as const
 
 const schema = new Schema({
   nodes: {
@@ -78,7 +79,9 @@ function createTwoBlockDoc() {
   ])
 }
 
-function createSuppressedBlockDoc(contentType: (typeof contentTypes)[number]) {
+function createAtomicBlockDoc(
+  contentType: (typeof suppressedContentTypes)[number] | (typeof hoverableAtomicContentTypes)[number],
+) {
   return schema.nodes.doc.create(
     null,
     schema.nodes.blockNode.create({id: contentType}, schema.nodes[contentType].create()),
@@ -168,16 +171,33 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
     expect(updates.at(-1)).toMatchObject({show: false, blockId: null})
   })
 
-  it.each(contentTypes)('suppresses %s blocks in reading mode', (contentType) => {
-    const {view, updates} = createView(false, createSuppressedBlockDoc(contentType))
+  it.each(suppressedContentTypes)('suppresses %s blocks in reading mode', (contentType) => {
+    const {view, updates} = createView(false, createAtomicBlockDoc(contentType))
 
     dispatchMouseMove(view.dom.querySelector(`[data-content-type="${contentType}"]`) as HTMLElement)
 
     expect(updates.at(-1)).toBeUndefined()
   })
 
+  it.each(hoverableAtomicContentTypes)('emits hover state for %s blocks in reading mode', (contentType) => {
+    const {view, updates} = createView(false, createAtomicBlockDoc(contentType))
+
+    dispatchMouseMove(view.dom.querySelector(`[data-content-type="${contentType}"]`) as HTMLElement)
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: contentType})
+  })
+
+  it('emits hover state for selected media blocks while editing', () => {
+    const {view, updates} = createView(true, createAtomicBlockDoc('image'))
+    forceFocused(view)
+
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 1)))
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+  })
+
   it('suppresses query blocks even when hovering nested DOM inside them', () => {
-    const {view, updates} = createView(false, createSuppressedBlockDoc('query'))
+    const {view, updates} = createView(false, createAtomicBlockDoc('query'))
     const queryContent = view.dom.querySelector('[data-content-type="query"]') as HTMLElement
     const nested = document.createElement('div')
     nested.setAttribute('data-content-type', 'paragraph')

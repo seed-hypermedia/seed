@@ -1,5 +1,5 @@
 import {PluginView} from '@tiptap/pm/state'
-import {Plugin, PluginKey} from 'prosemirror-state'
+import {NodeSelection, Plugin, PluginKey} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
@@ -29,7 +29,7 @@ type BlockHoverActionsEvents = {
   update: [BlockHoverActionsState]
 }
 
-const SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['embed', 'query', 'image', 'video', 'file'])
+const SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['query'])
 
 class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   private currentState: BlockHoverActionsState = {
@@ -97,16 +97,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   private findOwningBlockElement(contentElement: HTMLElement): HTMLElement | null {
-    let element: HTMLElement | null = contentElement.parentElement
-
-    while (element && element !== this.pmView.dom) {
-      if (element.getAttribute('data-node-type') === 'blockNode' && element.hasAttribute('data-id')) {
-        return element
-      }
-      element = element.parentElement
-    }
-
-    return null
+    const blockElement = contentElement.closest('[data-node-type="blockNode"][data-id]')
+    return blockElement instanceof HTMLElement && this.pmView.dom.contains(blockElement) ? blockElement : null
   }
 
   private blockStateFromElement(blockElement: HTMLElement): BlockHoverActionsState | null {
@@ -129,7 +121,11 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   private selectionBlockState(): BlockHoverActionsState | null {
     const {selection} = this.pmView.state
 
-    if (!this.isEditable() || !this.pmView.hasFocus() || !selection.empty) {
+    if (!this.isEditable() || !this.pmView.hasFocus()) {
+      return null
+    }
+
+    if (!selection.empty && !(selection instanceof NodeSelection)) {
       return null
     }
 
@@ -212,7 +208,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    if (!this.pmView.state.selection.empty) {
+    const {selection} = this.pmView.state
+    if (!selection.empty && !(selection instanceof NodeSelection)) {
       this.hide()
       return
     }
@@ -281,7 +278,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    if (!this.pmView.state.selection.empty && this.currentState.show) {
+    const {selection} = this.pmView.state
+    if (!selection.empty && !(selection instanceof NodeSelection) && this.currentState.show) {
       this.hide()
     }
   }

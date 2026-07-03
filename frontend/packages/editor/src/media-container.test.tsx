@@ -7,9 +7,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 const editorGate = {canEdit: false, isEditing: false, beginEditIfNeeded: vi.fn()}
+const fragmentActions = {current: null as any}
 
 vi.mock('@shm/shared/models/use-editor-gate', () => ({
   useEditorGate: () => editorGate,
+}))
+
+vi.mock('./fragment-actions-context', () => ({
+  useFragmentActions: () => fragmentActions.current,
+}))
+
+vi.mock('@shm/ui/tooltip', () => ({
+  Tooltip: ({children}: any) => <>{children}</>,
 }))
 
 vi.mock('./blocknote/react/ReactBlockSpec', () => ({
@@ -72,6 +81,7 @@ function makeEditor(isEditable: boolean, withView = false) {
     setTextCursorPosition: vi.fn(),
     insertBlocks: vi.fn(),
     focus: vi.fn(),
+    removeBlocks: vi.fn(),
   } as any
 }
 
@@ -82,6 +92,7 @@ beforeEach(() => {
   editorGate.canEdit = false
   editorGate.isEditing = false
   editorGate.beginEditIfNeeded.mockClear()
+  fragmentActions.current = null
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -212,5 +223,30 @@ describe('MediaContainer image caption', () => {
     expect(editor.setTextCursorPosition).not.toHaveBeenCalled()
     expect(editor.insertBlocks).not.toHaveBeenCalled()
     expect(editor.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not render copy or comment actions inside the media selection menu', () => {
+    editorGate.canEdit = true
+    editorGate.isEditing = true
+    fragmentActions.current = {
+      onCopyFragmentLink: vi.fn(),
+      onComment: vi.fn(),
+      onCopyBlockLink: vi.fn(),
+      onCommentOnBlock: vi.fn(),
+    }
+    const editor = makeEditor(true)
+
+    act(() => {
+      root.render(
+        <MediaContainer editor={editor} block={makeBlock()} mediaType="image" assign={() => {}} onSubmitUrl={() => {}}>
+          <div data-testid="media-child" />
+        </MediaContainer>,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="image-selection-menu"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="image-more"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="image-copy-link"]')).toBeNull()
+    expect(container.querySelector('[data-testid="image-comment"]')).toBeNull()
   })
 })

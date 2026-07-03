@@ -12,7 +12,6 @@ import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
-import {useFragmentActions} from './fragment-actions-context'
 import {markBlockUploaded, MediaType} from './media-render'
 import {MediaSelectionMenu} from './media-selection-menu'
 import {HMBlockSchema} from './schema'
@@ -58,7 +57,6 @@ export const MediaContainer = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
-  const fragmentActions = useFragmentActions()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MAX_FILE_SIZE_B) {
@@ -316,12 +314,6 @@ export const MediaContainer = ({
             {onSubmitUrl ? (
               <div className="absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 <MediaSelectionMenu
-                  onCopyLink={
-                    fragmentActions?.onCopyBlockLink ? () => fragmentActions.onCopyBlockLink!(block.id) : undefined
-                  }
-                  onComment={
-                    fragmentActions?.onCommentOnBlock ? () => fragmentActions.onCommentOnBlock!(block.id) : undefined
-                  }
                   onReplaceFile={() => fileInputRef.current?.click()}
                   onSubmitUrl={onSubmitUrl}
                   onDelete={() => editor.removeBlocks([block.id])}

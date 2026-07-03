@@ -83,6 +83,7 @@ vi.mock('@shm/ui/embed-views', () => ({
   ),
   BlockEmbedComments: () => <div data-testid="block-embed-comments" />,
   BlockEmbedContent: () => <div data-testid="block-embed-content" />,
+  BlockEmbedLink: () => <div data-testid="block-embed-link" />,
 }))
 
 const resolveHypermediaUrlMock = vi.fn()
@@ -142,7 +143,7 @@ function renderEmbedBlock({
 }: {
   canEdit?: boolean
   isEditing?: boolean
-  view?: 'Card' | 'Content' | 'Comments'
+  view?: 'Card' | 'Content' | 'Comments' | 'Link'
   beginEditIfNeeded?: ReturnType<typeof vi.fn>
 } = {}) {
   editorGateMock.current = {canEdit, isEditing, beginEditIfNeeded}
@@ -230,6 +231,16 @@ describe('EmbedBlock card navigation mode', () => {
 
     expect(container.querySelector('[aria-label="View comments"]')).toBeNull()
   })
+
+  it.each(['Card', 'Link'] as const)(
+    'does not render custom copy or comment block actions for %s embeds while editing',
+    (view) => {
+      renderEmbedBlock({canEdit: true, isEditing: true, view})
+
+      expect(container.querySelector('[aria-label="View comments"]')).toBeNull()
+      expect(container.querySelector('[aria-label="Copy link"]')).toBeNull()
+    },
+  )
 
   it('disables title-only navigation while editing so the first click can select the block', () => {
     renderEmbedBlock({canEdit: true, isEditing: true, view: 'Card'})

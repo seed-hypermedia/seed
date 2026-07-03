@@ -6,16 +6,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {ArrowLeft, Link, MessageSquare, MoreHorizontal, Trash2, Upload} from 'lucide-react'
+import {ArrowLeft, Link, MoreHorizontal, Trash2, Upload} from 'lucide-react'
 import {KeyboardEvent, useState} from 'react'
 
 export type MediaSelectionMenuProps = {
-  /** Copy link action */
-  onCopyLink?: () => void
-  /** Comment on block action */
-  onComment?: () => void
   /** Open the file picker for replacing the media with local upload */
   onReplaceFile: () => void
   /** Submit an external URL action */
@@ -42,8 +37,6 @@ function displayableUrl(url: string): string {
 }
 
 export function MediaSelectionMenu({
-  onCopyLink,
-  onComment,
   onReplaceFile,
   onSubmitUrl,
   onDelete,
@@ -94,35 +87,6 @@ export function MediaSelectionMenu({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      {onCopyLink && (
-        <Tooltip content="Copy block link">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            data-testid={testId('copy-link')}
-            className="hover:bg-black/10 dark:hover:bg-white/10"
-            onClick={onCopyLink}
-          >
-            <Link className="size-4" />
-          </Button>
-        </Tooltip>
-      )}
-      {onComment && (
-        <Tooltip content="Comment on block">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            data-testid={testId('comment')}
-            className="hover:bg-black/10 dark:hover:bg-white/10"
-            onClick={onComment}
-          >
-            <MessageSquare className="size-4" />
-          </Button>
-        </Tooltip>
-      )}
-
       <DropdownMenu
         open={dropdownOpen}
         onOpenChange={(open) => {
