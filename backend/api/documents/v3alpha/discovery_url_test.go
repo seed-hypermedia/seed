@@ -1,4 +1,4 @@
-package entities
+package documents
 
 import (
 	"seed/backend/blob"

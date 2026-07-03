@@ -29,8 +29,7 @@ vi.mock('../app-trpc', () => ({
 vi.mock('@/grpc-client', () => ({
   grpcClient: {
     activityFeed: {listEvents: vi.fn()},
-    entities: {discoverEntity: vi.fn()},
-    resources: {getResource: vi.fn()},
+    resources: {discoverResource: vi.fn(), getResource: vi.fn()},
     documents: {getContact: vi.fn()},
     comments: {getComment: vi.fn().mockRejectedValue(new Error('not mocked'))},
     daemon: {},
@@ -284,7 +283,7 @@ describe('activity event processing', () => {
       const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
       const grpcClient = await getGrpcClientMock()
       grpcClient.activityFeed.listEvents.mockReturnValue(new Promise(() => {}))
-      grpcClient.entities.discoverEntity.mockResolvedValue({version: 'v1'})
+      grpcClient.resources.discoverResource.mockResolvedValue({version: 'v1'})
       grpcClient.resources.getResource.mockRejectedValue(new Error('not found'))
 
       const {subscribe} = await loadModule()
@@ -295,7 +294,7 @@ describe('activity event processing', () => {
 
       await vi.advanceTimersByTimeAsync(200)
 
-      expect(grpcClient.entities.discoverEntity).toHaveBeenCalledWith(
+      expect(grpcClient.resources.discoverResource).toHaveBeenCalledWith(
         expect.objectContaining({id: 'hm://z6MkProfileUser/:profile'}),
       )
 

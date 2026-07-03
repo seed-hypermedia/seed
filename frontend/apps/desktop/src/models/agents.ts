@@ -97,7 +97,7 @@ function discoverReferences(urls: string[]): void {
     if (discoveredAgentRefs.has(discoveryId)) continue
     discoveredAgentRefs.add(discoveryId)
     console.info('[agents-discovery] agent referenced content — discovering on local node', {id: discoveryId})
-    void grpcClient.entities.discoverEntity({id: discoveryId}).then(
+    void grpcClient.resources.discoverResource({id: discoveryId}).then(
       (resp) =>
         console.info('[agents-discovery] discovery scheduled', {
           id: discoveryId,
@@ -273,7 +273,7 @@ export async function syncAgentAccountToLocalNode(serverUrl: string | undefined,
     if (health.hmServerUrl) await connectLocalNodeToAgentHmServer(health.hmServerUrl)
     discoveredAgentRefs.add(discoveryId)
     console.info('[agents-discovery] syncing new agent account to local node', {id: discoveryId})
-    const resp = await grpcClient.entities.discoverEntity({id: discoveryId})
+    const resp = await grpcClient.resources.discoverResource({id: discoveryId})
     console.info('[agents-discovery] agent account discovery scheduled', {
       id: discoveryId,
       state: resp.state,

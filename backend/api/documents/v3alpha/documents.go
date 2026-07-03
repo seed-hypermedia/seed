@@ -14,6 +14,7 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet"
+	"seed/backend/llm"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cclock"
 	"seed/backend/util/colx"
@@ -60,12 +61,14 @@ type Server struct {
 	db        *sqlitex.Pool
 	log       *zap.Logger
 	p2p       *hmnet.Node
+	disc      Discoverer
+	embedder  llm.LightEmbedder
 	telemetry *telemetry.Server
 }
 
 // NewServer creates a new Documents API v3 server.
-func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
-	return &Server{
+func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node, opts ...any) *Server {
+	srv := &Server{
 		cfg:  cfg,
 		keys: keys,
 		idx:  idx,
@@ -73,6 +76,15 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		log:  log,
 		p2p:  p2p,
 	}
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case Discoverer:
+			srv.disc = v
+		case llm.LightEmbedder:
+			srv.embedder = v
+		}
+	}
+	return srv
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all

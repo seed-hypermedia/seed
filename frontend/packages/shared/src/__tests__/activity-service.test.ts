@@ -128,7 +128,7 @@ describe('loadCitationEvent', () => {
       account: 'z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh',
       eventTime: null,
       observeTime: null,
-      newMention: {
+      newCitation: {
         source: 'hm://z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh/z6FUAnpExKUZwX',
         sourceType: 'comment/Embed',
         sourceBlob: {
@@ -211,7 +211,7 @@ describe('getFeedEventId', () => {
       account: 'z6Mks-test-account',
       eventTime: null,
       observeTime: null,
-      newMention: {
+      newCitation: {
         source: 'hm://z6Mks-test-account',
         sourceType: 'doc/Embed',
         sourceBlob: {
@@ -219,12 +219,12 @@ describe('getFeedEventId', () => {
           author: 'z6Mks-test-account',
         },
         target: 'hm://z6Mks-target-account',
-        mentionType: '',
+        citationType: '',
       },
     } as any
 
     expect(getFeedEventId(event)).toBe(`mention-${TEST_CID}--hm://z6Mks-target-account`)
-    expect(getFeedEventId({...event, newMention: {...event.newMention, sourceBlob: {cid: 'undefined'}}})).toBeNull()
-    expect(getFeedEventId({...event, newMention: {...event.newMention, target: ''}})).toBeNull()
+    expect(getFeedEventId({...event, newCitation: {...event.newCitation, sourceBlob: {cid: 'undefined'}}})).toBeNull()
+    expect(getFeedEventId({...event, newCitation: {...event.newCitation, target: ''}})).toBeNull()
   })
 })

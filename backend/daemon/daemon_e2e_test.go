@@ -22,7 +22,7 @@ import (
 	activity "seed/backend/genproto/activity/v1alpha"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	documents "seed/backend/genproto/documents/v3alpha"
-	entities "seed/backend/genproto/entities/v1alpha"
+	entities "seed/backend/genproto/documents/v3alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
@@ -760,7 +760,7 @@ func TestDiscoverHomeDocument(t *testing.T) {
 	var count int
 	for {
 		count++
-		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		res, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: aliceHome.Account,
 		})
 		require.NoError(t, err)
@@ -1267,13 +1267,13 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Carol uses DiscoverEntity to pull aliceHonda on-demand (without subscription).
-	var entity *entities.DiscoverEntityResponse
+	// Carol uses DiscoverResource to pull aliceHonda on-demand (without subscription).
+	var entity *entities.DiscoverResourceResponse
 
 	var count int
 	for {
 		count++
-		resp, err := carol.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		resp, err := carol.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: aliceHondaUpdated.Account,
 			Path:    aliceHondaUpdated.Path,
 		})
@@ -2745,7 +2745,7 @@ func TestBug_MissingProfileAlias(t *testing.T) {
 
 	// Carol discovers bob's account.
 	for {
-		resp, err := carol.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		resp, err := carol.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account:   bobKey.String(),
 			Path:      "",
 			Recursive: true,
@@ -2886,7 +2886,7 @@ func TestRecursiveHomeDocumentDiscovery(t *testing.T) {
 
 	// Alice discovers Bob's home document recursively
 	for {
-		res, err := alice.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		res, err := alice.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account:   bobKey.String(),
 			Path:      "",
 			Recursive: true,
@@ -2966,7 +2966,7 @@ func TestCommentDiscovery(t *testing.T) {
 	// Bob discovers the comment.
 	require.Eventually(t, func() bool {
 		ok := false
-		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		res, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: aliceDoc.Account,
 			Path:    strings.TrimPrefix(comment.Id, aliceDoc.Account), // Comment ID is a resource ID of form `{account}/{tsid}`, but we only want the path with the leading slash.
 		})
@@ -3057,7 +3057,7 @@ func TestCommentImageSync(t *testing.T) {
 
 	// Bob discovers the comment via discovery (not push).
 	require.Eventually(t, func() bool {
-		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		res, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: aliceDoc.Account,
 			Path:    strings.TrimPrefix(comment.Id, aliceDoc.Account),
 		})
@@ -3175,7 +3175,7 @@ func TestCommentEmbedSync(t *testing.T) {
 
 	// Bob discovers the comment via discovery.
 	require.Eventually(t, func() bool {
-		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		res, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: targetDoc.Account,
 			Path:    strings.TrimPrefix(comment.Id, targetDoc.Account),
 		})
@@ -3269,8 +3269,8 @@ func TestActivityFeed(t *testing.T) {
 		return slices.ContainsFunc(evts, func(e *activity.Event) bool {
 			nb, ok := e.Data.(*activity.Event_NewBlob)
 			if !ok {
-				nm, ok := e.Data.(*activity.Event_NewMention)
-				return ok && nm.NewMention.GetSourceType() == typ
+				nm, ok := e.Data.(*activity.Event_NewCitation)
+				return ok && nm.NewCitation.GetSourceType() == typ
 			} else {
 				return ok && nb.NewBlob.GetBlobType() == typ
 			}
@@ -3525,7 +3525,7 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	{
 		const retries = 100
 		for n := range retries {
-			resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			resp, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 				Account:   aliceKey.String(),
 				Recursive: true,
 			})
@@ -3728,7 +3728,7 @@ func TestPrivateDocumentUpdatePreservesVisibility(t *testing.T) {
 	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
 
 	for n := range 100 {
-		resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		resp, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account:   aliceKey.String(),
 			Path:      updatedDoc.Path,
 			Recursive: false,
@@ -3807,7 +3807,7 @@ func TestPrivateDocumentExplicitPublicUpdateBecomesPublic(t *testing.T) {
 	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
 
 	for n := range 100 {
-		resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		resp, err := bob.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account:   aliceKey.String(),
 			Path:      updatedDoc.Path,
 			Recursive: false,
@@ -3954,7 +3954,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	//    - The capability blob (so Bob knows he has access to Alice's space).
 	pullDocument(t, bob, aliceKey.String(), "", "")
 
-	// 4. Bob uses DiscoverEntity to pull the private document from the gateway.
+	// 4. Bob uses DiscoverResource to pull the private document from the gateway.
 	pullDocument(t, bob, aliceSecret.Account, aliceSecret.Path, aliceSecret.Version)
 
 	// Verify Bob now has Alice's private document.
@@ -4098,7 +4098,7 @@ func pullDocument(t *testing.T, app *App, recordAccount, path, wantVersion strin
 
 	var recordState entities.DiscoveryTaskState
 	for recordState != entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
-		resp, err := app.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+		resp, err := app.RPC.Resources.DiscoverResource(ctx, &entities.DiscoverResourceRequest{
 			Account: recordAccount,
 			Path:    path,
 		})
@@ -4108,7 +4108,7 @@ func pullDocument(t *testing.T, app *App, recordAccount, path, wantVersion strin
 	}
 }
 
-func TestSearchEntitiesFilters(t *testing.T) {
+func TestSearchResourcesFilters(t *testing.T) {
 	t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	ctx := context.Background()
@@ -4190,21 +4190,21 @@ func TestSearchEntitiesFilters(t *testing.T) {
 
 	t.Run("IriFilterSubtree", func(t *testing.T) {
 		// Search with iri_filter scoped to /cars/* — must only return honda and toyota.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       "rocks",
 			IncludeBody: true,
 			IriFilter:   "hm://" + aliceAccount + "/cars/*",
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must return results under /cars/*")
-		for _, e := range res.Entities {
+		require.Greater(t, len(res.Resources), 0, "must return results under /cars/*")
+		for _, e := range res.Resources {
 			require.Contains(t, e.Id, "/cars/", "all results must be under /cars/ subtree")
 		}
 	})
 
 	t.Run("IriFilterInvalid", func(t *testing.T) {
 		// Invalid pattern must return error.
-		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		_, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:     "rocks",
 			IriFilter: "not-hm://injection; DROP TABLE fts",
 		})
@@ -4213,40 +4213,40 @@ func TestSearchEntitiesFilters(t *testing.T) {
 
 	t.Run("DeprecatedAccountUidFallback", func(t *testing.T) {
 		// Empty iri_filter + account_uid set must still work (legacy).
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:      "rocks",
 			AccountUid: aliceAccount,
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must return results for the account")
+		require.Greater(t, len(res.Resources), 0, "must return results for the account")
 	})
 
 	t.Run("ContentTypeFilterExplicit", func(t *testing.T) {
 		// content_type_filters = [TITLE] must only return title matches.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:             "rocks",
 			IncludeBody:       true,
 			ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must return title results")
-		for _, e := range res.Entities {
+		require.Greater(t, len(res.Resources), 0, "must return title results")
+		for _, e := range res.Resources {
 			require.Equal(t, "title", e.Type, "must only return title results when filter is explicit")
 		}
 	})
 
 	t.Run("ContentTypeLegacyWithBody", func(t *testing.T) {
 		// Empty content_type_filters + include_body=true must search body content.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       "reliability",
 			IncludeBody: true,
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must find body content with include_body")
+		require.Greater(t, len(res.Resources), 0, "must find body content with include_body")
 	})
 
 	t.Run("SmallPageSizeScopedBodySearch", func(t *testing.T) {
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       "reliability",
 			IncludeBody: true,
 			IriFilter:   "hm://" + aliceAccount + "/cars/*",
@@ -4254,34 +4254,34 @@ func TestSearchEntitiesFilters(t *testing.T) {
 			SearchType:  entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Entities, 1, "small page size must still find scoped body result")
-		require.Contains(t, res.Entities[0].Id, "/cars/honda")
+		require.Len(t, res.Resources, 1, "small page size must still find scoped body result")
+		require.Contains(t, res.Resources[0].Id, "/cars/honda")
 	})
 
 	t.Run("SmallPageSizeTitleSearchPaginates", func(t *testing.T) {
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:      "rocks",
 			PageSize:   2,
 			SearchType: entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Entities, 2, "page size must be applied after candidate limiting")
+		require.Len(t, res.Resources, 2, "page size must be applied after candidate limiting")
 		require.NotEmpty(t, res.NextPageToken, "more title results should remain on the next page")
 	})
 
 	t.Run("ContentTypeTitleOnlyDefault", func(t *testing.T) {
 		// Empty content_type_filters + include_body=false must only search titles.
 		// "reliability" is only in the body → no results.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query: "reliability",
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Entities, 0, "must not find body content without include_body")
+		require.Len(t, res.Resources, 0, "must not find body content without include_body")
 	})
 
 	t.Run("AuthorityWeightInvalid", func(t *testing.T) {
 		// authority_weight > 1 must be rejected.
-		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		_, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:           "rocks",
 			AuthorityWeight: 1.5,
 		})
@@ -4290,38 +4290,38 @@ func TestSearchEntitiesFilters(t *testing.T) {
 
 	t.Run("AuthorityWeightZero", func(t *testing.T) {
 		// authority_weight = 0 (default) must work normally.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query: "rocks",
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must return results with default authority_weight")
+		require.Greater(t, len(res.Resources), 0, "must return results with default authority_weight")
 	})
 
 	t.Run("AuthorityWeightValid", func(t *testing.T) {
 		// authority_weight within range must not error.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:           "rocks",
 			AuthorityWeight: 0.3,
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "must return results with valid authority_weight")
+		require.Greater(t, len(res.Resources), 0, "must return results with valid authority_weight")
 	})
 
 	t.Run("HybridFallsBackToKeywordWhenEmbeddingDisabled", func(t *testing.T) {
 		// Hybrid search must degrade gracefully to keyword-only when the
 		// embedding service is not available, instead of returning an error.
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       "rocks",
 			IncludeBody: true,
 			SearchType:  entities.SearchType_SEARCH_HYBRID,
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "hybrid search must return keyword results when embedding is disabled")
+		require.Greater(t, len(res.Resources), 0, "hybrid search must return keyword results when embedding is disabled")
 	})
 
 	t.Run("SemanticFailsWhenEmbeddingDisabled", func(t *testing.T) {
 		// Semantic-only search must return an error when embedding is disabled.
-		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		_, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:      "rocks",
 			SearchType: entities.SearchType_SEARCH_SEMANTIC,
 		})
@@ -4329,7 +4329,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	})
 }
 
-func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
+func TestMovedDocumentSearchResourcesUsesCurrentPath(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -4394,17 +4394,17 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("body", func(t *testing.T) {
-		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		search, err := app.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       bodyText,
 			IncludeBody: true,
 			PageSize:    10,
 			SearchType:  entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, search.Entities, "moved document body search must still return the document")
+		require.NotEmpty(t, search.Resources, "moved document body search must still return the document")
 
 		found := false
-		for _, entity := range search.Entities {
+		for _, entity := range search.Resources {
 			if entity.Type == targetType && strings.Contains(entity.Content, bodyText) {
 				found = true
 				require.Equal(t, "hm://"+account+newPath, entity.DocId)
@@ -4415,16 +4415,16 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 	})
 
 	t.Run("title", func(t *testing.T) {
-		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		search, err := app.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:      titleText,
 			PageSize:   10,
 			SearchType: entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, search.Entities, "moved document title search must still return the document")
+		require.NotEmpty(t, search.Resources, "moved document title search must still return the document")
 
 		found := false
-		for _, entity := range search.Entities {
+		for _, entity := range search.Resources {
 			if entity.Type == "title" && strings.Contains(entity.Content, titleText) {
 				found = true
 				require.Equal(t, "hm://"+account+newPath, entity.DocId)
@@ -4435,7 +4435,7 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 	})
 
 	t.Run("new path filter", func(t *testing.T) {
-		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		search, err := app.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       bodyText,
 			IncludeBody: true,
 			IriFilter:   "hm://" + account + newPath,
@@ -4443,11 +4443,11 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 			SearchType:  entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, search.Entities, "current path filter must return moved document body search result")
+		require.NotEmpty(t, search.Resources, "current path filter must return moved document body search result")
 	})
 
 	t.Run("old path filter returns current path", func(t *testing.T) {
-		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		search, err := app.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       bodyText,
 			IncludeBody: true,
 			IriFilter:   "hm://" + account + oldPath,
@@ -4455,8 +4455,8 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 			SearchType:  entities.SearchType_SEARCH_KEYWORD,
 		})
 		require.NoError(t, err)
-		require.NotEmpty(t, search.Entities, "old moved-away path filter should still find moved document")
-		for _, entity := range search.Entities {
+		require.NotEmpty(t, search.Resources, "old moved-away path filter should still find moved document")
+		for _, entity := range search.Resources {
 			require.Equal(t, "hm://"+account+newPath, entity.DocId)
 			require.Contains(t, entity.Id, newPath)
 		}
@@ -4464,7 +4464,7 @@ func TestMovedDocumentSearchEntitiesUsesCurrentPath(t *testing.T) {
 }
 
 // TestSearchProfileOnlyAccount verifies that accounts with only a profile (no published documents)
-// are discoverable via SearchEntities. This is the fix for https://github.com/seed-hypermedia/seed/issues/426.
+// are discoverable via SearchResources. This is the fix for https://github.com/seed-hypermedia/seed/issues/426.
 func TestSearchProfileOnlyAccount(t *testing.T) {
 	t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
@@ -4505,15 +4505,15 @@ func TestSearchProfileOnlyAccount(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Bobsworth", bobAccount.Profile.Name, "Bob's profile must exist")
 
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:            "Bobsworth",
 			LoggedAccountUid: aliceAccount,
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "profile-only account must appear in search results")
+		require.Greater(t, len(res.Resources), 0, "profile-only account must appear in search results")
 
 		found := false
-		for _, e := range res.Entities {
+		for _, e := range res.Resources {
 			if e.Content == "Bobsworth" && e.Type == "profile" {
 				found = true
 				require.Contains(t, e.Id, bobIdentity.Account.PublicKey.String(), "entity ID must reference Bob's account")
@@ -4524,14 +4524,14 @@ func TestSearchProfileOnlyAccount(t *testing.T) {
 	})
 
 	t.Run("AccountWithSiteStillWorks", func(t *testing.T) {
-		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query: "Alice",
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "account with site must still appear")
+		require.Greater(t, len(res.Resources), 0, "account with site must still appear")
 
 		found := false
-		for _, e := range res.Entities {
+		for _, e := range res.Resources {
 			if e.Content == "Alice Site" && e.Type == "title" {
 				found = true
 				break
@@ -4839,14 +4839,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 	t.Run("Keyword", func(t *testing.T) {
 		t.Run("SearchAlpha_OnlyInDoc1V1", func(t *testing.T) {
 			// "alpha" only existed in C1, C2 changed b1.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "alpha",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'alpha'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'alpha'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "alpha dinosaur")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.False(t, isLatest, "old content 'alpha dinosaur' must NOT have &l marker")
@@ -4854,14 +4854,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchStaticForever_NeverModified", func(t *testing.T) {
 			// "static forever" in b2 was never modified after C1.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "static",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'static'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'static'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "static forever")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.True(t, isLatest, "never-modified content 'static forever' must have &l marker")
@@ -4869,14 +4869,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchGamma_LatestInDoc1", func(t *testing.T) {
 			// "gamma" exists in C4 for b1, and b1 wasn't touched after C4 (C5 only touched b3).
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "gamma",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'gamma'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'gamma'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "gamma hippo")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.True(t, isLatest, "current content 'gamma hippo' must have &l marker")
@@ -4884,14 +4884,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchDelta_LatestInDoc1", func(t *testing.T) {
 			// "delta" exists in C5 for b3, which is the latest version.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "delta",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'delta'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'delta'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "delta iguana")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.True(t, isLatest, "current content 'delta iguana' must have &l marker")
@@ -4899,14 +4899,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchOmega_OnlyInDoc2V1", func(t *testing.T) {
 			// "omega" only existed in D1, D2 changed b1.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "omega",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'omega'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'omega'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "omega tiger")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.False(t, isLatest, "old content 'omega tiger' must NOT have &l marker")
@@ -4914,14 +4914,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchEpsilon_LatestInDoc2", func(t *testing.T) {
 			// "epsilon" exists in D3 for b1, which is the latest version.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "epsilon",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'epsilon'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'epsilon'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "epsilon panda")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.True(t, isLatest, "current content 'epsilon panda' must have &l marker")
@@ -4934,18 +4934,18 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// Doc1: b3@C3 ("beta giraffe") -> version C4 (no &l, C5 touched b3)
 			// Doc2: b1@D2 ("beta koala") -> version D2 (no &l, D3 touched b1)
 			// Doc2: b2@D1 ("beta koala") -> version D3 (has &l, b2 never touched after D1)
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "beta",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 5, "must return 5 results for 'beta' across both docs")
+			require.Len(t, res.Resources, 5, "must return 5 results for 'beta' across both docs")
 
 			// Count results by document and check &l markers.
 			doc1Count := 0
 			doc2Count := 0
 			latestCount := 0
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				_, isLatest := parseEntityVersion(e.Id)
 				if isLatest {
 					latestCount++
@@ -4963,7 +4963,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 			// Verify the specific expectations.
 			// Note: "beta koala" appears twice in doc2 - b1 (no &l) and b2 (has &l).
-			verifySearchResults(t, res.Entities, []expectedResult{
+			verifySearchResults(t, res.Resources, []expectedResult{
 				{contentSubstr: "beta elephant", isLatest: false, docPath: "/version-test-animals"},
 				{contentSubstr: "beta giraffe", isLatest: false, docPath: "/version-test-animals"},
 				{contentSubstr: "beta koala", isLatest: false, docPath: "/version-test-creatures"}, // b1 version
@@ -4975,14 +4975,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// "elephant" appears in:
 			// Doc1: b1@C2 ("beta elephant") -> version C3 (no &l)
 			// Doc1: b3@C1 ("beta elephant") -> version C2 (no &l)
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "elephant",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 2, "must return 2 results for 'elephant'")
+			require.Len(t, res.Resources, 2, "must return 2 results for 'elephant'")
 
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				require.Contains(t, e.Content, "elephant")
 				_, isLatest := parseEntityVersion(e.Id)
 				require.False(t, isLatest, "superseded content with 'elephant' must NOT have &l marker")
@@ -4993,15 +4993,15 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// "koala" appears in:
 			// Doc2: b1@D2 ("beta koala") -> version D2 (no &l, D3 touched b1)
 			// Doc2: b2@D1 ("beta koala") -> version D3 (has &l, b2 never touched)
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "koala",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 2, "must return 2 results for 'koala'")
+			require.Len(t, res.Resources, 2, "must return 2 results for 'koala'")
 
 			latestCount := 0
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				require.Contains(t, e.Content, "koala")
 				_, isLatest := parseEntityVersion(e.Id)
 				if isLatest {
@@ -5013,14 +5013,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 		t.Run("SearchGiraffe_SupersededInDoc1", func(t *testing.T) {
 			// "giraffe" only in Doc1: b3@C3 ("beta giraffe") -> version C4 (no &l, C5 touched b3).
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "giraffe",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return 1 result for 'giraffe'")
+			require.Len(t, res.Resources, 1, "must return 1 result for 'giraffe'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "beta giraffe")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.False(t, isLatest, "superseded content 'beta giraffe' must NOT have &l marker")
@@ -5034,14 +5034,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// - blobId should be M1's blob (where content existed)
 			// - version in URL should ALSO be M1's version
 			// - Bug: version in URL was incorrectly showing M2's version
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "zulu",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'zulu'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 			require.Contains(t, e.Content, "zulu unique content")
 
 			version, isLatest := parseEntityVersion(e.Id)
@@ -5066,14 +5066,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// M2: b1="" (deleted), b2 and b3 also modified (version Y)
 			//
 			// Search "zulu" should return version X, not version Y.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "zulu",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+			require.Len(t, res.Resources, 1, "must return exactly 1 result for 'zulu'")
 
-			e := res.Entities[0]
+			e := res.Resources[0]
 
 			// The version should be M1's version (where content existed),
 			// NOT M2's version (where content was deleted).
@@ -5094,14 +5094,14 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// - M2: b2="yankee modified" -> should show M2 version (has &l)
 			//
 			// Both results must have consistent blobId/version.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "yankee",
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 2, "must return 2 results for 'yankee' (M1 and M2 versions)")
+			require.Len(t, res.Resources, 2, "must return 2 results for 'yankee' (M1 and M2 versions)")
 
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				version, _ := parseEntityVersion(e.Id)
 				require.Equal(t, e.BlobId, version,
 					"blobId (%s) must match version in URL (%s) for content: %s",
@@ -5110,7 +5110,7 @@ func TestSearchVersionConsistency(t *testing.T) {
 
 			// Verify we have one with &l and one without.
 			latestCount := 0
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				_, isLatest := parseEntityVersion(e.Id)
 				if isLatest {
 					latestCount++
@@ -5128,12 +5128,12 @@ func TestSearchVersionConsistency(t *testing.T) {
 		// Wait for embeddings to be generated. Skip if not available within timeout.
 		embeddingsReady := false
 		for i := 0; i < 20; i++ { // Try for ~10 seconds.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "animal",
 				SearchType:  entities.SearchType_SEARCH_SEMANTIC,
 				IncludeBody: true,
 			})
-			if err == nil && len(res.Entities) > 0 {
+			if err == nil && len(res.Resources) > 0 {
 				embeddingsReady = true
 				break
 			}
@@ -5146,16 +5146,16 @@ func TestSearchVersionConsistency(t *testing.T) {
 		t.Run("SearchAnimal_VersionConsistency", func(t *testing.T) {
 			// Semantic search for "animal" should return animal-related content.
 			// Each result should have consistent version markers.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:       "animal",
 				SearchType:  entities.SearchType_SEARCH_SEMANTIC,
 				IncludeBody: true,
 			})
 			require.NoError(t, err)
-			require.Greater(t, len(res.Entities), 0, "semantic search for 'animal' must return results")
+			require.Greater(t, len(res.Resources), 0, "semantic search for 'animal' must return results")
 
 			// Verify version consistency for results we know about.
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				_, isLatest := parseEntityVersion(e.Id)
 
 				// Check specific content we know the expected state for.
@@ -5184,18 +5184,18 @@ func TestSearchVersionConsistency(t *testing.T) {
 		t.Run("SearchBeta_BlendedResults", func(t *testing.T) {
 			// Hybrid search for "beta" should blend keyword and semantic results.
 			// Filter to document content only to avoid title matches from semantic search.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:             "beta",
 				SearchType:        entities.SearchType_SEARCH_HYBRID,
 				IncludeBody:       true,
 				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 5, "hybrid search for 'beta' must return 5 results")
+			require.Len(t, res.Resources, 5, "hybrid search for 'beta' must return 5 results")
 
 			// Same assertions as keyword search.
 			latestCount := 0
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				_, isLatest := parseEntityVersion(e.Id)
 				if isLatest {
 					latestCount++
@@ -5207,16 +5207,16 @@ func TestSearchVersionConsistency(t *testing.T) {
 		t.Run("SearchElephant_BlendedResults", func(t *testing.T) {
 			// Hybrid search for "elephant".
 			// Filter to document content only to avoid unrelated matches from semantic search.
-			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			res, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 				Query:             "elephant",
 				SearchType:        entities.SearchType_SEARCH_HYBRID,
 				IncludeBody:       true,
 				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Entities, 2, "hybrid search for 'elephant' must return 2 results")
+			require.Len(t, res.Resources, 2, "hybrid search for 'elephant' must return 2 results")
 
-			for _, e := range res.Entities {
+			for _, e := range res.Resources {
 				_, isLatest := parseEntityVersion(e.Id)
 				require.False(t, isLatest, "all 'elephant' results must NOT have &l marker in hybrid search")
 			}
@@ -5341,20 +5341,20 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		require.Equal(t, "/comments-move-dst", dstComments.Comments[0].TargetPath)
 	})
 
-	t.Run("SearchEntities", func(t *testing.T) {
+	t.Run("SearchResources", func(t *testing.T) {
 		ctx, app, account, comment := setup(t, "alice")
 
-		search, err := app.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+		search, err := app.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 			Query:       "helloPearMovedUnique",
 			IncludeBody: true,
 			PageSize:    10,
 		})
 		require.NoError(t, err)
-		require.Len(t, search.Entities, 1, "comment search result must survive document moves")
-		require.Equal(t, "comment", search.Entities[0].Type)
-		require.Equal(t, "hm://"+comment.Id, search.Entities[0].Id)
-		require.Equal(t, "hm://"+account+"/comments-move-dst", search.Entities[0].DocId)
-		require.Contains(t, search.Entities[0].Content, "helloPearMovedUnique")
+		require.Len(t, search.Resources, 1, "comment search result must survive document moves")
+		require.Equal(t, "comment", search.Resources[0].Type)
+		require.Equal(t, "hm://"+comment.Id, search.Resources[0].Id)
+		require.Equal(t, "hm://"+account+"/comments-move-dst", search.Resources[0].DocId)
+		require.Contains(t, search.Resources[0].Content, "helloPearMovedUnique")
 	})
 
 	t.Run("ListCitations", func(t *testing.T) {
@@ -5475,23 +5475,23 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 
 	// Search for the private document content.
 	// It should NOT be returned because PublicOnly=true.
-	searchRes, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+	searchRes, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 		Query: "Secret",
 	})
 	require.NoError(t, err)
 
-	for _, e := range searchRes.Entities {
+	for _, e := range searchRes.Resources {
 		if strings.Contains(e.Id, privateDoc.Path) {
 			t.Errorf("search returned private document: %s", e.Id)
 		}
 	}
 
-	searchResCmt, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+	searchResCmt, err := alice.RPC.Resources.SearchResources(ctx, &entities.SearchResourcesRequest{
 		Query: "Private comment",
 	})
 	require.NoError(t, err)
 
-	for _, e := range searchResCmt.Entities {
+	for _, e := range searchResCmt.Resources {
 		if strings.Contains(e.Id, comment.Id) {
 			t.Errorf("search returned private comment: %s", e.Id)
 		}

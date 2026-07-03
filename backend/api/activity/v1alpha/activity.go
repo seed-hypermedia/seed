@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	documents "seed/backend/api/documents/v3alpha"
 	"seed/backend/api/documents/v3alpha/docmodel"
-	entities "seed/backend/api/entities/v1alpha"
 	telemetry "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
-	entity_proto "seed/backend/genproto/entities/v1alpha"
+	documents_proto "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/storage"
 	"slices"
@@ -502,11 +502,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				deletedList = append(deletedList, target)
 			}
 			event := activity.Event{
-				Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+				Data: &activity.Event_NewCitation{NewCitation: &documents_proto.Citation{
 					Source:        source,
 					SourceType:    linkType,
 					SourceContext: anchor,
-					SourceBlob: &entity_proto.Mention_BlobInfo{
+					SourceBlob: &documents_proto.Citation_BlobInfo{
 						Cid:        sourceBlob,
 						Author:     author,
 						CreateTime: eventTime,
@@ -553,15 +553,15 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return &activity.ListEventsResponse{}, nil
 	}
 
-	var movedResources []entities.MovedResource
+	var movedResources []documents.MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, documents.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
 			}
-			movedResources = append(movedResources, entities.MovedResource{
+			movedResources = append(movedResources, documents.MovedResource{
 				NewIri:    stmt.ColumnText(0),
 				OldIri:    stmt.ColumnText(1),
 				IsDeleted: stmt.ColumnInt(2) == 1,
@@ -647,7 +647,7 @@ func filterDeletedAndDedupEvents(
 	events []*activity.Event,
 	cursors []feedCursor,
 	deletedTargets []string,
-	movedResources []entities.MovedResource,
+	movedResources []documents.MovedResource,
 	orderByObserved bool,
 ) ([]*activity.Event, []feedCursor) {
 	if len(events) == 0 {
@@ -670,13 +670,13 @@ func filterDeletedAndDedupEvents(
 	}
 
 	// Extract each event's relevant IRI once. Empty string means the event
-	// type is neither NewMention nor NewBlob; those events pass through
+	// type is neither NewCitation nor NewBlob; those events pass through
 	// without being eligible for IRI-based deletion.
 	eventIRIs := make([]string, len(events))
 	for i, e := range events {
 		switch d := e.Data.(type) {
-		case *activity.Event_NewMention:
-			eventIRIs[i] = d.NewMention.Source
+		case *activity.Event_NewCitation:
+			eventIRIs[i] = d.NewCitation.Source
 		case *activity.Event_NewBlob:
 			eventIRIs[i] = d.NewBlob.Resource
 		}
@@ -723,8 +723,8 @@ func filterDeletedAndDedupEvents(
 	outCursors := make([]feedCursor, 0, len(nonDeleted))
 	for i, e := range nonDeleted {
 		switch d := e.Data.(type) {
-		case *activity.Event_NewMention:
-			nm := d.NewMention
+		case *activity.Event_NewCitation:
+			nm := d.NewCitation
 			groupKey := nm.Target + "\x00" + nm.TargetVersion + "\x00" + nm.TargetFragment + "\x00" + nm.Source
 			if _, ok := seenMentionGroup[groupKey]; ok {
 				continue

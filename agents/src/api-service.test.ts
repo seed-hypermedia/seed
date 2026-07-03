@@ -904,7 +904,7 @@ describe('api service', () => {
       expect(loaded.sessions).toEqual([])
       await expect(
         svc.processActivityEvent(blobs.principalToString(account.principal), {
-          newMention: {sourceBlob: {cid: 'bafymention'}, target: 'hm://z6Mkmentioned'},
+          newCitation: {sourceBlob: {cid: 'bafymention'}, target: 'hm://z6Mkmentioned'},
         }),
       ).resolves.toMatchObject({checked: 0, matched: 0, fired: 0, skipped: 0, errors: 0})
       await expect(

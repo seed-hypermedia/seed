@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, ListCitationsRequest, ListCitationsResponse, PushResourcesToPeerRequest, Resource } from "./resources_pb";
+import { DiscoverResourceRequest, DiscoverResourceResponse, GetResourceRequest, ListCitationsRequest, ListCitationsResponse, PushResourcesToPeerRequest, Resource, SearchResourcesRequest, SearchResourcesResponse } from "./resources_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 import { AnnounceBlobsProgress } from "../../p2p/v1alpha/syncing_pb";
 
@@ -26,6 +26,28 @@ export const Resources = {
       name: "GetResource",
       I: GetResourceRequest,
       O: Resource,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Triggers a best-effort discovery of a resource.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Resources.DiscoverResource
+     */
+    discoverResource: {
+      name: "DiscoverResource",
+      I: DiscoverResourceRequest,
+      O: DiscoverResourceResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Finds the list of local resources matching the input string.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Resources.SearchResources
+     */
+    searchResources: {
+      name: "SearchResources",
+      I: SearchResourcesRequest,
+      O: SearchResourcesResponse,
       kind: MethodKind.Unary,
     },
     /**

@@ -4,11 +4,11 @@ import (
 	context "context"
 	"encoding/json"
 	"fmt"
-	"seed/backend/api/entities/v1alpha"
+	documents "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
-	entity_proto "seed/backend/genproto/entities/v1alpha"
+	documents_proto "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
@@ -224,14 +224,14 @@ func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
 
 	var mention = (*activity.Event)(nil)
 	for _, event := range events.Events {
-		if event.GetNewMention().GetSourceType() == "comment/Embed" {
+		if event.GetNewCitation().GetSourceType() == "comment/Embed" {
 			mention = event
 			break
 		}
 	}
 	require.NotNil(t, mention, "expected comment profile mention in unfiltered activity feed")
-	require.Equal(t, sourceDocument, mention.GetNewMention().GetSourceDocument())
-	require.Equal(t, mentionedProfile, mention.GetNewMention().GetTarget())
+	require.Equal(t, sourceDocument, mention.GetNewCitation().GetSourceDocument())
+	require.Equal(t, mentionedProfile, mention.GetNewCitation().GetTarget())
 }
 
 func TestListEventsCommentExtraAttrsContainsTarget(t *testing.T) {
@@ -330,16 +330,16 @@ func TestListEventsOrdersSameBlobMentionsByLinkID(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, events.Events, 3)
 	require.NotNil(t, events.Events[0].GetNewBlob())
-	require.Equal(t, earlyTarget, events.Events[1].GetNewMention().GetTarget())
-	require.Equal(t, lateTarget, events.Events[2].GetNewMention().GetTarget())
+	require.Equal(t, earlyTarget, events.Events[1].GetNewCitation().GetTarget())
+	require.Equal(t, lateTarget, events.Events[2].GetNewCitation().GetTarget())
 }
 
 func TestSortFeedEventsUsesSameBlobTieBreakers(t *testing.T) {
 	events := []*activity.Event{
-		{Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{Target: "hm://target-b"}}},
+		{Data: &activity.Event_NewCitation{NewCitation: &documents_proto.Citation{Target: "hm://target-b"}}},
 		{Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{Cid: "newer"}}},
 		{Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{Cid: "same-blob"}}},
-		{Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{Target: "hm://target-a"}}},
+		{Data: &activity.Event_NewCitation{NewCitation: &documents_proto.Citation{Target: "hm://target-a"}}},
 	}
 	cursors := []feedCursor{
 		{cursorValue: 10, blobID: 10, kind: feedCursorKindMention, linkID: 30, key: "target-b"},
@@ -356,7 +356,7 @@ func TestSortFeedEventsUsesSameBlobTieBreakers(t *testing.T) {
 			got = append(got, "blob:"+nb.GetCid())
 			continue
 		}
-		got = append(got, "mention:"+event.GetNewMention().GetTarget())
+		got = append(got, "mention:"+event.GetNewCitation().GetTarget())
 	}
 	require.Equal(t, []string{
 		"blob:newer",
@@ -413,7 +413,7 @@ func mkBlobEvent(resource, blobType, author string, evtMillis int64, blobID int6
 
 func mkMentionEvent(target, source, sourceType, author string, evtMillis, blobID int64) (*activity.Event, feedCursor) {
 	return &activity.Event{
-			Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+			Data: &activity.Event_NewCitation{NewCitation: &documents_proto.Citation{
 				Source:     source,
 				SourceType: sourceType,
 				Target:     target,
@@ -454,7 +454,7 @@ func TestFilterDeletedAndDedupEvents_SubstringMatchOnMovedResources(t *testing.T
 	// a moved resource that's not flagged deleted is ignored.
 	e1, c1 := mkBlobEvent("hm://acc/keep", "Ref", "alice", 300, 1)
 	e2, c2 := mkBlobEvent("hm://acc/old-path/child", "Ref", "alice", 200, 2)
-	moved := []entities.MovedResource{
+	moved := []documents.MovedResource{
 		{OldIri: "hm://acc/old-path", NewIri: "hm://acc/new-path", IsDeleted: true},
 		{OldIri: "hm://acc/other-old", NewIri: "hm://acc/other-new", IsDeleted: false},
 	}
@@ -490,7 +490,7 @@ func TestFilterDeletedAndDedupEvents_DedupesMentionsByGroupKey(t *testing.T) {
 	// collapse via the seenMentionGroup path even when Account / EventTime differ.
 	share := func() *activity.Event {
 		return &activity.Event{
-			Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+			Data: &activity.Event_NewCitation{NewCitation: &documents_proto.Citation{
 				Target:         "hm://acc/target",
 				TargetVersion:  "v1",
 				TargetFragment: "f",
@@ -539,15 +539,15 @@ func filterDeletedAndDedupEventsLegacy(
 	events []*activity.Event,
 	cursors []feedCursor,
 	deletedList []string,
-	movedResources []entities.MovedResource,
+	movedResources []documents.MovedResource,
 	orderByObserved bool,
 ) ([]*activity.Event, []feedCursor) {
 	for _, movedResource := range movedResources {
 		for _, e := range events {
-			if _, ok := e.Data.(*activity.Event_NewMention); ok {
-				if strings.Contains(e.Data.(*activity.Event_NewMention).NewMention.Source, movedResource.OldIri) {
+			if _, ok := e.Data.(*activity.Event_NewCitation); ok {
+				if strings.Contains(e.Data.(*activity.Event_NewCitation).NewCitation.Source, movedResource.OldIri) {
 					if movedResource.IsDeleted {
-						deletedList = append(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source)
+						deletedList = append(deletedList, e.Data.(*activity.Event_NewCitation).NewCitation.Source)
 					}
 				}
 				continue
@@ -566,8 +566,8 @@ func filterDeletedAndDedupEventsLegacy(
 	nonDeleted := make([]*activity.Event, 0, len(events))
 	nonDeletedCursors := make([]feedCursor, 0, len(cursors))
 	for i, e := range events {
-		if _, ok := e.Data.(*activity.Event_NewMention); ok {
-			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
+		if _, ok := e.Data.(*activity.Event_NewCitation); ok {
+			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewCitation).NewCitation.Source) {
 				nonDeleted = append(nonDeleted, e)
 				nonDeletedCursors = append(nonDeletedCursors, cursors[i])
 			}
@@ -590,8 +590,8 @@ func filterDeletedAndDedupEventsLegacy(
 	seenMentionGroup := make(map[string]struct{})
 	for i := 0; i < len(nonDeleted); i++ {
 		e := nonDeleted[i]
-		if _, ok := e.Data.(*activity.Event_NewMention); ok {
-			m := e.Data.(*activity.Event_NewMention).NewMention
+		if _, ok := e.Data.(*activity.Event_NewCitation); ok {
+			m := e.Data.(*activity.Event_NewCitation).NewCitation
 			groupKey := m.Target + "\x00" + m.TargetVersion + "\x00" + m.TargetFragment + "\x00" + m.Source
 			if _, ok := seenMentionGroup[groupKey]; ok {
 				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
@@ -641,7 +641,7 @@ func BenchmarkFilterDeletedAndDedupEventsLegacy(b *testing.B) {
 	}
 }
 
-func bench_filterDedupFixtures() ([]*activity.Event, []feedCursor, []string, []entities.MovedResource) {
+func bench_filterDedupFixtures() ([]*activity.Event, []feedCursor, []string, []documents.MovedResource) {
 	const (
 		nEvents         = 500
 		duplicateStride = 4
@@ -663,9 +663,9 @@ func bench_filterDedupFixtures() ([]*activity.Event, []feedCursor, []string, []e
 	for i := range deletedTargets {
 		deletedTargets[i] = "hm://acc/res-" + strconv.Itoa(i)
 	}
-	moved := make([]entities.MovedResource, nMovedResources)
+	moved := make([]documents.MovedResource, nMovedResources)
 	for i := range moved {
-		moved[i] = entities.MovedResource{
+		moved[i] = documents.MovedResource{
 			OldIri:    "hm://acc/moved-" + strconv.Itoa(i),
 			NewIri:    "hm://acc/moved-new-" + strconv.Itoa(i),
 			IsDeleted: i%2 == 0,
@@ -696,9 +696,9 @@ func BenchmarkFilterDeletedAndDedupEvents(b *testing.B) {
 	for i := range deletedTargets {
 		deletedTargets[i] = "hm://acc/res-" + strconv.Itoa(i)
 	}
-	moved := make([]entities.MovedResource, nMovedResources)
+	moved := make([]documents.MovedResource, nMovedResources)
 	for i := range moved {
-		moved[i] = entities.MovedResource{
+		moved[i] = documents.MovedResource{
 			OldIri:    "hm://acc/moved-" + strconv.Itoa(i),
 			NewIri:    "hm://acc/moved-new-" + strconv.Itoa(i),
 			IsDeleted: i%2 == 0,

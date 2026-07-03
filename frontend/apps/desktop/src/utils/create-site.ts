@@ -16,7 +16,7 @@ function waitForRemoteSignInHomeDiscovery(accountUid: string) {
 
   const task = tryUntilSuccess(
     async () => {
-      const response = await grpcClient.entities.discoverEntity({
+      const response = await grpcClient.resources.discoverResource({
         id: discoveryUrl({uid: accountUid, path: []}),
       })
       return response.state === DiscoveryTaskState.DISCOVERY_TASK_COMPLETED ? response : null

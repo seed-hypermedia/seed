@@ -23,8 +23,8 @@ export function activityEventKey(event: ActivityFeedEvent): string | null {
     const sourceBlob = recordField(mention, 'sourceBlob') || recordField(mention, 'source_blob')
     const cid = sourceBlob ? stringField(sourceBlob, 'cid') : undefined
     const target = stringField(mention, 'target')
-    const mentionType = stringField(mention, 'mentionType') || stringField(mention, 'mention_type')
-    if (cid && cid !== 'undefined' && target) return `mention-${cid}-${mentionType || ''}-${target}`
+    const citationType = stringField(mention, 'citationType') || stringField(mention, 'citation_type')
+    if (cid && cid !== 'undefined' && target) return `mention-${cid}-${citationType || ''}-${target}`
   }
 
   return null
@@ -51,7 +51,7 @@ export function activityFiringKey(event: ActivityFeedEvent): string | null {
     const rest = key.slice('mention-'.length)
     const separatorIndex = rest.indexOf('--')
     // The CID precedes the first `--` in both the resolved citation form (`mention-<cid>--<target>`)
-    // and the raw `newMention` fallback (`mention-<cid>-<type>-<target>`). Collapsing onto `blob-<cid>`
+    // and the raw `newCitation` fallback (`mention-<cid>-<type>-<target>`). Collapsing onto `blob-<cid>`
     // unifies the citation with the comment event that shares the same comment-version CID.
     if (separatorIndex > 0) return `blob-${rest.slice(0, separatorIndex)}`
   }
@@ -205,7 +205,7 @@ function matchesUserMention(
  * Decides whether a single activity event is a genuine @mention of `mentionedAccount`.
  *
  * Two event shapes are supported:
- *  - Raw ActivityFeed events (`newMention`), used by tests and any caller that bypasses the
+ *  - Raw ActivityFeed events (`newCitation`), used by tests and any caller that bypasses the
  *    resolving `/api/ListEvents` endpoint.
  *  - Resolved `LoadedEvent`s (the shape `/api/ListEvents` actually returns), where mentions live in
  *    comment-block `Embed` annotations (`type: 'comment'`) or in citation targets (`type: 'citation'`).
@@ -221,7 +221,7 @@ function matchesSingleMention(
   source: Extract<api.AgentTriggerSource, {type: 'user-mention'}>,
   event: ActivityFeedEvent,
 ): boolean {
-  // Raw ActivityFeed `newMention` events.
+  // Raw ActivityFeed `newCitation` events.
   const mention = activityEventMention(event)
   if (mention) {
     const accountTarget = `hm://${mentionedAccount}`
@@ -407,7 +407,9 @@ function activityEventBlob(event: ActivityFeedEvent): Record<string, unknown> | 
 
 function activityEventMention(event: ActivityFeedEvent): Record<string, unknown> | null {
   return (
-    recordField(event, 'newMention') || recordField(event, 'new_mention') || activityEventDataValue(event, 'newMention')
+    recordField(event, 'newCitation') ||
+    recordField(event, 'new_citation') ||
+    activityEventDataValue(event, 'newCitation')
   )
 }
 
@@ -418,7 +420,7 @@ function eventDataCase(event: ActivityFeedEvent): string | undefined {
 
 function activityEventDataValue(
   event: ActivityFeedEvent,
-  expectedCase: 'newBlob' | 'newMention',
+  expectedCase: 'newBlob' | 'newCitation',
 ): Record<string, unknown> | null {
   const data = recordField(event, 'data')
   if (!data || stringField(data, 'case') !== expectedCase) return null

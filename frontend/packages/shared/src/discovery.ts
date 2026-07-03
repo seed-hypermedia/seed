@@ -25,7 +25,7 @@ export type DiscoveryUrlOptions = {
 }
 
 /**
- * Builds an hm:// URL accepted by `DiscoverEntityRequest.id`.
+ * Builds an hm:// URL accepted by `DiscoverResourceRequest.id`.
  *
  * The returned string is canonical: identical inputs produce byte-identical
  * URLs, so it can be used as a stable dedup key for in-flight discovery

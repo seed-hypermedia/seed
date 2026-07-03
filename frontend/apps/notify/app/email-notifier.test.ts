@@ -53,12 +53,12 @@ function createMentionEvent(
   input: {
     sourceCid?: string | undefined
     target?: string | undefined
-    mentionType?: string | undefined
+    citationType?: string | undefined
   } = {},
 ): PlainMessage<Event> {
   const sourceCid = 'sourceCid' in input ? input.sourceCid : TEST_CID_1
   const target = 'target' in input ? input.target : `hm://${TEST_ACCOUNT}`
-  const mentionType = 'mentionType' in input ? input.mentionType : ''
+  const citationType = 'citationType' in input ? input.citationType : ''
   const sourceBlob: any = {
     author: TEST_ACCOUNT,
     createTime: toTimestamp(Date.UTC(2026, 0, 1, 12, 0, 0)),
@@ -75,11 +75,11 @@ function createMentionEvent(
     targetFragment: '',
   }
   if (target !== undefined) value.target = target
-  if (mentionType !== undefined) value.mentionType = mentionType
+  if (citationType !== undefined) value.citationType = citationType
 
   return {
     data: {
-      case: 'newMention',
+      case: 'newCitation',
       value,
     },
     account: TEST_ACCOUNT,

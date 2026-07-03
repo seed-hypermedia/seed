@@ -16,6 +16,12 @@ service Resources {
   // Gets a single resource with a URL (technically IRI).
   rpc GetResource(GetResourceRequest) returns (Resource);
 
+  // Triggers a best-effort discovery of a resource.
+  rpc DiscoverResource(DiscoverResourceRequest) returns (DiscoverResourceResponse);
+
+  // Finds the list of local resources matching the input string.
+  rpc SearchResources(SearchResourcesRequest) returns (SearchResourcesResponse);
+
   // Lists citations of a given resource across the locally-available content.
   rpc ListCitations(ListCitationsRequest) returns (ListCitationsResponse);
 
@@ -142,4 +148,224 @@ message Citation {
 
   // Optional. The type of citation. Could be embed, link, ...
   string citation_type = 9;
+}
+
+
+// Request to discover a resource.
+//
+// The discovery target is specified EITHER by `id` (preferred — single hm:// URL,
+// suitable as a dedup key for clients that aggregate concurrent discovery requests)
+// OR by the decomposed `account` + `path` pair (with optional `recursive`).
+// Setting both forms in the same request is an error.
+message DiscoverResourceRequest {
+  // The hm:// URL identifying the discovery target. Mutually exclusive with
+  // `account` + `path` + `recursive`.
+  //
+  // Examples — exact path:
+  //   "hm://ACCOUNT_ID"                   — everything at account root
+  //   "hm://ACCOUNT_ID/notes/foo"         — everything at /notes/foo
+  // Examples — wildcards (must be the final path segment):
+  //   "hm://ACCOUNT_ID/notes/*"           — direct children of /notes only
+  //   "hm://ACCOUNT_ID/notes/**"          — /notes and everything under it
+  //   "hm://ACCOUNT_ID/**"                — entire account
+  // Examples — scope keyword (suffix on the last path segment):
+  //   "hm://ACCOUNT_ID/:profile"          — profile blobs at account root
+  //   "hm://ACCOUNT_ID/notes/foo:profile" — profile blobs at /notes/foo
+  //
+  // Wildcards and scope keywords are mutually exclusive in a single URL.
+  // Reserved (not yet implemented): "/path:directory".
+  string id = 5;
+
+  // The account the resource belongs to. Mutually exclusive with `id`.
+  string account = 1;
+
+  // The path of the wanted resource. Mutually exclusive with `id`.
+  string path = 2;
+
+  // Optional. Version of the resource to discover.
+  string version = 3;
+
+  // Optional. If true, we sync the document and the child documents as well.
+  // Mutually exclusive with `id` — when using `id`, encode recursion via the
+  // `**` suffix instead. Prefer the `id` form for new callers.
+  bool recursive = 4;
+}
+
+// Describes the state of the discovery task.
+enum DiscoveryTaskState {
+  // The task has just started.
+  DISCOVERY_TASK_STARTED = 0;
+
+  // The task is in progess — we keep looking for peers who can provide the content,
+  // and downloading the content we are finding.
+  DISCOVERY_TASK_IN_PROGRESS = 1;
+
+  // The task has completed and the result is cached for the duration of the duration of the TTL.
+  DISCOVERY_TASK_COMPLETED = 2;
+}
+
+// Response to discover a resource.
+message DiscoverResourceResponse {
+  // The cached version of the document we've discovered within the last discovery process.
+  string version = 1;
+
+  // The state of the discovery task.
+  DiscoveryTaskState state = 2;
+
+  // Deprecated field.
+  reserved 3;
+
+  // The timestamp of the last result we've found.
+  // It can be empty if the discovery is still in progress.
+  google.protobuf.Timestamp last_result_time = 4;
+
+  // The cached error message of the last discovery attempt if it failed.
+  string last_error = 5;
+
+  // The time when the currently cached result will expire, and a new discovery attempt will be made,
+  // if the client keeps calling the discovery RPC.
+  // Can be empty if no results have been found yet.
+  google.protobuf.Timestamp result_expire_time = 6;
+
+  // The progress of the discovery process.
+  DiscoveryProgress progress = 7;
+}
+
+// Various metrics reporting on the progress of the discovery process.
+message DiscoveryProgress {
+  // Number of peers we have found so far.
+  int32 peers_found = 1;
+
+  // Number of peers we have successfully synced with.
+  int32 peers_synced_ok = 2;
+
+  // Number of peers we have failed to sync with.
+  int32 peers_failed = 3;
+
+  // Number of blobs we have discovered so far.
+  int32 blobs_discovered = 4;
+
+  // Number of blobs we have successfully downloaded.
+  int32 blobs_downloaded = 5;
+
+  // Number of blobs we have failed to download.
+  int32 blobs_failed = 6;
+}
+
+// A resource record found
+message ResourceSearchResult {
+  // IRI of the resource, including version, block id and range
+  string id = 1;
+
+  // Blob Id of the resource containing the matching record.
+  string blob_id = 2;
+
+  // The time of the version of the resource.
+  google.protobuf.Timestamp version_time = 3;
+
+  // In the case of comments, the document id
+  // containing the comment.
+  string doc_id = 4;
+
+  // Content of the resource, depending on the type:
+  // Alias in the case of account.
+  // Title/Body in the case of groups and documents.
+  // Body in the case of comments. We don't fill up the whole
+  // block, just the part that contains the search term, with
+  // the surrounding context. The context size is defined by
+  // the context_size parameter.
+  string content = 5;
+
+  // The owner of the resource
+  string owner = 6;
+
+  // The type of the resource it coud be Title, Document, Comment, ...
+  string type = 7;
+
+  // Icon of the document containing that resource
+  string icon = 8;
+
+  // Parent document names
+  repeated string parent_names = 9;
+
+  // Metadata of the document containing that resource.
+  string metadata = 10;
+}
+
+// Describes the state of the discovery task.
+enum SearchType {
+  // Keyword-based search.
+  SEARCH_KEYWORD = 0;
+
+  // Semantic search.
+  SEARCH_SEMANTIC = 1;
+
+  // Hybrid search. with RRFusion.
+  SEARCH_HYBRID = 2;
+}
+
+// Content type to filter search results by.
+enum ContentTypeFilter {
+  CONTENT_TYPE_TITLE = 0;
+  CONTENT_TYPE_DOCUMENT = 1;
+  CONTENT_TYPE_COMMENT = 2;
+  CONTENT_TYPE_CONTACT = 3;
+}
+
+// Request to search resources.
+message SearchResourcesRequest {
+  // Query to find. We support wildcards and phrases.
+  // See https://sqlite.org/fts5.html#full_text_query_syntax.
+  string query = 1;
+
+  // Deprecated, use content_type_filters instead to specify
+  // which content types to include in the search.
+  bool include_body = 2 [deprecated = true];
+
+  // Optional. The size of the text accompanying the search match.
+  // Half of the size is before the match, and half after.
+  // Default is 48 runes.
+  int32 context_size = 3;
+
+  // Deprecated. Use iri_filter instead.
+  string account_uid = 4 [deprecated = true];
+
+  // Optional. The account uid the user is logged in with.
+  // This is used to filter out contacts that the user doesn't have access to.
+  // If not set, we won't provide any contact resources in the response.
+  string logged_account_uid = 5;
+
+  // Optional. Type of search to perform. Could be keyword, semantic or hybrid.
+  // if not set, keyword search is used.
+  SearchType search_type = 6;
+
+  // Optional. hm:// URL with optional GLOB wildcards to scope search.
+  // Examples: "hm://<account>/cars/honda" (single doc), "hm://<account>/cars/*" (subtree).
+  // When empty, falls back to account_uid if set, otherwise matches all.
+  string iri_filter = 7;
+
+  // Optional. Fine-grained content type selection. Overrides include_body when set.
+  // When empty, legacy behavior (title + body types based on include_body).
+  repeated ContentTypeFilter content_type_filter = 8;
+
+  // Optional. Authority weight for citation-based ranking. Range [0, 1].
+  // 0 (default) disables authority scoring. Higher values increase citation influence.
+  // Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
+  float authority_weight = 9;
+
+  // Optional. Maximum number of results per page.
+  // When 0 (default), all results are returned (backwards compatible).
+  int32 page_size = 10;
+
+  // Optional. Token from a previous SearchResourcesResponse to get the next page.
+  string page_token = 11;
+}
+
+// A list of resources matching the request.
+message SearchResourcesResponse {
+  // Resources matching the input title
+  repeated ResourceSearchResult resources = 1;
+
+  // Token for the next page if there's any.
+  string next_page_token = 2;
 }

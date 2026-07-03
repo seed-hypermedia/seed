@@ -1,14 +1,12 @@
-package entities
+package documents
 
 import (
 	"context"
-	documentsapi "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core/coretest"
 	"seed/backend/core/keystore"
 	documents "seed/backend/genproto/documents/v3alpha"
-	entpb "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
 	"seed/backend/storage"
@@ -46,8 +44,7 @@ func (f *fakeDiscoverer) TouchHotTask(iri blob.IRI, version blob.Version, recurs
 }
 
 type testServices struct {
-	documents *documentsapi.Server
-	entities  *Server
+	documents *Server
 	me        coretest.Tester
 }
 
@@ -62,8 +59,7 @@ func newTestServices(t *testing.T, name string) testServices {
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
 
 	return testServices{
-		documents: documentsapi.NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
-		entities:  NewServer(config.Base{}, db, nil, nil, logging.New("seed/entities"+"/"+name, "debug")),
+		documents: NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil),
 		me:        u,
 	}
 }
@@ -129,7 +125,7 @@ func TestSanitizeSearchQuery(t *testing.T) {
 	}
 }
 
-func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
+func TestSearchResourcesFindsProfileOnlyAccount(t *testing.T) {
 	t.Parallel()
 
 	svc := newTestServices(t, "bob")
@@ -154,14 +150,14 @@ func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, codes.NotFound, st.Code())
 
-	res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
+	res, err := svc.documents.SearchResources(ctx, &documents.SearchResourcesRequest{
 		Query: "web eric 84",
 	})
 	require.NoError(t, err)
-	require.Len(t, res.Entities, 1)
-	require.Equal(t, "hm://"+account, res.Entities[0].Id)
-	require.Equal(t, "profile", res.Entities[0].Type)
-	require.Equal(t, "web eric 84", res.Entities[0].Content)
+	require.Len(t, res.Resources, 1)
+	require.Equal(t, "hm://"+account, res.Resources[0].Id)
+	require.Equal(t, "profile", res.Resources[0].Type)
+	require.Equal(t, "web eric 84", res.Resources[0].Content)
 }
 
 func TestBuildRankMap(t *testing.T) {
@@ -188,7 +184,7 @@ func TestBuildRankMap(t *testing.T) {
 	require.Len(t, ranks, 3, "must have 3 unique IRIs")
 }
 
-func TestDiscoverEntity_RequestShapes(t *testing.T) {
+func TestDiscoverResource_RequestShapes(t *testing.T) {
 	t.Parallel()
 
 	alice := coretest.NewTester("alice").Account.Principal()
@@ -196,13 +192,13 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	newServer := func() (*Server, *fakeDiscoverer) {
 		fd := &fakeDiscoverer{}
-		srv := NewServer(config.Base{}, nil, fd, nil, logging.New("seed/entities/test", "debug"))
+		srv := NewServer(config.Base{}, nil, nil, nil, logging.New("seed/resources/test", "debug"), nil, fd)
 		return srv, fd
 	}
 
 	t.Run("id with profile scope maps to blob types", func(t *testing.T) {
 		srv, fd := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id: "hm://" + aliceID + "/:profile",
 		})
 		require.NoError(t, err)
@@ -215,7 +211,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("id with ** wildcard sets Recursive", func(t *testing.T) {
 		srv, fd := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id: "hm://" + aliceID + "/notes/**",
 		})
 		require.NoError(t, err)
@@ -227,7 +223,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("id with * wildcard sets DepthOne", func(t *testing.T) {
 		srv, fd := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id: "hm://" + aliceID + "/notes/*",
 		})
 		require.NoError(t, err)
@@ -238,7 +234,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("decomposed account+path still works", func(t *testing.T) {
 		srv, fd := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Account:   aliceID,
 			Path:      "/notes/foo",
 			Recursive: true,
@@ -252,7 +248,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("id rejects mixing with account", func(t *testing.T) {
 		srv, _ := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id:      "hm://" + aliceID,
 			Account: aliceID,
 		})
@@ -264,7 +260,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("id rejects mixing with recursive", func(t *testing.T) {
 		srv, _ := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id:        "hm://" + aliceID,
 			Recursive: true,
 		})
@@ -276,7 +272,7 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 
 	t.Run("id rejects malformed URL", func(t *testing.T) {
 		srv, _ := newServer()
-		_, err := srv.DiscoverEntity(context.Background(), &entpb.DiscoverEntityRequest{
+		_, err := srv.DiscoverResource(context.Background(), &documents.DiscoverResourceRequest{
 			Id: "hm://not-a-real-principal/:profile",
 		})
 		require.Error(t, err)

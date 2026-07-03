@@ -74,7 +74,7 @@ Do not fetch every comment just to invalidate interaction summaries.
 
 ### 2. Prefer Target Info from Activity Mention Events
 
-Use `newMention` events where:
+Use `newCitation` events where:
 
 ```ts
 sourceType === 'comment/target'

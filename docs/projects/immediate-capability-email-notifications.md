@@ -31,7 +31,7 @@ Implementation plan:
 
 - Extend the notify service event evaluator in `frontend/apps/notify/app/email-notifier.ts`.
 
-  - Today it handles `newMention` and `newBlob` events for `Ref` and `Comment`.
+  - Today it handles `newCitation` and `newBlob` events for `Ref` and `Comment`.
   - Add handling for `newBlob` events where `blob.blobType === 'Capability'`.
   - Load the capability with `grpcClient.accessControl.getCapability` using the event identity available on the blob
     event.

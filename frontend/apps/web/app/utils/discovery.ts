@@ -26,11 +26,11 @@ export async function discoverDocument(
   }
   return await tryUntilSuccess(async () => {
     try {
-      const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+      const discoverResp = await grpcClient.resources.discoverResource(discoverRequest)
       if (checkDiscoverySuccess(discoverResp.version)) return {version: discoverResp.version}
       return null
     } catch (e) {
-      console.warn(`discoverEntity error on hm://${uid}${hmIdPathToEntityQueryPath(path)},  error: ${e}`)
+      console.warn(`discoverResource error on hm://${uid}${hmIdPathToEntityQueryPath(path)},  error: ${e}`)
       // becaue the discovery sometimes errors randomly, we still need to getDocument to get the equivalent of discoverResp.version
       const doc = await grpcClient.documents.getDocument({
         account: uid,

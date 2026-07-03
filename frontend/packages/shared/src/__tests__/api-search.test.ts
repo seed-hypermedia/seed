@@ -4,11 +4,11 @@ import {Search} from '../api-search'
 const account = 'z6Mkq9emq1yUBq4KSeiSH5yzgNBJSnidPVqFnTpzjCdLxB3R'
 
 describe('Search.getData', () => {
-  it('forwards search tuning fields to SearchEntities', async () => {
-    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+  it('forwards search tuning fields to SearchResources', async () => {
+    const searchResources = vi.fn().mockResolvedValue({resources: []})
     const grpcClient = {
-      entities: {
-        searchEntities,
+      resources: {
+        searchResources,
       },
     } as any
 
@@ -26,7 +26,7 @@ describe('Search.getData', () => {
       (() => Promise.resolve(null)) as any,
     )
 
-    expect(searchEntities).toHaveBeenCalledWith({
+    expect(searchResources).toHaveBeenCalledWith({
       query: 'honda',
       includeBody: true,
       contextSize: 43,
@@ -41,9 +41,9 @@ describe('Search.getData', () => {
 
   it('maps comment hits to their containing document and keeps the comment id for focus', async () => {
     const grpcClient = {
-      entities: {
-        searchEntities: vi.fn().mockResolvedValue({
-          entities: [
+      resources: {
+        searchResources: vi.fn().mockResolvedValue({
+          resources: [
             {
               id: `hm://${account}/z6GXZLPYtXaHn4`,
               docId: `hm://${account}/tests-moved`,

@@ -242,7 +242,7 @@ Keep matching simple and transparent in the first release:
 
 - `document-comment`: match `NewBlobEvent.blob_type == 'Comment'` and exact resource ID, or resource-prefix match if
   comments use target-specific resource IDs;
-- `user-mention`: match `Event.new_mention` where the mentioned account equals the trigger target;
+- `user-mention`: match `Event.new_citation` where the mentioned account equals the trigger target;
 - `site-update`: match resource prefix and selected feed event types, initially `doc-update` and `comment`. Legacy
   low-level blob type filters such as `Ref`, `Change`, and `Comment` are still accepted as aliases where possible.
 

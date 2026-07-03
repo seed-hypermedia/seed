@@ -1,6 +1,5 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {createTombstoneRef} from '@seed-hypermedia/client'
 import {DiscoveryState, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -107,22 +106,18 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
 
 export function useDeletedContent() {
   return useQuery({
-    queryFn: async () => {
-      const deleted = (await grpcClient.entities.listDeletedEntities({})).deletedEntities.map((d) => toPlainMessage(d))
-      return deleted
-    },
+    queryFn: async () => [],
     queryKey: [queryKeys.DELETED],
   })
 }
 
-export function useUndeleteEntity(opts?: UseMutationOptions<void, unknown, {id: string}>) {
+export function useUndeleteResource(opts?: UseMutationOptions<void, unknown, {id: string}>) {
   const deleteRecent = useDeleteRecent()
 
   return useMutation({
     ...opts,
     mutationFn: async ({id}: {id: string}) => {
       await deleteRecent.mutateAsync(id)
-      await grpcClient.entities.undeleteEntity({id})
     },
     onSuccess: (result: void, variables: {id: string}, context) => {
       const hmId = unpackHmId(variables.id)

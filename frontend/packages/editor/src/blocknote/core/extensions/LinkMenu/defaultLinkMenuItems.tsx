@@ -448,7 +448,7 @@ function insertMentionNode(editor: BlockNoteEditor<HMBlockSchema>, link: string,
   //   originalContent,
   // )
 
-  // const newMention = state.schema.nodes['inline-embed'].create({
+  // const newCitation = state.schema.nodes['inline-embed'].create({
   //   ref
   // })!
 

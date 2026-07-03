@@ -49,7 +49,7 @@ describe('activity trigger matching', () => {
 
   test('matches user mentions by target account and optional resource prefix', () => {
     const event = {
-      newMention: {
+      newCitation: {
         source: 'hm://z6Mksite/docs/spec',
         sourceType: 'doc/Link',
         sourceBlob: {cid: 'bafymention', author: 'z6Mkauthor'},
@@ -75,7 +75,7 @@ describe('activity trigger matching', () => {
     expect(
       triggers.activityMatchesTriggerSource(
         {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mksite'},
-        {...event, newMention: {...event.newMention, target: 'hm://z6Mkmentioned/profile'}},
+        {...event, newCitation: {...event.newCitation, target: 'hm://z6Mkmentioned/profile'}},
       ),
     ).toBe(true)
     expect(triggers.activityMatchesTriggerSource({type: 'user-mention', mentionedAccounts: ['z6Mkother']}, event)).toBe(
@@ -84,7 +84,7 @@ describe('activity trigger matching', () => {
     expect(
       triggers.activityMatchesTriggerSource(
         {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned'], resourcePrefix: 'hm://z6Mksite'},
-        {data: {case: 'newMention', value: event.newMention}},
+        {data: {case: 'newCitation', value: event.newCitation}},
       ),
     ).toBe(true)
 
@@ -242,9 +242,9 @@ describe('activity trigger matching', () => {
 
   test('derives stable activity keys and summaries', () => {
     expect(triggers.activityEventKey({newBlob: {cid: 'bafyblob', blobType: 'Comment'}})).toBe('blob-bafyblob')
-    expect(triggers.activityEventKey({newMention: {sourceBlob: {cid: 'bafymention'}, target: 'hm://z6Mktarget'}})).toBe(
-      'mention-bafymention--hm://z6Mktarget',
-    )
+    expect(
+      triggers.activityEventKey({newCitation: {sourceBlob: {cid: 'bafymention'}, target: 'hm://z6Mktarget'}}),
+    ).toBe('mention-bafymention--hm://z6Mktarget')
     expect(triggers.activityEventKey({newBlob: {cid: 'undefined'}})).toBeNull()
     expect(triggers.activitySummary({newBlob: {blobType: 'Comment', resource: 'hm://z6Mkdoc'}})).toBe(
       'Comment on hm://z6Mkdoc',

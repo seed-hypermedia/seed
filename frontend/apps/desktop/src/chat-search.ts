@@ -1,5 +1,5 @@
 import type {HMSearchPayload} from '@seed-hypermedia/client/hm-types'
-import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {SearchType} from '@shm/shared/client/.generated/documents/v3alpha/resources_pb'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {desktopRequest} from './desktop-api'
 

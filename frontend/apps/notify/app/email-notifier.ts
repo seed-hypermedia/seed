@@ -122,7 +122,7 @@ type NotificationCollection = {
 
 type EventCursorFingerprint =
   | {kind: 'blob'; cid: string}
-  | {kind: 'mention'; cid: string; mentionType: string; target: string}
+  | {kind: 'mention'; cid: string; citationType: string; target: string}
 
 type EmailIdentity = {
   adminToken: string
@@ -607,7 +607,7 @@ async function collectNotificationsForEvents({
 
   const mentionSourceBlobCids = new Set<string>()
   for (const event of events) {
-    if (event.data.case !== 'newMention') continue
+    if (event.data.case !== 'newCitation') continue
     const sourceBlobCid = normalizeCidString(event.data.value?.sourceBlob?.cid)
     if (sourceBlobCid) mentionSourceBlobCids.add(sourceBlobCid)
   }
@@ -944,13 +944,13 @@ function getEventCursorFingerprint(event: PlainMessage<Event>): EventCursorFinge
     if (!cid) return null
     return {kind: 'blob', cid}
   }
-  if (event.data.case === 'newMention') {
+  if (event.data.case === 'newCitation') {
     const mention = event.data.value
     const cid = normalizeCidString(mention?.sourceBlob?.cid)
     const target = normalizeRequiredString(mention?.target)
     if (!cid || !target) return null
-    const mentionType = typeof mention?.mentionType === 'string' ? mention.mentionType : ''
-    return {kind: 'mention', cid, mentionType, target}
+    const citationType = typeof mention?.citationType === 'string' ? mention.citationType : ''
+    return {kind: 'mention', cid, citationType, target}
   }
   return null
 }
@@ -969,10 +969,10 @@ function parseCursorFingerprintFromId(eventId: string): EventCursorFingerprint |
     const withoutCid = withoutPrefix.slice(firstDash + 1)
     const secondDash = withoutCid.indexOf('-')
     if (!cid || secondDash < 0) return null
-    const mentionType = withoutCid.slice(0, secondDash)
+    const citationType = withoutCid.slice(0, secondDash)
     const target = normalizeRequiredString(withoutCid.slice(secondDash + 1))
     if (!target) return null
-    return {kind: 'mention', cid, mentionType, target}
+    return {kind: 'mention', cid, citationType, target}
   }
   return null
 }
@@ -998,13 +998,13 @@ function formatEventCursorId(fingerprint: EventCursorFingerprint) {
   if (fingerprint.kind === 'blob') {
     return `blob-${fingerprint.cid}`
   }
-  return `mention-${fingerprint.cid}-${fingerprint.mentionType}-${fingerprint.target}`
+  return `mention-${fingerprint.cid}-${fingerprint.citationType}-${fingerprint.target}`
 }
 
 function isSameEventCursorFingerprint(left: EventCursorFingerprint, right: EventCursorFingerprint) {
   if (left.kind !== right.kind || left.cid !== right.cid) return false
   if (left.kind === 'blob' || right.kind === 'blob') return true
-  return left.mentionType === right.mentionType && left.target === right.target
+  return left.citationType === right.citationType && left.target === right.target
 }
 
 function normalizeCidString(value: unknown): string | null {
@@ -1048,13 +1048,13 @@ function getInvalidEventIdentityDetails(event: PlainMessage<Event>) {
       blobId: blob?.blobId == null ? undefined : String(blob.blobId),
     }
   }
-  if (event.data.case === 'newMention') {
+  if (event.data.case === 'newCitation') {
     const mention = event.data.value
     return {
       eventCase: event.data.case,
       account: event.account,
       sourceBlobCid: mention?.sourceBlob?.cid,
-      mentionType: mention?.mentionType,
+      citationType: mention?.citationType,
       sourceType: mention?.sourceType,
       target: mention?.target,
       source: mention?.source,
@@ -1120,7 +1120,7 @@ async function evaluateEventForNotifications(
     account: event.account,
   })
 
-  if (event.data.case === 'newMention') {
+  if (event.data.case === 'newCitation') {
     logNotifVerbose('new mention event received', {
       eventId: eventMeta.eventId,
       eventAtMs: eventMeta.eventAtMs,
@@ -1130,7 +1130,7 @@ async function evaluateEventForNotifications(
       sourceType: event.data.value?.sourceType,
       sourceBlobCid: event.data.value?.sourceBlob?.cid,
     })
-    logNotifDebug('processing newMention event', {
+    logNotifDebug('processing newCitation event', {
       eventId: eventMeta.eventId,
       target: event.data.value?.target,
       source: event.data.value?.source,
@@ -1205,7 +1205,7 @@ async function evaluateEventForNotifications(
 
 async function evaluateDocUpdateForNotifications(
   refEvent: {
-    newMentions: MentionMap
+    newCitations: MentionMap
     isNewDocument: boolean
     openUrl: string
     metadata: HMMetadata
@@ -1217,7 +1217,7 @@ async function evaluateDocUpdateForNotifications(
   appendNotification: (subscription: NotificationSubscription, notif: Notification) => Promise<void>,
 ) {
   for (const sub of allSubscriptions) {
-    if (sub.notifyAllMentions && refEvent.newMentions[sub.id]) {
+    if (sub.notifyAllMentions && refEvent.newCitations[sub.id]) {
       const subjectAccountResult = await requestAPI('Account', sub.id)
       const subjectAccountMeta = subjectAccountResult.type === 'account' ? subjectAccountResult.metadata : null
       appendNotification(sub, {
@@ -1988,23 +1988,23 @@ async function loadRefEvent(event: PlainMessage<Event>) {
 
   const currentDocMentions = getMentionsOfDocument(changedDoc)
 
-  let newMentions: MentionMap = currentDocMentions
+  let newCitations: MentionMap = currentDocMentions
   // Check if there are previous mentions to compare against
   if (prevVersionId?.version) {
     const prevVersionDoc = await getDocument(prevVersionId)
     if (!prevVersionDoc) return null
     const prevVersionDocMentions = getMentionsOfDocument(prevVersionDoc)
-    newMentions = {}
+    newCitations = {}
     for (const [blockId, mentions] of Object.entries(currentDocMentions)) {
       const prevMentions = prevVersionDocMentions[blockId]
       if (!prevMentions) {
         // Entirely new block with mentions
-        newMentions[blockId] = mentions
+        newCitations[blockId] = mentions
       } else {
         // Check for new mentions in existing block
         const addedMentions = new Set(Array.from(mentions).filter((m) => !prevMentions.has(m)))
         if (addedMentions.size > 0) {
-          newMentions[blockId] = addedMentions
+          newCitations[blockId] = addedMentions
         }
       }
     }
@@ -2015,7 +2015,7 @@ async function loadRefEvent(event: PlainMessage<Event>) {
   const authorMeta = authorResult.metadata
   return {
     id,
-    newMentions,
+    newCitations,
     isNewDocument,
     openUrl,
     metadata: changedDoc.metadata,

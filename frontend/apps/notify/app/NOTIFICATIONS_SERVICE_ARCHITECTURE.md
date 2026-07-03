@@ -197,7 +197,7 @@ The notifier uses `notifier_status` values from [`./db.ts`](./db.ts):
 Event IDs are synthesized by [`getEventId(...)`](./email-notifier.ts):
 
 - `blob-${cid}` for `newBlob`
-- `mention-${sourceBlob.cid}-${mentionType}-${target}` for `newMention`
+- `mention-${sourceBlob.cid}-${citationType}-${target}` for `newCitation`
 
 Those IDs are reused as:
 
@@ -223,7 +223,7 @@ The central dispatcher is [`evaluateEventForNotifications(...)`](./email-notifie
 
 It handles two daemon event families:
 
-### `newMention`
+### `newCitation`
 
 - evaluated by [`evaluateMentionEventForNotifications(...)`](./email-notifier.ts)
 - produces `mention`

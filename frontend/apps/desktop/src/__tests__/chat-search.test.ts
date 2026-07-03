@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
+import {SearchType} from '@shm/shared/client/.generated/documents/v3alpha/resources_pb'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {executeChatSearch} from '../chat-search'
 

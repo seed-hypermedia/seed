@@ -1,4 +1,4 @@
-import {useDeletedContent, useUndeleteEntity} from '@/models/entities'
+import {useDeletedContent, useUndeleteResource} from '@/models/entities'
 import {HMDeletedEntity} from '@seed-hypermedia/client/hm-types'
 import {formattedDateLong, formattedDateMedium} from '@shm/shared/utils/date'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -52,7 +52,7 @@ export default function DeletedContent() {
 }
 
 function UndeleteButton({item}: {item: HMDeletedEntity}) {
-  const undelete = useUndeleteEntity()
+  const undelete = useUndeleteResource()
   const unpackedId = item.id ? unpackHmId(item.id) : null
   if (!unpackedId) return null
   return (

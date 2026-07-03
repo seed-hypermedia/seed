@@ -16,7 +16,7 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
       iriFilter,
       contentTypeFilter,
     } = input
-    const result = await grpcClient.entities.searchEntities({
+    const result = await grpcClient.resources.searchResources({
       query,
       includeBody,
       contextSize,
@@ -29,7 +29,7 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
     })
     return {
       searchQuery: query,
-      entities: result.entities
+      entities: result.resources
         .map((entity) => {
           const id = unpackHmId(entity.id)
           if (entity.type === 'contact' && id) {
