@@ -29,6 +29,7 @@ import {
   ExternalLink as ExternalLinkIcon,
   Link2,
   Pencil,
+  Forward,
   SquareMinus,
   SquarePen,
   Trash2,
@@ -269,6 +270,17 @@ function DraftEmbedPlaceholder({
             disabled: !draftActions?.onOpenDraft || !draft,
             onClick: () => void handleOpen(),
           },
+          ...(draftActions?.onMoveDraft
+            ? [
+                {
+                  key: 'move',
+                  label: 'Move',
+                  icon: <Forward className="size-4" />,
+                  disabled: !draft,
+                  onClick: () => draftActions.onMoveDraft?.(draftId, {embedBlockId: blockId}),
+                },
+              ]
+            : []),
           {
             key: 'remove',
             label: 'Remove card',

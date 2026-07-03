@@ -5,6 +5,8 @@ import {
   canShowRepublishDocumentAction,
   canUseDocumentAsDestinationParent,
   isMoveTargetParentBlocked,
+  isMoveTargetSameSite,
+  canUseMoveTargetParent,
 } from './document-actions'
 
 describe('document action visibility', () => {
@@ -38,6 +40,16 @@ describe('move target validation', () => {
     expect(isMoveTargetParentBlocked(sourceId, hmId('site-a', {path: ['specs', 'api']}))).toBe(true)
     expect(isMoveTargetParentBlocked(sourceId, hmId('site-a', {path: ['design']}))).toBe(false)
     expect(isMoveTargetParentBlocked(sourceId, hmId('site-b', {path: ['specs', 'api']}))).toBe(false)
+  })
+
+  it('keeps move targets inside the source site', () => {
+    const sourceId = hmId('site-a', {path: ['docs', 'api']})
+
+    expect(isMoveTargetSameSite(sourceId, hmId('site-a', {path: ['docs']}))).toBe(true)
+    expect(isMoveTargetSameSite(sourceId, hmId('site-b', {path: ['docs']}))).toBe(false)
+    expect(canUseMoveTargetParent(sourceId, hmId('site-a', {path: ['docs']}))).toBe(true)
+    expect(canUseMoveTargetParent(sourceId, hmId('site-a', {path: ['docs', 'api']}))).toBe(false)
+    expect(canUseMoveTargetParent(sourceId, hmId('site-b', {path: ['docs']}))).toBe(false)
   })
 
   it('excludes private documents as destination parents', () => {

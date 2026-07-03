@@ -1,5 +1,5 @@
 import {useSelectedAccountWritableDocuments} from '@/models/access-control'
-import {useMoveDocument, useRepublishDocument} from '@/models/documents'
+import {useMoveDocument, useMoveDraft, useRepublishDocument} from '@/models/documents'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -25,10 +25,21 @@ export function DocumentDestinationDialog({
   const selectedAccountUid = selectedAccount?.id.uid
   const writableDocuments = useSelectedAccountWritableDocuments()
   const moveDocument = useMoveDocument()
+  const moveDraft = useMoveDraft()
   const republishDocument = useRepublishDocument()
   const navigate = useNavigate()
 
   async function onSubmit(submitInput: DocumentDestinationSubmitInput) {
+    if (submitInput.draft?.draftId) {
+      await moveDraft.mutateAsync({
+        draftId: submitInput.draft.draftId,
+        from: submitInput.from,
+        to: submitInput.to,
+        signingAccountId: submitInput.signingAccountId,
+        origin: submitInput.origin,
+      })
+      return
+    }
     const mutation = submitInput.mode === 'move' ? moveDocument : republishDocument
     await mutation.mutateAsync({
       from: submitInput.from,

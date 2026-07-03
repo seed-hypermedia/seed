@@ -6,6 +6,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
 const {
+  moveDraftMutateAsyncMock,
   moveMutateAsyncMock,
   navigateMock,
   republishMutateAsyncMock,
@@ -15,6 +16,7 @@ const {
   useResourcesMock,
   writableDocumentsMock,
 } = vi.hoisted(() => ({
+  moveDraftMutateAsyncMock: vi.fn(),
   moveMutateAsyncMock: vi.fn(),
   navigateMock: vi.fn(),
   republishMutateAsyncMock: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('@/models/access-control', () => ({
 
 vi.mock('@/models/documents', () => ({
   useMoveDocument: () => ({mutateAsync: moveMutateAsyncMock, isLoading: false}),
+  useMoveDraft: () => ({mutateAsync: moveDraftMutateAsyncMock, isLoading: false}),
   useRepublishDocument: () => ({mutateAsync: republishMutateAsyncMock, isLoading: false}),
 }))
 
@@ -142,6 +145,7 @@ function findButtonExact(container: HTMLDivElement, label: string) {
 
 describe('DocumentDestinationDialog', () => {
   beforeEach(() => {
+    moveDraftMutateAsyncMock.mockReset()
     moveMutateAsyncMock.mockReset()
     navigateMock.mockReset()
     republishMutateAsyncMock.mockReset()

@@ -1,5 +1,5 @@
 import {HMListedDraft} from '@seed-hypermedia/client/hm-types'
-import {FileText, MoreVertical, Pencil, Trash2} from 'lucide-react'
+import {FileText, MoreVertical, Forward, Pencil, Trash2} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {DraftBadge} from './draft-badge'
@@ -10,6 +10,7 @@ export interface InlineDraftListItemProps {
   autoFocus?: boolean
   onOpenDraft: (draftId: string) => void
   onDeleteDraft: (draftId: string) => void
+  onMoveDraft?: (draftId: string) => void
   onUpdateDraftName: (draftId: string, name: string) => void
 }
 
@@ -18,6 +19,7 @@ export function InlineDraftListItem({
   autoFocus,
   onOpenDraft,
   onDeleteDraft,
+  onMoveDraft,
   onUpdateDraftName,
 }: InlineDraftListItemProps) {
   const [title, setTitle] = useState(draft.metadata?.name || '')
@@ -122,6 +124,16 @@ export function InlineDraftListItem({
                 icon: <Pencil className="size-4" />,
                 onClick: openDraft,
               },
+              ...(onMoveDraft
+                ? [
+                    {
+                      key: 'move',
+                      label: 'Move',
+                      icon: <Forward className="size-4" />,
+                      onClick: () => onMoveDraft(draft.id),
+                    },
+                  ]
+                : []),
               {
                 key: 'delete',
                 label: 'Delete Draft',

@@ -47,3 +47,14 @@ export function isMoveTargetParentBlocked(sourceId: UnpackedHypermediaId, target
   if (!sourcePath.length) return true
   return sourcePath.length <= targetPath.length && sourcePath.every((segment, index) => targetPath[index] === segment)
 }
+
+/** Returns true when a Move target belongs to the same site as the source document. */
+export function isMoveTargetSameSite(sourceId: UnpackedHypermediaId, targetParentId: UnpackedHypermediaId | null) {
+  if (!targetParentId) return false
+  return sourceId.uid === targetParentId.uid
+}
+
+/** Returns true when a parent is a valid Move destination candidate for the source. */
+export function canUseMoveTargetParent(sourceId: UnpackedHypermediaId, targetParentId: UnpackedHypermediaId | null) {
+  return isMoveTargetSameSite(sourceId, targetParentId) && !isMoveTargetParentBlocked(sourceId, targetParentId)
+}

@@ -10,4 +10,12 @@ describe('WebResourcePage restore action wiring', () => {
       'onRestoreDocumentVersion={effectiveCanEdit && signingAccountId ? onRestoreDocumentVersion : undefined}',
     )
   })
+
+  it('opens the move dialog with draft context for unpublished draft routes', () => {
+    const source = readFileSync(join(__dirname, 'web-resource-page.tsx'), 'utf8')
+
+    expect(source).toContain('const draftMoveId = draftData?.draftId || placeholderDraftId')
+    expect(source).toContain('draft: {')
+    expect(source).toContain('draftId: draftMoveId')
+  })
 })

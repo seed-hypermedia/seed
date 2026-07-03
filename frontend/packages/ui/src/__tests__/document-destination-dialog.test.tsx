@@ -5,11 +5,17 @@ import {act} from 'react-dom/test-utils'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {DocumentDestinationDialog, type WritableDocumentDestination} from '../document-destination-dialog'
+import {
+  DocumentDestinationDialog,
+  type DocumentDestinationDialogInput,
+  type WritableDocumentDestination,
+} from '../document-destination-dialog'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
+const hmIconMock = vi.hoisted(() => vi.fn(() => <span data-testid="hm-icon" />))
 const siteId = hmId('site')
+const otherSiteId = hmId('other')
 const sourceId = hmId('site', {path: ['old-parent', 'move-me']})
 
 vi.mock('@shm/shared/models/entity', () => ({
@@ -54,7 +60,7 @@ vi.mock('../tooltip', () => ({
 }))
 
 vi.mock('../hm-icon', () => ({
-  HMIcon: () => <span data-testid="hm-icon" />,
+  HMIcon: hmIconMock,
 }))
 
 let container: HTMLDivElement
@@ -71,9 +77,24 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  hmIconMock.mockClear()
 })
 
-function renderDialog(props: {onSubmit?: ReturnType<typeof vi.fn>; writableDocuments?: WritableDocumentDestination[]}) {
+async function clearToWritableRoots() {
+  for (let index = 0; index < 2; index++) {
+    const backButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Back')
+    if (!backButton) return
+    await act(async () => {
+      backButton.click()
+    })
+  }
+}
+
+function renderDialog(props: {
+  input?: DocumentDestinationDialogInput
+  onSubmit?: ReturnType<typeof vi.fn>
+  writableDocuments?: WritableDocumentDestination[]
+}) {
   const onSubmit = (props.onSubmit || vi.fn(async () => undefined)) as any
   act(() => {
     root.render(
@@ -84,11 +105,13 @@ function renderDialog(props: {onSubmit?: ReturnType<typeof vi.fn>; writableDocum
         universalClient={{request: vi.fn()} as any}
       >
         <DocumentDestinationDialog
-          input={{id: sourceId, mode: 'move'}}
+          input={props.input || {id: sourceId, mode: 'move'}}
           onClose={vi.fn()}
           selectedAccountUid="site"
           writableDocuments={
-            props.writableDocuments || [{id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any}]
+            props.writableDocuments || [
+              {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs', icon: 'site-icon'}} as any},
+            ]
           }
           onSubmit={onSubmit}
         />
@@ -124,5 +147,49 @@ describe('DocumentDestinationDialog', () => {
       mode: 'move',
       signingAccountId: 'site',
     })
+  })
+  it('passes destination metadata icons into location rows', async () => {
+    renderDialog({})
+    await clearToWritableRoots()
+
+    expect(hmIconMock).toHaveBeenCalledWith(
+      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 28}),
+      expect.anything(),
+    )
+  })
+
+  it('filters writable roots to the source site for moves but not republish', async () => {
+    renderDialog({
+      input: {id: sourceId, mode: 'move'},
+      writableDocuments: [
+        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
+        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+      ],
+    })
+
+    await clearToWritableRoots()
+
+    expect(container.textContent).toContain('Docs')
+    expect(container.textContent).not.toContain('Other Site')
+
+    act(() => {
+      root.unmount()
+      container.remove()
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+    })
+
+    renderDialog({
+      input: {id: sourceId, mode: 'republish'},
+      writableDocuments: [
+        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
+        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+      ],
+    })
+    await clearToWritableRoots()
+
+    expect(container.textContent).toContain('Docs')
+    expect(container.textContent).toContain('Other Site')
   })
 })

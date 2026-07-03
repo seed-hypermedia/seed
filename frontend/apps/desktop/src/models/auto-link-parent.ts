@@ -8,7 +8,12 @@ import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
-import {hmLinkTargetsDocument, planDocumentCardRemoval} from '@shm/shared/utils/document-card-cleanup'
+import {
+  appendDraftCardToEditorBlocks,
+  hmLinkTargetsDocument,
+  planDocumentCardRemoval,
+  removeDraftCardFromEditorBlocks,
+} from '@shm/shared/utils/document-card-cleanup'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {nanoid} from 'nanoid'
 import {shouldAutoLinkParent} from '../utils/publish-utils'
@@ -536,4 +541,82 @@ export async function updateParentCardsAfterDocumentRelocation({
     signingAccountUid,
   })
   return {removed, added}
+}
+
+/** Result of moving unpublished draft-card embeds between parent drafts. */
+export type MoveDraftCardBetweenParentDraftsResult = {
+  removed?: {parentId: UnpackedHypermediaId; parentDraftId: string; removedBlockIds: string[]}
+  added?: {parentId: UnpackedHypermediaId; parentDraftId: string; addedBlockIds: string[]}
+}
+
+async function writeDraftContent(draft: any, content: any[]) {
+  await client.drafts.write.mutate({
+    id: draft.id,
+    locationUid: draft.locationUid,
+    locationPath: draft.locationPath,
+    editUid: draft.editUid,
+    editPath: draft.editPath,
+    metadata: draft.metadata,
+    content,
+    deps: draft.deps,
+    navigation: draft.navigation,
+    visibility: draft.visibility,
+  })
+  invalidateQueries([queryKeys.DRAFT, draft.id])
+}
+
+/** Moves an unpublished draft-card embed from the old parent draft to the new parent draft when those drafts exist. */
+export async function moveDraftCardBetweenParentDrafts({
+  draftId,
+  fromParentId,
+  toParentId,
+  sourceBlockId,
+}: {
+  draftId: string
+  fromParentId: UnpackedHypermediaId | null | undefined
+  toParentId: UnpackedHypermediaId
+  sourceBlockId?: string
+}): Promise<MoveDraftCardBetweenParentDraftsResult> {
+  const result: MoveDraftCardBetweenParentDraftsResult = {}
+  if (fromParentId) {
+    const oldParentDraft = await client.drafts.findByEdit.query({
+      editUid: fromParentId.uid,
+      editPath: fromParentId.path || [],
+    })
+    if (oldParentDraft?.id) {
+      const draft = await client.drafts.get.query(oldParentDraft.id)
+      if (draft) {
+        const removed = removeDraftCardFromEditorBlocks((draft.content || []) as any[], draftId, sourceBlockId)
+        if (removed.removedBlockIds.length) {
+          await writeDraftContent(draft, removed.content)
+          result.removed = {parentId: fromParentId, parentDraftId: draft.id, removedBlockIds: removed.removedBlockIds}
+        }
+      }
+    }
+  }
+
+  const newParentDraft = await client.drafts.findByEdit.query({
+    editUid: toParentId.uid,
+    editPath: toParentId.path || [],
+  })
+  if (newParentDraft?.id) {
+    const draft = await client.drafts.get.query(newParentDraft.id)
+    if (draft) {
+      const added = appendDraftCardToEditorBlocks((draft.content || []) as any[], draftId, nanoid(10))
+      if (added.addedBlockIds.length) {
+        await writeDraftContent(draft, added.content)
+        result.added = {parentId: toParentId, parentDraftId: draft.id, addedBlockIds: added.addedBlockIds}
+      }
+    }
+  }
+
+  if (fromParentId) {
+    invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, fromParentId.id])
+    invalidateQueries([queryKeys.ENTITY, fromParentId.id])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, fromParentId.id])
+  }
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, toParentId.id])
+  invalidateQueries([queryKeys.ENTITY, toParentId.id])
+  invalidateQueries([queryKeys.RESOLVED_ENTITY, toParentId.id])
+  return result
 }

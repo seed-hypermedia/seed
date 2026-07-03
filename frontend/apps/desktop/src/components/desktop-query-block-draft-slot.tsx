@@ -1,13 +1,17 @@
+import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useChildDrafts, useCreateInlineDraft, useDeleteDraft, useUpdateDraftMetadata} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {roleCanWrite, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import {QueryBlockDraftSlotProps, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMemo} from 'react'
 
 export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraftSlotProps) {
   const navigate = useNavigate()
+  const moveDraftDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
   const capability = useSelectedAccountCapability(targetId ?? undefined)
   const canEdit = roleCanWrite(capability?.role)
   const resource = useResource(targetId)
@@ -59,8 +63,23 @@ export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraft
           })
         },
         onDeleteDraft: (draftId) => deleteDraft.mutate(draftId),
+        onMoveDraft: (draftId) => {
+          const draft = childDrafts.find((draft) => draft.id === draftId)
+          if (!draft) return
+          const sourceId = draftDocumentRouteId(draft)
+          if (!sourceId) return
+          moveDraftDialog.open({
+            id: sourceId,
+            mode: 'move',
+            origin: draft.locationUid
+              ? {parentDocumentId: hmId(draft.locationUid, {path: draft.locationPath ?? []})}
+              : undefined,
+            draft: {draftId, title: draft.metadata?.name, icon: draft.metadata?.icon},
+          })
+        },
         onUpdateDraftName: (draftId, name) => updateDraftMetadata.mutate({draftId, metadata: {name}}),
       })}
+      {moveDraftDialog.content}
     </>
   )
 }

@@ -455,3 +455,69 @@ export function applyDocumentCardCleanupToBlockNodes(
 
   return {content: rewrite(content), changedBlockIds}
 }
+
+type EditorDraftCardBlockLike = {
+  id?: string
+  type?: string
+  props?: {draftId?: string; url?: string; view?: string; defaultOpen?: string}
+  content?: unknown[]
+  children?: EditorDraftCardBlockLike[]
+  [key: string]: unknown
+}
+
+function isEditorDraftCardEmbed(block: EditorDraftCardBlockLike, draftId: string, targetBlockId?: string) {
+  if (block.type !== 'embed') return false
+  if (targetBlockId && block.id !== targetBlockId) return false
+  return block.props?.draftId === draftId
+}
+
+function editorBlocksContainDraftCard(blocks: EditorDraftCardBlockLike[], draftId: string): boolean {
+  return blocks.some((block) => {
+    if (isEditorDraftCardEmbed(block, draftId)) return true
+    return editorBlocksContainDraftCard(block.children || [], draftId)
+  })
+}
+
+/** Removes editor draft-card embeds that reference an unpublished draft id. */
+export function removeDraftCardFromEditorBlocks(
+  blocks: EditorDraftCardBlockLike[],
+  draftId: string,
+  targetBlockId?: string,
+): {content: EditorDraftCardBlockLike[]; removedBlockIds: string[]} {
+  const removedBlockIds: string[] = []
+
+  function expandBlock(block: EditorDraftCardBlockLike): EditorDraftCardBlockLike[] {
+    const children = Array.isArray(block.children) ? block.children : []
+    if (isEditorDraftCardEmbed(block, draftId, targetBlockId)) {
+      if (block.id) removedBlockIds.push(block.id)
+      return children.flatMap(expandBlock)
+    }
+    return [{...block, children: children.flatMap(expandBlock)}]
+  }
+
+  return {content: blocks.flatMap(expandBlock), removedBlockIds}
+}
+
+/** Appends an editor draft-card embed for an unpublished draft unless one already exists. */
+export function appendDraftCardToEditorBlocks(
+  blocks: EditorDraftCardBlockLike[],
+  draftId: string,
+  newBlockId: string,
+): {content: EditorDraftCardBlockLike[]; addedBlockIds: string[]} {
+  if (!draftId || !newBlockId || editorBlocksContainDraftCard(blocks, draftId)) {
+    return {content: blocks, addedBlockIds: []}
+  }
+  return {
+    content: [
+      ...blocks,
+      {
+        id: newBlockId,
+        type: 'embed',
+        props: {url: '', draftId, view: 'Card', defaultOpen: 'false'},
+        content: [],
+        children: [],
+      },
+    ],
+    addedBlockIds: [newBlockId],
+  }
+}

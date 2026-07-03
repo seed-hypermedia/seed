@@ -403,9 +403,30 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       key: 'move',
       label: 'Move',
       icon: <FileInput className="size-4" />,
-      onClick: () => destinationDialog.open({id: docId, mode: 'move'}),
+      onClick: () => {
+        const draftMoveId = draftData?.draftId || placeholderDraftId
+        if (draftMoveId) {
+          const fallbackParent = docId.path?.length ? hmId(docId.uid, {path: docId.path.slice(0, -1)}) : undefined
+          destinationDialog.open({
+            id: docId,
+            mode: 'move',
+            origin: draftData?.locationUid
+              ? {parentDocumentId: hmId(draftData.locationUid, {path: draftData.locationPath ?? []})}
+              : fallbackParent
+                ? {parentDocumentId: fallbackParent}
+                : undefined,
+            draft: {
+              draftId: draftMoveId,
+              title: (draftData?.metadata as any)?.name,
+              icon: (draftData?.metadata as any)?.icon,
+            },
+          })
+          return
+        }
+        destinationDialog.open({id: docId, mode: 'move'})
+      },
     }
-  }, [destinationDialog, docId, effectiveCanEdit, signingAccountId])
+  }, [destinationDialog, docId, draftData, effectiveCanEdit, placeholderDraftId, signingAccountId])
   const deleteMenuItem = useMemo<MenuItemType | null>(() => {
     if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
     return {
