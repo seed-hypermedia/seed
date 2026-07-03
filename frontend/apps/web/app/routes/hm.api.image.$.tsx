@@ -5,7 +5,7 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
-import {fileTypeFromBuffer} from 'file-type'
+import {fromBuffer as fileTypeFromBuffer} from 'file-type'
 
 const CACHE_PATH = path.resolve(path.join(process.env.DATA_DIR || process.cwd(), 'image-cache'))
 const IMG_SIZE_WIDTHS: Record<OptimizedImageSize, number> = {
