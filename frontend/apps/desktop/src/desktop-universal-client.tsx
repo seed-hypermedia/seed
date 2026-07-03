@@ -12,6 +12,16 @@ import {CommentBox} from './components/commenting'
 
 const seedClient = createSeedClient(API_HTTP_URL)
 
+const publishSeedDocument: Parameters<typeof publishDesktopDocument>[0]['publishDocument'] = (input, signer) => {
+  const publishDocument = seedClient.publishDocument as typeof seedClient.publishDocument | undefined
+  if (typeof publishDocument !== 'function') {
+    throw new Error(
+      'Seed client publishDocument is not available. Rebuild frontend packages and restart the desktop app.',
+    )
+  }
+  return publishDocument(input, signer)
+}
+
 function getSigner(accountUid: string) {
   return {
     getPublicKey: async () => new Uint8Array(base58btc.decode(accountUid)),
@@ -50,7 +60,7 @@ export const desktopUniversalClient: UniversalClient = {
   publishDocument: (input) =>
     publishDesktopDocument(
       {
-        publishDocument: seedClient.publishDocument.bind(seedClient),
+        publishDocument: publishSeedDocument,
         getSigner,
       },
       input,

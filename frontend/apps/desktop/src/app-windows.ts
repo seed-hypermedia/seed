@@ -21,6 +21,36 @@ let windowIdCount = 1
 
 const allWindows = new Map<string, BrowserWindow>()
 
+type RendererConsoleMessageDetails = {
+  level?: 'debug' | 'info' | 'warning' | 'error'
+  message?: string
+  lineNumber?: number
+  sourceId?: string
+}
+
+function logRendererConsoleMessage(
+  windowLogger: ReturnType<typeof childLogger>,
+  event: unknown,
+  prefix?: string,
+): void {
+  const details = event as RendererConsoleMessageDetails
+  const message = `${prefix ?? ''}${details.message || '[renderer console message with no text]'}`
+  const meta = {
+    sourceId: details.sourceId || undefined,
+    lineNumber: details.lineNumber || undefined,
+  }
+
+  if (details.level === 'debug') {
+    windowLogger.verbose(message, meta)
+  } else if (details.level === 'info') {
+    windowLogger.info(message, meta)
+  } else if (details.level === 'warning') {
+    windowLogger.warn(message, meta)
+  } else {
+    windowLogger.error(message, meta)
+  }
+}
+
 // Per-window find-in-page overlay view. Kept alive after first show so
 // subsequent Ctrl+F presses are instant, but detached from the window's
 // contentView while hidden so transparent regions don't swallow clicks.
@@ -465,12 +495,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
 
   if (!quietNodeLogs) {
     const windowLogger = childLogger(`seed/${windowId}`)
-    browserWindow.webContents.on('console-message', (e, level, message, line, sourceId) => {
-      if (level === 0) windowLogger.verbose(message)
-      else if (level === 1) windowLogger.info(message)
-      else if (level === 2) windowLogger.warn(message)
-      else windowLogger.error(message)
-    })
+    browserWindow.webContents.on('console-message', (event) => logRendererConsoleMessage(windowLogger, event))
   }
 
   // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
@@ -815,8 +840,14 @@ function createFindView(win: BrowserWindow): WebContentsView {
   findView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     warn('[FIND-VIEW]: Failed to load', {errorCode, errorDescription})
   })
-  findView.webContents.on('console-message', (event, level, message) => {
-    info('[FIND-VIEW console]:', {level, message})
+  findView.webContents.on('console-message', (event) => {
+    const details = event as RendererConsoleMessageDetails
+    info('[FIND-VIEW console]:', {
+      level: details.level,
+      message: details.message,
+      sourceId: details.sourceId,
+      lineNumber: details.lineNumber,
+    })
   })
 
   info('[FIND-VIEW]: Loading find view', {
@@ -979,8 +1010,9 @@ export function createLoadingWindow(): BrowserWindow {
 
   // Enable console logging from loading window
   if (!quietNodeLogs) {
-    loadingWindow.webContents.on('console-message', (e, level, message) => {
-      info(`[LOADING WINDOW]: ${message}`)
+    const loadingWindowLogger = childLogger('seed/loading-window')
+    loadingWindow.webContents.on('console-message', (event) => {
+      logRendererConsoleMessage(loadingWindowLogger, event, '[LOADING WINDOW]: ')
     })
   }
 
