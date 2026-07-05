@@ -372,14 +372,12 @@ export function AccountProfileButton() {
                     backgroundAttachment: 'local, local, scroll, scroll',
                   }}
                 >
+                  {/* The selected account is already shown in the header above, so it is not repeated as an option. */}
                   {accountOptions?.map((option) =>
-                    option ? (
+                    option && option.id.uid !== selectedIdentityValue ? (
                       <button
                         key={option.id.uid}
-                        className={cn(
-                          'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
-                          selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
-                        )}
+                        className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                         onClick={() => {
                           setSelectedIdentity?.(option.id.uid || null)
                           setSwitcherOpen(false)
