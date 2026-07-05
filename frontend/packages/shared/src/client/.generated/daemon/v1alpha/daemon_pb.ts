@@ -2028,6 +2028,15 @@ export class GetVaultStatusResponse extends Message<GetVaultStatusResponse> {
    */
   syncStatus?: VaultSyncStatus;
 
+  /**
+   * Error that stopped the most recent browser-mediated Vault Connect attempt.
+   * Empty while an attempt is still in progress, after one succeeds,
+   * or when none was started.
+   *
+   * @generated from field: string last_connect_error = 5;
+   */
+  lastConnectError = "";
+
   constructor(data?: PartialMessage<GetVaultStatusResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2040,6 +2049,7 @@ export class GetVaultStatusResponse extends Message<GetVaultStatusResponse> {
     { no: 2, name: "connection_status", kind: "enum", T: proto3.getEnumType(VaultConnectionStatus) },
     { no: 3, name: "remote_vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "sync_status", kind: "message", T: VaultSyncStatus },
+    { no: 5, name: "last_connect_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultStatusResponse {

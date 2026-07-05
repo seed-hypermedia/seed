@@ -2319,9 +2319,13 @@ type GetVaultStatusResponse struct {
 	// Remote vault URL when in remote mode.
 	RemoteVaultUrl string `protobuf:"bytes,3,opt,name=remote_vault_url,json=remoteVaultUrl,proto3" json:"remote_vault_url,omitempty"`
 	// Sync status metadata.
-	SyncStatus    *VaultSyncStatus `protobuf:"bytes,4,opt,name=sync_status,json=syncStatus,proto3" json:"sync_status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SyncStatus *VaultSyncStatus `protobuf:"bytes,4,opt,name=sync_status,json=syncStatus,proto3" json:"sync_status,omitempty"`
+	// Error that stopped the most recent browser-mediated Vault Connect attempt.
+	// Empty while an attempt is still in progress, after one succeeds,
+	// or when none was started.
+	LastConnectError string `protobuf:"bytes,5,opt,name=last_connect_error,json=lastConnectError,proto3" json:"last_connect_error,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetVaultStatusResponse) Reset() {
@@ -2380,6 +2384,13 @@ func (x *GetVaultStatusResponse) GetSyncStatus() *VaultSyncStatus {
 		return x.SyncStatus
 	}
 	return nil
+}
+
+func (x *GetVaultStatusResponse) GetLastConnectError() string {
+	if x != nil {
+		return x.LastConnectError
+	}
+	return ""
 }
 
 // Description of a task that the daemon is performing.
@@ -2998,13 +3009,14 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\rlocal_version\x18\x01 \x01(\x03R\flocalVersion\x12%\n" +
 	"\x0eremote_version\x18\x02 \x01(\x03R\rremoteVersion\x12@\n" +
 	"\x0elast_sync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12&\n" +
-	"\x0flast_sync_error\x18\x04 \x01(\tR\rlastSyncError\"\xb8\x02\n" +
+	"\x0flast_sync_error\x18\x04 \x01(\tR\rlastSyncError\"\xe6\x02\n" +
 	"\x16GetVaultStatusResponse\x12L\n" +
 	"\fbackend_mode\x18\x01 \x01(\x0e2).com.seed.daemon.v1alpha.VaultBackendModeR\vbackendMode\x12[\n" +
 	"\x11connection_status\x18\x02 \x01(\x0e2..com.seed.daemon.v1alpha.VaultConnectionStatusR\x10connectionStatus\x12(\n" +
 	"\x10remote_vault_url\x18\x03 \x01(\tR\x0eremoteVaultUrl\x12I\n" +
 	"\vsync_status\x18\x04 \x01(\v2(.com.seed.daemon.v1alpha.VaultSyncStatusR\n" +
-	"syncStatus\"\x9c\x01\n" +
+	"syncStatus\x12,\n" +
+	"\x12last_connect_error\x18\x05 \x01(\tR\x10lastConnectError\"\x9c\x01\n" +
 	"\x04Task\x12>\n" +
 	"\ttask_name\x18\x01 \x01(\x0e2!.com.seed.daemon.v1alpha.TaskNameR\btaskName\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x14\n" +

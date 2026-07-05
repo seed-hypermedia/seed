@@ -460,6 +460,11 @@ message GetVaultStatusResponse {
 
   // Sync status metadata.
   VaultSyncStatus sync_status = 4;
+
+  // Error that stopped the most recent browser-mediated Vault Connect attempt.
+  // Empty while an attempt is still in progress, after one succeeds,
+  // or when none was started.
+  string last_connect_error = 5;
 }
 
 // Different types of tasks that the daemon can perform.
