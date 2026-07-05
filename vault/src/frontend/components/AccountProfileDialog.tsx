@@ -15,6 +15,7 @@ export function AccountProfileDialog({
   initialName = '',
   initialDescription = '',
   initialAvatar,
+  showDescription,
   notificationEmailOption,
   onSubmit,
 }: {
@@ -28,6 +29,7 @@ export function AccountProfileDialog({
   initialName?: string
   initialDescription?: string
   initialAvatar?: string
+  showDescription?: boolean
   notificationEmailOption?: {
     label: string
     description: string
@@ -56,6 +58,7 @@ export function AccountProfileDialog({
           initialName={initialName}
           initialDescription={initialDescription}
           initialImageUrl={getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar)}
+          showDescription={showDescription}
           submitLabel={submitLabel}
           loading={loading}
           error={error}

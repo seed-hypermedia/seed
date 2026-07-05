@@ -28,6 +28,7 @@ export function CreateAccountDialog() {
       title="Create Account"
       descriptionText="Create a new Hypermedia identity account."
       submitLabel="Create Account"
+      showDescription={false}
       loading={loading}
       error={error}
       notificationEmailOption={{

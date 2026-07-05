@@ -128,6 +128,7 @@ function CreateAccountDialog({onClose}: {onClose: () => void}) {
     <>
       <DialogTitle>Create Account</DialogTitle>
       <AccountProfileForm
+        showDescription={false}
         submitLabel={isCreating ? 'Creating…' : 'Create Account'}
         loading={isCreating}
         onCancel={onClose}
