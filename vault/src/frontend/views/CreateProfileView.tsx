@@ -15,7 +15,8 @@ const MAX_AVATAR_BYTES = 1024 * 1024
  * View for creating a profile after account security setup (Step 3 of 3).
  */
 export function CreateProfileView() {
-  const {loading, error, delegationRequest, vaultConnectionRequest, session, email} = useAppState()
+  const {loading, error, delegationRequest, vaultConnectionRequest, vaultConnectionInProgress, session, email} =
+    useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -68,6 +69,16 @@ export function CreateProfileView() {
     })
 
     if (!didCreateAccount) {
+      return
+    }
+
+    // The user already chose to sign in from the desktop app, so complete the
+    // connection right away instead of asking them to confirm it again.
+    if (vaultConnectionRequest && !delegationRequest) {
+      const didConnect = await actions.completeVaultConnection()
+      if (!didConnect) {
+        navigate('/connect')
+      }
       return
     }
 
@@ -144,7 +155,7 @@ export function CreateProfileView() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" loading={loading}>
+          <Button type="submit" className="w-full" loading={loading || vaultConnectionInProgress}>
             Start participating
           </Button>
         </form>
