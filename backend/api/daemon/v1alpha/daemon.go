@@ -120,6 +120,10 @@ type Server struct {
 
 	vaultConnectionMu   sync.Mutex
 	vaultConnectionPoll *vaultConnectionPoll
+	// vaultConnectionErr is the error that stopped the most recent Vault Connect
+	// poll, kept so GetVaultStatus can report it to the UI. Cleared when a new
+	// connection attempt starts.
+	vaultConnectionErr error
 
 	taskMgr *taskmanager.TaskManager
 }
@@ -624,6 +628,8 @@ func (srv *Server) GetVaultStatus(ctx context.Context, req *daemon.GetVaultStatu
 		resp.BackendMode = daemon.VaultBackendMode_VAULT_BACKEND_MODE_REMOTE
 		resp.ConnectionStatus = daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_CONNECTED
 		resp.RemoteVaultUrl = vaultStatus.RemoteURL
+	} else if err := srv.lastVaultConnectionError(); err != nil {
+		resp.LastConnectError = err.Error()
 	}
 	if !vaultStatus.LastSyncTime.IsZero() {
 		resp.SyncStatus.LastSyncTime = timestamppb.New(vaultStatus.LastSyncTime)
@@ -660,6 +666,7 @@ func (srv *Server) StartVaultConnection(_ context.Context, in *daemon.StartVault
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			srv.setVaultConnectionError(err)
 			srv.log.Warn("Vault connection polling stopped", zap.Error(err))
 		}
 	}()
@@ -680,6 +687,7 @@ func (srv *Server) replaceVaultConnectionPoll(cancel context.CancelFunc) *vaultC
 	}
 	poll := &vaultConnectionPoll{cancel: cancel}
 	srv.vaultConnectionPoll = poll
+	srv.vaultConnectionErr = nil
 	return poll
 }
 
@@ -690,6 +698,20 @@ func (srv *Server) clearVaultConnectionPoll(poll *vaultConnectionPoll) {
 	if srv.vaultConnectionPoll == poll {
 		srv.vaultConnectionPoll = nil
 	}
+}
+
+func (srv *Server) setVaultConnectionError(err error) {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	srv.vaultConnectionErr = err
+}
+
+func (srv *Server) lastVaultConnectionError() error {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	return srv.vaultConnectionErr
 }
 
 // GetVaultEmail implements the corresponding gRPC method.

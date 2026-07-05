@@ -172,7 +172,10 @@ const EMAIL_CODE_EXPIRY_MS = 15 * 60 * 1000
 const EMAIL_CODE_RESEND_COOLDOWN_MS = 60 * 1000
 const EMAIL_CODE_MAX_ATTEMPTS = 3
 const EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS = EMAIL_CODE_EXPIRY_MS / 1000
-const VAULT_CONNECT_TTL_MS = 2 * 60 * 1000
+// Must cover the desktop daemon's poll window (connectionTokenTTL in
+// backend/storage/vault/vault.go) so a posted payload outlives brief gaps
+// in the daemon's polling.
+const VAULT_CONNECT_TTL_MS = 15 * 60 * 1000
 const VAULT_CONNECT_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const VAULT_CONNECT_MAX_PAYLOAD_LENGTH = 4096
 

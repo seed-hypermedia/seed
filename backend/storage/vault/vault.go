@@ -41,6 +41,11 @@ import (
 // (see backend/logging) which silences every other subsystem.
 const vaultMergeLogPrefix = "🔑 VAULT-MERGE"
 
+// vaultConnectLogPrefix marks every step of the browser-mediated Vault Connect
+// flow (StartConnection → PollConnection → HandleConnection → connected).
+// Grep the desktop app logs for "VAULT-CONNECT" to follow a sign-in attempt.
+const vaultConnectLogPrefix = "🖥️ VAULT-CONNECT"
+
 // vaultMergeLog is the dedicated logger for the local→remote key merge. It is
 // kept at debug level so the merge is always traceable; pair it with
 // SEED_LOG_ONLY=seed/vault-merge to suppress all other logging.
@@ -242,11 +247,14 @@ func payloadUnixMilli(t time.Time) int64 {
 
 const (
 	connectionTokenRawLength = 32
-	connectionTokenTTL       = 2 * time.Minute
-	controlMaxBody           = 4 << 10   // 4 KiB.
-	fetchMaxBody             = 120 << 20 // 120 MiB.
-	defaultPollInterval      = 2 * time.Second
-	defaultPollTimeout       = 2 * time.Minute
+	// connectionTokenTTL bounds the whole browser-side Vault Connect flow,
+	// including a brand-new user registering (email verification, passkey,
+	// profile), so it must be generous — 2 minutes was routinely exceeded.
+	connectionTokenTTL  = 15 * time.Minute
+	controlMaxBody      = 4 << 10   // 4 KiB.
+	fetchMaxBody        = 120 << 20 // 120 MiB.
+	defaultPollInterval = 2 * time.Second
+	defaultPollTimeout  = connectionTokenTTL
 	// defaultRemoteSyncInterval is how often the daemon pulls/pushes the remote
 	// vault in the background so it stays in sync without manual action.
 	defaultRemoteSyncInterval = 30 * time.Second
@@ -747,6 +755,12 @@ func (ks *Vault) StartConnection(remoteURL string, force bool) (ConnectionStart,
 	}
 	ks.connection = state
 
+	vaultMergeLog.Info(vaultConnectLogPrefix+" connection started: token minted, will poll for browser payload",
+		zap.String("remoteVaultUrl", state.remoteURL),
+		zap.Time("expireTime", state.expireTime),
+		zap.Bool("force", force),
+	)
+
 	return ConnectionStart{
 		RemoteURL:    state.remoteURL,
 		ConnectToken: state.secret,
@@ -816,27 +830,51 @@ func (ks *Vault) PollConnection(ctx context.Context, connectSecret string) error
 	interval := time.NewTimer(0)
 	defer interval.Stop()
 
+	var lastFetchErr error
 	for {
 		select {
 		case <-ctx.Done():
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: polling deadline reached before the browser payload arrived",
+					zap.NamedError("lastPollError", lastFetchErr),
+				)
+				if lastFetchErr != nil {
+					return fmt.Errorf("%w (last poll error: %v)", ErrConnectionTokenExpired, lastFetchErr)
+				}
 				return ErrConnectionTokenExpired
 			}
+			vaultMergeLog.Warn(vaultConnectLogPrefix+" polling canceled", zap.Error(ctx.Err()))
 			return ctx.Err()
 		case <-interval.C:
 		}
 
 		remoteURL, err := ks.pendingConnectionRemoteURL(connectSecret, time.Now().UTC())
 		if err != nil {
+			vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: pending connection token no longer valid", zap.Error(err))
 			return err
 		}
 
 		connectPayload, found, err := ks.fetchVaultConnectPayload(ctx, remoteURL, decodedSecret)
 		if err != nil {
-			return err
+			// The payload is one-time and the token single-use, so a transient
+			// server or network error must not end the flow; keep polling.
+			vaultMergeLog.Warn(vaultConnectLogPrefix+" poll fetch failed, will keep polling",
+				zap.String("remoteVaultUrl", remoteURL),
+				zap.Error(err),
+			)
+			lastFetchErr = err
+			interval.Reset(ks.pollInterval)
+			continue
 		}
 		if found {
-			return ks.HandleConnection(ctx, connectSecret, connectPayload)
+			vaultMergeLog.Info(vaultConnectLogPrefix+" browser payload received, finalizing connection",
+				zap.String("remoteVaultUrl", remoteURL),
+			)
+			if err := ks.HandleConnection(ctx, connectSecret, connectPayload); err != nil {
+				vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: could not finalize connection from browser payload", zap.Error(err))
+				return err
+			}
+			return nil
 		}
 
 		interval.Reset(ks.pollInterval)
@@ -1253,7 +1291,30 @@ func (ks *Vault) logVaultMergeAfterMerge(remoteURL string, uploadedToRemote bool
 	)
 }
 
+// finishConnection completes Vault Connect. The connect token and payload are
+// single-use, so a write conflict (the web app saving the vault concurrently)
+// is retried here instead of failing the whole flow.
 func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) error {
+	const maxAttempts = 3
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = ks.finishConnectionAttempt(ctx, remoteURL, userID, credentialID, secret)
+		if err == nil {
+			vaultMergeLog.Info(vaultConnectLogPrefix + " COMPLETE: remote vault connected, daemon status is now CONNECTED")
+			return nil
+		}
+		if !errors.Is(err, errRemoteWriteConflict) {
+			return err
+		}
+		vaultMergeLog.Warn(vaultConnectLogPrefix+" remote write conflict while finalizing, retrying",
+			zap.Int("attempt", attempt),
+			zap.Error(err),
+		)
+	}
+	return err
+}
+
+func (ks *Vault) finishConnectionAttempt(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) error {
 	bearerAuth, err := buildRemoteBearerAuth(credentialID, secret)
 	if err != nil {
 		return fmt.Errorf("failed to derive remote vault bearer auth: %w", err)

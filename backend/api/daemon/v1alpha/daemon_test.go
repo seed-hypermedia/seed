@@ -38,7 +38,7 @@ import (
 
 const (
 	testVaultConnectionTokenRawLength = 32
-	testVaultConnectionTokenTTL       = 2 * time.Minute
+	testVaultConnectionTokenTTL       = 15 * time.Minute
 )
 
 func testVaultRemoteCredential() string {
