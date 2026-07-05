@@ -1,4 +1,4 @@
-import {User} from 'lucide-react'
+import {Plus} from 'lucide-react'
 import {useEffect, useState, type FormEvent} from 'react'
 import {Button} from '../button'
 import {SizableText} from '../text'
@@ -16,9 +16,9 @@ export type AccountProfileFormValues = {
 }
 
 /**
- * Shared, backend-agnostic account profile form (avatar + name + optional
+ * Shared, backend-agnostic account profile form (name + avatar + optional
  * description + optional email-notification opt-in). Used by both the web vault
- * and the desktop app so the create/edit account dialogs are identical.
+ * and the desktop app so every create/edit account form is identical.
  *
  * Each platform wraps this in its own dialog chrome and handles persistence: it
  * passes the already-resolved `initialImageUrl` for an existing avatar and
@@ -115,32 +115,6 @@ export function AccountProfileForm({
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="account-profile-image">Avatar (optional)</Label>
-          <div className="flex items-start gap-4">
-            <div className="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full">
-              {previewUrl ? (
-                <img src={previewUrl} className="size-full object-cover" alt="" />
-              ) : (
-                <User className="text-muted-foreground size-6" />
-              )}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Input
-                id="account-profile-image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                disabled={loading}
-              />
-              <SizableText size="xs" color="muted">
-                Upload an image smaller than 1 MiB.
-              </SizableText>
-              {avatarError ? <p className="text-destructive text-sm">{avatarError}</p> : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
           <Label htmlFor="account-profile-name">Name</Label>
           <Input
             id="account-profile-name"
@@ -154,6 +128,30 @@ export function AccountProfileForm({
             disabled={loading}
           />
           {nameError ? <p className="text-destructive text-sm">{nameError}</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <div className="bg-muted focus-within:ring-primary relative flex size-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded focus-within:ring-2 focus-within:ring-offset-2">
+              {previewUrl ? (
+                <img src={previewUrl} className="size-full object-cover" alt="" />
+              ) : (
+                <Plus className="text-muted-foreground size-5" />
+              )}
+              <input
+                id="account-profile-image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={loading}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+            </div>
+            <span className="text-muted-foreground text-sm">
+              {previewUrl ? 'Change photo (optional)' : 'Add a photo (optional)'}
+            </span>
+          </div>
+          {avatarError ? <p className="text-destructive text-sm">{avatarError}</p> : null}
         </div>
 
         {showDescription ? (
