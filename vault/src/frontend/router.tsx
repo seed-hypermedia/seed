@@ -1,4 +1,4 @@
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import {createBrowserRouter, Outlet} from 'react-router-dom'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
@@ -9,6 +9,7 @@ import * as navigation from './navigation'
 import {getPendingFlowPath, useActions, useAppState, VAULT_BASENAME} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
+import {ConnectSuccessView} from './views/ConnectSuccessView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
@@ -197,13 +198,20 @@ function RootView() {
 
 function ConnectRouteView() {
   const {session, decryptedDEK, sessionChecked, vaultConnectionRequest} = useAppState()
+  // Completing the flow clears the request while this route is still mounted
+  // and the navigation to /connect/success is in flight; redirecting to "/"
+  // then would win the race. Only redirect when this route never had a request.
+  const hadRequestRef = useRef(false)
+  if (vaultConnectionRequest) {
+    hadRequestRef.current = true
+  }
 
   if (!sessionChecked) {
     return null
   }
 
   if (!vaultConnectionRequest && !hasVaultConnectionFragment()) {
-    return <navigation.HashNavigate to="/" replace />
+    return hadRequestRef.current ? null : <navigation.HashNavigate to="/" replace />
   }
 
   if (!session?.authenticated) {
@@ -215,7 +223,7 @@ function ConnectRouteView() {
   }
 
   if (!vaultConnectionRequest) {
-    return <navigation.HashNavigate to="/" replace />
+    return hadRequestRef.current ? null : <navigation.HashNavigate to="/" replace />
   }
 
   return <ConnectView />
@@ -262,6 +270,10 @@ export function createRouter() {
               {
                 path: '/connect',
                 element: <ConnectRouteView />,
+              },
+              {
+                path: '/connect/success',
+                element: <ConnectSuccessView />,
               },
               {
                 element: <EnsureUnlocked />,

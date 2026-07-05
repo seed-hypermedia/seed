@@ -121,30 +121,4 @@ describe('AccountSettingsView', () => {
       global.fetch = originalFetch
     }
   })
-
-  test('shows and dismisses the desktop connection success banner', async () => {
-    const originalFetch = global.fetch
-    global.fetch = mock(async () => new Response('{}', {status: 200})) as unknown as typeof fetch
-    const {store, principals} = createVaultStore(['Alice'])
-    store.state.vaultConnectionSuccessMessage =
-      'Your Seed desktop app has been linked with this remote vault successfully.'
-
-    try {
-      renderAt(accountEntry(principals[0]!), store)
-
-      expect(screen.getByText('Desktop app connected')).toBeTruthy()
-      expect(
-        screen.getByText('Your Seed desktop app has been linked with this remote vault successfully.'),
-      ).toBeTruthy()
-
-      fireEvent.click(screen.getByRole('button', {name: 'Dismiss desktop app connected message'}))
-
-      await waitFor(() => {
-        expect(store.state.vaultConnectionSuccessMessage).toBe('')
-      })
-      expect(screen.queryByText('Desktop app connected')).toBeNull()
-    } finally {
-      global.fetch = originalFetch
-    }
-  })
 })
