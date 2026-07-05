@@ -1,7 +1,6 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
 import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
-import {Alert, AlertDescription, AlertTitle} from '@/frontend/components/ui/alert'
 import {Button} from '@/frontend/components/ui/button'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
@@ -18,7 +17,7 @@ import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/a
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
-import {CheckCircle2, Monitor, Smartphone, Tablet, X} from 'lucide-react'
+import {Monitor, Smartphone, Tablet} from 'lucide-react'
 import {useEffect, useState, type ReactNode} from 'react'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {SettingsView} from './SettingsView'
@@ -98,7 +97,6 @@ export function AccountSettingsView() {
     webBaseUrl,
     session,
     notificationServerUrl,
-    vaultConnectionSuccessMessage,
     loading,
     error,
   } = useAppState()
@@ -189,26 +187,6 @@ export function AccountSettingsView() {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      {vaultConnectionSuccessMessage ? (
-        <Alert variant="success">
-          <CheckCircle2 />
-          <AlertTitle>Desktop app connected</AlertTitle>
-          <AlertDescription className="pr-10">
-            <p>{vaultConnectionSuccessMessage}</p>
-            <p>You can manage or disconnect it later from the desktop app&apos;s Vault Backend settings.</p>
-          </AlertDescription>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 right-2"
-            onClick={actions.clearVaultConnectionSuccessMessage}
-            aria-label="Dismiss desktop app connected message"
-          >
-            <X className="size-4" />
-          </Button>
-        </Alert>
-      ) : null}
-
       <div className="bg-card flex h-[640px] w-full overflow-hidden rounded-xl border max-md:h-auto max-md:min-h-[480px] max-md:flex-col">
         <AccountSettingsLayout
           accounts={sidebarAccounts}

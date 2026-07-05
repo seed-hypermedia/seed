@@ -486,6 +486,13 @@ const trpcHandlers = createIPCHandler({router, windows: []})
 export type AppRouter = typeof router
 
 export async function handleUrlOpen(url: string) {
+  // hm://open just brings the app to the front, e.g. from the "Open desktop
+  // app" button shown by the web vault after linking.
+  if (/^hm:\/\/open\/?$/i.test(url)) {
+    ensureFocusedWindowVisible()
+    return
+  }
+
   const deepLinkEvent = parseDeepLink(url)
   if (deepLinkEvent) {
     ensureFocusedWindowVisible()

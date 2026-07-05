@@ -39,8 +39,6 @@ type VaultConnectionRequest = {
   }
 }
 
-const VAULT_CONNECTION_SUCCESS_MESSAGE = 'Your Seed desktop app has been linked with this remote vault successfully.'
-
 /**
  * Returns the route to continue a pending external flow after auth or profile setup completes.
  */
@@ -87,7 +85,6 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBa
     /** Prevent duplicate Vault Connect completion calls. */
     vaultConnectionInProgress: false,
     /** Success notice shown after Vault Connect completes. */
-    vaultConnectionSuccessMessage: '',
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
@@ -1792,8 +1789,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         state.vaultConnectionRequest = null
-        state.vaultConnectionSuccessMessage = VAULT_CONNECTION_SUCCESS_MESSAGE
-        navigator.go('/')
+        navigator.go('/connect/success')
         return true
       } catch (e) {
         state.error = getErrorMessage(e, 'Failed to complete vault connection')
@@ -1808,11 +1804,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.error = ''
       state.vaultConnectionRequest = null
       navigator.go('/')
-    },
-
-    /** Clear the desktop connection success notice after the user sees it. */
-    clearVaultConnectionSuccessMessage() {
-      state.vaultConnectionSuccessMessage = ''
     },
 
     /** Set whether the user has consented to the current delegation. */

@@ -2004,11 +2004,8 @@ describe('vault connection flow', () => {
     )
     expect(Array.from(decryptedDEK)).toEqual(Array.from(dek))
     expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.vaultConnectionSuccessMessage).toBe(
-      'Your Seed desktop app has been linked with this remote vault successfully.',
-    )
     expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
+    expect(navigate).toHaveBeenCalledWith('/connect/success')
   })
 
   test('scrubs connect token fragment after parsing connection request', () => {
@@ -2123,7 +2120,7 @@ describe('vault connection flow', () => {
     )
     expect(state.vaultConnectionRequest).toBeNull()
     expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
+    expect(navigate).toHaveBeenCalledWith('/connect/success')
   })
 
   test('cancel clears the pending desktop connection flow', () => {
@@ -2137,14 +2134,5 @@ describe('vault connection flow', () => {
     expect(state.vaultConnectionRequest).toBeNull()
     expect(state.error).toBe('')
     expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('clears the desktop connection success message when dismissed', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-    state.vaultConnectionSuccessMessage = 'linked'
-
-    actions.clearVaultConnectionSuccessMessage()
-
-    expect(state.vaultConnectionSuccessMessage).toBe('')
   })
 })
