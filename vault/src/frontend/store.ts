@@ -230,8 +230,14 @@ function normalizeBaseURL(rawURL: string, fieldName: string): string {
   return `${parsed.protocol}//${parsed.host}${normalizedPath}`
 }
 
+/** Path prefix the vault SPA is served under; must match the router basename. */
+export const VAULT_BASENAME = '/vault'
+
 function getCurrentVaultBaseURL() {
-  return normalizeBaseURL(new URL('.', window.location.href).toString(), 'current vault URL')
+  // Derived from the origin + fixed basename, NOT the current location path:
+  // this runs from different routes (/connect, /profile/create) and the
+  // desktop daemon rejects the payload if the URL doesn't match exactly.
+  return normalizeBaseURL(new URL(VAULT_BASENAME, window.location.origin).toString(), 'current vault URL')
 }
 
 function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequest | null {
@@ -1726,22 +1732,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    /** Complete Vault Connect by reusing or registering a daemon credential. */
-    async completeVaultConnection() {
+    /** Complete Vault Connect by reusing or registering a daemon credential. Returns true on success. */
+    async completeVaultConnection(): Promise<boolean> {
       if (state.vaultConnectionInProgress) {
-        return
+        return false
       }
       if (!state.vaultConnectionRequest) {
         state.error = 'No desktop connection request is active.'
-        return
+        return false
       }
       if (!state.session?.authenticated) {
         state.error = 'Your session expired. Sign in again and retry connecting desktop.'
-        return
+        return false
       }
       if (!state.decryptedDEK) {
         state.error = 'Vault must be unlocked before connecting desktop.'
-        return
+        return false
       }
 
       state.vaultConnectionInProgress = true
@@ -1788,8 +1794,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.vaultConnectionRequest = null
         state.vaultConnectionSuccessMessage = VAULT_CONNECTION_SUCCESS_MESSAGE
         navigator.go('/')
+        return true
       } catch (e) {
         state.error = getErrorMessage(e, 'Failed to complete vault connection')
+        return false
       } finally {
         state.vaultConnectionInProgress = false
       }

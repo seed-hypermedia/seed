@@ -6,7 +6,7 @@ import {Header} from './components/Header'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, useActions, useAppState} from './store'
+import {getPendingFlowPath, useActions, useAppState, VAULT_BASENAME} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectView} from './views/ConnectView'
@@ -295,6 +295,6 @@ export function createRouter() {
         ],
       },
     ],
-    {basename: '/vault'},
+    {basename: VAULT_BASENAME},
   )
 }
