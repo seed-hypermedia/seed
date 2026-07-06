@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"seed/backend/core"
+	"seed/backend/core/keystore/keystoretest"
 	"seed/backend/testutil"
 
 	"github.com/stretchr/testify/require"
@@ -71,6 +72,19 @@ func TestOS(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	require.Equal(t, kp2.PublicKey.Principal(), keys[0].PublicKey)
+}
+
+func TestOSConformance(t *testing.T) {
+	testutil.Manual(t)
+	keystoretest.RunConformanceTests(t, func(t *testing.T) core.KeyStore {
+		t.Helper()
+		ks := NewOS("test-manual-conformance")
+		t.Cleanup(func() {
+			_ = ks.DeleteAllKeys(t.Context())
+		})
+		_ = ks.DeleteAllKeys(t.Context())
+		return ks
+	})
 }
 
 func TestDecodeKeyringSecret(t *testing.T) {

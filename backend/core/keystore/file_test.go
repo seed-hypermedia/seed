@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"seed/backend/core/keystore/keystoretest"
 )
 
 func TestFile(t *testing.T) {
@@ -71,4 +73,13 @@ func TestFile(t *testing.T) {
 	keys, err = ks.ListKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 0)
+}
+
+func TestFileConformance(t *testing.T) {
+	keystoretest.RunConformanceTests(t, func(t *testing.T) core.KeyStore {
+		t.Helper()
+		ks, err := NewFile(t.TempDir())
+		require.NoError(t, err)
+		return ks
+	})
 }

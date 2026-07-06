@@ -9,11 +9,25 @@ import (
 	"time"
 
 	"seed/backend/core"
+	"seed/backend/core/keystore/keystoretest"
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/chacha20poly1305"
 )
+
+func TestLocalKeyStoreConformance(t *testing.T) {
+	keystoretest.RunConformanceTests(t, func(t *testing.T) core.KeyStore {
+		t.Helper()
+		keyMaterial := []byte("0123456789abcdef0123456789abcdef")
+		secretStore, err := NewMemorySecretStore()
+		require.NoError(t, err)
+		require.NoError(t, secretStore.Store(localVaultKEKName, "", keyMaterial))
+		ks, err := New(t.TempDir(), secretStore)
+		require.NoError(t, err)
+		return ks
+	})
+}
 
 func TestLocal(t *testing.T) {
 	ctx := context.Background()

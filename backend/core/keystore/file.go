@@ -64,7 +64,10 @@ func (fks *fileStore) GetKey(_ context.Context, name string) (*core.KeyPair, err
 		return nil, err
 	}
 
-	privBytes, ok := collection[name]
+	_, privBytes, ok, err := findKeyBytesByNameOrPrincipal(collection, name)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, fmt.Errorf("%s: %w", name, errKeyNotFound)
 	}
@@ -74,11 +77,11 @@ func (fks *fileStore) GetKey(_ context.Context, name string) (*core.KeyPair, err
 }
 
 func (fks *fileStore) StoreKey(_ context.Context, name string, kp *core.KeyPair) error {
-	if !nameFormat.MatchString(name) {
-		return fmt.Errorf("invalid name format")
-	}
 	if kp == nil {
 		return fmt.Errorf("can't store empty key")
+	}
+	if err := validateKeyName(name, kp); err != nil {
+		return err
 	}
 
 	collection, err := fks.readCollection()
@@ -157,19 +160,19 @@ func (fks *fileStore) DeleteKey(_ context.Context, name string) error {
 		return err
 	}
 
-	if _, ok := collection[name]; !ok {
+	keyName, _, ok, err := findKeyBytesByNameOrPrincipal(collection, name)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return errKeyNotFound
 	}
 
-	delete(collection, name)
+	delete(collection, keyName)
 	return fks.writeCollection(collection)
 }
 
 func (fks *fileStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
-
 	if !nameFormat.MatchString(newName) {
 		return fmt.Errorf("invalid new name format")
 	}
@@ -179,12 +182,28 @@ func (fks *fileStore) ChangeKeyName(_ context.Context, currentName, newName stri
 		return err
 	}
 
-	privBytes, ok := collection[currentName]
+	keyName, privBytes, ok, err := findKeyBytesByNameOrPrincipal(collection, currentName)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return errKeyNotFound
 	}
+	if keyName == newName {
+		return fmt.Errorf("new name equals current name")
+	}
+	if _, exists := collection[newName]; exists {
+		return fmt.Errorf("name already exists, delete it first")
+	}
+	kp := new(core.KeyPair)
+	if err := kp.UnmarshalBinary(privBytes); err != nil {
+		return err
+	}
+	if err := validateKeyName(newName, kp); err != nil {
+		return err
+	}
 
-	delete(collection, currentName)
+	delete(collection, keyName)
 	collection[newName] = privBytes
 	return fks.writeCollection(collection)
 }

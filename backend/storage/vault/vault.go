@@ -414,6 +414,16 @@ func defaultRemoteHTTPClient() *http.Client {
 	return &http.Client{Timeout: 5 * time.Second}
 }
 
+func validateLocalKeyName(name string, kp *core.KeyPair) error {
+	if !localKeyNameFormat.MatchString(name) {
+		return fmt.Errorf("invalid name format")
+	}
+	if principal, err := core.DecodePrincipal(name); err == nil && !principal.Equal(kp.Principal()) {
+		return fmt.Errorf("key name parses as a different public key")
+	}
+	return nil
+}
+
 // ResumeRemoteConnection refreshes remote sync state for an already-connected vault.
 func (ks *Vault) ResumeRemoteConnection() {
 	go ks.syncRemoteMaybe(context.Background())
@@ -441,7 +451,10 @@ func (ks *Vault) GetKey(_ context.Context, name string) (*core.KeyPair, error) {
 		return nil, err
 	}
 
-	account, ok := findAccountByName(state.Accounts, name)
+	account, ok, err := findAccountByNameOrPrincipal(state.Accounts, name)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, fmt.Errorf("%s: %w", name, errLocalKeyNotFound)
 	}
@@ -461,6 +474,9 @@ func (ks *Vault) StoreKeyWithMetadata(ctx context.Context, name string, kp *core
 	}
 	if kp == nil {
 		return fmt.Errorf("can't store empty key")
+	}
+	if err := validateLocalKeyName(name, kp); err != nil {
+		return err
 	}
 
 	seed, err := exportedSeed(kp)
@@ -548,7 +564,10 @@ func (ks *Vault) ListKeyPairs(_ context.Context) ([]core.NamedKeyPair, error) {
 // DeleteKey removes a named key and schedules remote sync when remote mode is active.
 func (ks *Vault) DeleteKey(ctx context.Context, name string) error {
 	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
-		accountIdx := findAccountIndexByName(state.Accounts, name)
+		accountIdx, err := findAccountIndexByNameOrPrincipal(state.Accounts, name)
+		if err != nil {
+			return false, err
+		}
 		if accountIdx < 0 {
 			return false, errLocalKeyNotFound
 		}
@@ -602,20 +621,30 @@ func (ks *Vault) DeleteAllKeys(ctx context.Context) error {
 
 // ChangeKeyName renames a stored key and schedules remote sync when remote mode is active.
 func (ks *Vault) ChangeKeyName(ctx context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
 	if !localKeyNameFormat.MatchString(newName) {
 		return fmt.Errorf("invalid new name format")
 	}
 
 	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
-		accountIdx := findAccountIndexByName(state.Accounts, currentName)
+		accountIdx, err := findAccountIndexByNameOrPrincipal(state.Accounts, currentName)
+		if err != nil {
+			return false, err
+		}
 		if accountIdx < 0 {
 			return false, errLocalKeyNotFound
 		}
+		if state.Accounts[accountIdx].Name == newName {
+			return false, fmt.Errorf("new name equals current name")
+		}
 		if _, exists := findAccountByName(state.Accounts, newName); exists {
 			return false, fmt.Errorf("name already exists, delete it first")
+		}
+		kp, err := keyPairFromAccount(state.Accounts[accountIdx])
+		if err != nil {
+			return false, err
+		}
+		if err := validateLocalKeyName(newName, kp); err != nil {
+			return false, err
 		}
 
 		state.Accounts[accountIdx].Name = newName

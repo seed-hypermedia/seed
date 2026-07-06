@@ -91,7 +91,10 @@ func (ks *osStore) GetKey(_ context.Context, name string) (*core.KeyPair, error)
 		return nil, err
 	}
 
-	privBytes, ok := collection[name]
+	_, privBytes, ok, err := findKeyBytesByNameOrPrincipal(collection, name)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, fmt.Errorf("%s: %w", name, errKeyNotFound)
 	}
@@ -101,12 +104,11 @@ func (ks *osStore) GetKey(_ context.Context, name string) (*core.KeyPair, error)
 }
 
 func (ks *osStore) StoreKey(_ context.Context, name string, kp *core.KeyPair) error {
-	if !nameFormat.MatchString(name) {
-		return fmt.Errorf("invalid name format")
-	}
-
 	if kp == nil {
 		return fmt.Errorf("can't store empty key")
+	}
+	if err := validateKeyName(name, kp); err != nil {
+		return err
 	}
 
 	collection := keyCollection{}
@@ -234,10 +236,14 @@ func (ks *osStore) DeleteKey(_ context.Context, name string) error {
 		return err
 	}
 
-	if _, ok := collection[name]; !ok {
+	keyName, _, ok, err := findKeyBytesByNameOrPrincipal(collection, name)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return errKeyNotFound
 	}
-	delete(collection, name)
+	delete(collection, keyName)
 
 	b, err := json.Marshal(collection)
 	if err != nil {
@@ -247,10 +253,6 @@ func (ks *osStore) DeleteKey(_ context.Context, name string) error {
 }
 
 func (ks *osStore) ChangeKeyName(_ context.Context, currentName, newName string) error {
-	if currentName == newName {
-		return fmt.Errorf("new name equals current name")
-	}
-
 	if !nameFormat.MatchString(newName) {
 		return fmt.Errorf("invalid new name format")
 	}
@@ -270,12 +272,28 @@ func (ks *osStore) ChangeKeyName(_ context.Context, currentName, newName string)
 		return err
 	}
 
-	privBytes, ok := collection[currentName]
+	keyName, privBytes, ok, err := findKeyBytesByNameOrPrincipal(collection, currentName)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return errKeyNotFound
 	}
+	if keyName == newName {
+		return fmt.Errorf("new name equals current name")
+	}
+	if _, exists := collection[newName]; exists {
+		return fmt.Errorf("name already exists, delete it first")
+	}
+	kp := new(core.KeyPair)
+	if err := kp.UnmarshalBinary(privBytes); err != nil {
+		return err
+	}
+	if err := validateKeyName(newName, kp); err != nil {
+		return err
+	}
 
-	delete(collection, currentName)
+	delete(collection, keyName)
 	collection[newName] = privBytes
 
 	b, err := json.Marshal(collection)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"seed/backend/core"
+	"seed/backend/core/keystore/keystoretest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,4 +37,11 @@ func TestMemoryListKeyPairs(t *testing.T) {
 		"main":   kp.Principal(),
 		"second": kp2.Principal(),
 	}, principalsByName)
+}
+
+func TestMemoryConformance(t *testing.T) {
+	keystoretest.RunConformanceTests(t, func(t *testing.T) core.KeyStore {
+		t.Helper()
+		return NewMemory()
+	})
 }

@@ -232,6 +232,29 @@ func findAccountByName(accounts []AccountInfo, name string) (AccountInfo, bool) 
 	return AccountInfo{}, false
 }
 
+func findAccountByNameOrPrincipal(accounts []AccountInfo, name string) (AccountInfo, bool, error) {
+	if account, ok := findAccountByName(accounts, name); ok {
+		return account, true, nil
+	}
+
+	principal, err := core.DecodePrincipal(name)
+	if err != nil {
+		return AccountInfo{}, false, nil
+	}
+
+	for _, account := range accounts {
+		kp, err := keyPairFromAccount(account)
+		if err != nil {
+			return AccountInfo{}, false, err
+		}
+		if kp.Principal().Equal(principal) {
+			return account, true, nil
+		}
+	}
+
+	return AccountInfo{}, false, nil
+}
+
 func findAccountIndexByName(accounts []AccountInfo, name string) int {
 	for idx, account := range accounts {
 		if account.Name == name {
@@ -240,6 +263,29 @@ func findAccountIndexByName(accounts []AccountInfo, name string) int {
 	}
 
 	return -1
+}
+
+func findAccountIndexByNameOrPrincipal(accounts []AccountInfo, name string) (int, error) {
+	if idx := findAccountIndexByName(accounts, name); idx >= 0 {
+		return idx, nil
+	}
+
+	principal, err := core.DecodePrincipal(name)
+	if err != nil {
+		return -1, nil
+	}
+
+	for idx, account := range accounts {
+		kp, err := keyPairFromAccount(account)
+		if err != nil {
+			return -1, err
+		}
+		if kp.Principal().Equal(principal) {
+			return idx, nil
+		}
+	}
+
+	return -1, nil
 }
 
 func recordAccountDeletion(state *State, accountID string, deleteTime int64) {
