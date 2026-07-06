@@ -875,6 +875,8 @@ function makePaths(seedDir = DEFAULT_SEED_DIR) {
     deployLog: join(seedDir, "deploy.log")
   };
 }
+var DEFAULT_EXEC_TIMEOUT_MS = 120000;
+var IMAGE_PULL_TIMEOUT_MS = 8 * 60000;
 function makeShellRunner() {
   return {
     run(cmd2) {
@@ -887,11 +889,14 @@ function makeShellRunner() {
         return null;
       }
     },
-    exec(cmd2) {
+    exec(cmd2, timeoutMs = DEFAULT_EXEC_TIMEOUT_MS) {
       return new Promise((resolve, reject) => {
-        execCb(cmd2, { timeout: 120000 }, (err, stdout, stderr) => {
+        execCb(cmd2, { timeout: timeoutMs }, (err, stdout, stderr) => {
           if (err) {
+            const killed = err.killed;
             const detail = stderr.toString().trim() || stdout.toString().trim();
+            if (killed)
+              err.message = `${err.message} (killed after ${Math.round(timeoutMs / 1000)}s timeout)`;
             if (detail)
               err.message = `${err.message}
 ${detail}`;
@@ -1566,7 +1571,7 @@ async function checkForNewImages(config, paths, shell) {
   if (beforeImages.size === 0)
     return false;
   try {
-    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
+    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`, IMAGE_PULL_TIMEOUT_MS);
     if (result.stderr)
       log(`image pull: ${result.stderr}`);
   } catch (err) {
@@ -1834,7 +1839,7 @@ async function deploy(config, paths, shell) {
   freeConflictingPortBindings(shell, composeProjectName(paths));
   step("Pulling latest images...");
   try {
-    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
+    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`, IMAGE_PULL_TIMEOUT_MS);
   } catch (err) {
     log(`Image pull failed: ${err}`);
   }
@@ -2648,11 +2653,13 @@ export {
   LIGHTNING_URL_MAINNET,
   LEGACY_CONTAINER_NAMES,
   LEGACY_AUTOUPDATER_IMAGES,
+  IMAGE_PULL_TIMEOUT_MS,
   GITHUB_RELEASES_API,
   DEV_DEPLOY_SCRIPT_URL,
   DEFAULT_SEED_DIR,
   DEFAULT_REPO_URL,
   DEFAULT_RELEASE_CHANNEL,
+  DEFAULT_EXEC_TIMEOUT_MS,
   DEFAULT_COMPOSE_URL,
   CURL_INSTALL_CMD,
   CLI_INSTALLED

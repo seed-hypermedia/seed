@@ -133,10 +133,22 @@ export function makePaths(seedDir: string = DEFAULT_SEED_DIR): DeployPaths {
 // Shell command abstraction — allows tests to inject mocks
 // ---------------------------------------------------------------------------
 
+/** Default timeout for short one-shot shell commands. */
+export const DEFAULT_EXEC_TIMEOUT_MS = 120_000
+
+/**
+ * Timeout for docker image transfers (`pull` / `up --quiet-pull`). The full
+ * site+web image set is ~900 MB; the old 120s default SIGKILLed the pull
+ * mid-download on ordinary links, and that error was swallowed — so the node
+ * silently stalled on stale images forever. Kept under the 10-minute cron
+ * interval so a slow pull can't overlap the next scheduled run.
+ */
+export const IMAGE_PULL_TIMEOUT_MS = 8 * 60_000
+
 export interface ShellRunner {
   run(cmd: string): string
   runSafe(cmd: string): string | null
-  exec(cmd: string): Promise<{stdout: string; stderr: string}>
+  exec(cmd: string, timeoutMs?: number): Promise<{stdout: string; stderr: string}>
 }
 
 export function makeShellRunner(): ShellRunner {
@@ -151,16 +163,18 @@ export function makeShellRunner(): ShellRunner {
         return null
       }
     },
-    exec(cmd: string): Promise<{stdout: string; stderr: string}> {
+    exec(cmd: string, timeoutMs = DEFAULT_EXEC_TIMEOUT_MS): Promise<{stdout: string; stderr: string}> {
       return new Promise((resolve, reject) => {
-        execCb(cmd, {timeout: 120_000}, (err, stdout, stderr) => {
+        execCb(cmd, {timeout: timeoutMs}, (err, stdout, stderr) => {
           if (err) {
             // child_process passes the command's output as separate args even
             // on failure, but they're lost if we reject with `err` alone. Fold
             // the real output into the message so callers (and the deploy log)
-            // see the actual reason — e.g. an unknown image manifest — instead
-            // of just "Command failed: <cmd>".
+            // see the actual reason — e.g. an unknown image manifest, or a pull
+            // timeout — instead of just "Command failed: <cmd>".
+            const killed = (err as {killed?: boolean}).killed
             const detail = stderr.toString().trim() || stdout.toString().trim()
+            if (killed) err.message = `${err.message} (killed after ${Math.round(timeoutMs / 1000)}s timeout)`
             if (detail) err.message = `${err.message}\n${detail}`
             reject(err)
           } else
@@ -1136,7 +1150,7 @@ export async function checkForNewImages(
   if (beforeImages.size === 0) return false
 
   try {
-    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`)
+    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`, IMAGE_PULL_TIMEOUT_MS)
     if (result.stderr) log(`image pull: ${result.stderr}`)
   } catch (err) {
     // One image failed to pull, but others may have succeeded — keep going and
@@ -1484,7 +1498,7 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   // This eliminates image download time from the downtime window.
   step('Pulling latest images...')
   try {
-    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`)
+    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`, IMAGE_PULL_TIMEOUT_MS)
   } catch (err: unknown) {
     log(`Image pull failed: ${err}`)
     // Non-fatal — compose up will attempt to pull as fallback
