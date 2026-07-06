@@ -188,7 +188,7 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 // skipped; the caller is responsible for running propagateVisibilityBatch
 // after the whole batch has been indexed. This is what PutMany uses to
 // coalesce many tiny CTE walks into one walk per space.
-func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
+func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -234,6 +234,7 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 	ictx := newCtx(conn, id, bs, log)
 	ictx.mustTrackUnreads = trackUnreads
 	ictx.writerCache = wc
+	ictx.hookIDs = hookIDs
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -252,6 +253,13 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 		if err := fn(ictx, id, c, data); err != nil {
 			return err
 		}
+	}
+
+	// The blob is now indexed (a stash error would have returned above). Record it
+	// so the indexed hook sees it — including blobs re-indexed by the unstash
+	// cascade below, which reach here through their own nested indexBlob call.
+	if hookIDs != nil {
+		*hookIDs = append(*hookIDs, id)
 	}
 
 	if !deferPropagation {
@@ -1300,6 +1308,14 @@ type indexingCtx struct {
 	// calls (including the reindex cascade); shared by every ictx derived from the
 	// same batch. May be nil (caching disabled). See writerValidityCache.
 	writerCache *writerValidityCache
+
+	// hookIDs, if non-nil, accumulates the ids of every blob indexed in this
+	// transaction — including ones re-indexed by the unstash cascade
+	// (reindexStashedBlobs) — so the caller can pass the full set to the indexed
+	// hook. Without this, a late dependency that unstashes older Refs/Changes
+	// updates the legacy tables but not the maintained RBSR index. Shared across
+	// the cascade via the threaded pointer. May be nil (no accumulation).
+	hookIDs *[]int64
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1919,7 +1935,7 @@ var qLookupRecordID = dqb.Str(`
 	LIMIT 1
 `)
 
-func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
+func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match).All()
 	defer discard(&err)
 
@@ -1944,7 +1960,7 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 		c := cid.NewCidV1(uint64(codec), hash)
 
 		funcs = append(funcs, func() error {
-			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc)
+			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc, hookIDs)
 		})
 	}
 

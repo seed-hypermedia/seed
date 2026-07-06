@@ -166,5 +166,5 @@ func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error 
 	// capability change (e.g. revocation) without further code changes.
 	ictx.writerCache.clear()
 
-	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonPermissionDenied, v.Delegate.String(), ictx.blockStore, ictx.log, ictx.writerCache)
+	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonPermissionDenied, v.Delegate.String(), ictx.blockStore, ictx.log, ictx.writerCache, ictx.hookIDs)
 }
