@@ -1,7 +1,9 @@
+import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {StepIndicator} from '@/frontend/components/StepIndicator'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
@@ -10,6 +12,11 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ChooseAuthView() {
   const {loading, error, passkeySupported} = useAppState()
   const actions = useActions()
+  const navigate = navigation.useHashNavigate()
+
+  // The password fallback is shown directly when passkeys aren't supported,
+  // and otherwise appears once a passkey attempt fails.
+  const passwordVisible = !passkeySupported || !!error
 
   return (
     <Card>
@@ -44,6 +51,31 @@ export function ChooseAuthView() {
               </a>
             </p>
           </div>
+        )}
+
+        {passwordVisible && (
+          <>
+            {passkeySupported && <Divider>or</Divider>}
+            <div className="space-y-3">
+              <div>
+                <p className="font-semibold">Use a master password</p>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Create a password to protect your vault and sign in with your email.
+                </p>
+              </div>
+              <Button
+                variant={passkeySupported ? 'secondary' : 'default'}
+                disabled={loading}
+                onClick={() => {
+                  actions.setError('')
+                  navigate('/password/set')
+                }}
+                className="w-full"
+              >
+                Use a password
+              </Button>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
