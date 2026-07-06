@@ -1,0 +1,62 @@
+/*
+ * Shared Tailwind variants and base styles for every app that renders
+ * @shm/ui components (desktop, web, vault). Import alongside the palette:
+ *
+ *   @import '@shm/ui/theme.css';
+ *   @import '@shm/ui/base.css';
+ *
+ * Keep rules here only if every app needs them identically — app-specific
+ * layout (e.g. the vault's #root sizing) stays in the app's own stylesheet.
+ */
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant hover-hover {
+  @media (hover: hover) {
+    @slot;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ScrollArea full height fix */
+[data-slot='scroll-area-viewport'] {
+  width: 100%;
+  border-radius: inherit;
+}
+
+/* ScrollArea full height fix */
+.scroll-area-full-height [data-slot='scroll-area-viewport'] {
+  height: 100% !important;
+}
+
+/* ScrollArea width overflow fix - prevents internal table from overflowing */
+[data-slot='scroll-area-viewport'] > div {
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+.scroll-area-full-height [data-slot='scroll-area-viewport'] > div {
+  min-width: 100% !important;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Ensure scrollbar appears above sticky content */
+[data-slot='scroll-area-scrollbar'] {
+  z-index: 50;
+}
