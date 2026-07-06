@@ -882,6 +882,27 @@ describe('checkForNewImages', () => {
     expect(result).toBe(true)
   })
 
+  test('detects an updated image even when the stack pull errors on another image', async () => {
+    // Regression: a broken/un-pullable image (e.g. a bad custom tag) makes
+    // `docker compose pull` exit non-zero. That must not mask a sibling image
+    // that pulled successfully — otherwise the autoupdater silently no-ops.
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      // No 'docker compose' key → the pull exec throws (one image failing).
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:monoid',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:monoid',
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      // web unchanged (its pull failed), site updated to a new id.
+      "image inspect seedhypermedia/web:monoid --format '{{.Id}}'": 'sha256:bbb',
+      "image inspect seedhypermedia/site:monoid --format '{{.Id}}'": 'sha256:NEW',
+    })
+    const result = await checkForNewImages({...config, release_channel: 'monoid'}, paths, shell)
+    expect(result).toBe(true)
+  })
+
   test('uses the configured custom image tag when cron checks for updates', async () => {
     const shell = makeMockShell({
       "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',

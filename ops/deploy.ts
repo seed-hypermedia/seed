@@ -1117,8 +1117,14 @@ export async function getContainerImages(shell: ShellRunner): Promise<Map<string
 /**
  * Pull latest images and check if any differ from what's currently running.
  * Returns true if new images were pulled that differ from running containers.
- * Returns false if all images match or if the pull/check fails (safe to retry
- * next cycle).
+ * Returns false if all images match or if nothing could be pulled.
+ *
+ * `docker compose pull` pulls the whole stack, so a single un-pullable image
+ * (e.g. a broken/absent custom tag, or a transient registry error) makes the
+ * command exit non-zero even though other images pulled fine. We must NOT
+ * treat that as "no updates": doing so silently pins the node to its current
+ * images forever. Instead we log the reason and still run the per-image
+ * comparison below, which correctly reports the images that did update.
  */
 export async function checkForNewImages(
   config: SeedConfig,
@@ -1130,9 +1136,14 @@ export async function checkForNewImages(
   if (beforeImages.size === 0) return false
 
   try {
-    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`)
-  } catch {
-    return false
+    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`)
+    if (result.stderr) log(`image pull: ${result.stderr}`)
+  } catch (err) {
+    // One image failed to pull, but others may have succeeded — keep going and
+    // compare per image. Surface the reason so a stuck autoupdater is visible.
+    log(`WARNING: image pull reported an error (continuing with per-image check): ${err}`)
+    const pullMsg = describePullFailure(String(err), config.release_channel)
+    if (pullMsg) log(`  ${pullMsg}`)
   }
 
   for (const [name, runningId] of beforeImages) {

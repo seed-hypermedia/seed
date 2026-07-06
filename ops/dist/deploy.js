@@ -1566,9 +1566,14 @@ async function checkForNewImages(config, paths, shell) {
   if (beforeImages.size === 0)
     return false;
   try {
-    await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
-  } catch {
-    return false;
+    const result = await shell.exec(`${env} docker compose -f ${paths.composePath} pull --quiet`);
+    if (result.stderr)
+      log(`image pull: ${result.stderr}`);
+  } catch (err) {
+    log(`WARNING: image pull reported an error (continuing with per-image check): ${err}`);
+    const pullMsg = describePullFailure(String(err), config.release_channel);
+    if (pullMsg)
+      log(`  ${pullMsg}`);
   }
   for (const [name, runningId] of beforeImages) {
     const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
