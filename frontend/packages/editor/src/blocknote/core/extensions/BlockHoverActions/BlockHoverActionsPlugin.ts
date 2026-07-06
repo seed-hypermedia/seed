@@ -156,7 +156,7 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       }
 
       const currentBlock = this.findBlockElementById(this.currentState.blockId)
-      if (!currentBlock?.contains(target)) {
+      if (!currentBlock?.contains(target) && !target.contains(currentBlock)) {
         return false
       }
     }
