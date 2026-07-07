@@ -27,6 +27,7 @@ import {
   HyperlinkToolbarPositioner,
   ImageGalleryOverlay,
   LinkMenuPositioner,
+  PredictionConeDebugOverlay,
   RangeSelectionPositioner,
   SideMenuPositioner,
   SlashMenuPositioner,
@@ -155,7 +156,7 @@ export function DocumentEditor({
     {open: false} | {open: true; intent: 'copy-link' | 'comment'}
   >({open: false})
   const openUrl = useOpenUrl()
-  const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
+  const {hmUrlHref, openRouteNewWindow, origin, originHomeId, experiments} = useUniversalAppContext()
   const getImageUrl = useImageUrl()
   const onCreateInlineDraft = useDraftActions()?.onCreateInlineDraft
   const actorRef = useDocumentMachineRef()
@@ -680,6 +681,7 @@ export function DocumentEditor({
               }
             />
           )}
+          {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
           <RangeSelectionPositioner
             editor={editor}
             onCopyFragmentLink={

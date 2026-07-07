@@ -25,11 +25,65 @@ export type BlockHoverActionsCallbacks = {
   onStartComment?: (blockId: string) => void
 }
 
+/**
+ * Debug state emitted for the prediction cone visualization.
+ * Contains the triangle vertices used to draw the cone overlay.
+ */
+export type PredictionConeDebugState = {
+  origin: {x: number; y: number}
+  cardTop: {x: number; y: number}
+  cardBottom: {x: number; y: number}
+}
+
 type BlockHoverActionsEvents = {
   update: [BlockHoverActionsState]
+  coneDebug: [PredictionConeDebugState | null]
 }
 
 const SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['query'])
+
+/**
+ * Point-in-triangle test using barycentric coordinates.
+ *
+ * Given a point (px, py) and triangle vertices (ax,ay), (bx,by), (cx,cy),
+ * returns true if the point lies inside the triangle (including edges).
+ *
+ * This is the core geometric predicate behind the prediction cone:
+ * while the pointer stays within the triangle formed by the cone origin
+ * and the two near corners of the hover card, we suppress block switching.
+ */
+function pointInTriangle(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+): boolean {
+  const v0x = cx - ax
+  const v0y = cy - ay
+  const v1x = bx - ax
+  const v1y = by - ay
+  const v2x = px - ax
+  const v2y = py - ay
+
+  const dot00 = v0x * v0x + v0y * v0y
+  const dot01 = v0x * v1x + v0y * v1y
+  const dot02 = v0x * v2x + v0y * v2y
+  const dot11 = v1x * v1x + v1y * v1y
+  const dot12 = v1x * v2x + v1y * v2y
+
+  const denom = dot00 * dot11 - dot01 * dot01
+  if (denom === 0) return false
+
+  const invDenom = 1 / denom
+  const u = (dot11 * dot02 - dot01 * dot12) * invDenom
+  const v = (dot00 * dot12 - dot01 * dot02) * invDenom
+
+  return u >= 0 && v >= 0 && u + v <= 1
+}
 
 class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   private currentState: BlockHoverActionsState = {
@@ -41,10 +95,21 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   /** When true the plugin will not emit hide events (the floating card is being hovered). */
   public frozen = false
 
+  /**
+   * Prediction cone origin: the pointer position captured when the hover card
+   * opened for the current block. While the pointer stays inside the triangle
+   * from this origin to the hover card's near edge, we suppress block switching.
+   */
+  private coneOrigin: {x: number; y: number} | null = null
+
+  /** Last known mouse position in viewport coordinates (clientX/clientY). */
+  private lastMousePosition: {x: number; y: number} | null = null
+
   constructor(
     private readonly editor: BlockNoteEditor<BSchema>,
     private readonly pmView: EditorView,
     private readonly onUpdate: (state: BlockHoverActionsState) => void,
+    private readonly onConeDebug: (state: PredictionConeDebugState | null) => void,
   ) {
     this.pmView.dom.addEventListener('mousemove', this.onMouseMove)
     this.pmView.dom.addEventListener('mouseleave', this.onMouseLeave)
@@ -139,6 +204,61 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     return null
   }
 
+  /**
+   * Checks whether the pointer (px, py) lies within the prediction cone
+   * from `coneOrigin` to the near edge of the currently rendered hover card.
+   *
+   * Returns null if the hover card element hasn't been rendered yet (caller
+   * should keep the cone pending but not suppress normal hover processing).
+   * Returns the boolean point-in-triangle result when the card is available.
+   */
+  private isInsidePredictionCone(px: number, py: number): boolean | null {
+    if (!this.currentState.blockId) return false
+
+    const doc = this.pmView.dom.ownerDocument
+    const cardEl = doc.querySelector('[data-bn-block-hover-actions="true"]')
+    if (!cardEl) return null // card not yet rendered — keep cone pending
+
+    const cardRect = cardEl.getBoundingClientRect()
+    const blockEl = this.findBlockElementById(this.currentState.blockId)
+    if (!blockEl) return false
+
+    const blockRect = blockEl.getBoundingClientRect()
+
+    // Determine which vertical edge of the card faces the block.
+    const cardOnRight = cardRect.left > blockRect.right - 10
+    const edgeX = cardOnRight ? cardRect.left : cardRect.right
+
+    return pointInTriangle(px, py, this.coneOrigin!.x, this.coneOrigin!.y, edgeX, cardRect.top, edgeX, cardRect.bottom)
+  }
+
+  /** Returns debug info for the prediction cone visualization, or null if inactive. */
+  public getConeDebugState(): PredictionConeDebugState | null {
+    if (!this.coneOrigin || !this.currentState.show || !this.currentState.blockId) return null
+
+    const doc = this.pmView.dom.ownerDocument
+    const cardEl = doc.querySelector('[data-bn-block-hover-actions="true"]')
+    if (!cardEl) return null
+
+    const cardRect = cardEl.getBoundingClientRect()
+    const blockEl = this.findBlockElementById(this.currentState.blockId)
+    if (!blockEl) return null
+
+    const blockRect = blockEl.getBoundingClientRect()
+    const cardOnRight = cardRect.left > blockRect.right - 10
+    const edgeX = cardOnRight ? cardRect.left : cardRect.right
+
+    return {
+      origin: this.coneOrigin,
+      cardTop: {x: edgeX, y: cardRect.top},
+      cardBottom: {x: edgeX, y: cardRect.bottom},
+    }
+  }
+
+  private emitConeDebug() {
+    this.onConeDebug(this.getConeDebugState())
+  }
+
   private keepHoverInCurrentRightGutter(event: MouseEvent, requireCurrentBlockTarget: boolean): boolean {
     if (
       this.isEditable() ||
@@ -180,6 +300,8 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
 
   private hide() {
     if (this.currentState.show) {
+      this.coneOrigin = null
+      this.emitConeDebug()
       this.emitState({show: false, blockId: null, referenceRect: null})
     }
   }
@@ -194,6 +316,7 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   onMouseMove = (event: MouseEvent) => {
+    this.lastMousePosition = {x: event.clientX, y: event.clientY}
     this.handleMouseMove(event)
   }
 
@@ -212,6 +335,28 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     if (!selection.empty && !(selection instanceof NodeSelection)) {
       this.hide()
       return
+    }
+
+    // Prediction cone: if a hover card is open and the pointer is inside the
+    // cone from the origin to the card's near edge, don't switch blocks.
+    // This makes diagonal movement from a block to its hover action card
+    // forgiving — the cursor can pass over neighboring blocks without
+    // accidentally triggering their hover states.
+    if (this.currentState.show && this.currentState.blockId && this.coneOrigin) {
+      const insideCone = this.isInsidePredictionCone(event.clientX, event.clientY)
+      this.emitConeDebug()
+
+      if (insideCone === true) {
+        return
+      }
+
+      if (insideCone === false) {
+        // Pointer left the cone — resume normal hover behavior.
+        this.coneOrigin = null
+        this.emitConeDebug()
+      }
+      // If insideCone is null (card not rendered yet), keep cone pending
+      // but fall through to normal hover processing.
     }
 
     const supernumberBadge = event.target instanceof Element ? event.target.closest('.bn-supernumber-badge') : null
@@ -233,7 +378,19 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     }
 
     const blockElement = this.findOwningBlockElement(contentElement)
-    this.showState(blockElement ? this.blockStateFromElement(blockElement) : null)
+
+    // When about to show a NEW block (different from current), capture the
+    // pointer position as the prediction cone origin.
+    const newState = blockElement ? this.blockStateFromElement(blockElement) : null
+    if (newState?.show && newState.blockId !== this.currentState.blockId) {
+      this.coneOrigin = {x: event.clientX, y: event.clientY}
+    }
+
+    this.showState(newState)
+
+    if (this.coneOrigin) {
+      this.emitConeDebug()
+    }
   }
 
   onMouseLeave = (event?: MouseEvent) => {
@@ -316,9 +473,16 @@ export class BlockHoverActionsProsemirrorPlugin<
     this.plugin = new Plugin({
       key: blockHoverActionsPluginKey,
       view: (editorView) => {
-        this.view = new BlockHoverActionsView(editor, editorView, (state) => {
-          this.emit('update', state)
-        })
+        this.view = new BlockHoverActionsView(
+          editor,
+          editorView,
+          (state) => {
+            this.emit('update', state)
+          },
+          (coneState) => {
+            this.emit('coneDebug', coneState)
+          },
+        )
         return this.view
       },
     })
@@ -337,8 +501,18 @@ export class BlockHoverActionsProsemirrorPlugin<
     }
   }
 
+  /** Returns the current prediction cone debug state, or null if inactive. */
+  public getConeDebugState(): PredictionConeDebugState | null {
+    return this.view?.getConeDebugState() ?? null
+  }
+
   /** Subscribes to hover state updates. Returns an unsubscribe function. */
   public onUpdate(callback: (state: BlockHoverActionsState) => void): () => void {
     return this.on('update', callback)
+  }
+
+  /** Subscribes to cone debug state updates. Returns an unsubscribe function. */
+  public onConeDebug(callback: (state: PredictionConeDebugState | null) => void): () => void {
+    return this.on('coneDebug', callback)
   }
 }

@@ -10,6 +10,7 @@ import {
 import {useCallback, useEffect, useMemo} from 'react'
 import {useBlockNote} from './blocknote'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
+import {PredictionConeDebugOverlay} from './blocknote/react/BlockHoverActions/PredictionConeDebugOverlay'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
@@ -54,7 +55,7 @@ export function ReadOnlyViewer({
   onComment,
 }: ReadOnlyViewerProps) {
   const openUrl = useOpenUrl()
-  const {hmUrlHref, openRouteNewWindow, origin, originHomeId} = useUniversalAppContext()
+  const {hmUrlHref, openRouteNewWindow, origin, originHomeId, experiments} = useUniversalAppContext()
   const renderHref = useCallback(
     (url: string) =>
       hypermediaUrlToHref(url, {
@@ -138,6 +139,7 @@ export function ReadOnlyViewer({
             {hasRangeSelection && (
               <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
             )}
+            {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
           </>
         </ReadOnlyBlockNoteView>
       </div>

@@ -41,6 +41,7 @@ export * from './SharedComponents/Toolbar/components/ToolbarButton'
 export * from './SharedComponents/Toolbar/components/ToolbarDropdown'
 
 export * from './BlockHoverActions/BlockHoverActionsPositioner'
+export {PredictionConeDebugOverlay} from './BlockHoverActions/PredictionConeDebugOverlay'
 export * from './ImageGallery/ImageGalleryOverlay'
 export * from './RangeSelection/RangeSelectionPositioner'
 export * from './FullBlockSelection/FullBlockSelectionObserver'
