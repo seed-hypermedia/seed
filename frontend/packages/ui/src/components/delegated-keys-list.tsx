@@ -1,15 +1,11 @@
-import { KeyRound } from 'lucide-react'
-import { type ReactNode } from 'react'
-import { SizableText } from '../text'
+import {KeyRound} from 'lucide-react'
+import {type ReactNode} from 'react'
+import {SizableText} from '../text'
 
 export type DelegatedKeyItem = {
   id: string
   /** Primary label (e.g. a session/client name or capability label). */
   title: string
-  /** Secondary mono line (the delegate principal / account id). */
-  subtitle?: string
-  /** Optional pill (e.g. the capability role). */
-  badge?: string
   /** Optional right-aligned date label. */
   dateLabel?: string
   /** Optional leading icon; defaults to a key glyph. */
@@ -58,24 +54,12 @@ export function DelegatedKeysList({
             <SizableText size="sm" weight="bold" className="truncate">
               {item.title}
             </SizableText>
-            {item.subtitle ? (
-              <SizableText size="xs" color="muted" className="truncate font-mono">
-                {item.subtitle}
-              </SizableText>
-            ) : null}
           </div>
-          {item.badge || item.dateLabel ? (
+          {item.dateLabel ? (
             <div className="flex shrink-0 flex-col items-end gap-1">
-              {item.badge ? (
-                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs capitalize">
-                  {item.badge}
-                </span>
-              ) : null}
-              {item.dateLabel ? (
-                <SizableText size="xs" color="muted">
-                  {item.dateLabel}
-                </SizableText>
-              ) : null}
+              <SizableText size="xs" color="muted">
+                {item.dateLabel}
+              </SizableText>
             </div>
           ) : null}
         </div>

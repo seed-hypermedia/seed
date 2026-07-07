@@ -671,8 +671,6 @@ function DevicesTab({accountUid}: {accountUid: string}) {
       items={delegatedKeys.map((cap) => ({
         id: cap.id || cap.accountUid,
         title: cap.label || DELEGATED_ROLE_LABELS[cap.role] || 'Delegated key',
-        subtitle: cap.accountUid,
-        badge: cap.role,
         dateLabel: cap.createTime ? formattedDate(cap.createTime) : undefined,
       }))}
     />

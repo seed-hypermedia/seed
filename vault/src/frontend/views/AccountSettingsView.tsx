@@ -1,10 +1,9 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
 import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
-import {Button} from '@/frontend/components/ui/button'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import {type AccountProfileSummary, getProfileAvatarImageSrc, getProfileDisplayName} from '@/frontend/profile'
+import {getProfileAvatarImageSrc, getProfileDisplayName, type AccountProfileSummary} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as vault from '@/frontend/vault'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
@@ -12,8 +11,8 @@ import * as blobs from '@shm/shared/blobs'
 import {UIAvatar} from '@shm/ui/avatar'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
-import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {ACCOUNT_SETTINGS_TAB_LABELS, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
+import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
@@ -328,7 +327,6 @@ function DevicesTabContent({account}: {account: vault.Account}) {
         return {
           id: `${session.clientId}:${delegatePrincipal}`,
           title: session.clientId,
-          subtitle: delegatePrincipal,
           icon: <DeviceIcon className="size-5" />,
           dateLabel: new Date(session.createTime).toLocaleDateString(),
         }

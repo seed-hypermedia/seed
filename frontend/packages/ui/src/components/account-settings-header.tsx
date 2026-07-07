@@ -1,6 +1,6 @@
-import { ExternalLink } from 'lucide-react'
-import { Button } from '../button'
-import { AccountSettingsTabs, type AccountSettingsTab } from './account-settings-tabs'
+import {ExternalLink} from 'lucide-react'
+import {Button} from '../button'
+import {AccountSettingsTabs, type AccountSettingsTab} from './account-settings-tabs'
 
 /**
  * Shared header for the account-settings detail pane: the settings tabs
@@ -19,7 +19,7 @@ export function AccountSettingsHeader({
   onOpenProfile?: () => void
 }) {
   return (
-    <div className="flex gap-3 items-center">
+    <div className="flex items-center gap-3">
       <AccountSettingsTabs activeTab={activeTab} onTabChange={onTabChange} className="flex-1" />
       {onOpenProfile ? (
         <Button variant="green" className="shrink-0" onClick={onOpenProfile}>

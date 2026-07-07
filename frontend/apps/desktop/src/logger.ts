@@ -67,10 +67,7 @@ if (!IS_PROD_DESKTOP && !isQuietNodeLogsEnabled()) {
   winstonLogger.add(
     new winston.transports.Console({
       level: 'debug',
-      format: winston.format.combine(
-        suppressNonRawWhenLogOnly(),
-        customJSONFormatter(),
-      ),
+      format: winston.format.combine(suppressNonRawWhenLogOnly(), customJSONFormatter()),
     }),
   )
 }
