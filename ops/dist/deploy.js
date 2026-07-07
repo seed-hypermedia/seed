@@ -1555,6 +1555,18 @@ async function checkContainersHealthy(shell) {
   }
   return true;
 }
+function containersMatchReleaseChannel(shell, config) {
+  const expected = [
+    ["seed-web", `seedhypermedia/web:${config.release_channel}`],
+    ["seed-daemon", `seedhypermedia/site:${config.release_channel}`]
+  ];
+  for (const [name, want] of expected) {
+    const got = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
+    if (got !== want)
+      return false;
+  }
+  return true;
+}
 async function getContainerImages(shell) {
   const images = new Map;
   const containers = ["seed-proxy", "seed-web", "seed-daemon"];
@@ -1747,7 +1759,8 @@ async function deploy(config, paths, shell) {
   const envString = buildComposeEnv(config, paths);
   const envSha = sha256(envString);
   const containersHealthy = await checkContainersHealthy(shell);
-  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy) {
+  const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config);
+  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
     step("Checking for new images...");
     const hasNewImages = await checkForNewImages(config, paths, shell);
     if (!hasNewImages) {
@@ -1769,6 +1782,9 @@ async function deploy(config, paths, shell) {
   }
   if (config.compose_env_sha && config.compose_env_sha !== envSha) {
     step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`);
+  }
+  if (containersHealthy && !containersOnConfiguredTag) {
+    step(`Running containers do not match release channel '${config.release_channel}' \u2014 redeploying to reconcile.`);
   }
   await ensureSeedDir(paths, shell);
   let finalCompose = composeContent;
@@ -2636,6 +2652,7 @@ export {
   describePullFailure,
   describeBindFailure,
   deploy,
+  containersMatchReleaseChannel,
   configWarnings,
   configExists,
   composeProjectName,

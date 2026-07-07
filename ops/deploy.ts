@@ -1118,6 +1118,28 @@ export async function checkContainersHealthy(shell: ShellRunner): Promise<boolea
   return true
 }
 
+/**
+ * True when the running seed containers are on the image tag from config.
+ *
+ * The "no changes" fast-path trusts compose_env_sha as a proxy for what's
+ * actually deployed, but that hash can desync from reality: a rollback, a
+ * manual `docker` change, or an interrupted deploy can leave containers on a
+ * different tag while the stored hash still says the new config was applied.
+ * Without this check the fast-path skips forever and never reconciles the
+ * running image tag with config.release_channel.
+ */
+export function containersMatchReleaseChannel(shell: ShellRunner, config: SeedConfig): boolean {
+  const expected: Array<[string, string]> = [
+    ['seed-web', `seedhypermedia/web:${config.release_channel}`],
+    ['seed-daemon', `seedhypermedia/site:${config.release_channel}`],
+  ]
+  for (const [name, want] of expected) {
+    const got = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`)
+    if (got !== want) return false
+  }
+  return true
+}
+
 export async function getContainerImages(shell: ShellRunner): Promise<Map<string, string>> {
   const images = new Map<string, string>()
   const containers = ['seed-proxy', 'seed-web', 'seed-daemon']
@@ -1376,9 +1398,10 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   const envSha = sha256(envString)
 
   const containersHealthy = await checkContainersHealthy(shell)
-  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy) {
-    // Compose and config unchanged, containers running. Check if remote
-    // images have been updated (e.g. CI pushed new :dev or :latest tags).
+  const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config)
+  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
+    // Compose and config unchanged, containers running the configured tag.
+    // Check if remote images have been updated (e.g. CI pushed a new tag).
     step('Checking for new images...')
     const hasNewImages = await checkForNewImages(config, paths, shell)
     if (!hasNewImages) {
@@ -1399,6 +1422,9 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   }
   if (config.compose_env_sha && config.compose_env_sha !== envSha) {
     step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`)
+  }
+  if (containersHealthy && !containersOnConfiguredTag) {
+    step(`Running containers do not match release channel '${config.release_channel}' — redeploying to reconcile.`)
   }
 
   await ensureSeedDir(paths, shell)

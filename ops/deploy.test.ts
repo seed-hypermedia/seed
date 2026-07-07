@@ -29,6 +29,7 @@ import {
   buildComposeEnv,
   getWorkspaceDirs,
   checkContainersHealthy,
+  containersMatchReleaseChannel,
   getContainerImages,
   checkForNewImages,
   checkGpuAcceleration,
@@ -784,6 +785,38 @@ describe('checkContainersHealthy', () => {
       'seed-daemon': 'true',
     })
     expect(await checkContainersHealthy(shell)).toBe(false)
+  })
+})
+
+describe('containersMatchReleaseChannel', () => {
+  test('true when both containers run the configured tag', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:monoid',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:monoid',
+    })
+    expect(containersMatchReleaseChannel(shell, makeTestConfig({release_channel: 'monoid'}))).toBe(true)
+  })
+
+  test('false when a container runs a different tag than config (the desync bug)', () => {
+    // Config says monoid but the containers are still on :dev — the fast-path
+    // must NOT treat this as "no changes".
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:dev',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:dev',
+    })
+    expect(containersMatchReleaseChannel(shell, makeTestConfig({release_channel: 'monoid'}))).toBe(false)
+  })
+
+  test('false when only one container is off-tag', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:dev',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:latest',
+    })
+    expect(containersMatchReleaseChannel(shell, makeTestConfig({release_channel: 'latest'}))).toBe(false)
+  })
+
+  test('false when docker is unavailable', () => {
+    expect(containersMatchReleaseChannel(makeNoopShell(), makeTestConfig())).toBe(false)
   })
 })
 
