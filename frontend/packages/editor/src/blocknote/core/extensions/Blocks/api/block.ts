@@ -123,7 +123,7 @@ export function createBlockSpec<
   >({
     name: blockConfig.type,
     content: blockConfig.containsInlineContent ? 'inline*' : '',
-    selectable: blockConfig.containsInlineContent,
+    selectable: blockConfig.selectable !== undefined ? blockConfig.selectable : blockConfig.containsInlineContent,
 
     addAttributes() {
       return propsToAttributes(blockConfig)

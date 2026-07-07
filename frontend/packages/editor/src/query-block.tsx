@@ -61,7 +61,8 @@ export const QueryBlock = createReactBlockSpec({
       values: ['true', 'false'],
     },
   },
-  containsInlineContent: true,
+  containsInlineContent: false,
+  selectable: true,
 
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
@@ -304,20 +305,6 @@ function QuerySettings({
       view.focus()
     }
   }, [popoverState.open, editor, block.id])
-
-  useEffect(() => {
-    // @ts-expect-error
-    if (block.props.defaultOpen === 'true') {
-      editor.updateBlock(block.id, {
-        ...block,
-        // @ts-expect-error
-        props: {...block.props, defaultOpen: 'false'},
-      })
-    }
-    {
-    }
-    // @ts-expect-error
-  }, [block.props.defaultOpen])
 
   return (
     <>

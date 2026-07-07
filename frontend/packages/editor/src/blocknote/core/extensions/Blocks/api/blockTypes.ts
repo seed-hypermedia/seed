@@ -88,6 +88,7 @@ export type BlockConfig<
 
   // Additional attributes to help define block as a TipTap node.
   containsInlineContent: ContainsInlineContent
+  selectable?: boolean
   render: (
     /**
      * The custom block to render
