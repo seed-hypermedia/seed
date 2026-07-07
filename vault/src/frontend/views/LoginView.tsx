@@ -19,6 +19,7 @@ export function LoginView() {
     error,
     passkeySupported,
     session,
+    sessionChecked,
     userHasPassword,
     userHasPasskey,
     vaultConnectionRequest,
@@ -41,6 +42,17 @@ export function LoginView() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     actions.handleLogin()
+  }
+
+  // This view needs flow state that lives only in memory (the email and
+  // credential flags from preLogin, or from a remembered session). On a fresh
+  // page load without either — e.g. reloading /login while logged out — none
+  // of it exists, so wait for the session check and then restart at pre-login.
+  if (!sessionChecked) {
+    return null
+  }
+  if (!email) {
+    return <navigation.HashNavigate to="/" replace />
   }
 
   return (
