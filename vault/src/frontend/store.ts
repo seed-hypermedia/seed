@@ -42,12 +42,17 @@ type VaultConnectionRequest = {
 /**
  * Returns the route to continue a pending external flow after auth or profile setup completes.
  */
-export function getPendingFlowPath(state: Pick<AppState, 'delegationRequest' | 'vaultConnectionRequest'>): string {
+export function getPendingFlowPath(
+  state: Pick<AppState, 'delegationRequest' | 'vaultConnectionRequest'> & {returnToPath?: string},
+): string {
   if (state.delegationRequest) {
     return '/delegate'
   }
   if (state.vaultConnectionRequest) {
     return '/connect'
+  }
+  if (state.returnToPath && state.returnToPath !== '/') {
+    return state.returnToPath
   }
   return '/'
 }
@@ -69,6 +74,10 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBa
     platformAuthAvailable: false,
     userHasPassword: false,
     userHasPasskey: false,
+    // Route to return to after sign-in/unlock, when the user arrived at a
+    // protected page (e.g. /settings opened from the desktop app) while
+    // signed out or locked.
+    returnToPath: '',
     vaultData: null as vault.State | null,
     vaultVersion: 0,
     vaultLoaded: false,
@@ -511,6 +520,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.email = email
     },
 
+    setReturnToPath(path: string) {
+      state.returnToPath = path
+    },
+
     setPassword(password: string) {
       state.password = password
     },
@@ -570,6 +583,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         if (data.authenticated && data.email) {
           state.session = data
           state.email = data.email
+
+          // Keep the pre-login credential flags in sync with the session, so
+          // views like /login render the right auth options even when the user
+          // arrives with a remembered session and never went through preLogin.
+          state.userHasPassword = data.credentials?.password ?? false
+          state.userHasPasskey = data.credentials?.passkey ?? false
 
           if (!data.credentials?.password && !data.credentials?.passkey) {
             navigator.go('/auth/choose')

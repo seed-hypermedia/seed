@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react'
-import {createBrowserRouter, Outlet} from 'react-router-dom'
+import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
 import {Header} from './components/Header'
@@ -23,11 +23,29 @@ import {VerifyPendingView} from './views/VerifyPendingView'
  * Wrap auth routes that should not be visible when fully unlocked.
  */
 function RedirectIfUnlocked() {
-  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest} = useAppState()
+  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest, returnToPath} = useAppState()
+  const actions = useActions()
+  const unlocked = !!(session?.authenticated && decryptedDEK)
 
-  if (session?.authenticated && decryptedDEK) {
-    const pendingPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
-    return <navigation.HashNavigate to={pendingPath} replace />
+  // Freeze the redirect target on the first unlocked render. The effect below
+  // clears returnToPath while <HashNavigate> may still be mounted (store
+  // updates notify asynchronously), and a mutable target would make the
+  // Navigate re-fire toward '/' and lose the recorded return path.
+  const targetRef = useRef<string | null>(null)
+  if (!unlocked) {
+    targetRef.current = null
+  } else if (targetRef.current === null) {
+    targetRef.current = getPendingFlowPath({delegationRequest, vaultConnectionRequest, returnToPath})
+  }
+
+  // The redirect consumes the recorded return path — clear it so it cannot
+  // cause a stray redirect later in the session.
+  useEffect(() => {
+    if (unlocked && returnToPath) actions.setReturnToPath('')
+  }, [unlocked, returnToPath, actions])
+
+  if (unlocked && targetRef.current !== null) {
+    return <navigation.HashNavigate to={targetRef.current} replace />
   }
 
   return <Outlet />
@@ -42,26 +60,71 @@ function LockedView() {
   const {session, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
+  const location = useLocation()
+
+  const showPasskey = passkeySupported && !!session?.credentials?.passkey
+  const showPassword = !!session?.credentials?.password
+  const passwordOnly = showPassword && !showPasskey
+
+  // Both unlock paths may detour through /login; remember where the user was
+  // (e.g. /settings opened from the desktop app) so they land back here.
+  function rememberReturnPath() {
+    if (location.pathname !== '/') {
+      actions.setReturnToPath(location.pathname)
+    }
+  }
+
+  // When the master password is the only way to unlock, skip this screen's
+  // extra button and go straight to the password form on /login.
+  useEffect(() => {
+    if (!passwordOnly) return
+    rememberReturnPath()
+    navigate('/login', {replace: true})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passwordOnly])
+
+  if (passwordOnly) {
+    return null
+  }
 
   return (
     <Card className="mx-auto max-w-lg">
       <CardHeader>
-        <CardTitle className="text-left text-xl">Add your passkey to continue</CardTitle>
-        <CardDescription className="text-left">Sign in using your device.</CardDescription>
+        <CardTitle className="text-left text-xl">
+          {showPasskey ? 'Add your passkey to continue' : 'Unlock your vault'}
+        </CardTitle>
+        <CardDescription className="text-left">
+          {showPasskey ? 'Sign in using your device.' : 'Sign in with your master password to continue.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
 
-        {passkeySupported && session?.credentials?.passkey && (
-          <Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
+        {showPasskey && (
+          <Button
+            onClick={() => {
+              rememberReturnPath()
+              actions.handleQuickUnlock()
+            }}
+            loading={loading}
+            className="w-full"
+          >
             Use passkey
           </Button>
         )}
 
-        {session?.credentials?.password && (
+        {showPassword && (
           <>
-            <Divider>or</Divider>
-            <Button variant="secondary" onClick={() => navigate('/login')} disabled={loading} className="w-full">
+            {showPasskey && <Divider>or</Divider>}
+            <Button
+              variant={showPasskey ? 'secondary' : 'default'}
+              onClick={() => {
+                rememberReturnPath()
+                navigate('/login')
+              }}
+              disabled={loading}
+              className="w-full"
+            >
               Use Master Password
             </Button>
           </>
@@ -81,7 +144,25 @@ function LockedView() {
  * If not authenticated, redirects to home.
  */
 function EnsureUnlocked() {
-  const {session, decryptedDEK, sessionChecked} = useAppState()
+  const {session, decryptedDEK, sessionChecked, returnToPath} = useAppState()
+  const actions = useActions()
+  const location = useLocation()
+
+  const needsAuth = sessionChecked && !session?.authenticated
+  const unlocked = !!(session?.authenticated && decryptedDEK)
+
+  // Remember where the user was headed (e.g. /settings opened from the
+  // desktop app) so the sign-in flow can return here instead of the root.
+  useEffect(() => {
+    if (needsAuth && location.pathname !== '/') {
+      actions.setReturnToPath(location.pathname)
+    }
+  }, [needsAuth, location.pathname, actions])
+
+  // Destination reached while unlocked: drop the recorded return path.
+  useEffect(() => {
+    if (unlocked && returnToPath) actions.setReturnToPath('')
+  }, [unlocked, returnToPath, actions])
 
   if (!sessionChecked) {
     return null // Or a loading spinner
@@ -162,7 +243,7 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest} = useAppState()
+  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest, returnToPath} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -177,7 +258,7 @@ function RootView() {
       )
     }
 
-    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
+    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest, returnToPath})
     if (pendingFlowPath !== '/') {
       return <navigation.HashNavigate to={pendingFlowPath} replace />
     }

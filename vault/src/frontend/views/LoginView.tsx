@@ -12,8 +12,17 @@ import {useActions, useAppState} from '@/frontend/store'
  * Sign in view for existing users.
  */
 export function LoginView() {
-  const {email, password, loading, error, passkeySupported, userHasPassword, userHasPasskey, vaultConnectionRequest} =
-    useAppState()
+  const {
+    email,
+    password,
+    loading,
+    error,
+    passkeySupported,
+    session,
+    userHasPassword,
+    userHasPasskey,
+    vaultConnectionRequest,
+  } = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -88,6 +97,12 @@ export function LoginView() {
           variant="ghost"
           className="mt-4 w-full"
           onClick={() => {
+            // A locked-but-authenticated session would bounce straight back
+            // here from '/', so switching email means logging out first.
+            if (session?.authenticated) {
+              void actions.handleLogout()
+              return
+            }
             actions.setEmail('')
             navigate('/')
           }}

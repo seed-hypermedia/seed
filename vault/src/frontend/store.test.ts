@@ -114,6 +114,26 @@ describe('Store', () => {
         }),
       ).toBe('/')
     })
+
+    test('returns recorded return path when no external flow is pending', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: null,
+          returnToPath: '/settings',
+        }),
+      ).toBe('/settings')
+    })
+
+    test('external flows take priority over the recorded return path', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: {connectToken: 'token'},
+          returnToPath: '/settings',
+        }),
+      ).toBe('/connect')
+    })
   })
 
   describe('handlePreLogin', () => {
