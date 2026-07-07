@@ -742,6 +742,9 @@ export const documentMachine = setup({
     placeCursorFromPendingOrDraft: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
+    pushContentToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
     updatePublishedVersion: assign({
       publishedVersion: ({event}) => {
         // After publish completes, the done event output is the new HMDocument
@@ -1089,7 +1092,7 @@ export const documentMachine = setup({
         ],
         'document.remoteUpdate': {
           target: 'loaded',
-          actions: ['setDocumentData'],
+          actions: ['setDocumentData', 'pushContentToEditor'],
           reenter: true,
         },
         'capability.changed': {

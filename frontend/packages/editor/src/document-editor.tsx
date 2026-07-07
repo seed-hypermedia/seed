@@ -34,9 +34,7 @@ import {
   useBlockNote,
   type FormattingToolbarProps,
 } from './blocknote'
-import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
-import {applyReadOnlyClickSelectionGuard} from './click-edit-mode-guard'
 import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
@@ -48,6 +46,9 @@ import {PublishRequiredDialog} from './publish-required-dialog'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {selectAllEditorContent} from './utils'
+import {useBlockBorderDebug} from './use-block-border-debug'
+import {useBlockHighlight} from './use-block-highlight'
+import {useReadOnlyClickToEdit} from './use-readonly-click-to-edit'
 
 export type {DocumentContentProps}
 
@@ -81,13 +82,6 @@ export function shouldRequirePublishForBlockAction({
 }): boolean {
   if (isBlockInPublishedVersion) return !isBlockInPublishedVersion(blockId)
   return !!isUnpublishedDraft
-}
-
-function shouldClearBlockHighlightOnMouseDown(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false
-  return !target.closest(
-    '[data-bn-block-hover-actions="true"], .bn-supernumber-badge, button, a[href], input, textarea, select',
-  )
 }
 
 function setEditorRootChildrenType(
@@ -136,20 +130,6 @@ function removeDeletedDocumentEmbedsFromEditorBlocks(
   }
 }
 
-/**
- * Walk up from `el` in the DOM looking for a `data-content-type` attribute.
- * Returns the value when found, or null if we reach `root` without finding one.
- */
-function getContentTypeFromTarget(el: Element | null, root: Element): string | null {
-  let node: Element | null = el
-  while (node && node !== root) {
-    const ct = node.getAttribute('data-content-type')
-    if (ct !== null) return ct
-    node = node.parentElement
-  }
-  return null
-}
-
 export function DocumentEditor({
   blocks,
   resourceId,
@@ -193,13 +173,6 @@ export function DocumentEditor({
 
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
-
-  // Track mousedown coords so we can distinguish a click from a drag.
-  const mousedownCoordsRef = useRef<{x: number; y: number} | null>(null)
-
-  // Whether ProseMirror had a non-empty selection at the most recent mousedown.
-  // Used to suppress edit.start when a click is intended to dismiss a selection.
-  const mousedownHadSelectionRef = useRef<boolean>(false)
 
   const onEditStart = useCallback(
     (cursorPosition?: EditCursorPosition | null) => {
@@ -457,24 +430,15 @@ export function DocumentEditor({
   // callback can resolve to the same editor instance.
   docEditorRef.current = editor
 
-  useEffect(() => {
-    ;(
-      editor as unknown as {
-        _onRootChildrenTypeChange?: (childrenType: DocumentContentProps['rootChildrenType']) => void
-      }
-    )._onRootChildrenTypeChange = (childrenType) => {
-      if (childrenType === 'Unordered' || childrenType === 'Ordered') {
-        actorRef.send({type: 'rootChildrenType.change', childrenType})
-      }
-    }
-    return () => {
-      delete (
-        editor as unknown as {
-          _onRootChildrenTypeChange?: (childrenType: DocumentContentProps['rootChildrenType']) => void
-        }
-      )._onRootChildrenTypeChange
-    }
-  }, [actorRef, editor])
+  // Latest values for handlers — read lazily so the machine always sees fresh
+  // content without re-registering handlers.
+  const initialContentRef = useRef(initialContent)
+  initialContentRef.current = initialContent
+  const draftCursorPositionRef = useRef(draftCursorPosition)
+  draftCursorPositionRef.current = draftCursorPosition
+  const onEditorReadyRef = useRef(onEditorReady)
+  onEditorReadyRef.current = onEditorReady
+  const handlersRef = useEditorHandlersRef()
 
   useEffect(() => {
     suppressChangeRef.current = true
@@ -485,51 +449,22 @@ export function DocumentEditor({
     }
   }, [editor, rootChildrenType])
 
-  // Expose the suppress ref on the editor so external consumers (e.g. auto-rebase)
-  // can wrap programmatic `replaceBlocks` calls without triggering `change` events.
+  // Single effect that wires up the editor-to-machine bridge on mount:
+  // - Registers the `_onRootChildrenTypeChange` callback forwarded to the machine
+  // - Exposes `suppressChangeRef` on the editor for useAutoRebase
+  // - Notifies parent via `onEditorReady`
+  // - Registers imperative handlers the machine calls when entering/exiting `editing`
   useEffect(() => {
-    ;(editor as any)._suppressChangeRef = suppressChangeRef
-  }, [editor])
-
-  // Notify parent of editor instance (used by desktop to capture ref for draft saving)
-  useEffect(() => {
-    onEditorReady?.(editor)
-  }, [editor, onEditorReady])
-
-  // Latest values for handlers — read lazily so the machine always sees fresh
-  // content without re-registering handlers.
-  const initialContentRef = useRef(initialContent)
-  initialContentRef.current = initialContent
-  const draftCursorPositionRef = useRef(draftCursorPosition)
-  draftCursorPositionRef.current = draftCursorPosition
-  const lastReadOnlyContentKeyRef = useRef('')
-
-  useEffect(() => {
-    if (isEditing) return
-    const contentKey = JSON.stringify(initialContent)
-    if (contentKey === lastReadOnlyContentKeyRef.current) return
-    lastReadOnlyContentKeyRef.current = contentKey
-
-    suppressChangeRef.current = true
-    try {
-      editor.replaceBlocks(editor.topLevelBlocks, initialContent)
-    } finally {
-      suppressChangeRef.current = false
+    const onRootChildrenTypeChange = (childrenType: DocumentContentProps['rootChildrenType']) => {
+      if (childrenType === 'Unordered' || childrenType === 'Ordered') {
+        actorRef.send({type: 'rootChildrenType.change', childrenType})
+      }
     }
-    lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
-    actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
-    actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
-  }, [actorRef, editor, initialContent, isEditing])
+    ;(editor as any)._onRootChildrenTypeChange = onRootChildrenTypeChange
+    ;(editor as any)._suppressChangeRef = suppressChangeRef
 
-  const handlersRef = useEditorHandlersRef()
+    onEditorReadyRef.current?.(editor)
 
-  // Register imperative handlers the document machine calls when entering /
-  // exiting the `editing` state (flip editable, replace blocks with the right
-  // content, place cursor). Replacing the effect-based sync with a machine-
-  // driven entry/exit guarantees the editor is editable synchronously as part
-  // of the `edit.start` transition — so any callsite may `send({type: 'edit.start'})`
-  // immediately followed by `editor.updateBlock(...)`.
-  useEffect(() => {
     handlersRef.current = {
       setEditable: (editable) => {
         if (editor.isEditable !== editable) {
@@ -543,8 +478,6 @@ export function DocumentEditor({
         } finally {
           suppressChangeRef.current = false
         }
-        // Use the post-replace blocks as the diff baseline so future change counts
-        // compare against blocks after editor initialization.
         lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
         actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
@@ -578,7 +511,6 @@ export function DocumentEditor({
       placeCursor: (position) => {
         const view = editor._tiptapEditor?.view
         if (!view) {
-          // console.log('[DocEditor] placeCursor: no view')
           return
         }
 
@@ -601,12 +533,9 @@ export function DocumentEditor({
           pos = position ?? null
         }
 
-        // Fall back to saved draft cursor position when no explicit position is pending.
         if (pos === null && draftCursorPositionRef.current != null) {
           pos = draftCursorPositionRef.current
         }
-
-        // console.log('[DocEditor] placeCursor', {pos, docSize: view.state.doc.content.size})
 
         const applySelection = () => {
           if (pos !== null) {
@@ -614,20 +543,14 @@ export function DocumentEditor({
             try {
               const selection = TextSelection.create(view.state.doc, safePos)
               view.dispatch(view.state.tr.setSelection(selection))
-              // ProseMirror's scrollIntoView doesn't work with the custom ScrollArea
-              // container used in the layout — use the DOM directly.
               const cursorDOM = view.domAtPos(safePos)
               const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
               node?.scrollIntoView({block: 'center', behavior: 'instant'})
-            } catch (err) {
-              // console.log('[DocEditor] placeCursor selection failed', err)
-            }
+            } catch (err) {}
           }
           view.focus()
         }
 
-        // Apply immediately, but also re-apply on the next frame so focus
-        // restoration from surrounding UI cannot steal focus from the editor.
         applySelection()
         requestAnimationFrame(() => {
           if (view.isDestroyed) return
@@ -636,11 +559,6 @@ export function DocumentEditor({
       },
     }
 
-    // Resync: when `DocumentEditor` mounts after the machine has already
-    // entered `editing` (e.g. auto-enter via existingDraftId), the entry
-    // actions already fired with `handlersRef.current === null` and no-oped.
-    // Replay them here so the editor still flips editable, loads draft
-    // content, and places the cursor.
     if (actorRef.getSnapshot().matches('editing')) {
       handlersRef.current.setEditable(true)
       handlersRef.current.applyInitialContent()
@@ -648,6 +566,7 @@ export function DocumentEditor({
     }
 
     return () => {
+      delete (editor as any)._onRootChildrenTypeChange
       handlersRef.current = null
     }
   }, [editor, actorRef, handlersRef])
@@ -655,179 +574,17 @@ export function DocumentEditor({
   const focusEditorEnd = useCallback(() => {
     const view = editor._tiptapEditor?.view
     if (!view) return
-
     onEditStart('end')
   }, [editor, onEditStart])
 
-  // Keyboard shortcut: while in read-only mode and the document area has
-  // focus (or focus is on document.body), pressing Enter enters edit mode
-  // and places the cursor at the end of the document. This is the fallback
-  // entry point for documents with no text blocks.
-  useEffect(() => {
-    if (!canEdit || isEditing) return
+  // DEBUG: Cmd/Ctrl+Shift+D toggles block-border overlay
+  useBlockBorderDebug()
 
-    const view = editor._tiptapEditor?.view
-    if (!view) return
+  // Scroll-to-block highlight when focusBlockId / focusBlockRange changes
+  useBlockHighlight({editor, focusBlockId, focusBlockRange})
 
-    const domRoot = view.dom as HTMLElement
-
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter') return
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-
-      // Ignore when focus is inside an input/textarea/contentEditable outside
-      // the editor — those have their own Enter semantics.
-      const active = document.activeElement as HTMLElement | null
-      if (active && active !== document.body) {
-        const tag = active.tagName
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-        if (active.isContentEditable && !domRoot.contains(active)) return
-        // Only accept activation when focus is on the editor container, one
-        // of its ancestors, or the body — prevents stealing Enter from
-        // buttons / dialogs elsewhere in the page.
-        if (!domRoot.contains(active) && !active.contains(domRoot)) return
-      }
-
-      onEditStart('end')
-      e.preventDefault()
-    }
-
-    document.addEventListener('keydown', handleKeydown)
-    return () => {
-      document.removeEventListener('keydown', handleKeydown)
-    }
-  }, [editor, canEdit, isEditing, onEditStart])
-
-  // DEBUG: Cmd/Ctrl+Shift+D toggles block-border overlay via
-  // html[data-debug-blocks]. CSS lives in editor.css and blocks-content.css.
-  useEffect(() => {
-    const handleDebugToggle = (e: KeyboardEvent) => {
-      if (e.key !== 'D' && e.key !== 'd') return
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return
-      e.preventDefault()
-      const html = document.documentElement
-      html.dataset.debugBlocks = html.dataset.debugBlocks === '1' ? '' : '1'
-    }
-    document.addEventListener('keydown', handleDebugToggle)
-    return () => document.removeEventListener('keydown', handleDebugToggle)
-  }, [])
-
-  // Dispatch block highlight when focusBlockId / focusBlockRange changes.
-  // When a codepoint range is provided, highlight only that fragment;
-  // otherwise fall back to highlighting the whole block.
-  const rangeStart = focusBlockRange && 'start' in focusBlockRange ? focusBlockRange.start : null
-  const rangeEnd = focusBlockRange && 'end' in focusBlockRange ? focusBlockRange.end : null
-  useEffect(() => {
-    const view = editor._tiptapEditor?.view
-    if (!view) return
-
-    if (focusBlockId && rangeStart != null && rangeEnd != null) {
-      view.dispatch(
-        view.state.tr.setMeta(blockHighlightPluginKey, {
-          type: 'rangeFocus',
-          blockId: focusBlockId,
-          start: rangeStart,
-          end: rangeEnd,
-        }),
-      )
-    } else if (focusBlockId) {
-      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'focus', blockId: focusBlockId}))
-    } else {
-      view.dispatch(view.state.tr.setMeta(blockHighlightPluginKey, {type: 'clear'}))
-    }
-  }, [editor, focusBlockId, rangeStart, rangeEnd])
-
-  // Attach DOM click listener for click-to-edit. Using a DOM listener (rather
-  // than a ProseMirror plugin) gives us reliable access to the raw event target
-  // so we can read `data-content-type` from the DOM, and lets us detect clicks
-  // below the last block.
-  useEffect(() => {
-    const view = editor._tiptapEditor?.view
-    if (!view) return
-
-    const domRoot = view.dom as HTMLElement
-
-    const handleMousedown = (e: MouseEvent) => {
-      mousedownCoordsRef.current = {x: e.clientX, y: e.clientY}
-      mousedownHadSelectionRef.current = !view.state.selection.empty
-      if (shouldClearBlockHighlightOnMouseDown(e.target)) {
-        onTextSelectionRef.current?.()
-      }
-    }
-
-    const handleClick = (e: MouseEvent) => {
-      // Only intercept when in read-only mode and the user has edit permission
-      if (view.editable || !canEditRef.current) {
-        // console.log('[DocEditor] click ignored', {editable: view.editable, canEdit: canEditRef.current})
-        return
-      }
-
-      // Ignore drags — if the pointer moved more than 4px from mousedown it was
-      // a text-selection drag and we must not enter edit mode.
-      const down = mousedownCoordsRef.current
-      if (down) {
-        const dx = e.clientX - down.x
-        const dy = e.clientY - down.y
-        if (dx * dx + dy * dy > 16) return
-      }
-
-      const target = e.target as Element
-
-      // If the click landed on a link, let the link plugin handle navigation.
-      // Do not enter edit mode and do not preventDefault.
-      if (target.closest?.('.link, a[href]')) return
-
-      // If a non-empty ProseMirror selection existed at mousedown, treat the
-      // click as "dismiss my selection" rather than "enter edit mode".
-      const hadSelection = mousedownHadSelectionRef.current
-      mousedownHadSelectionRef.current = false
-      if (hadSelection) {
-        applyReadOnlyClickSelectionGuard(view, true)
-        e.preventDefault()
-        return
-      }
-
-      // --- Case 1: click on a known text block ---
-      const contentType = getContentTypeFromTarget(target, domRoot)
-      if (contentType !== null) {
-        if (!TEXT_BLOCK_TYPES.has(contentType)) return
-
-        // Use posAtCoords to get the ProseMirror position closest to the click
-        const coords = view.posAtCoords({left: e.clientX, top: e.clientY})
-        // console.log('[DocEditor] click on text block → onEditStart')
-        onEditStart(coords ? coords.pos : null)
-        e.preventDefault()
-        return
-      }
-
-      // --- Case 2: click on empty area below the last block ---
-      // If posAtCoords returns null (click is outside the document body) but the
-      // click is below the last rendered block, we still want to enter edit mode
-      // and place the cursor at the end of the document.
-      const editorRect = domRoot.getBoundingClientRect()
-      if (e.clientX >= editorRect.left && e.clientX <= editorRect.right && e.clientY > editorRect.bottom) {
-        // console.log('[DocEditor] click below last block → onEditStart')
-        onEditStart('end')
-        e.preventDefault()
-      }
-    }
-
-    // The table NodeView can't enter edit mode itself, so register an event.
-    const handleTableEditRequest = () => {
-      if (view.editable || !canEditRef.current) return
-      onEditStart(null)
-    }
-
-    domRoot.addEventListener('mousedown', handleMousedown)
-    domRoot.addEventListener('click', handleClick)
-    domRoot.addEventListener('hm-table-request-edit', handleTableEditRequest)
-
-    return () => {
-      domRoot.removeEventListener('mousedown', handleMousedown)
-      domRoot.removeEventListener('click', handleClick)
-      domRoot.removeEventListener('hm-table-request-edit', handleTableEditRequest)
-    }
-  }, [editor, onEditStart])
+  // DOM click listener for click-to-edit in read-only mode
+  useReadOnlyClickToEdit({editor, canEditRef, onEditStart, onTextSelectionRef})
 
   const editable = isEditing
 
