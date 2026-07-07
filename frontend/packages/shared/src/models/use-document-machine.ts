@@ -121,6 +121,15 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             })
             editorHandlersRef.current?.placeCursor(context.pendingEditCursorPosition)
           },
+          pushContentToEditor: ({context}) => {
+            if (!context.editorBaseline) return
+            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer pushing content to editor (read-only sync)`, {
+              documentId: context.documentId.id,
+              editorBaselineBlockCount: context.editorBaseline.length,
+              hasEditorHandlers: !!editorHandlersRef.current,
+            })
+            editorHandlersRef.current?.replaceCurrentContent?.(context.editorBaseline)
+          },
           applyExternalDraftCleanupToEditor: ({context, event}) => {
             if (
               event.type !== 'draft.externallyModified' ||

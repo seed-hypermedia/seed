@@ -2287,6 +2287,10 @@ function EditableDocumentHeader({
             e.currentTarget.blur()
             send({type: 'edit.cancel'})
           }
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            inputSummary.current?.focus()
+          }
         }}
         placeholder="Document Title"
       />
@@ -2306,6 +2310,10 @@ function EditableDocumentHeader({
           if (e.key === 'Escape' && isEditing) {
             e.currentTarget.blur()
             send({type: 'edit.cancel'})
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            send({type: 'edit.start', cursorPosition: 'end'})
           }
         }}
         placeholder="Document Summary"
