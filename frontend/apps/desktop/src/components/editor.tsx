@@ -6,6 +6,7 @@ import {
   HyperlinkToolbarPositioner,
   ImageGalleryOverlay,
   LinkMenuPositioner,
+  PredictionConeDebugOverlay,
   RangeSelectionPositioner,
   SideMenuPositioner,
   SlashMenuPositioner,
@@ -54,6 +55,7 @@ export function HyperMediaEditorView({
   resolveImageUrl?: (url: string) => string
 }) {
   const selectedAccountId = useSelectedAccountId()
+  const {experiments} = useUniversalAppContext()
 
   // Debug toggle state — forces re-render when toggled so toolbar suppression updates
   const [editableOverride, setEditableOverride] = useState<boolean | null>(null)
@@ -96,6 +98,7 @@ export function HyperMediaEditorView({
           </>
         )}
         <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
+        {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
       </BlockNoteView>
       <ImageGalleryOverlay editor={editor} resolveImageUrl={resolveImageUrl} />
       {hasPublishedVersion && (
