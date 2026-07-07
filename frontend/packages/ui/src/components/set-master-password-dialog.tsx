@@ -4,7 +4,7 @@ import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, Di
 import {checkPasswordStrength, PasswordInput} from './password-input'
 
 /**
- * Shared "set / change master password" dialog used by both the desktop app and
+ * Shared "set / change password" dialog used by both the desktop app and
  * the web vault. The dialog collects and validates the new password (match +
  * minimum strength); the platform performs the actual key derivation / DEK
  * wrapping inside `onSubmit` (the desktop daemon does it with the in-daemon DEK;
@@ -35,7 +35,7 @@ export function SetMasterPasswordDialog({
     setIsSubmitting(false)
   }, [open])
 
-  const title = mode === 'change' ? 'Change Master Password' : 'Set Master Password'
+  const title = mode === 'change' ? 'Change Password' : 'Set Password'
   const submitLabel = mode === 'change' ? 'Change Password' : 'Set Password'
 
   async function handleSubmit(e?: FormEvent) {
@@ -66,13 +66,13 @@ export function SetMasterPasswordDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Your master password protects your vault. Choose a strong password you won't forget — it can't be recovered.
+            Your password protects your vault. Choose a strong password you won't forget — it can't be recovered.
           </DialogDescription>
         </DialogHeader>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <PasswordInput
             id="master-password"
-            label={mode === 'change' ? 'New Password' : 'Master Password'}
+            label={mode === 'change' ? 'New Password' : 'Password'}
             value={password}
             onChange={setPassword}
             autoComplete="new-password"

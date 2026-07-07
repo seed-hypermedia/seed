@@ -47,7 +47,7 @@ describe('SettingsRow', () => {
       root.render(
         <SettingsRow
           icon={<svg data-testid="icon" />}
-          label="Master Password"
+          label="Password"
           description="Password is set"
           action={<Button>Change</Button>}
         />,
@@ -55,7 +55,7 @@ describe('SettingsRow', () => {
     })
 
     expect(container.querySelector('[data-testid="icon"]')).not.toBeNull()
-    expect(container.textContent).toContain('Master Password')
+    expect(container.textContent).toContain('Password')
     expect(container.textContent).toContain('Password is set')
     expect(container.querySelector('[data-slot="button"]')?.textContent).toContain('Change')
   })

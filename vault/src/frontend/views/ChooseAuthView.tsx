@@ -58,7 +58,7 @@ export function ChooseAuthView() {
             {passkeySupported && <Divider>or</Divider>}
             <div className="space-y-3">
               <div>
-                <p className="font-semibold">Use a master password</p>
+                <p className="font-semibold">Use a password</p>
                 <p className="text-muted-foreground mt-1 text-sm">
                   Create a password to protect your vault and sign in with your email.
                 </p>
@@ -72,7 +72,7 @@ export function ChooseAuthView() {
                 }}
                 className="w-full"
               >
-                Use a password
+                Use password
               </Button>
             </div>
           </>

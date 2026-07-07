@@ -1,12 +1,12 @@
-import type React from 'react'
-import {useEffect, useState} from 'react'
 import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import * as navigation from '@/frontend/navigation'
 import {PasswordInput} from '@/frontend/components/PasswordInput'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
+import type React from 'react'
+import {useEffect, useState} from 'react'
 
 /**
  * Sign in view for existing users.
@@ -29,7 +29,7 @@ export function LoginView() {
   const hasPasskeyOption = passkeySupported && userHasPasskey
   const [showPasswordForm, setShowPasswordForm] = useState(false)
 
-  // The master-password form is shown directly when there's no passkey to try,
+  // The password form is shown directly when there's no passkey to try,
   // and otherwise behind a fallback the user can reveal — or that appears
   // automatically when a passkey attempt fails.
   const passwordVisible = userHasPassword && (!hasPasskeyOption || showPasswordForm)
@@ -68,7 +68,7 @@ export function LoginView() {
                 disabled={loading}
                 onClick={() => setShowPasswordForm(true)}
               >
-                Enter master password instead
+                Sign in with Password
               </Button>
             )}
             {passwordVisible && <Divider>or</Divider>}
@@ -80,7 +80,7 @@ export function LoginView() {
             <input type="text" name="username" value={email} autoComplete="username" className="hidden" readOnly />
             <PasswordInput
               id="password"
-              label="Master Password"
+              label="Password"
               value={password}
               onChange={actions.setPassword}
               autoComplete="current-password"

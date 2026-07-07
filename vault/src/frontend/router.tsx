@@ -74,7 +74,7 @@ function LockedView() {
     }
   }
 
-  // When the master password is the only way to unlock, skip this screen's
+  // When the password is the only way to unlock, skip this screen's
   // extra button and go straight to the password form on /login.
   useEffect(() => {
     if (!passwordOnly) return
@@ -94,7 +94,7 @@ function LockedView() {
           {showPasskey ? 'Add your passkey to continue' : 'Unlock your vault'}
         </CardTitle>
         <CardDescription className="text-left">
-          {showPasskey ? 'Sign in using your device.' : 'Sign in with your master password to continue.'}
+          {showPasskey ? 'Sign in using your device.' : 'Sign in with your password to continue.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -125,7 +125,7 @@ function LockedView() {
               disabled={loading}
               className="w-full"
             >
-              Use Master Password
+              Use Password
             </Button>
           </>
         )}

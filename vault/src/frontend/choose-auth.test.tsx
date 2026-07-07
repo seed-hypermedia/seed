@@ -79,12 +79,12 @@ describe('choose auth password fallback', () => {
 
     // Choosing the password path lands on the set-password form with the error cleared.
     await rtl.act(async () => {
-      rtl.fireEvent.click(rtl.screen.getByText('Use a password'))
+      rtl.fireEvent.click(rtl.screen.getByText('Use password'))
     })
     await rtl.waitFor(() => {
       expect(window.location.pathname).toBe('/vault/password/set')
     })
-    expect(rtl.screen.getByText('Set Master Password')).toBeTruthy()
+    expect(rtl.screen.getByText('Set Password')).toBeTruthy()
     expect(rtl.screen.queryByText("Passkey wasn't created. You can try again or use a password instead.")).toBeNull()
     expect(rtl.screen.getByText('← Use a passkey instead')).toBeTruthy()
   })

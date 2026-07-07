@@ -44,7 +44,7 @@ export type VaultSecurityLogout = {
  * Shared vault security/settings rows used by both the web vault and the desktop
  * app, so the two stay visually and behaviorally identical. Each section is
  * rendered only when its data is provided, and the matching change dialog
- * (master password / email / notify server) is owned here. Platforms inject the
+ * (password / email / notify server) is owned here. Platforms inject the
  * data and the persistence callbacks.
  */
 export function VaultSecuritySettings({
@@ -130,7 +130,7 @@ export function VaultSecuritySettings({
           {password ? (
             <SettingsRow
               icon={<Shield />}
-              label="Master Password"
+              label="Password"
               description={password.isSet ? 'Password is set' : 'No password set'}
               action={
                 <Button variant="secondary" size="sm" onClick={() => setPasswordOpen(true)} disabled={disabled}>

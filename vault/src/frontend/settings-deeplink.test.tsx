@@ -27,7 +27,7 @@ describe('desktop deep link to /settings', () => {
     setWindowUrl('http://localhost/')
   })
 
-  test('returns to Identity Settings after master-password unlock', async () => {
+  test('returns to Identity Settings after password unlock', async () => {
     const client = createMockClient({
       getSession: async () => ({
         authenticated: true,
@@ -55,7 +55,7 @@ describe('desktop deep link to /settings', () => {
     await rtl.waitFor(() => {
       expect(window.location.pathname).toBe('/vault/login')
     })
-    await rtl.screen.findByLabelText('Master Password')
+    await rtl.screen.findByLabelText('Password')
     expect(rtl.screen.queryByText('or')).toBeNull()
     expect(rtl.screen.queryByText('Use passkey')).toBeNull()
     expect(rtl.screen.queryByText('🔑 Sign in with Passkey')).toBeNull()
@@ -146,7 +146,7 @@ describe('desktop deep link to /settings', () => {
       expect(window.location.pathname).toBe('/vault/login')
     })
 
-    const passwordInput = await rtl.screen.findByLabelText('Master Password')
+    const passwordInput = await rtl.screen.findByLabelText('Password')
     await rtl.act(async () => {
       rtl.fireEvent.change(passwordInput, {target: {value: password}})
     })

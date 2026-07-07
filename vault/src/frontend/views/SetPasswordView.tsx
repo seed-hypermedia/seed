@@ -7,7 +7,7 @@ import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
- * View for setting master password during registration.
+ * View for setting a password during registration.
  */
 export function SetPasswordView() {
   const {email, password, confirmPassword, loading, error, passkeySupported} = useAppState()
@@ -22,7 +22,7 @@ export function SetPasswordView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Set Master Password</CardTitle>
+        <CardTitle className="text-center">Set Password</CardTitle>
         <CardDescription className="text-center">Create a strong password to protect your vault</CardDescription>
       </CardHeader>
       <CardContent>
@@ -42,7 +42,7 @@ export function SetPasswordView() {
 
           <PasswordInput
             id="password"
-            label="Master Password"
+            label="Password"
             value={password}
             onChange={actions.setPassword}
             autoComplete="new-password"

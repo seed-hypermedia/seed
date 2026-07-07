@@ -472,7 +472,7 @@ function VaultSettings() {
                 isSet: !!passwordStatus.data,
                 onSet: async (password) => {
                   await setMasterPassword.mutateAsync({password})
-                  toast.success(passwordStatus.data ? 'Master password changed' : 'Master password set')
+                  toast.success(passwordStatus.data ? 'Password changed' : 'Password set')
                 },
               }}
               notify={notifyConfig}

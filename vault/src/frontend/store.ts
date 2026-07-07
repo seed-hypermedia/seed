@@ -711,7 +711,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     /**
-     * Dialog-driven master password set/change (no navigation). Derives the
+     * Dialog-driven password set/change (no navigation). Derives the
      * credential from the unlocked DEK and adds or changes it depending on
      * whether one already exists. Throws on failure so the shared
      * SetMasterPasswordDialog can surface the error.
