@@ -423,6 +423,16 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleEnter = () =>
       this.editor.commands.first(({commands}) => [
+        // When the cursor is inside an image caption, let the React
+        // handler manage Enter behavior — do not create or split blocks.
+        () =>
+          commands.command(({state}) => {
+            const blockInfo = getBlockInfoFromSelection(state)
+            if (blockInfo.blockContentType === 'image' && !(state.selection instanceof NodeSelection)) {
+              return true
+            }
+            return false
+          }),
         // Add a block on top of the current one, if the block is not
         // empty and the selection is at the start of that block,
         // to make sure the block ID will follow the content.

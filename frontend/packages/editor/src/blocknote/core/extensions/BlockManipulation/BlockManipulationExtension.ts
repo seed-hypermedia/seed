@@ -4,6 +4,7 @@ import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
+import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 
 export const selectableNodeTypes = ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query']
@@ -134,6 +135,10 @@ export const BlockManipulationExtension = Extension.create<{
               if (shouldOpen && openUrl && clickedEmbed) {
                 openUrl(clickedEmbed.url, event.metaKey || event.ctrlKey || event.shiftKey)
                 return true
+              }
+
+              if (isInGridContainer(view.state, nodePos)) {
+                return false
               }
 
               let tr = view.state.tr

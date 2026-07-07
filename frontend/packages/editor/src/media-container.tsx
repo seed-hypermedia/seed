@@ -11,6 +11,7 @@ import {useRef, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {markBlockUploaded, MediaType} from './media-render'
 import {MediaSelectionMenu} from './media-selection-menu'
@@ -196,6 +197,8 @@ export const MediaContainer = ({
 
     if (blockContentPos == null) return
 
+    if (isInGridContainer(view.state, blockContentPos)) return
+
     e.preventDefault()
     e.stopPropagation()
     beginEditIfNeeded()
@@ -220,7 +223,6 @@ export const MediaContainer = ({
       if (nextBlock) editor.setTextCursorPosition(nextBlock, 'start')
     }
 
-    ;(event.currentTarget as unknown as HTMLElement).blur()
     editor.focus()
   }
 
