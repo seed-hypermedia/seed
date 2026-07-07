@@ -1,30 +1,30 @@
-import {ExternalLink} from 'lucide-react'
-import {type ReactNode} from 'react'
-import {Button} from '../button'
+import { ExternalLink } from 'lucide-react'
+import { Button } from '../button'
+import { AccountSettingsTabs, type AccountSettingsTab } from './account-settings-tabs'
 
 /**
- * Shared header for the account-settings detail pane (above the tabs): the
- * account's icon + name on the left, and an "Open Profile" button on the right.
- * Routing-agnostic — the platform wires `onOpenProfile` to its own navigation
- * (desktop opens the in-app profile; the web vault opens the public profile).
+ * Shared header for the account-settings detail pane: the settings tabs
+ * (Notifications / Connected Devices) on the left and a "My Profile" button on
+ * the right, all on one row. Routing-agnostic — the platform wires `onTabChange`
+ * and `onOpenProfile` to its own navigation (desktop opens the in-app profile;
+ * the web vault opens the public profile).
  */
 export function AccountSettingsHeader({
-  icon,
-  name,
+  activeTab,
+  onTabChange,
   onOpenProfile,
 }: {
-  icon: ReactNode
-  name: string
+  activeTab: AccountSettingsTab
+  onTabChange: (tab: AccountSettingsTab) => void
   onOpenProfile?: () => void
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="shrink-0">{icon}</div>
-      <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold">{name}</h1>
+    <div className="flex gap-3 items-center">
+      <AccountSettingsTabs activeTab={activeTab} onTabChange={onTabChange} className="flex-1" />
       {onOpenProfile ? (
-        <Button variant="brand" className="shrink-0" onClick={onOpenProfile}>
+        <Button variant="green" className="shrink-0" onClick={onOpenProfile}>
           <ExternalLink className="size-4" />
-          Open Profile
+          My Profile
         </Button>
       ) : null}
     </div>

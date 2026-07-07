@@ -34,7 +34,7 @@ import type {HMRole} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {useAccount, useAccounts, useCapabilities} from '@shm/shared/models/entity'
+import {useAccounts, useCapabilities} from '@shm/shared/models/entity'
 import type {AccountSettingsTab} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {formattedDate} from '@shm/shared/utils/date'
@@ -43,7 +43,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
-import {AccountSettingsTabs} from '@shm/ui/components/account-settings-tabs'
+import {ACCOUNT_SETTINGS_TAB_LABELS} from '@shm/ui/components/account-settings-tabs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -547,19 +547,14 @@ function VaultSettings() {
 function AccountSettingsDetail({accountUid, tab}: {accountUid: string; tab: AccountSettingsTab}) {
   const replace = useNavigate('replace')
   const navigate = useNavigate()
-  const account = useAccount(accountUid)
-  const name = account.data?.metadata?.name || 'Account'
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <AccountSettingsHeader
-        name={name}
-        icon={<HMIcon id={hmId(accountUid)} name={name} icon={account.data?.metadata?.icon} size={40} />}
-        onOpenProfile={() => navigate({key: 'profile', id: hmId(accountUid)})}
-      />
-      <AccountSettingsTabs
         activeTab={tab}
         onTabChange={(nextTab) => replace({key: 'account-settings', accountUid, tab: nextTab})}
+        onOpenProfile={() => navigate({key: 'profile', id: hmId(accountUid)})}
       />
+      <h2 className="text-2xl font-semibold">{ACCOUNT_SETTINGS_TAB_LABELS[tab]}</h2>
       {tab === 'notifications' ? <NotificationsTab accountUid={accountUid} /> : null}
       {tab === 'devices' ? <DevicesTab accountUid={accountUid} /> : null}
     </div>

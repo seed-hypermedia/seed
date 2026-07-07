@@ -5,9 +5,14 @@ import { cn } from '../utils'
 export type AccountSettingsTab = 'devices' | 'notifications'
 
 const TABS: { key: AccountSettingsTab; label: string; icon: LucideIcon }[] = [
-  { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'devices', label: 'Connected Devices', icon: Lock },
+  { key: 'notifications', label: 'Notifications', icon: Bell },
 ]
+
+/** Human-readable label for each account-settings tab. */
+export const ACCOUNT_SETTINGS_TAB_LABELS = Object.fromEntries(
+  TABS.map((tab) => [tab.key, tab.label]),
+) as Record<AccountSettingsTab, string>
 
 /**
  * Shared per-account tab bar (Account / Notifications / Devices), used by both
@@ -24,7 +29,7 @@ export function AccountSettingsTabs({
   className?: string
 }) {
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex gap-2 items-center', className)}>
       {TABS.map((tab) => {
         const Icon = tab.icon
         const active = activeTab === tab.key
@@ -32,7 +37,7 @@ export function AccountSettingsTabs({
           <Button
             key={tab.key}
             variant={active ? 'accent' : 'ghost'}
-            className="flex-1 rounded-full"
+            className="rounded-full"
             onClick={() => onTabChange(tab.key)}
           >
             <Icon className="size-4" />

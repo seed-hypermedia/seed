@@ -13,7 +13,7 @@ import {UIAvatar} from '@shm/ui/avatar'
 import {AccountSettingsHeader} from '@shm/ui/components/account-settings-header'
 import {AccountSettingsLayout} from '@shm/ui/components/account-settings-layout'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
-import {AccountSettingsTabs, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
+import {ACCOUNT_SETTINGS_TAB_LABELS, type AccountSettingsTab} from '@shm/ui/components/account-settings-tabs'
 import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
@@ -203,15 +203,9 @@ export function AccountSettingsView() {
           ) : selected ? (
             <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
               <AccountSettingsHeader
-                name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
-                icon={
-                  <AccountAvatar
-                    principal={selected.principal}
-                    avatar={profiles[selected.principal]?.avatar}
-                    name={getProfileDisplayName(profiles[selected.principal], profileLoadStates[selected.principal])}
-                    backendHttpBaseUrl={backendHttpBaseUrl}
-                    size={40}
-                  />
+                activeTab={tab}
+                onTabChange={(nextTab) =>
+                  navigate({pathname: '/', hash: formatAccountHash(selected.principal, nextTab)})
                 }
                 onOpenProfile={() => {
                   // Public hypermedia profile URL on the web reader host. Prefer the
@@ -221,12 +215,7 @@ export function AccountSettingsView() {
                   window.open(`${host}/hm/${selected.principal}`, '_blank', 'noopener,noreferrer')
                 }}
               />
-              <AccountSettingsTabs
-                activeTab={tab}
-                onTabChange={(nextTab) =>
-                  navigate({pathname: '/', hash: formatAccountHash(selected.principal, nextTab)})
-                }
-              />
+              <h2 className="text-2xl font-semibold">{ACCOUNT_SETTINGS_TAB_LABELS[tab]}</h2>
               {tab === 'notifications' ? (
                 <AccountNotificationsSection
                   seed={selected.account.seed}
