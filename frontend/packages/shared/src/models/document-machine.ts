@@ -15,6 +15,18 @@ import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xs
 
 const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
+function isDocumentEmbedCleanupLoggingEnabled() {
+  return Boolean((globalThis as any).__SEED_DOCUMENT_EMBED_CLEANUP_LOGS__)
+}
+
+function documentEmbedCleanupInfo(...args: unknown[]) {
+  if (isDocumentEmbedCleanupLoggingEnabled()) console.info(...args)
+}
+
+function documentEmbedCleanupError(...args: unknown[]) {
+  if (isDocumentEmbedCleanupLoggingEnabled()) console.error(...args)
+}
+
 function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
 }
@@ -856,7 +868,7 @@ export const documentMachine = setup({
     }),
     logDraftResolved: ({context, event}) => {
       if (event.type !== 'draft.resolved') return
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft.resolved`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft.resolved`, {
         documentId: context.documentId.id,
         eventDraftId: event.draftId,
         currentDraftId: context.draftId,
@@ -868,7 +880,7 @@ export const documentMachine = setup({
       })
     },
     logEnterEditing: ({context}) => {
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine entering editing`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine entering editing`, {
         documentId: context.documentId.id,
         draftId: context.draftId,
         draftCreated: context.draftCreated,
@@ -881,7 +893,7 @@ export const documentMachine = setup({
     },
     logDraftExternallyModified: ({context, event}) => {
       if (event.type !== 'draft.externallyModified') return
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft externally modified`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft externally modified`, {
         documentId: context.documentId.id,
         eventDraftId: event.draftId,
         currentDraftId: context.draftId,
@@ -900,7 +912,7 @@ export const documentMachine = setup({
       // Provided via .provide() in the React layer (editor handlers ref)
     },
     logSaveStarted: ({context}) => {
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save started`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save started`, {
         documentId: context.documentId.id,
         draftId: context.draftId,
         draftCreated: context.draftCreated,
@@ -910,7 +922,7 @@ export const documentMachine = setup({
       })
     },
     logSaveCompleted: ({context}) => {
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save completed`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save completed`, {
         documentId: context.documentId.id,
         draftId: context.draftId,
         draftCreated: context.draftCreated,
@@ -919,7 +931,7 @@ export const documentMachine = setup({
     },
     logRemoteUpdateWhileEditing: ({context, event}) => {
       if (event.type !== 'document.remoteUpdate') return
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine remote update while editing`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine remote update while editing`, {
         documentId: context.documentId.id,
         draftId: context.draftId,
         incomingVersion: event.document.version,
@@ -1342,9 +1354,12 @@ export const documentMachine = setup({
                   target: 'idle',
                   actions: [
                     ({event}: {event: any}) => {
-                      console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft create failed`, {
-                        error: event.error,
-                      })
+                      documentEmbedCleanupError(
+                        `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft create failed`,
+                        {
+                          error: event.error,
+                        },
+                      )
                     },
                     raise({type: '_save.completed'}),
                   ],
@@ -1414,9 +1429,12 @@ export const documentMachine = setup({
                   target: 'idle',
                   actions: [
                     ({event}: {event: any}) => {
-                      console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save failed`, {
-                        error: event.error,
-                      })
+                      documentEmbedCleanupError(
+                        `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft save failed`,
+                        {
+                          error: event.error,
+                        },
+                      )
                     },
                     raise({type: '_save.completed'}),
                   ],
@@ -1515,7 +1533,7 @@ export const documentMachine = setup({
         onError: {
           target: 'editing',
           actions: ({event}: {event: any}) => {
-            console.error(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft discard failed`, {
+            documentEmbedCleanupError(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} document machine draft discard failed`, {
               error: event.error,
             })
           },

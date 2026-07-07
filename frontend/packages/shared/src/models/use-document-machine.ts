@@ -43,6 +43,14 @@ export type DocumentMachineProvidedActors = {
 const DocumentMachineContext_ = createContext<DocumentMachineActorRef | null>(null)
 const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
+function isDocumentEmbedCleanupLoggingEnabled() {
+  return Boolean((globalThis as any).__SEED_DOCUMENT_EMBED_CLEANUP_LOGS__)
+}
+
+function documentEmbedCleanupInfo(...args: unknown[]) {
+  if (isDocumentEmbedCleanupLoggingEnabled()) console.info(...args)
+}
+
 function countTopLevelBlocks(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
 }
@@ -79,7 +87,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
       (machine ?? documentMachine).provide({
         actions: {
           setEditorEditable: ({context}) => {
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor editable`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor editable`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               hasEditorHandlers: !!editorHandlersRef.current,
@@ -87,7 +95,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             editorHandlersRef.current?.setEditable(true)
           },
           setEditorReadOnly: ({context}) => {
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor read-only`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor read-only`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               hasEditorHandlers: !!editorHandlersRef.current,
@@ -95,7 +103,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             editorHandlersRef.current?.setEditable(false)
           },
           applyInitialContentToEditor: ({context}) => {
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying initial editor content`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying initial editor content`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               hasEditorHandlers: !!editorHandlersRef.current,
@@ -105,14 +113,14 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             })
             editorHandlersRef.current?.applyInitialContent()
             const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied initial editor content`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied initial editor content`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               editorTopLevelBlockCount: countTopLevelBlocks(currentBlocks),
             })
           },
           placeCursorFromPendingOrDraft: ({context}) => {
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer placing cursor`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer placing cursor`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               pendingEditCursorPosition: context.pendingEditCursorPosition,
@@ -138,7 +146,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
             ) {
               return
             }
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying cleanup to editor`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applying cleanup to editor`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               deletedDocumentId: event.deletedDocumentId,
@@ -156,7 +164,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
               })
             }
             const currentBlocks = editorHandlersRef.current?.getCurrentBlocks()
-            console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied cleanup to editor`, {
+            documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer applied cleanup to editor`, {
               documentId: context.documentId.id,
               draftId: context.draftId,
               editorTopLevelBlockCount: countTopLevelBlocks(currentBlocks),
@@ -272,7 +280,7 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
 
     if (prevVersionRef.current === null) {
       // First time we have a document — transition from loading → loaded
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.loaded`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.loaded`, {
         account: document.account,
         path: document.path,
         version: document.version,
@@ -281,7 +289,7 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
       actorRef.send({type: 'document.loaded', document})
       prevVersionRef.current = document.version
     } else if (prevVersionRef.current === '' && document.version) {
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending late document.loaded`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending late document.loaded`, {
         account: document.account,
         path: document.path,
         previousVersion: prevVersionRef.current,
@@ -292,7 +300,7 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
       prevVersionRef.current = document.version
     } else if (document.version !== prevVersionRef.current) {
       // Version changed — remote update
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.remoteUpdate`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.remoteUpdate`, {
         account: document.account,
         path: document.path,
         previousVersion: prevVersionRef.current,
@@ -388,7 +396,7 @@ export function useDraftResolutionSync(
   useEffect(() => {
     if (resolved !== undefined && !sentRef.current) {
       sentRef.current = true
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending draft.resolved`, {
+      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending draft.resolved`, {
         draftId: resolved.draftId,
         contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
         deps: resolved.deps ?? null,
@@ -406,13 +414,16 @@ export function useDraftResolutionSync(
         baseBlocks: resolved.baseBlocks ?? null,
       })
     } else if (resolved !== undefined && sentRef.current) {
-      console.info(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer draft.resolved update ignored after initial sync`, {
-        draftId: resolved.draftId,
-        contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
-        deps: resolved.deps ?? null,
-        mineTouchedIds: resolved.mineTouchedIds ?? null,
-        baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
-      })
+      documentEmbedCleanupInfo(
+        `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer draft.resolved update ignored after initial sync`,
+        {
+          draftId: resolved.draftId,
+          contentTopLevelBlockCount: countTopLevelBlocks(resolved.content),
+          deps: resolved.deps ?? null,
+          mineTouchedIds: resolved.mineTouchedIds ?? null,
+          baseBlockCount: countTopLevelBlocks(resolved.baseBlocks),
+        },
+      )
     }
   }, [actorRef, resolved])
 }

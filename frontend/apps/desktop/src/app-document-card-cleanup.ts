@@ -36,6 +36,18 @@ import {nanoid} from 'nanoid'
 const CLEANUP_STATUS_QUERY_KEY = ['trpc.documentCardCleanup.getSnapshot']
 const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
+function isCleanupLoggingEnabled() {
+  return Boolean((globalThis as any).__SEED_DOCUMENT_EMBED_CLEANUP_LOGS__)
+}
+
+function cleanupDebug(message: string, data?: any) {
+  if (isCleanupLoggingEnabled()) log.debug(message, data)
+}
+
+function cleanupInfo(message: string, data?: any) {
+  if (isCleanupLoggingEnabled()) log.info(message, data)
+}
+
 type RunOptions = {
   now?: () => number
 }
@@ -203,7 +215,7 @@ async function loadParentDraft(parentDocumentId: string, jobId?: string) {
 
   const drafts = draftsApi.createCaller({})
   const parentDraft = await drafts.findByEdit({editUid: parent.uid, editPath: parent.path || []})
-  log.debug(`${CLEANUP_LOG_PREFIX} parent draft lookup`, {
+  cleanupDebug(`${CLEANUP_LOG_PREFIX} parent draft lookup`, {
     jobId,
     parentDocumentId,
     editUid: parent.uid,
@@ -213,7 +225,7 @@ async function loadParentDraft(parentDocumentId: string, jobId?: string) {
   if (!parentDraft) return null
 
   const draft = await drafts.get(parentDraft.id)
-  log.debug(`${CLEANUP_LOG_PREFIX} parent draft load`, {
+  cleanupDebug(`${CLEANUP_LOG_PREFIX} parent draft load`, {
     jobId,
     parentDocumentId,
     draftId: parentDraft.id,
@@ -260,7 +272,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
     }
   }
 
-  log.debug(`${CLEANUP_LOG_PREFIX} draft scan`, {
+  cleanupDebug(`${CLEANUP_LOG_PREFIX} draft scan`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     operation,
@@ -275,7 +287,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
   })
   if (!changedBlockIds.length) return []
 
-  log.info(`${CLEANUP_LOG_PREFIX} writing parent draft`, {
+  cleanupInfo(`${CLEANUP_LOG_PREFIX} writing parent draft`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -300,7 +312,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
     baseBlocks: draft.baseBlocks,
   })
   appInvalidateQueries([queryKeys.DRAFT, draft.id])
-  log.info(`${CLEANUP_LOG_PREFIX} broadcasting draft externally modified`, {
+  cleanupInfo(`${CLEANUP_LOG_PREFIX} broadcasting draft externally modified`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -320,7 +332,7 @@ async function cleanupParentDraft(job: DocumentCardCleanupJob, draft: Awaited<Re
   const verifyScan = sourceDocumentId
     ? removeDeletedDocumentEmbedsFromDraftBlocks(writtenContent, sourceDocumentId)
     : {removedBlockIds: []}
-  log.info(`${CLEANUP_LOG_PREFIX} parent draft written`, {
+  cleanupInfo(`${CLEANUP_LOG_PREFIX} parent draft written`, {
     jobId: job.id,
     deletedDocumentId: job.deletedDocumentId,
     parentDocumentId: job.parentDocumentId,
@@ -380,7 +392,7 @@ function createCleanupActor() {
             : sourceDocumentId
               ? planDocumentCardRemoval(parentDocument as any, sourceDocumentId)
               : {changes: [], removedBlockIds: []}
-      log.debug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
+      cleanupDebug(`${CLEANUP_LOG_PREFIX} published parent plan`, {
         jobId: job.id,
         deletedDocumentId: job.deletedDocumentId,
         operation,
@@ -409,7 +421,7 @@ function createCleanupActor() {
     },
     invalidateParent,
     onJobProgress: (job) => {
-      log.debug(`${CLEANUP_LOG_PREFIX} job progress`, {
+      cleanupDebug(`${CLEANUP_LOG_PREFIX} job progress`, {
         jobId: job.id,
         deletedDocumentId: job.deletedDocumentId,
         parentDocumentId: job.parentDocumentId,

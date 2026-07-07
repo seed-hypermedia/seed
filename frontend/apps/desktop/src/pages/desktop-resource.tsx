@@ -88,6 +88,18 @@ import {fromPromise} from 'xstate'
 
 const CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
+function isCleanupLoggingEnabled() {
+  return Boolean((globalThis as any).__SEED_DOCUMENT_EMBED_CLEANUP_LOGS__)
+}
+
+function cleanupInfo(...args: unknown[]) {
+  if (isCleanupLoggingEnabled()) console.info(...args)
+}
+
+function cleanupError(...args: unknown[]) {
+  if (isCleanupLoggingEnabled()) console.error(...args)
+}
+
 async function deleteDraftsForCleanup(parentDraftId: string, childDraftIds: string[]) {
   const ids = Array.from(new Set(childDraftIds.filter((id) => id && id !== parentDraftId)))
   for (const id of ids) {
@@ -135,7 +147,7 @@ function DraftExternalModificationMachineLogger() {
     async (event: DraftExternallyModifiedEvent) => {
       const snapshot = actorRef.getSnapshot()
       const context = selectContext(snapshot)
-      console.info(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by document machine`, {
+      cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by document machine`, {
         eventDraftId: event.draftId,
         currentDraftId: context.draftId,
         matchesCurrentDraft: !!context.draftId && context.draftId === event.draftId,
@@ -158,7 +170,7 @@ function DraftExternalModificationMachineLogger() {
       try {
         draft = await client.drafts.get.query(event.draftId)
       } catch (error) {
-        console.error(`${CLEANUP_LOG_PREFIX} renderer failed to load externally modified draft`, {
+        cleanupError(`${CLEANUP_LOG_PREFIX} renderer failed to load externally modified draft`, {
           draftId: event.draftId,
           error,
         })
@@ -264,7 +276,7 @@ export default function DesktopResourcePage() {
   // toast that the user can click to reload the page.
   const handleDraftExternallyModified = useCallback((event: DraftExternallyModifiedEvent) => {
     const id = currentDraftIdRef.current
-    console.info(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by page`, {
+    cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer draft_externally_modified received by page`, {
       eventDraftId: event.draftId,
       currentDraftId: id || null,
       matchesCurrentDraft: !!id && event.draftId === id,
@@ -274,7 +286,7 @@ export default function DesktopResourcePage() {
     })
     if (!id || event.draftId !== id) return
     if (event.autoReload) {
-      console.info(`${CLEANUP_LOG_PREFIX} renderer auto-reloading externally modified draft`, {
+      cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer auto-reloading externally modified draft`, {
         draftId: event.draftId,
         source: event.source ?? null,
         routeDocumentId: docIdRef.current.id,
@@ -381,7 +393,7 @@ export default function DesktopResourcePage() {
         const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const draftId = input.draftId || nanoid(10)
         const contentSummary = summarizeEditorBlocksForCleanup(content)
-        console.info(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor reading editor content`, {
+        cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor reading editor content`, {
           draftId,
           inputDraftId: input.draftId,
           hasEditor: !!editor,
@@ -435,7 +447,7 @@ export default function DesktopResourcePage() {
         invalidateQueries([queryKeys.DRAFT, result.id])
         invalidateQueries([queryKeys.DRAFTS_LIST])
         invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
-        console.info(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor saved draft`, {
+        cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor saved draft`, {
           draftId: result.id,
           inputDraftId: input.draftId,
           wroteTopLevelBlockCount: content.length,
