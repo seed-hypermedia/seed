@@ -67,6 +67,29 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 		}
 	}()
 
+	// Drain any WAL left over from a previous run before we start serving. A
+	// hard-killed daemon leaves its WAL un-truncated, and a large inherited WAL
+	// makes every read slow (each read resolves pages through the WAL). Once the
+	// app is up the constant readers stop the background PASSIVE checkpointer from
+	// ever reclaiming it — PASSIVE only advances up to the oldest active reader —
+	// so it stays huge and stalls indexing and serving. At startup there are no
+	// readers yet, so a one-shot blocking TRUNCATE drains it cleanly: a brief boot
+	// delay proportional to the inherited WAL, instead of a persistent live stall.
+	var walBytesBefore int64
+	if fi, statErr := os.Stat(sqlitePath(dataDir) + "-wal"); statErr == nil {
+		walBytesBefore = fi.Size()
+	}
+	if err := db.ForWrite(func(conn *sqlite.Conn) error {
+		// TRUNCATE reports the frame count *after* truncating (0), so we log the
+		// pre-drain file size measured above instead.
+		return sqlitex.ExecTransient(conn, "PRAGMA wal_checkpoint(TRUNCATE);", nil)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to drain inherited WAL on startup: %w", err)
+	}
+	if walBytesBefore > 0 {
+		log.Info("StartupWALDrained", zap.Int64("wal_bytes_before", walBytesBefore))
+	}
+
 	// Move WAL checkpointing off the single pool writer. PRAGMA
 	// wal_autocheckpoint=0 stops the writer from stalling for seconds on inline
 	// checkpoint fsyncs during bulk sync; the walCheckpointer flushes the WAL
