@@ -406,3 +406,24 @@ Verified: element-count trace now 844 → 877 (no dip); gap-aware large-text
 sampler reports zero style/presence changes during load on / and /notes;
 title stable at 48px from first sample at 1280/1130/1024 widths; parity
 sweep unchanged (0.000-0.021%); ui tsc + editor tests green.
+
+## Editor-mount blank frame fix (session 3)
+
+/issues still flashed at JS wakeup even though DOM sampling (20ms) showed a
+clean placeholder→editor swap. CDP screencast frame-diffing caught it: the
+editor's React node views flush ONE FRAME after the ProseMirror DOM mounts,
+so the commit that unmounts the SSR placeholder paints empty block
+containers for a frame (list vanishes, page height collapses, subscribe box
+jumps up, then everything pops back).
+
+Fix: DocumentContentHandoff (resource-page-common.tsx) — during the swap the
+placeholder becomes an absolute overlay above the mounting editor and the
+container holds the placeholder's height; two animation frames later (node
+views flushed) it lifts. Screencast post-fix: the only frame change in the
+whole load is the initial contentful paint. Parity/tests unchanged.
+
+Diagnostic tools worth keeping in mind (in /tmp this session):
+- temporal DOM sampler (element counts + computed styles at 20-50ms, CPU
+  throttled) — catches loading-state churn
+- CDP Page.startScreencast + pixelmatch between consecutive frames — catches
+  anything that actually PAINTS, including sub-sampling-interval flashes
