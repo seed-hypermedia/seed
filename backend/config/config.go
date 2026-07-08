@@ -306,6 +306,10 @@ type Syncing struct {
 	NoPull          bool
 	NoDiscovery     bool
 	AllowPush       bool
+	// SubscriptionHotTier promotes subscription tasks into the scheduler's hot
+	// tier so capability/comment/ref blobs converge in ~hotTTL instead of one
+	// Interval. Costs more bandwidth; intended for headless agent daemons.
+	SubscriptionHotTier bool
 }
 
 func (c Syncing) Default() Syncing {
@@ -328,6 +332,7 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content")
 	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling.")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")
+	fs.BoolVar(&c.SubscriptionHotTier, "syncing.subscription-hot-tier", c.SubscriptionHotTier, "Keep subscription tasks in the hot scheduler tier so capability blobs converge in ~hotTTL")
 
 	// Deprecated flags. Still defined here to avoid errors if these flags are passed.
 	fs.Bool("syncing.smart", true, "Deprecated (doesn't do anything): Enables subscription-based syncing and deactivates dumb syncing")

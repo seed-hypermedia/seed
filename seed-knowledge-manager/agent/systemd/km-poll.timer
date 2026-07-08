@@ -1,0 +1,12 @@
+[Unit]
+Description=Knowledge Manager — poll mentions every 60s
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=30
+AccuracySec=5s
+Persistent=true
+Unit=km-poll.service
+
+[Install]
+WantedBy=timers.target
