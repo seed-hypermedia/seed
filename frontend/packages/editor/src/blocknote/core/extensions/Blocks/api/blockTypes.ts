@@ -121,6 +121,12 @@ export type BlockConfig<
 export type BlockSpec<Type extends string, PSchema extends PropSchema> = {
   readonly propSchema: PSchema
   node: TipTapNode<Type, any>
+  /**
+   * The React component the block's node view mounts (set by
+   * createReactBlockSpec). The SSR pipeline renders it with react-dom/server
+   * to produce the same markup as the live node view.
+   */
+  render?: (props: {block: any; editor: any}) => any
 }
 
 // Utility type. For a given object block schema, ensures that the key of each

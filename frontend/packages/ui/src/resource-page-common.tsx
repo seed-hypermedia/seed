@@ -1005,11 +1005,11 @@ export function PageWrapper({
 
   return (
     <div
-      style={
-        {
-          '--site-header-default-h': headerData.isCenterLayout ? '96px' : '60px',
-        } as CSSProperties
-      }
+      // The SSR fallback for the measured --site-header-live-h. The values
+      // live in a stylesheet (web app styles.css) rather than an inline
+      // style because the header height is responsive; only the pre-hydration
+      // web paint ever reads them.
+      data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
       className={cn(
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)

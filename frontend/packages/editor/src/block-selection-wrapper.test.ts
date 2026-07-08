@@ -27,12 +27,14 @@ const schema = new Schema({
   },
 })
 
-function makeEditor(selection: EditorState['selection']) {
+function makeEditor(selection: EditorState['selection'], {isEditable = true, hasFocus = false} = {}) {
   const state = EditorState.create({schema, doc, selection})
   return {
+    isEditable,
     _tiptapEditor: {
       view: {
         state,
+        hasFocus: () => hasFocus,
       },
     },
   } as any
@@ -50,6 +52,20 @@ describe('computeSelected', () => {
 
   it('selects media blocks for node selections', () => {
     const editor = makeEditor(NodeSelection.create(doc, 1))
+
+    expect(computeSelected(editor, block)).toBe(true)
+  })
+
+  // A read-only, unfocused editor's selection is ProseMirror's mandatory
+  // initial selection, not a user action — no selection chrome for readers.
+  it('ignores the initial node selection in a read-only, unfocused editor', () => {
+    const editor = makeEditor(NodeSelection.create(doc, 1), {isEditable: false, hasFocus: false})
+
+    expect(computeSelected(editor, block)).toBe(false)
+  })
+
+  it('still selects in a read-only editor once it is focused', () => {
+    const editor = makeEditor(NodeSelection.create(doc, 1), {isEditable: false, hasFocus: true})
 
     expect(computeSelected(editor, block)).toBe(true)
   })

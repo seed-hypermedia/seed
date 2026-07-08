@@ -4,6 +4,7 @@ import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalApp
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {useCallback, useEffect, useMemo} from 'react'
 import {BlockNoteEditor, useBlockNote} from './blocknote'
+import {getSSREmbedRenderer} from './ssr-embed-renderer'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockNoteView} from './blocknote/react/BlockNoteView'
 import {hmBlockSchema, HMBlockSchema} from './schema'
@@ -53,6 +54,20 @@ export function EmbedEditorView({
 }) {
   if (depth > MAX_EMBED_DEPTH) {
     return null
+  }
+
+  // Server rendering cannot mount the nested editor (ProseMirror needs a
+  // browser); the SSR pipeline registers a recursive renderer producing the
+  // same markup this editor will build at mount.
+  const ssrRenderer = typeof window === 'undefined' ? getSSREmbedRenderer() : null
+  if (ssrRenderer) {
+    const html = ssrRenderer(blocks, rootChildrenType)
+    if (html === null) return null
+    return (
+      <RenderResourceProvider resource={{kind: 'document', id}}>
+        <div contentEditable={false} dangerouslySetInnerHTML={{__html: html}} />
+      </RenderResourceProvider>
+    )
   }
 
   return (

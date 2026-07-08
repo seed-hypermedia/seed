@@ -63,238 +63,32 @@ body {
 }
 
 /*
- * SSR content placeholder — bridges server-rendered HTML to the editor's
- * DOM structure until client hydration. Body typography (headings,
- * lists, paragraphs, links, inline code) is now owned by .hm-prose
- * (packages/ui/src/hm-prose.css), which is also applied to this root
- * and to the hydrated editor — so SSR and hydrated output share the
- * same rhythm automatically.
- *
- * Rules below are only the bits prose doesn't own: wrapper structure,
- * list-item display, block-level code-block chrome, text/background
- * colors, alignment, and the SSR-only "card" fallbacks.
+ * SSR document content — the server renders the editor's REAL markup
+ * (see @shm/editor/ssr-render): hashed CSS-module classes styled by the
+ * eagerly imported editor stylesheets (@shm/editor/editor-styles) and
+ * .hm-prose. Only the wrapper rule lives here.
  */
 
 .ssr-content-placeholder {
   width: 100%;
 }
 
-/* === WRAPPER STRUCTURE (from Block.module.css) === */
-.ssr-content-placeholder .blockNode {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  line-height: 1.5;
+/* === SITE HEADER DEFAULT HEIGHT ===
+ * SSR fallback for --site-header-live-h (JS-measured after hydration).
+ * Must match the header's actual rendered height so the footer doesn't
+ * jump when the live measurement replaces the fallback: the bar header is
+ * p-4 (32px) + 48px account button + 1px border at md+, and p-4 + 32px
+ * menu button + 1px border below md. */
+[data-header-layout='bar'] {
+  --site-header-default-h: 65px;
 }
-
-.ssr-content-placeholder .blockContent {
-  flex-grow: 1;
-  max-width: 100%;
-  max-height: 100%;
+[data-header-layout='center'] {
+  --site-header-default-h: 96px;
 }
-
-.ssr-content-placeholder .blockChildren .blockChildren {
-  margin-left: 1.5em;
-}
-
-/* Lists use list-item display on .blockNode children so bullets/numbers
- * render at the block level even though each child is structurally a div. */
-.ssr-content-placeholder .blockChildren[data-list-type='Unordered'],
-.ssr-content-placeholder .blockChildren[data-list-type='Ordered'] {
-  padding-inline-start: 1.5em;
-}
-
-.ssr-content-placeholder .blockChildren[data-list-type='Unordered'] {
-  list-style-type: disc;
-}
-.ssr-content-placeholder .blockChildren[data-list-level='2'] {
-  list-style-type: circle;
-}
-.ssr-content-placeholder .blockChildren[data-list-level='3'] {
-  list-style-type: square;
-}
-.ssr-content-placeholder .blockChildren[data-list-type='Ordered'] {
-  list-style-type: decimal;
-}
-.ssr-content-placeholder .blockChildren[data-list-type='Unordered'] > .blockNode,
-.ssr-content-placeholder .blockChildren[data-list-type='Ordered'] > .blockNode {
-  display: list-item;
-}
-
-.ssr-content-placeholder [data-node-type='blockNode']::marker {
-  color: hsl(0, 0%, 42.5%);
-}
-.ssr-content-placeholder ol > [data-node-type='blockNode']::marker {
-  font-size: 0.8em;
-}
-
-.ssr-content-placeholder .blockChildren[data-list-type='Blockquote'] {
-  border-left: 3px solid var(--border, #e4e4e7);
-  padding-left: 15px;
-}
-
-/* === GRID (from Block.module.css) === */
-.ssr-content-placeholder .blockChildren[data-list-type='Grid'] {
-  margin-left: 0;
-}
-.ssr-content-placeholder .blockChildren[data-list-type='Grid'] > .blockNode {
-  min-width: 0;
-}
-.ssr-content-placeholder .blockChildren[data-list-type='Grid'] > .blockNode > .blockContent {
-  overflow: hidden;
-}
-.ssr-content-placeholder .blockChildren[data-list-type='Grid'] > .blockNode [data-content-type='image'] img {
-  max-width: 100%;
-  max-height: 200px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-}
-@media (max-width: 640px) {
-  .ssr-content-placeholder .blockChildren[data-list-type='Grid'] {
-    grid-template-columns: 1fr !important;
+@media (min-width: 768px) {
+  [data-header-layout='bar'] {
+    --site-header-default-h: 81px;
   }
-}
-@media (min-width: 641px) and (max-width: 768px) {
-  .ssr-content-placeholder .blockChildren[data-list-type='Grid'][data-column-count='3'],
-  .ssr-content-placeholder .blockChildren[data-list-type='Grid'][data-column-count='4'] {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-}
-
-/* === CODE BLOCK chrome ===
- * Surface (background, border, radius, padding) is owned by `.hm-prose pre`
- * in packages/ui/src/hm-prose.css. Only structural layout lives here. */
-.ssr-content-placeholder .blockContent[data-content-type='code-block'] {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  position: relative;
-}
-
-/* === IMAGE captions === */
-.ssr-content-placeholder [data-content-type='image'] img {
-  max-width: 100%;
-  height: auto;
-  max-height: 600px;
-  object-fit: contain;
-  border-radius: 4px;
-}
-.ssr-content-placeholder [data-content-type='image'] .inlineContent {
-  font-size: 0.9em;
-  opacity: 0.6;
-  min-width: 30%;
-  display: block;
-  text-align: center;
-}
-
-/* Inline text / background colors are owned by `.hm-prose [data-text-color]`
- * / `[data-background-color]` in packages/ui/src/hm-prose.css. The SSR
- * placeholder carries the `hm-prose` class, so those rules (light + dark)
- * apply directly — no SSR-specific copy needed. */
-
-/* === TEXT ALIGNMENT === */
-.ssr-content-placeholder [data-text-alignment='left'] {
-  text-align: left;
-}
-.ssr-content-placeholder [data-text-alignment='center'] {
-  text-align: center;
-}
-.ssr-content-placeholder [data-text-alignment='right'] {
-  text-align: right;
-}
-.ssr-content-placeholder [data-text-alignment='justify'] {
-  text-align: justify;
-}
-
-/* === EMBED CARDS === */
-.ssr-content-placeholder .ssr-card {
-  display: flex;
-  border: 1px solid var(--border, #e4e4e7);
-  border-radius: 8px;
-  overflow: hidden;
-  text-decoration: none;
-  color: inherit;
-  margin: 6px 0;
-  min-height: 100px;
-  transition: box-shadow 0.15s;
-}
-.ssr-content-placeholder .ssr-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-.ssr-content-placeholder .ssr-card-image {
-  flex-shrink: 0;
-  width: 200px;
-  max-height: 160px;
-  overflow: hidden;
-}
-.ssr-content-placeholder .ssr-card-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.ssr-content-placeholder .ssr-card-content {
-  flex: 1;
-  padding: 12px 16px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.ssr-content-placeholder .ssr-card-title {
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.ssr-content-placeholder .ssr-card-summary {
-  font-size: 14px;
-  line-height: 1.4;
-  color: var(--muted-foreground, #71717a);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-.ssr-content-placeholder .ssr-embed-block,
-.ssr-content-placeholder .ssr-web-embed-block,
-.ssr-content-placeholder .ssr-query-block {
-  min-height: 60px;
-  border-radius: 8px;
-  border: 1px solid var(--border, #e4e4e7);
-  margin: 3px 0;
-}
-
-/* === UNKNOWN / UNSUPPORTED BLOCK === */
-.ssr-content-placeholder .hm-unknown-block {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 6px;
-  border: 1px solid #fca5a5;
-  background-color: #fee2e2;
-  padding: 8px;
-  margin: 3px 0;
-}
-.ssr-content-placeholder .hm-unknown-block-label {
-  font-size: 0.875rem;
-  color: #b91c1c;
-}
-
-/* === DARK MODE === */
-.dark .ssr-content-placeholder .blockContent[data-content-type='code-block'] {
-  background-color: rgba(0, 0, 0, 0.5);
-}
-.dark .ssr-content-placeholder .hm-unknown-block {
-  border-color: #991b1b;
-  background-color: #450a0a;
-}
-.dark .ssr-content-placeholder .hm-unknown-block-label {
-  color: #fca5a5;
-}
-.dark .ssr-content-placeholder .blockChildren[data-list-type='Blockquote'] {
-  border-left-color: rgb(255 255 255 / 0.3);
 }
 
 .bottom-gradient {

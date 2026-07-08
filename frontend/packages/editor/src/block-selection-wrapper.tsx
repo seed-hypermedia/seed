@@ -18,6 +18,12 @@ export function computeSelected(editor: BlockNoteEditor<HMBlockSchema>, block: B
   const {view} = editor._tiptapEditor
   const {selection} = view.state
 
+  // A read-only, unfocused editor cannot have a user-made selection — this is
+  // ProseMirror's mandatory initial selection landing on the first selectable
+  // node (e.g. a document whose content starts with a Query block). Readers
+  // should never see selection chrome for it.
+  if (!editor.isEditable && !view.hasFocus()) return false
+
   if (selection instanceof NodeSelection) {
     const selectedNode = view.state.doc.resolve(selection.from).parent
     if (selectedNode && selectedNode.attrs && selectedNode.attrs.id === block.id) {

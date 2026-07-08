@@ -9,7 +9,7 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from './blocknote/react'
 import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {DisplayComponentProps, FALLBACK_EDITOR_WIDTH, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, timeoutPromise} from './utils'
 
@@ -287,7 +287,10 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
   // Max image height in px.
   const maxHeight = 600
 
-  const getEditorWidth = () => editor.domElement.firstElementChild!.clientWidth
+  // Server-side there is no mounted editor to measure; the fallback keeps
+  // percentage math intact (P% widths and full-width images render exactly,
+  // only absolute-px widths depend on the real editor width).
+  const getEditorWidth = () => editor.domElement?.firstElementChild?.clientWidth || FALLBACK_EDITOR_WIDTH
   const widthProp = block.props.width?.trim()
   let width: number =
     widthProp && widthProp.endsWith('%')

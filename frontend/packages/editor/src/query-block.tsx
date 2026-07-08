@@ -29,8 +29,7 @@ import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
 
-const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
-const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
+import {defaultQueryIncludes, defaultQuerySort, getQueryBlockInput} from './query-block-input'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -100,20 +99,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
       latest: true,
     })
   }, [queryIncludes])
-  const queryLimit = useMemo(() => {
-    const parsed = parseInt(block.props.queryLimit || '', 10)
-    return parsed > 0 ? parsed : undefined
-  }, [block.props.queryLimit])
-  const queryBlockInput = useMemo(() => {
-    if (!queryIncludes?.[0]?.space) return null
-    return {
-      query: {
-        includes: queryIncludes,
-        sort: querySort,
-        limit: queryLimit,
-      },
-    }
-  }, [queryIncludes, querySort, queryLimit])
+  const queryBlockInput = useMemo(() => getQueryBlockInput(block.props), [block.props])
   const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
   const sortedItems = queryBlock.data?.results ?? []
 

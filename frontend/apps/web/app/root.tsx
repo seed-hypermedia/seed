@@ -12,6 +12,10 @@ import {
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared/constants'
 import {SizableText} from '@shm/ui/text'
+// Eager editor document styles: the server-rendered document HTML uses the
+// editor's hashed CSS-module classes, which must be styled before the lazy
+// editor chunk loads (see @shm/editor/ssr-render).
+import '@shm/editor/editor-styles'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
 import slashMenuStyles from './slash-menu.css?url'

@@ -13,7 +13,7 @@ import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
 import {MediaContainer} from './media-container'
-import {consumeUploaded, DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {consumeUploaded, DisplayComponentProps, FALLBACK_EDITOR_WIDTH, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, youtubeParser} from './utils'
 
@@ -340,7 +340,7 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
   const minWidth = 256
   let width: number =
     // @ts-ignore
-    parseFloat(block.props.width) || editor.domElement.firstElementChild!.clientWidth
+    parseFloat(block.props.width) || editor.domElement?.firstElementChild?.clientWidth || FALLBACK_EDITOR_WIDTH
   const [currentWidth, setCurrentWidth] = useState(width)
   const [showHandle, setShowHandle] = useState(false)
   const resizeParamsRef = useRef<{

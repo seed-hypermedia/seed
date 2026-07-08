@@ -155,5 +155,8 @@ export function createReactBlockSpec<
   return {
     node,
     propSchema: blockConfig.propSchema,
+    // Exposed so the SSR pipeline can render the same component the node
+    // view mounts (see ssr-render.tsx).
+    render: blockConfig.render,
   }
 }
