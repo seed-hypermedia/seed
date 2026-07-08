@@ -5,7 +5,7 @@ import {Separator} from '../separator'
 import {SettingsRow, SettingsSection} from '../settings-list'
 import {ChangeEmailDialog} from './change-email-dialog'
 import {NotificationServerDialog} from './notification-server-dialog'
-import {SetMasterPasswordDialog} from './set-master-password-dialog'
+import {SetPasswordDialog} from './set-password-dialog'
 
 export type VaultSecurityPasskey = {
   description: string
@@ -158,7 +158,7 @@ export function VaultSecuritySettings({
       ) : null}
 
       {password ? (
-        <SetMasterPasswordDialog
+        <SetPasswordDialog
           open={passwordOpen}
           onOpenChange={setPasswordOpen}
           mode={password.isSet ? 'change' : 'set'}

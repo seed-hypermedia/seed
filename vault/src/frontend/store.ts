@@ -323,9 +323,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
   }
 
   async function derivePasswordMaterial(password: string, salt: string) {
-    const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
-    const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
-    const authKey = await localCrypto.deriveAuthKey(masterKey)
+    const rootKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
+    const encryptionKey = await localCrypto.deriveEncryptionKey(rootKey)
+    const authKey = await localCrypto.deriveAuthKey(rootKey)
     return {encryptionKey, authKey}
   }
 
@@ -714,9 +714,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
      * Dialog-driven password set/change (no navigation). Derives the
      * credential from the unlocked DEK and adds or changes it depending on
      * whether one already exists. Throws on failure so the shared
-     * SetMasterPasswordDialog can surface the error.
+     * SetPasswordDialog can surface the error.
      */
-    async setMasterPasswordDialog(password: string): Promise<void> {
+    async setPasswordFromDialog(password: string): Promise<void> {
       if (!state.decryptedDEK) {
         throw new Error('Vault must be unlocked first')
       }

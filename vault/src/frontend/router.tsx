@@ -1,8 +1,9 @@
-import {useEffect, useRef} from 'react'
+import {useEffect, useRef, type FormEvent} from 'react'
 import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
 import {Header} from './components/Header'
+import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
@@ -57,44 +58,33 @@ function RedirectIfUnlocked() {
  * If not authenticated, redirects to home.
  */
 function LockedView() {
-  const {session, loading, error, passkeySupported} = useAppState()
+  const {session, password, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
-  const navigate = navigation.useHashNavigate()
   const location = useLocation()
 
   const showPasskey = passkeySupported && !!session?.credentials?.passkey
   const showPassword = !!session?.credentials?.password
-  const passwordOnly = showPassword && !showPasskey
 
-  // Both unlock paths may detour through /login; remember where the user was
-  // (e.g. /settings opened from the desktop app) so they land back here.
+  // Quick unlock may detour through /login (e.g. when no passkeys are
+  // registered); remember where the user was (e.g. /settings opened from the
+  // desktop app) so they land back here.
   function rememberReturnPath() {
     if (location.pathname !== '/') {
       actions.setReturnToPath(location.pathname)
     }
   }
 
-  // When the password is the only way to unlock, skip this screen's
-  // extra button and go straight to the password form on /login.
-  useEffect(() => {
-    if (!passwordOnly) return
-    rememberReturnPath()
-    navigate('/login', {replace: true})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [passwordOnly])
-
-  if (passwordOnly) {
-    return null
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    actions.handleLogin()
   }
 
   return (
     <Card className="mx-auto max-w-lg">
       <CardHeader>
-        <CardTitle className="text-left text-xl">
-          {showPasskey ? 'Add your passkey to continue' : 'Unlock your vault'}
-        </CardTitle>
+        <CardTitle className="text-left text-xl">Unlock your vault</CardTitle>
         <CardDescription className="text-left">
-          {showPasskey ? 'Sign in using your device.' : 'Sign in with your password to continue.'}
+          {session?.email ? `Signed in as ${session.email}. ` : ''}Verify it&apos;s you to continue.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -116,17 +106,36 @@ function LockedView() {
         {showPassword && (
           <>
             {showPasskey && <Divider>or</Divider>}
-            <Button
-              variant={showPasskey ? 'secondary' : 'default'}
-              onClick={() => {
-                rememberReturnPath()
-                navigate('/login')
-              }}
-              disabled={loading}
-              className="w-full"
-            >
-              Use Password
-            </Button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Hidden username field for password manager autofill. */}
+              <input
+                type="text"
+                name="username"
+                value={session?.email ?? ''}
+                autoComplete="username"
+                className="pointer-events-none absolute m-0 h-0 w-0 opacity-0"
+                readOnly
+                tabIndex={-1}
+              />
+
+              <PasswordInput
+                id="password"
+                label="Password"
+                value={password}
+                onChange={actions.setPassword}
+                autoComplete="current-password"
+                autoFocus={!showPasskey}
+              />
+
+              <Button
+                type="submit"
+                variant={showPasskey ? 'secondary' : 'default'}
+                loading={loading}
+                className="w-full"
+              >
+                Unlock
+              </Button>
+            </form>
           </>
         )}
 

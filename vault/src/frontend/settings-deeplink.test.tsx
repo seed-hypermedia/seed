@@ -50,18 +50,17 @@ describe('desktop deep link to /settings', () => {
       )
     })
 
-    // Password is the only unlock option, so the locked screen is skipped
-    // entirely: the app forwards straight to the password form on /login.
-    await rtl.waitFor(() => {
-      expect(window.location.pathname).toBe('/vault/login')
-    })
+    // Password is the only unlock option: the lock screen renders the
+    // password form inline, with no detour to /login.
     await rtl.screen.findByLabelText('Password')
+    expect(window.location.pathname).toBe('/vault/settings')
+    rtl.screen.getByText("Signed in as user@example.com. Verify it's you to continue.")
     expect(rtl.screen.queryByText('or')).toBeNull()
     expect(rtl.screen.queryByText('Use passkey')).toBeNull()
     expect(rtl.screen.queryByText('🔑 Sign in with Passkey')).toBeNull()
 
     // Simulate a successful password unlock (the crypto path is covered by the
-    // store tests); the router must then return to /settings.
+    // store tests); the settings route must stay put.
     await rtl.act(async () => {
       store.state.decryptedDEK = new Uint8Array(32)
       const lockedVaultState = vault.createEmpty()
@@ -87,8 +86,8 @@ describe('desktop deep link to /settings', () => {
     // unwrap DEK → decrypt vault) runs end to end.
     const password = 'correct horse battery staple'
     const salt = base64.encode(new Uint8Array(16).fill(7))
-    const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
-    const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
+    const rootKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
+    const encryptionKey = await localCrypto.deriveEncryptionKey(rootKey)
     const dek = new Uint8Array(32).fill(5)
     const wrappedDEK = base64.encode(await localCrypto.encrypt(dek, encryptionKey))
     const vaultState = vault.createEmpty()

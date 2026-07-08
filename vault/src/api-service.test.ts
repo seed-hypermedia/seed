@@ -101,9 +101,9 @@ async function derivePasswordCredential(
   salt = base64.encode(crypto.generatePasswordSalt()),
   dek?: Uint8Array,
 ) {
-  const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt), encryption.DEFAULT_PARAMS)
-  const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
-  const authKey = await crypto.deriveAuthKey(masterKey)
+  const rootKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt), encryption.DEFAULT_PARAMS)
+  const encryptionKey = await crypto.deriveEncryptionKey(rootKey)
+  const authKey = await crypto.deriveAuthKey(rootKey)
   const plaintextDEK = dek ?? crypto.generateDEK()
   const encryptedDEK = await crypto.encrypt(plaintextDEK, encryptionKey)
 

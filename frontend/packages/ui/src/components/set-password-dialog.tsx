@@ -10,7 +10,7 @@ import {checkPasswordStrength, PasswordInput} from './password-input'
  * wrapping inside `onSubmit` (the desktop daemon does it with the in-daemon DEK;
  * the web vault does it in-browser), so the UX stays identical.
  */
-export function SetMasterPasswordDialog({
+export function SetPasswordDialog({
   open,
   onOpenChange,
   mode,
@@ -71,7 +71,7 @@ export function SetMasterPasswordDialog({
         </DialogHeader>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <PasswordInput
-            id="master-password"
+            id="set-password"
             label={mode === 'change' ? 'New Password' : 'Password'}
             value={password}
             onChange={setPassword}
@@ -80,7 +80,7 @@ export function SetMasterPasswordDialog({
             showStrength
           />
           <PasswordInput
-            id="master-password-confirm"
+            id="set-password-confirm"
             label="Confirm Password"
             value={confirmPassword}
             onChange={setConfirmPassword}

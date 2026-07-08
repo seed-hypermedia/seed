@@ -38,7 +38,7 @@ export function SettingsView() {
         }}
         password={{
           isSet: hasPassword,
-          onSet: (password) => actions.setMasterPasswordDialog(password),
+          onSet: (password) => actions.setPasswordFromDialog(password),
         }}
         notify={{
           url: notifyOverride,
