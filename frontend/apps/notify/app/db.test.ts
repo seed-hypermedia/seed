@@ -12,6 +12,7 @@ import {
   getNotificationConfigsForEmail,
   getNotificationEmailVerificationByToken,
   getNotificationEmailVerificationForAccount,
+  getEmailSubscribersForAccount,
   getNotificationReadState,
   getNotifierLastProcessedEventId,
   getSubscription,
@@ -165,6 +166,52 @@ describe('Database', () => {
 
     it('should return null for non-existent subscription', () => {
       expect(getSubscription('non-existent-id', 'non-existent@example.com')).toBeNull()
+    })
+
+    it('should list email subscribers for an account without leaking admin tokens', () => {
+      createSubscription({
+        id: 'site-account',
+        email: 'subscriber1@example.com',
+        notifyOwnedDocChange: true,
+        notifySiteDiscussions: false,
+      })
+      createSubscription({
+        id: 'site-account',
+        email: 'subscriber2@example.com',
+        notifySiteDiscussions: true,
+      })
+      createSubscription({
+        id: 'other-account',
+        email: 'other@example.com',
+      })
+
+      const db = new Database(join(tmpDir, 'web-db.sqlite'))
+      const adminToken = db.prepare('SELECT adminToken FROM emails WHERE email = ?').get('subscriber2@example.com') as {
+        adminToken: string
+      }
+      db.close()
+      setEmailUnsubscribed(adminToken.adminToken, true)
+
+      const subscribers = getEmailSubscribersForAccount('site-account')
+      expect(subscribers).toHaveLength(2)
+      expect(subscribers.map((s) => s.email).sort()).toEqual(['subscriber1@example.com', 'subscriber2@example.com'])
+
+      const first = subscribers.find((s) => s.email === 'subscriber1@example.com')
+      expect(first).toMatchObject({
+        notifyOwnedDocChange: true,
+        notifySiteDiscussions: false,
+        isUnsubscribed: false,
+      })
+      // createdAt is normalized to an ISO UTC timestamp for clients.
+      expect(new Date(first!.createdAt).getTime()).not.toBeNaN()
+      expect(first!.createdAt.endsWith('Z')).toBe(true)
+
+      expect(subscribers.find((s) => s.email === 'subscriber2@example.com')?.isUnsubscribed).toBe(true)
+      for (const subscriber of subscribers) {
+        expect(subscriber).not.toHaveProperty('adminToken')
+      }
+
+      expect(getEmailSubscribersForAccount('account-with-no-subscribers')).toEqual([])
     })
   })
 

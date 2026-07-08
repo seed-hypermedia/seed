@@ -37,7 +37,7 @@ function useWebNotifyServiceHost() {
  * Builds a NotificationSigner from the web's local CryptoKeyPair.
  * Returns undefined until the async public key export resolves.
  */
-function useWebNotificationSigner(): NotificationSigner | undefined {
+export function useWebNotificationSigner(): NotificationSigner | undefined {
   const keyPair = useLocalKeyPair()
   const [signer, setSigner] = useState<NotificationSigner | undefined>(undefined)
 

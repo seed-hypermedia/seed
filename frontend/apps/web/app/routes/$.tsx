@@ -6,7 +6,15 @@ import {
   setRequestInstrumentationContext,
 } from '@/instrumentation.server'
 import {createResourceMetadata, metadataToPageMeta} from '@/hypermedia-metadata'
-import {GRPCError, loadSiteResource, loadWebDraftPlaceholderResource, SiteDocumentPayload} from '@/loaders'
+import {
+  GRPCError,
+  loadSiteHeaderData,
+  loadSiteResource,
+  loadWebDraftPlaceholderResource,
+  SiteDocumentPayload,
+} from '@/loaders'
+import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {WebSiteProvider} from '@/providers'
@@ -61,7 +69,7 @@ type InspectIpfsPayload = {
   siteHost: string
 }
 
-type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | 'unregistered' | 'no-site'
+type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
 
 /**
  * Extract view term from path parts and return cleaned path + view term
@@ -199,6 +207,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'inspect-ipfs') {
     return [{title: `ipfs://${payload.ipfsPath}`}]
   }
+  if ('kind' in payload && payload.kind === 'site-settings-emails') {
+    return [{title: 'Email Subscribers'}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -262,6 +273,33 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
       printInstrumentationSummary(ctx)
     }
     return wrapJSON('unregistered', {status: 404})
+  }
+
+  // Site settings pages use a `:settings` view term: /:settings/email-subscribers
+  // on the site's own origin, or /hm/<uid>/:settings/email-subscribers on the gateway.
+  const rawSitePath = params['*'] ? params['*'].split('/').filter(Boolean) : []
+  let settingsSiteAccountUid: string | null = null
+  if (rawSitePath.length === 2 && rawSitePath[0] === ':settings' && rawSitePath[1] === 'email-subscribers') {
+    settingsSiteAccountUid = registeredAccountUid
+  } else if (
+    rawSitePath.length === 4 &&
+    rawSitePath[0] === 'hm' &&
+    rawSitePath[2] === ':settings' &&
+    rawSitePath[3] === 'email-subscribers'
+  ) {
+    settingsSiteAccountUid = rawSitePath[1] || null
+  }
+  if (settingsSiteAccountUid) {
+    const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest))
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'site-settings-emails',
+      ...headerData,
+      siteAccountUid: settingsSiteAccountUid,
+      notifyServiceHost: NOTIFY_SERVICE_HOST || null,
+    } satisfies SiteSettingsEmailsPayload)
   }
 
   const gatewayInspectIpfsPath = pathParts[0] === 'hm' ? extractInspectIpfsPathFromPath(pathParts, true) : null
@@ -380,6 +418,9 @@ export default function UnifiedDocumentPage() {
   }
   if (data === 'no-site') {
     return <NoSitePage />
+  }
+  if ('kind' in data && data.kind === 'site-settings-emails') {
+    return <SiteSettingsEmailsScreen payload={data} />
   }
   if ('kind' in data && data.kind === 'inspect-ipfs') {
     return (

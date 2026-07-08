@@ -22,6 +22,14 @@ export type Email = BaseEmail & {
   subscriptions: BaseSubscription[]
 }
 
+export type EmailSubscriber = {
+  email: string
+  createdAt: string
+  notifyOwnedDocChange: boolean
+  notifySiteDiscussions: boolean
+  isUnsubscribed: boolean
+}
+
 type DBSubscription = {
   id: string
   email: string
@@ -64,6 +72,7 @@ let stmtInsertEmail: Database.Statement
 let stmtInsertSubscription: Database.Statement
 let stmtGetSubscription: Database.Statement
 let stmtGetSubscriptionsForAccount: Database.Statement
+let stmtGetEmailSubscribersForAccount: Database.Statement
 let stmtSetNotifierStatus: Database.Statement
 let stmtGetNotifierStatus: Database.Statement
 let stmtUpdateSubscription: Database.Statement
@@ -333,6 +342,13 @@ export async function initDatabase(): Promise<void> {
     FROM email_subscriptions es
     WHERE es.id = ?
   `)
+  stmtGetEmailSubscribersForAccount = db.prepare(`
+    SELECT es.email, es.createdAt, es.notifyOwnedDocChange, es.notifySiteDiscussions, emails.isUnsubscribed
+    FROM email_subscriptions es
+    JOIN emails ON emails.email = es.email
+    WHERE es.id = ?
+    ORDER BY es.createdAt DESC
+  `)
   stmtSetNotifierStatus = db.prepare(`
     INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
   `)
@@ -539,6 +555,26 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
     ...r,
     notifyOwnedDocChange: Boolean(r.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(r.notifySiteDiscussions),
+  }))
+}
+
+/** Lists every email subscribed to an account's site, without exposing admin tokens. */
+export function getEmailSubscribersForAccount(id: string): EmailSubscriber[] {
+  const rows = stmtGetEmailSubscribersForAccount.all(id) as Array<{
+    email: string
+    createdAt: string
+    notifyOwnedDocChange: number
+    notifySiteDiscussions: number
+    isUnsubscribed: number
+  }>
+
+  return rows.map((r) => ({
+    email: r.email,
+    // SQLite CURRENT_TIMESTAMP is UTC without a timezone marker; normalize to ISO.
+    createdAt: r.createdAt.includes('T') ? r.createdAt : `${r.createdAt.replace(' ', 'T')}Z`,
+    notifyOwnedDocChange: Boolean(r.notifyOwnedDocChange),
+    notifySiteDiscussions: Boolean(r.notifySiteDiscussions),
+    isUnsubscribed: Boolean(r.isUnsubscribed),
   }))
 }
 

@@ -212,6 +212,11 @@ export function routeToHref(
     const viewParam = route.view ? `?view=${route.view}` : ''
     return `/hm/notifications${viewParam}`
   }
+  if (typeof route !== 'string' && route.key === 'site-settings-emails') {
+    const siteBase =
+      !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
+    return `${siteBase}/:settings/email-subscribers`
+  }
 
   if (typeof route !== 'string' && route.key === 'inspect') {
     if (options?.hmUrlHref) {

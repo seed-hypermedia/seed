@@ -84,7 +84,8 @@ function normalizeHost(host: string) {
   return host.replace(/\/$/, '')
 }
 
-function getNotifyServiceHostDefault(): string | null {
+/** Returns the app-wide notify service host: the stored override, or the built-in default. */
+export function getNotifyServiceHostDefault(): string | null {
   const stored = appStore.get(NOTIFY_SERVICE_HOST_KEY) as string | undefined
   const host = stored !== undefined ? stored : NOTIFY_SERVICE_HOST
   if (!host) return null
@@ -100,7 +101,8 @@ function resolveNotifyHost(notifyServiceHost: string | undefined): string {
   return host
 }
 
-function buildDesktopSigner(accountUid: string): NotificationSigner {
+/** Builds a NotificationSigner that signs with a local account key via the daemon. */
+export function buildDesktopSigner(accountUid: string): NotificationSigner {
   return {
     publicKey: Uint8Array.from(base58btc.decode(accountUid)),
     sign: async (data: Uint8Array) => {

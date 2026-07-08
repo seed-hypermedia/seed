@@ -61,6 +61,26 @@ export async function getNotificationState(
   }) as Promise<NotificationStateSnapshot>
 }
 
+/** One email subscribed to a site via the public subscribe form. */
+export type SiteEmailSubscriber = {
+  email: string
+  createdAt: string
+  notifyOwnedDocChange: boolean
+  notifySiteDiscussions: boolean
+  isUnsubscribed: boolean
+}
+
+/**
+ * Fetches the emails subscribed to the signer's site. The notify service
+ * only returns subscribers for the account resolved from the signature,
+ * so this is available exclusively to the site owner (or their agent).
+ */
+export async function getSiteEmailSubscribers(notifyServiceHost: string, signer: NotificationSigner) {
+  return signedNotifPost(notifyServiceHost, signer, {
+    action: 'get-email-subscribers',
+  }) as Promise<{subscribers: SiteEmailSubscriber[]}>
+}
+
 /** Applies one or more notification actions on the notify service and returns canonical state. */
 export async function applyNotificationActions(
   notifyServiceHost: string,

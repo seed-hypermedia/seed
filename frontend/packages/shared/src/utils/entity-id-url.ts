@@ -605,6 +605,12 @@ export function routeToUrl(
     const tab = route.tab || 'profile'
     return `${urlHost}${siteBase}/:${tab}`
   }
+  if (route.key === 'site-settings-emails') {
+    if (!route.accountUid) return null
+    const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+    const siteBase = opts?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
+    return `${urlHost}${siteBase}/:settings/email-subscribers`
+  }
   if (route.key === 'contact') {
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
     return `${urlHost}/hm/contact/${route.id.uid}`

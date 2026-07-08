@@ -1,4 +1,5 @@
 import {BadRequestError, cborApiAction} from '@/server-api'
+import {getEmailSubscribersForAccount} from '@/db'
 import {applyNotificationActionsForAccount, getNotificationStateSnapshot} from '@/notification-state'
 import {apiActionOnlyLoader} from '@/utils/cors'
 import {validateSignature} from '@/validate-signature'
@@ -68,6 +69,13 @@ const notificationAction = z.discriminatedUnion('action', [
     siteUid: z.string().optional(),
     actions: z.array(notificationMutationActionSchema),
   }),
+  z.object({
+    action: z.literal('get-email-subscribers'),
+    signer: z.instanceof(Uint8Array),
+    time: z.number(),
+    sig: z.instanceof(Uint8Array),
+    accountUid: z.string().optional(),
+  }),
 ])
 
 export type NotificationAction = z.infer<typeof notificationAction>
@@ -101,6 +109,13 @@ export const action = cborApiAction<NotificationAction, any>(async (signedPayloa
   }
 
   const accountId = await resolveAccountId(signedPayload.signer, signedPayload.accountUid)
+
+  if (restPayload.action === 'get-email-subscribers') {
+    // The resolved accountId scopes the query, so a signer can only list
+    // subscribers of the site they own (or are a delegated agent of).
+    return {subscribers: getEmailSubscribersForAccount(accountId)}
+  }
+
   const page = {
     beforeMs: restPayload.beforeMs,
     limit: restPayload.limit,
