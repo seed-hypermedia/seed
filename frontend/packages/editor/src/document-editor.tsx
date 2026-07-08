@@ -46,10 +46,10 @@ import {MentionMenuPositioner} from './mention-menu-positioner'
 import {PublishRequiredDialog} from './publish-required-dialog'
 import {hmBlockSchema, HMBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
-import {selectAllEditorContent} from './utils'
 import {useBlockBorderDebug} from './use-block-border-debug'
 import {useBlockHighlight} from './use-block-highlight'
 import {useReadOnlyClickToEdit} from './use-readonly-click-to-edit'
+import {selectAllEditorContent} from './utils'
 
 export type {DocumentContentProps}
 
@@ -538,17 +538,19 @@ export function DocumentEditor({
           pos = draftCursorPositionRef.current
         }
 
+        // Skip focus/scroll so we don't steal
+        // focus from UI that triggered the transition.
+        if (pos === null) return
+
         const applySelection = () => {
-          if (pos !== null) {
-            const safePos = Math.min(Math.max(pos, 0), view.state.doc.content.size)
-            try {
-              const selection = TextSelection.create(view.state.doc, safePos)
-              view.dispatch(view.state.tr.setSelection(selection))
-              const cursorDOM = view.domAtPos(safePos)
-              const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
-              node?.scrollIntoView({block: 'center', behavior: 'instant'})
-            } catch (err) {}
-          }
+          const safePos = Math.min(Math.max(pos!, 0), view.state.doc.content.size)
+          try {
+            const selection = TextSelection.create(view.state.doc, safePos)
+            view.dispatch(view.state.tr.setSelection(selection))
+            const cursorDOM = view.domAtPos(safePos)
+            const node = cursorDOM.node instanceof HTMLElement ? cursorDOM.node : cursorDOM.node.parentElement
+            node?.scrollIntoView({block: 'center', behavior: 'instant'})
+          } catch (err) {}
           view.focus()
         }
 

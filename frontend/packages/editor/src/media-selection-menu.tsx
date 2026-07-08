@@ -8,7 +8,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {cn} from '@shm/ui/utils'
 import {ArrowLeft, Link, MoreHorizontal, Trash2, Upload} from 'lucide-react'
-import {KeyboardEvent, useState} from 'react'
+import {KeyboardEvent, ReactNode, useState} from 'react'
 
 export type MediaSelectionMenuProps = {
   /** Open the file picker for replacing the media with local upload */
@@ -20,13 +20,15 @@ export type MediaSelectionMenuProps = {
   /** Current URL stored on the block */
   currentUrl: string
   /** Label for the URL menu item */
-  urlMenuLabel: string
+  urlMenuLabel: ReactNode
   /** Placeholder text for the URL input */
   urlInputPlaceholder?: string
   /** Label for the delete menu item */
   deleteLabel?: string
   /** Prefix used on data-testid attributes */
   testIdPrefix?: string
+  /** Optional block-specific content rendered between the URL item and the delete item. */
+  extraContent?: ReactNode
 }
 
 /** Floating selection toolbar for a selected media block */
@@ -45,6 +47,7 @@ export function MediaSelectionMenu({
   urlInputPlaceholder,
   deleteLabel,
   testIdPrefix,
+  extraContent,
 }: MediaSelectionMenuProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mode, setMode] = useState<'main' | 'url'>('main')
@@ -129,6 +132,12 @@ export function MediaSelectionMenu({
                 <Link className="size-4" />
                 <span>{urlMenuLabel}</span>
               </DropdownMenuItem>
+              {extraContent && (
+                <>
+                  <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+                  {extraContent}
+                </>
+              )}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem
                 data-testid={testId('delete')}

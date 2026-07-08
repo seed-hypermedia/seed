@@ -208,14 +208,18 @@ function VideoOptions({
   setMuted: (v: boolean) => void
 }) {
   return (
-    <div className="flex w-full cursor-default flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-sm select-none">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Autoplay</span>
+    <div
+      className="flex w-full cursor-default flex-col gap-2 px-2 py-2 text-sm select-none"
+      onSelect={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <div className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">Video settings</div>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="cursor-default text-sm select-none">Autoplay</span>
         <Switch checked={autoplay} onCheckedChange={setAutoplay} />
       </div>
-      <div className="bg-border h-4 w-px shrink-0" />
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Loop</span>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="cursor-default text-sm select-none">Loop</span>
         <SegmentedToggle
           options={[
             {label: 'Once', value: 'once'},
@@ -225,11 +229,10 @@ function VideoOptions({
           onChange={(v) => setLoop(v === 'loop')}
         />
       </div>
-      <div className="bg-border h-4 w-px shrink-0" />
       {autoplay ? (
         <Tooltip content="Autoplay videos must be muted" side="top">
-          <div className="flex items-center gap-2 opacity-50">
-            <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Sound</span>
+          <div className="flex items-center justify-between gap-2 px-1 opacity-50">
+            <span className="cursor-default text-sm select-none">Sound</span>
             <SegmentedToggle
               options={[
                 {label: 'Off', value: 'off'},
@@ -242,8 +245,8 @@ function VideoOptions({
           </div>
         </Tooltip>
       ) : (
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground cursor-default text-xs font-medium select-none">Sound</span>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <span className="cursor-default text-sm select-none">Sound</span>
           <SegmentedToggle
             options={[
               {label: 'Off', value: 'off'},
@@ -467,9 +470,26 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       width={currentWidth}
       validateFile={validateFile}
       onSubmitUrl={handleMenuUrl}
-      urlMenuLabel="Embed (YouTube or Vimeo)"
+      urlMenuLabel={
+        <>
+          Embed <span className="text-muted-foreground">(YouTube or Vimeo)</span>
+        </>
+      }
       urlInputPlaceholder="Paste a YouTube or Vimeo URL"
       deleteLabel="Delete video"
+      extraMenuContent={
+        // Always show the settings while a video is loaded.
+        block.props.displaySrc || isIpfsUrl(block.props.url || '') ? (
+          <VideoOptions
+            autoplay={autoplay}
+            setAutoplay={setAutoplay}
+            loop={loop}
+            setLoop={setLoop}
+            muted={muted}
+            setMuted={setMuted}
+          />
+        ) : undefined
+      }
     >
       <div className="relative aspect-[16/9] w-full">
         {showHandle && (
@@ -513,27 +533,11 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
           />
         ) : null}
       </div>
-      {editor.isEditable && (
-        <>
-          {showSuccess && block.props.name && (
-            <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
-              <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-              <span className="text-sm text-green-800 dark:text-green-300">
-                {block.props.name} uploaded successfully
-              </span>
-            </div>
-          )}
-          {(block.props.displaySrc || isIpfsUrl(block.props.url || '')) && (
-            <VideoOptions
-              autoplay={autoplay}
-              setAutoplay={setAutoplay}
-              loop={loop}
-              setLoop={setLoop}
-              muted={muted}
-              setMuted={setMuted}
-            />
-          )}
-        </>
+      {editor.isEditable && showSuccess && block.props.name && (
+        <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
+          <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
+          <span className="text-sm text-green-800 dark:text-green-300">{block.props.name} uploaded successfully</span>
+        </div>
       )}
     </MediaContainer>
   )

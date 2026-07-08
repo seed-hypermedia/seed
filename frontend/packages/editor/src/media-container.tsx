@@ -31,9 +31,10 @@ interface ContainerProps {
   onPress?: (e: Event) => void
   validateFile?: (file: File) => boolean
   onSubmitUrl?: (url: string) => void
-  urlMenuLabel?: string
+  urlMenuLabel?: React.ReactNode
   urlInputPlaceholder?: string
   deleteLabel?: string
+  extraMenuContent?: React.ReactNode
 }
 
 export const MediaContainer = ({
@@ -53,6 +54,7 @@ export const MediaContainer = ({
   urlMenuLabel,
   urlInputPlaceholder,
   deleteLabel,
+  extraMenuContent,
 }: ContainerProps) => {
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -324,6 +326,7 @@ export const MediaContainer = ({
                   urlInputPlaceholder={urlInputPlaceholder}
                   deleteLabel={deleteLabel}
                   testIdPrefix={mediaType}
+                  extraContent={extraMenuContent}
                 />
               </div>
             ) : (
