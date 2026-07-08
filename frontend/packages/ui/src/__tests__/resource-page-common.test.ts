@@ -9,6 +9,8 @@ import {
   shouldUseDraftForRenderedDocument,
   getDocumentContentAction,
   getLatestRouteForCurrentDocumentRoute,
+  getOlderVersionToastId,
+  shouldShowOlderVersionToast,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -17,6 +19,37 @@ describe('getDocumentResourceRouteKey', () => {
     const versioned = hmId('alice', {path: ['doc'], version: 'version-1', latest: false})
 
     expect(getDocumentResourceRouteKey(latest)).not.toBe(getDocumentResourceRouteKey(versioned))
+  })
+})
+
+describe('older version toast helpers', () => {
+  it('does not show the toast when the route has no explicit version', () => {
+    expect(shouldShowOlderVersionToast({docId: hmId('alice', {path: ['doc']}), isLatest: false})).toBe(false)
+  })
+
+  it('shows the toast for an explicit old-version route', () => {
+    expect(
+      shouldShowOlderVersionToast({
+        docId: hmId('alice', {path: ['doc'], version: 'old-version', latest: false}),
+        isLatest: false,
+      }),
+    ).toBe(true)
+  })
+
+  it('does not show the toast when an explicit route version resolves to latest', () => {
+    expect(
+      shouldShowOlderVersionToast({
+        docId: hmId('alice', {path: ['doc'], version: 'latest-version', latest: false}),
+        isLatest: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('uses the same toast ID for different old versions of the same document', () => {
+    const firstVersion = hmId('alice', {path: ['doc'], version: 'old-version-1', latest: false})
+    const secondVersion = hmId('alice', {path: ['doc'], version: 'old-version-2', latest: false})
+
+    expect(getOlderVersionToastId(firstVersion)).toBe(getOlderVersionToastId(secondVersion))
   })
 })
 

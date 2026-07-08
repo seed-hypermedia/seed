@@ -126,6 +126,22 @@ export function getDocumentResourceRouteKey(id: UnpackedHypermediaId): string {
   return `${id.id}@${id.version ?? ''}@${id.latest ? 'latest' : ''}`
 }
 
+/** Returns true when the route should warn that it is pinned to an older document version. */
+export function shouldShowOlderVersionToast({
+  docId,
+  isLatest,
+}: {
+  docId: UnpackedHypermediaId
+  isLatest: boolean
+}): boolean {
+  return !!docId.version && !isLatest
+}
+
+/** Returns the stable toast ID for a document's older-version warning. */
+export function getOlderVersionToastId(docId: UnpackedHypermediaId): string {
+  return `older-version-linked:${docId.id}`
+}
+
 /** Returns the current route pointed at the latest document version while preserving route UI state. */
 export function getLatestRouteForCurrentDocumentRoute(route: NavRoute): NavRoute {
   if (!('id' in route) || typeof route.id !== 'object' || route.id === null) return route
@@ -1239,13 +1255,14 @@ function DocumentBody({
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
+  const showOlderVersionToast = shouldShowOlderVersionToast({docId, isLatest})
+  const olderVersionToastId = getOlderVersionToastId(docId)
 
   useEffect(() => {
-    if (isLatest) return
+    if (!showOlderVersionToast) return
 
-    const toastId = `older-version-linked:${docId.id}:${docId.version ?? document.version ?? ''}`
     toast('Older version linked', {
-      id: toastId,
+      id: olderVersionToastId,
       description: 'The author has published updates since this document version was created',
       duration: 10_000,
       position: 'bottom-right',
@@ -1253,11 +1270,11 @@ function DocumentBody({
         label: 'Go to latest',
         onClick: () => {
           replaceRoute(getLatestRouteForCurrentDocumentRoute(route))
-          toast.dismiss(toastId)
+          toast.dismiss(olderVersionToastId)
         },
       },
     })
-  }, [docId.id, docId.version, document.version, isLatest, replaceRoute, route])
+  }, [olderVersionToastId, replaceRoute, route, showOlderVersionToast])
 
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
