@@ -1,0 +1,446 @@
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  .ut-wrap {
+    background: #f0ede4;
+    min-height: 100vh;
+    padding: 3rem 2rem 4rem;
+    font-family: 'DM Sans', sans-serif;
+    color: #1a1a18;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .ut-logo {
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .ut-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ut-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0 0 0.2rem;
+    color: #1a1a18;
+  }
+  .ut-title-em {
+    font-style: italic;
+    color: #1d9e75;
+  }
+  .ut-intro {
+    font-size: 14px;
+    color: #5f5e5a;
+    line-height: 1.7;
+    margin: 1rem 0 1.5rem;
+    max-width: 440px;
+  }
+  .ut-intro-time {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 14px;
+    color: #5f5e5a;
+  }
+  .ut-task-box {
+    background: #fff;
+    border: 0.5px solid #d3d1c7;
+    border-left: 3px solid #1d9e75;
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 2rem;
+  }
+  .ut-task-label {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1d9e75;
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+  .ut-task-text {
+    font-size: 14px;
+    line-height: 1.75;
+    color: #2c2c2a;
+    margin: 0 0 0.75rem;
+  }
+  .ut-task-second {
+    font-size: 14px;
+    line-height: 1.65;
+    color: #2c2c2a;
+    margin: 0 0 0.75rem;
+  }
+  .ut-task-link {
+    font-size: 13px;
+    color: #1d9e75;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .ut-divider {
+    border: none;
+    border-top: 0.5px solid #c5c3ba;
+    margin: 2rem 0;
+  }
+  .ut-section-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #888780;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+  .ut-section-label::after {
+    content: '';
+    flex: 1;
+    height: 0.5px;
+    background: #c5c3ba;
+  }
+  .ut-q-block {
+    margin-bottom: 2rem;
+  }
+  .ut-q-num {
+    font-size: 11px;
+    color: #888780;
+    margin-bottom: 0.35rem;
+    font-weight: 400;
+  }
+  .ut-q-label {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: #1a1a18;
+    margin: 0 0 0.6rem;
+    line-height: 1.4;
+  }
+  .ut-q-hint {
+    font-size: 12px;
+    color: #888780;
+    margin-bottom: 0.6rem;
+  }
+  textarea {
+    width: 100%;
+    min-height: 80px;
+    background: #faf9f5;
+    border: 0.5px solid #c5c3ba;
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: #1a1a18;
+    resize: vertical;
+    box-sizing: border-box;
+    line-height: 1.6;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea:focus {
+    border-color: #1d9e75;
+    background: #fff;
+  }
+  .ut-scale-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ut-scale-btn {
+    width: 40px;
+    height: 40px;
+    border: 0.5px solid #c5c3ba;
+    border-radius: 8px;
+    background: #faf9f5;
+    font-size: 14px;
+    color: #5f5e5a;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .ut-scale-btn:hover {
+    border-color: #1d9e75;
+    color: #1d9e75;
+  }
+  .ut-scale-btn.selected {
+    background: #1d9e75;
+    border-color: #1d9e75;
+    color: #fff;
+  }
+  .ut-scale-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #888780;
+  }
+  .ut-choice-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ut-choice-btn {
+    padding: 0 1.1rem;
+    height: 40px;
+    border: 0.5px solid #c5c3ba;
+    border-radius: 8px;
+    background: #faf9f5;
+    font-size: 14px;
+    color: #5f5e5a;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
+  }
+  .ut-choice-btn:hover {
+    border-color: #1d9e75;
+    color: #1d9e75;
+  }
+  .ut-choice-btn.selected {
+    background: #1d9e75;
+    border-color: #1d9e75;
+    color: #fff;
+  }
+  .ut-footer {
+    margin-top: 3rem;
+  }
+  .ut-almost {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a18;
+    margin-bottom: 0.75rem;
+    display: block;
+    line-height: 1.3;
+  }
+  input[type='text'] {
+    width: 100%;
+    background: #faf9f5;
+    border: 0.5px solid #c5c3ba;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: #1a1a18;
+    box-sizing: border-box;
+    margin-bottom: 0.6rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type='text']:focus {
+    border-color: #1d9e75;
+    background: #fff;
+  }
+  .ut-field-hint {
+    font-size: 11px;
+    color: #888780;
+    margin-bottom: 1.25rem;
+  }
+  .ut-submit {
+    width: 100%;
+    background: transparent;
+    border: 0.5px solid #1a1a18;
+    border-radius: 24px;
+    padding: 0.85rem 1.5rem;
+    font-family: 'Libre Baskerville', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: #1a1a18;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+  .ut-submit:hover {
+    background: #1a1a18;
+    color: #f0ede4;
+  }
+  .ut-success {
+    display: none;
+    text-align: center;
+    padding: 2rem 1rem;
+  }
+  .ut-success-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #e1f5ee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+  }
+  .ut-success-title {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 22px;
+    margin-bottom: 0.5rem;
+  }
+  .ut-success-sub {
+    font-size: 14px;
+    color: #5f5e5a;
+  }
+</style>
+
+<div class="ut-wrap" id="main-form">
+  <h2 style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0)">
+    Formulario de feedback sobre nodosdeconocimiento.es
+  </h2>
+
+  <div class="ut-logo">
+    <img src="/mnt/user-data/uploads/1779966458780_image.png" alt="Logo" />
+  </div>
+
+  <h1 class="ut-title">Ayúdanos a mejorar<br /><span class="ut-title-em">compartiendo tu feedback</span></h1>
+  <p class="ut-intro">
+    Estamos construyendo un lugar para crear conocimiento, leer, comentar y conectar — sin un servidor central que lo
+    controle.<span class="ut-intro-time">Este test dura unos 8–10 minutos, muchas gracias por tu tiempo.</span>
+  </p>
+
+  <div class="ut-task-box">
+    <span class="ut-task-label">Tu tarea</span>
+    <p class="ut-task-text">
+      Vuelve a la portada del sitio, echa un vistazo a lo que ves durante un par de minutos y lee lo que te llame la
+      atención. A continuación responde a las preguntas.
+    </p>
+    <p class="ut-task-second">
+      No te preocupes por hacerlo "bien" — tu confusión es el feedback más valioso que podemos recibir.
+    </p>
+    <a href="https://nodosdeconocimiento.es/" class="ut-task-link" target="_blank">↗ Abrir nodosdeconocimiento.es</a>
+  </div>
+
+  <hr class="ut-divider" />
+  <div class="ut-section-label">Tu feedback</div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">1 de 7</p>
+    <p class="ut-q-label">¿Cuál ha sido tu primera impresión? ¿Qué has pensado que era esto?</p>
+    <p class="ut-q-hint">Tu primer instinto, sin filtros</p>
+    <textarea id="q1" placeholder="Lo primero que pensé fue…"></textarea>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">2 de 7</p>
+    <p class="ut-q-label">¿Qué has pensado que podías hacer en este site?</p>
+    <textarea id="q2" placeholder="Pensé que podía…"></textarea>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">3 de 7</p>
+    <p class="ut-q-label">Si te interesara mucho un contenido y quisieras hacer un comentario, ¿cómo lo harías?</p>
+    <p class="ut-q-hint">Si te bloqueaste o lo dejaste a medias, eso es exactamente lo que necesitamos saber</p>
+    <textarea id="q3" placeholder="Intentaría… / No sé cómo…"></textarea>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">4 de 7</p>
+    <p class="ut-q-label">
+      Imagina que lees un párrafo que te parece muy interesante y quieres compartirlo con alguien. ¿Cómo lo harías?
+    </p>
+    <p class="ut-q-hint">No hay respuesta correcta, nos interesa tu intuición</p>
+    <textarea id="q4" placeholder="Creo que haría… / Buscaría…"></textarea>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">5 de 7</p>
+    <p class="ut-q-label">¿Qué tan claro te quedó para qué sirve esta herramienta?</p>
+    <p class="ut-q-hint">1 = nada claro, 5 = completamente obvio</p>
+    <div class="ut-scale-row" id="clarity-scale">
+      <button class="ut-scale-btn" onclick="selectScale(this)">1</button>
+      <button class="ut-scale-btn" onclick="selectScale(this)">2</button>
+      <button class="ut-scale-btn" onclick="selectScale(this)">3</button>
+      <button class="ut-scale-btn" onclick="selectScale(this)">4</button>
+      <button class="ut-scale-btn" onclick="selectScale(this)">5</button>
+    </div>
+    <div class="ut-scale-labels"><span>Nada claro</span><span>Completamente obvio</span></div>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">6 de 7</p>
+    <p class="ut-q-label">¿Encontraste el botón de comentar?</p>
+    <div class="ut-choice-row" id="comment-choice">
+      <button class="ut-choice-btn" onclick="selectChoice(this)">Sí</button>
+      <button class="ut-choice-btn" onclick="selectChoice(this)">No</button>
+      <button class="ut-choice-btn" onclick="selectChoice(this)">No lo busqué</button>
+    </div>
+  </div>
+
+  <div class="ut-q-block">
+    <p class="ut-q-num">7 de 7</p>
+    <p class="ut-q-label">
+      Una cosa que cambiarías para que todo tenga más sentido desde el primer momento y te den ganas de interactuar y
+      comentar.
+    </p>
+    <textarea id="q7" placeholder="Añadiría… / Quitaría… / Lo primero que mostraría es…"></textarea>
+  </div>
+
+  <hr class="ut-divider" />
+  <div class="ut-footer">
+    <span class="ut-almost">Ya estamos, muchísimas gracias por tu ayuda 🙌</span>
+    <input type="text" id="fname" placeholder="Tu nombre (opcional)" />
+    <input type="text" id="femail" placeholder="Tu email — si quieres que te contactemos (opcional)" />
+    <p class="ut-field-hint">Ambos campos son opcionales. Lo importante son tus respuestas.</p>
+    <button class="ut-submit" onclick="handleSubmit()">Enviar mi feedback →</button>
+  </div>
+</div>
+
+<div class="ut-success" id="success-msg">
+  <div class="ut-success-icon" aria-hidden="true">
+    <i class="ti ti-check" style="color: #1d9e75; font-size: 20px"></i>
+  </div>
+  <p class="ut-success-title">Gracias.</p>
+  <p class="ut-success-sub">Tu feedback ha sido recibido.<br />Nos ayuda muchísimo a construir algo mejor.</p>
+</div>
+
+<script>
+  let clarityVal = null
+  let commentVal = null
+  function selectScale(btn) {
+    clarityVal = btn.textContent.trim()
+    document
+      .getElementById('clarity-scale')
+      .querySelectorAll('button')
+      .forEach((b) => b.classList.remove('selected'))
+    btn.classList.add('selected')
+  }
+  function selectChoice(btn) {
+    commentVal = btn.textContent.trim()
+    document
+      .getElementById('comment-choice')
+      .querySelectorAll('button')
+      .forEach((b) => b.classList.remove('selected'))
+    btn.classList.add('selected')
+  }
+  function handleSubmit() {
+    const g = (id) => document.getElementById(id).value.trim()
+    const summary = [
+      g('fname') ? 'Nombre: ' + g('fname') : '',
+      g('femail') ? 'Email: ' + g('femail') : '',
+      '',
+      'P1 – Primera impresión: ' + (g('q1') || '(sin respuesta)'),
+      'P2 – Qué podían hacer: ' + (g('q2') || '(sin respuesta)'),
+      'P3 – Cómo comentarían: ' + (g('q3') || '(sin respuesta)'),
+      'P4 – Compartir un bloque: ' + (g('q4') || '(sin respuesta)'),
+      'P5 – Claridad: ' + (clarityVal || '(sin selección)') + '/5',
+      'P6 – Encontró botón comentar: ' + (commentVal || '(sin selección)'),
+      'P7 – Un cambio: ' + (g('q7') || '(sin respuesta)'),
+    ]
+      .filter(Boolean)
+      .join('\n')
+    document.getElementById('main-form').style.display = 'none'
+    document.getElementById('success-msg').style.display = 'block'
+    sendPrompt('Respuesta de test de usuario recibida:\n\n' + summary)
+  }
+</script>
