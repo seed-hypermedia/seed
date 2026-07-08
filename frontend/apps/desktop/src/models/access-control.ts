@@ -19,7 +19,8 @@ export function getRoleCapabilityType(role: Role): HMRole | null {
   return null
 }
 
-const CapabilityInheritance: Readonly<HMRole[]> = ['owner', 'writer', 'none']
+// AGENT is a full delegation of the account (it can act as the account), so it ranks highest.
+const CapabilityInheritance: Readonly<HMRole[]> = ['agent', 'owner', 'writer', 'none']
 
 function isGreaterOrEqualRole(referenceRole: HMRole, role: HMRole) {
   const referenceRoleIndex = CapabilityInheritance.indexOf(referenceRole)

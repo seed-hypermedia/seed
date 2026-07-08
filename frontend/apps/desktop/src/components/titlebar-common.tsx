@@ -811,6 +811,9 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   ) {
     return route.id
   }
+  if (route.key === 'site-settings-emails') {
+    return route.accountUid ? hmId(route.accountUid) : null
+  }
   return null
 }
 
@@ -828,7 +831,8 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'collaborators' ||
     route.key === 'comments' ||
     route.key === 'all-documents' ||
-    route.key === 'site-profile'
+    route.key === 'site-profile' ||
+    route.key === 'site-settings-emails'
   )
 }
 

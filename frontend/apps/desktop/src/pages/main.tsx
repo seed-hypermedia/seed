@@ -57,6 +57,7 @@ var AgentSession = lazy(() => import('./agents/session'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
+var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
 
 /**
  * Redirect persisted `key: 'draft'` routes (from before draft-route removal)
@@ -471,6 +472,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'notifications':
       return {
         PageComponent: Notifications,
+        Fallback: BaseLoading,
+      }
+    case 'site-settings-emails':
+      return {
+        PageComponent: SiteSettingsEmails,
         Fallback: BaseLoading,
       }
     default:

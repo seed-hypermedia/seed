@@ -140,6 +140,7 @@ export const queryKeys = {
   NOTIFICATION_INBOX: 'NOTIFICATION_INBOX', // accountUid
   NOTIFICATION_READ_STATE: 'NOTIFICATION_READ_STATE', // notifyServiceHost, accountUid
   NOTIFICATION_SYNC_STATUS: 'NOTIFICATION_SYNC_STATUS', // accountUid
+  SITE_EMAIL_SUBSCRIBERS: 'SITE_EMAIL_SUBSCRIBERS', // notifyServiceHost, accountUid
 
   // ai config
   AI_CONFIG: 'AI_CONFIG',

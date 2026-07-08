@@ -8,7 +8,9 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useAccount} from '@shm/shared/models/entity'
+import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
@@ -58,6 +60,9 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
   const navigate = useNavigate()
   const {onCopyReference, onPushReference, origin, originHomeId, experiments} = useUniversalAppContext()
   const includeInspect = options?.includeInspect !== false
+  // Email subscribers is offered on the home document for the site owner,
+  // matching the desktop document options menu.
+  const {isSiteOwner} = useIsSiteOwner(docId.path?.length ? undefined : docId.uid)
   const inspectRoute = useMemo(() => {
     if (!includeInspect) return null
     const wrappedRoute = createInspectNavRouteFromRoute(route)
@@ -109,6 +114,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
         icon: <LayoutList className="size-4" />,
         onClick: () => navigate({key: 'all-documents', id: allDocumentsId}),
       },
+      ...(isSiteOwner ? [createEmailSubscribersMenuItem({navigate})] : []),
       ...(inspectRoute
         ? [
             {
@@ -126,6 +132,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
       allDocumentsId,
       docId,
       inspectRoute,
+      isSiteOwner,
       navigate,
       onCopyReference,
       onPushReference,

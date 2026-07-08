@@ -57,6 +57,9 @@ export function selectValidatedOmnibarSiteUrl(params: {
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */
 export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOptions): Promise<NavRoute | null> {
+  const siteSettingsEmailsRoute = await siteSettingsEmailsUrlToRoute(url, opts)
+  if (siteSettingsEmailsRoute) return siteSettingsEmailsRoute
+
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute
 
@@ -102,6 +105,36 @@ export function agentSessionUrl(serverUrl: string, agentId: string, sessionId: s
 
 export function agentTriggerUrl(serverUrl: string, agentId: string, triggerId: string): string {
   return `${agentUrl(serverUrl, agentId)}/triggers/${encodeURIComponent(triggerId)}`
+}
+
+/**
+ * Resolves <siteUrl>/:settings/email-subscribers (or the gateway form
+ * <gatewayUrl>/hm/<uid>/:settings/email-subscribers) to the
+ * site-settings-emails route.
+ */
+async function siteSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions): Promise<NavRoute | null> {
+  try {
+    const url = new URL(input.trim())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    if (
+      segments.length === 4 &&
+      segments[0] === 'hm' &&
+      segments[2] === ':settings' &&
+      segments[3] === 'email-subscribers'
+    ) {
+      return {key: 'site-settings-emails', accountUid: segments[1]}
+    }
+    if (segments.length !== 2 || segments[0] !== ':settings' || segments[1] !== 'email-subscribers') return null
+    url.pathname = '/'
+    url.search = ''
+    url.hash = ''
+    const result = await resolveHypermediaUrl(url.toString(), opts)
+    if (!result?.hmId) return null
+    return {key: 'site-settings-emails', accountUid: result.hmId.uid}
+  } catch {
+    return null
+  }
 }
 
 function agentUrlToRoute(input: string): NavRoute | null {

@@ -19,6 +19,8 @@ import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {
@@ -239,6 +241,8 @@ export default function DesktopResourcePage() {
   const capability = useSelectedAccountCapability(capabilityId)
   const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
+  // Email subscribers is offered on the home document for the site owner.
+  const {isSiteOwner} = useIsSiteOwner(docId.path?.length ? undefined : docId.uid)
 
   // Fetch draft content early so the editor can be initialized with draft blocks
   // instead of published blocks (avoids the flash + replaceBlocks race condition)
@@ -909,6 +913,9 @@ export default function DesktopResourcePage() {
           publishSite.open({id: docId})
         },
       })
+    }
+    if (isSiteOwner) {
+      menuItems.push(createEmailSubscribersMenuItem({navigate, accountUid: docId.uid}))
     }
   }
 

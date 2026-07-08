@@ -4,7 +4,7 @@ import {getOrCreateServerSignerAccountUid} from '@/server-signing'
 import {getConfig} from '@/site-config.server'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
-import {SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'
+import {NOTIFY_SERVICE_HOST, SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'
 
 const corsHeaders = {'Access-Control-Allow-Origin': '*'}
 
@@ -27,6 +27,7 @@ export const loader: LoaderFunction = async ({request}) => {
         addrs: peerInfo.addrs,
         hostname: SITE_BASE_URL,
         isGateway: WEB_IS_GATEWAY,
+        notifyServiceHost: NOTIFY_SERVICE_HOST || null,
       },
       {headers: corsHeaders},
     )

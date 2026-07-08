@@ -264,6 +264,16 @@ export const notificationsRouteSchema = z.object({
 })
 export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 
+/**
+ * Route for the site owner's email subscribers page. On web this is the
+ * current site; on desktop accountUid selects which owned site to show.
+ */
+export const siteSettingsEmailsRouteSchema = z.object({
+  key: z.literal('site-settings-emails'),
+  accountUid: z.string().optional(),
+})
+export type SiteSettingsEmailsRoute = z.infer<typeof siteSettingsEmailsRouteSchema>
+
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
 })
@@ -336,6 +346,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   contactRouteSchema,
   settingsRouteSchema,
   notificationsRouteSchema,
+  siteSettingsEmailsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
