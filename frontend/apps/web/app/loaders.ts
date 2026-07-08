@@ -464,22 +464,28 @@ async function loadResourcePayload(
   const client = serverUniversalClient
 
   // Server-render document content as real editor markup so the swap to the
-  // live editor is invisible. Query-block results affect the rendered output
-  // independently of the document version, so they are fingerprinted into
-  // the cache key.
-  const queryBlocks = extractQueryBlocks(document.content)
-  const queryResults = queryBlocks.map((block) => {
-    const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
-    return input ? prefetchCtx.queryClient.getQueryData(queryQueryBlock(client, input).queryKey) : null
-  })
-  const queriesFingerprint = queryBlocks.length ? `|q:${hashString(stringifyWithBigInt(queryResults))}` : ''
+  // live editor is invisible. The render reads prefetched data beyond the
+  // document itself (query results, embedded docs, interaction summaries,
+  // account metadata, …), all of which change independently of the document
+  // version — so the ENTIRE prefetched dataset is fingerprinted into the
+  // cache key. Any data change misses the cache and re-renders (~4-15ms on
+  // the heaviest real pages); a hit can never serve stale markup.
+  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
+  const dataFingerprint = hashString(
+    stringifyWithBigInt(
+      dehydratedState.queries
+        .map((q) => [q.queryHash, q.state.data] as const)
+        // Prefetch completion order varies run-to-run; sort for a stable key.
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+    ),
+  )
 
   const {origin} = getOriginRequestData(parsedRequest)
   const originHomeId = options?.originHomeId
   const cacheKey = document.version
     ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
         document.version
-      }${queriesFingerprint}`
+      }|d:${dataFingerprint}`
     : undefined
   const ssrContentHTML = document.content
     ? renderDocumentToHTML(document.content, {
@@ -521,7 +527,7 @@ async function loadResourcePayload(
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
-    dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    dehydratedState,
     ssrContentHTML,
     ...getOriginRequestData(parsedRequest),
   }
