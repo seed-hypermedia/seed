@@ -4,6 +4,7 @@ import {act} from 'react-dom/test-utils'
 import {Schema} from 'prosemirror-model'
 import {EditorState, NodeSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 const editorGate = {canEdit: false, isEditing: false, beginEditIfNeeded: vi.fn()}
@@ -27,8 +28,8 @@ vi.mock('./blocknote/react/ReactBlockSpec', () => ({
 
 import {MediaContainer} from './media-container'
 
-function makeBlock() {
-  return {id: 'block-1', type: 'image', props: {}, content: [], children: []} as any
+function makeBlock(id = 'block-1') {
+  return {id, type: 'image', props: {}, content: [], children: []} as any
 }
 
 const schema = new Schema({
@@ -51,7 +52,11 @@ const schema = new Schema({
 })
 
 function createSelectableEditorState() {
-  const doc = schema.node('doc', null, [schema.node('blockNode', {id: 'block-1'}, [schema.node('image')])])
+  const doc = schema.node('doc', null, [
+    schema.node('blockNode', {id: 'block-1'}, [schema.node('image')]),
+    schema.node('blockNode', {id: 'block-2'}, [schema.node('image')]),
+    schema.node('blockNode', {id: 'block-3'}, [schema.node('image')]),
+  ])
   return EditorState.create({schema, doc})
 }
 
@@ -168,6 +173,36 @@ describe('MediaContainer image caption', () => {
     expect(editor.__view.dispatch).toHaveBeenCalledOnce()
     expect(editor.__view.focus).toHaveBeenCalledOnce()
     expect(editor.__view.state.selection instanceof NodeSelection).toBe(true)
+  })
+
+  it('selects a contiguous media block range when shift-clicking another media block', () => {
+    editorGate.canEdit = true
+    editorGate.isEditing = true
+    const editor = makeEditor(true, true)
+    act(() => {
+      root.render(
+        <>
+          <MediaContainer editor={editor} block={makeBlock('block-1')} mediaType="image" assign={() => {}}>
+            <div data-testid="media-child-1" />
+          </MediaContainer>
+          <MediaContainer editor={editor} block={makeBlock('block-3')} mediaType="image" assign={() => {}}>
+            <div data-testid="media-child-3" />
+          </MediaContainer>
+        </>,
+      )
+    })
+
+    const firstMediaChild = container.querySelector('[data-testid="media-child-1"]') as HTMLElement
+    const thirdMediaChild = container.querySelector('[data-testid="media-child-3"]') as HTMLElement
+
+    act(() => {
+      firstMediaChild.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+      thirdMediaChild.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true, shiftKey: true}))
+    })
+
+    expect(editor.__view.state.selection instanceof MultipleNodeSelection).toBe(true)
+    const selection = editor.__view.state.selection as MultipleNodeSelection
+    expect(selection.nodes.map((node) => node.attrs.id)).toEqual(['block-1', 'block-2', 'block-3'])
   })
 
   it('moves to the next block when Enter is pressed in the image caption', () => {
