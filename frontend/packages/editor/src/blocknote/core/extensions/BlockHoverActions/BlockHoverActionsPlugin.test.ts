@@ -409,6 +409,32 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
       expect(lastCone!.cardBottom).toEqual({x: 120, y: 40})
     })
 
+    it('updates the cone origin while the pointer moves inside the current block', () => {
+      const {view, updates, coneDebugs} = createView(false, createTwoBlockDoc())
+
+      const block1Content = view.dom.querySelector('[data-id="block-1"] [data-content-type="paragraph"]') as HTMLElement
+      const block1Node = view.dom.querySelector('[data-id="block-1"]') as HTMLElement
+
+      setRect(block1Content, {top: 0, right: 100, bottom: 20, left: 0})
+      setRect(block1Node, {top: 0, right: 120, bottom: 40, left: 0})
+
+      const card = createFakeHoverCard({top: 0, right: 160, bottom: 40, left: 120})
+
+      dispatchMouseMoveAt(block1Content, 50, 10)
+      expect(lastUpdate(updates)).toMatchObject({show: true, blockId: 'block-1'})
+      expect(coneDebugs.at(-1)?.origin).toEqual({x: 50, y: 10})
+
+      dispatchMouseMoveAt(block1Content, 90, 15)
+
+      expect(lastUpdate(updates)).toMatchObject({show: true, blockId: 'block-1'})
+      expect(coneDebugs.at(-1)?.origin).toEqual({x: 90, y: 15})
+
+      dispatchMouseMoveAt(block1Node, 110, 15)
+
+      expect(lastUpdate(updates)).toMatchObject({show: true, blockId: 'block-1'})
+      expect(coneDebugs.at(-1)?.origin).toEqual({x: 110, y: 15})
+    })
+
     it('clears cone debug state when hover is hidden', () => {
       const {view, updates, coneDebugs} = createView(false, createSingleBlockDoc())
 

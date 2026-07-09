@@ -36,26 +36,33 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
             return false
           }
 
-          // In edit mode, plain click must place the cursor so the hyperlink
-          // toolbar can open. Only navigate when the editor is read-only, or
-          // when the user explicitly holds a modifier.
-          const modifierPressed = event.shiftKey || event.metaKey || event.ctrlKey
-          if (view.editable && !modifierPressed) {
+          // Shift-click extends the current text selection. If the endpoint is
+          // a link, suppress anchor navigation without claiming the event so
+          // ProseMirror can keep handling the selection gesture.
+          if (event.shiftKey) {
             event.preventDefault()
             return false
           }
 
-          const newWindow = modifierPressed
-          if (newWindow && !options.handleModifiedClicks) {
+          // In edit mode, plain click must place the cursor so the hyperlink
+          // toolbar can open. Only navigate when the editor is read-only, or
+          // when the user explicitly holds Cmd/Ctrl.
+          const openInNewWindow = event.metaKey || event.ctrlKey
+          if (view.editable && !openInNewWindow) {
+            event.preventDefault()
+            return false
+          }
+
+          if (openInNewWindow && !options.handleModifiedClicks) {
             return false
           }
 
           event.preventDefault()
           event.stopPropagation()
           if (options.openUrl) {
-            options.openUrl(href, newWindow)
+            options.openUrl(href, openInNewWindow)
           } else if (typeof window !== 'undefined') {
-            if (newWindow) {
+            if (openInNewWindow) {
               window.open(href, '_blank', 'noopener,noreferrer')
             } else {
               window.location.href = href

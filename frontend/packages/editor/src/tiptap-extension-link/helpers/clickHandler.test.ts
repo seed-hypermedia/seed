@@ -96,6 +96,34 @@ describe('clickHandler', () => {
     expect(openUrl).toHaveBeenCalledWith('hm://abc', true)
   })
 
+  it('keeps shift-click range selection from opening read-only links', () => {
+    const openUrl = vi.fn()
+    const plugin = clickHandler({type: schema.marks.link, openUrl, handleModifiedClicks: true})
+    const anchor = document.createElement('a')
+    anchor.href = 'hm://abc'
+
+    const event = createClick(anchor, {shiftKey: true})
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
+
+    expect(handled).toBe(false)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openUrl).not.toHaveBeenCalled()
+  })
+
+  it('prevents native link navigation for shift-click range selection when platform handling is disabled', () => {
+    const openUrl = vi.fn()
+    const plugin = clickHandler({type: schema.marks.link, openUrl})
+    const anchor = document.createElement('a')
+    anchor.href = 'hm://abc'
+
+    const event = createClick(anchor, {shiftKey: true})
+    const handled = plugin.props.handleDOMEvents?.click?.(createView(false), event)
+
+    expect(handled).toBe(false)
+    expect(event.defaultPrevented).toBe(true)
+    expect(openUrl).not.toHaveBeenCalled()
+  })
+
   it('keeps plain editable clicks in the editor', () => {
     const openUrl = vi.fn()
     const plugin = clickHandler({type: schema.marks.link, openUrl})

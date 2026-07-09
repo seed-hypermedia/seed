@@ -337,12 +337,27 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
+    const targetElement = event.target instanceof Element ? event.target : null
+    const contentElement = this.findBlockContentElement(event.target as Node | null)
+    const blockElement = contentElement ? this.findOwningBlockElement(contentElement) : null
+    const targetBlockElement = targetElement?.matches('[data-node-type="blockNode"][data-id]') ? targetElement : null
+    const targetBlockId =
+      targetBlockElement instanceof HTMLElement && this.pmView.dom.contains(targetBlockElement)
+        ? targetBlockElement.getAttribute('data-id')
+        : blockElement?.getAttribute('data-id') ?? null
+
     // Prediction cone: if a hover card is open and the pointer is inside the
     // cone from the origin to the card's near edge, don't switch blocks.
     // This makes diagonal movement from a block to its hover action card
     // forgiving — the cursor can pass over neighboring blocks without
     // accidentally triggering their hover states.
     if (this.currentState.show && this.currentState.blockId && this.coneOrigin) {
+      if (targetBlockId === this.currentState.blockId) {
+        this.coneOrigin = {x: event.clientX, y: event.clientY}
+        this.emitConeDebug()
+        return
+      }
+
       const insideCone = this.isInsidePredictionCone(event.clientX, event.clientY)
       this.emitConeDebug()
 
@@ -367,7 +382,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    const contentElement = this.findBlockContentElement(event.target as Node | null)
     if (!contentElement) {
       if (this.keepHoverInCurrentRightGutter(event, true)) {
         return
@@ -376,8 +390,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       this.hide()
       return
     }
-
-    const blockElement = this.findOwningBlockElement(contentElement)
 
     // When about to show a NEW block (different from current), capture the
     // pointer position as the prediction cone origin.
