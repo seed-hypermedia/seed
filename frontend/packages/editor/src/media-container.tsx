@@ -12,6 +12,7 @@ import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {isInGridContainer} from './blocknote/core/extensions/Blocks/nodes/BlockChildren'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {markBlockUploaded, MediaType} from './media-render'
 import {MediaSelectionMenu} from './media-selection-menu'
@@ -35,6 +36,67 @@ interface ContainerProps {
   urlInputPlaceholder?: string
   deleteLabel?: string
   extraMenuContent?: React.ReactNode
+}
+
+type BlockRange = {
+  blockBeforePos: number
+  blockAfterPos: number
+  blockContentBeforePos: number
+}
+
+function findBlockRangeById(doc: PMNode, blockId: string): BlockRange | null {
+  let range: BlockRange | null = null
+
+  doc.descendants((node: PMNode, pos: number) => {
+    if (node.type.name !== 'blockNode' || node.attrs?.id !== blockId) return true
+
+    try {
+      const blockInfo = getBlockInfoWithManualOffset(node, pos)
+      range = {
+        blockBeforePos: blockInfo.block.beforePos,
+        blockAfterPos: blockInfo.block.afterPos,
+        blockContentBeforePos: blockInfo.blockContent.beforePos,
+      }
+    } catch {
+      range = {
+        blockBeforePos: pos,
+        blockAfterPos: pos + node.nodeSize,
+        blockContentBeforePos: pos,
+      }
+    }
+    return false
+  })
+
+  return range
+}
+
+function findBlockRangeContainingPos(doc: PMNode, targetPos: number): BlockRange | null {
+  let range: BlockRange | null = null
+
+  doc.descendants((node: PMNode, pos: number) => {
+    if (node.type.name !== 'blockNode') return true
+
+    const blockAfterPos = pos + node.nodeSize
+    if (targetPos < pos || targetPos >= blockAfterPos) return true
+
+    try {
+      const blockInfo = getBlockInfoWithManualOffset(node, pos)
+      range = {
+        blockBeforePos: blockInfo.block.beforePos,
+        blockAfterPos: blockInfo.block.afterPos,
+        blockContentBeforePos: blockInfo.blockContent.beforePos,
+      }
+    } catch {
+      range = {
+        blockBeforePos: pos,
+        blockAfterPos,
+        blockContentBeforePos: pos,
+      }
+    }
+    return false
+  })
+
+  return range
 }
 
 export const MediaContainer = ({
@@ -186,16 +248,8 @@ export const MediaContainer = ({
     const view = editor._tiptapEditor?.view
     if (!view) return
 
-    let blockContentPos: number | null = null
-    view.state.doc.descendants((node: PMNode, pos: number) => {
-      if (node.type.name !== 'blockNode' || node.attrs?.id !== block.id) return true
-      try {
-        blockContentPos = getBlockInfoWithManualOffset(node, pos).blockContent.beforePos
-      } catch {
-        blockContentPos = pos
-      }
-      return false
-    })
+    const targetRange = findBlockRangeById(view.state.doc, block.id)
+    const blockContentPos = targetRange?.blockContentBeforePos ?? null
 
     if (blockContentPos == null) return
 
@@ -204,6 +258,30 @@ export const MediaContainer = ({
     e.preventDefault()
     e.stopPropagation()
     beginEditIfNeeded()
+
+    if (e.shiftKey) {
+      const currentSelection = view.state.selection
+      const anchorRange =
+        currentSelection instanceof NodeSelection || currentSelection instanceof MultipleNodeSelection
+          ? findBlockRangeContainingPos(view.state.doc, currentSelection.anchor)
+          : null
+
+      if (anchorRange && targetRange) {
+        const from = Math.min(anchorRange.blockBeforePos, targetRange.blockBeforePos)
+        const to = Math.max(anchorRange.blockAfterPos, targetRange.blockAfterPos)
+        const $from = view.state.doc.resolve(from)
+        const $to = view.state.doc.resolve(to)
+
+        if ($from.depth === $to.depth && $from.node($from.depth).eq($to.node($to.depth))) {
+          view.dispatch(
+            view.state.tr.setSelection(MultipleNodeSelection.create(view.state.doc, from, to)).scrollIntoView(),
+          )
+          view.focus()
+          return
+        }
+      }
+    }
+
     view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, blockContentPos)).scrollIntoView())
     view.focus()
   }
@@ -264,6 +342,10 @@ export const MediaContainer = ({
       onClick={
         onPress
           ? (e) => {
+              if (canAuthor && e.shiftKey) {
+                selectBlock(e)
+                return
+              }
               e.preventDefault()
               e.stopPropagation()
               // @ts-expect-error
