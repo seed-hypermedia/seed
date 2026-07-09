@@ -29,8 +29,9 @@ import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useCallback, useMemo} from 'react'
+import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {Spinner} from '@shm/ui/spinner'
 import {
   commentIdToHmId,
   createDocumentNavRoute,
@@ -184,6 +185,9 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
   if (!siteDocument?.document) {
+    if (siteDocument?.discoveryPending) {
+      return [{title: 'Looking for this document…'}]
+    }
     return siteDocument
       ? [{title: siteDocument.daemonError?.code === Code.PermissionDenied ? 'Private Document' : 'Not Found'}]
       : []
@@ -435,6 +439,12 @@ export default function UnifiedDocumentPage() {
   }
   const siteData = data as ExtendedSitePayload
 
+  // The resource isn't available locally yet; discovery is running in the
+  // background. Render a fast shim page that polls until it arrives.
+  if (siteData.discoveryPending && siteData.id) {
+    return <DiscoveryPendingPage id={siteData.id} />
+  }
+
   // The not found error is handled by the DocumentPage component,
   // and here we handle the rest of the errors.
   // For profile views, skip error handling since we don't need the document to exist
@@ -512,6 +522,102 @@ function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
   }, [navState])
 
   return <InspectIpfsPage ipfsPath={ipfsPath} exitRoute={exitRoute} getRouteForUrl={getRouteForUrl} />
+}
+
+const DISCOVERY_POLL_INTERVAL_MS = 2_000
+// Give up polling after ~2 minutes even if the daemon never reports the task
+// as completed (e.g. the status endpoint keeps erroring).
+const DISCOVERY_MAX_POLLS = 60
+
+/**
+ * Shim page returned when a resource isn't available locally and discovery is
+ * running in the background. The server responds immediately (never holding
+ * the HTTP request open on discovery) and this page polls the status endpoint
+ * with short-lived requests until the resource arrives, then reloads.
+ */
+function DiscoveryPendingPage({id}: {id: UnpackedHypermediaId}) {
+  const tx = useTx()
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let polls = 0
+
+    async function poll() {
+      polls += 1
+      let status: HMDiscoveryStatusOutput | null = null
+      try {
+        const params = new URLSearchParams({uid: id.uid, path: (id.path || []).join('/')})
+        if (id.version) params.set('v', id.version)
+        if (id.latest || !id.version) params.set('l', '')
+        const res = await fetch(`/api/DiscoveryStatus?${params.toString()}`)
+        if (res.ok) {
+          status = unwrap<HMDiscoveryStatusOutput>(await res.json())
+        }
+      } catch (e) {
+        // Network hiccup — keep polling until the cap.
+      }
+      if (cancelled) return
+      if (status?.state === 'found') {
+        window.location.reload()
+        return
+      }
+      if (status?.state === 'failed' || polls >= DISCOVERY_MAX_POLLS) {
+        setFailed(true)
+        return
+      }
+      timeout = setTimeout(poll, DISCOVERY_POLL_INTERVAL_MS)
+    }
+
+    poll()
+    return () => {
+      cancelled = true
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [id.uid, id.path?.join('/'), id.version, id.latest])
+
+  return (
+    <div className="flex h-screen w-screen flex-col">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+        {failed ? (
+          <>
+            <SizableText size="3xl">☹️</SizableText>
+            <SizableText size="2xl" weight="bold">
+              {tx('Document Not Found')}
+            </SizableText>
+            <SizableText className="max-w-md text-center">
+              {tx(
+                'discovery_failed_description',
+                'We searched the network but could not find this document. It may be unavailable right now.',
+              )}
+            </SizableText>
+            <button
+              className="text-primary underline"
+              onClick={() => {
+                window.location.reload()
+              }}
+            >
+              {tx('Try Again')}
+            </button>
+          </>
+        ) : (
+          <>
+            <Spinner size="large" />
+            <SizableText size="2xl" weight="bold">
+              {tx('Looking for this document…')}
+            </SizableText>
+            <SizableText className="max-w-md text-center">
+              {tx(
+                'discovery_pending_description',
+                'This document is not on this server yet. We are searching the network for it — the page will load automatically once it is found.',
+              )}
+            </SizableText>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function DaemonErrorPage(props: GRPCError) {

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smoking Gun: Client-Triggered Gateway Discovery — Verification Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --panel2: #1d212d; --text: #d8dce6; --dim: #8b93a7;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #60a5fa; --purple: #c084fc;
+    --border: #2a2f3e; --code-bg: #12141c;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7fa; --panel: #ffffff; --panel2: #f0f2f7; --text: #1c2333; --dim: #5b6474;
+      --green: #15803d; --red: #b91c1c; --amber: #b45309; --blue: #1d4ed8; --purple: #7e22ce;
+      --border: #dde1ea; --code-bg: #f0f2f7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 0 0 6px; }
+  h2 { font-size: 22px; margin: 56px 0 12px; padding-top: 24px; border-top: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { color: var(--text); }
+  .sub { color: var(--dim); margin: 0 0 24px; font-size: 15px; }
+  .verdict { display: flex; gap: 14px; align-items: center; background: var(--panel); border: 1px solid var(--green); border-radius: 12px; padding: 18px 22px; margin: 28px 0; }
+  .verdict .badge { font-size: 26px; }
+  .verdict b { color: var(--green); }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13.5px; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; border: none; padding: 0; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--amber); }
+  .accent { color: var(--blue); } .purple { color: var(--purple); } .dim { color: var(--dim); }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel2); }
+  .flow { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; }
+  .flow .t { font-weight: 600; margin-bottom: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 14px 0; }
+  .card h3 { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 22px; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc li { margin: 3px 0; }
+  .fileref { color: var(--purple); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .transcript .c { color: var(--dim); }
+  a { color: var(--blue); }
+  .pill { display: inline-block; border-radius: 99px; padding: 1px 10px; font-size: 12.5px; font-weight: 600; border: 1px solid; }
+  .pill.fixed { color: var(--green); border-color: var(--green); }
+  .pill.open { color: var(--amber); border-color: var(--amber); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Smoking Gun: Client-Triggered Gateway Discovery</h1>
+<p class="sub">End-to-end verification that vulnerability scanners can no longer make the gateway do P2P discovery work — and that real browsers still can. Seed Hypermedia · 2026-07-09</p>
+
+<div class="verdict">
+  <span class="badge">✅</span>
+  <div>
+    <b>ALL TESTS PASSED</b> — full-stack e2e (2 Go daemons on an isolated P2P testnet, real web gateway, real Chromium) in <b>53 seconds</b>, clean exit, zero leaked processes.<br>
+    <span class="dim">Non-JS clients get a 404 shim and provably trigger no discovery; a real browser triggers discovery via <code>/api/DiscoveryStatus</code> and lands on the document.</span>
+  </div>
+</div>
+
+<div class="toc">
+<b>Contents</b>
+<ol>
+  <li><a href="#incident">Why this exists: the 2026-07-09 outage</a></li>
+  <li><a href="#before">The amplification mechanism (before)</a></li>
+  <li><a href="#fix">The fix, in detail</a></li>
+  <li><a href="#test">The smoking gun: the e2e test</a></li>
+  <li><a href="#evidence">Why the evidence is conclusive</a></li>
+  <li><a href="#threat">Threat-model coverage</a></li>
+  <li><a href="#found">Issues found &amp; fixed along the way</a></li>
+  <li><a href="#limits">Limitations &amp; follow-ups</a></li>
+  <li><a href="#files">Complete change set</a></li>
+</ol>
+</div>
+
+<h2 id="incident">1. Why this exists: the 2026-07-09 outage</h2>
+<p>On 2026-07-09, hyper.media was unreachable from ~14:05 to ~14:20 UTC (recovered by manual container restarts). Investigation on the production server found the acute trigger was <code>web_gateway</code> wedging after a burst of ~1,650 failed daemon RPCs, but the <em>standing condition</em> that made it fragile was this:</p>
+<ul>
+  <li>Internet vulnerability scanners probe hosted sites with junk paths — <code>phpinfo.php</code>, <code>wp-admin/*</code>, <code>.env</code>, etc. Measured rate: <b>~1,957 hits/hour</b>, constant background noise.</li>
+  <li>Every such request missed the local database, and the web app reacted by launching a <b>recursive P2P network discovery</b> in the daemon — each attempt burning <b>5–60 seconds</b> of daemon time dialing peers before failing.</li>
+  <li>Result: <code>daemon_gateway</code> chronically pegged at <b>~320–360% CPU on a 4-core box</b>, every legitimate RPC slow, and the web tier one burst away from wedging.</li>
+</ul>
+<p>The amplification factor is the whole story: <b>one free HTTP GET from a bot cost the server tens of seconds of P2P work</b>. Full incident analysis: <a href="https://hyper.media/hm/z6MkoKwFXr4NGUdbMLEPBvnJeKEx9qDMADgYhAWStTFXxfc3/incidents/outage-2026-07-09">Incident: hyper.media outage on 2026-07-09</a>.</p>
+
+<h2 id="before">2. The amplification mechanism (before)</h2>
+<div class="flow">
+<div class="t">Before — any HTTP client could start discovery</div>
+<pre><code>scanner ──GET /wp-admin/phpinfo.php──▶ web_gateway (SSR loader)
+                                          │  resource not found locally
+                                          ▼
+                                   pokeDiscovery()  ◀── server-side, unconditional
+                                          │
+                                          ▼
+                        daemon: DiscoverEntity(recursive: descendants)
+                        ├─ dial peers, walk DHT ……… 5–60 s of CPU/network
+                        └─ outcome=error (doc never existed)
+
+  cost to scanner:  1 TCP request, ~0 s
+  cost to server:   5–60 s of daemon work  ×  ~33 junk requests/minute, forever</code></pre>
+</div>
+<p>The key defect: <b>the decision to spend expensive P2P resources was made by the server on behalf of any client</b>, with no proof the client was a human with a browser. Bots never see a page render; they fire one GET and move on — but the daemon paid full price every time.</p>
+
+<h2 id="fix">3. The fix, in detail</h2>
+<p>The design insight (Eric's): <b>make executing our JavaScript the admission ticket for discovery</b>. Vulnerability scanners overwhelmingly do not run JS. Real browsers always do. So: SSR must never start discovery — it should render a fast, cheap shim page whose client-side JS is what actually kicks off the search.</p>
+
+<div class="flow">
+<div class="t">After — only JS execution can start discovery</div>
+<pre><code>scanner ──GET /junk.php──▶ web_gateway (SSR loader)
+                              │ resource not found locally
+                              ▼
+                    throw HMDiscoveryPendingError            ◀── NO daemon call
+                              ▼
+                    404 + shim HTML ("Looking for this document…")
+                    scanner sees 404, moves on.  Server cost: one cheap render.
+
+browser ──GET /hm/&lt;uid&gt;/&lt;path&gt;──▶ same 404 + shim HTML
+                              │ shim JS runs in the browser
+                              ▼
+              poll GET /api/DiscoveryStatus?uid=…&amp;path=…     ◀── THE gate
+                              ▼
+              daemon: DiscoverEntity (starts task if none)   ◀── first poll starts it
+                              │ pending → pending → found
+                              ▼
+              window.location.reload() → real document (200)</code></pre>
+</div>
+
+<h3>3.1 The SSR change — <span class="fileref">frontend/apps/web/app/loaders.ts</span></h3>
+<p>The gateway branch of <code>loadResourceWithDiscovery</code> previously called <code>pokeDiscovery()</code> during SSR — non-blocking, but it <em>started the daemon's discovery task</em> for every not-found request. Now it throws immediately:</p>
+<pre><code>if (WEB_IS_GATEWAY) {
+  <span class="dim">// Never start discovery from SSR. Only clients that execute JS may
+  // trigger it: the shim page's first /api/DiscoveryStatus poll is
+  // what starts the daemon's discovery task. Bots and vulnerability
+  // scanners probe large numbers of nonexistent paths without running
+  // JS, and a server-side poke here would queue an expensive recursive
+  // P2P discovery task for every probe.</span>
+  throw new HMDiscoveryPendingError()
+}</code></pre>
+<p>The shim response also carries <b>HTTP 404</b> instead of a soft 200 — scanners and crawlers record "not found" (many scanners probe <em>harder</em> when they see 200s), while browsers happily render 404 HTML and run its JS. When discovery succeeds, the reload returns a genuine 200.</p>
+
+<h3>3.2 The trigger endpoint — <span class="fileref">frontend/packages/shared/src/api-discovery-status.ts</span></h3>
+<p>The polling endpoint lives in the main typed API router (<code>APIQueries</code> in <code>@shm/shared</code>) as a first-class <code>DiscoveryStatus</code> query — zod-validated input/output, listed in <code>/api/schema</code>, callable from the SDK, and shared by web and desktop rather than living in a one-off Remix route. The crucial property is inherited from the daemon's <code>DiscoverEntity</code> semantics:</p>
+<pre><code><span class="dim">/** …The daemon's discoverEntity call returns immediately with the current
+    task state (STARTING A TASK IF NONE EXISTS)… This is the only way
+    discovery gets started for gateway page loads. */</span>
+const resp = await grpcClient.entities.discoverEntity({
+  id: discoveryUrl({uid, path, recursion: 'descendants'}),
+  version: version || undefined,
+})</code></pre>
+<p>So the flow needs no extra bookkeeping: the shim's <em>first poll</em> is simultaneously the trigger and the status check. Repeated polls are idempotent check-ins, and the endpoint never holds a request open.</p>
+
+<h3>3.3 The shim — <span class="fileref">frontend/apps/web/app/routes/$.tsx</span> (<code>DiscoveryPendingPage</code>)</h3>
+<ul>
+  <li>Rendered server-side in one cheap pass (no daemon RPCs) with a spinner and "Looking for this document…".</li>
+  <li>Client JS polls <code>/api/DiscoveryStatus</code> every 2 s, up to 60 polls (~2 min), then shows "Document Not Found" with a Try&nbsp;Again button.</li>
+  <li>On <code>state: 'found'</code> → <code>window.location.reload()</code> → the document is now local, so SSR serves it normally.</li>
+</ul>
+
+<h2 id="test">4. The smoking gun: the e2e test</h2>
+<p><span class="fileref">frontend/apps/cli/src/test/discovery-gateway.e2e.ts</span> — run with <code>bun src/test/discovery-gateway.e2e.ts</code> from <code>frontend/apps/cli</code>. It builds the <em>entire</em> production topology locally, on an isolated P2P testnet:</p>
+
+<div class="flow">
+<div class="t">Test topology</div>
+<pre><code>┌───────────────────────────────┐      ┌────────────────────────────────────┐
+│  CONTENT SERVER (phase 1)     │      │  GATEWAY (phase 2)                 │
+│                               │      │                                    │
+│  daemon A (Go, seed-daemon)   │◀━━━━▶│  daemon B (Go, starts EMPTY)       │
+│   • fixture account           │ P2P  │   • connected to A, subscribes     │
+│   • unique test doc with      │ conn │     only to an unrelated empty     │
+│     marker DISCOVERY-E2E-…    │      │     home account                   │
+│                               │      │                                    │
+│  web A (remix vite:dev)       │      │  web B (SEED_IS_GATEWAY=true)      │
+│   • used to publish content,  │      │   • the system under test          │
+│     then shut down            │      │                                    │
+└───────────────────────────────┘      └───────────┬────────────────────────┘
+                                                   │
+                                     curl (no JS)  │  Playwright Chromium (JS)
+                                        TEST 1     │        TEST 2</code></pre>
+</div>
+
+<h3>Test 1 — the scanner can no longer spend our money</h3>
+<ol>
+  <li>Plain <code>fetch()</code> (no JS — exactly what a scanner is) requests <code>/hm/&lt;uid&gt;/discovery-e2e</code> on the gateway.</li>
+  <li>Assert: response is <b>HTTP 404</b> and contains the shim page ("Looking for this document").</li>
+  <li>Wait 15 seconds — ample time for any discovery to complete on a two-node LAN testnet (Test 2 shows discovery completes in ~5 s here).</li>
+  <li>Assert: the document <b>still does not exist</b> on the gateway daemon (<code>/api/Resource</code> → not-found), and a second no-JS fetch still gets the 404 shim.</li>
+</ol>
+<p><b>What this proves:</b> the doc was one hop away, peers were connected, discovery would have succeeded in seconds — yet no discovery happened, because nothing ran the JS. If SSR still poked discovery, the doc would have synced and this assertion would fail (we verified that failure mode empirically: an earlier test iteration where the daemon <em>subscribed</em> to the content account showed the doc syncing within seconds of connection).</p>
+
+<h3>Test 2 — the real user is unharmed</h3>
+<ol>
+  <li>Playwright Chromium loads the same URL. Assert: shim visible.</li>
+  <li>The page's own JS polls <code>/api/DiscoveryStatus</code>. Observed: <code>pending → pending → found</code> (~3 polls, ≈5 s), each poll logged by the test with its response body.</li>
+  <li>The shim reloads itself. Assert: the unique marker text (<code>DISCOVERY-E2E-MARKER-…</code>) is rendered — content that could <em>only</em> have arrived via P2P discovery from daemon A.</li>
+  <li>Assert: at least one <code>/api/DiscoveryStatus</code> request was observed (right mechanism, not a side channel), and the doc now exists on the gateway daemon.</li>
+</ol>
+
+<h3>The actual passing transcript</h3>
+<pre class="transcript"><code>[e2e] testnet: e2e1783623235282
+[e2e] test doc published on daemon A: hm://z6MkhMSR…/discovery-e2e
+[e2e] daemon A peer: 12D3KooWMUy3… (20 local addrs)
+[e2e] gateway config: isGateway=true peerId=12D3KooWNE76…
+[e2e] gateway daemon connected to daemon A via /hm/api/register ✓
+[e2e] TEST 1: plain fetch (no JS) must get a 404 shim and not trigger discovery
+[e2e]   <span class="ok">got 404 + shim page ✓</span>
+[e2e]   waiting 15s to prove the gateway daemon does not discover the doc on its own...
+[e2e]   <span class="ok">doc still unknown to gateway daemon after no-JS fetches ✓</span>
+[e2e] TEST 2: Chromium must see the shim, trigger discovery via JS, and land on the doc
+[e2e]   <span class="ok">shim page rendered in browser ✓</span>
+[e2e]   DiscoveryStatus poll -&gt; 200 {"json":{"state":"pending"}}
+[e2e]   DiscoveryStatus poll -&gt; 200 {"json":{"state":"pending"}}
+[e2e]   DiscoveryStatus poll -&gt; 200 &lt;unreadable&gt;   <span class="c">← "found": reload cancelled the body read</span>
+[e2e]   <span class="ok">document content rendered after discovery ✓</span>
+[e2e]   <span class="ok">shim polled /api/DiscoveryStatus 3x ✓</span>
+[e2e]   <span class="ok">doc now exists on gateway daemon ✓</span>
+
+<span class="ok">[e2e] ALL TESTS PASSED</span>
+bun src/test/discovery-gateway.e2e.ts  2.56s user 0.81s system 6% cpu <b>53.211 total</b></code></pre>
+
+<h2 id="evidence">5. Why the evidence is conclusive</h2>
+<table>
+  <tr><th>Doubt</th><th>How the test eliminates it</th></tr>
+  <tr>
+    <td>"Maybe the doc didn't sync in Test 1 because the peers weren't connected."</td>
+    <td>The connection is established and asserted <em>before</em> Test 1 (<code>/hm/api/register</code> → <code>networking.connect</code> returns success), and Test 2 proves the same link moves the doc in ~5 s. The 15 s negative window is 3× that.</td>
+  </tr>
+  <tr>
+    <td>"Maybe discovery was triggered but just slow."</td>
+    <td>A second no-JS fetch after the wait still returns the 404 shim, and <code>/api/Resource</code> on the gateway still reports not-found. A triggered discovery on this topology completes in seconds (measured in Test 2).</td>
+  </tr>
+  <tr>
+    <td>"Maybe the browser got the content some other way (subscription, bulk sync)."</td>
+    <td>The gateway's registered home account is a deliberately unrelated, empty account — an earlier test iteration proved that registering the <em>content</em> account causes subscription bulk-sync, so the test isolates that path away. The only remaining transport is discovery, and the test additionally asserts the shim actually called <code>/api/DiscoveryStatus</code>.</td>
+  </tr>
+  <tr>
+    <td>"Maybe it works in the test env but not like production."</td>
+    <td>Every layer is the real thing: the actual Go daemon binary (with real libp2p networking), the actual Remix web app in gateway mode (<code>SEED_IS_GATEWAY=true</code>), real signed blobs published through the real API, a real browser. Only scale and network distance are smaller.</td>
+  </tr>
+  <tr>
+    <td>"Maybe the fix breaks real users."</td>
+    <td>Test 2 <em>is</em> a real user: from a cold gateway, first paint of the shim → discovered document in ~5–8 s, with zero manual steps.</td>
+  </tr>
+</table>
+
+<h2 id="threat">6. Threat-model coverage</h2>
+<table>
+  <tr><th>Client</th><th>Runs JS?</th><th>Before</th><th>After</th></tr>
+  <tr><td>Vulnerability scanner (curl-class)</td><td>No</td><td class="bad">5–60 s daemon work per junk GET</td><td class="ok">One cheap SSR render, 404, nothing else</td></tr>
+  <tr><td>Broken-link traffic / dead hm:// references</td><td>No (mostly)</td><td class="bad">Recursive discovery per hit</td><td class="ok">404 shim only</td></tr>
+  <tr><td>Search crawler (Googlebot)</td><td>Sometimes</td><td class="bad">Discovery per crawl of unknown URL</td><td class="warn">404 status stops indexing; JS-rendering crawlers may poll, but they crawl linked (real) URLs, not junk paths</td></tr>
+  <tr><td>Real user in a browser</td><td>Yes</td><td>Shim → discovery → doc</td><td class="ok">Identical UX; discovery starts ≤2 s later (first poll)</td></tr>
+  <tr><td>Headless-browser scanner</td><td>Yes</td><td class="bad">Discovery</td><td class="warn">Can still trigger discovery — mitigation, not elimination; see follow-ups</td></tr>
+</table>
+
+<h2 id="found">7. Issues found &amp; fixed along the way</h2>
+<p>The test run only passed on the sixth iteration — each failure was a real discovery. In order:</p>
+
+<div class="card">
+<h3>7.1 <span class="pill open">OPEN — backend bug</span> Hyphenated testnet names break P2P entirely</h3>
+<p><span class="fileref">backend/hmnet/hmnet.go:740</span> — <code>hmProtocolPattern = ^\/hypermedia\/\d\.\d\.\d(-\w+)?$</code>. The testnet suffix only admits <code>\w</code>, so a testnet named <code>cli-test-123-abc</code> produces protocol ID <code>/hypermedia/x.y.z-cli-test-123-abc</code>, which fails the regex — peers reject each other as <span class="bad">"not a Hypermedia peer"</span>. The CLI test helper generates exactly such hyphenated names, meaning <b>no multi-daemon P2P test could ever have worked</b> with the stock helper. Recommend widening the regex (e.g. <code>(-[\w-]+)?</code>) or validating the flag. The e2e works around it with hyphen-free names.</p>
+</div>
+
+<div class="card">
+<h3>7.2 <span class="pill fixed">FIXED</span> Test infra leaked every daemon and web server it ever started</h3>
+<p><span class="fileref">frontend/apps/cli/src/test/setup.ts</span> spawns the daemon via <code>sh -c "go run …"</code> and killed only the shell — <code>go run</code>'s compiled child survived every cleanup (we found daemons from old test runs still alive). Same pattern for web servers, with a nastier twist: leaked vite processes watch the shared <code>apps/web/.env</code>, so a "dead" server from run N restarts itself with run N+1's config mid-test. Leaked stdio pipes also kept the test process alive <b>47 minutes after all tests had passed</b>. Fixed with <code>detached: true</code> + process-group kills (<code>kill(-pid)</code>), hard timeouts on every fetch, and an explicit exit. This fix benefits the pre-existing CLI fixture tests too.</p>
+</div>
+
+<div class="card">
+<h3>7.3 <span class="pill fixed">FIXED (in test design)</span> Subscriptions bulk-sync content without discovery</h3>
+<p><span class="fileref">frontend/apps/web/app/site-config.server.ts</span> (<code>applyConfigSubscriptions</code>) recursively subscribes the daemon to the site's <code>registeredAccountUid</code>. When the test's gateway config pointed at the fixture account, the doc arrived via subscription sync seconds after connecting — a false "discovery leak" that was actually correct subscription behavior. The test now registers an unrelated empty home account, which is also what makes its negative assertion airtight.</p>
+</div>
+
+<div class="card">
+<h3>7.4 <span class="pill open">OPEN — same bug class in prod</span> Non-gateway SSR still blocks on discovery</h3>
+<p>The e2e's readiness probe accidentally reproduced the production outage in miniature: probing <code>/</code> on a not-yet-seeded non-gateway server made SSR block inside <code>discoverDocument → tryUntilSuccess</code> (the exact stack from the prod incident), stalling every 5-second probe until the 120 s deadline. The gateway path is now fixed, but <b>self-hosted sites (non-gateway mode) still block SSR requests on discovery</b> — the same wedge mechanism remains available there and deserves the same shim treatment. The test works around it by probing <code>/hm/api/config</code> instead of <code>/</code>.</p>
+</div>
+
+<div class="card">
+<h3>7.5 <span class="pill fixed">FIXED</span> Gateway requires a registered home account; vite silently drifts ports</h3>
+<p>Two smaller finds: (a) the route loader returns an "unregistered" page unless <code>config.json</code> has a <code>registeredAccountUid</code>, even in gateway mode — the test config now mirrors prod; (b) vite auto-increments to a free port when the requested one is busy, so the harness now parses the actual <code>Local:</code> URL from vite's output instead of trusting the requested port.</p>
+</div>
+
+<h2 id="limits">8. Limitations &amp; follow-ups</h2>
+<ul>
+  <li><b>Not deployed yet.</b> All of this is uncommitted working-tree code (on top of the pre-existing async-shim WIP). The production image predates even the shim and still uses fully blocking SSR discovery. Until deploy, the traefik-level scanner-path blocking from the incident report remains the stopgap.</li>
+  <li><b>Headless-browser scanners</b> can still trigger discovery. If that ever matters, add per-IP rate limiting on <code>/api/DiscoveryStatus</code> — a single choke point now exists, which is itself a win.</li>
+  <li><b>Daemon-side hardening still worthwhile:</b> negative-result caching for failed discoveries and a bounded concurrent-discovery budget would protect against any triggered-discovery flood, JS or not.</li>
+  <li><b>Non-gateway mode (7.4)</b> should eventually get the same shim pattern.</li>
+  <li><b>The ACME retry storm</b> for stale custom domains is an unrelated ongoing issue from the incident and is untouched by this fix.</li>
+</ul>
+
+<h2 id="files">9. Complete change set</h2>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td class="fileref">frontend/apps/web/app/loaders.ts</td><td>Gateway SSR never starts discovery; shim response is 404; docs updated</td></tr>
+  <tr><td class="fileref">frontend/apps/web/app/routes/$.tsx</td><td>Shim polls <code>/api/DiscoveryStatus</code> (typed API) and unwraps superjson; passes <code>latest</code> fallback</td></tr>
+  <tr><td class="fileref">frontend/apps/web/app/utils/discovery.ts</td><td><code>pokeDiscovery</code> removed (moved to shared API implementation)</td></tr>
+  <tr><td class="fileref">frontend/packages/shared/src/api-discovery-status.ts</td><td><b>new</b> — <code>DiscoveryStatus</code> query implementation + flat query-param codec</td></tr>
+  <tr><td class="fileref">frontend/packages/shared/src/api.ts</td><td>Registered in <code>APIQueries</code> / <code>APIParams</code> (web + desktop routers)</td></tr>
+  <tr><td class="fileref">frontend/packages/client/src/hm-types.ts</td><td>Zod schemas for input/output/request; added to request unions (SDK + <code>/api/schema</code>)</td></tr>
+  <tr><td class="fileref">frontend/packages/client/src/client.ts</td><td>SDK query-param serializer for <code>DiscoveryStatus</code></td></tr>
+  <tr><td class="fileref">frontend/apps/cli/src/test/discovery-gateway.e2e.ts</td><td><b>new</b> — the smoking-gun e2e described in §4</td></tr>
+  <tr><td class="fileref">frontend/apps/cli/src/test/setup.ts</td><td>Shared testnet names, bootstrap peers, leak-proof process-group cleanup</td></tr>
+  <tr><td class="fileref">frontend/apps/cli/package.json</td><td>+ <code>playwright</code> devDependency</td></tr>
+  <tr><td>Deleted: <span class="fileref">frontend/apps/web/app/routes/hm.api.discovery-status.tsx</span></td><td>One-off route superseded by the typed API endpoint</td></tr>
+</table>
+<p class="dim">All packages typecheck clean (<code>@seed-hypermedia/client</code>, <code>@shm/shared</code>, <code>@shm/web</code>, <code>@seed-hypermedia/cli</code>); files prettier-formatted. Reproduce the verification anytime: <code>cd frontend/apps/cli &amp;&amp; bun src/test/discovery-gateway.e2e.ts</code> (~1 minute; <code>E2E_VERBOSE=1</code> for server logs).</p>
+
+</div>
+</body>
+</html>

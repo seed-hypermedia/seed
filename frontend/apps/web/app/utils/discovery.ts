@@ -7,6 +7,10 @@ import {DiscoveryScope, discoveryUrl} from '@shm/shared/discovery'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findIpfsUrlCid} from '@shm/ui/get-file-url'
 
+// Non-blocking discovery poking lives in the shared API router: the
+// DiscoveryStatus query in @shm/shared/api-discovery-status, served at
+// /api/DiscoveryStatus.
+
 export async function discoverDocument(
   uid: string,
   path: string[],

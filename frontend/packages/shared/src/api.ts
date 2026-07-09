@@ -14,6 +14,7 @@ import {
   ListCommentVersions,
   ListDiscussions,
 } from './api-comments'
+import {DiscoveryStatus, DiscoveryStatusParams} from './api-discovery-status'
 import {ListDocumentCollaborators, ListDocumentCollaboratorsParams} from './api-document-collaborators'
 import {GetDomain, ListDomains} from './api-domains'
 import {GetCID} from './api-get-cid'
@@ -55,6 +56,7 @@ export const APIQueries = {
   ListCapabilities,
   ListDocumentCollaborators,
   InteractionSummary,
+  DiscoveryStatus,
 } as const satisfies {
   [K in HMGetRequest['key']]: HMRequestImplementation<Extract<HMGetRequest, {key: K}>>
 }
@@ -82,4 +84,5 @@ export const APIParams: {
   ListChanges: ListChangesParams,
   ListCapabilities: ListCapabilitiesParams,
   ListDocumentCollaborators: ListDocumentCollaboratorsParams,
+  DiscoveryStatus: DiscoveryStatusParams,
 }

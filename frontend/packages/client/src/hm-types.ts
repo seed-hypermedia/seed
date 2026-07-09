@@ -1832,6 +1832,33 @@ export const HMListDomainsRequestSchema = z.object({
 })
 export type HMListDomainsRequest = z.infer<typeof HMListDomainsRequestSchema>
 
+// DiscoveryStatus - trigger/poll async discovery of a resource that is not
+// available locally. Each call re-pokes the daemon's discovery task (starting
+// one if none exists) and returns its current state immediately, so it is
+// safe to call repeatedly from a polling client.
+export const HMDiscoveryStatusInputSchema = z.object({
+  uid: z.string(),
+  path: z.array(z.string()),
+  version: z.string().optional(),
+  /** Accept any discovered version as success, not just `version`. */
+  latest: z.boolean().optional(),
+})
+export type HMDiscoveryStatusInput = z.infer<typeof HMDiscoveryStatusInputSchema>
+
+export const HMDiscoveryStatusOutputSchema = z.object({
+  state: z.enum(['pending', 'found', 'failed']),
+  version: z.string().optional(),
+  error: z.string().optional(),
+})
+export type HMDiscoveryStatusOutput = z.infer<typeof HMDiscoveryStatusOutputSchema>
+
+export const HMDiscoveryStatusRequestSchema = z.object({
+  key: z.literal('DiscoveryStatus'),
+  input: HMDiscoveryStatusInputSchema,
+  output: HMDiscoveryStatusOutputSchema,
+})
+export type HMDiscoveryStatusRequest = z.infer<typeof HMDiscoveryStatusRequestSchema>
+
 // GET request union — all read-only API endpoints
 export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
@@ -1859,6 +1886,7 @@ export const HMGetRequestSchema = z.discriminatedUnion('key', [
   HMListCommentVersionsRequestSchema,
   HMGetDomainRequestSchema,
   HMListDomainsRequestSchema,
+  HMDiscoveryStatusRequestSchema,
 ])
 export type HMGetRequest = z.infer<typeof HMGetRequestSchema>
 
@@ -1896,6 +1924,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCommentVersionsRequestSchema,
   HMGetDomainRequestSchema,
   HMListDomainsRequestSchema,
+  HMDiscoveryStatusRequestSchema,
   HMPublishBlobsRequestSchema,
   HMPrepareDocumentChangeRequestSchema,
 ])

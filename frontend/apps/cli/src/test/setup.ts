@@ -60,6 +60,10 @@ export type TestConfig = {
   httpPort?: number
   grpcPort?: number
   p2pPort?: number
+  /** Share a testnet between daemons: two daemons only speak the same P2P protocol if they use the same testnet name. */
+  testnetName?: string
+  /** Comma-separated multiaddrs (with /p2p/<peerId> suffix) this daemon should bootstrap to. */
+  bootstrapPeers?: string
 }
 
 /**
@@ -108,7 +112,7 @@ async function waitForDaemon(url: string, timeoutMs = 90000): Promise<void> {
  * Start a daemon instance for testing
  */
 export async function startDaemon(config: TestConfig = {}): Promise<TestContext> {
-  const testnetName = generateTestnetName()
+  const testnetName = config.testnetName || generateTestnetName()
   // Use random ports to avoid conflicts between test runs
   const basePort = getRandomPort()
   const httpPort = config.httpPort || basePort
@@ -133,7 +137,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
     '/bin/sh',
     [
       '-c',
-      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn`,
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn${
+        config.bootstrapPeers ? ` -p2p.bootstrap-peers="${config.bootstrapPeers}"` : ''
+      }`,
     ],
     {
       env: {
@@ -141,6 +147,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
         SEED_P2P_TESTNET_NAME: testnetName,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
+      // Own process group: `go run` spawns the compiled daemon as a child, so
+      // killing only the shell wrapper leaks the actual seed-daemon process.
+      detached: true,
     },
   )
 
@@ -181,12 +190,16 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
 
   const cleanup = async () => {
     console.log('[test] Cleaning up...')
-    if (daemon && !daemon.killed) {
-      daemon.kill('SIGTERM')
+    if (daemon.pid !== undefined && daemon.exitCode === null) {
+      // Negative pid = kill the whole detached process group (shell + go +
+      // compiled daemon), not just the shell wrapper.
+      try {
+        process.kill(-daemon.pid, 'SIGTERM')
+      } catch {}
       await sleep(1000)
-      if (!daemon.killed) {
-        daemon.kill('SIGKILL')
-      }
+      try {
+        process.kill(-daemon.pid, 'SIGKILL')
+      } catch {}
     }
     if (existsSync(dataDir)) {
       rmSync(dataDir, {recursive: true, force: true})

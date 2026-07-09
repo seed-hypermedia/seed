@@ -130,6 +130,12 @@ const QUERY_PARAM_SERIALIZERS = {
   ListCapabilities: (input: Extract<HMRequest, {key: 'ListCapabilities'}>['input']) => ({
     targetId: packHmId(input.targetId),
   }),
+  DiscoveryStatus: (input: Extract<HMRequest, {key: 'DiscoveryStatus'}>['input']) => ({
+    uid: input.uid,
+    path: input.path.join('/'),
+    ...(input.version ? {v: input.version} : {}),
+    ...(input.latest ? {l: ''} : {}),
+  }),
 } as const satisfies Partial<{
   [K in HMRequest['key']]: (input: Extract<HMRequest, {key: K}>['input']) => Record<string, string>
 }>

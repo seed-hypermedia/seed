@@ -50,6 +50,20 @@ import {getConfig} from './site-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
+import {WEB_IS_GATEWAY} from '@shm/shared/constants'
+
+/**
+ * Thrown when a resource is not available locally. On gateways we never hold
+ * the HTTP request open waiting for discovery, and we never start discovery
+ * server-side — the route returns a shim page whose JS polls
+ * /api/DiscoveryStatus, and that first poll is what starts the daemon's
+ * discovery task.
+ */
+export class HMDiscoveryPendingError extends Error {
+  constructor() {
+    super('Resource not found locally; client may start discovery')
+  }
+}
 
 export async function getMetadata(id: UnpackedHypermediaId): Promise<HMMetadataPayload> {
   try {
@@ -527,11 +541,21 @@ export async function loadResourceWithDiscovery(
     return await loadResource(id, parsedRequest, ctx, options)
   } catch (e) {
     if (e instanceof HMNotFoundError) {
-      const discovered = await instrument(ctx || noopCtx, `discoverDocument(${packHmId(id)})`, () =>
-        discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
-      )
-      if (discovered) {
-        return await loadResource(id, parsedRequest, ctx, options)
+      if (WEB_IS_GATEWAY) {
+        // Never start discovery from SSR. Only clients that execute JS may
+        // trigger it: the shim page's first /api/DiscoveryStatus poll is
+        // what starts the daemon's discovery task. Bots and vulnerability
+        // scanners probe large numbers of nonexistent paths without running
+        // JS, and a server-side poke here would queue an expensive recursive
+        // P2P discovery task for every probe.
+        throw new HMDiscoveryPendingError()
+      } else {
+        const discovered = await instrument(ctx || noopCtx, `discoverDocument(${packHmId(id)})`, () =>
+          discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
+        )
+        if (discovered) {
+          return await loadResource(id, parsedRequest, ctx, options)
+        }
       }
     }
     throw e
@@ -544,6 +568,9 @@ export type SiteDocumentPayload = WebResourcePayload & {
   origin: string
   comment?: HMComment
   daemonError?: GRPCError
+  // True when the resource is not available locally and an async discovery
+  // task is running. The route renders a shim page that polls for completion.
+  discoveryPending?: boolean
 }
 
 // We have to define our own error type here instead of using the ConnectError type,
@@ -711,6 +738,24 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   } catch (e) {
     if (e instanceof Response) {
       throw e
+    }
+    if (e instanceof HMDiscoveryPendingError) {
+      const {instrumentationCtx: _, ...cleanExtraData} = (extraData || {}) as any
+      return wrapJSON(
+        {
+          id,
+          homeMetadata,
+          origin,
+          originHomeId,
+          discoveryPending: true,
+          ...cleanExtraData,
+        },
+        // The shim is a transient state — make sure no cache holds onto it.
+        // 404 status: the resource is not available here (yet). Non-JS
+        // clients (crawlers, scanners) see a plain not-found; browsers still
+        // render the shim and poll. On success the reload gets a 200.
+        {status: 404, headers: {'Cache-Control': 'no-store'}},
+      )
     }
     console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
