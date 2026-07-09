@@ -31,7 +31,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [test, check, build]
+        # test/check/build match the gate used by the release and dev image
+        # workflows; docker and trigger add the deeper smoke tests (image boot
+        # + real-daemon trigger path) since this workflow ships straight to prod.
+        task: [test, check, build, docker, trigger]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -50,13 +53,13 @@ jobs:
       - name: Run ${{ matrix.task }}
         working-directory: agents
         run: |
-          if [ "${{ matrix.task }}" = "test" ]; then
-            bun test
-          elif [ "${{ matrix.task }}" = "check" ]; then
-            bun run check
-          else
-            bun run test:build
-          fi
+          case "${{ matrix.task }}" in
+            test) bun test ;;
+            check) bun run check ;;
+            build) bun run test:build ;;
+            docker) bun run test:docker ;;
+            trigger) bun run test:trigger ;;
+          esac
 
   docker-agents:
     runs-on: ubuntu-latest
