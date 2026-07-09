@@ -50,7 +50,8 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogPortal,
+  AlertDialogFooter,
+  AlertDialogHeader,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {DelegatedKeysList} from '@shm/ui/components/delegated-keys-list'
@@ -58,6 +59,7 @@ import {DeleteAccountDialog} from '@shm/ui/components/delete-account-dialog'
 import {ExportKeyDialog} from '@shm/ui/components/export-key-dialog'
 import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Label} from '@shm/ui/components/label'
+import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {NotificationEmailSettings} from '@shm/ui/components/notification-email-settings'
 import {SegmentedControl} from '@shm/ui/components/segmented-control'
 import {VaultSecuritySettings} from '@shm/ui/components/vault-security-settings'
@@ -382,6 +384,7 @@ function VaultSettings() {
   function handleLogout() {
     logout.mutate(undefined, {
       onSuccess: () => {
+        setLogoutOpen(false)
         setSelectedIdentity?.(null)
         setSelectedMode('local')
         toast.success('Logged out of remote vault')
@@ -494,50 +497,29 @@ function VaultSettings() {
         </>
       )}
 
-      <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
-        <AlertDialogPortal>
-          <AlertDialogContent className="max-w-[600px] gap-4">
-            <AlertDialogTitle className="text-2xl font-bold">Log out of remote vault?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will disconnect the remote vault, and will delete all keys from this desktop device.
-            </AlertDialogDescription>
-            <AlertDialogDescription>
-              You will be able to log in with your passkey to use your accounts again.
-            </AlertDialogDescription>
-            <div className="flex justify-end gap-3">
-              <AlertDialogCancel asChild>
-                <Button variant="ghost">Cancel</Button>
-              </AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button variant="destructive" onClick={handleLogout} disabled={logout.isLoading}>
-                  {logout.isLoading ? 'Logging out…' : 'Log out'}
-                </Button>
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialogPortal>
-      </AlertDialog>
+      <LogoutVaultDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        busy={logout.isLoading}
+        onLogOut={handleLogout}
+      />
 
       <AlertDialog open={switchLocalOpen} onOpenChange={setSwitchLocalOpen}>
-        <AlertDialogPortal>
-          <AlertDialogContent className="max-w-[600px] gap-4">
-            <AlertDialogTitle className="text-2xl font-bold">Switch to local identity?</AlertDialogTitle>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch to local identity?</AlertDialogTitle>
             <AlertDialogDescription>
               This disconnects from the remote vault and stops syncing across your devices. Your account keys stay on
               this device — you can switch back to Remote anytime to resume syncing.
             </AlertDialogDescription>
-            <div className="flex justify-end gap-3">
-              <AlertDialogCancel asChild>
-                <Button variant="ghost">Cancel</Button>
-              </AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button onClick={() => void handleDisconnect()} disabled={disconnectVault.isPending}>
-                  Switch to Local
-                </Button>
-              </AlertDialogAction>
-            </div>
-          </AlertDialogContent>
-        </AlertDialogPortal>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDisconnect()} disabled={disconnectVault.isPending}>
+              Switch to Local
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
       {authDialog.content}
     </div>

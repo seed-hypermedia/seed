@@ -46,7 +46,7 @@ function AlertDialogContent({
         )}
         {...props}
       >
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-6">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto overscroll-contain p-6">{children}</div>
       </AlertDialogPrimitive.Content>
     </AlertDialogPortal>
   )
@@ -98,7 +98,15 @@ function AlertDialogAction({
   size,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> & VariantProps<typeof buttonVariants>) {
-  return <AlertDialogPrimitive.Action className={cn(buttonVariants({variant, size, className}))} {...props} />
+  // When asChild, the child (e.g. a styled Button) owns its classes — applying
+  // buttonVariants here too would concatenate two variants' classes and let
+  // stylesheet order pick the winner (red button, wrong text color).
+  return (
+    <AlertDialogPrimitive.Action
+      className={props.asChild ? className : cn(buttonVariants({variant, size, className}))}
+      {...props}
+    />
+  )
 }
 
 function AlertDialogCancel({
@@ -109,7 +117,7 @@ function AlertDialogCancel({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> & VariantProps<typeof buttonVariants>) {
   return (
     <AlertDialogPrimitive.Cancel
-      className={cn(buttonVariants({variant: variant ?? 'outline', size, className}))}
+      className={props.asChild ? className : cn(buttonVariants({variant: variant ?? 'outline', size, className}))}
       {...props}
     />
   )

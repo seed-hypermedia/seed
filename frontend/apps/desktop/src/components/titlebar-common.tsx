@@ -30,7 +30,6 @@ import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {AlertDialogDescription, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
+import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, Forward, UploadCloud} from '@shm/ui/icons'
@@ -45,7 +45,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
@@ -169,36 +168,6 @@ function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
   )
 }
 
-function LogoutConfirmationDialog({onClose, input}: {onClose: () => void; input: {onSuccess: () => void}}) {
-  const logout = useLogout({
-    onSuccess: () => {
-      onClose()
-      input.onSuccess()
-      toast.success('Logged out')
-    },
-    onError: (error) => {
-      toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
-    },
-  })
-
-  return (
-    <>
-      <AlertDialogTitle>Log out?</AlertDialogTitle>
-      <AlertDialogDescription>
-        This will disconnect the remote vault and delete all local vault keys from this device.
-      </AlertDialogDescription>
-      <AlertDialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="destructive" disabled={logout.isLoading} onClick={() => logout.mutate()}>
-          {logout.isLoading ? 'Logging out…' : 'Log out'}
-        </Button>
-      </AlertDialogFooter>
-    </>
-  )
-}
-
 export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
@@ -216,7 +185,19 @@ export function AccountProfileButton() {
   const requestedSyncForMenuOpen = useRef(false)
   const createAccountDialog = useCreateAccountDialog()
   const authDialog = useDesktopAuthDialog()
-  const logoutDialog = useAppDialog(LogoutConfirmationDialog, {isAlert: true})
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const logout = useLogout({
+    onSuccess: () => {
+      setLogoutOpen(false)
+      toast.success('Logged out')
+      authDialog.close()
+      setSelectedIdentity?.(null)
+      navigate({key: 'onboarding'})
+    },
+    onError: (error) => {
+      toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
+    },
+  })
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -436,13 +417,7 @@ export function AccountProfileButton() {
                 variant="destructive"
                 onClick={() => {
                   setMenuOpen(false)
-                  logoutDialog.open({
-                    onSuccess: () => {
-                      authDialog.close()
-                      setSelectedIdentity?.(null)
-                      navigate({key: 'onboarding'})
-                    },
-                  })
+                  setLogoutOpen(true)
                 }}
               >
                 <LogOut className="size-4" />
@@ -452,7 +427,12 @@ export function AccountProfileButton() {
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      {logoutDialog.content}
+      <LogoutVaultDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        busy={logout.isLoading}
+        onLogOut={() => logout.mutate()}
+      />
       {authDialog.content}
       {createAccountDialog.content}
     </>
