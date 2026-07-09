@@ -67,7 +67,7 @@ fall back to `dev`/`unknown`.
 
 ### CI build + push
 
-`agents/Dockerfile` is built and pushed by two GitHub Actions workflows, both of which also accept a manual
+`agents/Dockerfile` is built and pushed by three GitHub Actions workflows, all of which also accept a manual
 `workflow_dispatch` run from the Actions tab:
 
 - `.github/workflows/release-docker-images.yml` — on a `*.*.*` release tag push (or manual dispatch), pushes
@@ -75,6 +75,9 @@ fall back to `dev`/`unknown`.
   `agents-stable` on the host tracks `:latest`.
 - `.github/workflows/dev-docker-images.yml` — on push to `main` touching `agents/**` (or manual dispatch), pushes
   `seedhypermedia/agents:dev`, which `agents-dev` tracks.
+- `.github/workflows/hotfix-agents-image.yml` — manual dispatch only, from `main` only. Runs the agents test gate and
+  pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production agent server without cutting a full
+  release of every image.
 
 ### Manual build + push from a workstation
 
