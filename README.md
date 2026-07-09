@@ -41,6 +41,8 @@ installed.
 
 [./dev](./dev) is the main dev CLI. Run `./dev` to list commands, including:
 
+- `./dev up`
+- `./dev up-testnet`
 - `./dev run-desktop`
 - `./dev run-desktop-mainnet`
 - `./dev build-desktop`

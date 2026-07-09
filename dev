@@ -233,23 +233,40 @@ def main():
         finally:
             stop_instance_b()
 
-    @cmd(
-        cmds,
-        "up",
-        "Run the full agents dev stack (docker web backends + desktop + web + agents server) in a single mprocs TUI, one pane per process. See mprocs.yaml.",
-    )
-    def up(args):
-        # mprocs reads ./mprocs.yaml and inherits this direnv/mise environment,
-        # so each pane runs the same command you'd type by hand.
+    def run_mprocs_stack(config: str, args):
         compose = "agents/dev/web-backends/docker-compose.yml"
         try:
-            run("mprocs", args=args)
+            run(f"mprocs --config {config}", args=args)
         finally:
             # The web-backend containers are owned by the docker daemon, not by
             # the `compose up` process in the pane, so quitting mprocs (`q`)
             # leaves them running. Tear them down explicitly here — idempotent,
             # and not check=True so it can't mask how mprocs exited.
             subprocess.run(f"docker compose -f {compose} down", shell=True)
+
+    @cmd(
+        cmds,
+        "up",
+        "Run the full agents dev stack on mainnet in a single mprocs TUI, one pane per process. See mprocs.yaml.",
+    )
+    def up(args):
+        # mprocs reads ./mprocs.yaml and inherits this direnv/mise environment,
+        # so each pane runs the same command you'd type by hand.
+        run_mprocs_stack("mprocs.yaml", args)
+
+    @cmd(
+        cmds,
+        "up-testnet",
+        "Run the full agents dev stack on testnet/devnet in a single mprocs TUI, one pane per process. See mprocs.testnet.yaml.",
+    )
+    def up_testnet(args):
+        # mprocs reads ./mprocs.testnet.yaml and inherits this direnv/mise environment.
+        os.environ["SEED_P2P_TESTNET_NAME"] = "dev"
+        os.environ["VITE_GATEWAY_URL"] = "https://dev.hyper.media"
+        os.environ["VITE_SEED_HOST_URL"] = "https://host-dev.seed.hyper.media"
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
+        os.environ["LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
+        run_mprocs_stack("mprocs.testnet.yaml", args)
 
     @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
     def run_desktop_mainnet(args):
