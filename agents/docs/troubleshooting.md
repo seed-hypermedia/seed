@@ -85,6 +85,27 @@ No stop action exists yet. Current options:
 
 Future fix: implement StopSession/CancelRun.
 
+## Server unresponsive but process alive (100% CPU)
+
+Symptom: health/API/WebSocket all time out, the container stays "Up", and CPU sits at ~100% on one core. Bun runs JS on
+a single thread, so any synchronous infinite loop wedges the entire server (HTTP, WS, triggers) while the process looks
+healthy from outside.
+
+Fast diagnosis:
+
+- `docker stats` — one core pegged with flat network I/O suggests a JS busy loop, not load;
+- `docker logs -t --tail 50` — find the last event before logs went silent; look for a `tool call start` with no
+  matching `tool call end`;
+- `strace -p <pid> -c` on the host — repeated reads of `/proc/self/statm` plus `futex`/`sched_yield` are GC allocation
+  checks inside a spinning JIT loop;
+- full tool inputs are persisted in `session_events` (DAG-CBOR in `event_cbor`) even when the log line is truncated —
+  decode them and replay the input against the suspect code path locally.
+
+One past cause (fixed 2026-07): `parseMarkdown` in `@seed-hypermedia/client` looped forever on an indented ATX heading
+(`  ### Foo`) because the heading branch matched the raw line while the paragraph collector excluded the trimmed line,
+so the tokenizer never advanced. Agent-generated `document.create`/`comment.create` markdown hit this within minutes of
+every restart. The tokenizer now guarantees forward progress each iteration.
+
 ## Built-in inspector is empty
 
 Check:

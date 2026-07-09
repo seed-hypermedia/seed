@@ -371,8 +371,8 @@ function tokenize(markdown: string): RawBlock[] {
       continue
     }
 
-    // Heading: # text <!-- id:XXX -->
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
+    // Heading: # text <!-- id:XXX --> (indentation tolerated, like every other block kind)
+    const headingMatch = line.trim().match(/^(#{1,6})\s+(.+)$/)
     if (headingMatch) {
       const {text, id} = stripBlockId(headingMatch[2]!)
       blocks.push({kind: 'heading', level: headingMatch[1]!.length, text, id})
@@ -453,14 +453,19 @@ function tokenize(markdown: string): RawBlock[] {
       paraLines.push(lines[i]!)
       i++
     }
-    if (paraLines.length > 0) {
-      // Block ID is on the first line of the paragraph
-      const firstLine = paraLines[0]!
-      const {text: cleanFirst, id} = stripBlockId(firstLine)
-      paraLines[0] = cleanFirst
-      blocks.push({kind: 'paragraph', text: paraLines.join('\n'), id})
-      pendingContainerId = undefined
+    if (paraLines.length === 0) {
+      // The line looked special to the paragraph collector but matched no block
+      // branch above (e.g. "#nospace" or 7+ hashes). Consume it as paragraph text
+      // so the outer loop always makes progress.
+      paraLines.push(line)
+      i++
     }
+    // Block ID is on the first line of the paragraph
+    const firstLine = paraLines[0]!
+    const {text: cleanFirst, id} = stripBlockId(firstLine)
+    paraLines[0] = cleanFirst
+    blocks.push({kind: 'paragraph', text: paraLines.join('\n'), id})
+    pendingContainerId = undefined
   }
 
   return blocks

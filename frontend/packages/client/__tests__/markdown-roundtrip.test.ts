@@ -281,3 +281,27 @@ describe('markdown round-trip', () => {
     expect(introAnns.filter((a) => a.type === 'Link')).toHaveLength(0)
   })
 })
+
+describe('parseMarkdown termination', () => {
+  it('parses indented headings as headings instead of looping forever', () => {
+    const {tree} = parseMarkdown('  ### Indented Heading <!-- id:AbCd1234 -->\n\n  body text')
+    const nodes = markdownBlockNodesToHMBlockNodes(tree)
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0]!.block.type).toBe('Heading')
+    expect(nodes[0]!.block.text).toBe('Indented Heading')
+    expect(nodes[0]!.block.id).toBe('AbCd1234')
+    expect(nodes[0]!.children![0]!.block.text).toBe('  body text')
+  })
+
+  it.each([
+    ['1-space indented heading', ' # Hello'],
+    ['tab indented heading', '\t## Hello'],
+    ['hash without space', '#nospace'],
+    ['seven hashes', '####### too deep'],
+    ['indented hash without space', '  #nospace'],
+  ])('terminates on %s', (_label, md) => {
+    const {tree} = parseMarkdown(md)
+    const nodes = markdownBlockNodesToHMBlockNodes(tree)
+    expect(nodes.length).toBeGreaterThan(0)
+  })
+})
