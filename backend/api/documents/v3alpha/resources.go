@@ -457,7 +457,12 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		}
 	}
 
-	docpb, err := doc.Hydrate(ctx)
+	iri, err := makeIRI(acc, u.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	docpb, err := srv.hydrated.get(ctx, string(iri), doc)
 	if err != nil {
 		return nil, err
 	}

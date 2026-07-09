@@ -535,6 +535,14 @@ func (dm *Document) Heads() map[cid.Cid]struct{} {
 	return dm.crdt.Heads()
 }
 
+// Version returns the content-addressed version (canonical sorted heads) of
+// the document in its current state. It is deterministic and immutable for a
+// given set of applied changes, which makes it a safe key for caching the
+// hydrated result.
+func (dm *Document) Version() Version {
+	return dm.crdt.Version()
+}
+
 // Hydrate hydrates a document.
 func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	if len(dm.crdt.changes) == 0 {
