@@ -3,6 +3,7 @@ package docmodel
 import (
 	"context"
 	"fmt"
+	"os"
 	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	"seed/backend/util/cclock"
@@ -17,6 +18,19 @@ import (
 func mustNow() time.Time { return time.Now() }
 
 func sinceMs(t time.Time) float64 { return float64(time.Since(t).Microseconds()) / 1000.0 }
+
+// skipUnlessHydrateBench guards the O(n^2) scaling diagnostics. They build
+// documents with thousands of deeply-nested block moves, which is intentionally
+// slow (that's the point — it demonstrates the superlinear hydrate cost) and
+// far too slow under the race detector for the normal CI test budget. They are
+// diagnostic/proof tools, not regression tests, so they only run when explicitly
+// requested via RUN_HYDRATE_BENCH=1 (and never under -short).
+func skipUnlessHydrateBench(t *testing.T) {
+	t.Helper()
+	if testing.Short() || os.Getenv("RUN_HYDRATE_BENCH") == "" {
+		t.Skip("diagnostic scaling test; set RUN_HYDRATE_BENCH=1 to run")
+	}
+}
 
 func blobIRI(s string) blob.IRI { return blob.IRI(s) }
 
@@ -96,6 +110,7 @@ func replayHistory(tb testing.TB, iri string, moves int, changesN int, deep bool
 //
 //	go test ./backend/api/documents/v3alpha/docmodel/ -run TestHydrateScaling -v
 func TestHydrateScaling(t *testing.T) {
+	skipUnlessHydrateBench(t)
 	ctx := context.Background()
 	for _, n := range []int{100, 500, 1000, 2000, 4000} {
 		flat := buildDocWithHistory(t, n, n/50+1)
@@ -138,6 +153,7 @@ func BenchmarkHydrateDeep2000(b *testing.B) {
 // TestLoadVsHydrate separates the two read-path costs: replaying changes to
 // build the CRDT (loadDocument-equivalent) vs Hydrate (State materialization).
 func TestLoadVsHydrate(t *testing.T) {
+	skipUnlessHydrateBench(t)
 	ctx := context.Background()
 	alice := coretest.NewTester("alice").Account
 	for _, n := range []int{1000, 2000, 4000} {
