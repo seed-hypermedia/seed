@@ -41,8 +41,9 @@ between them is mechanical.
   for "expected target type," rather than adding new vocabulary. Target checking
   is lazy by necessity. ([references.md](./references.md))
 - **References are names (`hm://` URLs), not CIDs.** A CID cycle has no encoding
-  order, so recursion — including *mutual* recursion (`example-folder` ↔
-  `example-file`) — is only expressible with names. Names resolve through a
+  order, so recursion — including *mutual* recursion
+  ([`example-folder`](./example-folder.json) ↔ [`example-file`](./example-file.json))
+  — is only expressible with names. Names resolve through a
   signing authority; CIDs are kept for pinning immutable versions. This replaced
   the earlier self-sentinel idea. ([references.md](./references.md))
 - **`type` is a kind URL, not a bare tag.** `type: "hm://hyper.media/map"` makes
@@ -52,7 +53,8 @@ between them is mechanical.
 - **Extension by refinement.** `{ ref: parent, …refinements }` extends the
   parent (subtype: merged properties, unioned `required`, preserved closedness);
   a bare `{ ref }` is a pure include. Reuses existing keywords — no `extends`.
-  ([schema-language.md](./schema-language.md))
+  Worked example: [`example-employee`](./example-employee.json) extends
+  [`example-person`](./example-person.json). ([schema-language.md](./schema-language.md))
 - **`anyOf` unions.** Added so `schema` can be a discriminated union. It is the
   one composite construct, and it stays self-describing: `anyOf` is a list of
   schemas, expressible with the existing vocabulary, and the meta-schema

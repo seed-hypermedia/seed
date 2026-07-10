@@ -27,7 +27,9 @@ target should match the referenced schema.
 ## Extension (subtyping)
 
 A reference node that *also* carries refinements **extends** the schema it
-points at — a subtype with the parent's fields plus new ones:
+points at — a subtype with the parent's fields plus new ones. The worked example
+is [`example-employee.json`](./example-employee.json), which extends
+[`example-person.json`](./example-person.json):
 
 ```json
 // example-employee = example-person, plus employeeId and department
@@ -40,6 +42,9 @@ points at — a subtype with the parent's fields plus new ones:
   }
 }
 ```
+
+Open [`example-employee.json`](./example-employee.json) in the tour to see the
+merged result — every field marked *inherited* or *added*.
 
 The rules, all reusing existing keywords — no `extends` keyword needed:
 

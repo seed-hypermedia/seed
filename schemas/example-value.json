@@ -1,0 +1,16 @@
+{
+  "anyOf": [
+    {
+      "ref": "hm://hyper.media/string"
+    },
+    {
+      "ref": "hm://hyper.media/integer"
+    },
+    {
+      "ref": "hm://hyper.media/boolean"
+    },
+    {
+      "ref": "hm://hyper.media/null"
+    }
+  ]
+}

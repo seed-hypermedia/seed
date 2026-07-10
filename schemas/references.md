@@ -89,10 +89,12 @@ hm://example.com/folder        the example folder schema
 hm://example.com/file          the example file schema
 ```
 
-Now recursion just works. `example-folder` references `hm://example.com/file`,
-and `example-file` references `hm://example.com/folder` — a **mutual** cycle
-that no CID scheme could express. Because each side names the other, neither has
-to be encoded first; the names resolve lazily.
+Now recursion just works. [`example-folder.json`](./example-folder.json)
+references `hm://example.com/file`, and [`example-file.json`](./example-file.json)
+references `hm://example.com/folder` — a **mutual** cycle that no CID scheme
+could express. Because each side names the other, neither has to be encoded
+first; the names resolve lazily. (In the tour you can click folder → file →
+folder in a circle.)
 
 This is the same split as **IPFS vs IPNS**, or a hash vs a domain name:
 

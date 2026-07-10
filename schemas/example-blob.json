@@ -1,0 +1,18 @@
+{
+  "type": "hm://hyper.media/map",
+  "required": [
+    "mime",
+    "data"
+  ],
+  "properties": {
+    "mime": {
+      "ref": "hm://hyper.media/string"
+    },
+    "size": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "data": {
+      "ref": "hm://hyper.media/bytes"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "type": "hm://hyper.media/map",
+  "required": [
+    "title",
+    "slug",
+    "status",
+    "author"
+  ],
+  "properties": {
+    "title": {
+      "ref": "hm://hyper.media/string"
+    },
+    "slug": {
+      "ref": "hm://hyper.media/string"
+    },
+    "status": {
+      "ref": "hm://example.com/status"
+    },
+    "author": {
+      "type": "hm://hyper.media/link",
+      "ref": "hm://example.com/person"
+    },
+    "tags": {
+      "ref": "hm://example.com/tags"
+    },
+    "body": {
+      "ref": "hm://hyper.media/bytes"
+    },
+    "wordCount": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "featured": {
+      "ref": "hm://hyper.media/boolean"
+    },
+    "cover": {
+      "type": "hm://hyper.media/link",
+      "ref": "hm://example.com/blob"
+    },
+    "comments": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/comment"
+      }
+    },
+    "meta": {
+      "ref": "hm://example.com/metadata"
+    }
+  }
+}

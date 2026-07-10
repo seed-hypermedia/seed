@@ -15,7 +15,7 @@
 //   - a `map` with `properties` and no `values` is CLOSED: unknown keys are
 //     rejected. With `values`, extra keys must match the `values` schema.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -88,7 +88,7 @@ function concrete(schema, seen = new Set()) {
   seen.add(schema.ref);
   const parent = concrete(load(schema.ref), seen);
   if (parent.anyOf) return parent;
-  const extends_ = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
+  const extends_ = ["properties", "required", "values", "items", "enum"].some((k) => schema[k] !== undefined);
   if (!extends_) return parent; // pure include
   const merged = { type: parent.type };
   const props = { ...(parent.properties || {}), ...(schema.properties || {}) };
@@ -99,6 +99,8 @@ function concrete(schema, seen = new Set()) {
   if (values) merged.values = values;
   const items = schema.items ?? parent.items;
   if (items) merged.items = items;
+  const en = schema.enum ?? parent.enum;
+  if (en) merged.enum = en;
   return merged;
 }
 
@@ -108,8 +110,13 @@ function validate(schema, data, path = "$") {
 
   // union: matches if it matches any variant.
   if (schema.anyOf) {
-    if (schema.anyOf.some((v) => validate(v, data, path).length === 0)) return [];
-    return [`${path}: matches none of the ${schema.anyOf.length} schema variants`];
+    const attempts = schema.anyOf.map((v) => validate(v, data, path));
+    if (attempts.some((e) => e.length === 0)) return [];
+    // None matched. Surface the *closest* arm: prefer one whose kind matched
+    // (errors are nested, not a top-level "expected X"), then the fewest errors.
+    const topLevel = (errs) => errs.some((e) => e.startsWith(`${path}: expected`));
+    const best = attempts.slice().sort((a, b) => topLevel(a) - topLevel(b) || a.length - b.length)[0];
+    return [`${path}: matches none of the ${schema.anyOf.length} variants`, ...best];
   }
 
   const errors = [];
@@ -162,67 +169,216 @@ if (schemaArg && dataArg) {
 let failed = 0;
 const meta = load("onyx-schema.json");
 
-// The proof: the meta-schema (a discriminated union) is a valid instance of itself,
-// and so is every one of its variants.
+// dag-json constructors for test data
+const cid = (s) => ({ "/": s });
+const bytes = (b) => ({ "/": { bytes: b } });
+
+// =====================================================================
+// 1. Self-description — the meta-schema is a valid instance of itself.
+// =====================================================================
+section("Self-description");
 failed += report("onyx-schema.json describes itself", validate(meta, meta));
-for (const v of ["map", "list", "scalar", "link", "include", "union"])
-  failed += report(`onyx-${v}-schema.json is a valid schema`, validate(meta, load(`onyx-${v}-schema.json`)));
-// The primitive standard library — each onyx-<kind> is an instance of the meta-schema.
-const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "link", "map", "list"];
-for (const k of KINDS)
-  failed += report(`onyx-${k}.json is a valid schema`, validate(meta, load(`onyx-${k}.json`)));
-for (const s of ["example-person", "example-address", "example-document", "example-folder", "example-file", "example-employee"])
-  failed += report(`${s}.json is a valid schema`, validate(meta, load(`${s}.json`)));
 
-// The discriminated union now REJECTS structurally invalid schemas.
-failed += reportReject(
-  "rejects a string-that-is-also-a-list-and-struct",
-  validate(meta, {
-    type: "hm://hyper.media/string",
-    items: { type: "hm://hyper.media/integer" },
-    properties: {},
-  })
-);
+// =====================================================================
+// 2. Every schema block in the directory is a valid Onyx schema.
+//    Auto-discovered, so new examples are covered without editing tests.
+// =====================================================================
+section("Every schema block is a valid Onyx schema");
+for (const f of readdirSync(DIR).filter((f) => f.endsWith(".json")).sort())
+  failed += report(`${f}`, validate(meta, load(f)));
 
-// Data documents (dag-json human form).
-const person = {
-  name: "Ada",
-  age: 36,
-  active: true,
-  home: { street: "1 Analytical Way", city: "London" },
-  nicknames: ["Countess"],
-};
-failed += report("person data is valid", validate(load("example-person.json"), person));
-failed += reportReject("closed map rejects unknown key", validate(load("example-person.json"), { ...person, mystery: 1 }));
+// =====================================================================
+// 3. The discriminated union REJECTS malformed schemas.
+// =====================================================================
+section("The meta-schema rejects malformed schemas");
+const K = (k) => `hm://hyper.media/${k}`;
+failed += reportReject("scalar carrying `items`", validate(meta, { type: K("string"), items: { type: K("integer") } }));
+failed += reportReject("scalar carrying `properties`", validate(meta, { type: K("string"), properties: {} }));
+failed += reportReject("map schema with an unknown keyword", validate(meta, { type: K("map"), bogus: 1 }));
+failed += reportReject("node with neither type nor ref nor anyOf", validate(meta, { properties: {} }));
+failed += reportReject("union with a non-schema arm", validate(meta, { anyOf: [{ nope: 1 }] }));
+failed += reportReject("bare kind name instead of a URL", validate(meta, { type: "string" }));
 
-const document = {
-  title: "Genesis",
-  author: { "/": "bafyreiapersoncidgoeshere0000000000000000000000000000" },
-  body: { "/": { bytes: "aGVsbG8" } }, // base64("hello")
-  previous: { "/": "bafyreiapreviousdoccid00000000000000000000000000000" },
-};
-failed += report("document data is valid (link + bytes)", validate(load("example-document.json"), document));
+// =====================================================================
+// 4. Data validation: each example accepts valid data and rejects invalid.
+// =====================================================================
+section("Data validates against its schema");
 
-// Mutual recursion by NAME (folder <-> file): links hold CIDs, so validation
-// never loops. This cycle is exactly what content-addressing alone cannot name.
-const folder = {
-  name: "photos",
-  files: [{ "/": "bafyfile000000000000000000000000000000000000000000" }],
-  subfolders: [{ "/": "bafyfolder00000000000000000000000000000000000000000" }],
-};
-failed += report("folder data is valid (mutual-recursion schema)", validate(load("example-folder.json"), folder));
+const CASES = [
+  {
+    schema: "example-geo.json",
+    valid: [{ lat: 51.5, lng: -0.12, altitude: 35 }, { lat: 0, lng: 0 }],
+    invalid: [
+      ["missing lng", { lat: 51.5 }],
+      ["lat not a number", { lat: "x", lng: 0 }],
+      ["altitude must be integer", { lat: 1, lng: 2, altitude: 3.5 }],
+      ["unknown key", { lat: 1, lng: 2, foo: 3 }],
+    ],
+  },
+  {
+    schema: "example-status.json",
+    valid: ["draft", "published", "archived"],
+    invalid: [["not in enum", "deleted"], ["wrong kind", 5], ["null", null]],
+  },
+  {
+    schema: "example-tags.json",
+    valid: [[], ["a", "b", "c"]],
+    invalid: [["element not string", ["a", 2]], ["not a list", "nope"]],
+  },
+  {
+    schema: "example-matrix.json",
+    valid: [[], [[1, 2], [3]], [[]]],
+    invalid: [["inner element not integer", [[1, "x"]]], ["element not a list", [1, 2]]],
+  },
+  {
+    schema: "example-metadata.json",
+    valid: [{}, { lang: "en", tone: "formal" }],
+    invalid: [["value not string", { lang: 1 }]],
+  },
+  {
+    schema: "example-registry.json",
+    valid: [{}, { u1: cid("bafyu1"), u2: cid("bafyu2") }],
+    invalid: [["value not a link", { u1: "bafyu1" }], ["value is a map not a link", { u1: { name: "x" } }]],
+  },
+  {
+    schema: "example-blob.json",
+    valid: [{ mime: "image/png", data: bytes("aGVsbG8"), size: 5 }, { mime: "text/plain", data: bytes("QQ") }],
+    invalid: [
+      ["missing data", { mime: "x" }],
+      ["data not bytes", { mime: "x", data: "notbytes" }],
+      ["size not integer", { mime: "x", data: bytes("QQ"), size: 1.5 }],
+      ["unknown key", { mime: "x", data: bytes("QQ"), extra: 1 }],
+    ],
+  },
+  {
+    schema: "example-value.json",
+    valid: ["hi", 42, true, null],
+    invalid: [["float not in the union", 3.14], ["list", [1]], ["map", { a: 1 }]],
+  },
+  {
+    schema: "example-json.json",
+    valid: [
+      null, true, 42, 3.14, "hi",
+      [1, "two", true, null],
+      { a: [1, 2], b: { c: "d" } },
+      {},
+      { deep: [{ x: [true, [null, "y"]] }] },
+    ],
+    invalid: [
+      ["a link is not JSON", cid("bafy")],
+      ["link nested in a map", { a: cid("bafy") }],
+      ["link nested in a list", [1, cid("bafy")]],
+    ],
+  },
+  {
+    schema: "example-comment.json",
+    valid: [{ text: "hi" }, { text: "hi", author: cid("bafyp"), replies: [cid("bafyc1"), cid("bafyc2")] }],
+    invalid: [
+      ["missing text", {}],
+      ["text not string", { text: 1 }],
+      ["reply not a link", { text: "hi", replies: ["notlink"] }],
+    ],
+  },
+  {
+    schema: "example-tree.json",
+    valid: [{ value: 1 }, { value: 1, children: [cid("t1"), cid("t2")] }],
+    invalid: [
+      ["missing value", {}],
+      ["value not integer", { value: "x" }],
+      ["child is inline, not a link", { value: 1, children: [{ value: 2 }] }],
+    ],
+  },
+  {
+    schema: "example-entry.json",
+    valid: [{ name: "docs" }, { name: "docs", files: [cid("f")] }, { name: "a.txt", parent: cid("fold") }],
+    invalid: [["missing name (both arms require it)", {}], ["unknown key in both arms", { name: "x", bogus: 1 }]],
+  },
+  {
+    schema: "example-admin.json",
+    valid: [
+      { name: "Root", employeeId: "E-0", permissions: ["all"] },
+      { name: "Root", employeeId: "E-0", permissions: [], age: 40, department: "IT" },
+    ],
+    invalid: [
+      ["missing permissions (own required)", { name: "Root", employeeId: "E-0" }],
+      ["missing employeeId (from employee)", { name: "Root", permissions: [] }],
+      ["missing name (from person)", { employeeId: "E", permissions: [] }],
+      ["unknown key (closed through the chain)", { name: "R", employeeId: "E", permissions: [], ghost: 1 }],
+    ],
+  },
+  {
+    schema: "example-article.json",
+    valid: [
+      { title: "Hi", slug: "hi", status: "draft", author: cid("bafyA") },
+      {
+        title: "Onyx", slug: "onyx", status: "published", author: cid("bafyA"),
+        tags: ["types", "ipld"], body: bytes("QQ"), wordCount: 1200, featured: true,
+        cover: cid("bafyBlob"), comments: [cid("c1"), cid("c2")], meta: { lang: "en" },
+      },
+    ],
+    invalid: [
+      ["missing title", { slug: "hi", status: "draft", author: cid("A") }],
+      ["status not in enum", { title: "T", slug: "t", status: "bogus", author: cid("A") }],
+      ["author not a link", { title: "T", slug: "t", status: "draft", author: "A" }],
+      ["tag not a string", { title: "T", slug: "t", status: "draft", author: cid("A"), tags: [1] }],
+      ["wordCount not integer", { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }],
+      ["unknown key", { title: "T", slug: "t", status: "draft", author: cid("A"), views: 9 }],
+    ],
+  },
+  {
+    schema: "example-employee.json",
+    valid: [{ name: "Grace", employeeId: "E-1", department: "Research", active: true }],
+    invalid: [
+      ["missing added required", { name: "Grace" }],
+      ["missing inherited required", { employeeId: "E-2" }],
+      ["unknown key stays closed", { name: "Grace", employeeId: "E-1", salary: 1 }],
+    ],
+  },
+  {
+    schema: "example-person.json",
+    valid: [{ name: "Ada" }, { name: "Ada", age: 36, active: true, home: { street: "1 Analytical Way", city: "London" }, nicknames: ["Countess"] }],
+    invalid: [["age not integer", { name: "Ada", age: "old" }], ["home missing city", { name: "Ada", home: { street: "x" } }]],
+  },
+  {
+    schema: "example-document.json",
+    valid: [{ title: "Genesis", author: cid("bafyP"), body: bytes("aGVsbG8"), previous: cid("bafyD") }, { title: "Genesis" }],
+    invalid: [["body not bytes", { title: "T", body: "hello" }], ["author not a link", { title: "T", author: "P" }]],
+  },
+  {
+    schema: "example-folder.json",
+    valid: [{ name: "photos", files: [cid("f1")], subfolders: [cid("s1")] }, { name: "empty" }],
+    invalid: [["file not a link", { name: "x", files: ["nope"] }]],
+  },
+  {
+    schema: "example-counts.json",
+    valid: [{ Apples: 5, Oranges: 3 }, {}],
+    invalid: [["value not integer", { Apples: "five" }]],
+  },
+];
 
-// Schema EXTENSION: example-employee extends example-person. Employee data must
-// satisfy inherited required (name) AND the added required (employeeId), and may
-// use inherited fields (active) plus the new ones (department).
-const emp = load("example-employee.json");
-const employee = { name: "Grace", employeeId: "E-1", department: "Research", active: true };
-failed += report("employee data valid (inherited + added fields)", validate(emp, employee));
-failed += reportReject("extension enforces added required (missing employeeId)", validate(emp, { name: "Grace" }));
-failed += reportReject("extension stays closed (unknown key)", validate(emp, { ...employee, salary: 1 }));
-failed += reportReject("extension enforces inherited required (missing name)", validate(emp, { employeeId: "E-2" }));
+for (const c of CASES) {
+  const schema = load(c.schema);
+  const name = c.schema.replace(/\.json$/, "");
+  (c.valid || []).forEach((d, i) => (failed += report(`${name}: valid #${i + 1}`, validate(schema, d))));
+  (c.invalid || []).forEach(([note, d]) => (failed += reportReject(`${name}: rejects ${note}`, validate(schema, d))));
+}
+
+// =====================================================================
+// 5. Error paths are precise (regression guard on error reporting).
+// =====================================================================
+section("Error paths point at the offending value");
+failed += assertPath("nested list index", validate(load("example-matrix.json"), [[1, "x"]]), "$[0][1]");
+failed += assertPath("nested map key", validate(load("example-person.json"), { name: "Ada", home: { street: "x" } }), "home");
+failed += assertPath("deep JSON path", validate(load("example-json.json"), { a: [1, cid("bad")] }), "$.a[1]");
+failed += assertPath("article field", validate(load("example-article.json"), { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }), "$.wordCount");
 
 process.exit(failed ? 1 : 0);
+
+// --- reporting helpers -------------------------------------------------
+
+function section(title) {
+  console.log(`\n== ${title} ==`);
+}
 
 function report(label, errors) {
   if (errors.length === 0) {
@@ -241,5 +397,15 @@ function reportReject(label, errors) {
     return 0;
   }
   console.log(`  FAIL ${label} — was accepted but should be rejected`);
+  return 1;
+}
+
+// Passes when some error message mentions the expected path fragment.
+function assertPath(label, errors, expected) {
+  if (errors.some((e) => e.includes(expected))) {
+    console.log(`  ok   ${label} -> ${expected}`);
+    return 0;
+  }
+  console.log(`  FAIL ${label} — expected an error at ${expected}, got: ${errors.join(" | ") || "(none)"}`);
   return 1;
 }
