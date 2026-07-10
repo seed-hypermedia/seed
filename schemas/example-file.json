@@ -1,0 +1,8 @@
+{
+  "type": "map",
+  "required": ["name"],
+  "properties": {
+    "name": { "ref": "hm://hyper.media/string" },
+    "parent": { "type": "link", "ref": "hm://example.com/folder" }
+  }
+}

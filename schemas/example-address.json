@@ -1,0 +1,18 @@
+{
+  "type": "map",
+  "required": [
+    "street",
+    "city"
+  ],
+  "properties": {
+    "street": {
+      "ref": "hm://hyper.media/string"
+    },
+    "city": {
+      "ref": "hm://hyper.media/string"
+    },
+    "postalCode": {
+      "ref": "hm://hyper.media/string"
+    }
+  }
+}

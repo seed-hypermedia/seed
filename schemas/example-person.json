@@ -1,0 +1,26 @@
+{
+  "type": "map",
+  "required": [
+    "name"
+  ],
+  "properties": {
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "age": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "active": {
+      "ref": "hm://hyper.media/boolean"
+    },
+    "home": {
+      "ref": "hm://example.com/address"
+    },
+    "nicknames": {
+      "type": "list",
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    }
+  }
+}

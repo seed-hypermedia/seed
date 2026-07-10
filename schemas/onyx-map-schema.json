@@ -1,0 +1,29 @@
+{
+  "type": "map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "map"
+      ]
+    },
+    "properties": {
+      "type": "map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    },
+    "required": {
+      "type": "list",
+      "items": {
+        "type": "string"
+      }
+    },
+    "values": {
+      "ref": "hm://hyper.media/schema"
+    }
+  }
+}

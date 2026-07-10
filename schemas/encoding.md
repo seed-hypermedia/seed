@@ -1,0 +1,69 @@
+# Encoding: DAG-CBOR and the dag-json human form
+
+Onyx values — both schemas and the data they type — are **DAG-CBOR blocks** on
+IPFS. DAG-CBOR is a restricted, deterministic profile of CBOR (binary) with
+first-class support for links (CIDs). It is the canonical, on-the-wire form.
+
+DAG-CBOR is not human-editable, so in this repo everything is written in
+**dag-json**: the JSON projection of the same data model. dag-json is a
+faithful, lossless-enough rendering that a person can read and diff, and that
+tools can convert to and from DAG-CBOR.
+
+```
+   dag-json  (this repo, human form)  <——>  DAG-CBOR  (IPFS, canonical form)
+   JSON text, filename refs                  binary, CID refs
+```
+
+## The reserved-key envelopes
+
+JSON has no native way to write bytes or a link, so dag-json borrows the map
+syntax with **one reserved key, `/`**:
+
+| kind | dag-json | DAG-CBOR |
+| --- | --- | --- |
+| link | `{"/":"bafy…"}` | CID (tag 42) |
+| bytes | `{"/":{"bytes":"aGVsbG8"}}` | byte string (major type 2), base64 in JSON |
+
+**These are not maps.** They are the JSON *spelling* of two distinct kinds. In
+DAG-CBOR the ambiguity disappears — a link is a tagged CID, bytes are a byte
+string — but in dag-json they wear map syntax. This is the source of dag-json's
+one footgun: a genuine data map that happens to have a single `/` key is
+indistinguishable from a link.
+
+Onyx's rule keeps you clear of it (see [data-model.md](./data-model.md)): links
+and bytes are **atomic kinds**, never described as maps in a schema. A schema
+says `{"type":"link"}`, full stop — it never reaches inside the envelope. The
+[reference validator](./validate.mjs) enforces the distinction: `typeOf`
+recognizes the two envelopes and reports `link` / `bytes`, so a value typed
+`map` will *reject* a `{"/":…}` shape, and vice versa.
+
+## Canonical encoding matters
+
+CIDs are content hashes, so **the same value must always encode to the same
+bytes** or its CID would change. DAG-CBOR mandates a canonical form:
+
+- map keys sorted by a defined ordering,
+- shortest-form integer encodings,
+- no floating-point NaN/Infinity,
+- exactly one way to encode any value.
+
+The upshot for authoring: **key order and formatting in these JSON files are
+cosmetic.** Whitespace and the order you happen to write `properties` in do not
+affect the resulting block or its CID — the encoder normalizes everything. Two
+schemas that differ only in key order are the *same block* with the *same CID*.
+
+## The publish pipeline
+
+Turning this repo into live Onyx types is, end to end:
+
+1. Parse each `.json` file as dag-json.
+2. Rewrite filename `ref`s to their **`hm://` URLs** — names, not CIDs, so that
+   recursive and mutually-recursive schemas keep working (see [references.md](./references.md)).
+3. Canonically encode each to DAG-CBOR and publish it under its authority at its
+   `hm://` path (signed by the authority's key).
+4. The block also has a CID — use it to pin an exact, immutable version when you
+   want one; use the `hm://` name to resolve and to recurse.
+
+Anyone can then resolve a schema by its `hm://` name (or fetch an exact version
+by CID), DAG-CBOR-decode it, and type-check data against it — the same
+validation this repo runs locally, with `hm://` URLs where the filenames are.
