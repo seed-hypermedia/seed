@@ -3,6 +3,7 @@ package docmodel
 import (
 	"fmt"
 	"iter"
+	"maps"
 	"math"
 	"seed/backend/core"
 	"seed/backend/util/btree"
@@ -110,7 +111,7 @@ func (opset *treeOpSet) Integrate(opID opID, parent, block string, refID opID) e
 
 func (opset *treeOpSet) State() *blockTreeState {
 	state := &blockTreeState{
-		blocks:         btree.New[string, blockState](8, strings.Compare),
+		blocks:         make(map[string]blockState),
 		opSet:          opset.Copy(),
 		invisibleMoves: btree.New[opID, struct{}](8, opID.Compare),
 	}
@@ -121,7 +122,8 @@ func (opset *treeOpSet) State() *blockTreeState {
 			continue
 		}
 
-		prev, replaced := state.blocks.Swap(move.Block, blockState{Parent: move.Parent, Position: move.OpID})
+		prev, replaced := state.blocks[move.Block]
+		state.blocks[move.Block] = blockState{Parent: move.Parent, Position: move.OpID}
 		if replaced {
 			state.invisibleMoves.Set(prev.Position, struct{}{})
 		}
@@ -138,21 +140,21 @@ type blockState struct {
 type blockTreeState struct {
 	// Copy of the original opset.
 	opSet          *treeOpSet
-	blocks         *btree.Map[string, blockState]
+	blocks         map[string]blockState
 	invisibleMoves *btree.Map[opID, struct{}]
 }
 
 func (state *blockTreeState) Copy() *blockTreeState {
 	return &blockTreeState{
 		opSet:          state.opSet.Copy(),
-		blocks:         state.blocks.Copy(),
+		blocks:         maps.Clone(state.blocks),
 		invisibleMoves: state.invisibleMoves.Copy(),
 	}
 }
 
 // isAncestor returns checks if a is an ancestor of b.
 func (state *blockTreeState) isAncestor(a, b string) bool {
-	n, ok := state.blocks.Get(b)
+	n, ok := state.blocks[b]
 	for {
 		if !ok || n.Parent == "" || n.Parent == TrashNodeID {
 			return false
@@ -162,7 +164,7 @@ func (state *blockTreeState) isAncestor(a, b string) bool {
 			return true
 		}
 
-		n, ok = state.blocks.Get(n.Parent)
+		n, ok = state.blocks[n.Parent]
 	}
 }
 
@@ -247,7 +249,7 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 		return moveEffectNone, fmt.Errorf("cycle detected: block %s is ancestor of %s", block, parent)
 	}
 
-	leftState, ok := mut.dirty.blocks.Get(left)
+	leftState, ok := mut.dirty.blocks[left]
 	if !ok {
 		if left == "" {
 			leftState = blockState{Parent: parent}
@@ -261,7 +263,7 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	}
 
 	me := moveEffectCreated
-	curState, ok := mut.dirty.blocks.Get(block)
+	curState, ok := mut.dirty.blocks[block]
 	newState := blockState{
 		Parent:   parent,
 		Position: newOpID(math.MaxInt64, math.MaxUint64, mut.counter),
@@ -305,7 +307,7 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 		siblings.items.Set(fracdex, curListItem)
 	}
 
-	mut.dirty.blocks.Set(block, newState)
+	mut.dirty.blocks[block] = newState
 
 	mut.counter++
 
@@ -407,7 +409,7 @@ func (mut *blockTreeMutation) Commit(ts int64, actor core.ActorID) iter.Seq[move
 
 			// If currently deleted block wasn't in the initial state,
 			// then we can safely ignore it, because it was created by our own transaction.
-			if _, ok := mut.initial.blocks.Get(block.Value); !ok {
+			if _, ok := mut.initial.blocks[block.Value]; !ok {
 				continue
 			}
 
@@ -445,7 +447,7 @@ type logicalPosition struct {
 }
 
 func (state *blockTreeState) findLogicalPosition(block string) (lp logicalPosition, ok bool) {
-	bs, ok := state.blocks.Get(block)
+	bs, ok := state.blocks[block]
 	if !ok {
 		return lp, false
 	}
