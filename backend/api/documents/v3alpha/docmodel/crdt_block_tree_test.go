@@ -1,10 +1,8 @@
 package docmodel
 
 import (
-	"seed/backend/util/btree"
 	"seed/backend/util/must"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -138,8 +136,7 @@ func TestSelfParentDoesNotHang(t *testing.T) {
 	select {
 	case state := <-done:
 		// The self-parent move must have been rejected: X stays at the root.
-		bs := state.blocks.GetMaybe("X")
-		require.Equal(t, "", bs.Parent, "self-parent move must be ignored; X must remain at root")
+		require.Equal(t, "", state.blocks["X"].Parent, "self-parent move must be ignored; X must remain at root")
 		require.Equal(t, []blockPair{{"", "X"}}, slices.Collect(state.DFT("")))
 	case <-time.After(10 * time.Second):
 		t.Fatal("State() did not terminate: self-parent cycle guard failed")
@@ -150,10 +147,11 @@ func TestSelfParentDoesNotHang(t *testing.T) {
 // corrupt block graph (both a self-loop and a two-node cycle). It must return
 // rather than loop forever.
 func TestIsAncestorTerminatesOnCycle(t *testing.T) {
-	state := &blockTreeState{blocks: btree.New[string, blockState](8, strings.Compare)}
-	state.blocks.Set("X", blockState{Parent: "X"}) // self-loop
-	state.blocks.Set("A", blockState{Parent: "B"}) // A <-> B cycle
-	state.blocks.Set("B", blockState{Parent: "A"}) //
+	state := &blockTreeState{blocks: map[string]blockState{
+		"X": {Parent: "X"}, // self-loop
+		"A": {Parent: "B"}, // A <-> B cycle
+		"B": {Parent: "A"},
+	}}
 	require.False(t, state.isAncestor("Z", "X"), "self-loop must terminate as not-an-ancestor")
 	require.False(t, state.isAncestor("Z", "A"), "two-node cycle must terminate as not-an-ancestor")
 }
