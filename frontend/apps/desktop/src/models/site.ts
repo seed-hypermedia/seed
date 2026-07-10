@@ -1,13 +1,15 @@
+import {desktopUniversalClient} from '@/desktop-universal-client'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {desktopUniversalClient} from '@/desktop-universal-client'
+import {HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, packHmId} from '@shm/shared'
-import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
+import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
 
@@ -85,6 +87,38 @@ export function useSiteRegistration(accountUid: string) {
       return siteUrl
     },
     onSuccess: (result, input) => {
+      invalidateQueries([queryKeys.ENTITY, accountId.id])
+      invalidateQueries([queryKeys.ACCOUNT, accountId.uid])
+      invalidateQueries([queryKeys.RESOLVED_ENTITY, accountId.id])
+    },
+  })
+}
+
+/**
+ * Publish a new version of a site's home document from site settings page,
+ * which edits the published home doc without going through the draft editor.
+ */
+export function useUpdateHomeDocument(accountUid: string) {
+  const accountId = hmId(accountUid)
+  const entity = useResource(accountId)
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
+  return useMutation({
+    mutationFn: async ({metadata, navigation}: {metadata?: HMMetadata; navigation?: HMNavigationItem[]}) => {
+      const changes = [
+        ...(metadata ? getDocAttributeChanges(metadata, document?.metadata) : []),
+        ...getNavigationChanges(navigation, document?.detachedBlocks?.navigation),
+      ]
+      if (!changes.length) return
+      await desktopUniversalClient.publishDocument!({
+        signerAccountUid: accountUid,
+        account: accountUid,
+        baseVersion: document?.version,
+        genesis: document?.genesis,
+        generation: document?.generationInfo?.generation,
+        changes,
+      })
+    },
+    onSuccess: () => {
       invalidateQueries([queryKeys.ENTITY, accountId.id])
       invalidateQueries([queryKeys.ACCOUNT, accountId.uid])
       invalidateQueries([queryKeys.RESOLVED_ENTITY, accountId.id])

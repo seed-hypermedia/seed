@@ -6,6 +6,7 @@ import {
   createDocumentNavRoute,
   createInspectIpfsNavRoute,
   createInspectNavRoute,
+  type SiteSettingsTab,
 } from '../routes'
 import {
   activitySlugToFilter,
@@ -30,7 +31,15 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     return ipfsPath ? createInspectIpfsNavRoute(ipfsPath) : null
   }
 
-  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {
+    url: cleanUrl,
+    isInspect,
+    viewTerm,
+    activityFilter,
+    commentId,
+    accountUid,
+    settingsTab,
+  } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
   const id = unpackHmId(cleanUrl)
   if (!id) return null
@@ -56,6 +65,9 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
         ...route,
         filterEventType: activitySlugToFilter(activityFilter),
       }
+    }
+    if (route.key === 'site-settings' && settingsTab) {
+      return {...route, tab: settingsTab as SiteSettingsTab}
     }
     return route
   }

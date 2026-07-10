@@ -772,6 +772,16 @@ describe('routeToHmUrl', () => {
     expect(url).toBe('hm://uid1/:activity/citations')
   })
 
+  test('site-settings route produces a :settings view url', () => {
+    expect(routeToHmUrl({key: 'site-settings', id: hmId('uid1')})).toBe('hm://uid1/:settings')
+  })
+
+  test('site-settings route with a tab produces a :settings subpath url', () => {
+    expect(routeToHmUrl({key: 'site-settings', id: hmId('uid1'), tab: 'email-subscribers'})).toBe(
+      'hm://uid1/:settings/email-subscribers',
+    )
+  })
+
   test('inspect route preserves the inspect wrapper in hm urls', () => {
     const url = routeToHmUrl({
       key: 'inspect',

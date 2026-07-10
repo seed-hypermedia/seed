@@ -49,6 +49,7 @@ export const VIEW_TERMS = [
   ':directory',
   ':feed',
   ':all-documents',
+  ':settings',
   ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
@@ -61,6 +62,7 @@ export type ViewRouteKey =
   | 'directory'
   | 'feed'
   | 'all-documents'
+  | 'site-settings'
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
@@ -96,6 +98,7 @@ export function extractViewTermFromUrl(url: string): {
   activityFilter?: string
   commentId?: string
   accountUid?: string
+  settingsTab?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
 
@@ -121,6 +124,18 @@ export function extractViewTermFromUrl(url: string): {
       isInspect,
       viewTerm: ':activity',
       activityFilter: activitySlugMatch[1],
+    }
+  }
+
+  // Check for site settings patterns like /:settings or /:settings/<tab>.
+  const settingsPattern = /\/\:settings(?:\/(identity|navigation|members|writers|email-subscribers))?(?=[?#]|$)/
+  const settingsMatch = inspectCleanUrl.match(settingsPattern)
+  if (settingsMatch) {
+    return {
+      url: inspectCleanUrl.replace(settingsMatch[0], ''),
+      isInspect,
+      viewTerm: ':settings',
+      settingsTab: settingsMatch[1],
     }
   }
 
@@ -164,6 +179,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':directory': 'directory',
     ':feed': 'feed',
     ':all-documents': 'all-documents',
+    ':settings': 'site-settings',
     ':profile': 'profile',
     ':membership': 'membership',
     ':followers': 'followers',
@@ -593,6 +609,12 @@ export function routeToUrl(
       panel: effectivePanelParam,
     })
   }
+  if (route.key === 'site-settings') {
+    const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
+    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const tabPath = route.tab ? `/${route.tab}` : ''
+    return `${urlHost}${siteBase}/:settings${tabPath}`
+  }
   if (route.key === 'site-profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
     const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
@@ -674,6 +696,11 @@ export function routeToHmUrl(route: NavRoute): string | null {
     return url
   }
 
+  if (route.key === 'site-settings') {
+    const tabPath = route.tab ? `/${route.tab}` : ''
+    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
+  }
+
   if (route.key === 'site-profile') {
     const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
     return `${packBaseId(route.id.uid)}/:${route.tab}${accountSuffix}`
@@ -706,6 +733,9 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'all-documents'
   ) {
     return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
+  }
+  if (route.key === 'site-settings') {
+    return `${packBaseId(route.id.uid, route.id.path)}/:settings`
   }
   if (route.key === 'profile') {
     return `${packBaseId(route.id.uid)}/:${route.tab || 'profile'}`
