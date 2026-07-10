@@ -27,8 +27,9 @@ const (
 	passwordArgon2KeyLen  = 32
 	passwordSaltSize      = 16
 
-	passwordEncryptionKeyInfo = "seed-hypermedia-vault-encryption"
-	passwordAuthKeyInfo       = "seed-hypermedia-vault-authentication"
+	// HKDF info labels for domain separation, not credentials.
+	passwordEncryptionKeyInfo = "seed-hypermedia-vault-encryption"     //nolint:gosec // G101: HKDF info label, not a secret
+	passwordAuthKeyInfo       = "seed-hypermedia-vault-authentication" //nolint:gosec // G101: HKDF info label, not a secret
 )
 
 // hkdfSHA256 derives n bytes from key using HKDF-SHA256 with an empty (zero)

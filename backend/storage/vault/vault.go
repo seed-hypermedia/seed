@@ -860,7 +860,7 @@ func (ks *Vault) PollConnection(ctx context.Context, connectSecret string) error
 					zap.NamedError("lastPollError", lastFetchErr),
 				)
 				if lastFetchErr != nil {
-					return fmt.Errorf("%w (last poll error: %v)", ErrConnectionTokenExpired, lastFetchErr)
+					return fmt.Errorf("%w (last poll error: %w)", ErrConnectionTokenExpired, lastFetchErr)
 				}
 				return ErrConnectionTokenExpired
 			}
