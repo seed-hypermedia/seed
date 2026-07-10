@@ -41,8 +41,15 @@ itself: `onyx-schema.json` matches its own `union` variant, whose `anyOf` items 
 its `include` variant, whose targets match the other variants.
 ([schema-language.md](./schema-language.md))
 
-**Include** — a reference of the form `{ "ref": "x.json" }` (no `type`). Splices
-schema `x` in place; the value is stored **inline**. ([references.md](./references.md))
+**Include** — a bare reference `{ "ref": "hm://…" }` (no `type`, no refinements).
+Becomes exactly the referenced schema. ([references.md](./references.md))
+
+**Extension** — a reference node that *also* carries refinements
+(`{ "ref": parent, "properties": {…}, "required": […] }`). A subtype: the
+parent's fields plus the new ones, `required` unioned, closedness preserved. No
+`extends` keyword — the presence of refinements is what distinguishes it from a
+bare include. Example: `example-employee` extends `example-person`.
+([schema-language.md](./schema-language.md))
 
 **Link** — a value of kind `link`: a **CID** pointing to a separate block. A
 *typed link* (`{ "type":"link", "ref":"x.json" }`) records the expected type of

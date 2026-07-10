@@ -1,13 +1,13 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "type"
   ],
   "properties": {
     "type": {
-      "type": "string",
+      "type": "hm://hyper.media/string",
       "enum": [
-        "list"
+        "hm://hyper.media/list"
       ]
     },
     "items": {

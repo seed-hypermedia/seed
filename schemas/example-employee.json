@@ -1,0 +1,8 @@
+{
+  "ref": "hm://example.com/person",
+  "required": ["employeeId"],
+  "properties": {
+    "employeeId": { "ref": "hm://hyper.media/string" },
+    "department": { "ref": "hm://hyper.media/string" }
+  }
+}

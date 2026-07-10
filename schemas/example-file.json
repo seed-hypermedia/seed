@@ -1,8 +1,15 @@
 {
-  "type": "map",
-  "required": ["name"],
+  "type": "hm://hyper.media/map",
+  "required": [
+    "name"
+  ],
   "properties": {
-    "name": { "ref": "hm://hyper.media/string" },
-    "parent": { "type": "link", "ref": "hm://example.com/folder" }
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "parent": {
+      "type": "hm://hyper.media/link",
+      "ref": "hm://example.com/folder"
+    }
   }
 }

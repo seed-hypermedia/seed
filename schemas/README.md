@@ -19,11 +19,13 @@ Two forms of the same thing:
 | owned by | — | a signing authority (a public key) |
 | audience | people editing schemas | machines resolving & typing data |
 
-You author in the left column. References are **`hm://` URLs** — names owned by a
-signing authority — and local filenames are just their dev alias
-(`onyx-string.json` ⇄ `hm://hyper.media/string`). Names (not content hashes) are
-what let schemas **recurse** and reference each other in cycles; a CID is pinned
-to exact bytes and can't. See [references.md](./references.md).
+You author in the left column. Both `ref` and `type` values are **`hm://` URLs**
+— names owned by a signing authority — so every type is clickable and
+self-explanatory (`type` is `"hm://hyper.media/map"`, not a bare `"map"`). Local
+filenames are just their dev alias (`onyx-string.json` ⇄ `hm://hyper.media/string`).
+Names (not content hashes) are what let schemas **recurse** and reference each
+other in cycles; a CID is pinned to exact bytes and can't. See
+[references.md](./references.md).
 
 ## The knowledge base
 
@@ -54,6 +56,7 @@ Read in order, or jump to what you need:
 | [`example-document.json`](./example-document.json) | example; uses `link` + `bytes`, and links to itself (`previous`) |
 | [`example-folder.json`](./example-folder.json) | example; **mutual recursion** — a folder links to files and subfolders |
 | [`example-file.json`](./example-file.json) | example; links back to its parent folder (closes the cycle) |
+| [`example-employee.json`](./example-employee.json) | example; **extension** — a subtype of `example-person` with added fields |
 | [`validate.mjs`](./validate.mjs) | dependency-free reference validator |
 
 ## Try it

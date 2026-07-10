@@ -1,17 +1,17 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "type"
   ],
   "properties": {
     "type": {
-      "type": "string",
+      "type": "hm://hyper.media/string",
       "enum": [
-        "link"
+        "hm://hyper.media/link"
       ]
     },
     "ref": {
-      "type": "string"
+      "type": "hm://hyper.media/string"
     }
   }
 }

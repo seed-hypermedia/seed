@@ -5,19 +5,55 @@ optional. That is the entire language.
 
 | key | applies to | meaning |
 | --- | --- | --- |
-| `type` | any | the kind this value must be — one of the nine (see [data-model.md](./data-model.md)) |
+| `type` | any | the kind — an `hm://` URL naming one of the nine (see [data-model.md](./data-model.md)) |
 | `properties` | `map` | a map of known field name → schema |
 | `required` | `map` | list of field names that must be present |
 | `items` | `list` | schema every element must match |
 | `values` | `map` | schema every *value* must match (open map / record) |
 | `enum` | any | list of allowed literal values |
-| `ref` | any | a reference to another schema — see [references.md](./references.md) |
+| `ref` | any | a reference to another schema — an `hm://` URL (see [references.md](./references.md)) |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas |
 
+Both `type` and `ref` values are `hm://` URLs, so they are clickable and
+self-explanatory: `type` is `"hm://hyper.media/map"`, not a bare `"map"`. **For
+readability these docs abbreviate `hm://hyper.media/map` as just `map`** — but
+the real value is always the URL.
+
 A node with only `ref` (and no `type`) is an **include**: it becomes whatever
-the referenced schema says. A node with `type:"link"` *and* `ref` is a **typed
-link**: a CID whose target should match the referenced schema. Same keyword,
-two roles, disambiguated by whether `type` is present.
+the referenced schema says. Add refinement keys and it becomes an **extension**
+(below). A node with `type:"link"` *and* `ref` is a **typed link**: a link whose
+target should match the referenced schema.
+
+## Extension (subtyping)
+
+A reference node that *also* carries refinements **extends** the schema it
+points at — a subtype with the parent's fields plus new ones:
+
+```json
+// example-employee = example-person, plus employeeId and department
+{
+  "ref": "hm://example.com/person",
+  "required": ["employeeId"],
+  "properties": {
+    "employeeId": { "ref": "hm://hyper.media/string" },
+    "department": { "ref": "hm://hyper.media/string" }
+  }
+}
+```
+
+The rules, all reusing existing keywords — no `extends` keyword needed:
+
+- `properties` are **merged** (parent's + the extension's; same-named keys override).
+- `required` is the **union** of both.
+- `values` / `items` on the extension override the parent's.
+- the result keeps the parent's kind and closedness — so an employee must have
+  `name` (inherited-required) **and** `employeeId` (added-required), may use any
+  inherited field, and still rejects unknown keys.
+
+A **bare** `{ "ref": X }` (no refinements) is a pure include, not an extension.
+The distinction is exactly whether refinements are present. This is validated by
+[`validate.mjs`](./validate.mjs) (see the `employee data` / `extension …`
+checks).
 
 ## Closed maps
 

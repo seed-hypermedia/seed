@@ -1,25 +1,25 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "type"
   ],
   "properties": {
     "type": {
-      "type": "string",
+      "type": "hm://hyper.media/string",
       "enum": [
-        "map"
+        "hm://hyper.media/map"
       ]
     },
     "properties": {
-      "type": "map",
+      "type": "hm://hyper.media/map",
       "values": {
         "ref": "hm://hyper.media/schema"
       }
     },
     "required": {
-      "type": "list",
+      "type": "hm://hyper.media/list",
       "items": {
-        "type": "string"
+        "type": "hm://hyper.media/string"
       }
     },
     "values": {
