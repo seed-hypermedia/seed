@@ -1,11 +1,11 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "anyOf"
   ],
   "properties": {
     "anyOf": {
-      "type": "list",
+      "type": "hm://hyper.media/list",
       "items": {
         "ref": "hm://hyper.media/schema"
       }

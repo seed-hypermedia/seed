@@ -58,6 +58,11 @@ function typeOf(d) {
   return typeof d; // string, boolean
 }
 
+// A `type` value is a kind URL (hm://hyper.media/<kind>); read the kind locally
+// off the URL — no fetch needed, so the discriminant stays local.
+const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/;
+const kindOf = (t) => KIND_URL.exec(t)?.[1] ?? t;
+
 function typeMatches(type, d) {
   switch (type) {
     case "null": return d === null;
@@ -73,16 +78,39 @@ function typeMatches(type, d) {
   }
 }
 
+// Resolve a reference node (`ref`, no `type`) to a concrete schema.
+//   { ref: X }                       -> include: X exactly
+//   { ref: X, properties|required|…} -> EXTEND X: merge parent + these refinements
+// Extension is a subtype: parent's fields plus the new ones, required unioned.
+function concrete(schema, seen = new Set()) {
+  if (!schema.ref || schema.type || schema.anyOf) return schema;
+  if (seen.has(schema.ref)) return schema; // guard against ref cycles
+  seen.add(schema.ref);
+  const parent = concrete(load(schema.ref), seen);
+  if (parent.anyOf) return parent;
+  const extends_ = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
+  if (!extends_) return parent; // pure include
+  const merged = { type: parent.type };
+  const props = { ...(parent.properties || {}), ...(schema.properties || {}) };
+  if (Object.keys(props).length) merged.properties = props;
+  const req = [...new Set([...(parent.required || []), ...(schema.required || [])])];
+  if (req.length) merged.required = req;
+  const values = schema.values ?? parent.values;
+  if (values) merged.values = values;
+  const items = schema.items ?? parent.items;
+  if (items) merged.items = items;
+  return merged;
+}
+
 // Returns a list of error strings. Empty == valid.
 function validate(schema, data, path = "$") {
+  schema = concrete(schema); // resolve includes / extensions
+
   // union: matches if it matches any variant.
   if (schema.anyOf) {
     if (schema.anyOf.some((v) => validate(v, data, path).length === 0)) return [];
     return [`${path}: matches none of the ${schema.anyOf.length} schema variants`];
   }
-
-  // include: a node with `ref` and no `type` defers to the referenced schema.
-  if (schema.ref && !schema.type) return validate(load(schema.ref), data, path);
 
   const errors = [];
 
@@ -90,12 +118,14 @@ function validate(schema, data, path = "$") {
     errors.push(`${path}: ${JSON.stringify(data)} not in enum ${JSON.stringify(schema.enum)}`);
   }
 
-  if (schema.type && !typeMatches(schema.type, data)) {
-    errors.push(`${path}: expected ${schema.type}, got ${typeOf(data)}`);
+  const kind = schema.type ? kindOf(schema.type) : null;
+
+  if (kind && !typeMatches(kind, data)) {
+    errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`);
     return errors; // wrong kind -> deeper checks would be noise
   }
 
-  if (schema.type === "map") {
+  if (kind === "map") {
     for (const key of schema.required ?? []) {
       if (!(key in data)) errors.push(`${path}: missing required "${key}"`);
     }
@@ -107,7 +137,7 @@ function validate(schema, data, path = "$") {
     }
   }
 
-  if (schema.type === "list" && schema.items) {
+  if (kind === "list" && schema.items) {
     data.forEach((item, i) => errors.push(...validate(schema.items, item, `${path}[${i}]`)));
   }
 
@@ -141,13 +171,17 @@ for (const v of ["map", "list", "scalar", "link", "include", "union"])
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "link", "map", "list"];
 for (const k of KINDS)
   failed += report(`onyx-${k}.json is a valid schema`, validate(meta, load(`onyx-${k}.json`)));
-for (const s of ["example-person", "example-address", "example-document", "example-folder", "example-file"])
+for (const s of ["example-person", "example-address", "example-document", "example-folder", "example-file", "example-employee"])
   failed += report(`${s}.json is a valid schema`, validate(meta, load(`${s}.json`)));
 
 // The discriminated union now REJECTS structurally invalid schemas.
 failed += reportReject(
   "rejects a string-that-is-also-a-list-and-struct",
-  validate(meta, { type: "string", items: { type: "integer" }, properties: {} })
+  validate(meta, {
+    type: "hm://hyper.media/string",
+    items: { type: "hm://hyper.media/integer" },
+    properties: {},
+  })
 );
 
 // Data documents (dag-json human form).
@@ -177,6 +211,16 @@ const folder = {
   subfolders: [{ "/": "bafyfolder00000000000000000000000000000000000000000" }],
 };
 failed += report("folder data is valid (mutual-recursion schema)", validate(load("example-folder.json"), folder));
+
+// Schema EXTENSION: example-employee extends example-person. Employee data must
+// satisfy inherited required (name) AND the added required (employeeId), and may
+// use inherited fields (active) plus the new ones (department).
+const emp = load("example-employee.json");
+const employee = { name: "Grace", employeeId: "E-1", department: "Research", active: true };
+failed += report("employee data valid (inherited + added fields)", validate(emp, employee));
+failed += reportReject("extension enforces added required (missing employeeId)", validate(emp, { name: "Grace" }));
+failed += reportReject("extension stays closed (unknown key)", validate(emp, { ...employee, salary: 1 }));
+failed += reportReject("extension enforces inherited required (missing name)", validate(emp, { employeeId: "E-2" }));
 
 process.exit(failed ? 1 : 0);
 

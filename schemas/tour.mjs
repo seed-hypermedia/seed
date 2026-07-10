@@ -40,6 +40,10 @@ const urlToFile = (ref) => {
 const refToSlug = (ref) => base(urlToFile(ref)); // hm:// URL -> local route slug
 const refIsSchema = (ref) => SCHEMA_FILES.includes(urlToFile(ref));
 
+// `type` values are kind URLs (hm://hyper.media/<kind>); read the kind locally.
+const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/;
+const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
+
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
 
 // The meta-schema is a discriminated union; its variants are the anyOf refs.
@@ -53,7 +57,7 @@ const PRIMITIVE_FILES = KINDS.map((k) => `onyx-${k}.json`).filter((f) => SCHEMA_
 const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
-  return Object.keys(s).length === 1 && typeof s.type === "string" ? s.type : null;
+  return Object.keys(s).length === 1 && typeof s.type === "string" ? kindOf(s.type) : null;
 };
 
 // Wire each kind to its canonical primitive schema (onyx-<kind>), so a kind
@@ -65,7 +69,7 @@ for (const k of KINDS) if (SCHEMA_FILES.includes(`onyx-${k}.json`)) KIND_SCHEMA[
 const KIND_VARIANT = {};
 for (const f of VARIANT_FILES) {
   const e = loadJson(f)?.properties?.type?.enum;
-  if (Array.isArray(e)) for (const k of e) KIND_VARIANT[k] ??= base(f);
+  if (Array.isArray(e)) for (const k of e) KIND_VARIANT[kindOf(k)] ??= base(f);
 }
 
 // The guided reading order (docs). Titles are read from each file's first heading.
@@ -203,6 +207,28 @@ const kindBadge = (k) =>
     ? `<a class="kind-link" href="/schema/${KIND_SCHEMA[k]}" title="defined by ${KIND_SCHEMA[k]}.json">${kindTag(k)}</a>`
     : kindTag(k);
 
+// Resolve a reference node into its concrete schema (mirrors validate.mjs):
+// bare {ref} = include; {ref, refinements} = extend (merge parent + refinements).
+function concrete(schema, seen = new Set()) {
+  if (!schema.ref || schema.type || schema.anyOf) return schema;
+  if (seen.has(schema.ref)) return schema;
+  seen.add(schema.ref);
+  const parent = concrete(loadJson(urlToFile(schema.ref)), seen);
+  if (parent.anyOf) return parent;
+  const ext = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
+  if (!ext) return parent;
+  const merged = { type: parent.type };
+  const props = { ...(parent.properties || {}), ...(schema.properties || {}) };
+  if (Object.keys(props).length) merged.properties = props;
+  const req = [...new Set([...(parent.required || []), ...(schema.required || [])])];
+  if (req.length) merged.required = req;
+  const values = schema.values ?? parent.values;
+  if (values) merged.values = values;
+  const items = schema.items ?? parent.items;
+  if (items) merged.items = items;
+  return merged;
+}
+
 function summarize(node) {
   if (!node) return `<span class="muted">any</span>`;
   if (node.anyOf)
@@ -217,13 +243,14 @@ function summarize(node) {
     }
     return `<a class="chip include" href="/schema/${b}">↳ include ${b}</a>`;
   }
-  if (node.type === "link") {
+  const k = kindOf(node.type);
+  if (k === "link") {
     const t = node.ref ? ` <a class="chip link-chip" href="/schema/${refToSlug(node.ref)}">→ ${refToSlug(node.ref)}</a>` : "";
     return kindBadge("link") + t;
   }
-  if (node.type === "list")
+  if (k === "list")
     return `${kindBadge("list")} <span class="muted">of</span> ${summarize(node.items)}`;
-  if (node.type === "map") {
+  if (k === "map") {
     if (node.properties)
       return `${kindBadge("map")} <span class="muted">{ ${Object.keys(node.properties).length} fields }</span>`;
     if (node.values)
@@ -231,10 +258,10 @@ function summarize(node) {
     return kindBadge("map");
   }
   if (node.enum) {
-    const vals = node.enum.map((v) => `<code>${esc(JSON.stringify(v))}</code>`).join(" ");
-    return `${node.type ? kindBadge(node.type) + " " : ""}<span class="muted">enum:</span> ${vals}`;
+    const vals = node.enum.map((v) => `<code>${esc(kindOf(v))}</code>`).join(" ");
+    return `${k ? kindBadge(k) + " " : ""}<span class="muted">enum:</span> ${vals}`;
   }
-  if (node.type) return kindBadge(node.type);
+  if (k) return kindBadge(k);
   return `<span class="muted">any</span>`;
 }
 
@@ -342,7 +369,8 @@ function highlightJson(value, indent = 0, key = null) {
     return `<span class="j-punct">{</span>\n${entries}\n${pad}<span class="j-punct">}</span>`;
   }
   if (typeof value === "string") {
-    if (key === "ref" && refIsSchema(value))
+    // Any hm:// URL (ref, type, kind-enum member) that resolves to a schema is clickable.
+    if (value.startsWith("hm://") && refIsSchema(value))
       return `<span class="j-str">"<a class="j-ref" href="/schema/${refToSlug(value)}">${esc(value)}</a>"</span>`;
     return `<span class="j-str">"${esc(value)}"</span>`;
   }
@@ -369,9 +397,10 @@ function schemaPage(name) {
   let lead, main;
   if (isPrim && primKind) {
     const variant = KIND_VARIANT[primKind];
+    const url = fileToUrl(file);
     lead = `<p class="lead">${kindTag(primKind)} <span class="muted">· a primitive type — the standard-library schema for the <code>${primKind}</code> kind</span></p>`;
     main = `<div class="prim-body">
-      <p>The entire schema is <code>{ "type": "${primKind}" }</code>. Reference it as <code>{ "ref": "${name}.json" }</code> to type any value as ${primKind} — on IPFS that <code>ref</code> becomes the CID of this block, so <strong>${primKind}</strong> is a content-addressed, reusable type.</p>
+      <p>The entire schema is <code>{ "type": "${url}" }</code> — its <code>type</code> names itself, so it is the self-grounding axiom for the ${primKind} kind. Reference it as <code>{ "ref": "${url}" }</code> to type any value as ${primKind}.</p>
       ${variant ? `<p class="muted">Typed by <a href="/schema/${variant}">${variant}.json</a> — the meta-schema variant whose shape it fits.</p>` : ""}
     </div>`;
   } else if (isUnion) {
@@ -382,7 +411,7 @@ function schemaPage(name) {
         const vs = loadJson(urlToFile(v.ref));
         const kinds = vs.properties?.type?.enum;
         const tag = kinds
-          ? kinds.map(kindTag).join(" ")
+          ? kinds.map((u) => kindTag(kindOf(u))).join(" ")
           : b === "onyx-include-schema"
           ? `<span class="muted">a bare</span> <code>ref</code>`
           : b === "onyx-union-schema"
@@ -392,9 +421,30 @@ function schemaPage(name) {
       })
       .join("");
     main = `<div class="variants">${cards}</div>`;
-  } else if (schema.type === "map" && schema.properties) {
+  } else if (schema.ref && !schema.type) {
+    // A reference node: pure include, or an EXTENSION (ref + refinements).
+    const parentSlug = refToSlug(schema.ref);
+    const hasExt = ["properties", "required", "values", "items"].some((k) => schema[k] !== undefined);
+    if (hasExt) {
+      const eff = concrete(schema);
+      const added = new Set(Object.keys(schema.properties || {}));
+      const req = new Set(eff.required || []);
+      lead = `<p class="lead">${kindBadge(kindOf(eff.type))} <span class="muted">· extends</span> <a href="/schema/${parentSlug}">${parentSlug}</a> <span class="muted">· +${added.size} field${added.size === 1 ? "" : "s"}</span></p>`;
+      const rows = Object.entries(eff.properties || {})
+        .map(([k, v]) => {
+          const origin = added.has(k) ? `<span class="req">added</span>` : `<span class="opt">inherited</span>`;
+          const r = req.has(k) ? ` <span class="req">·req</span>` : "";
+          return `<tr><td class="fname">${esc(k)}</td><td>${summarize(v)}</td><td class="freq">${origin}${r}</td></tr>`;
+        })
+        .join("");
+      main = `<table class="fields"><thead><tr><th>field</th><th>type</th><th>origin</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      lead = `<p class="lead"><span class="muted">alias of</span> <a href="/schema/${parentSlug}">${parentSlug}</a></p>`;
+      main = "";
+    }
+  } else if (kindOf(schema.type) === "map" && schema.properties) {
     lead = `<p class="lead">Root kind: ${kindBadge("map")} <span class="muted">· ${schema.values ? "map" : "closed struct"}, ${Object.keys(schema.properties).length} fields</span>${
-      govKinds ? ` · governs ${govKinds.map(kindBadge).join(" ")}` : ""
+      govKinds ? ` · governs ${govKinds.map((u) => kindBadge(kindOf(u))).join(" ")}` : ""
     }</p>`;
     const req = new Set(schema.required || []);
     const rows = Object.entries(schema.properties)
@@ -407,8 +457,8 @@ function schemaPage(name) {
       .join("");
     main = `<table class="fields"><thead><tr><th>field</th><th>type</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   } else {
-    lead = `<p class="lead">Root kind: ${kindBadge(schema.type || "any")}</p>`;
-    main = schema.type === "map" && schema.values ? `<p class="shape">Open map — every value: ${summarize(schema.values)}</p>` : "";
+    lead = `<p class="lead">Root kind: ${kindBadge(kindOf(schema.type) || "any")}</p>`;
+    main = kindOf(schema.type) === "map" && schema.values ? `<p class="shape">Open map — every value: ${summarize(schema.values)}</p>` : "";
   }
 
   const chip = (n) => `<a class="chip" href="/schema/${n}">${n}</a>`;

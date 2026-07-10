@@ -1,22 +1,22 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "type"
   ],
   "properties": {
     "type": {
-      "type": "string",
+      "type": "hm://hyper.media/string",
       "enum": [
-        "null",
-        "boolean",
-        "integer",
-        "float",
-        "string",
-        "bytes"
+        "hm://hyper.media/null",
+        "hm://hyper.media/boolean",
+        "hm://hyper.media/integer",
+        "hm://hyper.media/float",
+        "hm://hyper.media/string",
+        "hm://hyper.media/bytes"
       ]
     },
     "enum": {
-      "type": "list"
+      "type": "hm://hyper.media/list"
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "type": "map",
+  "type": "hm://hyper.media/map",
   "required": [
     "title"
   ],
@@ -8,14 +8,14 @@
       "ref": "hm://hyper.media/string"
     },
     "author": {
-      "type": "link",
+      "type": "hm://hyper.media/link",
       "ref": "hm://example.com/person"
     },
     "body": {
       "ref": "hm://hyper.media/bytes"
     },
     "previous": {
-      "type": "link",
+      "type": "hm://hyper.media/link",
       "ref": "hm://example.com/document"
     }
   }
