@@ -61,17 +61,19 @@ type Server struct {
 	log       *zap.Logger
 	p2p       *hmnet.Node
 	telemetry *telemetry.Server
+	hydrated  *hydrateCache
 }
 
 // NewServer creates a new Documents API v3 server.
 func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
 	return &Server{
-		cfg:  cfg,
-		keys: keys,
-		idx:  idx,
-		db:   db,
-		log:  log,
-		p2p:  p2p,
+		cfg:      cfg,
+		keys:     keys,
+		idx:      idx,
+		db:       db,
+		log:      log,
+		p2p:      p2p,
+		hydrated: newHydrateCache(),
 	}
 }
 
@@ -158,7 +160,12 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		}
 	}
 
-	return doc.Hydrate(ctx)
+	iri, err := makeIRI(ns, in.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	return srv.hydrated.get(ctx, string(iri), doc)
 }
 
 // GetDocumentInfo implements Documents API v3.
