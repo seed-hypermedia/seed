@@ -67,7 +67,10 @@ A `link` is a CID: a hash that names another block by its content. Links are
 what make Onyx data a **DAG** (directed acyclic graph) spanning many blocks
 rather than one document. A schema field typed `link` says "here is a pointer
 to another block," and — optionally — "whose value should itself match schema
-X" (a *typed link*; see [references.md](./references.md)).
+X" (a *typed link*; see [references.md](./references.md)). See
+[`example-document.json`](./example-document.json) (`author` links to a person,
+`previous` to another document) and the mutually-linked
+[`example-folder.json`](./example-folder.json) / [`example-file.json`](./example-file.json).
 
 Onyx uses this same machinery on itself: schemas link to other schemas, so the
 type definitions form their own DAG, addressed and resolved exactly like the

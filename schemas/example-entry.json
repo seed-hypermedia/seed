@@ -1,0 +1,10 @@
+{
+  "anyOf": [
+    {
+      "ref": "hm://example.com/folder"
+    },
+    {
+      "ref": "hm://example.com/file"
+    }
+  ]
+}

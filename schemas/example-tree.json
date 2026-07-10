@@ -1,0 +1,18 @@
+{
+  "type": "hm://hyper.media/map",
+  "required": [
+    "value"
+  ],
+  "properties": {
+    "value": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "children": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/tree"
+      }
+    }
+  }
+}

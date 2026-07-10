@@ -32,11 +32,12 @@ other in cycles; a CID is pinned to exact bytes and can't. See
 Read in order, or jump to what you need:
 
 1. **[data-model.md](./data-model.md)** — the nine kinds of value (the IPLD data model, incl. `link` and `bytes`).
-2. **[schema-language.md](./schema-language.md)** — the eight-key vocabulary, closed maps, unions, and how Onyx describes itself as a discriminated union.
-3. **[references.md](./references.md)** — `include` vs. `link`, the filename→CID transform, and the self-reference fixpoint (the "beautifully meta" part, and its sharp edges).
+2. **[schema-language.md](./schema-language.md)** — the vocabulary: closed maps, unions, generics, extension, and how Onyx describes itself as a discriminated union.
+3. **[references.md](./references.md)** — `include` / `link` / extend, the `hm://` naming layer, and how names (not hashes) make recursion possible.
 4. **[encoding.md](./encoding.md)** — DAG-CBOR, the dag-json human form, canonical encoding, and the reserved-key envelopes.
-5. **[design-rationale.md](./design-rationale.md)** — why the system is shaped this way, and the open questions.
-6. **[glossary.md](./glossary.md)** — terms in one place.
+5. **[examples.md](./examples.md)** — a catalog of every example schema, grouped by feature and linked to the tests.
+6. **[design-rationale.md](./design-rationale.md)** — why the system is shaped this way, the decisions taken, and the open questions.
+7. **[glossary.md](./glossary.md)** — terms in one place.
 
 ## The files
 
@@ -49,15 +50,10 @@ Read in order, or jump to what you need:
 | [`onyx-link-schema.json`](./onyx-link-schema.json) | variant: a `link` schema (typed CID) |
 | [`onyx-include-schema.json`](./onyx-include-schema.json) | variant: a bare `ref` include |
 | [`onyx-union-schema.json`](./onyx-union-schema.json) | variant: an `anyOf` union |
-| `onyx-<kind>.json` | the **primitive library** — one canonical schema per kind (`onyx-string`, `onyx-boolean`, … each just `{ "type": <kind> }`) |
-| [`example-counts.json`](./example-counts.json) | example; `Map<Integer>` — an applied generic (`values` is the parameter) |
-| [`example-address.json`](./example-address.json) | example struct |
-| [`example-person.json`](./example-person.json) | example; embeds an address via `include` |
-| [`example-document.json`](./example-document.json) | example; uses `link` + `bytes`, and links to itself (`previous`) |
-| [`example-folder.json`](./example-folder.json) | example; **mutual recursion** — a folder links to files and subfolders |
-| [`example-file.json`](./example-file.json) | example; links back to its parent folder (closes the cycle) |
-| [`example-employee.json`](./example-employee.json) | example; **extension** — a subtype of `example-person` with added fields |
-| [`validate.mjs`](./validate.mjs) | dependency-free reference validator |
+| `onyx-<kind>.json` | the **primitive library** — one canonical schema per kind (`onyx-string`, `onyx-boolean`, … each just `{ "type": <kind-url> }`) |
+| `example-*.json` | ~15 **example schemas** covering every feature — see the full catalog in [examples.md](./examples.md) |
+| [`validate.mjs`](./validate.mjs) | dependency-free reference validator (100+ checks) |
+| [`tour.mjs`](./tour.mjs) | the zero-dependency explorer server (`node tour.mjs`) |
 
 ## Try it
 

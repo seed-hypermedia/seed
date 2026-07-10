@@ -24,6 +24,9 @@
     },
     "items": {
       "ref": "hm://hyper.media/schema"
+    },
+    "enum": {
+      "type": "hm://hyper.media/list"
     }
   }
 }

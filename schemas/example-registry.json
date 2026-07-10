@@ -1,0 +1,7 @@
+{
+  "type": "hm://hyper.media/map",
+  "values": {
+    "type": "hm://hyper.media/link",
+    "ref": "hm://example.com/person"
+  }
+}

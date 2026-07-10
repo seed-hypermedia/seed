@@ -1,0 +1,8 @@
+{
+  "ref": "hm://hyper.media/string",
+  "enum": [
+    "draft",
+    "published",
+    "archived"
+  ]
+}

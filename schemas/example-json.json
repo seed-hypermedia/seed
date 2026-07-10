@@ -1,0 +1,31 @@
+{
+  "anyOf": [
+    {
+      "ref": "hm://hyper.media/null"
+    },
+    {
+      "ref": "hm://hyper.media/boolean"
+    },
+    {
+      "ref": "hm://hyper.media/integer"
+    },
+    {
+      "ref": "hm://hyper.media/float"
+    },
+    {
+      "ref": "hm://hyper.media/string"
+    },
+    {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://example.com/json"
+      }
+    },
+    {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://example.com/json"
+      }
+    }
+  ]
+}

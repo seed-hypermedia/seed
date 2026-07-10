@@ -48,7 +48,8 @@ Becomes exactly the referenced schema. ([references.md](./references.md))
 (`{ "ref": parent, "properties": {…}, "required": […] }`). A subtype: the
 parent's fields plus the new ones, `required` unioned, closedness preserved. No
 `extends` keyword — the presence of refinements is what distinguishes it from a
-bare include. Example: `example-employee` extends `example-person`.
+bare include. Example: [`example-employee.json`](./example-employee.json) extends
+[`example-person.json`](./example-person.json).
 ([schema-language.md](./schema-language.md))
 
 **Link** — a value of kind `link`: a **CID** pointing to a separate block. A

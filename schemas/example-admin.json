@@ -1,0 +1,14 @@
+{
+  "ref": "hm://example.com/employee",
+  "required": [
+    "permissions"
+  ],
+  "properties": {
+    "permissions": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    }
+  }
+}

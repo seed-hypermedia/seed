@@ -78,6 +78,7 @@ const TOUR = [
   "schema-language.md",
   "references.md",
   "encoding.md",
+  "examples.md",
   "design-rationale.md",
   "glossary.md",
 ].filter((f) => files.includes(f)).map((f) => ({
@@ -404,20 +405,29 @@ function schemaPage(name) {
       ${variant ? `<p class="muted">Typed by <a href="/schema/${variant}">${variant}.json</a> — the meta-schema variant whose shape it fits.</p>` : ""}
     </div>`;
   } else if (isUnion) {
-    lead = `<p class="lead"><span class="kind kind-union">discriminated union</span> <span class="muted">· ${schema.anyOf.length} variants, tagged on <code>type</code></span></p>`;
+    lead = isMeta
+      ? `<p class="lead"><span class="kind kind-union">discriminated union</span> <span class="muted">· ${schema.anyOf.length} variants, tagged on <code>type</code></span></p>`
+      : `<p class="lead"><span class="kind kind-union">union</span> <span class="muted">· one of ${schema.anyOf.length} alternatives</span></p>`;
     const cards = schema.anyOf
       .map((v) => {
-        const b = refToSlug(v.ref);
-        const vs = loadJson(urlToFile(v.ref));
-        const kinds = vs.properties?.type?.enum;
-        const tag = kinds
-          ? kinds.map((u) => kindTag(kindOf(u))).join(" ")
-          : b === "onyx-include-schema"
-          ? `<span class="muted">a bare</span> <code>ref</code>`
-          : b === "onyx-union-schema"
-          ? `<span class="muted">nested</span> <code>anyOf</code>`
-          : "";
-        return `<a class="variant-card" href="/schema/${b}"><div class="vc-name">${b}.json</div><div class="vc-kinds">${tag}</div></a>`;
+        // An arm can be a bare ref (to a variant / primitive / example) or an inline schema.
+        // Card is an <a>, so inner tags must be PLAIN (no nested <a> from kindBadge).
+        if (v.ref && !v.type) {
+          const b = refToSlug(v.ref);
+          const file = urlToFile(v.ref);
+          const kinds = loadJson(file).properties?.type?.enum;
+          const tag = kinds
+            ? kinds.map((u) => kindTag(kindOf(u))).join(" ")
+            : isPrimitive(file)
+            ? kindTag(primitiveKind(file))
+            : b === "onyx-include-schema"
+            ? `<span class="muted">a bare</span> <code>ref</code>`
+            : b === "onyx-union-schema"
+            ? `<span class="muted">nested</span> <code>anyOf</code>`
+            : "";
+          return `<a class="variant-card" href="/schema/${b}"><div class="vc-name">${b}.json</div><div class="vc-kinds">${tag}</div></a>`;
+        }
+        return `<div class="variant-card"><div class="vc-kinds">${summarize(v)}</div></div>`;
       })
       .join("");
     main = `<div class="variants">${cards}</div>`;
@@ -554,10 +564,23 @@ function docPage(slug) {
 
 function homePage() {
   const readme = loadText("README.md").replace(/^#\s+.*\n/, ""); // drop leading H1 (hero shows it)
-  const checks = VALIDATION.lines
-    .filter((l) => l.startsWith("ok") || l.startsWith("FAIL"))
-    .map((l) => `<li class="${l.startsWith("ok") ? "pass" : "fail"}">${esc(l.replace(/^ok\s+|^FAIL\s+/, ""))}</li>`)
+  // Group the validator output by its "== section ==" headers into a summary
+  // (there are 100+ checks now — show per-section counts, detail only failures).
+  const okCount = VALIDATION.lines.filter((l) => l.startsWith("ok")).length;
+  const failLines = VALIDATION.lines.filter((l) => l.startsWith("FAIL"));
+  const sections = [];
+  let cur = null;
+  for (const l of VALIDATION.lines) {
+    if (l.startsWith("== ")) sections.push((cur = { title: l.replace(/^==\s*|\s*==$/g, ""), pass: 0, fail: 0 }));
+    else if (cur && l.startsWith("ok")) cur.pass++;
+    else if (cur && l.startsWith("FAIL")) cur.fail++;
+  }
+  const checks = sections
+    .map((s) => `<li class="${s.fail ? "fail" : "pass"}">${esc(s.title)} <span class="muted">— ${s.pass} passed${s.fail ? `, ${s.fail} FAILED` : ""}</span></li>`)
     .join("");
+  const failDetail = failLines.length
+    ? `<ul class="checks">${failLines.map((l) => `<li class="fail">${esc(l.replace(/^FAIL\s+/, ""))}</li>`).join("")}</ul>`
+    : "";
   const hero = `
     <header class="hero">
       <div class="gem-big">◆</div>
@@ -570,8 +593,8 @@ function homePage() {
       </div>
       <a class="cta" href="/doc/${TOUR[0].slug}">Start the tour →</a>
     </header>`;
-  const graph = `<section class="graph-wrap"><h2>The schema DAG</h2><p class="muted">Each schema is a block; arrows are <code>ref</code>s that become CIDs on IPFS. Click a node. The meta-schema <code>onyx-schema</code> and its six variants form a <strong>cycle</strong> — the type system referring to itself. <code>example-document</code> links to its own kind too (the <code>self</code> loop).</p><div class="graph-scroll">${graphSvg()}</div></section>`;
-  const proof = `<section class="proof"><h2>Live proof</h2><p class="muted">Output of <code>node validate.mjs</code>, run when this server started:</p><ul class="checks">${checks}</ul></section>`;
+  const graph = `<section class="graph-wrap"><h2>The schema DAG</h2><p class="muted">Each schema is a block; arrows are <code>ref</code>s (<code>hm://</code> names). Click a node. The meta-schema <code>onyx-schema</code> and its six variants form a <strong>cycle</strong> — the type system referring to itself. <code>example-document</code>, <code>example-comment</code>, and <code>example-folder</code>↔<code>example-file</code> recurse too.</p><div class="graph-scroll">${graphSvg()}</div></section>`;
+  const proof = `<section class="proof"><h2>Live proof <span class="muted">· ${okCount} checks pass</span></h2><p class="muted">Output of <code>node validate.mjs</code>, run when this server started — grouped by section:</p><ul class="checks">${checks}</ul>${failDetail}</section>`;
   const primCells = PRIMITIVE_FILES.map((f) => {
     const k = primitiveKind(f);
     return `<a class="prim-cell" href="/schema/${base(f)}">${kindTag(k)}<span class="prim-file">${f}</span></a>`;
