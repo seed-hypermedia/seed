@@ -116,7 +116,12 @@ func (opset *treeOpSet) State() *blockTreeState {
 	}
 
 	for opid, move := range opset.log.Items() {
-		if state.isAncestor(move.Block, move.Parent) {
+		// A block can never be its own parent. Such a move would make the block
+		// its own ancestor (a cycle); mark it invisible. isAncestor can't catch
+		// this case on its own because it inspects the pre-move state, where the
+		// block is not yet self-referential — so historically a self-parent move
+		// slipped through and made the block graph cyclic.
+		if move.Block == move.Parent || state.isAncestor(move.Block, move.Parent) {
 			state.invisibleMoves.Set(opid, struct{}{})
 			continue
 		}
@@ -150,20 +155,28 @@ func (state *blockTreeState) Copy() *blockTreeState {
 	}
 }
 
-// isAncestor returns checks if a is an ancestor of b.
+// isAncestor reports whether a is an ancestor of b by walking up b's parent
+// chain.
+//
+// The walk is bounded by the number of blocks: a valid ancestor chain visits
+// each block at most once, so if we take more steps than there are blocks the
+// graph must contain a cycle. We treat that as "not an ancestor" and stop,
+// instead of looping forever. This keeps hydration finite even when the block
+// graph is corrupt — e.g. a block whose parent is itself, which historically
+// existed in some documents and would otherwise spin a CPU core indefinitely
+// (see TestSelfParentDoesNotHang).
 func (state *blockTreeState) isAncestor(a, b string) bool {
 	n, ok := state.blocks.Get(b)
-	for {
-		if !ok || n.Parent == "" || n.Parent == TrashNodeID {
+	for steps := state.blocks.Len(); ok && steps >= 0; steps-- {
+		if n.Parent == "" || n.Parent == TrashNodeID {
 			return false
 		}
-
 		if n.Parent == a {
 			return true
 		}
-
 		n, ok = state.blocks.Get(n.Parent)
 	}
+	return false
 }
 
 type blockPair struct {
@@ -243,6 +256,9 @@ func (mut *blockTreeMutation) Move(parent, block, left string) (moveEffect, erro
 	}
 
 	// Preventing cycles.
+	if block == parent {
+		return moveEffectNone, fmt.Errorf("block %s cannot be its own parent", block)
+	}
 	if mut.dirty.isAncestor(block, parent) {
 		return moveEffectNone, fmt.Errorf("cycle detected: block %s is ancestor of %s", block, parent)
 	}

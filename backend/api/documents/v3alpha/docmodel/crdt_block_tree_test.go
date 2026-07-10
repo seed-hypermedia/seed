@@ -1,9 +1,12 @@
 package docmodel
 
 import (
+	"seed/backend/util/btree"
 	"seed/backend/util/must"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,4 +117,54 @@ func TestCRDTBlockTree_Smoke(t *testing.T) {
 		gotTree := slices.Collect(opset.State().DFT(""))
 		require.Equal(t, wantTree, gotTree, "tree after second set of moves must match")
 	}
+}
+
+// TestSelfParentDoesNotHang reproduces the production incident where a document
+// contained a block that was its own parent (a MoveBlocks op with block ==
+// parent that slipped past the integration guard). Rebuilding the tree state
+// used to loop forever in isAncestor, hanging hydration and pinning a CPU core.
+// State() must terminate and treat the self-parent move as invisible.
+func TestSelfParentDoesNotHang(t *testing.T) {
+	opset := newTreeOpSet()
+	// Place X validly at the root first, so it exists with a sublist.
+	require.NoError(t, opset.Integrate(newOpID(1, 0, 0), "", "X", opID{}))
+	// Corrupt move: X under itself. Integrate only appends to the log — the
+	// cycle check lives in State()/Move — so this mirrors historical data.
+	require.NoError(t, opset.Integrate(newOpID(2, 0, 1), "X", "X", opID{}))
+
+	done := make(chan *blockTreeState, 1)
+	go func() { done <- opset.State() }()
+
+	select {
+	case state := <-done:
+		// The self-parent move must have been rejected: X stays at the root.
+		bs := state.blocks.GetMaybe("X")
+		require.Equal(t, "", bs.Parent, "self-parent move must be ignored; X must remain at root")
+		require.Equal(t, []blockPair{{"", "X"}}, slices.Collect(state.DFT("")))
+	case <-time.After(10 * time.Second):
+		t.Fatal("State() did not terminate: self-parent cycle guard failed")
+	}
+}
+
+// TestIsAncestorTerminatesOnCycle directly exercises the bounded walk against a
+// corrupt block graph (both a self-loop and a two-node cycle). It must return
+// rather than loop forever.
+func TestIsAncestorTerminatesOnCycle(t *testing.T) {
+	state := &blockTreeState{blocks: btree.New[string, blockState](8, strings.Compare)}
+	state.blocks.Set("X", blockState{Parent: "X"}) // self-loop
+	state.blocks.Set("A", blockState{Parent: "B"}) // A <-> B cycle
+	state.blocks.Set("B", blockState{Parent: "A"}) //
+	require.False(t, state.isAncestor("Z", "X"), "self-loop must terminate as not-an-ancestor")
+	require.False(t, state.isAncestor("Z", "A"), "two-node cycle must terminate as not-an-ancestor")
+}
+
+// TestMoveBlockRejectsSelfParent verifies the write path refuses to create a
+// self-parent move in the first place.
+func TestMoveBlockRejectsSelfParent(t *testing.T) {
+	opset := newTreeOpSet()
+	mut := opset.State().Mutate()
+	must.Do2(mut.Move("", "X", ""))
+	_, err := mut.Move("X", "X", "")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "its own parent")
 }
