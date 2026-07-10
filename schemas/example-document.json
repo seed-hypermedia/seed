@@ -1,0 +1,22 @@
+{
+  "type": "map",
+  "required": [
+    "title"
+  ],
+  "properties": {
+    "title": {
+      "ref": "hm://hyper.media/string"
+    },
+    "author": {
+      "type": "link",
+      "ref": "hm://example.com/person"
+    },
+    "body": {
+      "ref": "hm://hyper.media/bytes"
+    },
+    "previous": {
+      "type": "link",
+      "ref": "hm://example.com/document"
+    }
+  }
+}

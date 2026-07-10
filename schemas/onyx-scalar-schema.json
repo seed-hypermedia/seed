@@ -1,0 +1,22 @@
+{
+  "type": "map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "null",
+        "boolean",
+        "integer",
+        "float",
+        "string",
+        "bytes"
+      ]
+    },
+    "enum": {
+      "type": "list"
+    }
+  }
+}

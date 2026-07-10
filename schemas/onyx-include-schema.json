@@ -1,0 +1,11 @@
+{
+  "type": "map",
+  "required": [
+    "ref"
+  ],
+  "properties": {
+    "ref": {
+      "type": "string"
+    }
+  }
+}

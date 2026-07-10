@@ -1,0 +1,14 @@
+{
+  "type": "map",
+  "required": [
+    "anyOf"
+  ],
+  "properties": {
+    "anyOf": {
+      "type": "list",
+      "items": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}
