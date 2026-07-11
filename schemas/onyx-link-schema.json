@@ -1,4 +1,6 @@
 {
+  "name": "Link schema",
+  "description": "The variant for a link (CID), optionally naming the expected target type.",
   "type": "hm://hyper.media/map",
   "required": [
     "type"
@@ -11,6 +13,12 @@
       ]
     },
     "ref": {
+      "type": "hm://hyper.media/string"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
       "type": "hm://hyper.media/string"
     }
   }

@@ -1,4 +1,6 @@
 {
+  "name": "Tags",
+  "description": "A list of string tags — List<String>.",
   "type": "hm://hyper.media/list",
   "items": {
     "ref": "hm://hyper.media/string"

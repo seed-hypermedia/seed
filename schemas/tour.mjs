@@ -62,7 +62,19 @@ const INSTANCE_FILES = SCHEMA_FILES.filter((f) => isInstanceDoc(loadJson(f)));
 const isInstance = (f) => INSTANCE_FILES.includes(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
-  return Object.keys(s).length === 1 && typeof s.type === "string" ? kindOf(s.type) : null;
+  const structural = Object.keys(s).filter((k) => k !== "name" && k !== "description");
+  return structural.length === 1 && structural[0] === "type" && typeof s.type === "string" ? kindOf(s.type) : null;
+};
+
+// name + description metadata per schema, for headings, tooltips, and chips.
+const SCHEMA_META = {};
+for (const f of SCHEMA_FILES) {
+  const s = loadJson(f);
+  if (s && (s.name || s.description)) SCHEMA_META[base(f)] = { name: s.name || "", description: s.description || "" };
+}
+const metaTitle = (slug) => {
+  const m = SCHEMA_META[slug];
+  return m ? esc([m.name, m.description].filter(Boolean).join(" — ")) : "";
 };
 
 // Wire each kind to its canonical primitive schema (onyx-<kind>), so a kind
@@ -395,7 +407,10 @@ function depLists(name) {
   const out = GRAPH.edges.filter((e) => e.from === name).map((e) => e.to);
   const inc = GRAPH.edges.filter((e) => e.to === name).map((e) => e.from);
   const self = GRAPH.selfLoops.has(name);
-  const chip = (n) => `<a class="chip" href="/schema/${n}">${n}</a>`;
+  const chip = (n) => {
+    const tip = metaTitle(n);
+    return `<a class="chip" href="/schema/${n}"${tip ? ` title="${tip}"` : ""}>${n}</a>`;
+  };
   const row = (label, items, extra = "") =>
     `<div class="reflist"><span class="deplabel">${label}</span> ${items.length || extra ? items.map(chip).join(" ") + extra : `<span class="muted">none</span>`}</div>`;
   return row("Dependencies", out, self ? ` <span class="chip self">↻ itself</span>` : "") + row("Dependents", inc);
@@ -440,7 +455,7 @@ function schemaPage(name) {
     const url = fileToUrl(file);
     lead = `<p class="lead">${kindTag(primKind)} <span class="muted">· a primitive type — the standard-library schema for the <code>${primKind}</code> kind</span></p>`;
     main = `<div class="prim-body">
-      <p>The entire schema is <code>{ "type": "${url}" }</code> — its <code>type</code> names itself, so it is the self-grounding axiom for the ${primKind} kind. Reference it as <code>{ "ref": "${url}" }</code> to type any value as ${primKind}.</p>
+      <p>Its <code>type</code> is <code>${url}</code> — it names itself, so it is the self-grounding axiom for the ${primKind} kind. Reference it as <code>{ "ref": "${url}" }</code> to type any value as ${primKind}.</p>
       ${variant ? `<p class="muted">Typed by <a href="/schema/${variant}">${variant}.json</a> — the meta-schema variant whose shape it fits.</p>` : ""}
     </div>`;
   } else if (isUnion) {
@@ -518,8 +533,9 @@ function schemaPage(name) {
 
   const body = `
     <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">schemas</a> / ${name}</div>
-    <h1><code class="filename">${file}</code></h1>
-    <p class="hm-url"><span class="muted">published at</span> <code>${fileToUrl(file)}</code></p>
+    ${schema.name ? `<h1 class="schema-title">${esc(schema.name)}</h1>` : `<h1><code class="filename">${file}</code></h1>`}
+    <p class="hm-url"><code class="filename">${file}</code> <span class="muted">· ${fileToUrl(file)}</span></p>
+    ${schema.description ? `<p class="schema-desc">${esc(schema.description)}</p>` : ""}
     ${lead}
     ${metaNote}
     ${main}
@@ -557,7 +573,8 @@ function sidebar(active) {
     const on = active.section === "schema" && active.slug === s ? " on" : "";
     const tag = s === "onyx-schema" ? ` <span class="tag">union</span>` : "";
     const indent = isVariant(f) ? " sub" : "";
-    return `<a class="nav-item${on}${indent}" href="/schema/${s}"><code>${f}</code>${tag}</a>`;
+    const tip = metaTitle(s);
+    return `<a class="nav-item${on}${indent}" href="/schema/${s}"${tip ? ` title="${tip}"` : ""}><code>${f}</code>${tag}</a>`;
   };
   // Meta-schema (union root + variants), the primitive library, then examples.
   const metaLinks = META_FILES.filter((f) => SCHEMA_FILES.includes(f)).map(schemaLink).join("");
@@ -771,8 +788,10 @@ tbody tr:hover{background:var(--panel)}
 .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
 .filename{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px 10px;color:#e4b7ff;font-size:.7em}
 .lead{color:var(--dim);margin-top:-.2em}
-.hm-url{margin:-.3em 0 .6em}
-.hm-url code{color:#8fd9c0;background:#12201c;border-color:#204238;font-size:12.5px}
+.hm-url{margin:-.1em 0 .5em}
+.hm-url code{color:#8fd9c0;background:#12201c;border-color:#204238;font-size:12px}
+.schema-title{font-size:30px;margin:.15em 0 .1em;letter-spacing:.3px}
+.schema-desc{color:var(--ink);font-size:15.5px;margin:.4em 0 1em;max-width:60ch}
 .callout{background:#1a1630;border:1px solid #3a2f5a;border-left:3px solid var(--accent2);border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px}
 .shape{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
 table.fields td.fname{font-family:"SF Mono",monospace;color:#9ecbff;font-size:13px;white-space:nowrap}

@@ -1,4 +1,6 @@
 {
+  "name": "Map schema",
+  "description": "The variant for a map value — a closed struct (via properties) or an open map (via values).",
   "type": "hm://hyper.media/map",
   "required": [
     "type"
@@ -24,6 +26,12 @@
     },
     "values": {
       "ref": "hm://hyper.media/schema"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
     }
   }
 }

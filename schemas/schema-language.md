@@ -1,6 +1,6 @@
 # The Onyx schema language
 
-An Onyx schema is a single value of kind `map`. It uses **eight keys**, all
+An Onyx schema is a single value of kind `map`. It uses **ten keys**, all
 optional. That is the entire language.
 
 | key | applies to | meaning |
@@ -13,6 +13,13 @@ optional. That is the entire language.
 | `enum` | any | list of allowed literal values |
 | `ref` | any | a reference to another schema — an `hm://` URL (see [references.md](./references.md)) |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas |
+| `name` | any | a human-readable name for the schema (metadata; ignored when validating data) |
+| `description` | any | a human-readable description (metadata; ignored when validating data) |
+
+`name` and `description` are **metadata** — they annotate the schema, not the
+data, so the validator ignores them when checking a value, and the tour renders
+them as each schema's title and blurb. (A schema's `name` is unrelated to a
+field named `name` inside its `properties` — different levels.)
 
 Both `type` and `ref` values are `hm://` URLs, so they are clickable and
 self-explanatory: `type` is `"hm://hyper.media/map"`, not a bare `"map"`. **For

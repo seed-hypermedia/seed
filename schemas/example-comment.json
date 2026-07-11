@@ -1,4 +1,6 @@
 {
+  "name": "Comment",
+  "description": "A comment with an author and replies, which are themselves comments.",
   "type": "hm://hyper.media/map",
   "required": [
     "text"

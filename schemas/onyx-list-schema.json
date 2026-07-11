@@ -1,4 +1,6 @@
 {
+  "name": "List schema",
+  "description": "The variant for a list value; items types the elements.",
   "type": "hm://hyper.media/map",
   "required": [
     "type"
@@ -12,6 +14,12 @@
     },
     "items": {
       "ref": "hm://hyper.media/schema"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
     }
   }
 }

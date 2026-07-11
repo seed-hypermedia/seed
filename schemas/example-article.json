@@ -1,4 +1,6 @@
 {
+  "name": "Article",
+  "description": "A published article: status, author, tags, a bytes body, cover image, comments, and metadata.",
   "type": "hm://hyper.media/map",
   "required": [
     "title",

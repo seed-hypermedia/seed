@@ -1,4 +1,6 @@
 {
+  "name": "Matrix",
+  "description": "A list of lists of integers — List<List<Integer>>.",
   "type": "hm://hyper.media/list",
   "items": {
     "type": "hm://hyper.media/list",

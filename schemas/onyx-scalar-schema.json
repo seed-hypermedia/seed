@@ -1,4 +1,6 @@
 {
+  "name": "Scalar schema",
+  "description": "The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.",
   "type": "hm://hyper.media/map",
   "required": [
     "type"
@@ -17,6 +19,12 @@
     },
     "enum": {
       "type": "hm://hyper.media/list"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
     }
   }
 }

@@ -1,4 +1,6 @@
 {
+  "name": "Tree",
+  "description": "A node holding an integer value and links to child nodes.",
   "type": "hm://hyper.media/map",
   "required": [
     "value"

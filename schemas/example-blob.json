@@ -1,4 +1,6 @@
 {
+  "name": "Blob",
+  "description": "A binary payload tagged with a MIME type and optional size.",
   "type": "hm://hyper.media/map",
   "required": [
     "mime",

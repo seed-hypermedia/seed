@@ -1,4 +1,6 @@
 {
+  "name": "Geo point",
+  "description": "A latitude/longitude coordinate with an optional altitude.",
   "type": "hm://hyper.media/map",
   "required": [
     "lat",
