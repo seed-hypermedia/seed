@@ -81,8 +81,9 @@ filenames are the dev alias (`onyx-string.json` ⇄ `hm://hyper.media/string`).
 
 **Authority** — a public key that owns and signs everything under its name. A
 domain like `hyper.media` resolves to one. Schemas reference each other across
-authorities: `hm://hyper.media/*` is the base type system, `hm://example.com/*`
-the examples.
+authorities: `hm://hyper.media/*` is the base type system (`onyx-*`),
+`hm://seed.hyper.media/*` the Hypermedia Network blob schemas (`hypermedia-*`,
+see [hypermedia.md](./hypermedia.md)), and `hm://example.com/*` the examples.
 
 **Fixpoint problem** — the impossibility of baking a block's own CID into its
 own content (a hash preimage), which also means a *cycle* of CIDs has no

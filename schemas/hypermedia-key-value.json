@@ -1,0 +1,16 @@
+{
+  "name": "Key/value",
+  "description": "A metadata attribute: a dotted key path (segments) and a value.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "key": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    },
+    "value": {
+      "ref": "hm://seed.hyper.media/value"
+    }
+  }
+}

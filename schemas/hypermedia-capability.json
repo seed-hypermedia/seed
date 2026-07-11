@@ -1,0 +1,31 @@
+{
+  "name": "Capability",
+  "description": "A delegation granting a role (WRITER or AGENT) from a space owner (the signer) to a delegate key, optionally scoped to a path.",
+  "ref": "hm://seed.hyper.media/blob",
+  "required": [
+    "delegate"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Capability"
+      ]
+    },
+    "delegate": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "audience": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "path": {
+      "ref": "hm://hyper.media/string"
+    },
+    "role": {
+      "ref": "hm://seed.hyper.media/role"
+    },
+    "label": {
+      "ref": "hm://hyper.media/string"
+    }
+  }
+}

@@ -26,7 +26,7 @@ const loadText = (name) => readFileSync(resolve(DIR, name), "utf8");
 
 // References are hm:// URLs; local filenames are their dev alias. Each authority
 // maps to a filename prefix (the ONE place the mapping lives).
-const AUTHORITY = [["onyx-", "hyper.media"], ["example-", "example.com"]];
+const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
 const fileToUrl = (file) => {
   const b = base(file);
   for (const [p, a] of AUTHORITY) if (b.startsWith(p)) return `hm://${a}/${b.slice(p.length)}`;
@@ -60,6 +60,9 @@ const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
 // Instances are data typed by a schema ({ $type, value }) — e.g. bob : employee.
 const INSTANCE_FILES = SCHEMA_FILES.filter((f) => isInstanceDoc(loadJson(f)));
 const isInstance = (f) => INSTANCE_FILES.includes(f);
+
+// The Hypermedia Network's CBOR blob schemas (hm://seed.hyper.media/*).
+const isHypermedia = (f) => f.startsWith("hypermedia-");
 const primitiveKind = (f) => {
   const s = loadJson(f);
   const structural = Object.keys(s).filter((k) => k !== "name" && k !== "description");
@@ -96,6 +99,7 @@ const TOUR = [
   "references.md",
   "encoding.md",
   "examples.md",
+  "hypermedia.md",
   "design-rationale.md",
   "glossary.md",
 ].filter((f) => files.includes(f)).map((f) => ({
@@ -316,9 +320,10 @@ function buildGraph() {
 const GRAPH = buildGraph();
 
 function graphSvg() {
-  // Primitives (every schema refs onyx-string) and instances are excluded from
-  // the DAG to keep it to the schema type-graph; both appear elsewhere.
-  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json"));
+  // Keep the home DAG to the Onyx meta + examples: primitives (every schema
+  // refs onyx-string), instances, and the ~29 hypermedia blobs are excluded
+  // here — their relationships show on each schema's Dependencies/Dependents.
+  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json") && !isHypermedia(n + ".json"));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
   const selfLoops = GRAPH.selfLoops;
   // layer(n) = 1 + max(layer of things n depends on); leaves = 0
@@ -356,6 +361,7 @@ function graphSvg() {
     })
     .join("");
   const loopSvg = [...selfLoops]
+    .filter((n) => pos[n]) // only nodes shown in the graph (excludes primitives/instances/hypermedia)
     .map((n) => {
       const p = pos[n];
       const x = p.cx, y = p.cy - nH / 2;
@@ -579,7 +585,8 @@ function sidebar(active) {
   // Meta-schema (union root + variants), the primitive library, then examples.
   const metaLinks = META_FILES.filter((f) => SCHEMA_FILES.includes(f)).map(schemaLink).join("");
   const primitiveLinks = PRIMITIVE_FILES.map(schemaLink).join("");
-  const exampleLinks = SCHEMA_FILES.filter((f) => !META_FILES.includes(f) && !isPrimitive(f) && !isInstance(f)).map(schemaLink).join("");
+  const hypermediaLinks = SCHEMA_FILES.filter(isHypermedia).map(schemaLink).join("");
+  const exampleLinks = SCHEMA_FILES.filter((f) => !META_FILES.includes(f) && !isPrimitive(f) && !isInstance(f) && !isHypermedia(f)).map(schemaLink).join("");
   const instanceLinks = INSTANCE_FILES.map(schemaLink).join("");
   const homeOn = active.section === "home" ? " on" : "";
   return `<nav class="side">
@@ -588,6 +595,7 @@ function sidebar(active) {
     <div class="nav-group">The tour</div>${docLinks}
     <div class="nav-group">Meta-schema</div>${metaLinks}
     <div class="nav-group">Primitives</div>${primitiveLinks}
+    <div class="nav-group">Hypermedia blobs</div>${hypermediaLinks}
     <div class="nav-group">Examples</div>${exampleLinks}
     <div class="nav-group">Instances</div>${instanceLinks}
     <div class="side-foot">${VALIDATION.ok ? '<span class="ok-dot"></span> self-validates' : '<span class="bad-dot"></span> validation failed'}</div>

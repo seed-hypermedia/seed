@@ -1,0 +1,16 @@
+{
+  "name": "Change body",
+  "description": "The operations payload of a Change: an operation count hint and the list of ops.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "opCount": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "ops": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/op"
+      }
+    }
+  }
+}

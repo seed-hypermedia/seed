@@ -1,0 +1,13 @@
+{
+  "name": "Contact subscription",
+  "description": "Subscription preferences for a contact: subscribe to the subject's site and/or profile.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "site": {
+      "ref": "hm://hyper.media/boolean"
+    },
+    "profile": {
+      "ref": "hm://hyper.media/boolean"
+    }
+  }
+}

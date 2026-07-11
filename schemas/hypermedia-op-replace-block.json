@@ -1,0 +1,20 @@
+{
+  "name": "ReplaceBlock op",
+  "description": "Replace the content of a block.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type",
+    "block"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "ReplaceBlock"
+      ]
+    },
+    "block": {
+      "ref": "hm://seed.hyper.media/block"
+    }
+  }
+}
