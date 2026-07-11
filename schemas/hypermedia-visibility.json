@@ -1,0 +1,9 @@
+{
+  "name": "Visibility",
+  "description": "Resource visibility: \"\" (empty) for public, \"Private\" for private.",
+  "type": "hm://hyper.media/string",
+  "enum": [
+    "",
+    "Private"
+  ]
+}

@@ -23,7 +23,7 @@ const DIR = dirname(fileURLToPath(import.meta.url));
 
 // References are hm:// URLs; local filenames are their dev alias. Each authority
 // maps to a filename prefix. This is the ONLY place the mapping lives.
-const AUTHORITY = [["onyx-", "hyper.media"], ["example-", "example.com"]];
+const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
 const urlToFile = (ref) => {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
   if (!m) return ref.endsWith(".json") ? ref : `${ref}.json`;
@@ -362,6 +362,60 @@ const CASES = [
     schema: "example-counts.json",
     valid: [{ Apples: 5, Oranges: 3 }, {}],
     invalid: [["value not integer", { Apples: "five" }]],
+  },
+
+  // --- Hypermedia CBOR blobs (real production data shapes) -----------------
+  {
+    schema: "hypermedia-ref.json",
+    valid: [
+      { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1700000000000, path: "/", heads: [cid("bafyH1")], genesisBlob: cid("bafyG"), generation: 1, visibility: "" },
+      { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1700000000000, heads: [] },
+    ],
+    invalid: [
+      ["wrong type tag", { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, heads: [] }],
+      ["missing heads (required)", { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1 }],
+      ["signer not bytes", { type: "Ref", signer: "notbytes", sig: bytes("c2ln"), ts: 1, heads: [] }],
+      ["unknown key (closed)", { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, heads: [], bogus: 1 }],
+    ],
+  },
+  {
+    schema: "hypermedia-capability.json",
+    valid: [{ type: "Capability", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, delegate: bytes("ZGVs"), role: "WRITER", label: "editor" }],
+    invalid: [
+      ["missing delegate (required)", { type: "Capability", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1 }],
+      ["role not in enum", { type: "Capability", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, delegate: bytes("ZGVs"), role: "SUPERUSER" }],
+    ],
+  },
+  {
+    schema: "hypermedia-change.json",
+    valid: [
+      { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, genesis: cid("bafyG"), deps: [cid("bafyD")], depth: 1,
+        body: { opCount: 2, ops: [{ type: "MoveBlocks", blocks: ["b1"] }, { type: "ReplaceBlock", block: { id: "b1", type: "paragraph", text: "Hello", bold: true } }] } },
+      { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1 },
+    ],
+    invalid: [
+      ["ts not integer", { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: "yesterday" }],
+      ["unknown op type", { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, body: { ops: [{ type: "Frobnicate" }] } }],
+    ],
+  },
+  {
+    schema: "hypermedia-any-blob.json",
+    valid: [
+      { type: "Profile", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, name: "Alice" },
+      { type: "Contact", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, subject: bytes("ZGVs"), name: "Bob" },
+    ],
+    invalid: [
+      ["not a known blob type", { type: "Frobnicate", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1 }],
+      ["missing base fields", { type: "Profile", name: "Alice" }],
+    ],
+  },
+  {
+    schema: "hypermedia-metadata.json",
+    valid: [
+      { name: "My Doc", summary: "A doc.", contentWidth: "M", showOutline: true, theme: { headerLayout: "Center" }, customKey: "extra" },
+      {},
+    ],
+    invalid: [["contentWidth not in enum", { contentWidth: "XL" }]],
   },
 ];
 

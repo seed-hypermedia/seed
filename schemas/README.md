@@ -36,8 +36,9 @@ Read in order, or jump to what you need:
 3. **[references.md](./references.md)** — `include` / `link` / extend, the `hm://` naming layer, and how names (not hashes) make recursion possible.
 4. **[encoding.md](./encoding.md)** — DAG-CBOR, the dag-json human form, canonical encoding, and the reserved-key envelopes.
 5. **[examples.md](./examples.md)** — a catalog of every example schema, grouped by feature and linked to the tests.
-6. **[design-rationale.md](./design-rationale.md)** — why the system is shaped this way, the decisions taken, and the open questions.
-7. **[glossary.md](./glossary.md)** — terms in one place.
+6. **[hypermedia.md](./hypermedia.md)** — Onyx on real data: schemas for the Hypermedia Network's DAG-CBOR blobs (Change, Ref, Profile, …).
+7. **[design-rationale.md](./design-rationale.md)** — why the system is shaped this way, the decisions taken, and the open questions.
+8. **[glossary.md](./glossary.md)** — terms in one place.
 
 ## The files
 
@@ -51,6 +52,7 @@ Read in order, or jump to what you need:
 | [`onyx-include-schema.json`](./onyx-include-schema.json) | variant: a bare `ref` include |
 | [`onyx-union-schema.json`](./onyx-union-schema.json) | variant: an `anyOf` union |
 | `onyx-<kind>.json` | the **primitive library** — one canonical schema per kind (`onyx-string`, `onyx-boolean`, … each just `{ "type": <kind-url> }`) |
+| `hypermedia-*.json` | **Hypermedia Network blob schemas** — Change, Ref, Profile, Comment, Capability, Contact + their shared base, ops, and metadata (see [hypermedia.md](./hypermedia.md)) |
 | `example-*.json` | ~15 **example schemas** covering every feature — see the full catalog in [examples.md](./examples.md) |
 | [`validate.mjs`](./validate.mjs) | dependency-free reference validator (100+ checks) |
 | [`tour.mjs`](./tour.mjs) | the zero-dependency explorer server (`node tour.mjs`) |
