@@ -7,7 +7,8 @@
 exactly one kind. ([data-model.md](./data-model.md))
 
 **Schema** — a value of kind `map` that constrains other values, written with
-the eight-key vocabulary. Every schema is itself typed by the meta-schema, and
+the ten-key vocabulary (eight structural keys plus `name`/`description`
+metadata). Every schema is itself typed by the meta-schema, and
 is one of the meta-schema's six variants.
 
 **Meta-schema** — [`onyx-schema.json`](./onyx-schema.json): the schema that describes what

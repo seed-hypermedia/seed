@@ -4,8 +4,9 @@ Why Onyx is shaped the way it is, and what is still undecided.
 
 ## Principles
 
-**Minimal enough to describe itself.** The eight-key vocabulary is not arbitrary
-— it is the smallest set that can express its own structure. Every candidate
+**Minimal enough to describe itself.** The eight *structural* keys are not
+arbitrary — they are the smallest set that can express its own structure
+(`name` and `description` are optional metadata layered on top). Every candidate
 feature is measured against one bar: can the meta-schema still be a valid
 instance of itself? ([schema-language.md](./schema-language.md) shows the loop;
 [`validate.mjs`](./validate.mjs) checks it.) Self-description is the design

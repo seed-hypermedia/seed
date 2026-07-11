@@ -1,4 +1,6 @@
 {
+  "name": "Reference schema",
+  "description": "The variant for a reference: a bare include, or an extension when it carries refinements.",
   "type": "hm://hyper.media/map",
   "required": [
     "ref"
@@ -27,6 +29,12 @@
     },
     "enum": {
       "type": "hm://hyper.media/list"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
     }
   }
 }

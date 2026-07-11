@@ -1,4 +1,6 @@
 {
+  "name": "JSON value",
+  "description": "A recursive JSON value: null, boolean, number, string, list, or map. References itself.",
   "anyOf": [
     {
       "ref": "hm://hyper.media/null"

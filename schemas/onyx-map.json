@@ -1,3 +1,5 @@
 {
+  "name": "Map",
+  "description": "A map of string keys to values — Map<Any> until constrained.",
   "type": "hm://hyper.media/map"
 }

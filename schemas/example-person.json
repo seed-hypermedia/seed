@@ -1,4 +1,6 @@
 {
+  "name": "Person",
+  "description": "A person with a name, age, active flag, home address, and nicknames.",
   "type": "hm://hyper.media/map",
   "required": [
     "name"

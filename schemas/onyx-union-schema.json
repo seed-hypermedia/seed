@@ -1,4 +1,6 @@
 {
+  "name": "Union schema",
+  "description": "The variant for a union — a value matching any one of several alternatives (anyOf).",
   "type": "hm://hyper.media/map",
   "required": [
     "anyOf"
@@ -9,6 +11,12 @@
       "items": {
         "ref": "hm://hyper.media/schema"
       }
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
     }
   }
 }

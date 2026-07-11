@@ -1,8 +1,16 @@
 {
+  "name": "Employee",
+  "description": "A person, extended with an employee id and department.",
   "ref": "hm://example.com/person",
-  "required": ["employeeId"],
+  "required": [
+    "employeeId"
+  ],
   "properties": {
-    "employeeId": { "ref": "hm://hyper.media/string" },
-    "department": { "ref": "hm://hyper.media/string" }
+    "employeeId": {
+      "ref": "hm://hyper.media/string"
+    },
+    "department": {
+      "ref": "hm://hyper.media/string"
+    }
   }
 }

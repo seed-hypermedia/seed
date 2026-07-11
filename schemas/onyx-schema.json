@@ -1,4 +1,6 @@
 {
+  "name": "Onyx schema",
+  "description": "The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.",
   "anyOf": [
     {
       "ref": "hm://hyper.media/map-schema"

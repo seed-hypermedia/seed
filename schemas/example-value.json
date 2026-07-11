@@ -1,4 +1,6 @@
 {
+  "name": "Value",
+  "description": "A primitive value: string, integer, boolean, or null.",
   "anyOf": [
     {
       "ref": "hm://hyper.media/string"
