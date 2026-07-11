@@ -189,11 +189,16 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
 }
 
 function NotificationEmailSettingsDialog({accountUid}: {accountUid: string}) {
-  const notifyServiceHost = useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  // Never fall back to a hardcoded host: passing the wrong server poisons the
+  // per-account notify host hint and clobbers the stored config. Gate on a
+  // resolved host instead (see NotificationsTab in account-settings).
+  const notifyServiceHost = useNotifyServiceHost()
   const [emailInput, setEmailInput] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid)
+  const {data: config, isLoading} = useNotificationConfig(notifyServiceHost, accountUid, {
+    enabled: Boolean(notifyServiceHost),
+  })
   const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
   const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
   const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)

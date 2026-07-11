@@ -4,10 +4,11 @@ export interface AccountProfileSummary {
   description?: string
 }
 
-export type ProfileLoadState = 'not_found' | 'unavailable'
+export type ProfileLoadState = 'loading' | 'not_found' | 'unavailable'
 
 export function getProfileDisplayName(profile?: AccountProfileSummary, profileLoadState?: ProfileLoadState) {
   if (profile?.name) return profile.name
+  if (profileLoadState === 'loading') return 'Loading…'
   if (profileLoadState === 'not_found') return 'Profile not found'
   if (profileLoadState === 'unavailable') return 'Profile unavailable'
   return 'Account'

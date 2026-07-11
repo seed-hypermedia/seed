@@ -53,9 +53,34 @@ func init() {
 	slog.SetDefault(NewSlog("slog-global", "info"))
 }
 
+// logOnlyEnv is the env var used to suppress all logging except for an
+// allowlisted set of subsystems. Set it to a comma-separated list of subsystem
+// names (e.g. SEED_LOG_ONLY=seed/vault-merge) to force every other subsystem
+// created via [New]/[NewSlog] to the "fatal" level, leaving only the listed
+// subsystems audible. This is a debugging aid for isolating a single subsystem's
+// output (such as the vault key-merge logs) without changing call sites.
+const logOnlyEnv = "SEED_LOG_ONLY"
+
+// applyLogOnlyFilter forces a subsystem to "fatal" when SEED_LOG_ONLY is set and
+// the subsystem is not in the allowlist. Otherwise it returns the level
+// unchanged. Allowlist entries are matched exactly against the subsystem name.
+func applyLogOnlyFilter(subsystem, level string) string {
+	only := strings.TrimSpace(os.Getenv(logOnlyEnv))
+	if only == "" {
+		return level
+	}
+	for _, want := range strings.Split(only, ",") {
+		if strings.TrimSpace(want) == subsystem {
+			return level
+		}
+	}
+	return "fatal"
+}
+
 // New creates a new named logger with the specified level.
 // If logger was created before it will just set the level.
 func New(subsystem, level string) *zap.Logger {
+	level = applyLogOnlyFilter(subsystem, level)
 	l := log.Logger(subsystem).Desugar()
 
 	if err := log.SetLogLevel(subsystem, level); err != nil {
@@ -67,6 +92,7 @@ func New(subsystem, level string) *zap.Logger {
 
 // NewSlog creates a new slog logger, which is wired through the same go-log pipeline.
 func NewSlog(subsystem, level string) *slog.Logger {
+	level = applyLogOnlyFilter(subsystem, level)
 	l := gologshim.Logger(subsystem)
 
 	if err := log.SetLogLevel(subsystem, level); err != nil {

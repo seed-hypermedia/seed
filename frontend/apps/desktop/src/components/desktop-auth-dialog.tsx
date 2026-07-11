@@ -26,6 +26,14 @@ type DesktopAuthDialogInput = {
   onReady?: (accountUid: string) => void | Promise<void>
 }
 
+/** Turns a raw daemon Vault Connect error into user-facing recovery guidance. */
+function connectErrorGuidance(error: string) {
+  if (error.includes('expired')) {
+    return 'The sign-in request expired before setup finished in the browser. Your account is safe — try again and complete the browser steps to connect this app.'
+  }
+  return 'Something went wrong while connecting to the identity server. Your account is safe — try again to restart the sign-in in your browser.'
+}
+
 function DesktopAuthDialogContent({
   input,
   onClose,
@@ -49,13 +57,17 @@ function DesktopAuthDialogContent({
   const isConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const hasAccounts = !!accountIds.data?.length
   const isReady = isConnected && hasAccounts
+  // The daemon reports why the last connect attempt died (it clears this when a
+  // new attempt starts); only meaningful once this dialog has started a flow.
+  const connectError = browserUrl && !isReady ? vaultStatus.data?.lastConnectError || '' : ''
   const handledReadyRef = useRef(false)
   const handledInitialSubmitRef = useRef(false)
+  const lastSubmitRef = useRef<CreateAccountDialogSubmit | null>(null)
 
   useLayoutEffect(() => {
-    const preventClose = !!input.initialSubmit || !!browserUrl
+    const preventClose = (!!input.initialSubmit || !!browserUrl) && !connectError
     setDialogCloseProtection?.({preventClose, showCloseButton: !preventClose})
-  }, [browserUrl, input.initialSubmit, setDialogCloseProtection])
+  }, [browserUrl, connectError, input.initialSubmit, setDialogCloseProtection])
 
   useEffect(() => {
     if (!browserUrl || isReady) return
@@ -109,6 +121,7 @@ function DesktopAuthDialogContent({
 
   const handleSubmit = useCallback(
     async (input: CreateAccountDialogSubmit) => {
+      lastSubmitRef.current = input
       const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl
       let normalizedVaultUrl = ''
       try {
@@ -150,6 +163,32 @@ function DesktopAuthDialogContent({
       <>
         <DialogTitle>Opening identity sign-in</DialogTitle>
         <DialogDescription>Opening your browser to continue.</DialogDescription>
+      </>
+    )
+  }
+
+  if (browserUrl && connectError) {
+    return (
+      <>
+        <DialogTitle className="max-sm:text-base">Sign-in could not be completed</DialogTitle>
+        <DialogDescription className="max-sm:text-sm">{connectErrorGuidance(connectError)}</DialogDescription>
+        <p className="text-muted-foreground text-xs break-words">{connectError}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="lg" className="font-semibold" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            size="lg"
+            className="font-semibold"
+            onClick={() => {
+              const lastSubmit = lastSubmitRef.current
+              if (lastSubmit) handleSubmit(lastSubmit)
+            }}
+          >
+            Try Again
+          </Button>
+        </div>
       </>
     )
   }

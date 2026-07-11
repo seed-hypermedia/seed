@@ -3,14 +3,16 @@ import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {PasswordInput} from '@/frontend/components/PasswordInput'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
- * View for setting master password during registration.
+ * View for setting a password during registration.
  */
 export function SetPasswordView() {
-  const {email, password, confirmPassword, loading, error} = useAppState()
+  const {email, password, confirmPassword, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
+  const navigate = navigation.useHashNavigate()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -20,7 +22,7 @@ export function SetPasswordView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Set Master Password</CardTitle>
+        <CardTitle className="text-center">Set Password</CardTitle>
         <CardDescription className="text-center">Create a strong password to protect your vault</CardDescription>
       </CardHeader>
       <CardContent>
@@ -40,7 +42,7 @@ export function SetPasswordView() {
 
           <PasswordInput
             id="password"
-            label="Master Password"
+            label="Password"
             value={password}
             onChange={actions.setPassword}
             autoComplete="new-password"
@@ -60,6 +62,20 @@ export function SetPasswordView() {
             Create Account
           </Button>
         </form>
+
+        {passkeySupported && (
+          <Button
+            variant="ghost"
+            className="mt-4 w-full"
+            disabled={loading}
+            onClick={() => {
+              actions.setError('')
+              navigate('/auth/choose')
+            }}
+          >
+            ← Use a passkey instead
+          </Button>
+        )}
       </CardContent>
     </Card>
   )

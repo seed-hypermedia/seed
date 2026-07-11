@@ -3,7 +3,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 
-const UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS = 5_000
+const UNVERIFIED_NOTIFICATION_CONFIG_REFETCH_MS = 3_000
 
 export type NotificationConfig = {
   accountId: string
@@ -12,6 +12,7 @@ export type NotificationConfig = {
   verificationSendTime: string | null
   verificationExpired: boolean
   isNotifyServerConnected: boolean
+  syncError: string | null
 }
 
 export type SetNotificationConfigInput = {
@@ -26,11 +27,25 @@ export function useNotificationConfig(
   const enabled = !!accountUid && (options?.enabled ?? true)
   return useQuery({
     queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountUid],
-    queryFn: () =>
-      client.notificationConfig.getConfig.query({
+    queryFn: async () => {
+      const result = await client.notificationConfig.getConfig.query({
         accountUid: accountUid!,
         notifyServiceHost,
-      }),
+      })
+      // eslint-disable-next-line no-console
+      console.error(
+        '🔔 NOTIFY renderer getConfig ' +
+          JSON.stringify({
+            accountUid,
+            notifyServiceHost,
+            email: result.email,
+            verifiedTime: result.verifiedTime,
+            isNotifyServerConnected: result.isNotifyServerConnected,
+            syncError: result.syncError,
+          }),
+      )
+      return result
+    },
     enabled,
     staleTime: 0,
     refetchOnMount: 'always',

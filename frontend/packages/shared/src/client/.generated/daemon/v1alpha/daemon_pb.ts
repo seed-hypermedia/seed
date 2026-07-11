@@ -765,6 +765,565 @@ export class ForceSyncRequest extends Message<ForceSyncRequest> {
 }
 
 /**
+ * Request to get the connected remote vault user's email.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultEmailRequest
+ */
+export class GetVaultEmailRequest extends Message<GetVaultEmailRequest> {
+  constructor(data?: PartialMessage<GetVaultEmailRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultEmailRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultEmailRequest {
+    return new GetVaultEmailRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultEmailRequest {
+    return new GetVaultEmailRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultEmailRequest {
+    return new GetVaultEmailRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultEmailRequest | PlainMessage<GetVaultEmailRequest> | undefined, b: GetVaultEmailRequest | PlainMessage<GetVaultEmailRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultEmailRequest, a, b);
+  }
+}
+
+/**
+ * Response with the connected remote vault user's email.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultEmailResponse
+ */
+export class GetVaultEmailResponse extends Message<GetVaultEmailResponse> {
+  /**
+   * Current vault user email. Empty when not connected to a remote vault.
+   *
+   * @generated from field: string email = 1;
+   */
+  email = "";
+
+  constructor(data?: PartialMessage<GetVaultEmailResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultEmailResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "email", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultEmailResponse {
+    return new GetVaultEmailResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultEmailResponse {
+    return new GetVaultEmailResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultEmailResponse {
+    return new GetVaultEmailResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultEmailResponse | PlainMessage<GetVaultEmailResponse> | undefined, b: GetVaultEmailResponse | PlainMessage<GetVaultEmailResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultEmailResponse, a, b);
+  }
+}
+
+/**
+ * Request to start a remote vault email change.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ChangeVaultEmailStartRequest
+ */
+export class ChangeVaultEmailStartRequest extends Message<ChangeVaultEmailStartRequest> {
+  /**
+   * Required. The new email address to change to.
+   *
+   * @generated from field: string new_email = 1;
+   */
+  newEmail = "";
+
+  constructor(data?: PartialMessage<ChangeVaultEmailStartRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ChangeVaultEmailStartRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "new_email", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChangeVaultEmailStartRequest {
+    return new ChangeVaultEmailStartRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChangeVaultEmailStartRequest {
+    return new ChangeVaultEmailStartRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChangeVaultEmailStartRequest {
+    return new ChangeVaultEmailStartRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChangeVaultEmailStartRequest | PlainMessage<ChangeVaultEmailStartRequest> | undefined, b: ChangeVaultEmailStartRequest | PlainMessage<ChangeVaultEmailStartRequest> | undefined): boolean {
+    return proto3.util.equals(ChangeVaultEmailStartRequest, a, b);
+  }
+}
+
+/**
+ * Response after starting a remote vault email change.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ChangeVaultEmailStartResponse
+ */
+export class ChangeVaultEmailStartResponse extends Message<ChangeVaultEmailStartResponse> {
+  /**
+   * Opaque anti-phishing binding to pass back to ChangeVaultEmailVerify.
+   *
+   * @generated from field: string binding = 1;
+   */
+  binding = "";
+
+  /**
+   * Time when the verification code expires.
+   *
+   * @generated from field: google.protobuf.Timestamp expire_time = 2;
+   */
+  expireTime?: Timestamp;
+
+  /**
+   * Time after which a new code may be requested.
+   *
+   * @generated from field: google.protobuf.Timestamp resend_allowed_time = 3;
+   */
+  resendAllowedTime?: Timestamp;
+
+  constructor(data?: PartialMessage<ChangeVaultEmailStartResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ChangeVaultEmailStartResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "binding", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expire_time", kind: "message", T: Timestamp },
+    { no: 3, name: "resend_allowed_time", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChangeVaultEmailStartResponse {
+    return new ChangeVaultEmailStartResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChangeVaultEmailStartResponse {
+    return new ChangeVaultEmailStartResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChangeVaultEmailStartResponse {
+    return new ChangeVaultEmailStartResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChangeVaultEmailStartResponse | PlainMessage<ChangeVaultEmailStartResponse> | undefined, b: ChangeVaultEmailStartResponse | PlainMessage<ChangeVaultEmailStartResponse> | undefined): boolean {
+    return proto3.util.equals(ChangeVaultEmailStartResponse, a, b);
+  }
+}
+
+/**
+ * Request to verify and complete a remote vault email change.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ChangeVaultEmailVerifyRequest
+ */
+export class ChangeVaultEmailVerifyRequest extends Message<ChangeVaultEmailVerifyRequest> {
+  /**
+   * Required. The verification code emailed to the new address.
+   *
+   * @generated from field: string code = 1;
+   */
+  code = "";
+
+  /**
+   * Required. The binding returned by ChangeVaultEmailStart.
+   *
+   * @generated from field: string binding = 2;
+   */
+  binding = "";
+
+  constructor(data?: PartialMessage<ChangeVaultEmailVerifyRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ChangeVaultEmailVerifyRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "code", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "binding", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChangeVaultEmailVerifyRequest {
+    return new ChangeVaultEmailVerifyRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChangeVaultEmailVerifyRequest {
+    return new ChangeVaultEmailVerifyRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChangeVaultEmailVerifyRequest {
+    return new ChangeVaultEmailVerifyRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChangeVaultEmailVerifyRequest | PlainMessage<ChangeVaultEmailVerifyRequest> | undefined, b: ChangeVaultEmailVerifyRequest | PlainMessage<ChangeVaultEmailVerifyRequest> | undefined): boolean {
+    return proto3.util.equals(ChangeVaultEmailVerifyRequest, a, b);
+  }
+}
+
+/**
+ * Response after completing a remote vault email change.
+ *
+ * @generated from message com.seed.daemon.v1alpha.ChangeVaultEmailVerifyResponse
+ */
+export class ChangeVaultEmailVerifyResponse extends Message<ChangeVaultEmailVerifyResponse> {
+  /**
+   * The new, now-active vault user email.
+   *
+   * @generated from field: string new_email = 1;
+   */
+  newEmail = "";
+
+  constructor(data?: PartialMessage<ChangeVaultEmailVerifyResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.ChangeVaultEmailVerifyResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "new_email", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChangeVaultEmailVerifyResponse {
+    return new ChangeVaultEmailVerifyResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChangeVaultEmailVerifyResponse {
+    return new ChangeVaultEmailVerifyResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChangeVaultEmailVerifyResponse {
+    return new ChangeVaultEmailVerifyResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ChangeVaultEmailVerifyResponse | PlainMessage<ChangeVaultEmailVerifyResponse> | undefined, b: ChangeVaultEmailVerifyResponse | PlainMessage<ChangeVaultEmailVerifyResponse> | undefined): boolean {
+    return proto3.util.equals(ChangeVaultEmailVerifyResponse, a, b);
+  }
+}
+
+/**
+ * Request for the remote vault master-password status.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultPasswordStatusRequest
+ */
+export class GetVaultPasswordStatusRequest extends Message<GetVaultPasswordStatusRequest> {
+  constructor(data?: PartialMessage<GetVaultPasswordStatusRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultPasswordStatusRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusRequest {
+    return new GetVaultPasswordStatusRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultPasswordStatusRequest | PlainMessage<GetVaultPasswordStatusRequest> | undefined, b: GetVaultPasswordStatusRequest | PlainMessage<GetVaultPasswordStatusRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultPasswordStatusRequest, a, b);
+  }
+}
+
+/**
+ * Response with the remote vault master-password status.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultPasswordStatusResponse
+ */
+export class GetVaultPasswordStatusResponse extends Message<GetVaultPasswordStatusResponse> {
+  /**
+   * True when the vault user already has a master password credential.
+   *
+   * @generated from field: bool is_set = 1;
+   */
+  isSet = false;
+
+  constructor(data?: PartialMessage<GetVaultPasswordStatusResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultPasswordStatusResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "is_set", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultPasswordStatusResponse {
+    return new GetVaultPasswordStatusResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultPasswordStatusResponse | PlainMessage<GetVaultPasswordStatusResponse> | undefined, b: GetVaultPasswordStatusResponse | PlainMessage<GetVaultPasswordStatusResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultPasswordStatusResponse, a, b);
+  }
+}
+
+/**
+ * Request to set or change the remote vault master password.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultMasterPasswordRequest
+ */
+export class SetVaultMasterPasswordRequest extends Message<SetVaultMasterPasswordRequest> {
+  /**
+   * Required. The new master password (plaintext; used by the daemon to derive
+   * the credential locally and never sent to the vault server).
+   *
+   * @generated from field: string password = 1;
+   */
+  password = "";
+
+  constructor(data?: PartialMessage<SetVaultMasterPasswordRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultMasterPasswordRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordRequest {
+    return new SetVaultMasterPasswordRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultMasterPasswordRequest | PlainMessage<SetVaultMasterPasswordRequest> | undefined, b: SetVaultMasterPasswordRequest | PlainMessage<SetVaultMasterPasswordRequest> | undefined): boolean {
+    return proto3.util.equals(SetVaultMasterPasswordRequest, a, b);
+  }
+}
+
+/**
+ * Response after setting or changing the remote vault master password.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultMasterPasswordResponse
+ */
+export class SetVaultMasterPasswordResponse extends Message<SetVaultMasterPasswordResponse> {
+  constructor(data?: PartialMessage<SetVaultMasterPasswordResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultMasterPasswordResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultMasterPasswordResponse {
+    return new SetVaultMasterPasswordResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultMasterPasswordResponse | PlainMessage<SetVaultMasterPasswordResponse> | undefined, b: SetVaultMasterPasswordResponse | PlainMessage<SetVaultMasterPasswordResponse> | undefined): boolean {
+    return proto3.util.equals(SetVaultMasterPasswordResponse, a, b);
+  }
+}
+
+/**
+ * Request for the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultNotificationServerRequest
+ */
+export class GetVaultNotificationServerRequest extends Message<GetVaultNotificationServerRequest> {
+  constructor(data?: PartialMessage<GetVaultNotificationServerRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultNotificationServerRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultNotificationServerRequest {
+    return new GetVaultNotificationServerRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultNotificationServerRequest | PlainMessage<GetVaultNotificationServerRequest> | undefined, b: GetVaultNotificationServerRequest | PlainMessage<GetVaultNotificationServerRequest> | undefined): boolean {
+    return proto3.util.equals(GetVaultNotificationServerRequest, a, b);
+  }
+}
+
+/**
+ * Response with the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.GetVaultNotificationServerResponse
+ */
+export class GetVaultNotificationServerResponse extends Message<GetVaultNotificationServerResponse> {
+  /**
+   * The notification server URL from the vault state. Empty when using the default.
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  constructor(data?: PartialMessage<GetVaultNotificationServerResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.GetVaultNotificationServerResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetVaultNotificationServerResponse {
+    return new GetVaultNotificationServerResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetVaultNotificationServerResponse | PlainMessage<GetVaultNotificationServerResponse> | undefined, b: GetVaultNotificationServerResponse | PlainMessage<GetVaultNotificationServerResponse> | undefined): boolean {
+    return proto3.util.equals(GetVaultNotificationServerResponse, a, b);
+  }
+}
+
+/**
+ * Request to set the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultNotificationServerRequest
+ */
+export class SetVaultNotificationServerRequest extends Message<SetVaultNotificationServerRequest> {
+  /**
+   * The notification server URL to store in the vault state. Empty uses the default.
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  constructor(data?: PartialMessage<SetVaultNotificationServerRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultNotificationServerRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultNotificationServerRequest {
+    return new SetVaultNotificationServerRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultNotificationServerRequest | PlainMessage<SetVaultNotificationServerRequest> | undefined, b: SetVaultNotificationServerRequest | PlainMessage<SetVaultNotificationServerRequest> | undefined): boolean {
+    return proto3.util.equals(SetVaultNotificationServerRequest, a, b);
+  }
+}
+
+/**
+ * Response after setting the vault notification server URL.
+ *
+ * @generated from message com.seed.daemon.v1alpha.SetVaultNotificationServerResponse
+ */
+export class SetVaultNotificationServerResponse extends Message<SetVaultNotificationServerResponse> {
+  constructor(data?: PartialMessage<SetVaultNotificationServerResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SetVaultNotificationServerResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetVaultNotificationServerResponse {
+    return new SetVaultNotificationServerResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SetVaultNotificationServerResponse | PlainMessage<SetVaultNotificationServerResponse> | undefined, b: SetVaultNotificationServerResponse | PlainMessage<SetVaultNotificationServerResponse> | undefined): boolean {
+    return proto3.util.equals(SetVaultNotificationServerResponse, a, b);
+  }
+}
+
+/**
  * Request to force reindexing of the entire database.
  *
  * @generated from message com.seed.daemon.v1alpha.ForceReindexRequest
@@ -1469,6 +2028,15 @@ export class GetVaultStatusResponse extends Message<GetVaultStatusResponse> {
    */
   syncStatus?: VaultSyncStatus;
 
+  /**
+   * Error that stopped the most recent browser-mediated Vault Connect attempt.
+   * Empty while an attempt is still in progress, after one succeeds,
+   * or when none was started.
+   *
+   * @generated from field: string last_connect_error = 5;
+   */
+  lastConnectError = "";
+
   constructor(data?: PartialMessage<GetVaultStatusResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1481,6 +2049,7 @@ export class GetVaultStatusResponse extends Message<GetVaultStatusResponse> {
     { no: 2, name: "connection_status", kind: "enum", T: proto3.getEnumType(VaultConnectionStatus) },
     { no: 3, name: "remote_vault_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "sync_status", kind: "message", T: VaultSyncStatus },
+    { no: 5, name: "last_connect_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetVaultStatusResponse {

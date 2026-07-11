@@ -120,6 +120,10 @@ type Server struct {
 
 	vaultConnectionMu   sync.Mutex
 	vaultConnectionPoll *vaultConnectionPoll
+	// vaultConnectionErr is the error that stopped the most recent Vault Connect
+	// poll, kept so GetVaultStatus can report it to the UI. Cleared when a new
+	// connection attempt starts.
+	vaultConnectionErr error
 
 	taskMgr *taskmanager.TaskManager
 }
@@ -624,6 +628,8 @@ func (srv *Server) GetVaultStatus(ctx context.Context, req *daemon.GetVaultStatu
 		resp.BackendMode = daemon.VaultBackendMode_VAULT_BACKEND_MODE_REMOTE
 		resp.ConnectionStatus = daemon.VaultConnectionStatus_VAULT_CONNECTION_STATUS_CONNECTED
 		resp.RemoteVaultUrl = vaultStatus.RemoteURL
+	} else if err := srv.lastVaultConnectionError(); err != nil {
+		resp.LastConnectError = err.Error()
 	}
 	if !vaultStatus.LastSyncTime.IsZero() {
 		resp.SyncStatus.LastSyncTime = timestamppb.New(vaultStatus.LastSyncTime)
@@ -660,6 +666,7 @@ func (srv *Server) StartVaultConnection(_ context.Context, in *daemon.StartVault
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			srv.setVaultConnectionError(err)
 			srv.log.Warn("Vault connection polling stopped", zap.Error(err))
 		}
 	}()
@@ -680,6 +687,7 @@ func (srv *Server) replaceVaultConnectionPoll(cancel context.CancelFunc) *vaultC
 	}
 	poll := &vaultConnectionPoll{cancel: cancel}
 	srv.vaultConnectionPoll = poll
+	srv.vaultConnectionErr = nil
 	return poll
 }
 
@@ -690,6 +698,116 @@ func (srv *Server) clearVaultConnectionPoll(poll *vaultConnectionPoll) {
 	if srv.vaultConnectionPoll == poll {
 		srv.vaultConnectionPoll = nil
 	}
+}
+
+func (srv *Server) setVaultConnectionError(err error) {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	srv.vaultConnectionErr = err
+}
+
+func (srv *Server) lastVaultConnectionError() error {
+	srv.vaultConnectionMu.Lock()
+	defer srv.vaultConnectionMu.Unlock()
+
+	return srv.vaultConnectionErr
+}
+
+// GetVaultEmail implements the corresponding gRPC method.
+func (srv *Server) GetVaultEmail(ctx context.Context, _ *daemon.GetVaultEmailRequest) (*daemon.GetVaultEmailResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	email, err := vlt.GetVaultEmail(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultEmailResponse{Email: email}, nil
+}
+
+// ChangeVaultEmailStart implements the corresponding gRPC method.
+func (srv *Server) ChangeVaultEmailStart(ctx context.Context, in *daemon.ChangeVaultEmailStartRequest) (*daemon.ChangeVaultEmailStartResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	binding, expireMs, resendMs, err := vlt.ChangeVaultEmailStart(ctx, in.NewEmail)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	resp := &daemon.ChangeVaultEmailStartResponse{Binding: binding}
+	if expireMs > 0 {
+		resp.ExpireTime = timestamppb.New(time.UnixMilli(expireMs))
+	}
+	if resendMs > 0 {
+		resp.ResendAllowedTime = timestamppb.New(time.UnixMilli(resendMs))
+	}
+	return resp, nil
+}
+
+// ChangeVaultEmailVerify implements the corresponding gRPC method.
+func (srv *Server) ChangeVaultEmailVerify(ctx context.Context, in *daemon.ChangeVaultEmailVerifyRequest) (*daemon.ChangeVaultEmailVerifyResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	newEmail, err := vlt.ChangeVaultEmailVerify(ctx, in.Code, in.Binding)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.ChangeVaultEmailVerifyResponse{NewEmail: newEmail}, nil
+}
+
+// GetVaultPasswordStatus implements the corresponding gRPC method.
+func (srv *Server) GetVaultPasswordStatus(ctx context.Context, _ *daemon.GetVaultPasswordStatusRequest) (*daemon.GetVaultPasswordStatusResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	isSet, err := vlt.VaultPasswordIsSet(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultPasswordStatusResponse{IsSet: isSet}, nil
+}
+
+// SetVaultMasterPassword implements the corresponding gRPC method.
+func (srv *Server) SetVaultMasterPassword(ctx context.Context, in *daemon.SetVaultMasterPasswordRequest) (*daemon.SetVaultMasterPasswordResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	if err := vlt.SetVaultMasterPassword(ctx, in.Password); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.SetVaultMasterPasswordResponse{}, nil
+}
+
+// GetVaultNotificationServer implements the corresponding gRPC method.
+func (srv *Server) GetVaultNotificationServer(_ context.Context, _ *daemon.GetVaultNotificationServerRequest) (*daemon.GetVaultNotificationServerResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	url, err := vlt.GetVaultNotificationServerURL()
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.GetVaultNotificationServerResponse{Url: url}, nil
+}
+
+// SetVaultNotificationServer implements the corresponding gRPC method.
+func (srv *Server) SetVaultNotificationServer(_ context.Context, in *daemon.SetVaultNotificationServerRequest) (*daemon.SetVaultNotificationServerResponse, error) {
+	vlt, err := srv.store.Vault()
+	if err != nil {
+		return nil, err
+	}
+	if err := vlt.SetVaultNotificationServerURL(in.Url); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+	}
+	return &daemon.SetVaultNotificationServerResponse{}, nil
 }
 
 // DisconnectVault implements the corresponding gRPC method.

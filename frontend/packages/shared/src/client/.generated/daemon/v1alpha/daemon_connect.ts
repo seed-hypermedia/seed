@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -125,6 +125,87 @@ export const Daemon = {
       name: "ForceSync",
       I: ForceSyncRequest,
       O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets the current email address of the connected remote vault user.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultEmail
+     */
+    getVaultEmail: {
+      name: "GetVaultEmail",
+      I: GetVaultEmailRequest,
+      O: GetVaultEmailResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Starts changing the remote vault user's email address. Sends a verification
+     * code to the new email and returns an opaque binding to pass to verify.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ChangeVaultEmailStart
+     */
+    changeVaultEmailStart: {
+      name: "ChangeVaultEmailStart",
+      I: ChangeVaultEmailStartRequest,
+      O: ChangeVaultEmailStartResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Completes a remote vault email change by verifying the emailed code.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.ChangeVaultEmailVerify
+     */
+    changeVaultEmailVerify: {
+      name: "ChangeVaultEmailVerify",
+      I: ChangeVaultEmailVerifyRequest,
+      O: ChangeVaultEmailVerifyResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Reports whether the connected remote vault user has a master password set.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultPasswordStatus
+     */
+    getVaultPasswordStatus: {
+      name: "GetVaultPasswordStatus",
+      I: GetVaultPasswordStatusRequest,
+      O: GetVaultPasswordStatusResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Sets or changes the connected remote vault user's master password. The
+     * daemon derives the credential from the in-daemon DEK; the plaintext password
+     * is never sent to the vault server.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SetVaultMasterPassword
+     */
+    setVaultMasterPassword: {
+      name: "SetVaultMasterPassword",
+      I: SetVaultMasterPasswordRequest,
+      O: SetVaultMasterPasswordResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets the notification server URL stored in the (synced) vault state.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultNotificationServer
+     */
+    getVaultNotificationServer: {
+      name: "GetVaultNotificationServer",
+      I: GetVaultNotificationServerRequest,
+      O: GetVaultNotificationServerResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Sets the notification server URL in the vault state and syncs it to the
+     * remote vault, so it stays consistent across devices and the web vault.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SetVaultNotificationServer
+     */
+    setVaultNotificationServer: {
+      name: "SetVaultNotificationServer",
+      I: SetVaultNotificationServerRequest,
+      O: SetVaultNotificationServerResponse,
       kind: MethodKind.Unary,
     },
     /**

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"seed/backend/core"
+	"seed/backend/logging"
 	"sort"
 	"strings"
 	"sync"
@@ -24,8 +25,31 @@ import (
 	cid "github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/zalando/go-keyring"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/chacha20poly1305"
 )
+
+// vaultMergeLogPrefix is a deliberately loud, greppable marker prepended to
+// every vault key-merge log line. When a user signs in from a local vault to a
+// remote vault, all the keys/identities from both vaults are merged into one
+// list. This merge has been observed to lose identities, so we log the full set
+// of identities in the local vault, in the remote vault, and in the final
+// merged-and-synced state. Grep the daemon (Electron main process) logs for
+// this prefix to follow exactly what happened.
+//
+// To watch ONLY these logs, run the daemon with SEED_LOG_ONLY=seed/vault-merge
+// (see backend/logging) which silences every other subsystem.
+const vaultMergeLogPrefix = "🔑 VAULT-MERGE"
+
+// vaultConnectLogPrefix marks every step of the browser-mediated Vault Connect
+// flow (StartConnection → PollConnection → HandleConnection → connected).
+// Grep the desktop app logs for "VAULT-CONNECT" to follow a sign-in attempt.
+const vaultConnectLogPrefix = "🖥️ VAULT-CONNECT"
+
+// vaultMergeLog is the dedicated logger for the local→remote key merge. It is
+// kept at debug level so the merge is always traceable; pair it with
+// SEED_LOG_ONLY=seed/vault-merge to suppress all other logging.
+var vaultMergeLog = logging.New("seed/vault-merge", "debug")
 
 // Vault is a the main vault implementation with local file and optional remote syncing.
 type Vault struct {
@@ -223,11 +247,17 @@ func payloadUnixMilli(t time.Time) int64 {
 
 const (
 	connectionTokenRawLength = 32
-	connectionTokenTTL       = 2 * time.Minute
-	controlMaxBody           = 4 << 10   // 4 KiB.
-	fetchMaxBody             = 120 << 20 // 120 MiB.
-	defaultPollInterval      = 2 * time.Second
-	defaultPollTimeout       = 2 * time.Minute
+	// connectionTokenTTL bounds the whole browser-side Vault Connect flow,
+	// including a brand-new user registering (email verification, passkey,
+	// profile), so it must be generous — 2 minutes was routinely exceeded.
+	connectionTokenTTL  = 15 * time.Minute
+	controlMaxBody      = 4 << 10   // 4 KiB.
+	fetchMaxBody        = 120 << 20 // 120 MiB.
+	defaultPollInterval = 2 * time.Second
+	defaultPollTimeout  = connectionTokenTTL
+	// defaultRemoteSyncInterval is how often the daemon pulls/pushes the remote
+	// vault in the background so it stays in sync without manual action.
+	defaultRemoteSyncInterval = 30 * time.Second
 
 	vaultPath            = "api/vault"
 	vaultConnectPath     = "api/vault-connect"
@@ -427,6 +457,28 @@ func validateLocalKeyName(name string, kp *core.KeyPair) error {
 // ResumeRemoteConnection refreshes remote sync state for an already-connected vault.
 func (ks *Vault) ResumeRemoteConnection() {
 	go ks.syncRemoteMaybe(context.Background())
+}
+
+// StartPeriodicRemoteSync runs a background sync on the given interval until ctx
+// is cancelled, keeping the local vault in sync with the remote without manual
+// action. Each tick is a no-op unless the vault is connected to a remote, and
+// syncs are serialized, so this is safe to start unconditionally.
+func (ks *Vault) StartPeriodicRemoteSync(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = defaultRemoteSyncInterval
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ks.syncRemoteMaybe(ctx)
+			}
+		}
+	}()
 }
 
 // SetPendingConnectionExpiry rewrites the current pending Vault Connect expiry.
@@ -724,6 +776,12 @@ func (ks *Vault) StartConnection(remoteURL string, force bool) (ConnectionStart,
 	}
 	ks.connection = state
 
+	vaultMergeLog.Info(vaultConnectLogPrefix+" connection started: token minted, will poll for browser payload",
+		zap.String("remoteVaultUrl", state.remoteURL),
+		zap.Time("expireTime", state.expireTime),
+		zap.Bool("force", force),
+	)
+
 	return ConnectionStart{
 		RemoteURL:    state.remoteURL,
 		ConnectToken: state.secret,
@@ -793,27 +851,51 @@ func (ks *Vault) PollConnection(ctx context.Context, connectSecret string) error
 	interval := time.NewTimer(0)
 	defer interval.Stop()
 
+	var lastFetchErr error
 	for {
 		select {
 		case <-ctx.Done():
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: polling deadline reached before the browser payload arrived",
+					zap.NamedError("lastPollError", lastFetchErr),
+				)
+				if lastFetchErr != nil {
+					return fmt.Errorf("%w (last poll error: %w)", ErrConnectionTokenExpired, lastFetchErr)
+				}
 				return ErrConnectionTokenExpired
 			}
+			vaultMergeLog.Warn(vaultConnectLogPrefix+" polling canceled", zap.Error(ctx.Err()))
 			return ctx.Err()
 		case <-interval.C:
 		}
 
 		remoteURL, err := ks.pendingConnectionRemoteURL(connectSecret, time.Now().UTC())
 		if err != nil {
+			vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: pending connection token no longer valid", zap.Error(err))
 			return err
 		}
 
 		connectPayload, found, err := ks.fetchVaultConnectPayload(ctx, remoteURL, decodedSecret)
 		if err != nil {
-			return err
+			// The payload is one-time and the token single-use, so a transient
+			// server or network error must not end the flow; keep polling.
+			vaultMergeLog.Warn(vaultConnectLogPrefix+" poll fetch failed, will keep polling",
+				zap.String("remoteVaultUrl", remoteURL),
+				zap.Error(err),
+			)
+			lastFetchErr = err
+			interval.Reset(ks.pollInterval)
+			continue
 		}
 		if found {
-			return ks.HandleConnection(ctx, connectSecret, connectPayload)
+			vaultMergeLog.Info(vaultConnectLogPrefix+" browser payload received, finalizing connection",
+				zap.String("remoteVaultUrl", remoteURL),
+			)
+			if err := ks.HandleConnection(ctx, connectSecret, connectPayload); err != nil {
+				vaultMergeLog.Error(vaultConnectLogPrefix+" FAILED: could not finalize connection from browser payload", zap.Error(err))
+				return err
+			}
+			return nil
 		}
 
 		interval.Reset(ks.pollInterval)
@@ -981,6 +1063,39 @@ func (ks *Vault) DisconnectAndClear() error {
 	return nil
 }
 
+// GetVaultNotificationServerURL returns the notification server URL stored in
+// the (synced) vault state, or empty when using the default.
+func (ks *Vault) GetVaultNotificationServerURL() (string, error) {
+	ks.mu.RLock()
+	defer ks.mu.RUnlock()
+
+	snapshot, err := ks.loadSnapshotLocked()
+	if err != nil {
+		return "", err
+	}
+	return snapshot.State.NotificationServerURL, nil
+}
+
+// SetVaultNotificationServerURL stores the notification server URL in the vault
+// state and schedules a remote sync so it propagates to other devices and the
+// web vault.
+func (ks *Vault) SetVaultNotificationServerURL(url string) error {
+	shouldSync, err := ks.applyMutation(func(state *State) (bool, error) {
+		if state.NotificationServerURL == url {
+			return false, nil
+		}
+		state.NotificationServerURL = url
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	if shouldSync {
+		ks.scheduleRemoteSync()
+	}
+	return nil
+}
+
 func (ks *Vault) applyMutation(fn func(state *State) (bool, error)) (shouldSync bool, err error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
@@ -1106,7 +1221,121 @@ func (ks *Vault) validateVaultConnectPayloadLocked(connectToken string, remoteUR
 	return nil
 }
 
+// describeStateIdentities returns one greppable line per identity in the given
+// vault state: the human-readable key name plus the account ID (principal)
+// derived from the seed. This is what we compare across local/remote/merged to
+// see where an identity is lost.
+func describeStateIdentities(state State) []string {
+	out := make([]string, 0, len(state.Accounts))
+	for _, account := range state.Accounts {
+		principal, err := principalStringFromSeed(account.Seed)
+		if err != nil {
+			principal = fmt.Sprintf("<invalid-seed:%v>", err)
+		}
+		out = append(out, fmt.Sprintf("name=%q id=%s createTime=%d delegations=%d", account.Name, principal, account.CreateTime, len(account.Delegations)))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// describeTombstones returns one line per deleted-account tombstone. A stale
+// local tombstone can suppress a live remote identity during the merge, so this
+// is logged alongside the live identities.
+func describeTombstones(state State) []string {
+	out := make([]string, 0, len(state.DeletedAccounts))
+	for id, deletedAt := range state.DeletedAccounts {
+		out = append(out, fmt.Sprintf("id=%s deletedAt=%d", id, deletedAt))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// logVaultMergeBeforeMerge dumps the local and remote identity sets right before
+// the merge runs, so a lost key can be traced to its source. Logging-only:
+// every failure is logged and swallowed so it can never affect the connection.
+func (ks *Vault) logVaultMergeBeforeMerge(remoteURL, userID, credentialID, secret string, credential Credential, remoteSnapshot GetVaultResponse) {
+	localState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to read LOCAL vault state for logging", zap.Error(err))
+	} else {
+		vaultMergeLog.Info(vaultMergeLogPrefix+" sign-in started: LOCAL vault identities (before merge)",
+			zap.String("remoteVaultUrl", remoteURL),
+			zap.String("userId", userID),
+			zap.String("credentialId", credentialID),
+			zap.Int("localVersion", localVersion),
+			zap.Int("localIdentityCount", len(localState.Accounts)),
+			zap.Strings("localIdentities", describeStateIdentities(localState)),
+			zap.Strings("localTombstones", describeTombstones(localState)),
+		)
+	}
+
+	if remoteSnapshot.Unchanged || strings.TrimSpace(remoteSnapshot.EncryptedData) == "" {
+		vaultMergeLog.Info(vaultMergeLogPrefix+" REMOTE vault has no decodable snapshot (empty or unchanged) — nothing to merge in from remote",
+			zap.String("remoteVaultUrl", remoteURL),
+			zap.Bool("remoteUnchanged", remoteSnapshot.Unchanged),
+			zap.Int("remoteVersion", remoteSnapshot.RemoteVersion),
+		)
+		return
+	}
+
+	remoteState, err := decodeRemoteState(secret, credential.WrappedDEK, remoteSnapshot)
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to decode REMOTE vault state for logging", zap.Error(err))
+		return
+	}
+	vaultMergeLog.Info(vaultMergeLogPrefix+" REMOTE vault identities (before merge)",
+		zap.String("remoteVaultUrl", remoteURL),
+		zap.Int("remoteVersion", remoteSnapshot.RemoteVersion),
+		zap.Int("remoteIdentityCount", len(remoteState.Accounts)),
+		zap.Strings("remoteIdentities", describeStateIdentities(remoteState)),
+		zap.Strings("remoteTombstones", describeTombstones(remoteState)),
+	)
+}
+
+// logVaultMergeAfterMerge dumps the final merged identity set after it has been
+// persisted locally and synced up to the remote vault, so the result of the
+// merge can be compared against the two inputs logged above.
+func (ks *Vault) logVaultMergeAfterMerge(remoteURL string, uploadedToRemote bool, remoteVersion int) {
+	mergedState, localVersion, err := ks.buildRemoteStateSnapshotFromLocal()
+	if err != nil {
+		vaultMergeLog.Warn(vaultMergeLogPrefix+" failed to read MERGED vault state for logging", zap.Error(err))
+		return
+	}
+	vaultMergeLog.Info(vaultMergeLogPrefix+" merge complete: MERGED identities (now in local vault and synced to remote)",
+		zap.String("remoteVaultUrl", remoteURL),
+		zap.Bool("uploadedLocalStateToRemote", uploadedToRemote),
+		zap.Int("localVersion", localVersion),
+		zap.Int("remoteVersion", remoteVersion),
+		zap.Int("mergedIdentityCount", len(mergedState.Accounts)),
+		zap.Strings("mergedIdentities", describeStateIdentities(mergedState)),
+		zap.Strings("mergedTombstones", describeTombstones(mergedState)),
+	)
+}
+
+// finishConnection completes Vault Connect. The connect token and payload are
+// single-use, so a write conflict (the web app saving the vault concurrently)
+// is retried here instead of failing the whole flow.
 func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) error {
+	const maxAttempts = 3
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = ks.finishConnectionAttempt(ctx, remoteURL, userID, credentialID, secret)
+		if err == nil {
+			vaultMergeLog.Info(vaultConnectLogPrefix + " COMPLETE: remote vault connected, daemon status is now CONNECTED")
+			return nil
+		}
+		if !errors.Is(err, errRemoteWriteConflict) {
+			return err
+		}
+		vaultMergeLog.Warn(vaultConnectLogPrefix+" remote write conflict while finalizing, retrying",
+			zap.Int("attempt", attempt),
+			zap.Error(err),
+		)
+	}
+	return err
+}
+
+func (ks *Vault) finishConnectionAttempt(ctx context.Context, remoteURL string, userID string, credentialID string, secret string) error {
 	bearerAuth, err := buildRemoteBearerAuth(credentialID, secret)
 	if err != nil {
 		return fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
@@ -1121,6 +1350,7 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if err != nil {
 		return err
 	}
+	ks.logVaultMergeBeforeMerge(remoteURL, userID, credentialID, secret, credential, remoteSnapshot)
 	if err := ks.mergeRemoteSnapshot(credentialID, secret, credential.WrappedDEK, remoteSnapshot); err != nil {
 		return fmt.Errorf("failed to merge remote snapshot: %w", err)
 	}
@@ -1176,6 +1406,8 @@ func (ks *Vault) finishConnection(ctx context.Context, remoteURL string, userID 
 	if oldCredentialID != "" && oldSecret != "" {
 		ks.cleanupOldRemoteCredential(ctx, remoteURL, userID, oldCredentialID, oldSecret)
 	}
+
+	ks.logVaultMergeAfterMerge(remoteURL, needsUpload, remoteVersion)
 
 	return nil
 }
@@ -1572,6 +1804,140 @@ func (ks *Vault) getRemote(
 	return remoteResp, nil
 }
 
+// activeRemoteEmailAuth returns the active remote vault URL and bearer auth for
+// user-scoped requests (e.g. email change), or an error if there is no active
+// remote vault connection.
+func (ks *Vault) activeRemoteEmailAuth() (remoteURL string, bearerAuth string, err error) {
+	localRemote, _, remoteSecret, enabled, err := ks.loadRemoteSyncState()
+	if err != nil {
+		return "", "", err
+	}
+	if !enabled {
+		return "", "", fmt.Errorf("not connected to a remote vault")
+	}
+	bearerAuth, err = buildRemoteBearerAuth(localRemote.CredentialID, remoteSecret)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to derive remote vault bearer auth: %w", err)
+	}
+	return localRemote.VaultURL, bearerAuth, nil
+}
+
+// requestRemoteEmail performs an authenticated JSON request to a user-scoped
+// vault endpoint using the active remote connection's bearer credential.
+func (ks *Vault) requestRemoteEmail(
+	ctx context.Context,
+	method string,
+	endpointPath string,
+	remoteURL string,
+	bearerAuth string,
+	reqBody any,
+	out any,
+) error {
+	endpoint, err := resolveDaemonEndpointURL(remoteURL, endpointPath)
+	if err != nil {
+		return err
+	}
+
+	var bodyReader io.Reader
+	if reqBody != nil {
+		encoded, marshalErr := json.Marshal(reqBody)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		bodyReader = bytes.NewReader(encoded)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bodyReader)
+	if err != nil {
+		return err
+	}
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Authorization", "Bearer "+bearerAuth)
+
+	resp, err := ks.httpClientDo(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := readRemoteBody(resp.Body, controlMaxBody, "remote vault email error response")
+		return remoteEmailError(body, resp.StatusCode)
+	}
+	if out != nil {
+		if err := decodeRemoteJSON(resp.Body, controlMaxBody, "remote vault email response", out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// remoteEmailError extracts a human-readable error from a vault JSON error body.
+func remoteEmailError(body []byte, status int) error {
+	var parsed struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &parsed) == nil && strings.TrimSpace(parsed.Error) != "" {
+		return fmt.Errorf("%s", strings.TrimSpace(parsed.Error))
+	}
+	return fmt.Errorf("remote vault email request failed (status %d)", status)
+}
+
+// GetVaultEmail returns the current email of the connected remote vault user.
+func (ks *Vault) GetVaultEmail(ctx context.Context) (string, error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Email string `json:"email"`
+	}
+	if err := ks.requestRemoteEmail(ctx, http.MethodGet, "api/vault-email", remoteURL, bearerAuth, nil, &resp); err != nil {
+		return "", err
+	}
+	return resp.Email, nil
+}
+
+// ChangeVaultEmailStart begins a remote vault email change, sending a code to
+// the new address. It returns an anti-phishing binding to pass back to verify,
+// plus the code expiry and resend-allowed times (Unix milliseconds).
+func (ks *Vault) ChangeVaultEmailStart(ctx context.Context, newEmail string) (binding string, expireTimeMs int64, resendAllowedTimeMs int64, err error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", 0, 0, err
+	}
+	var resp struct {
+		Binding           string `json:"binding"`
+		ExpireTime        int64  `json:"expireTime"`
+		ResendAllowedTime int64  `json:"resendAllowedTime"`
+	}
+	reqBody := map[string]string{"newEmail": newEmail}
+	if err := ks.requestRemoteEmail(ctx, http.MethodPost, "api/email-change/start", remoteURL, bearerAuth, reqBody, &resp); err != nil {
+		return "", 0, 0, err
+	}
+	return resp.Binding, resp.ExpireTime, resp.ResendAllowedTime, nil
+}
+
+// ChangeVaultEmailVerify completes a remote vault email change by submitting the
+// emailed code and the binding from ChangeVaultEmailStart. Returns the new email.
+func (ks *Vault) ChangeVaultEmailVerify(ctx context.Context, code string, binding string) (string, error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Verified bool   `json:"verified"`
+		NewEmail string `json:"newEmail"`
+	}
+	reqBody := map[string]string{"code": code, "binding": binding}
+	if err := ks.requestRemoteEmail(ctx, http.MethodPost, "api/email-change/verify", remoteURL, bearerAuth, reqBody, &resp); err != nil {
+		return "", err
+	}
+	return resp.NewEmail, nil
+}
+
 func (ks *Vault) buildRemoteSaveRequest(
 	_ context.Context,
 	remoteSecret string,
@@ -1715,6 +2081,21 @@ func (ks *Vault) mergeRemoteAccounts(
 	if err != nil {
 		return err
 	}
+
+	// Log the authoritative merge decision. This is the single chokepoint both
+	// the sign-in (finishConnection) and the background sync paths flow through,
+	// so it captures any identity that the merge drops regardless of trigger.
+	vaultMergeLog.Info(vaultMergeLogPrefix+" mergeNormalizedStates result (local ⊕ remote → merged)",
+		zap.Int("localVersion", localVersion),
+		zap.Int("remoteVersion", remoteVersion),
+		zap.Bool("changedLocalVault", changed),
+		zap.Int("localIdentityCount", len(localNormalized.Accounts)),
+		zap.Int("remoteIdentityCount", len(remoteNormalized.Accounts)),
+		zap.Int("mergedIdentityCount", len(mergedState.Accounts)),
+		zap.Strings("mergedIdentities", describeStateIdentities(mergedState)),
+		zap.Strings("mergedTombstones", describeTombstones(mergedState)),
+	)
+
 	if !changed {
 		return nil
 	}

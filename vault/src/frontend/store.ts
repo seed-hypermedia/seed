@@ -39,23 +39,26 @@ type VaultConnectionRequest = {
   }
 }
 
-const VAULT_CONNECTION_SUCCESS_MESSAGE = 'Your Seed desktop app has been linked with this remote vault successfully.'
-
 /**
  * Returns the route to continue a pending external flow after auth or profile setup completes.
  */
-export function getPendingFlowPath(state: Pick<AppState, 'delegationRequest' | 'vaultConnectionRequest'>): string {
+export function getPendingFlowPath(
+  state: Pick<AppState, 'delegationRequest' | 'vaultConnectionRequest'> & {returnToPath?: string},
+): string {
   if (state.delegationRequest) {
     return '/delegate'
   }
   if (state.vaultConnectionRequest) {
     return '/connect'
   }
+  if (state.returnToPath && state.returnToPath !== '/') {
+    return state.returnToPath
+  }
   return '/'
 }
 
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
+function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '') {
   return {
     email: '',
     password: '',
@@ -71,6 +74,10 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     platformAuthAvailable: false,
     userHasPassword: false,
     userHasPasskey: false,
+    // Route to return to after sign-in/unlock, when the user arrived at a
+    // protected page (e.g. /settings opened from the desktop app) while
+    // signed out or locked.
+    returnToPath: '',
     vaultData: null as vault.State | null,
     vaultVersion: 0,
     vaultLoaded: false,
@@ -87,11 +94,12 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '') {
     /** Prevent duplicate Vault Connect completion calls. */
     vaultConnectionInProgress: false,
     /** Success notice shown after Vault Connect completes. */
-    vaultConnectionSuccessMessage: '',
     /** Server-configured relying party origin used by WebAuthn verification. */
     relyingPartyOrigin: '',
     /** Daemon base URL used for direct IPFS asset reads. */
     backendHttpBaseUrl,
+    /** Public web reader base URL for "open profile" links ('' = same origin). */
+    webBaseUrl,
     /** Notification server URL surfaced in the application footer. */
     notificationServerUrl,
     /** Signed email prevalidation from the vault server, used to skip email verification on the notify server. */
@@ -228,8 +236,14 @@ function normalizeBaseURL(rawURL: string, fieldName: string): string {
   return `${parsed.protocol}//${parsed.host}${normalizedPath}`
 }
 
+/** Path prefix the vault SPA is served under; must match the router basename. */
+export const VAULT_BASENAME = '/vault'
+
 function getCurrentVaultBaseURL() {
-  return normalizeBaseURL(new URL('.', window.location.href).toString(), 'current vault URL')
+  // Derived from the origin + fixed basename, NOT the current location path:
+  // this runs from different routes (/connect, /profile/create) and the
+  // desktop daemon rejects the payload if the URL doesn't match exactly.
+  return normalizeBaseURL(new URL(VAULT_BASENAME, window.location.origin).toString(), 'current vault URL')
 }
 
 function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequest | null {
@@ -309,9 +323,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
   }
 
   async function derivePasswordMaterial(password: string, salt: string) {
-    const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
-    const encryptionKey = await localCrypto.deriveEncryptionKey(masterKey)
-    const authKey = await localCrypto.deriveAuthKey(masterKey)
+    const rootKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt))
+    const encryptionKey = await localCrypto.deriveEncryptionKey(rootKey)
+    const authKey = await localCrypto.deriveAuthKey(rootKey)
     return {encryptionKey, authKey}
   }
 
@@ -499,11 +513,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl))
+      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
     },
 
     setEmail(email: string) {
       state.email = email
+    },
+
+    setReturnToPath(path: string) {
+      state.returnToPath = path
     },
 
     setPassword(password: string) {
@@ -520,25 +538,41 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     async ensureProfileLoaded(principal: string) {
       if (state.profiles[principal]) return
-      try {
-        const account = await client.getAccount({id: principal})
-        const profile = account.profile
-        const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
+      // Skip if a load is already in flight for this account.
+      if (state.profileLoadStates[principal] === 'loading') return
+      state.profileLoadStates[principal] = 'loading'
 
-        delete state.profileLoadStates[principal]
+      // On first load the account may still be syncing in from the remote vault,
+      // so getAccount can 404 transiently. Retry a few times before concluding
+      // "not found" — the UI shows the loading state meanwhile.
+      const maxAttempts = 4
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const account = await client.getAccount({id: principal})
+          const profile = account.profile
+          const metadata = account.metadata?.toJson({emitDefaultValues: true}) as Record<string, unknown> | undefined
 
-        if (profile || metadata) {
-          state.profiles[principal] = {
-            name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
-            avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
-            description:
-              profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+          delete state.profileLoadStates[principal]
+
+          if (profile || metadata) {
+            state.profiles[principal] = {
+              name: profile?.name || (typeof metadata?.name === 'string' ? metadata.name : undefined),
+              avatar: profile?.icon || (typeof metadata?.icon === 'string' ? metadata.icon : undefined),
+              description:
+                profile?.description || (typeof metadata?.description === 'string' ? metadata.description : undefined),
+            }
           }
+          return
+        } catch (err) {
+          const notFound = err instanceof APIError && err.statusCode === 404
+          if (notFound && attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+            continue
+          }
+          state.profileLoadStates[principal] = notFound ? 'not_found' : 'unavailable'
+          console.error('Failed to fetch profile', err)
+          return
         }
-      } catch (err) {
-        state.profileLoadStates[principal] =
-          err instanceof APIError && err.statusCode === 404 ? 'not_found' : 'unavailable'
-        console.error('Failed to fetch profile', err)
       }
     },
 
@@ -549,6 +583,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         if (data.authenticated && data.email) {
           state.session = data
           state.email = data.email
+
+          // Keep the pre-login credential flags in sync with the session, so
+          // views like /login render the right auth options even when the user
+          // arrives with a remembered session and never went through preLogin.
+          state.userHasPassword = data.credentials?.password ?? false
+          state.userHasPasskey = data.credentials?.passkey ?? false
 
           if (!data.credentials?.password && !data.credentials?.passkey) {
             navigator.go('/auth/choose')
@@ -670,92 +710,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handleAddPassword() {
-      state.error = ''
-
+    /**
+     * Dialog-driven password set/change (no navigation). Derives the
+     * credential from the unlocked DEK and adds or changes it depending on
+     * whether one already exists. Throws on failure so the shared
+     * SetPasswordDialog can surface the error.
+     */
+    async setPasswordFromDialog(password: string): Promise<void> {
       if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
+        throw new Error('Vault must be unlocked first')
       }
 
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
+      const salt = base64.encode(localCrypto.generatePasswordSalt())
+      const {encryptionKey, authKey} = await derivePasswordMaterial(password, salt)
+      const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
+      const payload = {wrappedDEK: base64.encode(wrappedDEK), authKey: base64.encode(authKey), salt}
+
+      if (state.session?.credentials?.password) {
+        await client.changePassword(payload)
+      } else {
+        await client.addPassword(payload)
       }
 
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.addPassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Add password error:', e)
-        state.error = (e as Error).message || 'Failed to add password. Please try again.'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangePassword() {
-      state.error = ''
-
-      if (!state.decryptedDEK) {
-        state.error = 'Vault must be unlocked first'
-        return
-      }
-
-      if (state.password !== state.confirmPassword) {
-        state.error = 'Passwords do not match'
-        return
-      }
-
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
-        return
-      }
-
-      state.loading = true
-
-      try {
-        const salt = base64.encode(localCrypto.generatePasswordSalt())
-        const {encryptionKey, authKey} = await derivePasswordMaterial(state.password, salt)
-        const wrappedDEK = await localCrypto.encrypt(state.decryptedDEK, encryptionKey)
-
-        await client.changePassword({
-          wrappedDEK: base64.encode(wrappedDEK),
-          authKey: base64.encode(authKey),
-          salt,
-        })
-
-        state.passwordSalt = salt
-        await actions.checkSession()
-        state.password = ''
-        state.confirmPassword = ''
-        navigator.go('/')
-      } catch (e) {
-        console.error('Change password error:', e)
-        state.error = (e as Error).message || 'Failed to change password. Please try again.'
-      } finally {
-        state.loading = false
-      }
+      state.passwordSalt = salt
+      await actions.checkSession()
     },
 
     async handleSetPasskey() {
@@ -1228,6 +1206,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
+    /**
+     * Best-effort poll for vault changes made elsewhere (e.g. on the desktop
+     * app). Uses knownVersion so the server replies "unchanged" when nothing
+     * changed; otherwise re-hydrates the vault from the fresh server data.
+     * Skipped while another load/save is in flight to avoid clobbering.
+     */
+    async refreshVaultData() {
+      if (!state.decryptedDEK || !state.vaultLoaded || pendingVaultLoad || state.loading) {
+        return
+      }
+      try {
+        const response = await client.getVault({knownVersion: state.vaultVersion})
+        if (!isVaultDataResponse(response)) {
+          return
+        }
+        if ((response.version ?? 0) === state.vaultVersion) {
+          return
+        }
+        await ensureVaultLoaded(response)
+      } catch (error) {
+        console.error('Vault refresh poll failed:', error)
+      }
+    },
+
     async saveVaultData() {
       if (!state.decryptedDEK || !state.vaultData) {
         state.error = 'Vault must be unlocked first'
@@ -1684,57 +1686,27 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     // Email Change Actions.
 
-    setNewEmail(email: string) {
-      state.newEmail = email
+    /**
+     * Dialog-driven email change start (no navigation). Throws on failure so the
+     * shared ChangeEmailDialog can surface the error. Returns the code expiry.
+     */
+    async changeEmailDialogStart(newEmail: string): Promise<{expireTimeMs: number}> {
+      if (!state.session?.authenticated) {
+        throw new Error('You must be signed in to change your email')
+      }
+      const data = await client.changeEmailStart({newEmail})
+      return {expireTimeMs: data.expireTime}
     },
 
     /**
-     * Start the email change process. Sends a verification code to the new email.
+     * Dialog-driven email change verify (no navigation). Updates the active
+     * session email on success. Throws on failure.
      */
-    async handleStartEmailChange() {
-      if (!state.newEmail) {
-        state.error = 'Please enter a new email address'
-        return
-      }
-
-      if (!state.session?.authenticated) {
-        state.error = 'You must be signed in to change your email'
-        return
-      }
-
-      state.error = ''
-      state.loading = true
-
-      try {
-        const data = await client.changeEmailStart({
-          newEmail: state.newEmail,
-        })
-        state.verificationExpireTime = data.expireTime
-        state.resendAllowedTime = data.resendAllowedTime
-        navigator.go('/email/change-pending')
-      } catch (e) {
-        state.error = (e as Error).message || 'Failed to start email change'
-      } finally {
-        state.loading = false
-      }
-    },
-
-    async handleChangeEmailVerify(code: string) {
-      state.loading = true
-      state.error = ''
-
-      try {
-        const data = await client.changeEmailVerify({code})
-        if (state.session) {
-          state.session.email = data.newEmail
-          state.email = data.newEmail
-        }
-        state.newEmail = ''
-        navigator.go('/')
-      } catch (e) {
-        state.error = (e as Error).message || 'Verification failed'
-      } finally {
-        state.loading = false
+    async changeEmailDialogVerify(code: string): Promise<void> {
+      const data = await client.changeEmailVerify({code})
+      if (state.session) {
+        state.session.email = data.newEmail
+        state.email = data.newEmail
       }
     },
 
@@ -1776,22 +1748,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    /** Complete Vault Connect by reusing or registering a daemon credential. */
-    async completeVaultConnection() {
+    /** Complete Vault Connect by reusing or registering a daemon credential. Returns true on success. */
+    async completeVaultConnection(): Promise<boolean> {
       if (state.vaultConnectionInProgress) {
-        return
+        return false
       }
       if (!state.vaultConnectionRequest) {
         state.error = 'No desktop connection request is active.'
-        return
+        return false
       }
       if (!state.session?.authenticated) {
         state.error = 'Your session expired. Sign in again and retry connecting desktop.'
-        return
+        return false
       }
       if (!state.decryptedDEK) {
         state.error = 'Vault must be unlocked before connecting desktop.'
-        return
+        return false
       }
 
       state.vaultConnectionInProgress = true
@@ -1836,10 +1808,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         state.vaultConnectionRequest = null
-        state.vaultConnectionSuccessMessage = VAULT_CONNECTION_SUCCESS_MESSAGE
-        navigator.go('/')
+        navigator.go('/connect/success')
+        return true
       } catch (e) {
         state.error = getErrorMessage(e, 'Failed to complete vault connection')
+        return false
       } finally {
         state.vaultConnectionInProgress = false
       }
@@ -1850,11 +1823,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.error = ''
       state.vaultConnectionRequest = null
       navigator.go('/')
-    },
-
-    /** Clear the desktop connection success notice after the user sees it. */
-    clearVaultConnectionSuccessMessage() {
-      state.vaultConnectionSuccessMessage = ''
     },
 
     /** Set whether the user has consented to the current delegation. */
@@ -2037,8 +2005,9 @@ export function createStore(
   blockstore: Blockstore,
   backendHttpBaseUrl = '',
   notificationServerUrl = '',
+  webBaseUrl = '',
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl))
+  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

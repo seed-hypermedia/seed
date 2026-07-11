@@ -33,6 +33,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     loginPasskeyFinish: notImplemented('loginPasskeyFinish'),
     changeEmailStart: notImplemented('changeEmailStart'),
     changeEmailVerify: notImplemented('changeEmailVerify'),
+    getVaultEmail: notImplemented('getVaultEmail'),
     putVaultConnect: notImplemented('putVaultConnect'),
     getVaultConnect: notImplemented('getVaultConnect'),
     ...overrides,
@@ -56,6 +57,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     getConfig: async () => ({
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
+      webBaseUrl: 'https://web.example.com',
     }),
     registerStart: async () => ({
       message: 'ok',
@@ -102,6 +104,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       newEmail: 'new@example.com',
     }),
+    getVaultEmail: async () => ({email: 'user@example.com'}),
     putVaultConnect: async () => ({success: true, expireTime: Date.now() + 120_000}),
     getVaultConnect: async () => ({found: false}),
     ...overrides,

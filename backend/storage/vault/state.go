@@ -232,6 +232,13 @@ func findAccountByName(accounts []AccountInfo, name string) (AccountInfo, bool) 
 	return AccountInfo{}, false
 }
 
+// findAccountByNameOrPrincipal resolves an account by name, falling back to
+// principal (public key / account ID) resolution when the name lookup misses.
+//
+// A key's NAME is not guaranteed to equal its principal — imported and renamed
+// keys keep a name that differs from the z6Mk… account ID, and many callers
+// (e.g. SignData via notification sync) pass a principal as the identifier.
+// Never rely on name == principal.
 func findAccountByNameOrPrincipal(accounts []AccountInfo, name string) (AccountInfo, bool, error) {
 	if account, ok := findAccountByName(accounts, name); ok {
 		return account, true, nil

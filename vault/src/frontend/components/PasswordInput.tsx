@@ -24,7 +24,7 @@ const strengthConfig: Record<number, string> = {
 /**
  * Password input with visibility toggle and optional strength meter.
  */
-export function PasswordInput({id, label, value, onChange, autoComplete, showStrength}: PasswordInputProps) {
+export function PasswordInput({id, label, value, onChange, autoComplete, autoFocus, showStrength}: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
   const strength = showStrength ? crypto.checkPasswordStrength(value) : 0
 
@@ -42,6 +42,7 @@ export function PasswordInput({id, label, value, onChange, autoComplete, showStr
           onChange={(e) => onChange(e.target.value)}
           required
           autoComplete={autoComplete}
+          autoFocus={autoFocus}
         />
         <Button
           type="button"

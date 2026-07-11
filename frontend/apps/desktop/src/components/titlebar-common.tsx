@@ -23,14 +23,13 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
+import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {AlertDialogDescription, AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
+import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, Forward, UploadCloud} from '@shm/ui/icons'
@@ -45,7 +45,6 @@ import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
@@ -53,6 +52,7 @@ import {
   ArrowRightFromLine,
   Bell,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Lock,
   LogIn,
@@ -62,6 +62,7 @@ import {
   Search,
   Settings,
   User,
+  UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
@@ -167,36 +168,6 @@ function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
   )
 }
 
-function LogoutConfirmationDialog({onClose, input}: {onClose: () => void; input: {onSuccess: () => void}}) {
-  const logout = useLogout({
-    onSuccess: () => {
-      onClose()
-      input.onSuccess()
-      toast.success('Logged out')
-    },
-    onError: (error) => {
-      toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
-    },
-  })
-
-  return (
-    <>
-      <AlertDialogTitle>Log out?</AlertDialogTitle>
-      <AlertDialogDescription>
-        This will disconnect the remote vault and delete all local vault keys from this device.
-      </AlertDialogDescription>
-      <AlertDialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="destructive" disabled={logout.isLoading} onClick={() => logout.mutate()}>
-          {logout.isLoading ? 'Logging out…' : 'Log out'}
-        </Button>
-      </AlertDialogFooter>
-    </>
-  )
-}
-
 export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
@@ -214,7 +185,19 @@ export function AccountProfileButton() {
   const requestedSyncForMenuOpen = useRef(false)
   const createAccountDialog = useCreateAccountDialog()
   const authDialog = useDesktopAuthDialog()
-  const logoutDialog = useAppDialog(LogoutConfirmationDialog, {isAlert: true})
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const logout = useLogout({
+    onSuccess: () => {
+      setLogoutOpen(false)
+      toast.success('Logged out')
+      authDialog.close()
+      setSelectedIdentity?.(null)
+      navigate({key: 'onboarding'})
+    },
+    onError: (error) => {
+      toast.error('Failed to log out: ' + (error instanceof Error ? error.message : String(error)))
+    },
+  })
 
   const accountOptions = myAccountIds.data
     ?.map((uid, index) => {
@@ -370,14 +353,12 @@ export function AccountProfileButton() {
                     backgroundAttachment: 'local, local, scroll, scroll',
                   }}
                 >
+                  {/* The selected account is already shown in the header above, so it is not repeated as an option. */}
                   {accountOptions?.map((option) =>
-                    option ? (
+                    option && option.id.uid !== selectedIdentityValue ? (
                       <button
                         key={option.id.uid}
-                        className={cn(
-                          'hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2',
-                          selectedIdentityValue === option.id.uid ? 'bg-accent' : '',
-                        )}
+                        className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                         onClick={() => {
                           setSelectedIdentity?.(option.id.uid || null)
                           setSwitcherOpen(false)
@@ -417,11 +398,11 @@ export function AccountProfileButton() {
               My Profile
             </DropdownMenuItem>
           )}
-          {/* <DropdownMenuItem disabled>
+          <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
             <UserCog className="size-4" />
-            Manage account
+            Account Settings
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
+          {/* <DropdownMenuItem disabled>
             <Monitor className="size-4" />
             Site settings
           </DropdownMenuItem> */}
@@ -436,13 +417,7 @@ export function AccountProfileButton() {
                 variant="destructive"
                 onClick={() => {
                   setMenuOpen(false)
-                  logoutDialog.open({
-                    onSuccess: () => {
-                      authDialog.close()
-                      setSelectedIdentity?.(null)
-                      navigate({key: 'onboarding'})
-                    },
-                  })
+                  setLogoutOpen(true)
                 }}
               >
                 <LogOut className="size-4" />
@@ -452,7 +427,12 @@ export function AccountProfileButton() {
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      {logoutDialog.content}
+      <LogoutVaultDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        busy={logout.isLoading}
+        onLogOut={() => logout.mutate()}
+      />
       {authDialog.content}
       {createAccountDialog.content}
     </>
@@ -631,6 +611,42 @@ function getRouteLabel(route: NavRoute): string | null {
     default:
       return null
   }
+}
+
+const ACCOUNT_SETTINGS_TAB_LABELS: Record<string, string> = {
+  devices: 'Devices',
+  notifications: 'Notifications',
+}
+
+/**
+ * Breadcrumb shown in the omnibar for the Account Settings page: "Identity
+ * Settings" for the vault view, or "<Account name> › <Tab>" when an account is
+ * selected.
+ */
+function AccountSettingsOmnibarLabel({
+  accountUid,
+  tab,
+  isVault,
+}: {
+  accountUid?: string
+  tab?: string
+  isVault: boolean
+}) {
+  const account = useAccount(isVault ? undefined : accountUid)
+
+  if (isVault || !accountUid) {
+    return <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">Identity Settings</span>
+  }
+
+  const name = account.data?.metadata?.name || 'Account'
+  const tabLabel = ACCOUNT_SETTINGS_TAB_LABELS[tab ?? 'devices'] ?? 'Devices'
+  return (
+    <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1 truncate text-xs">
+      <span className="truncate">{name}</span>
+      <ChevronRight className="size-3 shrink-0 opacity-60" />
+      <span className="shrink-0">{tabLabel}</span>
+    </span>
+  )
 }
 
 /**
@@ -1048,24 +1064,32 @@ export function Omnibar() {
         onClick={handleContainerClick}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <span
-            className={cn(
-              'text-muted-foreground min-w-0 flex-1 truncate text-xs',
-              // Drafts that haven't been published yet have no shareable URL
-              isUnsharable && 'select-none',
-            )}
-            style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
-            onCopy={
-              isUnsharable
-                ? (e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }
-                : undefined
-            }
-          >
-            {displayText}
-          </span>
+          {route.key === 'account-settings' ? (
+            <AccountSettingsOmnibarLabel
+              accountUid={route.accountUid}
+              tab={route.tab}
+              isVault={route.view === 'vault'}
+            />
+          ) : (
+            <span
+              className={cn(
+                'text-muted-foreground min-w-0 flex-1 truncate text-xs',
+                // Drafts that haven't been published yet have no shareable URL
+                isUnsharable && 'select-none',
+              )}
+              style={isUnsharable ? {userSelect: 'none', WebkitUserSelect: 'none'} : undefined}
+              onCopy={
+                isUnsharable
+                  ? (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                    }
+                  : undefined
+              }
+            >
+              {displayText}
+            </span>
+          )}
           {indicators}
         </div>
         {routeId ? (

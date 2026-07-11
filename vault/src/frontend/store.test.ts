@@ -114,6 +114,26 @@ describe('Store', () => {
         }),
       ).toBe('/')
     })
+
+    test('returns recorded return path when no external flow is pending', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: null,
+          returnToPath: '/settings',
+        }),
+      ).toBe('/settings')
+    })
+
+    test('external flows take priority over the recorded return path', () => {
+      expect(
+        getPendingFlowPath({
+          delegationRequest: null,
+          vaultConnectionRequest: {connectToken: 'token'},
+          returnToPath: '/settings',
+        }),
+      ).toBe('/connect')
+    })
   })
 
   describe('handlePreLogin', () => {
@@ -554,8 +574,8 @@ describe('Store', () => {
     })
   })
 
-  describe('email change verification', () => {
-    test('starts email change and stores verification times', async () => {
+  describe('email change (dialog)', () => {
+    test('start returns the verification code expiry', async () => {
       const client = createMockClient({
         changeEmailStart: async () => ({
           message: 'ok',
@@ -563,20 +583,15 @@ describe('Store', () => {
           resendAllowedTime: 3500,
         }),
       })
-      const {state, actions, navigator} = createStore(client, createMockBlockstore())
-      const navigate = mock()
-      navigator.setNavigate(navigate)
+      const {state, actions} = createStore(client, createMockBlockstore())
       state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
-      state.newEmail = 'new@example.com'
 
-      await actions.handleStartEmailChange()
+      const result = await actions.changeEmailDialogStart('new@example.com')
 
-      expect(navigate).toHaveBeenCalledWith('/email/change-pending')
-      expect(state.verificationExpireTime).toBe(4000)
-      expect(state.resendAllowedTime).toBe(3500)
+      expect(result.expireTimeMs).toBe(4000)
     })
 
-    test('verifies email change with code', async () => {
+    test('verify updates the active session email', async () => {
       let receivedCode = ''
       const client = createMockClient({
         changeEmailVerify: async (req) => {
@@ -584,18 +599,14 @@ describe('Store', () => {
           return {verified: true, newEmail: 'new@example.com'}
         },
       })
-      const {state, actions, navigator} = createStore(client, createMockBlockstore())
-      const navigate = mock()
-      navigator.setNavigate(navigate)
+      const {state, actions} = createStore(client, createMockBlockstore())
       state.session = {authenticated: true, relyingPartyOrigin: 'https://example.com', email: 'old@example.com'}
-      state.newEmail = 'new@example.com'
 
-      await actions.handleChangeEmailVerify('1234')
+      await actions.changeEmailDialogVerify('1234')
 
       expect(receivedCode).toBe('1234')
       expect(state.session?.email).toBe('new@example.com')
       expect(state.email).toBe('new@example.com')
-      expect(navigate).toHaveBeenCalledWith('/')
     })
   })
 
@@ -2013,11 +2024,8 @@ describe('vault connection flow', () => {
     )
     expect(Array.from(decryptedDEK)).toEqual(Array.from(dek))
     expect(state.vaultConnectionRequest).toBeNull()
-    expect(state.vaultConnectionSuccessMessage).toBe(
-      'Your Seed desktop app has been linked with this remote vault successfully.',
-    )
     expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
+    expect(navigate).toHaveBeenCalledWith('/connect/success')
   })
 
   test('scrubs connect token fragment after parsing connection request', () => {
@@ -2132,7 +2140,7 @@ describe('vault connection flow', () => {
     )
     expect(state.vaultConnectionRequest).toBeNull()
     expect(state.error).toBe('')
-    expect(navigate).toHaveBeenCalledWith('/')
+    expect(navigate).toHaveBeenCalledWith('/connect/success')
   })
 
   test('cancel clears the pending desktop connection flow', () => {
@@ -2146,14 +2154,5 @@ describe('vault connection flow', () => {
     expect(state.vaultConnectionRequest).toBeNull()
     expect(state.error).toBe('')
     expect(navigate).toHaveBeenCalledWith('/')
-  })
-
-  test('clears the desktop connection success message when dismissed', () => {
-    const {state, actions} = createStore(createMockClient(), createMockBlockstore())
-    state.vaultConnectionSuccessMessage = 'linked'
-
-    actions.clearVaultConnectionSuccessMessage()
-
-    expect(state.vaultConnectionSuccessMessage).toBe('')
   })
 })

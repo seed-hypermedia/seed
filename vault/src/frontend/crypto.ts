@@ -8,10 +8,10 @@ export function generatePasswordSalt(): Uint8Array {
 }
 
 /**
- * Derive a 256-bit key from the master key using HKDF-SHA256.
+ * Derive a 256-bit key from the root key using HKDF-SHA256.
  */
-async function deriveHKDFKey(masterKey: Uint8Array, info: string): Promise<Uint8Array> {
-  const baseKey = await crypto.subtle.importKey('raw', masterKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
+async function deriveHKDFKey(rootKey: Uint8Array, info: string): Promise<Uint8Array> {
+  const baseKey = await crypto.subtle.importKey('raw', rootKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
     'deriveBits',
   ])
 
@@ -32,17 +32,17 @@ async function deriveHKDFKey(masterKey: Uint8Array, info: string): Promise<Uint8
 const SECRET_CREDENTIAL_AUTH_INFO = 'seed-hypermedia-vault-secret-authentication'
 
 /**
- * Derive the vault encryption key from the master key.
+ * Derive the vault encryption key from the root key.
  */
-export async function deriveEncryptionKey(masterKey: Uint8Array): Promise<Uint8Array> {
-  return deriveHKDFKey(masterKey, 'seed-hypermedia-vault-encryption')
+export async function deriveEncryptionKey(rootKey: Uint8Array): Promise<Uint8Array> {
+  return deriveHKDFKey(rootKey, 'seed-hypermedia-vault-encryption')
 }
 
 /**
- * Derive the password authentication key from the master key.
+ * Derive the password authentication key from the root key.
  */
-export async function deriveAuthKey(masterKey: Uint8Array): Promise<Uint8Array> {
-  return deriveHKDFKey(masterKey, 'seed-hypermedia-vault-authentication')
+export async function deriveAuthKey(rootKey: Uint8Array): Promise<Uint8Array> {
+  return deriveHKDFKey(rootKey, 'seed-hypermedia-vault-authentication')
 }
 
 /**

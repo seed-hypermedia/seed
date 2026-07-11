@@ -23,9 +23,11 @@ procs:
     autostart: true
 
   # Agents server (:3050), bun --hot. Defaults to the backends above.
-  # Separate Bun workspace — install its deps before starting (fast if satisfied).
+  # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
+  # which installs deps and re-syncs + restarts when the copied file: packages
+  # (frontend/packages/*) change, so they never go stale mid-session.
   agents:
-    shell: 'cd agents && bun install && bun run dev'
+    shell: 'cd agents && bun run dev'
     autostart: true
 
   # Remix/Vite web app (:3000). Talks to the daemon the desktop app spawns (:58001).
@@ -39,12 +41,21 @@ procs:
     autostart: true
 
   # Vault (:3030), bun --hot. Points at the notify server above (:3060).
-  # Separate Bun workspace — install its deps before starting (fast if satisfied).
+  # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
+  # which installs deps and re-syncs + restarts when the copied file: packages
+  # (frontend/packages/*) change, so they never go stale mid-session.
   vault:
-    shell: 'cd vault && bun install && bun run dev'
+    shell: 'cd vault && bun run dev'
     autostart: true
 
   # Electron desktop on mainnet; builds + spawns its own Go daemon (Metal GPU).
+  # SEED_LOG_ONLY silences every daemon subsystem except the vault key-merge
+  # logger (grep the daemon pane for "VAULT-MERGE"), so the local→remote vault
+  # sign-in / key-merge is easy to watch. The desktop process passes its env to
+  # the spawned Go daemon (see frontend/apps/desktop/src/daemon.ts). Remove this
+  # env block to restore normal daemon logging.
   desktop:
     shell: './dev run-desktop-mainnet'
+    env:
+      SEED_LOG_ONLY: seed/vault-merge
     autostart: true

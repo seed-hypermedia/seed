@@ -86,20 +86,20 @@ describe('key derivation', () => {
   })
 
   test('deriveEncryptionKey returns 32 bytes', async () => {
-    const masterKey = new Uint8Array(32).fill(42)
-    const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
+    const rootKey = new Uint8Array(32).fill(42)
+    const encryptionKey = await crypto.deriveEncryptionKey(rootKey)
     expect(encryptionKey).toBeInstanceOf(Uint8Array)
     expect(encryptionKey.length).toBe(32)
   })
 
   test('HKDF derivations are deterministic and distinct', async () => {
-    const masterKey = new Uint8Array(32).fill(123)
-    const encryptionKey1 = await crypto.deriveEncryptionKey(masterKey)
-    const encryptionKey2 = await crypto.deriveEncryptionKey(masterKey)
-    const authKey1 = await crypto.deriveAuthKey(masterKey)
-    const authKey2 = await crypto.deriveAuthKey(masterKey)
-    const secretCredentialAuthKey1 = await crypto.deriveSecretCredentialAuthKey(masterKey)
-    const secretCredentialAuthKey2 = await crypto.deriveSecretCredentialAuthKey(masterKey)
+    const rootKey = new Uint8Array(32).fill(123)
+    const encryptionKey1 = await crypto.deriveEncryptionKey(rootKey)
+    const encryptionKey2 = await crypto.deriveEncryptionKey(rootKey)
+    const authKey1 = await crypto.deriveAuthKey(rootKey)
+    const authKey2 = await crypto.deriveAuthKey(rootKey)
+    const secretCredentialAuthKey1 = await crypto.deriveSecretCredentialAuthKey(rootKey)
+    const secretCredentialAuthKey2 = await crypto.deriveSecretCredentialAuthKey(rootKey)
 
     expect(encryptionKey1).toEqual(encryptionKey2)
     expect(authKey1).toEqual(authKey2)
@@ -170,12 +170,12 @@ describe('full key derivation flow', () => {
     const password = 'MySecurePassword123!'
     const salt = crypto.generatePasswordSalt()
 
-    // Derive master key.
-    const masterKey = await encryption.deriveKeyFromPassword(password, salt, encryption.DEFAULT_PARAMS)
-    expect(masterKey.length).toBe(32)
+    // Derive root key.
+    const rootKey = await encryption.deriveKeyFromPassword(password, salt, encryption.DEFAULT_PARAMS)
+    expect(rootKey.length).toBe(32)
 
-    const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
-    const authKey = await crypto.deriveAuthKey(masterKey)
+    const encryptionKey = await crypto.deriveEncryptionKey(rootKey)
+    const authKey = await crypto.deriveAuthKey(rootKey)
     expect(encryptionKey.length).toBe(32)
     expect(authKey.length).toBe(32)
     expect(encryptionKey).not.toEqual(authKey)

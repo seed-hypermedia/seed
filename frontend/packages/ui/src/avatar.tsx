@@ -26,8 +26,12 @@ const Identicon = memo((props: {value: string; size: number}) => {
   const icon = useRef(null)
 
   useEffect(() => {
-    if (icon.current) {
+    if (!icon.current) return
+    try {
       jdenticon.update(icon.current, props.value)
+    } catch {
+      // jdenticon.update() is browser-only (DOM mutation); ignore in SSR / test
+      // environments where it throws "not supported on Node.js".
     }
   }, [props.value, props.size])
 

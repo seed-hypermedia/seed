@@ -1,25 +1,22 @@
-import {useEffect} from 'react'
-import {createBrowserRouter, Outlet} from 'react-router-dom'
+import {useEffect, useRef, type FormEvent} from 'react'
+import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
 import {ErrorMessage} from './components/ErrorMessage'
 import {Header} from './components/Header'
+import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, useActions, useAppState} from './store'
-import {AddPasswordView} from './views/AddPasswordView'
-import {ChangeEmailPendingView} from './views/ChangeEmailPendingView'
-import {ChangeEmailView} from './views/ChangeEmailView'
-import {ChangeNotifyServerUrlView} from './views/ChangeNotifyServerUrlView'
-import {ChangePasswordView} from './views/ChangePasswordView'
+import {getPendingFlowPath, useActions, useAppState, VAULT_BASENAME} from './store'
+import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
+import {ConnectSuccessView} from './views/ConnectSuccessView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
 import {LoginView} from './views/LoginView'
 import {PreLoginView} from './views/PreLoginView'
 import {SetPasswordView} from './views/SetPasswordView'
-import {VaultView} from './views/VaultView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
 /**
@@ -27,11 +24,29 @@ import {VerifyPendingView} from './views/VerifyPendingView'
  * Wrap auth routes that should not be visible when fully unlocked.
  */
 function RedirectIfUnlocked() {
-  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest} = useAppState()
+  const {session, decryptedDEK, delegationRequest, vaultConnectionRequest, returnToPath} = useAppState()
+  const actions = useActions()
+  const unlocked = !!(session?.authenticated && decryptedDEK)
 
-  if (session?.authenticated && decryptedDEK) {
-    const pendingPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
-    return <navigation.HashNavigate to={pendingPath} replace />
+  // Freeze the redirect target on the first unlocked render. The effect below
+  // clears returnToPath while <HashNavigate> may still be mounted (store
+  // updates notify asynchronously), and a mutable target would make the
+  // Navigate re-fire toward '/' and lose the recorded return path.
+  const targetRef = useRef<string | null>(null)
+  if (!unlocked) {
+    targetRef.current = null
+  } else if (targetRef.current === null) {
+    targetRef.current = getPendingFlowPath({delegationRequest, vaultConnectionRequest, returnToPath})
+  }
+
+  // The redirect consumes the recorded return path — clear it so it cannot
+  // cause a stray redirect later in the session.
+  useEffect(() => {
+    if (unlocked && returnToPath) actions.setReturnToPath('')
+  }, [unlocked, returnToPath, actions])
+
+  if (unlocked && targetRef.current !== null) {
+    return <navigation.HashNavigate to={targetRef.current} replace />
   }
 
   return <Outlet />
@@ -43,31 +58,84 @@ function RedirectIfUnlocked() {
  * If not authenticated, redirects to home.
  */
 function LockedView() {
-  const {session, loading, error, passkeySupported} = useAppState()
+  const {session, password, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
-  const navigate = navigation.useHashNavigate()
+  const location = useLocation()
+
+  const showPasskey = passkeySupported && !!session?.credentials?.passkey
+  const showPassword = !!session?.credentials?.password
+
+  // Quick unlock may detour through /login (e.g. when no passkeys are
+  // registered); remember where the user was (e.g. /settings opened from the
+  // desktop app) so they land back here.
+  function rememberReturnPath() {
+    if (location.pathname !== '/') {
+      actions.setReturnToPath(location.pathname)
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    actions.handleLogin()
+  }
 
   return (
     <Card className="mx-auto max-w-lg">
       <CardHeader>
-        <CardTitle className="text-left text-xl">Add your passkey to continue</CardTitle>
-        <CardDescription className="text-left">Sign in using your device.</CardDescription>
+        <CardTitle className="text-left text-xl">Unlock your vault</CardTitle>
+        <CardDescription className="text-left">
+          {session?.email ? `Signed in as ${session.email}. ` : ''}Verify it&apos;s you to continue.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
 
-        {passkeySupported && session?.credentials?.passkey && (
-          <Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
+        {showPasskey && (
+          <Button
+            onClick={() => {
+              rememberReturnPath()
+              actions.handleQuickUnlock()
+            }}
+            loading={loading}
+            className="w-full"
+          >
             Use passkey
           </Button>
         )}
 
-        {session?.credentials?.password && (
+        {showPassword && (
           <>
-            <Divider>or</Divider>
-            <Button variant="secondary" onClick={() => navigate('/login')} disabled={loading} className="w-full">
-              Use Master Password
-            </Button>
+            {showPasskey && <Divider>or</Divider>}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Hidden username field for password manager autofill. */}
+              <input
+                type="text"
+                name="username"
+                value={session?.email ?? ''}
+                autoComplete="username"
+                className="pointer-events-none absolute m-0 h-0 w-0 opacity-0"
+                readOnly
+                tabIndex={-1}
+              />
+
+              <PasswordInput
+                id="password"
+                label="Password"
+                value={password}
+                onChange={actions.setPassword}
+                autoComplete="current-password"
+                autoFocus={!showPasskey}
+              />
+
+              <Button
+                type="submit"
+                variant={showPasskey ? 'secondary' : 'default'}
+                loading={loading}
+                className="w-full"
+              >
+                Unlock
+              </Button>
+            </form>
           </>
         )}
 
@@ -85,7 +153,25 @@ function LockedView() {
  * If not authenticated, redirects to home.
  */
 function EnsureUnlocked() {
-  const {session, decryptedDEK, sessionChecked} = useAppState()
+  const {session, decryptedDEK, sessionChecked, returnToPath} = useAppState()
+  const actions = useActions()
+  const location = useLocation()
+
+  const needsAuth = sessionChecked && !session?.authenticated
+  const unlocked = !!(session?.authenticated && decryptedDEK)
+
+  // Remember where the user was headed (e.g. /settings opened from the
+  // desktop app) so the sign-in flow can return here instead of the root.
+  useEffect(() => {
+    if (needsAuth && location.pathname !== '/') {
+      actions.setReturnToPath(location.pathname)
+    }
+  }, [needsAuth, location.pathname, actions])
+
+  // Destination reached while unlocked: drop the recorded return path.
+  useEffect(() => {
+    if (unlocked && returnToPath) actions.setReturnToPath('')
+  }, [unlocked, returnToPath, actions])
 
   if (!sessionChecked) {
     return null // Or a loading spinner
@@ -130,9 +216,13 @@ function hasVaultConnectionFragment() {
   return params.has('token') || params.has('callback')
 }
 
+/** How often the unlocked vault polls the server for changes made elsewhere. */
+const VAULT_REFRESH_POLL_MS = 15_000
+
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
+  const isUnlocked = !!useAppState().decryptedDEK
 
   useEffect(() => {
     void actions.checkSession().catch((error) => {
@@ -141,6 +231,15 @@ export function RootLayout() {
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
   }, [actions])
+
+  // While unlocked, poll for vault data changed on other devices (e.g. desktop).
+  useEffect(() => {
+    if (!isUnlocked) return
+    const intervalId = window.setInterval(() => {
+      void actions.refreshVaultData()
+    }, VAULT_REFRESH_POLL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [isUnlocked, actions])
 
   return (
     <>
@@ -153,7 +252,7 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest} = useAppState()
+  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest, returnToPath} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -168,14 +267,14 @@ function RootView() {
       )
     }
 
-    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest})
+    const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest, returnToPath})
     if (pendingFlowPath !== '/') {
       return <navigation.HashNavigate to={pendingFlowPath} replace />
     }
 
     return (
       <div className="w-full max-w-5xl">
-        <VaultView />
+        <AccountSettingsView />
       </div>
     )
   }
@@ -189,13 +288,20 @@ function RootView() {
 
 function ConnectRouteView() {
   const {session, decryptedDEK, sessionChecked, vaultConnectionRequest} = useAppState()
+  // Completing the flow clears the request while this route is still mounted
+  // and the navigation to /connect/success is in flight; redirecting to "/"
+  // then would win the race. Only redirect when this route never had a request.
+  const hadRequestRef = useRef(false)
+  if (vaultConnectionRequest) {
+    hadRequestRef.current = true
+  }
 
   if (!sessionChecked) {
     return null
   }
 
   if (!vaultConnectionRequest && !hasVaultConnectionFragment()) {
-    return <navigation.HashNavigate to="/" replace />
+    return hadRequestRef.current ? null : <navigation.HashNavigate to="/" replace />
   }
 
   if (!session?.authenticated) {
@@ -207,7 +313,7 @@ function ConnectRouteView() {
   }
 
   if (!vaultConnectionRequest) {
-    return <navigation.HashNavigate to="/" replace />
+    return hadRequestRef.current ? null : <navigation.HashNavigate to="/" replace />
   }
 
   return <ConnectView />
@@ -256,31 +362,15 @@ export function createRouter() {
                 element: <ConnectRouteView />,
               },
               {
+                path: '/connect/success',
+                element: <ConnectSuccessView />,
+              },
+              {
                 element: <EnsureUnlocked />,
                 children: [
                   {
-                    path: '/password/add',
-                    element: <AddPasswordView />,
-                  },
-                  {
-                    path: '/password/change',
-                    element: <ChangePasswordView />,
-                  },
-                  {
                     path: '/profile/create',
                     element: <CreateProfileView />,
-                  },
-                  {
-                    path: '/email/change',
-                    element: <ChangeEmailView />,
-                  },
-                  {
-                    path: '/notify-server/change',
-                    element: <ChangeNotifyServerUrlView />,
-                  },
-                  {
-                    path: '/email/change-pending',
-                    element: <ChangeEmailPendingView />,
                   },
                   {
                     path: '/delegate',
@@ -298,7 +388,7 @@ export function createRouter() {
                 children: [
                   {
                     path: '/settings',
-                    element: <VaultView initialTab="settings" />,
+                    element: <AccountSettingsView />,
                   },
                 ],
               },
@@ -307,6 +397,6 @@ export function createRouter() {
         ],
       },
     ],
-    {basename: '/vault'},
+    {basename: VAULT_BASENAME},
   )
 }

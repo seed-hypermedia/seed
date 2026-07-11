@@ -1,22 +1,7 @@
-import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import {Button} from '@/frontend/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/frontend/components/ui/dialog'
-import {Input} from '@/frontend/components/ui/input'
-import {Label} from '@/frontend/components/ui/label'
-import {Textarea} from '@/frontend/components/ui/textarea'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/frontend/components/ui/dialog'
 import {getProfileAvatarImageSrc} from '@/frontend/profile'
 import {useAppState} from '@/frontend/store'
-import {User} from 'lucide-react'
-import {useEffect, useState} from 'react'
-
-const MAX_AVATAR_BYTES = 1024 * 1024
+import {AccountProfileForm} from '@shm/ui/components/account-profile-form'
 
 /** Dialog for creating or editing a vault account profile. */
 export function AccountProfileDialog({
@@ -30,6 +15,7 @@ export function AccountProfileDialog({
   initialName = '',
   initialDescription = '',
   initialAvatar,
+  showDescription,
   notificationEmailOption,
   onSubmit,
 }: {
@@ -43,6 +29,7 @@ export function AccountProfileDialog({
   initialName?: string
   initialDescription?: string
   initialAvatar?: string
+  showDescription?: boolean
   notificationEmailOption?: {
     label: string
     description: string
@@ -56,170 +43,29 @@ export function AccountProfileDialog({
   }) => Promise<void> | Promise<boolean> | void | boolean
 }) {
   const {backendHttpBaseUrl} = useAppState()
-  const [name, setName] = useState(initialName)
-  const [description, setDescription] = useState(initialDescription)
-  const [nameError, setNameError] = useState('')
-  const [avatarError, setAvatarError] = useState('')
-  const [avatarFile, setAvatarFile] = useState<File | undefined>()
-  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(() =>
-    getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar),
-  )
-
-  useEffect(() => {
-    if (!open) {
-      setNameError('')
-      setAvatarError('')
-      setAvatarFile(undefined)
-      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
-      return
-    }
-
-    setName(initialName)
-    setDescription(initialDescription)
-    setNameError('')
-    setAvatarError('')
-    setAvatarFile(undefined)
-    setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
-  }, [backendHttpBaseUrl, initialAvatar, initialDescription, initialName, open])
-
-  useEffect(() => {
-    if (!avatarFile) return
-
-    const objectUrl = URL.createObjectURL(avatarFile)
-    setAvatarPreviewUrl(objectUrl)
-    return () => URL.revokeObjectURL(objectUrl)
-  }, [avatarFile])
-
-  function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-
-    if (!file) return
-
-    if (file.size >= MAX_AVATAR_BYTES) {
-      setAvatarFile(undefined)
-      setAvatarPreviewUrl(getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar))
-      setAvatarError('Avatar must be smaller than 1 MiB')
-      return
-    }
-
-    setAvatarError('')
-    setAvatarFile(file)
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      setNameError('Name is required')
-      return
-    }
-    if (avatarError) {
-      return
-    }
-
-    setNameError('')
-    await onSubmit({
-      name: trimmedName,
-      description: description.trim() || undefined,
-      avatarFile,
-    })
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{descriptionText}</DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{descriptionText}</DialogDescription>
+        </DialogHeader>
 
-          <div className="mt-4 space-y-4">
-            <ErrorMessage message={error ?? ''} className="mb-0" />
-
-            <div className="space-y-2">
-              <Label htmlFor="account-profile-avatar">Avatar (optional)</Label>
-              <div className="flex items-start gap-4">
-                <div className="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full">
-                  {avatarPreviewUrl ? (
-                    <img src={avatarPreviewUrl} className="size-full object-cover" alt="" />
-                  ) : (
-                    <User className="text-muted-foreground size-6" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <Input
-                    id="account-profile-avatar"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    disabled={loading}
-                  />
-                  <p className="text-muted-foreground text-xs">Upload an image smaller than 1 MiB.</p>
-                  {avatarError && <p className="text-destructive text-sm">{avatarError}</p>}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="account-profile-name">Name</Label>
-              <Input
-                id="account-profile-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value)
-                  if (nameError) setNameError('')
-                }}
-                placeholder="Display name"
-                autoFocus
-                disabled={loading}
-              />
-              {nameError && <p className="text-destructive text-sm">{nameError}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="account-profile-description">Description (optional)</Label>
-              <Textarea
-                id="account-profile-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 512))}
-                placeholder="A short bio or description"
-                className="min-h-[80px] resize-none"
-                disabled={loading}
-              />
-              <p className="text-muted-foreground text-right text-xs">{description.length}/512</p>
-            </div>
-
-            {notificationEmailOption ? (
-              <div className="rounded-lg border p-4">
-                <div className="flex items-start gap-3">
-                  <input
-                    id="account-profile-notification-email"
-                    type="checkbox"
-                    checked={notificationEmailOption.checked}
-                    onChange={(event) => notificationEmailOption.onCheckedChange(event.target.checked)}
-                    disabled={loading}
-                    className="mt-0.5 size-4 shrink-0 rounded"
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor="account-profile-notification-email">{notificationEmailOption.label}</Label>
-                    <p className="text-muted-foreground text-sm">{notificationEmailOption.description}</p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading}>
-              {submitLabel}
-            </Button>
-          </DialogFooter>
-        </form>
+        <AccountProfileForm
+          // Remount per open so the form resets to the latest initial values.
+          key={open ? 'open' : 'closed'}
+          initialName={initialName}
+          initialDescription={initialDescription}
+          initialImageUrl={getProfileAvatarImageSrc(backendHttpBaseUrl, initialAvatar)}
+          showDescription={showDescription}
+          submitLabel={submitLabel}
+          loading={loading}
+          error={error}
+          notificationOption={notificationEmailOption}
+          onCancel={() => onOpenChange(false)}
+          onSubmit={({name, description, imageFile}) => onSubmit({name, description, avatarFile: imageFile})}
+        />
       </DialogContent>
     </Dialog>
   )

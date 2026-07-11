@@ -58,6 +58,7 @@ function createService() {
     db,
     'https://daemon.example.com',
     'https://notify.example.com',
+    'https://web.example.com',
     mockGrpcClient,
     rp,
     hmacSecret,
@@ -100,9 +101,9 @@ async function derivePasswordCredential(
   salt = base64.encode(crypto.generatePasswordSalt()),
   dek?: Uint8Array,
 ) {
-  const masterKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt), encryption.DEFAULT_PARAMS)
-  const encryptionKey = await crypto.deriveEncryptionKey(masterKey)
-  const authKey = await crypto.deriveAuthKey(masterKey)
+  const rootKey = await encryption.deriveKeyFromPassword(password, base64.decode(salt), encryption.DEFAULT_PARAMS)
+  const encryptionKey = await crypto.deriveEncryptionKey(rootKey)
+  const authKey = await crypto.deriveAuthKey(rootKey)
   const plaintextDEK = dek ?? crypto.generateDEK()
   const encryptedDEK = await crypto.encrypt(plaintextDEK, encryptionKey)
 
@@ -1183,12 +1184,14 @@ describe('vault auth service', () => {
       createContext(sessionId),
     )
 
+    // Minting another credential is browser-only: a secret bearer must not be
+    // able to add credentials (unlike vault data / password / email routes,
+    // which the daemon may call with a bearer).
     await expect(
-      svc.addPassword(
+      svc.addSecretCredential(
         {
+          authKey,
           wrappedDEK: password.wrappedDEK,
-          authKey: password.authKey,
-          salt: password.salt,
         },
         createContext(null, `${secretCredential.credentialId}:${authKey}`),
       ),
