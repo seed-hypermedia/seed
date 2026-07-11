@@ -49,6 +49,19 @@ Only possible because references are **names**, not content hashes:
 
 - [`example-article`](./example-article.json) — the centerpiece, pulling it together: a `status` enum, an author `Link<Person>`, `tags` (`List<String>`), a `bytes` body, `wordCount`, a cover `Link<Blob>`, a list of comment links, and open `Map<String>` metadata. Deeply linked to [status](./example-status.json), [tags](./example-tags.json), [person](./example-person.json), [blob](./example-blob.json), [comment](./example-comment.json), and [metadata](./example-metadata.json).
 
+## Instances — actual data
+
+An **instance** is a data value typed by a schema: `{ "$type": <schema>, "value": … }`.
+Each is validated live against its type, and each page shows **Dependencies**
+(its type) and **Dependents**. They form a dependency chain — `bob` → `employee`
+→ `person`:
+
+- [`example-alice`](./example-alice.json), [`example-carol`](./example-carol.json) — people (instances of [`example-person`](./example-person.json)).
+- [`example-bob`](./example-bob.json), [`example-dave`](./example-dave.json) — employees (instances of [`example-employee`](./example-employee.json)).
+- [`example-root`](./example-root.json) — an admin (instance of [`example-admin`](./example-admin.json), which is itself two levels of extension).
+
+Every schema and instance page shows what it **depends on** and what **depends on it** — so from `example-person` you can see its dependents (`example-employee`, plus `alice` and `carol`), and from `bob` you can walk up to `employee` and `person`.
+
 ---
 
 To validate any of these against your own data:

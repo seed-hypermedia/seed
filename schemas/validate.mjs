@@ -33,11 +33,14 @@ const urlToFile = (ref) => {
 };
 
 const cache = new Map();
-const load = (ref) => {
+export const load = (ref) => {
   const file = urlToFile(ref); // accepts an hm:// URL or a bare filename
   if (!cache.has(file)) cache.set(file, JSON.parse(readFileSync(resolve(DIR, file), "utf8")));
   return cache.get(file);
 };
+
+// An instance is data typed by a schema: { "$type": <schema-url>, "value": … }.
+export const isInstance = (doc) => !!(doc && typeof doc === "object" && doc.$type && "value" in doc);
 
 // --- kind detection (dag-json envelopes are their own kinds) -----------
 
@@ -82,7 +85,7 @@ function typeMatches(type, d) {
 //   { ref: X }                       -> include: X exactly
 //   { ref: X, properties|required|…} -> EXTEND X: merge parent + these refinements
 // Extension is a subtype: parent's fields plus the new ones, required unioned.
-function concrete(schema, seen = new Set()) {
+export function concrete(schema, seen = new Set()) {
   if (!schema.ref || schema.type || schema.anyOf) return schema;
   if (seen.has(schema.ref)) return schema; // guard against ref cycles
   seen.add(schema.ref);
@@ -105,7 +108,7 @@ function concrete(schema, seen = new Set()) {
 }
 
 // Returns a list of error strings. Empty == valid.
-function validate(schema, data, path = "$") {
+export function validate(schema, data, path = "$") {
   schema = concrete(schema); // resolve includes / extensions
 
   // union: matches if it matches any variant.
@@ -156,8 +159,11 @@ function validate(schema, data, path = "$") {
 
 const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-// --- CLI ---------------------------------------------------------------
+// --- CLI / self-test — only when run directly, not when imported -------
 
+const RUN = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (RUN) {
 const [, , schemaArg, dataArg] = process.argv;
 
 if (schemaArg && dataArg) {
@@ -184,8 +190,11 @@ failed += report("onyx-schema.json describes itself", validate(meta, meta));
 //    Auto-discovered, so new examples are covered without editing tests.
 // =====================================================================
 section("Every schema block is a valid Onyx schema");
-for (const f of readdirSync(DIR).filter((f) => f.endsWith(".json")).sort())
+const jsonFiles = readdirSync(DIR).filter((f) => f.endsWith(".json")).sort();
+for (const f of jsonFiles) {
+  if (isInstance(load(f))) continue; // instances are data, not schemas
   failed += report(`${f}`, validate(meta, load(f)));
+}
 
 // =====================================================================
 // 3. The discriminated union REJECTS malformed schemas.
@@ -372,7 +381,19 @@ failed += assertPath("nested map key", validate(load("example-person.json"), { n
 failed += assertPath("deep JSON path", validate(load("example-json.json"), { a: [1, cid("bad")] }), "$.a[1]");
 failed += assertPath("article field", validate(load("example-article.json"), { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }), "$.wordCount");
 
+// =====================================================================
+// 6. Example instances are valid data for their declared type.
+//    (bob : employee, alice : person, root : admin, …)
+// =====================================================================
+section("Example instances validate against their type");
+for (const f of jsonFiles) {
+  const doc = load(f);
+  if (!isInstance(doc)) continue;
+  failed += report(`${f} is a valid ${doc.$type.split("/").pop()}`, validate(load(doc.$type), doc.value));
+}
+
 process.exit(failed ? 1 : 0);
+} // end if (RUN)
 
 // --- reporting helpers -------------------------------------------------
 
