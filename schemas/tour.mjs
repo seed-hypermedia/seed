@@ -12,6 +12,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validate as validateData, load as vload, isInstance as isInstanceDoc } from "./validate.mjs";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 4747;
@@ -55,6 +56,10 @@ const isVariant = (f) => VARIANT_FILES.includes(f);
 // The primitive standard library: onyx-<kind>.json, each just { "type": <kind> }.
 const PRIMITIVE_FILES = KINDS.map((k) => `onyx-${k}.json`).filter((f) => SCHEMA_FILES.includes(f));
 const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
+
+// Instances are data typed by a schema ({ $type, value }) — e.g. bob : employee.
+const INSTANCE_FILES = SCHEMA_FILES.filter((f) => isInstanceDoc(loadJson(f)));
+const isInstance = (f) => INSTANCE_FILES.includes(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
   return Object.keys(s).length === 1 && typeof s.type === "string" ? kindOf(s.type) : null;
@@ -279,24 +284,29 @@ function buildGraph() {
   const nodes = SCHEMA_FILES.map(base);
   const edges = [];
   const selfLoops = new Set();
+  const add = (from, to) => {
+    if (to === from) selfLoops.add(from);
+    else if (nodes.includes(to) && !edges.some((e) => e.from === from && e.to === to)) edges.push({ from, to });
+  };
   for (const f of SCHEMA_FILES) {
     const self = base(f);
-    const acc = new Set();
-    collectRefs(loadJson(f), acc);
-    for (const t of acc) {
-      if (t === self) selfLoops.add(self);
-      else if (nodes.includes(t) && !edges.some((e) => e.from === self && e.to === t))
-        edges.push({ from: self, to: t });
+    const doc = loadJson(f);
+    if (isInstanceDoc(doc)) {
+      add(self, refToSlug(doc.$type)); // an instance depends on its type
+      continue;
     }
+    const acc = new Set();
+    collectRefs(doc, acc);
+    for (const t of acc) add(self, t);
   }
   return { nodes, edges, selfLoops };
 }
 const GRAPH = buildGraph();
 
 function graphSvg() {
-  // The primitive library is excluded from the DAG — every schema references
-  // onyx-string, so it would swamp the diagram. It gets its own grid instead.
-  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json"));
+  // Primitives (every schema refs onyx-string) and instances are excluded from
+  // the DAG to keep it to the schema type-graph; both appear elsewhere.
+  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json"));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
   const selfLoops = GRAPH.selfLoops;
   // layer(n) = 1 + max(layer of things n depends on); leaves = 0
@@ -379,15 +389,44 @@ function highlightJson(value, indent = 0, key = null) {
   return `<span class="j-num">${esc(String(value))}</span>`;
 }
 
+// Dependencies (what this node references / is typed by) and Dependents (what
+// references it) — shown on every schema and instance page.
+function depLists(name) {
+  const out = GRAPH.edges.filter((e) => e.from === name).map((e) => e.to);
+  const inc = GRAPH.edges.filter((e) => e.to === name).map((e) => e.from);
+  const self = GRAPH.selfLoops.has(name);
+  const chip = (n) => `<a class="chip" href="/schema/${n}">${n}</a>`;
+  const row = (label, items, extra = "") =>
+    `<div class="reflist"><span class="deplabel">${label}</span> ${items.length || extra ? items.map(chip).join(" ") + extra : `<span class="muted">none</span>`}</div>`;
+  return row("Dependencies", out, self ? ` <span class="chip self">↻ itself</span>` : "") + row("Dependents", inc);
+}
+
+// An instance page: the data, its type, and a live validation result.
+function instancePage(name, file, doc) {
+  const typeSlug = refToSlug(doc.$type);
+  const errors = validateData(vload(doc.$type), doc.value);
+  const status = errors.length
+    ? `<div class="callout bad-callout">✗ does not match <a href="/schema/${typeSlug}">${typeSlug}</a>:<ul>${errors.map((e) => `<li><code>${esc(e)}</code></li>`).join("")}</ul></div>`
+    : `<div class="callout variant-note">✓ a valid instance of <a href="/schema/${typeSlug}">${typeSlug}</a> — validated live by <code>validate.mjs</code>.</div>`;
+  const body = `
+    <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">instances</a> / ${name}</div>
+    <h1><code class="filename">${file}</code></h1>
+    <p class="hm-url"><span class="muted">published at</span> <code>${fileToUrl(file)}</code></p>
+    <p class="lead"><span class="kind kind-instance">instance</span> <span class="muted">· of</span> <a href="/schema/${typeSlug}">${typeSlug}</a></p>
+    ${status}
+    ${depLists(name)}
+    <h2>Value <span class="muted">(the data, typed by <code>${esc(doc.$type)}</code>)</span></h2>
+    <pre class="json">${highlightJson(doc.value)}</pre>
+  `;
+  return { title: file, section: "schema", slug: name, body };
+}
+
 function schemaPage(name) {
   const file = name + ".json";
   if (!SCHEMA_FILES.includes(file)) return null;
   const schema = loadJson(file);
+  if (isInstanceDoc(schema)) return instancePage(name, file, schema);
   const isMeta = name === "onyx-schema";
-
-  const outRefs = GRAPH.edges.filter((e) => e.from === name).map((e) => e.to);
-  const inRefs = GRAPH.edges.filter((e) => e.to === name).map((e) => e.from);
-  const selfRef = GRAPH.selfLoops.has(name);
 
   const isUnion = Array.isArray(schema.anyOf);
   const govKinds = schema.properties?.type?.enum || null; // kinds this variant governs
@@ -471,10 +510,6 @@ function schemaPage(name) {
     main = kindOf(schema.type) === "map" && schema.values ? `<p class="shape">Open map — every value: ${summarize(schema.values)}</p>` : "";
   }
 
-  const chip = (n) => `<a class="chip" href="/schema/${n}">${n}</a>`;
-  const refsOut = outRefs.length ? `<div class="reflist"><span class="muted">references</span> ${outRefs.map(chip).join(" ")}${selfRef ? ` <span class="chip self">↻ itself</span>` : ""}</div>` : selfRef ? `<div class="reflist"><span class="muted">references</span> <span class="chip self">↻ itself</span></div>` : "";
-  const refsIn = inRefs.length ? `<div class="reflist"><span class="muted">referenced by</span> ${inRefs.map(chip).join(" ")}</div>` : "";
-
   const metaNote = isMeta
     ? `<div class="callout">This is the <strong>meta-schema</strong> — the discriminated union that describes what every Onyx schema is, <em>including itself</em>. It validates against its own <code>union</code> variant, whose <code>anyOf</code> items validate against its <code>include</code> variant. The loop closes. See <a href="/doc/references">the fixpoint discussion</a>.</div>`
     : isVariant(file)
@@ -488,7 +523,7 @@ function schemaPage(name) {
     ${lead}
     ${metaNote}
     ${main}
-    ${refsOut}${refsIn}
+    ${depLists(name)}
     <h2>Source <span class="muted">(dag-json — <code>ref</code> values are links)</span></h2>
     <pre class="json">${highlightJson(schema)}</pre>
   `;
@@ -527,7 +562,8 @@ function sidebar(active) {
   // Meta-schema (union root + variants), the primitive library, then examples.
   const metaLinks = META_FILES.filter((f) => SCHEMA_FILES.includes(f)).map(schemaLink).join("");
   const primitiveLinks = PRIMITIVE_FILES.map(schemaLink).join("");
-  const exampleLinks = SCHEMA_FILES.filter((f) => !META_FILES.includes(f) && !isPrimitive(f)).map(schemaLink).join("");
+  const exampleLinks = SCHEMA_FILES.filter((f) => !META_FILES.includes(f) && !isPrimitive(f) && !isInstance(f)).map(schemaLink).join("");
+  const instanceLinks = INSTANCE_FILES.map(schemaLink).join("");
   const homeOn = active.section === "home" ? " on" : "";
   return `<nav class="side">
     <a class="brand" href="/">Onyx<span class="gem">◆</span></a>
@@ -536,6 +572,7 @@ function sidebar(active) {
     <div class="nav-group">Meta-schema</div>${metaLinks}
     <div class="nav-group">Primitives</div>${primitiveLinks}
     <div class="nav-group">Examples</div>${exampleLinks}
+    <div class="nav-group">Instances</div>${instanceLinks}
     <div class="side-foot">${VALIDATION.ok ? '<span class="ok-dot"></span> self-validates' : '<span class="bad-dot"></span> validation failed'}</div>
   </nav>`;
 }
@@ -767,7 +804,11 @@ table.fields td.freq{text-align:right;white-space:nowrap}
 .chip.include{color:#8bd17c;border-color:#2f5a34}
 .chip.link-chip{color:#f3849b;border-color:#6b2c3a}
 .chip.self{color:var(--accent2);border-color:#3a2f5a}
-.reflist{margin:12px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.reflist{margin:8px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.deplabel{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);min-width:96px}
+.kind-instance{color:#e0a15e}
+.bad-callout{background:#2a1620;border:1px solid #6b2c3a;border-left:3px solid #f3849b;border-radius:10px;padding:12px 16px;margin:16px 0}
+.bad-callout code{color:#f3b7c4}
 
 /* highlighted json */
 pre.json{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;overflow-x:auto;font-size:13px;line-height:1.65;white-space:pre}

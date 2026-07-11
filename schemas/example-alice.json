@@ -1,0 +1,16 @@
+{
+  "$type": "hm://example.com/person",
+  "value": {
+    "name": "Alice",
+    "age": 30,
+    "active": true,
+    "home": {
+      "street": "1 Newton Way",
+      "city": "Cambridge"
+    },
+    "nicknames": [
+      "Al",
+      "Ally"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$type": "hm://example.com/admin",
+  "value": {
+    "name": "Root",
+    "employeeId": "E-0",
+    "permissions": [
+      "all",
+      "billing"
+    ],
+    "department": "IT"
+  }
+}
