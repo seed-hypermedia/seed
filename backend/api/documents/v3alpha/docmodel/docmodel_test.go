@@ -62,8 +62,8 @@ func TestDocmodelSmoke(t *testing.T) {
 			must.Do(doc.ApplyChange(c2.CID, c2.Decoded))
 
 			require.Equal(t, map[string]any{"title": "Hello world"}, doc.crdt.GetMetadata())
-			require.Equal(t, TrashNodeID, doc.crdt.tree.State().blocks.GetMaybe("b1.1").Parent, "deleted block b1.1 must be in trash")
-			require.Equal(t, TrashNodeID, doc.crdt.tree.State().blocks.GetMaybe("b3").Parent, "deleted block b3 must be in trash")
+			require.Equal(t, TrashNodeID, doc.crdt.tree.State().blocks["b1.1"].Parent, "deleted block b1.1 must be in trash")
+			require.Equal(t, TrashNodeID, doc.crdt.tree.State().blocks["b3"].Parent, "deleted block b3 must be in trash")
 		}
 	}
 }

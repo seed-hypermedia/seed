@@ -665,7 +665,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 
 	for blk := range dm.crdt.stateBlocks {
 		// Blocks that are in the tree state are not detached.
-		if _, ok := treeState.blocks.Get(blk); ok {
+		if _, ok := treeState.blocks[blk]; ok {
 			continue
 		}
 
