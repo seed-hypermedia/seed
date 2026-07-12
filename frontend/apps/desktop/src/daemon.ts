@@ -16,22 +16,24 @@ let goDaemonExecutablePath = getDaemonBinaryPath()
 
 declare const __SEED_P2P_TESTNET_NAME__: string
 
-const lndhubFlags = !__SEED_P2P_TESTNET_NAME__ ? '-lndhub.mainnet=true' : '-lndhub.mainnet=false'
+/** Testnet name used by the "testnet" network option (matches the ./dev up-testnet stack). */
+export const DEFAULT_TESTNET_NAME = 'dev'
 
-// Base daemon arguments (without embedding flags)
-const baseDaemonArguments = [
-  `-http.port=${String(DAEMON_HTTP_PORT)}`,
-  `-grpc.port=${String(DAEMON_GRPC_PORT)}`,
-  `-p2p.port=${String(P2P_PORT)}`,
+export type DaemonNetworkConfig = {
+  mode: 'mainnet' | 'testnet' | 'custom'
+  customName?: string
+}
 
-  lndhubFlags,
+/** Maps the user-facing network config to the -p2p.testnet-name flag value ('' means mainnet). */
+export function resolveTestnetName(network: DaemonNetworkConfig): string {
+  if (network.mode === 'testnet') return DEFAULT_TESTNET_NAME
+  if (network.mode === 'custom') return network.customName?.trim() || ''
+  return ''
+}
 
-  ...(__SEED_P2P_TESTNET_NAME__ ? ['-p2p.testnet-name', __SEED_P2P_TESTNET_NAME__] : []),
-
-  // Daemon data is always at {userDataPath}/daemon.
-  // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
-  `-data-dir=${userDataPath}/daemon`,
-]
+// Current daemon configuration, so a restart triggered by one setting keeps the others.
+let currentEmbeddingEnabled = false
+let currentTestnetName = __SEED_P2P_TESTNET_NAME__ || ''
 
 // Embedding-specific flags
 const embeddingFlags = [
@@ -41,9 +43,21 @@ const embeddingFlags = [
   '-llm.embedding.index-pass-size=100',
 ]
 
-// Build daemon arguments based on embedding setting
-function buildDaemonArguments(embeddingEnabled: boolean): string[] {
-  const args = [...baseDaemonArguments]
+// Build daemon arguments based on the current settings
+function buildDaemonArguments(embeddingEnabled: boolean, testnetName: string): string[] {
+  const args = [
+    `-http.port=${String(DAEMON_HTTP_PORT)}`,
+    `-grpc.port=${String(DAEMON_GRPC_PORT)}`,
+    `-p2p.port=${String(P2P_PORT)}`,
+
+    testnetName ? '-lndhub.mainnet=false' : '-lndhub.mainnet=true',
+
+    ...(testnetName ? ['-p2p.testnet-name', testnetName] : []),
+
+    // Daemon data is always at {userDataPath}/daemon.
+    // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
+    `-data-dir=${userDataPath}/daemon`,
+  ]
 
   // Use file-based keystore in fixture mode.
   if (process.env.SEED_FIXTURE_DATA_DIR) {
@@ -86,24 +100,9 @@ export function updateGoDaemonState(state: GoDaemonState) {
   daemonStateHandlers.forEach((handler) => handler(state))
 }
 
-export async function startMainDaemon(embeddingEnabled: boolean = false): Promise<{
-  httpPort: string | undefined
-  grpcPort: string | undefined
-  p2pPort: string | undefined
-}> {
-  if (process.env.SEED_NO_DAEMON_SPAWN) {
-    log.debug('Go daemon spawn skipped')
-    updateGoDaemonState({t: 'ready'})
-    markGRPCReady()
-    return {
-      httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
-      grpcPort: process.env.VITE_DESKTOP_GRPC_PORT,
-      p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
-    }
-  }
-
-  const args = buildDaemonArguments(embeddingEnabled)
-  log.info('Starting daemon with arguments:', {args, embeddingEnabled})
+/** Spawns the daemon process, wires up log/close handling, and resolves once the process has spawned. */
+async function spawnDaemonProcess(args: string[]): Promise<void> {
+  log.info('Starting daemon with arguments:', {args})
 
   const daemonProcess = spawn(goDaemonExecutablePath, args, {
     // daemon env
@@ -138,7 +137,9 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       reject(err)
     })
     daemonProcess.on('close', (code, signal) => {
-      if (!expectingDaemonClose) {
+      // Only report an error if this process is still the current one — a
+      // stale process closing late after a restart should not flip the state.
+      if (!expectingDaemonClose && daemonProcess === currentDaemonProcess) {
         updateGoDaemonState({
           t: 'error',
           message: 'Service Error: !!!' + lastStderr,
@@ -151,19 +152,10 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       resolve()
     })
   })
+}
 
-  app.addListener('will-quit', () => {
-    log.debug('App will quit')
-    expectingDaemonClose = true
-    const daemon = currentDaemonProcess
-    if (!daemon || daemon.killed) return
-    if (process.platform === 'win32') {
-      forceKillChildProcess(daemon)
-    } else {
-      daemon.kill()
-    }
-  })
-
+/** Polls the daemon gRPC and HTTP endpoints until it is fully ready. */
+async function waitForDaemonReady(label: string): Promise<void> {
   await tryUntilSuccess(
     async () => {
       log.debug('Waiting for daemon to boot...')
@@ -186,7 +178,7 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       // Daemon is ACTIVE - update state so loading window can close
       updateGoDaemonState({t: 'ready'})
     },
-    'waiting for daemon gRPC to be ready',
+    `waiting for ${label} gRPC to be ready`,
     200, // try every 200ms
     10 * 60 * 1_000, // timeout after 10 minutes
   )
@@ -202,10 +194,85 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
       const version = await response.text()
       log.info('HTTP endpoint is ready, version: ' + version)
     },
-    'waiting for daemon HTTP to be ready',
+    `waiting for ${label} HTTP to be ready`,
     200, // try every 200ms
     30_000, // timeout after 30s
   )
+}
+
+/** Kills the current daemon process (if any) and waits for it to close, with a 5s timeout. */
+async function killCurrentDaemon(): Promise<void> {
+  if (!currentDaemonProcess) return
+  expectingDaemonClose = true
+
+  if (process.platform === 'win32') {
+    forceKillChildProcess(currentDaemonProcess)
+  } else {
+    currentDaemonProcess.kill()
+  }
+
+  // Wait for the process to actually close
+  await new Promise<void>((resolve) => {
+    if (!currentDaemonProcess) {
+      resolve()
+      return
+    }
+    const proc = currentDaemonProcess
+    const onClose = () => {
+      proc.removeListener('close', onClose)
+      resolve()
+    }
+    proc.on('close', onClose)
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      proc.removeListener('close', onClose)
+      resolve()
+    }, 5000)
+  })
+
+  currentDaemonProcess = null
+}
+
+export async function startMainDaemon(
+  embeddingEnabled: boolean = false,
+  network?: DaemonNetworkConfig,
+): Promise<{
+  httpPort: string | undefined
+  grpcPort: string | undefined
+  p2pPort: string | undefined
+}> {
+  if (process.env.SEED_NO_DAEMON_SPAWN) {
+    log.debug('Go daemon spawn skipped')
+    updateGoDaemonState({t: 'ready'})
+    markGRPCReady()
+    return {
+      httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
+      grpcPort: process.env.VITE_DESKTOP_GRPC_PORT,
+      p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
+    }
+  }
+
+  currentEmbeddingEnabled = embeddingEnabled
+  if (network) {
+    currentTestnetName = resolveTestnetName(network)
+  }
+
+  const args = buildDaemonArguments(currentEmbeddingEnabled, currentTestnetName)
+  await spawnDaemonProcess(args)
+
+  app.addListener('will-quit', () => {
+    log.debug('App will quit')
+    expectingDaemonClose = true
+    const daemon = currentDaemonProcess
+    if (!daemon || daemon.killed) return
+    if (process.platform === 'win32') {
+      forceKillChildProcess(daemon)
+    } else {
+      daemon.kill()
+    }
+  })
+
+  await waitForDaemonReady('daemon')
   markGRPCReady()
 
   const mainDaemon = {
@@ -243,145 +310,50 @@ async function tryUntilSuccess(
 }
 
 /**
- * Restarts the daemon with new embedding configuration.
+ * Restarts the daemon with updated configuration. Only the provided settings
+ * change; the rest keep their current values.
  * This will kill the current daemon process and start a new one with updated flags.
  */
-export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Promise<void> {
+export async function restartDaemon(changes: {
+  embeddingEnabled?: boolean
+  network?: DaemonNetworkConfig
+}): Promise<void> {
   if (process.env.SEED_NO_DAEMON_SPAWN) {
     log.debug('Daemon restart skipped (SEED_NO_DAEMON_SPAWN)')
     return
   }
 
-  log.info('Restarting daemon with embedding:', {embeddingEnabled})
+  if (changes.embeddingEnabled !== undefined) {
+    currentEmbeddingEnabled = changes.embeddingEnabled
+  }
+  if (changes.network) {
+    currentTestnetName = resolveTestnetName(changes.network)
+  }
+
+  log.info('Restarting daemon with changes:', {
+    changes,
+    embeddingEnabled: currentEmbeddingEnabled,
+    testnetName: currentTestnetName,
+  })
   updateGoDaemonState({t: 'startup'})
 
   // Kill the current daemon process
-  if (currentDaemonProcess) {
-    expectingDaemonClose = true
-
-    if (process.platform === 'win32') {
-      forceKillChildProcess(currentDaemonProcess)
-    } else {
-      currentDaemonProcess.kill()
-    }
-
-    // Wait for the process to actually close
-    await new Promise<void>((resolve) => {
-      if (!currentDaemonProcess) {
-        resolve()
-        return
-      }
-      const onClose = () => {
-        currentDaemonProcess?.removeListener('close', onClose)
-        resolve()
-      }
-      currentDaemonProcess.on('close', onClose)
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        currentDaemonProcess?.removeListener('close', onClose)
-        resolve()
-      }, 5000)
-    })
-
-    currentDaemonProcess = null
-  }
+  await killCurrentDaemon()
 
   // Reset the close expectation flag
   expectingDaemonClose = false
 
   // Start new daemon with updated configuration
-  const daemonEnv = {
-    ...process.env,
-    SENTRY_RELEASE: VERSION,
-    SENTRY_DSN: __SENTRY_DSN__,
-  }
-
-  const args = buildDaemonArguments(embeddingEnabled)
-  log.info('Restarting daemon with arguments:', {args, embeddingEnabled})
-
-  const daemonProcess = spawn(goDaemonExecutablePath, args, {
-    cwd: path.join(process.cwd(), '../../..'),
-    env: daemonEnv,
-    stdio: 'pipe',
-  })
-
-  currentDaemonProcess = daemonProcess
-
-  let lastStderr = ''
-  const stderr = readline.createInterface({input: daemonProcess.stderr})
-  await new Promise<void>((resolve, reject) => {
-    stderr.on('line', (line: string) => {
-      lastStderr = line
-      if (line.includes('DaemonStarted')) {
-        updateGoDaemonState({t: 'ready'})
-      }
-      if (!quietNodeLogs) log.rawMessage(line)
-    })
-    const stdout = readline.createInterface({input: daemonProcess.stdout})
-    stdout.on('line', (line: string) => {
-      if (!quietNodeLogs) log.rawMessage(line)
-    })
-    daemonProcess.on('error', (err) => {
-      log.error('Go daemon restart spawn error', {error: err})
-      reject(err)
-    })
-    daemonProcess.on('close', (code, signal) => {
-      if (!expectingDaemonClose) {
-        updateGoDaemonState({
-          t: 'error',
-          message: 'Service Error: !!!' + lastStderr,
-        })
-        log.error('Go daemon closed after restart', {code, signal})
-      }
-    })
-    daemonProcess.on('spawn', () => {
-      log.debug('Go daemon respawned')
-      resolve()
-    })
-  })
+  const args = buildDaemonArguments(currentEmbeddingEnabled, currentTestnetName)
+  await spawnDaemonProcess(args)
 
   // Wait for daemon to be ready
-  await tryUntilSuccess(
-    async () => {
-      log.debug('Waiting for restarted daemon to boot...')
-      const info = await grpcClient.daemon.getInfo({})
-      if (info.state !== State.ACTIVE) {
-        if (info.state === State.MIGRATING && info.tasks.length === 1) {
-          const completed = Number(info.tasks[0].completed)
-          const total = Number(info.tasks[0].total)
-          log.info(`Daemon migrating after restart: ${completed}/${total}`)
-          updateGoDaemonState({
-            t: 'migrating',
-            completed,
-            total,
-          })
-        }
-        throw new Error(`Daemon not ready yet: ${info.state}`)
-      }
-      log.info('Restarted daemon is ready')
-      updateGoDaemonState({t: 'ready'})
-    },
-    'waiting for restarted daemon gRPC to be ready',
-    200,
-    10 * 60 * 1_000,
-  )
+  await waitForDaemonReady('restarted daemon')
 
-  // Also check HTTP endpoint
-  await tryUntilSuccess(
-    async () => {
-      log.debug('Checking HTTP endpoint health after restart...')
-      const response = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/debug/version`)
-      if (!response.ok) {
-        throw new Error(`HTTP endpoint not ready: ${response.status}`)
-      }
-      log.info('HTTP endpoint is ready after restart')
-    },
-    'waiting for restarted daemon HTTP to be ready',
-    200,
-    30_000,
-  )
-
-  log.info('Daemon restart complete', {embeddingEnabled})
+  log.info('Daemon restart complete', {
+    embeddingEnabled: currentEmbeddingEnabled,
+    testnetName: currentTestnetName,
+  })
 }
 
 /**
@@ -396,33 +368,6 @@ export async function shutdownDaemonForUpdate(): Promise<void> {
   }
 
   log.info('[DAEMON] Shutting down daemon for update')
-  expectingDaemonClose = true
-
-  if (process.platform === 'win32') {
-    log.info('[DAEMON] Windows: force-killing daemon process tree')
-    await forceKillChildProcess(currentDaemonProcess)
-  } else {
-    currentDaemonProcess.kill()
-  }
-
-  await new Promise<void>((resolve) => {
-    if (!currentDaemonProcess) {
-      resolve()
-      return
-    }
-    const proc = currentDaemonProcess
-    const onClose = () => {
-      proc.removeListener('close', onClose)
-      log.info('[DAEMON] Daemon process closed after update shutdown')
-      resolve()
-    }
-    proc.on('close', onClose)
-    setTimeout(() => {
-      proc.removeListener('close', onClose)
-      log.warn('[DAEMON] Timeout waiting for daemon to close during update shutdown')
-      resolve()
-    }, 5000)
-  })
-
-  currentDaemonProcess = null
+  await killCurrentDaemon()
+  log.info('[DAEMON] Daemon process closed after update shutdown')
 }

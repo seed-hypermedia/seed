@@ -525,6 +525,147 @@ function GeneralSettings() {
           right={<ClearHistoryButton />}
         />
       </SettingsCard>
+      <NetworkSettings />
+    </>
+  )
+}
+
+type NetworkMode = 'mainnet' | 'testnet' | 'custom'
+
+const NETWORK_MODE_LABELS: Record<NetworkMode, string> = {
+  mainnet: 'Mainnet',
+  testnet: 'Testnet',
+  custom: 'Custom',
+}
+
+function NetworkSettings() {
+  const networkConfig = useQuery({
+    queryKey: ['daemonNetworkConfig'],
+    queryFn: () => client.getDaemonNetworkConfig.query(),
+  })
+  const [draftMode, setDraftMode] = useState<NetworkMode | null>(null)
+  const [draftCustomName, setDraftCustomName] = useState<string | null>(null)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const savedMode: NetworkMode = networkConfig.data?.mode ?? 'mainnet'
+  const savedCustomName = networkConfig.data?.customName ?? ''
+  const mode = draftMode ?? savedMode
+  const customName = draftCustomName ?? savedCustomName
+
+  const isDirty = mode !== savedMode || (mode === 'custom' && customName.trim() !== savedCustomName)
+  const canApply = isDirty && (mode !== 'custom' || customName.trim().length > 0)
+
+  const setNetwork = useMutation({
+    mutationFn: (config: {mode: NetworkMode; customName?: string}) => client.setDaemonNetworkConfig.mutate(config),
+    onSuccess: () => {
+      toast.success('Network changed. Background service restarted.')
+      setDraftMode(null)
+      setDraftCustomName(null)
+      networkConfig.refetch()
+    },
+    onError: (error: unknown) => {
+      toast.error('Failed to change network: ' + String(error))
+      reportError(error, {
+        feature: 'settings',
+        operation: 'set-daemon-network',
+      })
+    },
+  })
+
+  function confirmNetworkChange() {
+    setShowConfirm(false)
+    setNetwork.mutate(mode === 'custom' ? {mode, customName: customName.trim()} : {mode})
+  }
+
+  const pendingNetworkLabel =
+    mode === 'custom' ? `the custom network "${customName.trim()}"` : NETWORK_MODE_LABELS[mode]
+
+  return (
+    <>
+      <SettingsCard label="NETWORK">
+        <SettingsRow
+          label="P2P Network"
+          description="Choose which peer-to-peer network to connect to. Changing this restarts the background service."
+          right={
+            <Select
+              value={mode}
+              onValueChange={(value) => setDraftMode(value as NetworkMode)}
+              disabled={networkConfig.isLoading || setNetwork.isLoading}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Select network" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mainnet">Mainnet</SelectItem>
+                <SelectItem value="testnet">Testnet</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+        {mode === 'custom' ? (
+          <>
+            <Separator />
+            <SettingsRow
+              label="Custom Network Name"
+              description="Peers only connect to each other when they use the same network name."
+              right={
+                <Input
+                  value={customName}
+                  onChange={(e) => setDraftCustomName(e.target.value)}
+                  placeholder="network-name"
+                  className="w-[200px]"
+                  disabled={setNetwork.isLoading}
+                />
+              }
+            />
+          </>
+        ) : null}
+        {isDirty || setNetwork.isLoading ? (
+          <>
+            <Separator />
+            <SettingsRow
+              label={setNetwork.isLoading ? 'Restarting background service…' : `Switch to ${pendingNetworkLabel}?`}
+              right={
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={setNetwork.isLoading}
+                    onClick={() => {
+                      setDraftMode(null)
+                      setDraftCustomName(null)
+                    }}
+                  >
+                    Revert
+                  </Button>
+                  <Button size="sm" disabled={!canApply || setNetwork.isLoading} onClick={() => setShowConfirm(true)}>
+                    {setNetwork.isLoading ? 'Restarting…' : 'Apply & Restart'}
+                  </Button>
+                </div>
+              }
+            />
+          </>
+        ) : null}
+      </SettingsCard>
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogPortal>
+          <AlertDialogContent className="max-w-[500px] gap-4">
+            <AlertDialogTitle className="text-xl font-bold">Change Network?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`This will restart the background service connected to ${pendingNetworkLabel}. Content from other networks will be unavailable until you switch back. The app may be briefly unresponsive during restart.`}
+            </AlertDialogDescription>
+            <div className="flex justify-end gap-3">
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button onClick={confirmNetworkChange}>Change & Restart</Button>
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialog>
     </>
   )
 }

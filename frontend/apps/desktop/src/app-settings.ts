@@ -4,6 +4,9 @@ import z from 'zod'
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {broadcastUseDarkColors} from './app-windows'
+import {DEFAULT_TESTNET_NAME, type DaemonNetworkConfig} from './daemon'
+
+declare const __SEED_P2P_TESTNET_NAME__: string
 
 const AutoUpdateTypes = z.literal('true').or(z.literal('false'))
 
@@ -23,6 +26,34 @@ function writeSettingsStore(newState: SettingsStore) {
 }
 
 var autoUpdatePreference: AutoUpdateValues = (appStore.get(APP_AUTO_UPDATE_PREFERENCE) as AutoUpdateValues) || 'true'
+
+export const networkConfigSchema = z.object({
+  mode: z.union([z.literal('mainnet'), z.literal('testnet'), z.literal('custom')]),
+  customName: z.string().optional(),
+})
+
+const NETWORK_CONFIG_SETTINGS_KEY = 'daemonNetwork'
+
+/** The network to use when the user has not picked one: the build-time testnet flag, or mainnet. */
+function defaultNetworkConfig(): DaemonNetworkConfig {
+  if (!__SEED_P2P_TESTNET_NAME__) return {mode: 'mainnet'}
+  if (__SEED_P2P_TESTNET_NAME__ === DEFAULT_TESTNET_NAME) return {mode: 'testnet'}
+  return {mode: 'custom', customName: __SEED_P2P_TESTNET_NAME__}
+}
+
+/**
+ * Returns the stored network setting.
+ * Used by main.ts to determine daemon startup flags before tRPC is ready.
+ */
+export function getStoredNetworkConfig(): DaemonNetworkConfig {
+  const parsed = networkConfigSchema.safeParse(settingsStore[NETWORK_CONFIG_SETTINGS_KEY])
+  if (parsed.success) return parsed.data
+  return defaultNetworkConfig()
+}
+
+export function writeNetworkConfig(config: DaemonNetworkConfig) {
+  writeSettingsStore({...settingsStore, [NETWORK_CONFIG_SETTINGS_KEY]: config})
+}
 
 export const appSettingsApi = t.router({
   getAutoUpdatePreference: t.procedure.query(async () => {
