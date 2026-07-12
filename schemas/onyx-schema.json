@@ -19,6 +19,9 @@
     },
     {
       "ref": "hm://hyper.media/union-schema"
+    },
+    {
+      "ref": "hm://hyper.media/var-schema"
     }
   ]
 }

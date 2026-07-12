@@ -1,0 +1,19 @@
+{
+  "name": "Variable schema",
+  "description": "A type-variable reference: matches whatever a generic's parameter is bound to. Written { \"var\": \"<name>\" }.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "var"
+  ],
+  "properties": {
+    "var": {
+      "type": "hm://hyper.media/string"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    }
+  }
+}

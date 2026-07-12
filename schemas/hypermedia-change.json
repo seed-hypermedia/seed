@@ -22,7 +22,17 @@
       "ref": "hm://hyper.media/integer"
     },
     "body": {
-      "ref": "hm://seed.hyper.media/change-body"
+      "ref": "hm://seed.hyper.media/change-body",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
+    }
+  },
+  "params": {
+    "Block": {
+      "ref": "hm://seed.hyper.media/block"
     }
   }
 }

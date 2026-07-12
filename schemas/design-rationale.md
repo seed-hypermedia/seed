@@ -65,6 +65,13 @@ between them is mechanical.
   discriminated union actually reject malformed schemas. Existing schemas and
   data stay valid (they list their keys); the tradeoff is that data carrying
   unknown/future fields is rejected unless the schema opts into `values`.
+- **Generic abstraction (`params` / `var` / `args`).** Deferred until a real
+  need appeared — it did: `Change<Block>`, where an app plugs in its own block
+  set and gets a *strict* Change through the whole op stack, without duplicating
+  it. Type variables thread through references (bind at the top, substitute
+  everywhere) and default when unbound, so non-generic use is unchanged. It stays
+  self-describing: `var` is a new meta-schema variant, and `params`/`args` are
+  maps-of-schema on the existing variants. ([schema-language.md](./schema-language.md))
 
 ## Open questions
 
