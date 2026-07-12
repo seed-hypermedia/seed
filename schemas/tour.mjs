@@ -19,7 +19,10 @@ const PORT = Number(process.env.PORT) || 4747;
 
 const base = (n) => n.replace(/\.(json|md)$/, "");
 const files = readdirSync(DIR);
-const SCHEMA_FILES = files.filter((f) => f.endsWith(".json")).sort();
+const SCHEMA_FILES = files.filter((f) => f.endsWith(".json") && f !== "schemas.lock.json").sort();
+// Published CID manifest (hm:// URL -> dag-cbor CID), if `node publish.mjs` has run.
+let MANIFEST = {};
+try { MANIFEST = JSON.parse(readFileSync(resolve(DIR, "schemas.lock.json"), "utf8")).schemas || {}; } catch {}
 const isSchema = (v) => SCHEMA_FILES.includes(v);
 const loadJson = (name) => JSON.parse(readFileSync(resolve(DIR, name), "utf8"));
 const loadText = (name) => readFileSync(resolve(DIR, name), "utf8");
@@ -560,7 +563,7 @@ function schemaPage(name) {
   const body = `
     <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">schemas</a> / ${name}</div>
     ${schema.name ? `<h1 class="schema-title">${esc(schema.name)}</h1>` : `<h1><code class="filename">${file}</code></h1>`}
-    <p class="hm-url"><code class="filename">${file}</code> <span class="muted">· ${fileToUrl(file)}</span></p>
+    <p class="hm-url"><code class="filename">${file}</code> <span class="muted">· ${fileToUrl(file)}</span>${MANIFEST[fileToUrl(file)] ? ` <span class="muted">· CID</span> <code class="cid">${MANIFEST[fileToUrl(file)]}</code>` : ""}</p>
     ${schema.description ? `<p class="schema-desc">${esc(schema.description)}</p>` : ""}
     ${lead}
     ${metaNote}
@@ -820,6 +823,7 @@ tbody tr:hover{background:var(--panel)}
 .lead{color:var(--dim);margin-top:-.2em}
 .hm-url{margin:-.1em 0 .5em}
 .hm-url code{color:#8fd9c0;background:#12201c;border-color:#204238;font-size:12px}
+.hm-url code.cid{color:#c9a6ff;background:#1a1630;border-color:#3a2f5a}
 .schema-title{font-size:30px;margin:.15em 0 .1em;letter-spacing:.3px}
 .schema-desc{color:var(--ink);font-size:15.5px;margin:.4em 0 1em;max-width:60ch}
 .callout{background:#1a1630;border:1px solid #3a2f5a;border-left:3px solid var(--accent2);border-radius:10px;padding:12px 16px;margin:16px 0;font-size:14px}
