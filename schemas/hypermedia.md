@@ -67,12 +67,13 @@ per workflow:
 
 - The eleven **concrete blocks** — [`paragraph`](./hypermedia-block-paragraph.json), [`heading`](./hypermedia-block-heading.json), [`code`](./hypermedia-block-code.json), [`math`](./hypermedia-block-math.json), [`image`](./hypermedia-block-image.json), [`video`](./hypermedia-block-video.json), [`file`](./hypermedia-block-file.json), [`button`](./hypermedia-block-button.json), [`embed`](./hypermedia-block-embed.json), [`web-embed`](./hypermedia-block-web-embed.json), [`nostr`](./hypermedia-block-nostr.json) — each **extends** [`hypermedia-block-base`](./hypermedia-block-base.json), closed, with a `type` enum and typed attributes.
 - [`hypermedia-block-core`](./hypermedia-block-core.json) — the **core union** we define (the eleven). Strict: rejects anything else.
-- [`hypermedia-block-custom`](./hypermedia-block-custom.json) — the **open escape hatch**: any `type`, arbitrary attributes (via [`onyx-any`](./onyx-any.json)).
-- [`hypermedia-block`](./hypermedia-block.json) = **`anyOf[core, custom]`** — the extensible block used on the wire (Change ops, comment bodies). It recognizes core blocks strictly and accepts custom/future ones, so **Change already allows custom block types**.
+- [`hypermedia-block`](./hypermedia-block.json) — the **open** block: `id` + `type` + arbitrary fields (via [`onyx-any`](./onyx-any.json)). The forward-compatible wire type — a block type this client has *no schema for* (future or third-party) is still a valid Block, so a document is never rejected over it. This is *not* "your custom block type" (that's just extension + union, below); it's the open fallback for the *unknown*.
 
-### Extending the core
+### Adding a block type
 
-Third parties extend the core by wrapping it in a bigger union — no new machinery:
+To add a block type, do exactly what the core blocks do — **extend
+[`hypermedia-block-base`](./hypermedia-block-base.json)** — then **union** it with
+the core. No new machinery:
 
 ```json
 // example-app-block: the core, PLUS this app's custom Poll block
