@@ -54,16 +54,29 @@ schemas that differ only in key order are the *same block* with the *same CID*.
 
 ## The publish pipeline
 
-Turning this repo into live Onyx types is, end to end:
+[`publish.mjs`](./publish.mjs) turns this repo into live Onyx types:
 
-1. Parse each `.json` file as dag-json.
-2. Rewrite filename `ref`s to their **`hm://` URLs** — names, not CIDs, so that
-   recursive and mutually-recursive schemas keep working (see [references.md](./references.md)).
-3. Canonically encode each to DAG-CBOR and publish it under its authority at its
-   `hm://` path (signed by the authority's key).
-4. The block also has a CID — use it to pin an exact, immutable version when you
-   want one; use the `hm://` name to resolve and to recurse.
+1. Parse each `.json` file (dag-json). `ref`s are already **`hm://` URLs** —
+   names, *not* CIDs — so recursive and mutually-recursive schemas keep working
+   (see [references.md](./references.md)). They are **not** rewritten.
+2. Canonically encode each schema to DAG-CBOR and content-address it: a CIDv1,
+   sha2-256, `dag-cbor` (0x71) — the same codec the backend uses for its blobs.
+3. Write [`schemas.lock.json`](./schemas.lock.json): the manifest mapping each
+   `hm://` URL → its CID. Publish/pin the blocks under their authority at their
+   `hm://` paths (signed by the authority's key).
 
-Anyone can then resolve a schema by its `hm://` name (or fetch an exact version
-by CID), DAG-CBOR-decode it, and type-check data against it — the same
-validation this repo runs locally, with `hm://` URLs where the filenames are.
+Because canonical DAG-CBOR is deterministic, **the CID is a pure function of a
+schema's content** — CI and any runtime that recomputes it reach the exact same
+CID. Two consequences worth calling out:
+
+- Run `node publish.mjs --check` in CI: it fails if the lockfile is stale, and a
+  CID that changes in a diff is a schema that changed.
+- Because a schema links others by **name**, its CID depends only on its own
+  bytes — editing `block` does **not** churn `change`'s CID (unlike a CID/Merkle
+  graph, where any change propagates upward). Names give stable, independent
+  content addresses; the manifest is the separate name → CID index a resolver
+  uses.
+
+Anyone can then resolve a schema by its `hm://` name (via the manifest or the
+authority), or fetch an exact version by CID, DAG-CBOR-decode it, and type-check
+data against it — the same validation this repo runs locally.

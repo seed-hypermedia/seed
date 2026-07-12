@@ -54,8 +54,10 @@ Read in order, or jump to what you need:
 | `onyx-<kind>.json` | the **primitive library** — one canonical schema per kind (`onyx-string`, `onyx-boolean`, … each just `{ "type": <kind-url> }`) |
 | `hypermedia-*.json` | **Hypermedia Network blob schemas** — Change, Ref, Profile, Comment, Capability, Contact + their shared base, ops, and metadata (see [hypermedia.md](./hypermedia.md)) |
 | `example-*.json` | ~15 **example schemas** covering every feature — see the full catalog in [examples.md](./examples.md) |
-| [`validate.mjs`](./validate.mjs) | dependency-free reference validator (100+ checks) |
+| [`validate.mjs`](./validate.mjs) | dependency-free reference validator (250+ checks) |
 | [`tour.mjs`](./tour.mjs) | the zero-dependency explorer server (`node tour.mjs`) |
+| [`publish.mjs`](./publish.mjs) | hashes each schema to its DAG-CBOR CID → `schemas.lock.json` (`node publish.mjs`) |
+| `schemas.lock.json` | the published manifest: every `hm://` URL → its content CID |
 
 ## Try it
 

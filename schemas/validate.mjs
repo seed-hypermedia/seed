@@ -207,7 +207,7 @@ failed += report("onyx-schema.json describes itself", validate(meta, meta));
 //    Auto-discovered, so new examples are covered without editing tests.
 // =====================================================================
 section("Every schema block is a valid Onyx schema");
-const jsonFiles = readdirSync(DIR).filter((f) => f.endsWith(".json")).sort();
+const jsonFiles = readdirSync(DIR).filter((f) => f.endsWith(".json") && f !== "schemas.lock.json").sort();
 for (const f of jsonFiles) {
   if (isInstance(load(f))) continue; // instances are data, not schemas
   failed += report(`${f}`, validate(meta, load(f)));
