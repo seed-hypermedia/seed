@@ -1,0 +1,19 @@
+{
+  "name": "Nostr block",
+  "description": "An embed of a Nostr event (a nostr: URL).",
+  "ref": "hm://seed.hyper.media/block-base",
+  "required": [
+    "link"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Nostr"
+      ]
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    }
+  }
+}

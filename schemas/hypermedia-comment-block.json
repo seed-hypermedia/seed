@@ -1,7 +1,7 @@
 {
   "name": "Comment block",
   "description": "A comment content block: a Block extended with a recursive list of child comment blocks.",
-  "ref": "hm://seed.hyper.media/block",
+  "ref": "hm://seed.hyper.media/block-custom",
   "properties": {
     "children": {
       "type": "hm://hyper.media/list",

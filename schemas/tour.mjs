@@ -61,8 +61,13 @@ const isPrimitive = (f) => PRIMITIVE_FILES.includes(f);
 const INSTANCE_FILES = SCHEMA_FILES.filter((f) => isInstanceDoc(loadJson(f)));
 const isInstance = (f) => INSTANCE_FILES.includes(f);
 
-// The Hypermedia Network's CBOR blob schemas (hm://seed.hyper.media/*).
+// The Hypermedia Network's CBOR schemas (hm://seed.hyper.media/*), split into
+// document-content block types and everything else (the signed blobs).
 const isHypermedia = (f) => f.startsWith("hypermedia-");
+const BLOCK_EXTRA = new Set(["hypermedia-children-type.json", "hypermedia-button-alignment.json", "hypermedia-embed-view.json", "hypermedia-annotation.json"]);
+const isHypermediaBlock = (f) => f.startsWith("hypermedia-block") || BLOCK_EXTRA.has(f);
+// onyx-* types beyond the meta-schema and the nine kind primitives (e.g. onyx-any).
+const isOnyxLibrary = (f) => f.startsWith("onyx-") && !META_FILES.includes(f) && !isPrimitive(f);
 const primitiveKind = (f) => {
   const s = loadJson(f);
   const structural = Object.keys(s).filter((k) => k !== "name" && k !== "description");
@@ -323,7 +328,7 @@ function graphSvg() {
   // Keep the home DAG to the Onyx meta + examples: primitives (every schema
   // refs onyx-string), instances, and the ~29 hypermedia blobs are excluded
   // here — their relationships show on each schema's Dependencies/Dependents.
-  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json") && !isHypermedia(n + ".json"));
+  const nodes = GRAPH.nodes.filter((n) => !isPrimitive(n + ".json") && !isInstance(n + ".json") && !isHypermedia(n + ".json") && !isOnyxLibrary(n + ".json"));
   const edges = GRAPH.edges.filter((e) => nodes.includes(e.from) && nodes.includes(e.to));
   const selfLoops = GRAPH.selfLoops;
   // layer(n) = 1 + max(layer of things n depends on); leaves = 0
@@ -582,11 +587,11 @@ function sidebar(active) {
     const tip = metaTitle(s);
     return `<a class="nav-item${on}${indent}" href="/schema/${s}"${tip ? ` title="${tip}"` : ""}><code>${f}</code>${tag}</a>`;
   };
-  // Meta-schema (union root + variants), the primitive library, then examples.
   const metaLinks = META_FILES.filter((f) => SCHEMA_FILES.includes(f)).map(schemaLink).join("");
-  const primitiveLinks = PRIMITIVE_FILES.map(schemaLink).join("");
-  const hypermediaLinks = SCHEMA_FILES.filter(isHypermedia).map(schemaLink).join("");
-  const exampleLinks = SCHEMA_FILES.filter((f) => !META_FILES.includes(f) && !isPrimitive(f) && !isInstance(f) && !isHypermedia(f)).map(schemaLink).join("");
+  const primitiveLinks = [...PRIMITIVE_FILES, ...SCHEMA_FILES.filter(isOnyxLibrary)].map(schemaLink).join("");
+  const hmBlobLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && !isHypermediaBlock(f)).map(schemaLink).join("");
+  const hmBlockLinks = SCHEMA_FILES.filter((f) => isHypermedia(f) && isHypermediaBlock(f)).map(schemaLink).join("");
+  const exampleLinks = SCHEMA_FILES.filter((f) => f.startsWith("example-") && !isInstance(f)).map(schemaLink).join("");
   const instanceLinks = INSTANCE_FILES.map(schemaLink).join("");
   const homeOn = active.section === "home" ? " on" : "";
   return `<nav class="side">
@@ -595,7 +600,8 @@ function sidebar(active) {
     <div class="nav-group">The tour</div>${docLinks}
     <div class="nav-group">Meta-schema</div>${metaLinks}
     <div class="nav-group">Primitives</div>${primitiveLinks}
-    <div class="nav-group">Hypermedia blobs</div>${hypermediaLinks}
+    <div class="nav-group">Hypermedia blocks</div>${hmBlockLinks}
+    <div class="nav-group">Hypermedia blobs</div>${hmBlobLinks}
     <div class="nav-group">Examples</div>${exampleLinks}
     <div class="nav-group">Instances</div>${instanceLinks}
     <div class="side-foot">${VALIDATION.ok ? '<span class="ok-dot"></span> self-validates' : '<span class="bad-dot"></span> validation failed'}</div>

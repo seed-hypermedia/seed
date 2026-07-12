@@ -48,6 +48,46 @@ both **open maps** (known fields + arbitrary inline attributes). Document
 [`metadata`](./hypermedia-metadata.json) is an open struct of known keys (`name`,
 `summary`, `icon`, `cover`, `layout`, …) plus extras.
 
+## Block types — a strict core anyone can extend
+
+Document content is made of **blocks**. We want two things that pull in opposite
+directions: **strict, concrete types** (so implementations can dispatch on
+`block.type` with type-safe, per-type handlers) *and* **openness** (so a newer
+client's block type doesn't make an older client reject the whole document).
+These can't both live in a single validation pass — an open fallback always
+swallows a malformed known block — so the model provides *layers*, and you pick
+per workflow:
+
+| workflow | needs | use |
+| --- | --- | --- |
+| rendering / dispatch | strict per-type shapes + graceful fallback | concrete types + [`hypermedia-block`](./hypermedia-block.json) |
+| authoring / editing | strict validation | [`hypermedia-block-core`](./hypermedia-block-core.json) |
+| sync / storage (forward-compat) | never reject unknown | [`hypermedia-block`](./hypermedia-block.json) |
+| codegen | the enumerable set | [`hypermedia-block-core`](./hypermedia-block-core.json) |
+
+- The eleven **concrete blocks** — [`paragraph`](./hypermedia-block-paragraph.json), [`heading`](./hypermedia-block-heading.json), [`code`](./hypermedia-block-code.json), [`math`](./hypermedia-block-math.json), [`image`](./hypermedia-block-image.json), [`video`](./hypermedia-block-video.json), [`file`](./hypermedia-block-file.json), [`button`](./hypermedia-block-button.json), [`embed`](./hypermedia-block-embed.json), [`web-embed`](./hypermedia-block-web-embed.json), [`nostr`](./hypermedia-block-nostr.json) — each **extends** [`hypermedia-block-base`](./hypermedia-block-base.json), closed, with a `type` enum and typed attributes.
+- [`hypermedia-block-core`](./hypermedia-block-core.json) — the **core union** we define (the eleven). Strict: rejects anything else.
+- [`hypermedia-block-custom`](./hypermedia-block-custom.json) — the **open escape hatch**: any `type`, arbitrary attributes (via [`onyx-any`](./onyx-any.json)).
+- [`hypermedia-block`](./hypermedia-block.json) = **`anyOf[core, custom]`** — the extensible block used on the wire (Change ops, comment bodies). It recognizes core blocks strictly and accepts custom/future ones, so **Change already allows custom block types**.
+
+### Extending the core
+
+Third parties extend the core by wrapping it in a bigger union — no new machinery:
+
+```json
+// example-app-block: the core, PLUS this app's custom Poll block
+{ "anyOf": [ { "ref": "hm://seed.hyper.media/block-core" },
+             { "ref": "hm://example.com/poll-block" } ] }
+```
+
+See [`example-poll-block`](./example-poll-block.json) (a custom block extending
+the same base) and [`example-app-block`](./example-app-block.json). That union is
+**strict for its app** — it accepts core blocks and Polls but rejects a block
+type it doesn't know — while the wire's [`hypermedia-block`](./hypermedia-block.json)
+stays open. (Making *Change itself* strict over an app's block set — a true
+`Change<Block>` generic — would need parametric abstraction, which Onyx doesn't
+have yet; the extensible union delivers the practical need without it.)
+
 ## CBOR value shapes
 
 The wire types map onto Onyx primitives, wrapped as self-explanatory aliases:

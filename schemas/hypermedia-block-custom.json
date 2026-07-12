@@ -1,0 +1,42 @@
+{
+  "name": "Custom block",
+  "description": "The open escape-hatch block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, and any `type` value. This is how the block model stays forward-compatible — an unknown or third-party block type is still a valid Custom block.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "id",
+    "type"
+  ],
+  "properties": {
+    "id": {
+      "ref": "hm://hyper.media/string"
+    },
+    "revision": {
+      "ref": "hm://hyper.media/string"
+    },
+    "type": {
+      "ref": "hm://hyper.media/string"
+    },
+    "text": {
+      "ref": "hm://hyper.media/string"
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    },
+    "annotations": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/annotation"
+      }
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {},
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  },
+  "values": {
+    "ref": "hm://hyper.media/any"
+  }
+}

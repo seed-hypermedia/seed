@@ -1,28 +1,12 @@
 {
   "name": "Block",
-  "description": "A document content block: known fields (id, type, text, link, annotations) plus arbitrary inline attributes.",
-  "type": "hm://hyper.media/map",
-  "properties": {
-    "id": {
-      "ref": "hm://hyper.media/string"
+  "description": "The extensible block type: a core block (validated strictly against one of the eleven built-in types) OR a custom block (open). This is what Change ops and comment bodies reference, so documents accept custom / future block types while still recognizing the core ones.",
+  "anyOf": [
+    {
+      "ref": "hm://seed.hyper.media/block-core"
     },
-    "type": {
-      "ref": "hm://hyper.media/string"
-    },
-    "text": {
-      "ref": "hm://hyper.media/string"
-    },
-    "link": {
-      "ref": "hm://hyper.media/string"
-    },
-    "annotations": {
-      "type": "hm://hyper.media/list",
-      "items": {
-        "ref": "hm://seed.hyper.media/annotation"
-      }
+    {
+      "ref": "hm://seed.hyper.media/block-custom"
     }
-  },
-  "values": {
-    "ref": "hm://seed.hyper.media/value"
-  }
+  ]
 }
