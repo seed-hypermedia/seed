@@ -417,6 +417,61 @@ const CASES = [
     ],
     invalid: [["contentWidth not in enum", { contentWidth: "XL" }]],
   },
+
+  // --- Block types: strict concrete types vs the open forward-compatible type
+  {
+    schema: "hypermedia-block-paragraph.json",
+    valid: [
+      { id: "b1", type: "Paragraph", text: "Hello", annotations: [], attributes: { childrenType: "Group" } },
+      { id: "b2", type: "Paragraph" },
+    ],
+    invalid: [
+      ["wrong type tag", { id: "b", type: "Image" }],
+      ["missing id", { type: "Paragraph" }],
+      ["unknown top-level key (closed)", { id: "b", type: "Paragraph", bogus: 1 }],
+    ],
+  },
+  {
+    schema: "hypermedia-block-image.json",
+    valid: [{ id: "i1", type: "Image", link: "ipfs://bafyimg", attributes: { width: 640, name: "pic.png" } }],
+    invalid: [["missing link (required)", { id: "i1", type: "Image" }]],
+  },
+  {
+    // The core union WE define — strict, rejects block types outside the eleven.
+    schema: "hypermedia-block-core.json",
+    valid: [{ id: "b1", type: "Paragraph", text: "hi" }, { id: "i1", type: "Image", link: "ipfs://x" }],
+    invalid: [["a block type outside the core", { id: "p1", type: "Poll", question: "?" }]],
+  },
+  {
+    // The extensible wire block = core OR custom — accepts core strictly AND any custom/future block.
+    schema: "hypermedia-block.json",
+    valid: [
+      { id: "b1", type: "Paragraph", text: "hi" },
+      { id: "p1", type: "Poll", question: "Fave?", options: ["a", "b"], meta: { nested: true } },
+      { id: "b2", type: "Image", link: "ipfs://x", attributes: { width: 100, custom: { deep: [1, 2] } } },
+    ],
+    invalid: [["missing id", { type: "Paragraph" }]],
+  },
+  {
+    // A third party's custom block, extending the shared base like a core block.
+    schema: "example-poll-block.json",
+    valid: [{ id: "p1", type: "Poll", question: "Q?", options: ["a", "b"], attributes: { multiple: true } }],
+    invalid: [["missing options (required)", { id: "p1", type: "Poll", question: "Q?" }], ["wrong type", { id: "p1", type: "Paragraph" }]],
+  },
+  {
+    // The app's block type = core union EXTENDED with their Poll. Strict: core + Poll only.
+    schema: "example-app-block.json",
+    valid: [
+      { id: "b1", type: "Paragraph", text: "hi" },
+      { id: "p1", type: "Poll", question: "Fave?", options: ["a", "b"] },
+    ],
+    invalid: [["a type outside core + their extensions", { id: "w1", type: "Widget", foo: 1 }]],
+  },
+  {
+    schema: "onyx-any.json",
+    valid: [null, true, 42, 3.14, "x", [1, "two", { a: [true] }], { k: { nested: [1, 2] } }, cid("bafy"), bytes("QQ")],
+    invalid: [],
+  },
 ];
 
 for (const c of CASES) {

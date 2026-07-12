@@ -1,0 +1,39 @@
+{
+  "name": "Paragraph block",
+  "description": "A paragraph of rich text with annotations.",
+  "ref": "hm://seed.hyper.media/block-base",
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Paragraph"
+      ]
+    },
+    "text": {
+      "ref": "hm://hyper.media/string"
+    },
+    "annotations": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/annotation"
+      }
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {
+        "childrenType": {
+          "ref": "hm://seed.hyper.media/children-type"
+        },
+        "columnCount": {
+          "ref": "hm://hyper.media/float"
+        },
+        "columnId": {
+          "ref": "hm://hyper.media/string"
+        }
+      },
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  }
+}
