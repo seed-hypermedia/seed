@@ -26,6 +26,14 @@ told apart by a discriminant. In Onyx the discriminant is the `type` tag (plus
 **`anyOf`** — the union keyword: a list of schemas; a value is valid if it
 matches any of them. Onyx's one composite construct.
 
+**Generic** — a schema parameterized over a type. Declared with `params` (named
+type parameters, each with a default), used via `var` (a type-variable
+reference, `{ "var": "B" }`), and instantiated with `args` (`{ "ref": X, "args":
+{ "B": … } }`). The parameter threads through references and defaults when
+unbound. Worked example: `Change<Block>` ([hypermedia-change](./hypermedia-change.json))
+instantiated as [example-myapp-change](./example-myapp-change.json).
+([schema-language.md](./schema-language.md))
+
 **Primitive** — one of the standard-library schemas `onyx-<kind>.json`, each
 exactly `{ "type": <kind> }` (e.g. `onyx-string`, `onyx-boolean`). The canonical,
 content-addressed block for a kind; reference it (`{ "ref": "onyx-string.json" }`)

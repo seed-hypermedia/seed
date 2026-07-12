@@ -1,6 +1,6 @@
 # The Onyx schema language
 
-An Onyx schema is a single value of kind `map`. It uses **ten keys**, all
+An Onyx schema is a single value of kind `map`. It uses **thirteen keys**, all
 optional. That is the entire language.
 
 | key | applies to | meaning |
@@ -13,6 +13,9 @@ optional. That is the entire language.
 | `enum` | any | list of allowed literal values |
 | `ref` | any | a reference to another schema — an `hm://` URL (see [references.md](./references.md)) |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas |
+| `params` | any | declares type parameters (generics), each with a default |
+| `var` | any | a reference to a type parameter — `{ "var": "B" }` |
+| `args` | reference | applies a generic, binding its parameters |
 | `name` | any | a human-readable name for the schema (metadata; ignored when validating data) |
 | `description` | any | a human-readable description (metadata; ignored when validating data) |
 
@@ -103,31 +106,38 @@ told apart by a discriminant (here, the `type` tag).
 { "anyOf": [ { "ref": "onyx-map-schema.json" }, { "ref": "onyx-link-schema.json" } ] }
 ```
 
-## Generics (applied)
+## Generics
 
-Onyx has no type *variables*, but it does have parametric containers, because
-`items` and `values` **are** the type parameters:
+Onyx has both flavours of generic.
+
+**Applied generics** — supplying a type parameter concretely — come for free from
+`items` and `values`:
 
 - `list` + `items` = `List<T>` — `items` is `T`
 - `map` + `values` = `Map<V>` — `values` is `V`
 
-So `{"Apples":5,"Oranges":3}` is not merely a `map`; it is `Map<Integer>`,
-written [`example-counts.json`](./example-counts.json):
+So `{"Apples":5,"Oranges":3}` is `Map<Integer>`, written
+[`example-counts.json`](./example-counts.json): `{ "type":"map", "values":{ "ref":"onyx-integer.json" } }`.
+It nests all the way down.
 
-```json
-{ "type": "map", "values": { "ref": "onyx-integer.json" } }
-```
+**Generic abstraction** — defining a reusable parameterized type and
+instantiating it later — is expressed with three keys:
 
-The parameter is supplied concretely, and it nests: `Map<List<Integer>>` is
-`{"type":"map","values":{"type":"list","items":{"ref":"onyx-integer.json"}}}` all
-the way down. `onyx-map` (`{type:"map"}`, no `values`) is the unparameterized
-`Map<Any>`; `onyx-list` is `List<Any>`.
+| key | meaning |
+| --- | --- |
+| `params` | declares type parameters, each with a default: `{ "params": { "B": <default> }, … }` |
+| `var` | a **type-variable reference**: `{ "var": "B" }` matches whatever `B` is bound to |
+| `args` | **applies** a generic, binding its params: `{ "ref": X, "args": { "B": <schema> } }` |
 
-What Onyx lacks is generic *abstraction* — you cannot define a reusable
-`MapOf<T>` with a **variable** `T` and instantiate it later. Each concrete
-container type is written out (or referenced). That is a deliberate limit:
-type variables would be new vocabulary the meta-schema must also describe about
-itself. See [design-rationale.md](./design-rationale.md).
+The parameter threads through references (each level passes it down with `args`),
+so binding it at the top substitutes it everywhere. The worked example is
+[`hypermedia-change`](./hypermedia-change.json) — a `Change<Block>` whose `Block`
+parameter flows through `change → change-body → op → op-replace-block` — and its
+instantiation [`example-myapp-change`](./example-myapp-change.json) =
+`Change<example-app-block>`, which validates blocks *strictly* deep inside the op
+stack (see the `Generics: Change<Block>` checks in [`validate.mjs`](./validate.mjs)).
+Used bare, a generic falls back to its parameter defaults, so the common case
+needs no `args`.
 
 ## How Onyx describes itself
 

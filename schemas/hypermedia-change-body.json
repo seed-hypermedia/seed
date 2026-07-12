@@ -9,8 +9,18 @@
     "ops": {
       "type": "hm://hyper.media/list",
       "items": {
-        "ref": "hm://seed.hyper.media/op"
+        "ref": "hm://seed.hyper.media/op",
+        "args": {
+          "Block": {
+            "var": "Block"
+          }
+        }
       }
+    }
+  },
+  "params": {
+    "Block": {
+      "ref": "hm://seed.hyper.media/block"
     }
   }
 }

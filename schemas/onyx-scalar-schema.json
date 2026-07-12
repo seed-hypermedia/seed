@@ -25,6 +25,12 @@
     },
     "description": {
       "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
     }
   }
 }

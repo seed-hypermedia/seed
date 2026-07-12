@@ -81,78 +81,95 @@ function typeMatches(type, d) {
   }
 }
 
-// Resolve a reference node (`ref`, no `type`) to a concrete schema.
-//   { ref: X }                       -> include: X exactly
-//   { ref: X, properties|required|…} -> EXTEND X: merge parent + these refinements
-// Extension is a subtype: parent's fields plus the new ones, required unioned.
-export function concrete(schema, seen = new Set()) {
-  if (!schema.ref || schema.type || schema.anyOf) return schema;
-  if (seen.has(schema.ref)) return schema; // guard against ref cycles
-  seen.add(schema.ref);
-  const parent = concrete(load(schema.ref), seen);
-  if (parent.anyOf) return parent;
-  const extends_ = ["properties", "required", "values", "items", "enum"].some((k) => schema[k] !== undefined);
-  if (!extends_) return parent; // pure include
+const REFINE = ["properties", "required", "values", "items", "enum"];
+
+// Merge an extension node's refinements over its (already-resolved) parent — a
+// subtype: parent's fields plus the new ones, required unioned.
+export function mergeExtend(parent, ext) {
   const merged = { type: parent.type };
-  const props = { ...(parent.properties || {}), ...(schema.properties || {}) };
+  const props = { ...(parent.properties || {}), ...(ext.properties || {}) };
   if (Object.keys(props).length) merged.properties = props;
-  const req = [...new Set([...(parent.required || []), ...(schema.required || [])])];
+  const req = [...new Set([...(parent.required || []), ...(ext.required || [])])];
   if (req.length) merged.required = req;
-  const values = schema.values ?? parent.values;
+  const values = ext.values ?? parent.values;
   if (values) merged.values = values;
-  const items = schema.items ?? parent.items;
+  const items = ext.items ?? parent.items;
   if (items) merged.items = items;
-  const en = schema.enum ?? parent.enum;
+  const en = ext.enum ?? parent.enum;
   if (en) merged.enum = en;
   return merged;
 }
 
-// Returns a list of error strings. Empty == valid.
-export function validate(schema, data, path = "$") {
-  schema = concrete(schema); // resolve includes / extensions
+// Resolve a node to a concrete schema (map/list/scalar/link/union), following:
+//   var    -> the schema bound to a type parameter        {var:"B"}
+//   params -> a generic definition; binds defaults        {params:{B:default}, …}
+//   ref+args    -> APPLICATION: instantiate a generic     {ref:X, args:{B:…}}
+//   ref+refine  -> EXTENSION: subtype of X                {ref:X, properties:…}
+//   ref (bare)  -> include                                {ref:X}
+// `env` binds type variables. Returns { schema, env } for the resolved node.
+export function resolveSchema(schema, env = {}) {
+  if (schema.params) {
+    const penv = { ...env };
+    for (const [p, def] of Object.entries(schema.params)) if (penv[p] === undefined) penv[p] = def;
+    const { params, ...body } = schema;
+    return resolveSchema(body, penv);
+  }
+  if (schema.var !== undefined) {
+    const bound = env[schema.var];
+    if (bound === undefined) return { schema: { __unbound: schema.var }, env: {} };
+    return resolveSchema(bound, {});
+  }
+  if (schema.ref && schema.type === undefined && schema.anyOf === undefined) {
+    const target = load(schema.ref);
+    if (schema.args) {
+      const argsEnv = {};
+      for (const [k, v] of Object.entries(schema.args)) argsEnv[k] = v && v.var !== undefined ? env[v.var] : v;
+      return resolveSchema(target, argsEnv); // application: fresh env from args
+    }
+    const parent = resolveSchema(target, env);
+    if (REFINE.some((k) => schema[k] !== undefined)) {
+      if (parent.schema.anyOf || parent.schema.__unbound) return parent; // can't extend a union/var
+      return { schema: mergeExtend(parent.schema, schema), env: parent.env };
+    }
+    return parent; // bare include
+  }
+  return { schema, env };
+}
+
+// Returns a list of error strings. Empty == valid. `env` binds type variables.
+export function validate(schema0, data, path = "$", env0 = {}) {
+  const { schema, env } = resolveSchema(schema0, env0);
+
+  if (schema.__unbound) return [`${path}: unbound type variable "${schema.__unbound}"`];
 
   // union: matches if it matches any variant.
   if (schema.anyOf) {
-    const attempts = schema.anyOf.map((v) => validate(v, data, path));
+    const attempts = schema.anyOf.map((v) => validate(v, data, path, env));
     if (attempts.some((e) => e.length === 0)) return [];
-    // None matched. Surface the *closest* arm: prefer one whose kind matched
-    // (errors are nested, not a top-level "expected X"), then the fewest errors.
     const topLevel = (errs) => errs.some((e) => e.startsWith(`${path}: expected`));
     const best = attempts.slice().sort((a, b) => topLevel(a) - topLevel(b) || a.length - b.length)[0];
     return [`${path}: matches none of the ${schema.anyOf.length} variants`, ...best];
   }
 
   const errors = [];
-
-  if (schema.enum && !schema.enum.some((v) => deepEqual(v, data))) {
+  if (schema.enum && !schema.enum.some((v) => deepEqual(v, data)))
     errors.push(`${path}: ${JSON.stringify(data)} not in enum ${JSON.stringify(schema.enum)}`);
-  }
 
   const kind = schema.type ? kindOf(schema.type) : null;
-
   if (kind && !typeMatches(kind, data)) {
     errors.push(`${path}: expected ${kind}, got ${typeOf(data)}`);
-    return errors; // wrong kind -> deeper checks would be noise
+    return errors;
   }
-
   if (kind === "map") {
-    for (const key of schema.required ?? []) {
-      if (!(key in data)) errors.push(`${path}: missing required "${key}"`);
-    }
+    for (const key of schema.required ?? []) if (!(key in data)) errors.push(`${path}: missing required "${key}"`);
     const closed = schema.properties && !schema.values;
     for (const [key, value] of Object.entries(data)) {
       const child = schema.properties?.[key] ?? schema.values;
-      if (child) errors.push(...validate(child, value, `${path}.${key}`));
+      if (child) errors.push(...validate(child, value, `${path}.${key}`, env));
       else if (closed) errors.push(`${path}: unexpected key "${key}"`);
     }
   }
-
-  if (kind === "list" && schema.items) {
-    data.forEach((item, i) => errors.push(...validate(schema.items, item, `${path}[${i}]`)));
-  }
-
-  // `type:"link"` + `ref` is a typed link; the target lives in another block,
-  // so we confirm the envelope is well-formed and defer target checking.
+  if (kind === "list" && schema.items) data.forEach((item, i) => errors.push(...validate(schema.items, item, `${path}[${i}]`, env)));
 
   return errors;
 }
@@ -489,6 +506,22 @@ failed += assertPath("nested list index", validate(load("example-matrix.json"), 
 failed += assertPath("nested map key", validate(load("example-person.json"), { name: "Ada", home: { street: "x" } }), "home");
 failed += assertPath("deep JSON path", validate(load("example-json.json"), { a: [1, cid("bad")] }), "$.a[1]");
 failed += assertPath("article field", validate(load("example-article.json"), { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }), "$.wordCount");
+
+// =====================================================================
+// 5b. Generics: Change<Block>. The block type threads through
+//     change -> body -> op -> replace-block, so binding Block makes the
+//     WHOLE Change strict over that block set — deep inside the op stack.
+// =====================================================================
+section("Generics: Change<Block> instantiation");
+const blockChange = (b) => ({ type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, body: { ops: [{ type: "ReplaceBlock", block: b }] } });
+const widgetBlock = { id: "w1", type: "Widget", foo: 1 };
+const pollBlock = { id: "p1", type: "Poll", question: "?", options: ["a", "b"] };
+const paraBlock = { id: "b1", type: "Paragraph", text: "hi" };
+failed += report("default Change accepts an unknown Widget block (open Block)", validate(load("hypermedia-change.json"), blockChange(widgetBlock)));
+failed += report("Change<app-block> accepts the app's Poll block", validate(load("example-myapp-change.json"), blockChange(pollBlock)));
+failed += report("Change<app-block> accepts a core Paragraph block", validate(load("example-myapp-change.json"), blockChange(paraBlock)));
+failed += reportReject("Change<app-block> REJECTS the Widget block (strict, deep in the op)", validate(load("example-myapp-change.json"), blockChange(widgetBlock)));
+failed += assertPath("the rejection points inside the op stack", validate(load("example-myapp-change.json"), blockChange(widgetBlock)), "body.ops[0].block");
 
 // =====================================================================
 // 6. Example instances are valid data for their declared type.

@@ -258,11 +258,17 @@ function concrete(schema, seen = new Set()) {
 
 function summarize(node) {
   if (!node) return `<span class="muted">any</span>`;
+  if (node.var !== undefined) return `<span class="kind kind-var">⟨${esc(node.var)}⟩</span>`; // a type parameter
   if (node.anyOf)
     return `<span class="muted">one of</span> ${node.anyOf.map(summarize).join(` <span class="muted">|</span> `)}`;
   if (node.ref && !node.type) {
     const b = refToSlug(node.ref);
     const file = urlToFile(node.ref);
+    // An application: target<args> (a generic instantiated with concrete types).
+    if (node.args) {
+      const bindings = Object.entries(node.args).map(([p, v]) => `${esc(p)} = ${summarize(v)}`).join(", ");
+      return `<a class="chip" href="/schema/${b}">${b}</a><span class="muted">⟨${bindings}⟩</span>`;
+    }
     // A reference to a primitive renders as its kind badge (which links to it).
     if (isPrimitive(file)) {
       const k = primitiveKind(file);
@@ -513,6 +519,11 @@ function schemaPage(name) {
         })
         .join("");
       main = `<table class="fields"><thead><tr><th>field</th><th>type</th><th>origin</th></tr></thead><tbody>${rows}</tbody></table>`;
+    } else if (schema.args) {
+      // Application: a generic instantiated with concrete types, e.g. Change⟨Block = …⟩.
+      const bindings = Object.entries(schema.args).map(([p, v]) => `${esc(p)} = ${summarize(v)}`).join(", ");
+      lead = `<p class="lead"><span class="kind kind-var">instantiation</span> <span class="muted">of</span> <a href="/schema/${parentSlug}">${parentSlug}</a><span class="muted">⟨</span>${bindings}<span class="muted">⟩</span></p>`;
+      main = `<div class="prim-body"><p>Binds <a href="/schema/${parentSlug}">${parentSlug}</a>'s type parameter(s) to concrete types, so the whole generic is validated with them substituted in — deep through the stack.</p></div>`;
     } else {
       lead = `<p class="lead"><span class="muted">alias of</span> <a href="/schema/${parentSlug}">${parentSlug}</a></p>`;
       main = "";
@@ -542,6 +553,10 @@ function schemaPage(name) {
     ? `<div class="callout variant-note">A <strong>variant</strong> of the <a href="/schema/onyx-schema">meta-schema union</a> — one of the shapes a schema is allowed to take.</div>`
     : "";
 
+  const genericNote = schema.params
+    ? `<div class="callout variant-note"><strong>Generic</strong> over ${Object.entries(schema.params).map(([p, def]) => `<span class="kind kind-var">⟨${esc(p)}⟩</span> <span class="muted">(default ${summarize(def)})</span>`).join(", ")}. A type parameter that threads through the schema; bind it with <code>{ "ref": …, "args": { "${esc(Object.keys(schema.params)[0])}": … } }</code> — see <a href="/schema/example-myapp-change">example-myapp-change</a>.</div>`
+    : "";
+
   const body = `
     <div class="crumb"><a href="/">Onyx</a> / <a href="#" class="muted">schemas</a> / ${name}</div>
     ${schema.name ? `<h1 class="schema-title">${esc(schema.name)}</h1>` : `<h1><code class="filename">${file}</code></h1>`}
@@ -549,6 +564,7 @@ function schemaPage(name) {
     ${schema.description ? `<p class="schema-desc">${esc(schema.description)}</p>` : ""}
     ${lead}
     ${metaNote}
+    ${genericNote}
     ${main}
     ${depLists(name)}
     <h2>Source <span class="muted">(dag-json — <code>ref</code> values are links)</span></h2>
@@ -817,6 +833,7 @@ table.fields td.freq{text-align:right;white-space:nowrap}
 .kind-float{color:var(--kind-float)}.kind-string{color:var(--kind-string)}.kind-bytes{color:var(--kind-bytes)}
 .kind-list{color:var(--kind-list)}.kind-map{color:var(--kind-map)}.kind-link{color:var(--kind-link)}
 .kind-union{color:var(--accent2)}
+.kind-var{color:#7ec8e3;font-style:italic}
 .kind-link:hover{text-decoration:none}
 .kind-link:hover .kind{outline:1px solid currentColor;outline-offset:1px}
 .variants{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin:18px 0}

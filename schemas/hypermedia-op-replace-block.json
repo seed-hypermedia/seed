@@ -14,6 +14,11 @@
       ]
     },
     "block": {
+      "var": "Block"
+    }
+  },
+  "params": {
+    "Block": {
       "ref": "hm://seed.hyper.media/block"
     }
   }

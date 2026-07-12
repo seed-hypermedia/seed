@@ -84,9 +84,20 @@ See [`example-poll-block`](./example-poll-block.json) (a custom block extending
 the same base) and [`example-app-block`](./example-app-block.json). That union is
 **strict for its app** — it accepts core blocks and Polls but rejects a block
 type it doesn't know — while the wire's [`hypermedia-block`](./hypermedia-block.json)
-stays open. (Making *Change itself* strict over an app's block set — a true
-`Change<Block>` generic — would need parametric abstraction, which Onyx doesn't
-have yet; the extensible union delivers the practical need without it.)
+stays open.
+
+### Change is generic over its block type
+
+To make *Change itself* strict over an app's block set — not just the wire block —
+[`hypermedia-change`](./hypermedia-change.json) is a **`Change<Block>`**: the
+`Block` parameter threads through `change → change-body → op → op-replace-block`
+(each level passes it down with `args`), defaulting to the extensible
+[`hypermedia-block`](./hypermedia-block.json). An app instantiates it —
+[`example-myapp-change`](./example-myapp-change.json) = `Change<example-app-block>`
+— and now a `ReplaceBlock` op carrying a block type the app doesn't know is
+rejected *four levels deep* (`$.body.ops[0].block`), while the default Change
+still accepts anything. This is real generic abstraction (`params` / `var` /
+`args`); see [schema-language.md](./schema-language.md#generics).
 
 ## CBOR value shapes
 

@@ -9,7 +9,12 @@
       "ref": "hm://seed.hyper.media/op-move-blocks"
     },
     {
-      "ref": "hm://seed.hyper.media/op-replace-block"
+      "ref": "hm://seed.hyper.media/op-replace-block",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
     },
     {
       "ref": "hm://seed.hyper.media/op-delete-blocks"
@@ -17,5 +22,10 @@
     {
       "ref": "hm://seed.hyper.media/op-set-key"
     }
-  ]
+  ],
+  "params": {
+    "Block": {
+      "ref": "hm://seed.hyper.media/block"
+    }
+  }
 }
