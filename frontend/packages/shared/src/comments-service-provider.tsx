@@ -176,12 +176,15 @@ export function useDeleteComment() {
       await client.publish(publishInput)
     },
     onSuccess: (_result, params) => {
-      // Invalidate all comment-related queries to refresh the UI
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
-      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-      invalidateQueries([queryKeys.ACTIVITY_FEED])
-      invalidateQueries([queryKeys.SEARCH])
+      // Invalidate all comment-related queries to refresh the UI.
+      // refetchType 'all' also refreshes comment views that are unmounted right
+      // now — web disables refetchOnMount, so they'd otherwise show stale data
+      // when remounted (#812).
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
+      invalidateQueries([queryKeys.SEARCH], {refetchType: 'all'})
       pushAfterCommentPublish?.(
         hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
       )
@@ -216,12 +219,13 @@ export function useUpdateComment() {
       await client.publish(publishInput)
     },
     onSuccess: (_result, params) => {
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
-      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-      invalidateQueries([queryKeys.ACTIVITY_FEED])
-      invalidateQueries([queryKeys.COMMENT_VERSIONS])
-      invalidateQueries([queryKeys.SEARCH])
+      // refetchType 'all': see useDeleteComment above (#812).
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
+      invalidateQueries([queryKeys.COMMENT_VERSIONS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.SEARCH], {refetchType: 'all'})
       pushAfterCommentPublish?.(
         hmId(params.comment.targetAccount, {path: entityQueryPathToHmIdPath(params.comment.targetPath || '')}),
       )

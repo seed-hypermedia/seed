@@ -194,13 +194,17 @@ export default function WebCommenting({
         commentPayload: commentPayload,
         id: commentId,
       })
-      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-      invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
-      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
-      invalidateQueries([queryKeys.DOC_CITATIONS])
-      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-      invalidateQueries([queryKeys.ACTIVITY_FEED])
+      // refetchType 'all': posting navigates to the focused-comment view, which
+      // unmounts the discussions list. With refetchOnMount disabled on web, an
+      // 'active'-only invalidation would leave that list rendering its stale
+      // cache (without the new comment) when the user tabs back to it (#812).
+      invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
+      invalidateQueries([queryKeys.DOC_CITATIONS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
+      invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
     },
   })
 
