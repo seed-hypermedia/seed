@@ -1,7 +1,8 @@
 import {useCID} from '@shm/shared'
 import {base58btc} from 'multiformats/bases/base58'
 import React, {useMemo} from 'react'
-import {useNavigate, useParams} from 'react-router-dom'
+import {useParams} from 'react-router-dom'
+import {useHmNavigate} from '../utils/useHmNavigate'
 import {useApiHost} from '../apiHostStore'
 import {CopyTextButton} from './CopyTextButton'
 import {DataViewer} from './DataViewer'
@@ -12,7 +13,7 @@ const IPFS: React.FC = () => {
   const {cid} = useParams()
   const apiHost = useApiHost()
   const {data} = useCID(cid)
-  const navigate = useNavigate()
+  const navigate = useHmNavigate()
   const revisedData = useMemo(() => {
     if (!data?.value) return null
 

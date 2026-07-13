@@ -1,6 +1,6 @@
 import {Shield} from "lucide-react";
 import React, {useMemo} from "react";
-import {useNavigate} from "react-router-dom";
+import {useHmNavigate} from "../../utils/useHmNavigate";
 import DataViewer from "../DataViewer";
 import EmptyState from "../EmptyState";
 
@@ -9,7 +9,7 @@ interface CapabilitiesTabProps {
 }
 
 const CapabilitiesTab: React.FC<CapabilitiesTabProps> = ({capabilities}) => {
-  const navigate = useNavigate();
+  const navigate = useHmNavigate();
   const preparedCapabilities = useMemo(() => {
     if (!Array.isArray(capabilities)) {
       console.warn("Capabilities is not an array:", capabilities);

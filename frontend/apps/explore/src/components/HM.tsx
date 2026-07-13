@@ -11,12 +11,15 @@ import {
   useCitations,
   useComments,
   useRawResource,
+  useResource,
 } from '@shm/shared'
 import {useCommentVersions} from '@shm/shared/models/comments'
+import {MessageCircle} from 'lucide-react'
 import {useMemo} from 'react'
-import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
+import {Link, useParams, useSearchParams} from 'react-router-dom'
 import {useApiHost} from '../apiHostStore'
-import {exploreTabHref, parseHmRoutePath, tabToViewTerm, viewTermToExploreTab} from '../utils/exploreHref'
+import {exploreHref, exploreTabHref, parseHmRoutePath, tabToViewTerm, viewTermToExploreTab} from '../utils/exploreHref'
+import {useHmNavigate} from '../utils/useHmNavigate'
 import {CopyTextButton} from './CopyTextButton'
 import {ExternalOpenButton, OpenInAppButton} from './ExternalOpenButton'
 import Tabs, {getSafeCurrentTab, getTabs, TabType} from './Tabs'
@@ -70,7 +73,7 @@ export default function HM() {
   const {uid, path: hmPath, viewTerm, commentId: routeCommentId} = parseHmRoutePath(path)
 
   const apiHost = useApiHost()
-  const navigate = useNavigate()
+  const navigate = useHmNavigate()
   const id = hmId(uid, {
     path: hmPath,
     version: searchParams.get('v') ? searchParams.get('v') : undefined,
@@ -79,12 +82,16 @@ export default function HM() {
   // tombstones, and not-found states instead of silently following them.
   const {data} = useRawResource(id)
   const resourceType = data?.type
-  const commentsTargetId = useMemo(() => {
-    if (data?.type !== 'comment') {
-      return id
-    }
-    return getCommentTargetId(data.comment)
-  }, [data, id])
+  // The document a comment is attached to. Non-null only when viewing a comment,
+  // so the comment page can link back to what it's commenting on.
+  const commentTargetId = useMemo(() => {
+    if (data?.type !== 'comment') return null
+    return getCommentTargetId(data.comment) ?? null
+  }, [data])
+  const commentsTargetId = commentTargetId ?? id
+  const {data: commentTargetResource} = useResource(commentTargetId)
+  const commentTargetName =
+    commentTargetResource?.type === 'document' ? commentTargetResource.document.metadata?.name : undefined
   const {data: commentsResponse} = useComments(commentsTargetId)
   const comments = useMemo(() => {
     if (data?.type !== 'comment') {
@@ -194,7 +201,12 @@ export default function HM() {
       case 'versions':
         return <CommentVersionsTab versions={commentVersions?.versions} />
       case 'comments':
-        return <CommentsTab comments={comments} />
+        return (
+          <CommentsTab
+            comments={comments}
+            emptyMessage={resourceType === 'comment' ? 'No replies yet' : 'No comments available'}
+          />
+        )
       case 'citations':
         return <CitationsTab citations={citations?.citations} />
       case 'capabilities':
@@ -228,6 +240,19 @@ export default function HM() {
         }
         title={url}
       />
+
+      {commentTargetId && (
+        <Link
+          to={exploreHref(commentTargetId)}
+          className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700 transition-colors hover:bg-blue-100"
+        >
+          <MessageCircle className="size-4 flex-shrink-0" />
+          <span className="flex-shrink-0 font-medium">Comment on</span>
+          <span className="min-w-0 truncate font-semibold">
+            {commentTargetName || `${commentTargetId.uid}${hmIdPathToEntityQueryPath(commentTargetId.path)}`}
+          </span>
+        </Link>
+      )}
 
       {isStatusResource ? (
         <ResourceStatus data={data} />

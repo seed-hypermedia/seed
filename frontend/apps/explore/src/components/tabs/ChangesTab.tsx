@@ -1,13 +1,13 @@
 import {packHmId, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {History} from 'lucide-react'
 import React, {useMemo} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useHmNavigate} from '../../utils/useHmNavigate'
 import DataViewer from '../DataViewer'
 import EmptyState from '../EmptyState'
 
 /** Renders document changes with hypermedia-friendly IDs and links. */
 const ChangesTab: React.FC<{changes: any[] | undefined; docId: UnpackedHypermediaId}> = ({changes, docId}) => {
-  const navigate = useNavigate()
+  const navigate = useHmNavigate()
   const preparedChanges = useMemo(() => {
     if (!Array.isArray(changes)) {
       console.warn('Changes is not an array:', changes)

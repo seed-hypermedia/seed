@@ -1,13 +1,12 @@
 import {UserCircle} from 'lucide-react'
 import React from 'react'
-import {NavigateFunction} from 'react-router-dom'
 import {DataViewer} from '../DataViewer'
 import EmptyState from '../EmptyState'
 
 interface ProfileTabProps {
   /** The account home document's metadata — its profile fields (name, icon, …). */
   metadata: Record<string, any> | undefined
-  onNavigate: NavigateFunction
+  onNavigate: (url: string) => void
 }
 
 /** Renders an account's profile (its home document metadata), distinct from the raw Document State. */
