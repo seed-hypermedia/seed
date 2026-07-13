@@ -1,5 +1,5 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {extractViewTermFromUrl, hmIdPathToEntityQueryPath, ViewTerm} from '@shm/shared'
+import {commentIdToHmId, extractViewTermFromUrl, hmIdPathToEntityQueryPath, ViewTerm} from '@shm/shared'
 import type {TabType} from '../components/Tabs'
 
 /** True when the id points at an account's home/profile (no path segments). */
@@ -80,8 +80,22 @@ export function parseHmRoutePath(routePath: string | undefined): {
   path: string[]
   viewTerm: ViewTerm | null
   defaultTab: TabType | null
+  commentId?: string
 } {
-  const {url: cleanedPath, viewTerm} = extractViewTermFromUrl(`/${routePath ?? ''}`)
+  const {url: cleanedPath, viewTerm, commentId} = extractViewTermFromUrl(`/${routePath ?? ''}`)
+  // `/:comments/<commentId>` locates a specific comment resource. Resolve it to
+  // that comment's id (uid/tsid) so the explorer opens the comment itself —
+  // here :comments is the comment locator, not a tab selector.
+  if (commentId) {
+    const commentResourceId = commentIdToHmId(commentId)
+    return {
+      uid: commentResourceId.uid,
+      path: commentResourceId.path?.filter(Boolean) ?? [],
+      viewTerm,
+      defaultTab: null,
+      commentId,
+    }
+  }
   const parts = cleanedPath.split('/').filter(Boolean)
   return {
     uid: parts[0] ?? '',

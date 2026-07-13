@@ -65,8 +65,9 @@ export default function HM() {
   const {'*': path} = useParams()
   const [searchParams] = useSearchParams()
   // Strip any trailing view term (e.g. /:profile, /:comments) so it doesn't
-  // leak into the entity path, and remember which tab it implies.
-  const {uid, path: hmPath, viewTerm} = parseHmRoutePath(path)
+  // leak into the entity path, and remember which tab it implies. A
+  // /:comments/<commentId> tail resolves `uid`/`hmPath` to the comment itself.
+  const {uid, path: hmPath, viewTerm, commentId: routeCommentId} = parseHmRoutePath(path)
 
   const apiHost = useApiHost()
   const navigate = useNavigate()
@@ -129,7 +130,9 @@ export default function HM() {
 
   // A view term in the path (e.g. /:comments) is the canonical tab selector;
   // `?tab=` is only consulted for explore-only tabs that have no view term.
-  const viewTermTab = viewTermToExploreTab(viewTerm)
+  // When a commentId resolved the resource, :comments was the locator (not a
+  // tab), so let the comment open on its default document view.
+  const viewTermTab = routeCommentId ? null : viewTermToExploreTab(viewTerm)
   const currentTab = getSafeCurrentTab(viewTermTab ?? searchParams.get('tab'), tabs)
 
   // Function to change tabs. Always navigate via the clean base path so any

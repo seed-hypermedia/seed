@@ -69,6 +69,16 @@ describe('parseHmRoutePath', () => {
   it('handles an empty route tail', () => {
     expect(parseHmRoutePath(undefined)).toEqual({uid: '', path: [], viewTerm: null, defaultTab: null})
   })
+
+  it('resolves a /:comments/<commentId> tail to the comment resource', () => {
+    expect(parseHmRoutePath('zDocAccount/mydoc/:comments/zCommentAccount/ts-abc123')).toEqual({
+      uid: 'zCommentAccount',
+      path: ['ts-abc123'],
+      viewTerm: ':comments',
+      defaultTab: null,
+      commentId: 'zCommentAccount/ts-abc123',
+    })
+  })
 })
 
 describe('viewTermToExploreTab', () => {
