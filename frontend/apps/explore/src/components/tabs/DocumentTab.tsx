@@ -1,10 +1,9 @@
 import React from "react";
-import {NavigateFunction} from "react-router-dom";
 import {DataViewer} from "../DataViewer";
 
 interface DocumentTabProps {
   data: any;
-  onNavigate: NavigateFunction;
+  onNavigate: (url: string) => void;
 }
 
 const DocumentTab: React.FC<DocumentTabProps> = ({data, onNavigate}) => {

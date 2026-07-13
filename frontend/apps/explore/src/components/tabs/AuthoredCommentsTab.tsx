@@ -1,12 +1,12 @@
 import {commentIdToHmId, entityQueryPathToHmIdPath, hmId, packHmId} from '@shm/shared'
 import {MessageCircle} from 'lucide-react'
 import React, {useMemo} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useHmNavigate} from '../../utils/useHmNavigate'
 import DataViewer from '../DataViewer'
 import EmptyState from '../EmptyState'
 
 const AuthoredCommentsTab: React.FC<{comments: any[] | undefined}> = ({comments}) => {
-  const navigate = useNavigate()
+  const navigate = useHmNavigate()
   const preparedComments = useMemo(() => {
     if (!Array.isArray(comments)) {
       console.warn('Comments is not an array:', comments)

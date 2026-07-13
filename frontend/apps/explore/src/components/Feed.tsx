@@ -1,13 +1,13 @@
 import {useInfiniteFeed, useLatestEvent} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useHmNavigate} from '../utils/useHmNavigate'
 import DataViewer from './DataViewer'
 
 export default function Feed() {
   const {data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error} = useInfiniteFeed(10)
   const {data: latestEvent} = useLatestEvent()
-  const navigate = useNavigate()
+  const navigate = useHmNavigate()
   const observerRef = useRef<IntersectionObserver>()
   const [showNewContentPill, setShowNewContentPill] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)

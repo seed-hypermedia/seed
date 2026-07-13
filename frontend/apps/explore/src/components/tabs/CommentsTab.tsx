@@ -1,12 +1,15 @@
 import {commentIdToHmId, entityQueryPathToHmIdPath, hmId, packHmId} from '@shm/shared'
 import {MessageCircle} from 'lucide-react'
 import React, {useMemo} from 'react'
-import {useNavigate} from 'react-router-dom'
+import {useHmNavigate} from '../../utils/useHmNavigate'
 import DataViewer from '../DataViewer'
 import EmptyState from '../EmptyState'
 
-const CommentsTab: React.FC<{comments: any[] | undefined}> = ({comments}) => {
-  const navigate = useNavigate()
+const CommentsTab: React.FC<{comments: any[] | undefined; emptyMessage?: string}> = ({
+  comments,
+  emptyMessage = 'No comments available',
+}) => {
+  const navigate = useHmNavigate()
   const preparedComments = useMemo(() => {
     if (!Array.isArray(comments)) {
       console.warn('Comments is not an array:', comments)
@@ -34,7 +37,7 @@ const CommentsTab: React.FC<{comments: any[] | undefined}> = ({comments}) => {
   }, [comments])
 
   if (!Array.isArray(comments) || comments.length === 0) {
-    return <EmptyState message="No comments available" icon={MessageCircle} />
+    return <EmptyState message={emptyMessage} icon={MessageCircle} />
   }
 
   return (

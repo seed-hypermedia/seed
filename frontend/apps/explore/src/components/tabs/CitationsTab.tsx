@@ -1,11 +1,11 @@
 import {Quote} from "lucide-react";
 import React, {useMemo} from "react";
-import {useNavigate} from "react-router-dom";
+import {useHmNavigate} from "../../utils/useHmNavigate";
 import DataViewer from "../DataViewer";
 import EmptyState from "../EmptyState";
 
 const CitationsTab: React.FC<{citations: any[] | undefined}> = ({citations}) => {
-  const navigate = useNavigate();
+  const navigate = useHmNavigate();
   const preparedCitations = useMemo(() => {
     if (!Array.isArray(citations)) {
       console.warn("Citations is not an array:", citations);

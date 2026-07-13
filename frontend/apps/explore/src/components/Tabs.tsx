@@ -55,7 +55,7 @@ export function getTabs({
 
   tabs.push({
     id: 'document',
-    label: `Document State${id.version ? ` (Exact Version)` : ''}`,
+    label: `${resourceType === 'comment' ? 'Comment' : 'Document'} State${id.version ? ` (Exact Version)` : ''}`,
   })
 
   if (resourceType === 'document') {
@@ -72,9 +72,14 @@ export function getTabs({
     })
   }
 
+  // On a comment this tab lists the comment's replies; on a document it lists
+  // top-level comments.
   tabs.push({
     id: 'comments',
-    label: `${commentCount} ${pluralS(commentCount, 'Comment')}`,
+    label:
+      resourceType === 'comment'
+        ? `${commentCount} ${pluralS(commentCount, 'Reply', 'Replies')}`
+        : `${commentCount} ${pluralS(commentCount, 'Comment')}`,
   })
   if (resourceType === 'document' || resourceType === 'comment') {
     tabs.push({
@@ -82,14 +87,17 @@ export function getTabs({
       label: `${citationCount} ${pluralS(citationCount, 'Citation')}`,
     })
   }
-  tabs.push({
-    id: 'capabilities',
-    label: `${capabilityCount} ${pluralS(capabilityCount, 'Capability', 'Capabilities')}`,
-  })
-  tabs.push({
-    id: 'children',
-    label: `${childrenCount} ${pluralS(childrenCount, 'Child', 'Children')}`,
-  })
+  // Capabilities and children are document-only concepts; comments have neither.
+  if (resourceType !== 'comment') {
+    tabs.push({
+      id: 'capabilities',
+      label: `${capabilityCount} ${pluralS(capabilityCount, 'Capability', 'Capabilities')}`,
+    })
+    tabs.push({
+      id: 'children',
+      label: `${childrenCount} ${pluralS(childrenCount, 'Child', 'Children')}`,
+    })
+  }
 
   if (isAccountRoot) {
     tabs.push({
