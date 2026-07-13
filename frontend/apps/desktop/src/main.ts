@@ -64,6 +64,7 @@ import {initDerivedSubscriptions} from './derived-subscriptions'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
 import {getStoredEmbeddingEnabled} from './app-experiments'
+import {getStoredNetworkConfig} from './app-settings'
 import {setupOnboardingHandlers} from './app-onboarding-store'
 import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
@@ -241,8 +242,9 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
     // Start daemon - this spawns the process and polls until ACTIVE
     // Daemon will send state updates (startup, migrating, etc) to loading window
     const embeddingEnabled = getStoredEmbeddingEnabled()
-    logger.info('[MAIN]: Starting daemon with embedding:', {embeddingEnabled})
-    await startMainDaemon(embeddingEnabled)
+    const networkConfig = getStoredNetworkConfig()
+    logger.info('[MAIN]: Starting daemon with settings:', {embeddingEnabled, networkConfig})
+    await startMainDaemon(embeddingEnabled, networkConfig)
     logger.info('[MAIN]: Daemon is ACTIVE')
   } finally {
     // Cleanup: unsubscribe if still subscribed

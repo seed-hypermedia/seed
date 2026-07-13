@@ -13,7 +13,7 @@ import {writeFile} from 'fs-extra'
 import path from 'path'
 import z from 'zod'
 import {deleteAccount} from './app-account-management'
-import {getDaemonState, restartDaemonWithEmbedding, subscribeDaemonState} from './daemon'
+import {getDaemonState, restartDaemon, subscribeDaemonState} from './daemon'
 import {aiConfigApi} from './app-ai-config'
 import {chatApi} from './app-chat'
 import {commentsApi} from './app-comments'
@@ -33,7 +33,7 @@ import {promptingApi} from './app-prompting'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
-import {appSettingsApi} from './app-settings'
+import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
 import {sitesApi} from './app-sites'
 import {syncApi} from './app-sync'
 import {t} from './app-trpc'
@@ -474,7 +474,18 @@ export const router = t.router({
 
   restartDaemonWithEmbedding: t.procedure.input(z.object({embeddingEnabled: z.boolean()})).mutation(async ({input}) => {
     log.info('Restarting daemon with embedding setting:', input)
-    await restartDaemonWithEmbedding(input.embeddingEnabled)
+    await restartDaemon({embeddingEnabled: input.embeddingEnabled})
+    return {success: true}
+  }),
+
+  getDaemonNetworkConfig: t.procedure.query(() => {
+    return getStoredNetworkConfig()
+  }),
+
+  setDaemonNetworkConfig: t.procedure.input(networkConfigSchema).mutation(async ({input}) => {
+    log.info('Changing daemon network setting:', input)
+    writeNetworkConfig(input)
+    await restartDaemon({network: input})
     return {success: true}
   }),
 })
