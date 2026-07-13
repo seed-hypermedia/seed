@@ -186,6 +186,166 @@ func TestListEventsEmitsNextTokenWhenDedupShortensPage(t *testing.T) {
 		"id=1 must be reachable via pagination after dedup shortens page 1")
 }
 
+func TestListEventsPaginationDoesNotSkipWindowWhenOldMentionEntersPage(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	// Fixture mirroring the production incident (seed-hypermedia/seed#863):
+	// the main (blobs) query and the mentions query are each limited to
+	// PageSize, but the mentions scan reaches much deeper in time. When the
+	// in-memory dedup drops one of the main events from the first page, an
+	// old mention slips into the page, and the next-page token — the minimum
+	// cursor of the page — jumps below every not-yet-emitted main event,
+	// silently skipping them on all subsequent pages.
+	//
+	// Timeline: seven Profile events at ts 6000..1000; blobs 2 and 3 share a
+	// resource and timestamp so dedup drops one; a single comment/Embed
+	// mention sits far in the past at ts=500.
+	commentTime := time.UnixMilli(500).UTC().Round(blob.ClockPrecision)
+	commentTSID := blob.NewTSID(commentTime, []byte("old comment"))
+	commentAttrs := fmt.Sprintf(`{"tsid":%q}`, commentTSID.String())
+	commentHash, err := multihash.Sum([]byte("old comment"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 1, 1, author.String()+"/p1", 6_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 2, 2, author.String()+"/p2", 5_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEventForResource(conn, 3, 2, 5_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 4, 4, author.String()+"/p4", 4_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 5, 5, author.String()+"/p5", 3_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 6, 6, author.String()+"/p6", 2_000); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 7, 7, author.String()+"/p7", 1_000); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (10, ?, ?, ?, 1, 10);`, nil, []byte(commentHash), int64(0x71), []byte{1}); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, extra_attrs) VALUES (10, 'Comment', ?, 1, 1, ?);`, nil, commentTime.UnixMilli(), commentAttrs); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (source, target, type, is_pinned, extra_attrs) VALUES (10, 4, 'comment/Embed', 0, '{}');`, nil)
+	}))
+
+	// Page through the feed exactly like the frontend does (PageSize 5,
+	// claimed-time order) and collect every delivered main blob id.
+	var gotBlobIDs []int64
+	var gotMention bool
+	var token string
+	for range 10 {
+		page, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+			PageSize:        5,
+			PageToken:       token,
+			FilterEventType: []string{"Profile", "comment/Embed"},
+		})
+		require.NoError(t, err)
+		for _, e := range page.Events {
+			if nb := e.GetNewBlob(); nb != nil {
+				gotBlobIDs = append(gotBlobIDs, nb.GetBlobId())
+			} else if e.GetNewMention() != nil {
+				gotMention = true
+			}
+		}
+		if page.NextPageToken == "" {
+			break
+		}
+		token = page.NextPageToken
+	}
+
+	for _, id := range []int64{1, 4, 5, 6, 7} {
+		require.Contains(t, gotBlobIDs, id, "blob %d must be delivered by pagination", id)
+	}
+	require.True(t, gotMention, "the old mention must eventually be delivered")
+}
+
+func TestListEventsEmitsNextTokenWhenTruncationCutsUnderFullFetches(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	// Both DB fetches return fewer rows than PageSize (4 main events, 2
+	// mentions), but the merged list (6) still exceeds PageSize (5). The
+	// truncated tail must stay reachable via a next-page token instead of
+	// dead-ending.
+	mkComment := func(conn *sqlite.Conn, blobID int64, millis int64) error {
+		commentTime := time.UnixMilli(millis).UTC().Round(blob.ClockPrecision)
+		tsid := blob.NewTSID(commentTime, []byte(fmt.Sprintf("comment-%d", blobID)))
+		attrs := fmt.Sprintf(`{"tsid":%q}`, tsid.String())
+		hash, err := multihash.Sum([]byte(fmt.Sprintf("comment-%d", blobID)), multihash.SHA2_256, -1)
+		if err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (?, ?, ?, ?, 1, ?);`, nil, blobID, []byte(hash), int64(0x71), []byte{1}, blobID); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, extra_attrs) VALUES (?, 'Comment', ?, 1, 1, ?);`, nil, blobID, commentTime.UnixMilli(), attrs); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (source, target, type, is_pinned, extra_attrs) VALUES (?, 2, 'comment/Embed', 0, '{}');`, nil, blobID)
+	}
+
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		for i, millis := range []int64{6_000, 5_000, 4_000, 3_000} {
+			id := int64(i + 1)
+			if err := insertActivityProfileEvent(conn, id, id, author.String()+"/p"+strconv.FormatInt(id, 10), millis); err != nil {
+				return err
+			}
+		}
+		if err := mkComment(conn, 10, 2_000); err != nil {
+			return err
+		}
+		return mkComment(conn, 11, 1_000)
+	}))
+
+	var gotMentions int
+	var gotBlobs int
+	var token string
+	for range 10 {
+		page, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+			PageSize:        5,
+			PageToken:       token,
+			FilterEventType: []string{"Profile", "comment/Embed"},
+		})
+		require.NoError(t, err)
+		for _, e := range page.Events {
+			if e.GetNewBlob() != nil {
+				gotBlobs++
+			} else if e.GetNewMention() != nil {
+				gotMentions++
+			}
+		}
+		if page.NextPageToken == "" {
+			break
+		}
+		token = page.NextPageToken
+	}
+
+	require.Equal(t, 4, gotBlobs, "all main events must be delivered")
+	require.Equal(t, 2, gotMentions, "both mentions must be delivered even when truncation cuts the first page")
+}
+
 func TestListEventsCommentMentionSourceDocumentUsesCommentTarget(t *testing.T) {
 	alice := newTestServer(t, "alice")
 	ctx := context.Background()

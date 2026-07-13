@@ -266,6 +266,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// Count rows returned by the main DB fetch (pre-filter). Used to decide whether to
 	// emit a next-page token even if the deleted/dedup filters shorten the visible page.
 	var mainRawCount int
+	// Smallest cursor value returned by the main DB fetch (rows stream in
+	// cursor-descending order, so the last row sets it). Together with
+	// mentionsScanFloor this bounds how deep the merged page may reach — see
+	// the coverageFloor clamp below.
+	var mainScanFloor int64
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.ExecTransient(conn, getEventsStr, func(stmt *sqlite.Stmt) error {
 			mainRawCount++
@@ -318,6 +323,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if orderByObserved {
 				cursor = id
 			}
+			mainScanFloor = cursor
 			eventCursors = append(eventCursors, feedCursor{
 				cursorValue: cursor,
 				blobID:      id,
@@ -407,6 +413,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// Count rows returned by the mentions DB fetch (pre-filter). Used together with
 	// mainRawCount to decide whether more pages exist after post-fetch filtering.
 	var mentionsRawCount int
+	// Smallest cursor value returned by the mentions DB fetch (same contract
+	// as mainScanFloor).
+	var mentionsScanFloor int64
 
 	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -526,6 +535,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if orderByObserved {
 				cursor = blobID
 			}
+			mentionsScanFloor = cursor
 			eventCursors = append(eventCursors, feedCursor{
 				cursorValue: cursor,
 				blobID:      blobID,
@@ -574,7 +584,36 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 	events, eventCursors = filterDeletedAndDedupEvents(events, eventCursors, deletedList, movedResources, orderByObserved)
 
-	// Apply page size to both arrays.
+	// Each DB fetch above is limited to PageSize rows, so a fetch that filled
+	// its limit only covered cursors down to its scan floor. The merged page
+	// must not emit anything below the deepest such floor: the other fetch
+	// hasn't scanned that far yet, and the next-page token (the minimum cursor
+	// of the page) would skip everything in between — events lost on every
+	// subsequent page. Clamped events are re-fetched by the next page.
+	var coverageFloor int64
+	if mainRawCount >= int(req.PageSize) && mainScanFloor > coverageFloor {
+		coverageFloor = mainScanFloor
+	}
+	if mentionsRawCount >= int(req.PageSize) && mentionsScanFloor > coverageFloor {
+		coverageFloor = mentionsScanFloor
+	}
+	if coverageFloor > 0 {
+		kept := events[:0]
+		keptCursors := eventCursors[:0]
+		for i, cursor := range eventCursors {
+			if cursor.cursorValue != 0 && cursor.cursorValue < coverageFloor {
+				continue
+			}
+			kept = append(kept, events[i])
+			keptCursors = append(keptCursors, cursor)
+		}
+		events = kept
+		eventCursors = keptCursors
+	}
+
+	// Apply page size to both arrays. If truncation cuts events, more pages
+	// exist even when both DB fetches came back under-full.
+	truncated := len(events) > int(req.PageSize)
 	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
 	events = events[:pageLen]
 	eventCursors = eventCursors[:pageLen]
@@ -608,7 +647,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	// Emit a token whenever either DB fetch returned a full batch, because the
 	// deleted/dedup filters above can shorten the visible page below req.PageSize
 	// while older rows remain in the database.
-	rawHasMore := mainRawCount >= int(req.PageSize) || mentionsRawCount >= int(req.PageSize)
+	rawHasMore := mainRawCount >= int(req.PageSize) || mentionsRawCount >= int(req.PageSize) || truncated
 	var nextPageToken string
 	if pageLen > 0 && rawHasMore {
 		minCursor := eventCursors[0].cursorValue
@@ -620,6 +659,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		if minCursor != 0 {
 			nextPageToken = apiutil.EncodePageToken(minCursor-1, nil)
 		}
+	} else if pageLen == 0 && rawHasMore && coverageFloor > 0 {
+		// Everything on this page was clamped or filtered out, but the DB has
+		// more rows. Emit a token at the coverage boundary so the client can
+		// keep paging instead of dead-ending on an empty page.
+		nextPageToken = apiutil.EncodePageToken(coverageFloor-1, nil)
 	}
 
 	return &activity.ListEventsResponse{
