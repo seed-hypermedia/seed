@@ -897,16 +897,16 @@ export function CommentContent({
 
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
-  const currentRoute = useNavRoute()
-  const useFullPageNavigation = currentRoute.key === 'activity' || currentRoute.key === 'comments'
-  const commentEntityId = commentIdToHmId(comment.id)
-  const destRoute: NavRoute = useFullPageNavigation
-    ? {key: 'document', id: commentEntityId}
-    : {
-        key: 'document',
-        id: targetId!,
-        panel: {key: 'comments', id: targetId!, openComment: comment.id},
+  // Same destination as "Copy Comment Link": the target document's comments
+  // view focused on this comment, staying within the site context. The id
+  // drops the comment's targetVersion so the URL matches the copied link.
+  const destRoute: NavRoute | null = targetId
+    ? {
+        key: 'comments',
+        id: hmId(targetId.uid, {path: targetId.path}),
+        openComment: comment.id,
       }
+    : null
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
