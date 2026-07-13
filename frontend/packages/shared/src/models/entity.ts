@@ -26,7 +26,7 @@ import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {createWebHMUrl, entityQueryPathToHmIdPath, hmId, latestId, unpackHmId} from '../utils'
+import {createWebHMUrl, entityQueryPathToHmIdPath, extractViewTermFromUrl, hmId, latestId, unpackHmId} from '../utils'
 import {
   queryAccount,
   queryCapabilities,
@@ -36,6 +36,7 @@ import {
   queryDirectory,
   queryDocumentCollaborators,
   queryDomain,
+  queryRawResource,
   queryResource,
 } from './queries'
 import {queryKeys} from './query-keys'
@@ -196,6 +197,27 @@ export function useResource(
     isDiscovering,
     isTombstone,
   }
+}
+
+/**
+ * Fetches a resource WITHOUT following redirects.
+ *
+ * `useResource` auto-follows redirects, so its `data.type` is never 'redirect' —
+ * a redirected profile/document resolves straight to its target. This hook
+ * instead returns the raw resource, so `data.type` can be 'redirect',
+ * 'tombstone', 'not-found', or 'error'. Inspector UIs (e.g. the Explore app)
+ * use it to display the redirect itself and link to the destination rather than
+ * navigating there automatically.
+ */
+export function useRawResource(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: UseQueryOptions<HMResource | null>,
+) {
+  const client = useUniversalClient()
+  return useQuery({
+    ...queryRawResource(client, id),
+    ...options,
+  })
 }
 
 /**
@@ -776,7 +798,26 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
     return {destination: `/ipfs/${cid}`}
   }
 
-  const unpackedId = unpackHmId(normalizedInput)
+  // Strip any trailing site view term (e.g. /:comments, /:profile) so the
+  // underlying resource resolves cleanly, then re-attach it to the destination
+  // so the explorer opens the matching view. `unpackHmId` already resolves the
+  // `/:comments/<id>` form into the comment resource, so keep the raw input in
+  // that case and don't append a redundant view term.
+  const {url: cleanedInput, viewTerm, commentId, accountUid} = extractViewTermFromUrl(normalizedInput)
+  const idInput = commentId ? normalizedInput : cleanedInput
+  const passViewTerm = commentId ? null : viewTerm
+
+  // A profile-family view term can name the account it applies to
+  // (e.g. site.com/:profile/<accountUid>). That targets the named account's
+  // profile directly — not the site host it happened to be viewed on — so it
+  // must win over resolving the hostname below.
+  if (accountUid) {
+    return {
+      destination: createWebHMUrl(accountUid, {hostname: null, viewTerm: passViewTerm}),
+    }
+  }
+
+  const unpackedId = unpackHmId(idInput)
   if (unpackedId) {
     return {
       destination: createWebHMUrl(unpackedId.uid, {
@@ -786,14 +827,15 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
         blockRef: unpackedId.blockRef,
         blockRange: unpackedId.blockRange,
         hostname: null,
+        viewTerm: passViewTerm,
       }),
     }
   }
 
-  if (normalizedInput.match(/\./)) {
+  if (cleanedInput.match(/\./)) {
     // it might be a url
-    const hasProtocol = normalizedInput.match(/^https?:\/\//)
-    const searchUrl = hasProtocol ? normalizedInput : `https://${normalizedInput}`
+    const hasProtocol = cleanedInput.match(/^https?:\/\//)
+    const searchUrl = hasProtocol ? cleanedInput : `https://${cleanedInput}`
 
     try {
       const resolved = await resolveHypermediaUrl(searchUrl)
@@ -806,6 +848,7 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
             blockRef: resolved.hmId.blockRef,
             blockRange: resolved.hmId.blockRange,
             hostname: null,
+            viewTerm: passViewTerm,
           }),
         }
       }

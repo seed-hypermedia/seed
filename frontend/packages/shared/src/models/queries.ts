@@ -112,6 +112,35 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
 }
 
 /**
+ * Query options for fetching a resource WITHOUT following redirects.
+ *
+ * Unlike queryResource (which auto-follows redirects so callers never see
+ * {type: 'redirect'}), this returns the raw resource exactly as the server
+ * reports it — including redirect, tombstone, and not-found. Inspector tools
+ * like the Explore app use this so they can display the redirect itself and
+ * link to the destination instead of silently navigating there.
+ */
+export function queryRawResource(client: UniversalClient, id: UnpackedHypermediaId | null | undefined) {
+  const version = id?.version || undefined
+  const latest = id?.latest || false
+  return {
+    queryKey: [queryKeys.ENTITY, 'raw', id?.id, version, latest] as const,
+    queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResource | null> => {
+      if (!id) return null
+      try {
+        const res = await client.request('Resource', id, {signal})
+        return HMResourceSchema.parse(res)
+      } catch (e) {
+        if (isAbortError(e)) throw e
+        const message = e instanceof Error ? e.message : 'Unknown error'
+        return {type: 'error', id, message}
+      }
+    },
+    enabled: !!id,
+  }
+}
+
+/**
  * Query options for fetching account metadata.
  * Returns HMMetadataPayload or null (handles not-found internally).
  */
