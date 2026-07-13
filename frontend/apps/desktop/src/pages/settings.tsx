@@ -532,9 +532,9 @@ function GeneralSettings() {
 type NetworkMode = 'mainnet' | 'testnet' | 'custom'
 
 const NETWORK_MODE_LABELS: Record<NetworkMode, string> = {
-  mainnet: 'Mainnet',
-  testnet: 'Testnet',
-  custom: 'Custom',
+  mainnet: 'Main Network',
+  testnet: 'Test Network',
+  custom: 'Custom Network',
 }
 
 function NetworkSettings() {
@@ -578,6 +578,13 @@ function NetworkSettings() {
   }
 
   const canConfirm = pendingMode !== 'custom' || pendingCustomName.trim().length > 0
+  // The select item for 'custom' only exists when a custom network is already saved;
+  // a pending new custom network maps to the 'custom-new' item.
+  const selectValue = pendingMode
+    ? pendingMode === 'custom' && savedMode !== 'custom'
+      ? 'custom-new'
+      : pendingMode
+    : savedMode
   const pendingNetworkLabel =
     pendingMode === 'custom'
       ? pendingCustomName.trim()
@@ -601,17 +608,27 @@ function NetworkSettings() {
             <div className="flex items-center gap-2">
               {setNetwork.isLoading ? <Spinner size="small" /> : null}
               <Select
-                value={pendingMode ?? savedMode}
-                onValueChange={(value) => requestModeChange(value as NetworkMode)}
+                value={selectValue}
+                onValueChange={(value) => {
+                  if (value === 'custom-new') {
+                    setPendingMode('custom')
+                    setPendingCustomName('')
+                  } else {
+                    requestModeChange(value as NetworkMode)
+                  }
+                }}
                 disabled={networkConfig.isLoading || setNetwork.isLoading}
               >
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Select network" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mainnet">Mainnet</SelectItem>
-                  <SelectItem value="testnet">Testnet</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
+                  <SelectItem value="mainnet">{NETWORK_MODE_LABELS.mainnet}</SelectItem>
+                  <SelectItem value="testnet">{NETWORK_MODE_LABELS.testnet}</SelectItem>
+                  {savedMode === 'custom' && savedCustomName ? (
+                    <SelectItem value="custom">{savedCustomName}</SelectItem>
+                  ) : null}
+                  <SelectItem value="custom-new">{NETWORK_MODE_LABELS.custom}</SelectItem>
                 </SelectContent>
               </Select>
               {savedMode === 'custom' ? (
