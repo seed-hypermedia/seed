@@ -10,15 +10,16 @@ import {
   useChildrenList,
   useCitations,
   useComments,
-  useResource,
+  useRawResource,
 } from '@shm/shared'
 import {useCommentVersions} from '@shm/shared/models/comments'
 import {useMemo} from 'react'
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
 import {useApiHost} from '../apiHostStore'
+import {exploreTabHref, parseHmRoutePath, tabToViewTerm, viewTermToExploreTab} from '../utils/exploreHref'
 import {CopyTextButton} from './CopyTextButton'
 import {ExternalOpenButton, OpenInAppButton} from './ExternalOpenButton'
-import Tabs, {getSafeCurrentTab, getTabSearchParams, getTabs, TabType} from './Tabs'
+import Tabs, {getSafeCurrentTab, getTabs, TabType} from './Tabs'
 import AuthoredCommentsTab from './tabs/AuthoredCommentsTab'
 import CapabilitiesTab from './tabs/CapabilitiesTab'
 import ChangesTab from './tabs/ChangesTab'
@@ -27,7 +28,12 @@ import CitationsTab from './tabs/CitationsTab'
 import CommentVersionsTab from './tabs/CommentVersionsTab'
 import CommentsTab from './tabs/CommentsTab'
 import DocumentTab from './tabs/DocumentTab'
+import ProfileTab from './tabs/ProfileTab'
+import {ResourceStatus} from './ResourceStatus'
 import {Title} from './Title'
+
+/** Resource states rendered as a status panel instead of the tabbed document view. */
+const STATUS_RESOURCE_TYPES = ['redirect', 'tombstone', 'not-found', 'error'] as const
 
 /** Returns all descendant replies for a comment in the same order they were loaded. */
 export function getReplyComments(comments: HMComment[] | undefined, commentId: string | null | undefined): HMComment[] {
@@ -57,10 +63,10 @@ export function getReplyComments(comments: HMComment[] | undefined, commentId: s
 
 export default function HM() {
   const {'*': path} = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const pathParts = path ? path.split('/') : []
-  const uid = pathParts[0]
-  const hmPath = pathParts.slice(1)
+  const [searchParams] = useSearchParams()
+  // Strip any trailing view term (e.g. /:profile, /:comments) so it doesn't
+  // leak into the entity path, and remember which tab it implies.
+  const {uid, path: hmPath, viewTerm} = parseHmRoutePath(path)
 
   const apiHost = useApiHost()
   const navigate = useNavigate()
@@ -68,7 +74,9 @@ export default function HM() {
     path: hmPath,
     version: searchParams.get('v') ? searchParams.get('v') : undefined,
   })
-  const {data} = useResource(id)
+  // Use the redirect-preserving fetch so the explorer can display redirects,
+  // tombstones, and not-found states instead of silently following them.
+  const {data} = useRawResource(id)
   const resourceType = data?.type
   const commentsTargetId = useMemo(() => {
     if (data?.type !== 'comment') {
@@ -119,12 +127,16 @@ export default function HM() {
     ],
   )
 
-  // Get current tab from URL or default to "document"
-  const currentTab = getSafeCurrentTab(searchParams.get('tab'), tabs)
+  // A view term in the path (e.g. /:comments) is the canonical tab selector;
+  // `?tab=` is only consulted for explore-only tabs that have no view term.
+  const viewTermTab = viewTermToExploreTab(viewTerm)
+  const currentTab = getSafeCurrentTab(viewTermTab ?? searchParams.get('tab'), tabs)
 
-  // Function to change tabs
+  // Function to change tabs. Always navigate via the clean base path so any
+  // current view term is dropped: tabs backed by a view term encode it in the
+  // path (/:comments), explore-only tabs fall back to a `?tab=` query param.
   const handleTabChange = (tab: TabType) => {
-    setSearchParams(getTabSearchParams(searchParams, tab))
+    navigate(exploreTabHref(id, tab, searchParams))
   }
 
   const preparedData = useMemo(() => {
@@ -161,24 +173,17 @@ export default function HM() {
       return {type: 'comment', comment: data.comment}
     }
 
-    if (data.type === 'redirect') {
-      return {type: 'redirect', redirectTarget: data.redirectTarget}
-    }
-
-    if (data.type === 'not-found') {
-      return {type: 'not-found'}
-    }
-
-    if (data.type === 'tombstone') {
-      return {type: 'tombstone'}
-    }
-
+    // Redirect / tombstone / not-found / error are rendered by <ResourceStatus />.
     return null
   }, [data, id])
 
   // Render tab content based on current tab
   const renderTabContent = () => {
     switch (currentTab) {
+      case 'profile':
+        return (
+          <ProfileTab metadata={data?.type === 'document' ? data.document.metadata : undefined} onNavigate={navigate} />
+        )
       case 'document':
         return <DocumentTab data={preparedData} onNavigate={navigate} />
       case 'changes':
@@ -205,6 +210,8 @@ export default function HM() {
     webUrl += `?v=${id.version}`
   }
 
+  const isStatusResource = !!data && STATUS_RESOURCE_TYPES.includes(data.type as (typeof STATUS_RESOURCE_TYPES)[number])
+
   return (
     <div className="container mx-auto max-w-full overflow-hidden p-4">
       <Title
@@ -219,20 +226,26 @@ export default function HM() {
         title={url}
       />
 
-      <Tabs
-        id={id}
-        resourceType={resourceType}
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        changeCount={changes?.changes?.length}
-        versionCount={commentVersions?.versions?.length}
-        commentCount={comments?.length}
-        citationCount={citations?.citations?.length}
-        capabilityCount={capabilities?.length}
-        childrenCount={childrenDocs?.length}
-        authoredCommentCount={authoredComments?.comments?.length}
-      />
-      <div className="tab-content">{renderTabContent()}</div>
+      {isStatusResource ? (
+        <ResourceStatus data={data} />
+      ) : (
+        <>
+          <Tabs
+            id={id}
+            resourceType={resourceType}
+            currentTab={currentTab}
+            onTabChange={handleTabChange}
+            changeCount={changes?.changes?.length}
+            versionCount={commentVersions?.versions?.length}
+            commentCount={comments?.length}
+            citationCount={citations?.citations?.length}
+            capabilityCount={capabilities?.length}
+            childrenCount={childrenDocs?.length}
+            authoredCommentCount={authoredComments?.comments?.length}
+          />
+          <div className="tab-content">{renderTabContent()}</div>
+        </>
+      )}
     </div>
   )
 }

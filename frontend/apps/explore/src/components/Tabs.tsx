@@ -4,6 +4,7 @@ import React from 'react'
 
 /** Supported Explore tabs for a resource page. */
 export type TabType =
+  | 'profile'
   | 'document'
   | 'changes'
   | 'versions'
@@ -43,12 +44,19 @@ export function getTabs({
   childrenCount = 0,
   authoredCommentCount = 0,
 }: {id: UnpackedHypermediaId; resourceType?: ResourceType} & TabCounts): TabDefinition[] {
-  const tabs: TabDefinition[] = [
-    {
-      id: 'document',
-      label: `Document State${id.version ? ` (Exact Version)` : ''}`,
-    },
-  ]
+  const isAccountRoot = !id.path?.filter((p) => !!p).length
+  const tabs: TabDefinition[] = []
+
+  // Accounts expose a Profile view (their home document as a profile); the raw
+  // Document State stays available alongside it.
+  if (isAccountRoot && resourceType === 'document') {
+    tabs.push({id: 'profile', label: 'Profile'})
+  }
+
+  tabs.push({
+    id: 'document',
+    label: `Document State${id.version ? ` (Exact Version)` : ''}`,
+  })
 
   if (resourceType === 'document') {
     tabs.push({
@@ -83,7 +91,7 @@ export function getTabs({
     label: `${childrenCount} ${pluralS(childrenCount, 'Child', 'Children')}`,
   })
 
-  if (!id.path?.filter((p) => !!p).length) {
+  if (isAccountRoot) {
     tabs.push({
       id: 'authored-comments',
       label: `${authoredCommentCount} ${pluralS(authoredCommentCount, 'Authored Comment', 'Authored Comments')}`,
