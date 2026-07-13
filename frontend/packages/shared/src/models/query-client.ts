@@ -47,10 +47,20 @@ export function registerQueryClient(client: QueryClient) {
   registeredClient = client
 }
 
-export function invalidateQueries(queryKey: QueryKey) {
+export type InvalidateQueriesOptions = {
+  /**
+   * Which matching queries to refetch (react-query `refetchType`, default 'active').
+   * Pass 'all' when the affected view may be unmounted at invalidation time: the web
+   * query client disables `refetchOnMount`, so an invalidated inactive query would
+   * otherwise render its stale cache forever when it remounts.
+   */
+  refetchType?: 'active' | 'inactive' | 'all' | 'none'
+}
+
+export function invalidateQueries(queryKey: QueryKey, options?: InvalidateQueriesOptions) {
   // Always invalidate the registered client directly
   if (registeredClient) {
-    registeredClient.invalidateQueries({queryKey})
+    registeredClient.invalidateQueries({queryKey, refetchType: options?.refetchType})
   }
   // Fire subscriptions for platform-specific behavior (IPC broadcast on desktop)
   queryInvalidationSubscriptions.forEach((handler) => handler(queryKey))
