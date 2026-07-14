@@ -140,12 +140,14 @@ export default function AccountSettingsPage() {
     replace,
   ])
 
-  const accountOptions = accountIds
-    .map((uid, index) => {
-      const data = accountQueries[index]?.data
-      return data ? {uid, data} : null
-    })
-    .filter((o) => !!o)
+  // Keep every key the daemon reports, even if its profile document hasn't
+  // resolved (unnamed / un-onboarded accounts return null metadata). The row
+  // renderer already falls back to an abbreviated key id, so a valid key must
+  // never be filtered out just because it has no published profile yet.
+  const accountOptions = accountIds.map((uid, index) => ({
+    uid,
+    data: accountQueries[index]?.data ?? null,
+  }))
 
   function selectAccount(uid: string) {
     replace({key: 'account-settings', accountUid: uid, tab: accountSettingsRoute?.tab})
@@ -156,12 +158,12 @@ export default function AccountSettingsPage() {
       <AccountSettingsLayout
         accounts={accountOptions.map((option) => ({
           id: option.uid,
-          name: option.data.metadata?.name || `?${option.uid.slice(-8)}`,
+          name: option.data?.metadata?.name || `?${option.uid.slice(-8)}`,
           icon: (
             <HMIcon
               id={hmId(option.uid)}
-              name={option.data.metadata?.name}
-              icon={option.data.metadata?.icon}
+              name={option.data?.metadata?.name}
+              icon={option.data?.metadata?.icon}
               size={28}
             />
           ),
@@ -258,7 +260,7 @@ export default function AccountSettingsPage() {
         onOpenChange={(open) => {
           if (!open) setDeleteTargetUid(null)
         }}
-        accountName={accountOptions.find((o) => o.uid === deleteTargetUid)?.data.metadata?.name || 'Account'}
+        accountName={accountOptions.find((o) => o.uid === deleteTargetUid)?.data?.metadata?.name || 'Account'}
         busy={deleteKey.isPending}
         onDelete={() => {
           if (!deleteTargetUid) return

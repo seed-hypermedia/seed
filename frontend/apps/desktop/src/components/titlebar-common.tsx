@@ -199,13 +199,13 @@ export function AccountProfileButton() {
     },
   })
 
-  const accountOptions = myAccountIds.data
-    ?.map((uid, index) => {
-      const accountData = accountQueries[index]?.data
-      if (!accountData) return null
-      return accountData
-    })
-    .filter((d) => !!d)
+  const accountOptions = myAccountIds.data?.map((uid, index) => {
+    const accountData = accountQueries[index]?.data
+    // Fall back to a bare id-only entry so un-onboarded keys (no profile
+    // metadata yet) still appear and remain selectable in the switcher,
+    // instead of being filtered out and stranding a valid daemon key.
+    return accountData ?? {id: hmId(uid), metadata: null}
+  })
   const hasAccounts = !!myAccountIds.data?.length
 
   useEffect(() => {
