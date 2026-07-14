@@ -744,3 +744,15 @@
 .hm-prose [data-text-family='serif'] {
   font-family: var(--font-serif);
 }
+
+/* Extra document-wrapper room for the per-block comment/citation buttons on
+ * wider viewports (consumed by useDocumentLayout's wrapperProps). A CSS media
+ * query — not JS media state — so server-rendered and hydrated layout agree. */
+:root {
+  --doc-gtsm-bonus: 0px;
+}
+@media (min-width: 861px) {
+  :root {
+    --doc-gtsm-bonus: 44px;
+  }
+}

@@ -72,8 +72,9 @@ import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/br
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {FilePen, Search} from 'lucide-react'
-import {CSSProperties, lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
@@ -1005,11 +1006,11 @@ export function PageWrapper({
 
   return (
     <div
-      style={
-        {
-          '--site-header-default-h': headerData.isCenterLayout ? '96px' : '60px',
-        } as CSSProperties
-      }
+      // The SSR fallback for the measured --site-header-live-h. The values
+      // live in a stylesheet (web app styles.css) rather than an inline
+      // style because the header height is responsive; only the pre-hydration
+      // web paint ever reads them.
+      data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
       className={cn(
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
@@ -2841,29 +2842,29 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
-        {DocumentContentComponent ? (
-          <DocumentContentComponent
-            blocks={existingDraftContent ?? document.content}
-            resourceId={resourceId}
-            rootChildrenType={rootChildrenType}
-            focusBlockId={resourceId.blockRef ?? undefined}
-            focusBlockRange={resourceId.blockRange ?? undefined}
-            blockCitations={blockCitations}
-            onBlockCitationClick={onBlockCitationClick}
-            onBlockCommentClick={onBlockCommentClick}
-            onBlockSelect={onBlockSelect}
-            onTextSelection={onTextSelection}
-            onEditorReady={onEditorReady}
-            draftCursorPosition={existingDraftCursorPosition}
-            perspectiveAccountUid={perspectiveAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            isUnpublishedDraft={isUnpublishedDraft}
-            isBlockInPublishedVersion={isBlockInPublishedVersion}
-            handleFileAttachment={handleFileAttachment}
-          />
-        ) : ssrContentHTML ? (
-          <div dangerouslySetInnerHTML={{__html: ssrContentHTML}} />
-        ) : null}
+        <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
+          {DocumentContentComponent ? (
+            <DocumentContentComponent
+              blocks={existingDraftContent ?? document.content}
+              resourceId={resourceId}
+              rootChildrenType={rootChildrenType}
+              focusBlockId={resourceId.blockRef ?? undefined}
+              focusBlockRange={resourceId.blockRange ?? undefined}
+              blockCitations={blockCitations}
+              onBlockCitationClick={onBlockCitationClick}
+              onBlockCommentClick={onBlockCommentClick}
+              onBlockSelect={onBlockSelect}
+              onTextSelection={onTextSelection}
+              onEditorReady={onEditorReady}
+              draftCursorPosition={existingDraftCursorPosition}
+              perspectiveAccountUid={perspectiveAccountUid}
+              linkExtensionOptions={linkExtensionOptions}
+              isUnpublishedDraft={isUnpublishedDraft}
+              isBlockInPublishedVersion={isBlockInPublishedVersion}
+              handleFileAttachment={handleFileAttachment}
+            />
+          ) : null}
+        </DocumentContentHandoff>
         {inlineInsert}
         {inlineCards}
         <UnreferencedDocuments
@@ -2875,6 +2876,64 @@ function ContentViewWithOutline({
       </div>
 
       {showSidebars && <div {...sidebarProps} />}
+    </div>
+  )
+}
+
+/**
+ * Swaps the server-rendered document HTML for the live editor without a
+ * blank paint. The editor's React node views flush a frame after the
+ * ProseMirror DOM mounts, so unmounting the placeholder in the same commit
+ * paints one frame of empty block containers (content flashes and the page
+ * height collapses). Instead the placeholder stays stacked above the
+ * mounting editor — and the container holds its height — for two animation
+ * frames, by which point the node views have rendered underneath.
+ */
+function DocumentContentHandoff({
+  ssrContentHTML,
+  editorMounted,
+  children,
+}: {
+  ssrContentHTML?: string | null
+  editorMounted: boolean
+  children: ReactNode
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const placeholderRef = useRef<HTMLDivElement>(null)
+  const [settled, setSettled] = useState(false)
+
+  useIsomorphicLayoutEffect(() => {
+    if (!editorMounted || settled) return
+    // Hold the placeholder's height so content below the document doesn't
+    // jump while the editor lays out behind the overlay.
+    if (containerRef.current && placeholderRef.current) {
+      containerRef.current.style.minHeight = `${placeholderRef.current.offsetHeight}px`
+    }
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (containerRef.current) containerRef.current.style.minHeight = ''
+        setSettled(true)
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      if (raf2) cancelAnimationFrame(raf2)
+    }
+  }, [editorMounted, settled])
+
+  if (!ssrContentHTML) return <>{children}</>
+
+  return (
+    <div ref={containerRef} className="relative">
+      {children}
+      {!settled && (
+        <div
+          ref={placeholderRef}
+          className={editorMounted ? 'dark:bg-background absolute inset-x-0 top-0 z-10 bg-white' : undefined}
+          dangerouslySetInnerHTML={{__html: ssrContentHTML}}
+        />
+      )}
     </div>
   )
 }

@@ -164,15 +164,18 @@ export const useDocumentLayout = (
       wrapperProps: {
         className: 'flex mx-auto w-full justify-between flex-1',
         style: {
-          maxWidth:
-            contentMaxWidth +
-            (layoutState.showSidebars && config.showSidebars ? (layoutState.showCollapsed ? 100 : 700) : 0) +
-            /**
-             * this is added because we are showing the comment and citations button
-             * on the right of each block. in the future we might expand
-             * the block content to also have more space so we can render marginalia.
-             **/
-            (media.gtSm ? 44 : 0),
+          // The 44px adds room for the per-block comment/citation buttons on
+          // wider viewports. For sidebar-less layouts (centered, e.g. home
+          // docs) it must come from a CSS media query (--doc-gtsm-bonus in
+          // hm-prose.css) so the server-rendered center matches the hydrated
+          // one; useMedia is false during SSR. Sidebar'd layouts keep the JS
+          // value: their main column is edge-anchored by justify-between, so
+          // the SSR/first-paint widths already align.
+          maxWidth: config.showSidebars
+            ? contentMaxWidth +
+              (layoutState.showSidebars ? (layoutState.showCollapsed ? 100 : 700) : 0) +
+              (media.gtSm ? 44 : 0)
+            : `calc(${contentMaxWidth}px + var(--doc-gtsm-bonus, 0px))`,
         },
       },
     }),

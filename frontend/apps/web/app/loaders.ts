@@ -1,4 +1,6 @@
-import {renderDocumentToHTML, type SSREmbedData} from '@shm/editor/ssr-render'
+import {getQueryBlockInput} from '@shm/editor/query-block-input'
+import {renderDocumentToHTML} from '@shm/editor/ssr-render'
+import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
 import {accountMetadataFromAccount} from '@shm/shared/account-metadata'
@@ -21,8 +23,7 @@ import {
   hypermediaUrlToHref,
   packHmId,
 } from '@shm/shared'
-import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
-import {getDocumentImage, plainTextOfContent} from '@shm/shared/content'
+import {DAEMON_FILE_URL, SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {HMComment, HMCommentSchema, HMResource} from '@seed-hypermedia/client/hm-types'
 import {
@@ -35,6 +36,7 @@ import {
 import {
   queryAccount,
   queryDirectory,
+  queryDocumentCollaborators,
   queryInteractionSummary,
   queryQueryBlock,
   queryResource,
@@ -43,6 +45,7 @@ import {createResourceFetcher, createResourceResolver} from '@shm/shared/resourc
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
 import {instrument, InstrumentationContext} from './instrumentation.server'
+import {getOptimizedImageUrl} from './providers'
 import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from './queries.server'
 import {ParsedRequest} from './request'
 import {serverUniversalClient} from './server-universal-client'
@@ -272,6 +275,14 @@ async function prefetchResourceData(
       instrument(ctx || noopCtx, `prefetchInteractionSummary(${packHmId(docId)})`, () =>
         prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, docId)),
       ),
+      // Collaborators drive the "People" tab count (and the home-doc members
+      // facepile); without prefetch the count pops in and shifts the tab row.
+      instrument(ctx || noopCtx, `prefetchCollaborators(${packHmId(docId)})`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryDocumentCollaborators(client, docId)),
+      ),
+      instrument(ctx || noopCtx, `prefetchCollaborators(${packHmId(homeId)})`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryDocumentCollaborators(client, homeId)),
+      ),
       ...breadcrumbResourceIds.map((id) =>
         instrument(ctx || noopCtx, `prefetchBreadcrumbResource(${packHmId(id)})`, () =>
           prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
@@ -286,16 +297,17 @@ async function prefetchResourceData(
 
   await instrument(ctx || noopCtx, 'prefetchWave2', () =>
     Promise.allSettled([
-      // Query block payloads
-      ...queryBlocks.map((block) =>
-        instrument(ctx || noopCtx, 'prefetchQueryBlock', () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryQueryBlock(client, {
-              query: block.attributes.query,
-            }),
-          ),
-        ),
-      ),
+      // Query block payloads. The input must be derived through the SAME
+      // editor-block conversion the query block component uses, or the cache
+      // key won't match and the prefetched data is never found (SSR renders
+      // an empty query block and the client refetches).
+      ...queryBlocks.map((block) => {
+        const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
+        if (!input) return Promise.resolve()
+        return instrument(ctx || noopCtx, 'prefetchQueryBlock', () =>
+          prefetchCtx.queryClient.prefetchQuery(queryQueryBlock(client, input)),
+        )
+      }),
       // Embedded document content
       ...refs.map((ref) =>
         instrument(ctx || noopCtx, `prefetchEmbedResource(${packHmId(ref.refId)})`, () =>
@@ -310,6 +322,82 @@ async function prefetchResourceData(
       ),
     ]),
   )
+
+  // Wave 3: per-result interaction summaries. Query-block cards/list items
+  // (and the home page's directory card grid) show subtree comment counts
+  // via useInteractionSummary per item; without prefetch the counts are
+  // absent in SSR and fetched per-card on the client. Only the first
+  // INITIAL_LIST_CHUNK items of a list render before scrolling, so cap the
+  // fetches per source.
+  const MAX_RESULT_SUMMARIES = 30
+  const resultIds = new Map<string, UnpackedHypermediaId>()
+  // Cards without a cover/icon lazily fetch their doc to find a fallback
+  // content image (DocumentCard); prefetch those resources so the SSR cards
+  // and the hydrated cards agree (and the client skips the fetch).
+  const fallbackImageIds = new Map<string, UnpackedHypermediaId>()
+  const collectResultIds = (
+    items: {id: UnpackedHypermediaId; path: string[]; metadata?: {cover?: string; icon?: string}}[] | undefined | null,
+  ) => {
+    for (const item of (items || []).slice(0, MAX_RESULT_SUMMARIES)) {
+      const id = hmId(item.id.uid, {path: item.path})
+      resultIds.set(id.id, id)
+      if (!item.metadata?.cover && !item.metadata?.icon) {
+        fallbackImageIds.set(item.id.id, item.id)
+      }
+    }
+  }
+  for (const block of queryBlocks) {
+    const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
+    if (!input) continue
+    const payload = prefetchCtx.queryClient.getQueryData(queryQueryBlock(client, input).queryKey) as any
+    collectResultIds(payload?.results)
+  }
+  // Home documents render their child directory as a card grid.
+  if (!docId.path?.length) {
+    const directory = prefetchCtx.queryClient.getQueryData(queryDirectory(client, docId, 'Children').queryKey) as any
+    collectResultIds(directory)
+  }
+  // Embed cards show the target's comment count too.
+  for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
+    resultIds.set(ref.refId.id, ref.refId)
+  }
+  if (resultIds.size || fallbackImageIds.size) {
+    await instrument(ctx || noopCtx, 'prefetchWave3', () =>
+      Promise.allSettled([
+        ...Array.from(resultIds.values()).map((id) =>
+          instrument(ctx || noopCtx, `prefetchResultSummary(${packHmId(id)})`, () =>
+            prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, id)),
+          ),
+        ),
+        ...Array.from(fallbackImageIds.values()).map((id) =>
+          instrument(ctx || noopCtx, `prefetchResultResource(${packHmId(id)})`, () =>
+            prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+          ),
+        ),
+      ]),
+    )
+  }
+}
+
+/** JSON stringify that survives the bigint fields in daemon payloads. */
+function stringifyWithBigInt(value: unknown): string {
+  return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+}
+
+/** Mirrors getContentWidth in @shm/ui/layout (S/M/L → px). */
+function getContentWidthValue(contentWidth: unknown): number {
+  if (contentWidth === 'S') return 600
+  if (contentWidth === 'L') return 900
+  return 700
+}
+
+/** Cheap stable fingerprint (djb2) for SSR cache keys. */
+function hashString(s: string): string {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return (h >>> 0).toString(36)
 }
 
 /**
@@ -373,43 +461,55 @@ async function loadResourcePayload(
 
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
-
-  // Build embed data map from prefetch cache for SSR card rendering
-  const refs = extractRefs(document.content)
-  const embeds: Record<string, SSREmbedData> = {}
   const client = serverUniversalClient
-  for (const ref of refs) {
-    const resource = prefetchCtx.queryClient.getQueryData(
-      queryResource(client, ref.refId).queryKey,
-    ) as HMResource | null
-    if (resource?.type === 'document') {
-      const doc = resource.document
-      const imageCid = getDocumentImage(doc)
-      embeds[ref.link] = {
-        title: doc.metadata.name || undefined,
-        summary: doc.metadata.summary || plainTextOfContent(doc.content).slice(0, 200) || undefined,
-        imageUrl: imageCid ? `/hm/api/image/${imageCid}` : null,
-        path: ref.refId.path?.join('/') || undefined,
-      }
-    }
-  }
 
-  // Server-render document content to avoid blank flash before editor loads
+  // Server-render document content as real editor markup so the swap to the
+  // live editor is invisible. The render reads prefetched data beyond the
+  // document itself (query results, embedded docs, interaction summaries,
+  // account metadata, …), all of which change independently of the document
+  // version — so the ENTIRE prefetched dataset is fingerprinted into the
+  // cache key. Any data change misses the cache and re-renders (~4-15ms on
+  // the heaviest real pages); a hit can never serve stale markup.
+  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
+  const dataFingerprint = hashString(
+    stringifyWithBigInt(
+      dehydratedState.queries
+        .map((q) => [q.queryHash, q.state.data] as const)
+        // Prefetch completion order varies run-to-run; sort for a stable key.
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+    ),
+  )
+
   const {origin} = getOriginRequestData(parsedRequest)
   const originHomeId = options?.originHomeId
   const cacheKey = document.version
-    ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${document.version}`
+    ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
+        document.version
+      }|d:${dataFingerprint}`
     : undefined
   const ssrContentHTML = document.content
     ? renderDocumentToHTML(document.content, {
         cacheKey,
-        embeds,
         rootChildrenType: document.metadata?.childrenType,
         renderHref: (url) =>
           hypermediaUrlToHref(url, {
             origin,
             originHomeId,
           }) || url,
+        queryClient: prefetchCtx.queryClient,
+        // The mounted editor's content width: contentWidth setting minus the
+        // px-4 content padding. Media with absolute px widths size against it.
+        editorWidth: getContentWidthValue(document.metadata?.contentWidth) - 32,
+        // The same context values WebSiteProvider passes on the client, so
+        // block components produce identical URLs server-side.
+        appContext: {
+          origin,
+          originHomeId,
+          universalClient: client,
+          ipfsFileUrl: DAEMON_FILE_URL,
+          getOptimizedImageUrl,
+          openUrl: () => {},
+        },
       })
     : null
   if (ssrContentHTML) {
@@ -427,7 +527,7 @@ async function loadResourcePayload(
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
-    dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    dehydratedState,
     ssrContentHTML,
     ...getOriginRequestData(parsedRequest),
   }

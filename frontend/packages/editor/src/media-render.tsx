@@ -38,6 +38,14 @@ export interface DisplayComponentProps {
   assign?: any
 }
 
+/**
+ * Editor content width assumed during server rendering, where no mounted
+ * editor exists to measure. Percentage-based media widths are unaffected;
+ * only absolute-px widths use it, and the value approximates the web
+ * reading column so the hydration correction is minimal.
+ */
+export const FALLBACK_EDITOR_WIDTH = 640
+
 const uploadedBlockIds = new Set<string>()
 
 export function markBlockUploaded(blockId: string) {

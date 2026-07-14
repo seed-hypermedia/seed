@@ -52,6 +52,7 @@
     "@unified-latex/unified-latex-types": "^1.8.0",
     "@unified-latex/unified-latex-util-parse": "^1.8.0",
     "@unified-latex/unified-latex-util-visit": "^1.8.0",
+    "happy-dom": "20.8.9",
     "hast-util-from-dom": "4.2.0",
     "highlight.js": "11.9.0",
     "katex": "0.16.42",

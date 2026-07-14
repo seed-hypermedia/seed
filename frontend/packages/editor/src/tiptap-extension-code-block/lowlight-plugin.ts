@@ -30,6 +30,31 @@ function registered(aliasOrLanguage: string) {
   return Boolean(highlight.getLanguage(aliasOrLanguage))
 }
 
+/**
+ * Flat highlight runs for a code string — the exact tokenization the live
+ * decorations use. Also consumed by the server renderer (ssr-render.tsx) so
+ * SSR emits the same spans the plugin decorates on the client.
+ */
+export function getHighlightRuns({
+  lowlight,
+  language,
+  defaultLanguage,
+  text,
+}: {
+  lowlight: any
+  language: string | null | undefined
+  defaultLanguage: string | null | undefined
+  text: string
+}): {text: string; classes: string[]}[] {
+  const lang = language || defaultLanguage
+  const languages = lowlight.listLanguages()
+  const nodes =
+    lang && (languages.includes(lang) || registered(lang))
+      ? getHighlightNodes(lowlight.highlight(lang, text))
+      : getHighlightNodes(lowlight.highlightAuto(text))
+  return parseNodes(nodes)
+}
+
 function getDecorations({
   doc,
   name,
@@ -45,15 +70,13 @@ function getDecorations({
 
   findChildren(doc, (node) => node.type.name === name).forEach((block) => {
     let from = block.pos + 1
-    const language = block.node.attrs.language || defaultLanguage
-    const languages = lowlight.listLanguages()
 
-    const nodes =
-      language && (languages.includes(language) || registered(language))
-        ? getHighlightNodes(lowlight.highlight(language, block.node.textContent))
-        : getHighlightNodes(lowlight.highlightAuto(block.node.textContent))
-
-    parseNodes(nodes).forEach((node) => {
+    getHighlightRuns({
+      lowlight,
+      language: block.node.attrs.language,
+      defaultLanguage,
+      text: block.node.textContent,
+    }).forEach((node) => {
       const to = from + node.text.length
 
       if (node.classes.length) {

@@ -3,7 +3,7 @@ import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {Check, ChevronDown, Eye, EyeOff} from 'lucide-react'
 import mermaid from 'mermaid'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 
 // Initialize mermaid
@@ -253,15 +253,28 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
         </div>
       )}
 
-      <div className="relative w-full max-w-full touch-pan-x touch-pan-y overflow-x-auto overflow-y-auto overscroll-x-contain">
-        <pre className="m-0 rounded-md bg-transparent px-3 py-3">
-          <code className={`hljs language-${language} block`}>
-            <div className="inline-block min-w-full pr-6" style={{whiteSpace: 'pre'}}>
-              <NodeViewContent style={{whiteSpace: 'pre'}} />
-            </div>
-          </code>
-        </pre>
-      </div>
+      <CodeBlockScroller language={language}>
+        <NodeViewContent style={{whiteSpace: 'pre'}} />
+      </CodeBlockScroller>
+    </div>
+  )
+}
+
+/**
+ * The static pre/code chrome of a code block. Shared by the live node view
+ * above and the server renderer (ssr-render.tsx) so both emit identical
+ * markup.
+ */
+export function CodeBlockScroller({language, children}: {language: string; children: ReactNode}) {
+  return (
+    <div className="relative w-full max-w-full touch-pan-x touch-pan-y overflow-x-auto overflow-y-auto overscroll-x-contain">
+      <pre className="m-0 rounded-md bg-transparent px-3 py-3">
+        <code className={`hljs language-${language} block`}>
+          <div className="inline-block min-w-full pr-6" style={{whiteSpace: 'pre'}}>
+            {children}
+          </div>
+        </code>
+      </pre>
     </div>
   )
 }
