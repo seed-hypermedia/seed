@@ -3,12 +3,12 @@ import {cn} from '@/frontend/utils'
 interface StepIndicatorProps {
   /** The current active step (1-based). */
   currentStep: number
-  /** Total number of steps. Defaults to 3. */
+  /** Total number of steps. Defaults to 4. */
   totalSteps?: number
 }
 
-/** Displays step progress as colored dots with a text counter. */
-export function StepIndicator({currentStep, totalSteps = 3}: StepIndicatorProps) {
+/** Displays step progress as colored dots. */
+export function StepIndicator({currentStep, totalSteps = 4}: StepIndicatorProps) {
   return (
     <div className="flex items-center gap-1.5">
       {Array.from({length: totalSteps}, (_, i) => (
@@ -20,9 +20,6 @@ export function StepIndicator({currentStep, totalSteps = 3}: StepIndicatorProps)
           )}
         />
       ))}
-      <span className="text-muted-foreground ml-1 text-[10px]">
-        {currentStep} of {totalSteps}
-      </span>
     </div>
   )
 }

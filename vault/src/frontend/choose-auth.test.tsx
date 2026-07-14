@@ -46,9 +46,9 @@ describe('choose auth password fallback', () => {
     await renderApp(createMockClient({getSession: registrationSession}))
 
     await rtl.waitFor(() => {
-      expect(rtl.screen.getByText('Use a password')).toBeTruthy()
+      expect(rtl.screen.getByText('Use password')).toBeTruthy()
     })
-    expect(rtl.screen.queryByText('Use passkey')).toBeNull()
+    expect(rtl.screen.queryByText('Create a passkey')).toBeNull()
   })
 
   test('reveals the password option after a failed passkey attempt', async () => {
@@ -65,13 +65,13 @@ describe('choose auth password fallback', () => {
 
     // Passkey-only at first.
     await rtl.waitFor(() => {
-      expect(rtl.screen.getByText('Use passkey')).toBeTruthy()
+      expect(rtl.screen.getByText('Create a passkey')).toBeTruthy()
     })
-    expect(rtl.screen.queryByText('Use a password')).toBeNull()
+    expect(rtl.screen.queryByText('Use password')).toBeNull()
 
     // A failed passkey attempt reveals the password fallback.
     await rtl.act(async () => {
-      rtl.fireEvent.click(rtl.screen.getByText('Use passkey'))
+      rtl.fireEvent.click(rtl.screen.getByText('Create a passkey'))
     })
     await rtl.waitFor(() => {
       expect(rtl.screen.getByText("Passkey wasn't created. You can try again or use a password instead.")).toBeTruthy()
@@ -84,7 +84,7 @@ describe('choose auth password fallback', () => {
     await rtl.waitFor(() => {
       expect(window.location.pathname).toBe('/vault/password/set')
     })
-    expect(rtl.screen.getByText('Set Password')).toBeTruthy()
+    expect(rtl.screen.getByText('Set a password')).toBeTruthy()
     expect(rtl.screen.queryByText("Passkey wasn't created. You can try again or use a password instead.")).toBeNull()
     expect(rtl.screen.getByText('← Use a passkey instead')).toBeTruthy()
   })

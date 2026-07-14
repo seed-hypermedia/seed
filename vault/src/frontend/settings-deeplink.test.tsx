@@ -132,13 +132,13 @@ describe('desktop deep link to /settings', () => {
     })
 
     // Signed out: bounced to the pre-login screen.
-    const emailInput = await rtl.screen.findByPlaceholderText('you@example.com')
+    const emailInput = await rtl.screen.findByPlaceholderText('Enter your email')
     expect(store.state.returnToPath).toBe('/settings')
     await rtl.act(async () => {
       rtl.fireEvent.change(emailInput, {target: {value: 'user@example.com'}})
     })
     await rtl.act(async () => {
-      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'}))
+      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Send code'}))
     })
 
     await rtl.waitFor(() => {

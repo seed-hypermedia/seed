@@ -6,7 +6,7 @@ import {getPendingFlowPath, useActions, useAppState} from '@/frontend/store'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 
 /**
- * View for creating a profile after account security setup (Step 3 of 3).
+ * View for creating a profile after account security setup (Step 4 of 4).
  */
 export function CreateProfileView() {
   const {loading, error, delegationRequest, vaultConnectionRequest, vaultConnectionInProgress, session, email} =
@@ -57,7 +57,7 @@ export function CreateProfileView() {
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={3} />
+        <StepIndicator currentStep={4} />
         <CardTitle className="text-left text-xl">Create your profile</CardTitle>
       </CardHeader>
       <CardContent>

@@ -3,7 +3,7 @@ import type React from 'react'
 import {useEffect, useRef} from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import * as navigation from '@/frontend/navigation'
-import {SeedLogo} from '@/frontend/components/SeedLogo'
+import {StepIndicator} from '@/frontend/components/StepIndicator'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {Input} from '@/frontend/components/ui/input'
@@ -56,24 +56,11 @@ export function PreLoginView() {
     await actions.handlePreLogin()
   }
 
-  const delegationSiteName = delegationRequest
-    ? delegationRequest.siteName || new URL(delegationRequest.clientId).host
-    : null
-
   return (
     <Card>
       <CardHeader>
-        {delegationRequest ? (
-          <>
-            <CardTitle className="flex items-center gap-2 text-left text-xl">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
-                <SeedLogo className="size-4 text-white" />
-              </div>
-              Sign in to join {delegationSiteName}
-            </CardTitle>
-            <CardDescription className="text-left">Enter the email linked to your Hypermedia identity.</CardDescription>
-          </>
-        ) : vaultConnectionRequest ? (
+        <StepIndicator currentStep={1} />
+        {vaultConnectionRequest ? (
           <>
             <CardTitle className="text-left text-xl">Connect your desktop app</CardTitle>
             <CardDescription className="text-left">
@@ -82,8 +69,8 @@ export function PreLoginView() {
           </>
         ) : (
           <>
-            <CardTitle className="text-left text-xl">Sign In</CardTitle>
-            <CardDescription className="text-left">Enter your email to continue</CardDescription>
+            <CardTitle className="text-left text-xl">What's your email?</CardTitle>
+            <CardDescription className="text-left">We'll send a verification code.</CardDescription>
           </>
         )}
       </CardHeader>
@@ -92,22 +79,34 @@ export function PreLoginView() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">{delegationRequest ? 'Enter your email to continue' : 'Email address'}</Label>
+            <Label htmlFor="email">Enter your email to continue</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder={delegationRequest ? 'Enter your email' : 'you@example.com'}
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => actions.setEmail(e.target.value)}
               required
               autoFocus
               autoComplete="username webauthn"
             />
+            <p className="text-muted-foreground text-sm">
+              By continuing, you agree to our{' '}
+              <a
+                href="https://hyper.media/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline hover:opacity-80"
+              >
+                Terms and Privacy Policy
+              </a>
+              .
+            </p>
           </div>
 
           <Button type="submit" loading={loading} className="w-full">
-            Continue
+            Send code
           </Button>
         </form>
 

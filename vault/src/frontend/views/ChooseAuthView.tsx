@@ -1,13 +1,13 @@
 import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {Button} from '@/frontend/components/ui/button'
-import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import {StepIndicator} from '@/frontend/components/StepIndicator'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 
 /**
- * View for choosing authentication method during registration (Step 2 of 3).
+ * View for choosing authentication method during registration (Step 3 of 4).
  */
 export function ChooseAuthView() {
   const {loading, error, passkeySupported} = useAppState()
@@ -21,33 +21,32 @@ export function ChooseAuthView() {
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={2} />
-        <CardTitle className="text-left text-xl">Pick how to secure your account</CardTitle>
+        <StepIndicator currentStep={3} />
+        <CardTitle className="text-left text-xl">
+          {passkeySupported ? 'Set up your passkey' : 'Secure your account'}
+        </CardTitle>
+        <CardDescription className="text-left">
+          {passkeySupported
+            ? 'Faster, safer, no password to remember. Sign in securely using your device (Face ID, Touch ID, or screen lock).'
+            : 'Create a password to protect your vault and sign in with your email.'}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         <ErrorMessage message={error} />
 
         {passkeySupported && (
           <div className="space-y-3">
-            <div>
-              <p className="font-semibold">Use a passkey</p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                Faster, safer, no password to remember. Sign in securely using your device (Face ID, Touch ID, or screen
-                lock).
-              </p>
-            </div>
             <Button onClick={actions.handleSetPasskey} loading={loading} className="w-full">
-              Use passkey
+              Create a passkey
             </Button>
             <p className="text-muted-foreground text-center text-sm">
-              Not familiar with passkeys?{' '}
               <a
                 href="https://www.passkeys.com/what-are-passkeys.html"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                className="hover:text-foreground underline underline-offset-2 transition-colors"
               >
-                Learn how they work.
+                What is a passkey?
               </a>
             </p>
           </div>
@@ -56,25 +55,17 @@ export function ChooseAuthView() {
         {passwordVisible && (
           <>
             {passkeySupported && <Divider>or</Divider>}
-            <div className="space-y-3">
-              <div>
-                <p className="font-semibold">Use a password</p>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Create a password to protect your vault and sign in with your email.
-                </p>
-              </div>
-              <Button
-                variant={passkeySupported ? 'secondary' : 'default'}
-                disabled={loading}
-                onClick={() => {
-                  actions.setError('')
-                  navigate('/password/set')
-                }}
-                className="w-full"
-              >
-                Use password
-              </Button>
-            </div>
+            <Button
+              variant={passkeySupported ? 'secondary' : 'default'}
+              disabled={loading}
+              onClick={() => {
+                actions.setError('')
+                navigate('/password/set')
+              }}
+              className="w-full"
+            >
+              Use password
+            </Button>
           </>
         )}
       </CardContent>

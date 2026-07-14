@@ -1,6 +1,7 @@
 import type React from 'react'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
 import {PasswordInput} from '@/frontend/components/PasswordInput'
+import {StepIndicator} from '@/frontend/components/StepIndicator'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import * as navigation from '@/frontend/navigation'
@@ -22,8 +23,9 @@ export function SetPasswordView() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">Set Password</CardTitle>
-        <CardDescription className="text-center">Create a strong password to protect your vault</CardDescription>
+        <StepIndicator currentStep={3} />
+        <CardTitle className="text-left text-xl">Set a password</CardTitle>
+        <CardDescription className="text-left">Create a strong password to protect your vault.</CardDescription>
       </CardHeader>
       <CardContent>
         <ErrorMessage message={error} />
@@ -59,7 +61,7 @@ export function SetPasswordView() {
           />
 
           <Button type="submit" loading={loading} className="w-full">
-            Create Account
+            Save Password
           </Button>
         </form>
 

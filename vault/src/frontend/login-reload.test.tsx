@@ -45,7 +45,7 @@ describe('reload on /login', () => {
     // Without the in-memory flow state (email + credential flags from
     // preLogin), /login cannot render a sign-in form — the user must be
     // bounced back to the email entry screen.
-    await rtl.screen.findByPlaceholderText('you@example.com')
+    await rtl.screen.findByPlaceholderText('Enter your email')
     await rtl.waitFor(() => {
       expect(window.location.pathname).toMatch(/^\/vault\/?$/)
     })

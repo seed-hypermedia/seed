@@ -3,6 +3,8 @@ import {type InputHTMLAttributes, useEffect, useRef, useState} from 'react'
 interface CodeInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> {
   value: string
   onChange: (value: string) => void
+  /** Called with the full code as soon as every cell is filled (typed or pasted). */
+  onComplete?: (value: string) => void
   length?: number
 }
 
@@ -12,7 +14,7 @@ interface CodeInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'on
  * identical. Handles per-cell entry, backspace/arrow navigation, and full-code
  * paste.
  */
-export function CodeInput({value, onChange, length = 4, className, ...props}: CodeInputProps) {
+export function CodeInput({value, onChange, onComplete, length = 4, className, ...props}: CodeInputProps) {
   // We track focus state to visually highlight the active cell for better UX.
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   // We need refs to programmatically shift focus between cells as the user types.
@@ -36,6 +38,10 @@ export function CodeInput({value, onChange, length = 4, className, ...props}: Co
     // Shift focus forward after entry. Maintains smooth typing flow.
     if (index < length - 1) {
       inputRefs.current[index + 1]?.focus()
+    }
+
+    if (newValue.length === length) {
+      onComplete?.(newValue)
     }
   }
 
@@ -69,6 +75,10 @@ export function CodeInput({value, onChange, length = 4, className, ...props}: Co
       // Jump to last filled cell. User can continue typing from there.
       const nextIndex = Math.min(pasted.length, length - 1)
       inputRefs.current[nextIndex]?.focus()
+
+      if (pasted.length === length) {
+        onComplete?.(pasted)
+      }
     }
   }
 

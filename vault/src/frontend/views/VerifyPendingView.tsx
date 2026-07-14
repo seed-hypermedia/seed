@@ -24,7 +24,7 @@ function Countdown({expireTime}: {expireTime: number}) {
   const remainingSeconds = timeLeft % 60
   const formattedTime = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 
-  return <p className="text-muted-foreground text-xs">Code expires in {formattedTime}</p>
+  return <p>Code expires in {formattedTime}.</p>
 }
 
 /** View shown while waiting for the user to enter an email verification code. */
@@ -42,24 +42,30 @@ export function VerifyPendingView() {
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={1} />
-        <CardTitle className="text-left text-xl">Check your email</CardTitle>
+        <StepIndicator currentStep={2} />
+        <CardTitle className="text-left text-xl">Check your inbox</CardTitle>
         <CardDescription className="text-left">
-          We've sent a verification code to <strong>{email}</strong>. Please enter it below.
+          We sent a 4-digit code to <strong>{email}</strong>
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <CodeInput value={code} onChange={(newCode) => setCode(newCode)} />
-          <Countdown expireTime={verificationExpireTime || Date.now() + 15 * 60 * 1000} />
+          <CodeInput
+            value={code}
+            onChange={(newCode) => setCode(newCode)}
+            onComplete={(fullCode) => {
+              if (!loading) actions.handleRegisterVerify(fullCode)
+            }}
+          />
 
           <Button type="submit" loading={loading} disabled={code.length !== 4} className="w-full">
-            Verify email
+            Verify
           </Button>
         </form>
 
-        <div className="border-muted-foreground/20 mt-4 space-y-2 rounded-lg border p-4">
-          <p className="text-sm">
+        <div className="text-muted-foreground mt-4 space-y-1 text-center text-sm">
+          <Countdown expireTime={verificationExpireTime || Date.now() + 15 * 60 * 1000} />
+          <p>
             Didn't get it? Check spam or{' '}
             <button
               type="button"
@@ -67,7 +73,7 @@ export function VerifyPendingView() {
               onClick={() => actions.handleStartRegistration()}
               disabled={loading}
             >
-              request a new code
+              resend code
             </button>
             .
           </p>

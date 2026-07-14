@@ -198,7 +198,7 @@ export function AccountProfileForm({
               Cancel
             </Button>
           ) : null}
-          <Button type="submit" loading={loading}>
+          <Button type="submit" variant="default" loading={loading}>
             {submitLabel}
           </Button>
         </div>
