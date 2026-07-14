@@ -12,9 +12,13 @@ import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {BlockEmbedCard, BlockEmbedComments, BlockEmbedContent, BlockEmbedLink} from '@shm/ui/embed-views'
-import {useImageUrl} from '@shm/ui/get-file-url'
-import {ExternalLink, FileText, MoreHorizontal} from '@shm/ui/icons'
-import {useDocumentCardMenuItems} from '@shm/ui/newspaper'
+import {ExternalLink, MoreHorizontal} from '@shm/ui/icons'
+import {
+  DocumentCardShell,
+  DocumentCardThumbnail,
+  documentCardContainerClassName,
+  useDocumentCardMenuItems,
+} from '@shm/ui/newspaper'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
@@ -108,7 +112,6 @@ function DraftEmbedPlaceholder({
   blockId: string
 }) {
   const draftActions = useDraftActions()
-  const getImageUrl = useImageUrl()
   const draftQuery = draftActions?.useInlineDraft(draftId)
   const draft = draftQuery?.data
   const metadata = draft?.metadata as {name?: string; summary?: string; icon?: string; cover?: string} | undefined
@@ -117,9 +120,6 @@ function DraftEmbedPlaceholder({
   const containerRef = useRef<HTMLDivElement>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
   const summary = metadata?.summary || 'Add some details here'
-  // Prefer cover image, but fall back to icon if no cover image is set
-  const imageCid = metadata?.cover || metadata?.icon
-  const imageUrl = imageCid ? getImageUrl(imageCid, 'S') : undefined
 
   useEffect(() => {
     setTitle(metadata?.name || '')
@@ -201,94 +201,79 @@ function DraftEmbedPlaceholder({
         e.stopPropagation()
         void handleOpen()
       }}
-      className="border-input bg-background my-2 flex w-full cursor-pointer items-center gap-4 rounded-lg border p-3"
+      className={cn('my-2', documentCardContainerClassName())}
     >
-      {/* Cover/icon. Falls back to a file icon placeholder when neither is set */}
-      <div className="bg-muted flex aspect-square w-24 shrink-0 items-center justify-center overflow-hidden rounded-md">
-        {imageUrl ? (
-          <img src={imageUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <FileText className="text-muted-foreground/60 size-8" strokeWidth={1.5} />
-        )}
-      </div>
-
-      {/* Title / subtitle / badge */}
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={title}
-          onChange={stopEditorPropagation}
-          onInputCapture={handleTitleInput}
-          onBeforeInputCapture={stopEditorPropagation}
-          onKeyDownCapture={handleTitleKeyDown}
-          onMouseDownCapture={stopEditorPropagation}
-          onPointerDownCapture={stopEditorPropagation}
-          onClickCapture={stopEditorPropagation}
-          onPasteCapture={stopEditorPropagation}
-          onFocus={stopEditorPropagation}
-          onCompositionStartCapture={stopEditorPropagation}
-          onCompositionUpdateCapture={stopEditorPropagation}
-          onCompositionEndCapture={stopEditorPropagation}
-          onBlur={(e) => {
-            e.stopPropagation()
-            void flushName(title)
-          }}
-          readOnly={!draftActions?.onUpdateDraftName}
-          placeholder="Untitled document"
-          className={cn(
-            'text-foreground placeholder:text-muted-foreground/80 block w-full border-none bg-transparent font-sans text-xl leading-tight font-bold outline-none',
-            !title && 'text-muted-foreground/80',
-          )}
-        />
-        <SizableText className="text-muted-foreground/60">{summary}</SizableText>
-        <div className="mt-1">
-          <DraftBadge />
-        </div>
-      </div>
-
-      <OptionsDropdown
-        align="end"
-        button={
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Draft options"
-            onClick={(e) => {
-              e.preventDefault()
+      <DocumentCardShell
+        interactive
+        thumbnail={<DocumentCardThumbnail coverImage={metadata?.cover} iconImage={metadata?.icon} />}
+        title={
+          <input
+            ref={inputRef}
+            type="text"
+            value={title}
+            onChange={stopEditorPropagation}
+            onInputCapture={handleTitleInput}
+            onBeforeInputCapture={stopEditorPropagation}
+            onKeyDownCapture={handleTitleKeyDown}
+            onMouseDownCapture={stopEditorPropagation}
+            onPointerDownCapture={stopEditorPropagation}
+            onClickCapture={stopEditorPropagation}
+            onPasteCapture={stopEditorPropagation}
+            onFocus={stopEditorPropagation}
+            onCompositionStartCapture={stopEditorPropagation}
+            onCompositionUpdateCapture={stopEditorPropagation}
+            onCompositionEndCapture={stopEditorPropagation}
+            onBlur={(e) => {
               e.stopPropagation()
+              void flushName(title)
             }}
-          >
-            <MoreHorizontal className="size-4" />
-          </Button>
+            readOnly={!draftActions?.onUpdateDraftName}
+            placeholder="Untitled document"
+            className={cn(
+              'text-foreground placeholder:text-muted-foreground/80 block w-full truncate border-none bg-transparent font-sans text-lg leading-tight! font-bold outline-none',
+              !title && 'text-muted-foreground/80',
+            )}
+          />
         }
-        menuItems={[
-          {
-            key: 'open',
-            label: 'Open draft',
-            icon: <Pencil className="size-4" />,
-            disabled: !draftActions?.onOpenDraft || !draft,
-            onClick: () => void handleOpen(),
-          },
-          ...(draftActions?.onMoveDraft
-            ? [
+        summary={<p className="text-muted-foreground mt-2 line-clamp-2 font-sans text-sm">{summary}</p>}
+        badges={<DraftBadge />}
+        actions={
+          // Stop clicks on the menu from bubbling to the card's open-draft handler.
+          <div onClick={(e) => e.stopPropagation()}>
+            <OptionsDropdown
+              align="end"
+              side="top"
+              ariaLabel="Draft options"
+              menuItems={[
                 {
-                  key: 'move',
-                  label: 'Move',
-                  icon: <Forward className="size-4" />,
-                  disabled: !draft,
-                  onClick: () => draftActions.onMoveDraft?.(draftId, {embedBlockId: blockId}),
+                  key: 'open',
+                  label: 'Open draft',
+                  icon: <Pencil className="size-4" />,
+                  disabled: !draftActions?.onOpenDraft || !draft,
+                  onClick: () => void handleOpen(),
                 },
-              ]
-            : []),
-          {
-            key: 'remove',
-            label: 'Remove card',
-            icon: <Trash2 className="size-4" />,
-            variant: 'destructive',
-            onClick: () => editor.removeBlocks([blockId]),
-          },
-        ]}
+                ...(draftActions?.onMoveDraft
+                  ? [
+                      {
+                        key: 'move',
+                        label: 'Move',
+                        icon: <Forward className="size-4" />,
+                        disabled: !draft,
+                        onClick: () => draftActions.onMoveDraft?.(draftId, {embedBlockId: blockId}),
+                      },
+                    ]
+                  : []),
+                {
+                  key: 'remove',
+                  label: 'Remove card',
+                  icon: <Trash2 className="size-4" />,
+                  variant: 'destructive',
+                  onClick: () => editor.removeBlocks([blockId]),
+                },
+              ]}
+            />
+          </div>
+        }
       />
     </div>
   )
