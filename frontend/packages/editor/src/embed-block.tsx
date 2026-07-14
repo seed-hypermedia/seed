@@ -561,9 +561,11 @@ function SelectedEmbedActions({
   const url = block.props.url as string
   const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
 
-  // External URLs and unselected embeds have no embed-specific action bar.
-  if (!docId || !isSelected) return null
+  // External URLs have no embed-specific action bar.
+  if (!docId) return null
 
+  // Revealed on hover over the card (MediaContainer's `group`) and kept visible
+  // while the block is selected.
   return (
     <div
       contentEditable={false}
@@ -571,7 +573,9 @@ function SelectedEmbedActions({
       onMouseDown={(e) => e.stopPropagation()}
       className={cn(
         'absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md',
-        isSelected && 'border-border bg-background border px-1 py-0.5 shadow-sm',
+        'border-border bg-background border px-1 py-0.5 shadow-sm',
+        'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
+        isSelected && 'opacity-100',
       )}
     >
       <SubdocumentMenu editor={editor} block={block} docId={docId} />
