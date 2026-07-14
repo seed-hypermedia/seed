@@ -121,6 +121,10 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
+  // Card/Link embeds render a self-contained card with its own border+shadow,
+  // so the MediaContainer chrome frame (border + muted bg) would double up.
+  const embedView = isEmbed ? (block.props as {view?: string}).view : undefined
+  const isSelfFramedEmbed = embedView === 'Card' || embedView === 'Link'
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {
@@ -375,10 +379,10 @@ export const MediaContainer = ({
           // The dashed border still appears while dragging as a drop target.
           drag
             ? 'border-foreground/20 dark:border-foreground/30 border-2 border-dashed'
-            : mediaType === 'image' || mediaType === 'video'
+            : mediaType === 'image' || mediaType === 'video' || isSelfFramedEmbed
               ? ''
               : 'border-border border-2',
-          editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
+          editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : isSelfFramedEmbed ? '' : 'bg-muted',
           className ?? block.type,
         )}
         style={{width}}
