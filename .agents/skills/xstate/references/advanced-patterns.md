@@ -51,11 +51,6 @@ const flushIfNeeded = machineSetup.enqueueActions(({ context, enqueue }) => {
 });
 ```
 
-Local anchors:
-
-- setup-scoped typed helpers: [/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md](/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md:254)
-- `enqueueActions(...)` in a real machine: [/Users/davidkpiano/Code/xstate/examples/tiles/src/tilesMachine.ts](/Users/davidkpiano/Code/xstate/examples/tiles/src/tilesMachine.ts:1)
-
 ## Prefer event payloads over context relay
 
 If state A only stores data so state B can use it immediately, ask whether that data should just travel on an event.
@@ -95,11 +90,6 @@ When writing callback-actor examples:
 - type the callback payload instead of leaving `msg`, `chunk`, or `err` as implicit `any`
 - prefer sending domain events like `upload.progress` or `timer.ticked` back to the parent
 - keep only durable results in context; avoid storing raw callback payloads unless the machine truly needs them later
-
-Local anchors:
-
-- callback actor with recurring events: [/Users/davidkpiano/Code/xstate/examples/workflow-check-inbox/main.ts](/Users/davidkpiano/Code/xstate/examples/workflow-check-inbox/main.ts:1)
-- callback actor for ticking input: [/Users/davidkpiano/Code/xstate/examples/stopwatch/src/stopwatchMachine.ts](/Users/davidkpiano/Code/xstate/examples/stopwatch/src/stopwatchMachine.ts:1)
 
 Minimal upload-style callback pattern:
 
@@ -208,10 +198,6 @@ Prefer emitted events when:
 
 Use `types.emitted` plus `machineSetup.emit(...)` for typed emitted events.
 
-Local anchor:
-
-- typed emitted events and `machineSetup.emit(...)`: [/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md](/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md:254)
-
 ## Avoid over-modeling the parent machine
 
 LLMs often over-expand the statechart.
@@ -250,9 +236,3 @@ In UI adapters, prefer provider or hook options that accept a persisted snapshot
 Be careful about older examples that use `state:` in actor options. For current v5 code, prefer `snapshot:` when hydrating persisted machine state.
 
 For migration or repair tasks, do not keep dead implementation override objects alive by passing them into `useMachine(...)` if the current hook does not accept them. Either move real implementations into `setup(...)`/machine config or remove dead overrides if they are unused.
-
-Local anchors:
-
-- persisted snapshot save/restore flow: [/Users/davidkpiano/Code/xstate/examples/mongodb-persisted-state/main.ts](/Users/davidkpiano/Code/xstate/examples/mongodb-persisted-state/main.ts:14)
-- persisted snapshot in an API workflow example: [/Users/davidkpiano/Code/xstate/examples/express-workflow/index.ts](/Users/davidkpiano/Code/xstate/examples/express-workflow/index.ts:27)
-- React adapter tests using `snapshot` hydration: [/Users/davidkpiano/Code/xstate/packages/xstate-react/test/createActorContext.test.tsx](/Users/davidkpiano/Code/xstate/packages/xstate-react/test/createActorContext.test.tsx:435)

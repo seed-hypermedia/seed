@@ -12,12 +12,11 @@ description:
 Convert PDFs into Seed Hypermedia documents by reading the PDF, structuring the content, and publishing via the Seed
 CLI. Images are extracted, converted to IPFS, and published atomically alongside the document.
 
-For CLI setup, key management, and environment configuration, see the **seed-hypermedia-write** skill.
-
 ## Prerequisites
 
-1. **Seed CLI** (`@seed-hypermedia/cli` on npm, binary: `seed-cli`) -- See the **seed-hypermedia-write** skill for
-   detection, installation, updates, key management, and environment configuration.
+1. **Seed CLI** (`@seed-hypermedia/cli` on npm, binary: `seed-cli`). Before publishing, run `seed-cli --help` and the
+   relevant subcommand help to verify the installed CLI's current flags. Confirm the intended account/key and target
+   environment with the user before any write.
 2. **For image extraction** (optional) -- `poppler-utils` for `pdfimages`, or Python `pypdfium2`. See
    [references/pdf-extraction.md](references/pdf-extraction.md).
 
@@ -125,7 +124,7 @@ cat blocks.json | seed-cli document create --name "Paper Title" --key <keyname>
 
 ### Step 4: Publish and Verify
 
-Publish using the Seed CLI (see **seed-hypermedia-write** skill for full reference):
+Publish using the Seed CLI after verifying the installed command surface:
 
 ```bash
 # Create the document
