@@ -1593,6 +1593,12 @@ function assertNoForeignStack(shell, paths) {
     `Stop the other one first ('stop' in its directory), or run this node on a separate host.`
   ].join(" "));
 }
+function getRunningInstallDir(shell) {
+  const src = shell.runSafe(`docker inspect seed-daemon --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null`);
+  if (!src)
+    return null;
+  return dirname(src);
+}
 async function getContainerImages(shell) {
   const images = new Map;
   const containers = ["seed-proxy", "seed-web", "seed-daemon"];
@@ -2152,6 +2158,13 @@ Configuration:`);
     console.log(`
 No config found at ${paths.configPath}. Node is not set up.`);
   }
+  const runningDir = getRunningInstallDir(shell);
+  if (runningDir && runningDir !== paths.seedDir) {
+    console.log(`
+  \u26A0 The RUNNING node is managed from a different install: ${runningDir}`);
+    console.log(`      You are inspecting ${paths.seedDir}, but the live containers belong to ${runningDir}.`);
+    console.log(`      Manage the live node from there: ${runningDir}/deploy.js (or repoint the seed-deploy wrapper).`);
+  }
   console.log(`
 Containers:`);
   const containers = ["seed-daemon", "seed-web", "seed-proxy"];
@@ -2667,6 +2680,7 @@ export {
   log,
   inferEnvironment,
   getWorkspaceDirs,
+  getRunningInstallDir,
   getOpsBaseUrl,
   getDeployScriptUrl,
   getContainerImages,

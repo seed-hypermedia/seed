@@ -1195,6 +1195,20 @@ export function assertNoForeignStack(shell: ShellRunner, paths: DeployPaths): vo
   )
 }
 
+/**
+ * The install directory the currently-running seed-daemon actually mounts, or
+ * null if no daemon is running. Read from the /data bind-mount source, which is
+ * always `<install-dir>/daemon`. This is the authoritative "what's live" signal,
+ * independent of config files or the seed-deploy wrapper.
+ */
+export function getRunningInstallDir(shell: ShellRunner): string | null {
+  const src = shell.runSafe(
+    `docker inspect seed-daemon --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null`,
+  )
+  if (!src) return null
+  return dirname(src) // strip the trailing "/daemon"
+}
+
 export async function getContainerImages(shell: ShellRunner): Promise<Map<string, string>> {
   const images = new Map<string, string>()
   const containers = ['seed-proxy', 'seed-web', 'seed-daemon']
@@ -1934,6 +1948,16 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     }
   } else {
     console.log(`\nNo config found at ${paths.configPath}. Node is not set up.`)
+  }
+
+  // The live node may be managed from a *different* install directory than the
+  // one we're inspecting (the recurring "two dirs on one host" trap). Compare
+  // the running daemon's actual install dir against this one and warn loudly.
+  const runningDir = getRunningInstallDir(shell)
+  if (runningDir && runningDir !== paths.seedDir) {
+    console.log(`\n  ⚠ The RUNNING node is managed from a different install: ${runningDir}`)
+    console.log(`      You are inspecting ${paths.seedDir}, but the live containers belong to ${runningDir}.`)
+    console.log(`      Manage the live node from there: ${runningDir}/deploy.js (or repoint the seed-deploy wrapper).`)
   }
 
   // Containers

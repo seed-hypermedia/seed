@@ -32,6 +32,7 @@ import {
   containersMatchReleaseChannel,
   detectForeignStack,
   assertNoForeignStack,
+  getRunningInstallDir,
   getContainerImages,
   checkForNewImages,
   checkGpuAcceleration,
@@ -870,6 +871,19 @@ describe('detectForeignStack / assertNoForeignStack', () => {
       "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
     })
     expect(() => assertNoForeignStack(shell, paths)).not.toThrow()
+  })
+})
+
+describe('getRunningInstallDir', () => {
+  test('derives the install dir from the daemon /data mount source', () => {
+    const shell = makeMockShell({
+      'inspect seed-daemon --format': '/opt/seed-group-feed/daemon',
+    })
+    expect(getRunningInstallDir(shell)).toBe('/opt/seed-group-feed')
+  })
+
+  test('null when no daemon is running', () => {
+    expect(getRunningInstallDir(makeNoopShell())).toBeNull()
   })
 })
 

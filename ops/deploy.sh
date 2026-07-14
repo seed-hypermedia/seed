@@ -59,14 +59,32 @@ ensure_dir() {
 # place — wherever it lives — instead of silently spawning a duplicate at the
 # default. --advanced still lets you pick a different dir (e.g. a branch node).
 resolve_install_dir() {
-  INSTALL_DIR="/opt/seed"
-  if [ -r /usr/local/bin/seed-deploy ]; then
-    _existing=$(sed -n 's|.*"\([^"]*\)/deploy\.js".*|\1|p' /usr/local/bin/seed-deploy | head -1)
-    if [ -n "$_existing" ] && [ -f "${_existing}/config.json" ]; then
-      INSTALL_DIR="$_existing"
-      info "Detected existing install at ${INSTALL_DIR} — updating it in place (pass --advanced to install elsewhere)."
+  INSTALL_DIR=""
+
+  # 1) Most authoritative: the running node itself. Read the install dir from
+  #    seed-daemon's /data bind-mount source (which is "<install-dir>/daemon").
+  if command_exists docker; then
+    _data_src=$(docker inspect seed-daemon \
+      --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null || true)
+    if [ -n "$_data_src" ]; then
+      _running_dir=$(dirname "$_data_src")
+      [ -f "${_running_dir}/config.json" ] && INSTALL_DIR="$_running_dir"
     fi
   fi
+
+  # 2) Fall back to the path recorded in the seed-deploy wrapper.
+  if [ -z "$INSTALL_DIR" ] && [ -r /usr/local/bin/seed-deploy ]; then
+    _existing=$(sed -n 's|.*"\([^"]*\)/deploy\.js".*|\1|p' /usr/local/bin/seed-deploy | head -1)
+    [ -n "$_existing" ] && [ -f "${_existing}/config.json" ] && INSTALL_DIR="$_existing"
+  fi
+
+  # 3) Fresh machine: default location.
+  if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR="/opt/seed"
+  else
+    info "Detected existing install at ${INSTALL_DIR} — updating it in place (pass --advanced to install elsewhere)."
+  fi
+
   if [ "$ADVANCED" -eq 1 ] && [ -e /dev/tty ]; then
     printf 'Install location [%s]: ' "$INSTALL_DIR" > /dev/tty
     read -r _reply < /dev/tty || _reply=""
