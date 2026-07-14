@@ -49,7 +49,6 @@ import {
   selfUpdate,
   getOpsBaseUrl,
   getDeployScriptUrl,
-  GITHUB_RELEASES_API,
   DEV_DEPLOY_SCRIPT_URL,
   composeProjectName,
   removeLegacyAutoupdaters,
@@ -1879,23 +1878,33 @@ describe('getOpsBaseUrl', () => {
 // ---------------------------------------------------------------------------
 
 describe('getDeployScriptUrl', () => {
-  test('returns S3 URL for dev channel', async () => {
-    const url = await getDeployScriptUrl('dev')
-    expect(url).toBe(DEV_DEPLOY_SCRIPT_URL)
-    expect(url).toContain('seedappdev')
+  test('always returns the S3 main-branch URL, independent of image channel', () => {
+    // The script self-updates from main for every node; release_channel
+    // (dev/latest/custom) never changes where the script comes from.
+    const origDeploy = process.env.SEED_DEPLOY_URL
+    const origRepo = process.env.SEED_REPO_URL
+    delete process.env.SEED_DEPLOY_URL
+    delete process.env.SEED_REPO_URL
+    try {
+      expect(getDeployScriptUrl()).toBe(DEV_DEPLOY_SCRIPT_URL)
+    } finally {
+      if (origDeploy !== undefined) process.env.SEED_DEPLOY_URL = origDeploy
+      if (origRepo !== undefined) process.env.SEED_REPO_URL = origRepo
+    }
   })
 
-  test('falls back to legacy URL when GitHub API is unreachable for prod channel', async () => {
-    // The GitHub API call will likely fail in test environments (rate limiting, etc.)
-    // so this tests the fallback path.
-    const url = await getDeployScriptUrl('latest')
-    // Should be either a GitHub release asset URL or the legacy fallback
-    expect(url).toContain('deploy.js')
+  test('honors a SEED_REPO_URL override for testing / branch builds', () => {
+    const orig = process.env.SEED_REPO_URL
+    process.env.SEED_REPO_URL = 'https://example.test'
+    try {
+      expect(getDeployScriptUrl()).toBe('https://example.test/ops/dist/deploy.js')
+    } finally {
+      if (orig !== undefined) process.env.SEED_REPO_URL = orig
+      else delete process.env.SEED_REPO_URL
+    }
   })
 
   test('returns constants with expected values', () => {
-    expect(GITHUB_RELEASES_API).toContain('api.github.com')
-    expect(GITHUB_RELEASES_API).toContain('seed-hypermedia/seed')
     expect(DEV_DEPLOY_SCRIPT_URL).toContain('seedappdev')
     expect(DEV_DEPLOY_SCRIPT_URL).toContain('deploy.js')
   })

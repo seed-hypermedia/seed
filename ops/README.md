@@ -52,18 +52,18 @@ typical build artifact) so the raw-GitHub fallback URL always resolves.
 4. **Prod/release — `release-docker-images.yml`** (on a `*.*.*` tag, or manual run): attaches `deploy.js` as a **GitHub
    Release asset**.
 
-**How a node self-updates (`upgrade`, run by cron)** — source depends on the node's `release_channel`
-(`getDeployScriptUrl`):
+**How a node self-updates (`upgrade`, run by cron every 10 min)** — the deploy **script** always tracks `main`,
+**independent of `release_channel`** (`getDeployScriptUrl`). The script is the orchestration tool; a bug fix to it must
+reach every node automatically. `release_channel` decides only which **images** run, never which script manages them.
 
-| Channel                | Fetches `deploy.js` from                          | Updated by                          |
-| ---------------------- | ------------------------------------------------- | ----------------------------------- |
-| `dev`                  | S3 `dev/latest/deploy.js`                          | **every push to `main`** (step 3)   |
-| `latest` (prod)        | latest **GitHub Release** asset                   | cutting a release (step 4)          |
-| custom tag (e.g. `x`)  | latest **GitHub Release** asset (release code)    | cutting a release                   |
-| _fallback_             | raw `main` `ops/dist/deploy.js`                   | only if the Release API call fails  |
+| What                    | Source                                    | Updated by                       |
+| ----------------------- | ----------------------------------------- | -------------------------------- |
+| `deploy.js` (all nodes) | S3 `dev/latest/deploy.js`                 | **every push to `main`** (step 3)|
+| `docker-compose.yml`    | raw `main` `ops/docker-compose.yml`       | every push to `main`             |
+| images (`web`/`site`)   | `seedhypermedia/*:${release_channel}`     | CI builds per channel/tag        |
 
-> ⚠️ Merging to `main` auto-delivers script changes to **`dev`-channel nodes only**. `latest`/custom-channel nodes need
-> a **GitHub Release** to pick up `deploy.js` changes.
+So: **push a `deploy.js` fix to `main` → within ~10 min every node's cron `upgrade` pulls it** — no release, no
+channel-switch. (A `SEED_DEPLOY_URL`/`SEED_REPO_URL` env override still redirects the source for testing/branch builds.)
 
 ## Modes of Operation
 

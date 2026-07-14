@@ -822,7 +822,7 @@ import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
-var VERSION = "0.3.0";
+var VERSION = "0.4.0";
 var DEFAULT_SEED_DIR = dirname(process.argv[1]);
 var DEFAULT_REPO_URL = "https://raw.githubusercontent.com/seed-hypermedia/seed/main";
 function getOpsBaseUrl() {
@@ -835,26 +835,11 @@ var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
 var GITHUB_RELEASES_API = "https://api.github.com/repos/seed-hypermedia/seed/releases/latest";
 var DEV_DEPLOY_SCRIPT_URL = "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/deploy.js";
-async function getDeployScriptUrl(releaseChannel) {
-  if (releaseChannel === "dev") {
-    return DEV_DEPLOY_SCRIPT_URL;
-  }
-  try {
-    const resp = await fetch(GITHUB_RELEASES_API, {
-      headers: { Accept: "application/vnd.github.v3+json" }
-    });
-    if (!resp.ok) {
-      throw new Error(`GitHub API returned ${resp.status}`);
-    }
-    const release = await resp.json();
-    const asset = release.assets.find((a2) => a2.name === "deploy.js");
-    if (asset) {
-      return asset.browser_download_url;
-    }
-    throw new Error("deploy.js asset not found in latest release");
-  } catch {
+function getDeployScriptUrl() {
+  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL) {
     return `${getOpsBaseUrl()}/dist/deploy.js`;
   }
+  return DEV_DEPLOY_SCRIPT_URL;
 }
 var CURL_INSTALL_CMD = `curl -fsSL ${DEFAULT_REPO_URL}/ops/deploy.sh | sh`;
 var CLI_INSTALLED = process.env.SEED_DEPLOY_CLI_INSTALLED !== "0";
@@ -1729,7 +1714,7 @@ async function rollback(previousImages, config, paths, shell) {
   shell.runSafe(`${env} docker compose -f ${paths.composePath} up -d --quiet-pull 2>&1`);
   log("Rollback complete. Check container status with: docker ps");
 }
-async function selfUpdate(paths, releaseChannel = "latest") {
+async function selfUpdate(paths) {
   const scriptPath = join(paths.seedDir, "deploy.js");
   const report = (msg) => {
     if (process.stdout.isTTY) {
@@ -1739,7 +1724,7 @@ async function selfUpdate(paths, releaseChannel = "latest") {
     }
   };
   try {
-    const url = await getDeployScriptUrl(releaseChannel);
+    const url = getDeployScriptUrl();
     const response = await fetch(url);
     if (!response.ok) {
       report(`Upgrade: failed to fetch ${url}: ${response.status}`);
@@ -2104,14 +2089,7 @@ ${MANAGE_HINT}`);
 ${MANAGE_HINT}`);
 }
 async function cmdUpgrade(paths) {
-  let releaseChannel = "latest";
-  try {
-    if (await configExists(paths)) {
-      const config = await readConfig(paths);
-      releaseChannel = config.release_channel;
-    }
-  } catch {}
-  await selfUpdate(paths, releaseChannel);
+  await selfUpdate(paths);
 }
 async function cmdStop(paths, shell) {
   checkDockerAccess(shell);

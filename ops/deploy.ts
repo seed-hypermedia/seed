@@ -27,7 +27,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
-export const VERSION = '0.3.0'
+export const VERSION = '0.4.0'
 export const DEFAULT_SEED_DIR = dirname(process.argv[1])
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 
@@ -58,36 +58,23 @@ export const GITHUB_RELEASES_API = 'https://api.github.com/repos/seed-hypermedia
 export const DEV_DEPLOY_SCRIPT_URL = 'https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/deploy.js'
 
 /**
- * Resolve the download URL for the latest deploy.js based on release channel.
- * - "latest" (prod): fetches from the latest GitHub Release asset.
- * - "dev": fetches from S3 dev bucket.
- * - Falls back to ops/dist/deploy.js via raw GitHub if release has no asset.
+ * The deploy.js self-update source.
+ *
+ * Deliberately INDEPENDENT of the image release channel: the deploy script is
+ * the orchestration tool, and its bug fixes must reach EVERY node automatically
+ * — without cutting a release or switching channels. So we always track the
+ * main-branch build published to S3 on each push (CI-gated by
+ * check-deploy-script). `release_channel` governs only which *images* a node
+ * runs, never which script manages them.
+ *
+ * A SEED_DEPLOY_URL / SEED_REPO_URL override (testing / branch builds) still
+ * redirects the source to that ops base.
  */
-export async function getDeployScriptUrl(releaseChannel: string): Promise<string> {
-  if (releaseChannel === 'dev') {
-    return DEV_DEPLOY_SCRIPT_URL
-  }
-
-  // For prod (and any other channel), resolve from GitHub Releases API.
-  try {
-    const resp = await fetch(GITHUB_RELEASES_API, {
-      headers: {Accept: 'application/vnd.github.v3+json'},
-    })
-    if (!resp.ok) {
-      throw new Error(`GitHub API returned ${resp.status}`)
-    }
-    const release = (await resp.json()) as {
-      assets: Array<{name: string; browser_download_url: string}>
-    }
-    const asset = release.assets.find((a) => a.name === 'deploy.js')
-    if (asset) {
-      return asset.browser_download_url
-    }
-    throw new Error('deploy.js asset not found in latest release')
-  } catch {
-    // Fallback: fetch the committed bundle from the repo.
+export function getDeployScriptUrl(): string {
+  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL) {
     return `${getOpsBaseUrl()}/dist/deploy.js`
   }
+  return DEV_DEPLOY_SCRIPT_URL
 }
 
 // The bootstrap curl command. Used in user-facing hints when the seed-deploy
@@ -1392,7 +1379,7 @@ async function rollback(
 // with the code already loaded in memory.
 // ---------------------------------------------------------------------------
 
-export async function selfUpdate(paths: DeployPaths, releaseChannel: string = 'latest'): Promise<void> {
+export async function selfUpdate(paths: DeployPaths): Promise<void> {
   const scriptPath = join(paths.seedDir, 'deploy.js')
   const report = (msg: string) => {
     if (process.stdout.isTTY) {
@@ -1403,7 +1390,7 @@ export async function selfUpdate(paths: DeployPaths, releaseChannel: string = 'l
   }
 
   try {
-    const url = await getDeployScriptUrl(releaseChannel)
+    const url = getDeployScriptUrl()
     const response = await fetch(url)
     if (!response.ok) {
       report(`Upgrade: failed to fetch ${url}: ${response.status}`)
@@ -1887,16 +1874,8 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
 }
 
 async function cmdUpgrade(paths: DeployPaths): Promise<void> {
-  let releaseChannel = 'latest'
-  try {
-    if (await configExists(paths)) {
-      const config = await readConfig(paths)
-      releaseChannel = config.release_channel
-    }
-  } catch {
-    // If config can't be read, default to stable channel.
-  }
-  await selfUpdate(paths, releaseChannel)
+  // The script updates from main for every node, independent of release_channel.
+  await selfUpdate(paths)
 }
 
 async function cmdStop(paths: DeployPaths, shell: ShellRunner): Promise<void> {
