@@ -15,16 +15,24 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@sh
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
-import {EllipsisVertical, Pencil, Plus, Trash} from 'lucide-react'
+import {ChevronDown, EllipsisVertical, HelpCircle, Pencil, Plus, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 // UI values for the header-layout select.
 const HEADER_LAYOUTS = [
   {value: 'horizontal', label: 'Horizontal', stored: '' as const},
   {value: 'center', label: 'Center', stored: 'Center' as const},
 ]
+
+// Order aware equality for nav items (id/text/link).
+function navItemsEqual(a: HMNavigationItem[], b: HMNavigationItem[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((item, i) => item.id === b[i].id && item.text === b[i].text && item.link === b[i].link)
+}
 
 // Published nav block.
 function readPublishedNav(document: HMDocument): HMNavigationItem[] {
@@ -79,12 +87,20 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   }
 
   const metadata = document.metadata
-  const navValue = navItems ?? readPublishedNav(document)
+  const publishedNav = readPublishedNav(document)
+  const navValue = navItems ?? publishedNav
   const storedLayout = metadata.theme?.headerLayout ?? ''
-  const layoutValue = headerLayout ?? (HEADER_LAYOUTS.find((l) => l.stored === storedLayout)?.value || 'horizontal')
-  const showActivityValue = showActivity ?? metadata.showActivity ?? true
+  const currentLayout = HEADER_LAYOUTS.find((l) => l.stored === storedLayout)?.value || 'horizontal'
+  const layoutValue = headerLayout ?? currentLayout
+  const currentShowActivity = metadata.showActivity ?? true
+  const showActivityValue = showActivity ?? currentShowActivity
 
-  const isDirty = navItems !== null || headerLayout !== null || showActivity !== null
+  // Dirty state is derived by comparing edits against the published values.
+  // This lets it self clear once the save's refetch lands.
+  const isDirty =
+    (navItems !== null && !navItemsEqual(navItems, publishedNav)) ||
+    (headerLayout !== null && headerLayout !== currentLayout) ||
+    (showActivity !== null && showActivity !== currentShowActivity)
   const canSave = isDirty && !updateHome.isPending
 
   const setNav = (items: HMNavigationItem[]) => setNavItems(items)
@@ -114,9 +130,6 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
       }
       await updateHome.mutateAsync({metadata: nextMetadata, navigation: navItems ?? undefined})
       toast.success('Navigation updated')
-      setNavItems(null)
-      setHeaderLayout(null)
-      setShowActivity(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update navigation')
     }
@@ -136,32 +149,31 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
       {/* Header preview */}
       <div className="flex flex-col gap-2">
         <SizableText weight="medium">Header site preview</SizableText>
-        <div className="border-border bg-muted/30 flex items-center gap-3 rounded-md border p-4">
-          <HMIcon id={siteId} name={metadata.name} icon={metadata.icon} size={40} className="shrink-0" />
-          <div className="flex flex-1 flex-wrap items-center justify-end gap-4">
-            {navValue.filter((i) => i.text.trim()).length ? (
-              navValue
-                .filter((i) => i.text.trim())
-                .map((item) => (
-                  <SizableText key={item.id} weight="medium">
-                    {item.text}
-                  </SizableText>
-                ))
-            ) : (
-              <SizableText color="muted" className="italic">
-                No navigations items added yet
-              </SizableText>
-            )}
-          </div>
-        </div>
+        <HeaderPreview
+          siteId={siteId}
+          name={metadata.name}
+          icon={metadata.icon}
+          items={navValue}
+          isCenter={layoutValue === 'center'}
+        />
       </div>
 
       {/* Nav item list */}
       <div className="flex flex-col gap-2">
         <SizableText weight="medium">Create the navigation items shown in the top bar</SizableText>
-        <NavItemList items={navValue} onReorder={setNav} onEdit={openEditDialog} onRemove={removeItem} />
+        <NavItemList
+          items={navValue}
+          onReorder={setNav}
+          onEdit={openEditDialog}
+          onRemove={removeItem}
+          onAdd={openNewDialog}
+        />
         <div>
-          <Button variant="outline" onClick={openNewDialog}>
+          <Button
+            variant="outline"
+            className="border-primary dark:border-primary text-primary hover:text-primary hover:bg-primary/10 bg-transparent"
+            onClick={openNewDialog}
+          >
             <Plus className="size-4" />
             Add navigation item
           </Button>
@@ -173,7 +185,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         <div className="flex flex-col gap-2">
           <SizableText weight="medium">Header layout</SizableText>
           <Select value={layoutValue} onValueChange={setHeaderLayout}>
-            <SelectTrigger className="w-56">
+            <SelectTrigger className="h-9 w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -187,8 +199,13 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         </div>
         <div className="flex flex-col gap-2">
           <SizableText weight="medium">Options</SizableText>
-          <div className="border-border flex items-center gap-4 rounded-md border px-4 py-3">
-            <SizableText>Show activity tabs</SizableText>
+          <div className="bg-muted flex h-9 w-72 items-center justify-between gap-4 rounded-md px-4">
+            <div className="flex items-center gap-1.5">
+              <SizableText>Show activity tabs</SizableText>
+              <Tooltip content="Show the People, Comments, and Citations tabs on your site's pages.">
+                <HelpCircle className="text-muted-foreground size-3.5" />
+              </Tooltip>
+            </div>
             <Switch checked={showActivityValue} onCheckedChange={setShowActivity} />
           </div>
         </div>
@@ -208,16 +225,120 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   )
 }
 
+// Preview of the site header, reflecting the selected layout.
+function HeaderPreview({
+  siteId,
+  name,
+  icon,
+  items,
+  isCenter,
+}: {
+  siteId: UnpackedHypermediaId
+  name?: string
+  icon?: string
+  items: HMNavigationItem[]
+  isCenter: boolean
+}) {
+  const labelItems = useMemo(() => items.filter((i) => i.text.trim()).map((i) => ({key: i.id, text: i.text})), [items])
+  // Overflow items collapse into a caret dropdown instead of wrapping, mirroring
+  // the real site header.
+  const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
+    items: labelItems,
+    gapWidth: 16,
+    reservedWidth: 36,
+  })
+
+  const iconEl = <HMIcon id={siteId} name={name} icon={icon} size={40} className="shrink-0" />
+
+  const navRow =
+    labelItems.length === 0 ? (
+      <div className={cn('flex items-center', isCenter ? 'justify-center' : 'flex-1 justify-end')}>
+        <SizableText color="muted" className="italic">
+          No navigations items added yet
+        </SizableText>
+      </div>
+    ) : (
+      <div
+        ref={containerRef}
+        className={cn(
+          'relative flex items-center gap-4 overflow-hidden',
+          isCenter ? 'w-full justify-center' : 'flex-1 justify-end',
+        )}
+      >
+        {/* Hidden measurement container (measures each item's natural width) */}
+        <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-4 opacity-0">
+          {labelItems.map((item) => (
+            <div
+              key={`measure-${item.key}`}
+              ref={(el) => {
+                if (el) itemRefs.current.set(item.key, el)
+                else itemRefs.current.delete(item.key)
+              }}
+            >
+              <SizableText weight="medium" className="whitespace-nowrap">
+                {item.text}
+              </SizableText>
+            </div>
+          ))}
+        </div>
+        {visibleItems.map((item) => (
+          <SizableText key={item.key} weight="medium" color="muted" className="shrink-0 whitespace-nowrap">
+            {item.text}
+          </SizableText>
+        ))}
+        {overflowItems.length > 0 ? (
+          <OptionsDropdown
+            side="bottom"
+            align="end"
+            ariaLabel="More navigation items"
+            button={
+              <button className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 items-center justify-center rounded-full">
+                <ChevronDown className="size-4" />
+              </button>
+            }
+            menuItems={overflowItems.map((item) => ({
+              key: item.key,
+              label: item.text,
+              icon: <span className="size-4" />,
+              onClick: () => {},
+            }))}
+          />
+        ) : null}
+      </div>
+    )
+
+  if (isCenter) {
+    return (
+      <div className="border-border bg-muted/30 flex flex-col items-center gap-3 rounded-md border p-4">
+        <div className="flex items-center gap-2">
+          {iconEl}
+          {name ? <SizableText weight="bold">{name}</SizableText> : null}
+        </div>
+        {navRow}
+      </div>
+    )
+  }
+  return (
+    <div className="border-border bg-muted/30 flex items-center gap-3 rounded-md border p-4">
+      {iconEl}
+      {name ? <SizableText weight="bold">{name}</SizableText> : null}
+      {navRow}
+    </div>
+  )
+}
+
 function NavItemList({
   items,
   onReorder,
   onEdit,
   onRemove,
+  onAdd,
 }: {
   items: HMNavigationItem[]
   onReorder: (items: HMNavigationItem[]) => void
   onEdit: (item: HMNavigationItem) => void
   onRemove: (id: string) => void
+  onAdd: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [draggingOverId, setDraggingOverId] = useState<string | null>(null)
@@ -242,10 +363,14 @@ function NavItemList({
 
   if (!items.length) {
     return (
-      <div className="border-border text-muted-foreground flex items-center gap-2 rounded-md border border-dashed px-4 py-5">
+      <button
+        type="button"
+        onClick={onAdd}
+        className="border-border text-muted-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-5 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500"
+      >
         <Plus className="size-4" />
         <SizableText color="muted">Add navigation item</SizableText>
-      </div>
+      </button>
     )
   }
 
@@ -281,7 +406,7 @@ function NavItemRow({
   useEffect(() => {
     if (!rowRef.current || !handleRef.current) return
     return combine(
-      draggable({element: handleRef.current, getInitialData: () => ({id: item.id})}),
+      draggable({element: rowRef.current, dragHandle: handleRef.current, getInitialData: () => ({id: item.id})}),
       dropTargetForElements({element: rowRef.current, getData: () => ({id: item.id})}),
     )
   }, [item.id])

@@ -1,3 +1,4 @@
+import {MembersSettings} from '@/components/site-settings-members'
 import {NavigationSettings} from '@/components/site-settings-navigation'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
@@ -72,24 +73,13 @@ export default function SiteSettings() {
               <div className="flex flex-col gap-6 p-6">
                 {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
                 {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
-                {activeSection === 'members' && <MembersTab activeTab={route.tab} />}
+                {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
               </div>
             </ScrollArea>
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-function TabPlaceholder({title}: {title: string}) {
-  return (
-    <>
-      <SizableText size="2xl" weight="bold">
-        {title}
-      </SizableText>
-      <SizableText color="muted">Coming soon.</SizableText>
-    </>
   )
 }
 
@@ -264,12 +254,6 @@ function ImagePicker({
       ) : null}
     </div>
   )
-}
-
-function MembersTab({activeTab}: {activeTab?: SiteSettingsTab}) {
-  // Sub-tabs: Members / Writers / Email Subscribers.
-  const memberTab = activeTab === 'writers' || activeTab === 'email-subscribers' ? activeTab : 'members'
-  return <TabPlaceholder title={`Members — ${memberTab}`} />
 }
 
 function SidebarTab({

@@ -65,7 +65,7 @@ export function EditNavPopover({
   )
 }
 
-export function EditNavigation({
+function EditNavigation({
   docNav,
   onDocNav,
   homeId,
