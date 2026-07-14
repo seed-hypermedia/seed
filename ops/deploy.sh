@@ -20,19 +20,14 @@
 set -e
 
 # Install location is a deliberate choice, not a hidden env var. It defaults to
-# /opt/seed; `--advanced` prompts for it — e.g. a separate dir for a branch/test
+# the directory of any existing install (so re-running updates in place), else
+# /opt/seed. `--advanced` prompts for it — e.g. a separate dir for a branch/test
 # node whose forward DB migration must stay isolated from the main node's DB.
+# (Resolved below in resolve_install_dir, once helper functions are defined.)
 ADVANCED=0
 for _arg in "$@"; do
   [ "$_arg" = "--advanced" ] && ADVANCED=1
 done
-
-INSTALL_DIR="/opt/seed"
-if [ "$ADVANCED" -eq 1 ] && [ -e /dev/tty ]; then
-  printf 'Install location [%s]: ' "$INSTALL_DIR" > /dev/tty
-  read -r _reply < /dev/tty || _reply=""
-  [ -n "$_reply" ] && INSTALL_DIR="$_reply"
-fi
 
 SEED_BRANCH="${SEED_BRANCH:-main}"
 GH_RAW="${SEED_DEPLOY_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops}"
@@ -56,6 +51,26 @@ ensure_dir() {
       sudo mkdir -p "$1"
       sudo chown "$(id -u):$(id -g)" "$1"
     fi
+  fi
+}
+
+# Decide where to install. Adopt the current install's directory (read from the
+# seed-deploy wrapper) so re-running the bootstrap UPDATES the running node in
+# place — wherever it lives — instead of silently spawning a duplicate at the
+# default. --advanced still lets you pick a different dir (e.g. a branch node).
+resolve_install_dir() {
+  INSTALL_DIR="/opt/seed"
+  if [ -r /usr/local/bin/seed-deploy ]; then
+    _existing=$(sed -n 's|.*"\([^"]*\)/deploy\.js".*|\1|p' /usr/local/bin/seed-deploy | head -1)
+    if [ -n "$_existing" ] && [ -f "${_existing}/config.json" ]; then
+      INSTALL_DIR="$_existing"
+      info "Detected existing install at ${INSTALL_DIR} — updating it in place (pass --advanced to install elsewhere)."
+    fi
+  fi
+  if [ "$ADVANCED" -eq 1 ] && [ -e /dev/tty ]; then
+    printf 'Install location [%s]: ' "$INSTALL_DIR" > /dev/tty
+    read -r _reply < /dev/tty || _reply=""
+    [ -n "$_reply" ] && INSTALL_DIR="$_reply"
   fi
 }
 
@@ -165,6 +180,7 @@ else
   info "Bun already installed: $(bun --version)"
 fi
 
+resolve_install_dir
 ensure_dir "${INSTALL_DIR}"
 
 info "Downloading deployment script..."

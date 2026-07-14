@@ -82,6 +82,11 @@ When no `config.json` exists, the script launches a terminal wizard:
 Add **`--advanced`** to also choose the **install location** and enter a **custom image tag**
 (`seed-deploy deploy --reconfigure --advanced`, or `deploy.sh --advanced` at first install).
 
+**Install location:** the bootstrap installs to `/opt/seed` by default. If a node is already installed elsewhere (it
+reads the path from the `seed-deploy` wrapper), re-running the installer **adopts that directory and updates it in
+place** — so you can't accidentally spawn a duplicate stack at `/opt/seed`. Use `--advanced` to deliberately install
+into a different directory (e.g. a branch/test node).
+
 The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
 values from the old config.
 
