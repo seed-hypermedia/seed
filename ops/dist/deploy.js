@@ -822,7 +822,7 @@ import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
-var VERSION = "0.5.0";
+var VERSION = "0.6.0";
 var DEPLOY_SCRIPT_PATH = "/usr/local/lib/seed/deploy.js";
 var DEFAULT_DATA_DIR = "/opt/seed";
 var DEFAULT_SEED_DIR = dirname(process.argv[1] || "") === dirname(DEPLOY_SCRIPT_PATH) ? DEFAULT_DATA_DIR : dirname(process.argv[1] || "");
@@ -2051,9 +2051,8 @@ function printHelp() {
     `  uninstall   Remove all Seed containers, data, and configuration`,
     ``,
     `Options:`,
-    `  --reconfigure  Re-run the setup wizard to change configuration`,
-    `  --dir <path>   Node data directory to operate on (default ${DEFAULT_DATA_DIR})`,
-    `  --advanced     Unlock the install-location + custom-tag prompts`,
+    `  --reconfigure  Re-run the setup wizard for the current node`,
+    `  --advanced     Manage/create/switch nodes: pick the directory, custom tag, etc.`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -2080,14 +2079,68 @@ function printHelp() {
   console.log(lines.join(`
 `));
 }
+async function promptNodeDir(current, shell) {
+  const running = getRunningInstallDir(shell);
+  const chosen = await ue({
+    message: "Node directory \u2014 existing dir reconfigures it; a new/empty dir creates a branch node",
+    initialValue: running ?? current.seedDir,
+    placeholder: DEFAULT_DATA_DIR,
+    validate: (v3) => {
+      if (!v3)
+        return "Required";
+      if (!v3.startsWith("/"))
+        return "Use an absolute path";
+    }
+  });
+  if (BD(chosen)) {
+    ve("Cancelled.");
+    process.exit(0);
+  }
+  return makePaths(chosen);
+}
+async function maybeStopOtherRunningNode(target, shell) {
+  const running = getRunningInstallDir(shell);
+  if (!running || running === target.seedDir)
+    return;
+  const ok = await me({
+    message: `Another node is running at ${running}. Stop it and switch to ${target.seedDir}? (its data is kept)`
+  });
+  if (BD(ok) || !ok) {
+    ve("Cancelled \u2014 the running node was left in place.");
+    process.exit(0);
+  }
+  shell.runSafe(`docker compose -f "${makePaths(running).composePath}" down`);
+  v2.success(`Stopped the node at ${running}.`);
+}
+function installWrapper(paths, shell) {
+  const bunPath = shell.runSafe("command -v bun") ?? "/usr/local/bin/bun";
+  const wrapper = "/usr/local/bin/seed-deploy";
+  const content = `#!/bin/sh
+exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
+`;
+  const b64 = Buffer.from(content).toString("base64");
+  if (shell.runSafe(`echo ${b64} | base64 -d > ${wrapper} && chmod +x ${wrapper} && echo ok`) !== "ok") {
+    shell.runSafe(`echo ${b64} | base64 -d | sudo tee ${wrapper} >/dev/null && sudo chmod +x ${wrapper}`);
+  }
+}
+async function setActiveNode(paths, shell) {
+  await setupCron(paths, shell);
+  installWrapper(paths, shell);
+}
 async function cmdDeploy(paths, shell, reconfigure = false, advanced = false) {
   checkDockerAccess(shell);
+  const interactive = process.stdout.isTTY;
+  if (advanced && interactive) {
+    paths = await promptNodeDir(paths, shell);
+    await maybeStopOtherRunningNode(paths, shell);
+  }
   await ensureSeedDir(paths, shell);
   if (await configExists(paths)) {
-    if (reconfigure && process.stdout.isTTY) {
+    if ((reconfigure || advanced) && interactive) {
       const existing = await readConfig(paths);
       const config3 = await runFreshWizard(paths, existing, advanced);
       await deploy(config3, paths, shell);
+      await setActiveNode(paths, shell);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
       return;
@@ -2098,15 +2151,9 @@ ${MANAGE_HINT}`);
     return;
   }
   const oldInstall = await detectOldInstall(shell);
-  let config;
-  if (oldInstall) {
-    config = await runMigrationWizard(oldInstall, paths, shell, advanced);
-  } else {
-    config = await runFreshWizard(paths, undefined, advanced);
-  }
-  await setupCron(paths, shell);
-  v2.success(`Cron job installed. Your node will auto-update every 10 minutes. Run '${cmd("cron remove")}' to disable.`);
+  const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runFreshWizard(paths, undefined, advanced);
   await deploy(config, paths, shell);
+  await setActiveNode(paths, shell);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
 }
@@ -2678,6 +2725,7 @@ export {
   makeShellRunner,
   makePaths,
   log,
+  installWrapper,
   inferEnvironment,
   getWorkspaceDirs,
   getRunningInstallDir,

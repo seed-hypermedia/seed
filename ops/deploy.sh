@@ -13,22 +13,15 @@
 #   sh <(curl -fsSL https://deploy.seed.hyper.media/deploy.sh)
 #   sh <(curl -fsSL https://deploy.seed.hyper.media/deploy.sh) --advanced
 #
-# `--advanced` prompts for the install location (default /opt/seed) and unlocks
-# the custom-image-tag option in the wizard. Use it for a branch/test node that
-# needs its own directory (isolated DB) alongside a main node's dir.
+# `--advanced` (passed through to the wizard) makes the wizard prompt for the
+# node directory as its first step — create a branch node in its own dir, or
+# reconfigure/switch an existing one — and unlocks the custom-image-tag option.
 
 set -e
 
-# Install location is a deliberate choice, not a hidden env var. It defaults to
-# the directory of any existing install (so re-running updates in place), else
-# /opt/seed. `--advanced` prompts for it — e.g. a separate dir for a branch/test
-# node whose forward DB migration must stay isolated from the main node's DB.
-# (Resolved below in resolve_install_dir, once helper functions are defined.)
-ADVANCED=0
-for _arg in "$@"; do
-  [ "$_arg" = "--advanced" ] && ADVANCED=1
-done
-
+# The default node data dir passed to the wizard as --dir. Auto-detected from an
+# existing install so re-running updates it in place; --advanced then lets the
+# wizard prompt for a different dir. (Resolved in resolve_install_dir below.)
 SEED_BRANCH="${SEED_BRANCH:-main}"
 GH_RAW="${SEED_DEPLOY_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops}"
 GH_RELEASES_API="https://api.github.com/repos/seed-hypermedia/seed/releases/latest"
@@ -80,17 +73,13 @@ resolve_install_dir() {
     [ -n "$_existing" ] && [ -f "${_existing}/config.json" ] && INSTALL_DIR="$_existing"
   fi
 
-  # 3) Fresh machine: default location.
+  # 3) Fresh machine: default location. This is only the DEFAULT passed to the
+  #    wizard as --dir; in --advanced mode the wizard prompts for the directory
+  #    (its first step), so we don't prompt here.
   if [ -z "$INSTALL_DIR" ]; then
     INSTALL_DIR="/opt/seed"
   else
-    info "Detected existing install at ${INSTALL_DIR} — updating it in place (pass --advanced to install elsewhere)."
-  fi
-
-  if [ "$ADVANCED" -eq 1 ] && [ -e /dev/tty ]; then
-    printf 'Install location [%s]: ' "$INSTALL_DIR" > /dev/tty
-    read -r _reply < /dev/tty || _reply=""
-    [ -n "$_reply" ] && INSTALL_DIR="$_reply"
+    info "Detected existing node at ${INSTALL_DIR}."
   fi
 }
 

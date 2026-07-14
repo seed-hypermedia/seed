@@ -85,19 +85,33 @@ When no `config.json` exists, the script launches a terminal wizard:
 5. **Gateway mode** — whether the node serves all known public content
 6. **Contact email** — optional, for security update notifications
 
-Add **`--advanced`** to also choose the **install location** and enter a **custom image tag**
-(`seed-deploy deploy --reconfigure --advanced`, or `deploy.sh --advanced` at first install).
+Add **`--advanced`** to first pick the **node directory** (create/reconfigure/switch a node) and to enter a **custom
+image tag** — see [Multiple nodes / branch testing](#multiple-nodes--branch-testing----advanced) below.
 
-**Data directory:** the **script** is always at the fixed path (above); `--advanced` (or `--dir`) chooses the node's
-**data** dir, default `/opt/seed`. If a node already exists the bootstrap **adopts its data dir and updates in place**
-— so you can't accidentally spawn a duplicate stack. It finds the existing dir in priority order: the **running
-`seed-daemon`** (its `/data` bind-mount → data dir, the most authoritative signal), then the `--dir` recorded in the
-`seed-deploy` wrapper. Use `--advanced` to deliberately install a **separate** node in its own dir (e.g. a branch/test
-node whose DB migration must stay isolated).
+### Multiple nodes / branch testing — `--advanced`
 
-`seed-deploy doctor` **warns** when the live containers are managed from a *different* data directory than the one
-you're inspecting — the tell-tale of the two-dirs-on-one-host trap. Point any command at a specific node with
-`seed-deploy --dir <path> <command>`.
+You run one node at a time per host (shared container names), but you can keep several **node directories** — each with
+its own config, data, and DB — and switch between them. That's what branch testing needs: a branch's forward DB
+migration lives in its own dir, isolated from your main node's DB.
+
+**`--advanced` is the single entry point.** Its first step is the **node directory**:
+
+```sh
+seed-deploy --advanced
+#  → "Node directory": an existing dir → reconfigure it;  a new/empty dir → create a branch node there
+#  → then the normal wizard (network, release channel incl. custom image tag)
+#  → deploys it and makes it the live node
+```
+
+Switching is the same command: run `seed-deploy --advanced`, pick the other dir. If a different node is live it offers
+to **stop it and switch** (its data is kept). The cron and the `seed-deploy` wrapper are re-pointed at whichever node
+you last brought up, so `seed-deploy <command>` and the automatic updates always follow the live node.
+
+You never type a directory flag in normal use. (Under the hood the wrapper/cron pass `--dir <data-dir>`; you can pass
+`--dir <path>` manually to target another node ad-hoc, but `--advanced` is the intended path.)
+
+`seed-deploy doctor` **warns** when the live containers belong to a *different* directory than the one you're inspecting
+— the tell-tale of the two-dirs-on-one-host trap.
 
 The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
 values from the old config.
@@ -145,9 +159,8 @@ seed-deploy [command] [options]
 
 | Option            | Description                                       |
 | ----------------- | ------------------------------------------------- |
-| `--reconfigure`   | Re-run the setup wizard to change configuration   |
-| `--dir <path>`    | Node data directory to operate on (default `/opt/seed`) |
-| `--advanced`      | Unlock the install-location + custom-tag prompts  |
+| `--reconfigure`   | Re-run the setup wizard for the current node      |
+| `--advanced`      | Manage nodes: pick the directory (create/reconfigure/switch), custom tag, etc. |
 | `-h`, `--help`    | Show help message                                 |
 | `-v`, `--version` | Show script version                               |
 

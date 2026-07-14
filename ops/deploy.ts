@@ -28,7 +28,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
-export const VERSION = '0.5.0'
+export const VERSION = '0.6.0'
 
 /**
  * Fixed install path for the deploy SCRIPT (the tool). New installs place it
@@ -1843,9 +1843,8 @@ export function printHelp(): void {
     `  uninstall   Remove all Seed containers, data, and configuration`,
     ``,
     `Options:`,
-    `  --reconfigure  Re-run the setup wizard to change configuration`,
-    `  --dir <path>   Node data directory to operate on (default ${DEFAULT_DATA_DIR})`,
-    `  --advanced     Unlock the install-location + custom-tag prompts`,
+    `  --reconfigure  Re-run the setup wizard for the current node`,
+    `  --advanced     Manage/create/switch nodes: pick the directory, custom tag, etc.`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -1886,15 +1885,90 @@ export function printHelp(): void {
 // CLI: Commands
 // ---------------------------------------------------------------------------
 
+/**
+ * Advanced step 1: choose which node's data directory to work on. Existing dir
+ * (has config.json) → reconfigure it; new/empty dir → create a branch node
+ * there. Defaults to the currently-running node. This is the single knob — the
+ * `--dir` flag is just how the choice is carried, not something users type.
+ */
+async function promptNodeDir(current: DeployPaths, shell: ShellRunner): Promise<DeployPaths> {
+  const running = getRunningInstallDir(shell)
+  const chosen = await p.text({
+    message: 'Node directory — existing dir reconfigures it; a new/empty dir creates a branch node',
+    initialValue: running ?? current.seedDir,
+    placeholder: DEFAULT_DATA_DIR,
+    validate: (v) => {
+      if (!v) return 'Required'
+      if (!v.startsWith('/')) return 'Use an absolute path'
+    },
+  })
+  if (p.isCancel(chosen)) {
+    p.cancel('Cancelled.')
+    process.exit(0)
+  }
+  return makePaths(chosen as string)
+}
+
+/**
+ * Only one node runs per host (shared container names). If a different node is
+ * live, confirm and stop it before switching. Its data is untouched.
+ */
+async function maybeStopOtherRunningNode(target: DeployPaths, shell: ShellRunner): Promise<void> {
+  const running = getRunningInstallDir(shell)
+  if (!running || running === target.seedDir) return
+  const ok = await p.confirm({
+    message: `Another node is running at ${running}. Stop it and switch to ${target.seedDir}? (its data is kept)`,
+  })
+  if (p.isCancel(ok) || !ok) {
+    p.cancel('Cancelled — the running node was left in place.')
+    process.exit(0)
+  }
+  shell.runSafe(`docker compose -f "${makePaths(running).composePath}" down`)
+  p.log.success(`Stopped the node at ${running}.`)
+}
+
+/**
+ * Install/point the `seed-deploy` wrapper at this node's data dir. Written via
+ * base64 to avoid shell-quoting pitfalls; falls back to sudo when /usr/local/bin
+ * isn't writable.
+ */
+export function installWrapper(paths: DeployPaths, shell: ShellRunner): void {
+  const bunPath = shell.runSafe('command -v bun') ?? '/usr/local/bin/bun'
+  const wrapper = '/usr/local/bin/seed-deploy'
+  const content = `#!/bin/sh\nexec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"\n`
+  const b64 = Buffer.from(content).toString('base64')
+  if (shell.runSafe(`echo ${b64} | base64 -d > ${wrapper} && chmod +x ${wrapper} && echo ok`) !== 'ok') {
+    shell.runSafe(`echo ${b64} | base64 -d | sudo tee ${wrapper} >/dev/null && sudo chmod +x ${wrapper}`)
+  }
+}
+
+/** Make this dir the live node: point the cron and the wrapper at it. */
+async function setActiveNode(paths: DeployPaths, shell: ShellRunner): Promise<void> {
+  await setupCron(paths, shell)
+  installWrapper(paths, shell)
+}
+
 async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = false, advanced = false): Promise<void> {
   checkDockerAccess(shell)
+  const interactive = process.stdout.isTTY
+
+  // Advanced + interactive: the data directory is the first choice, and it
+  // drives everything — create a branch node in a new dir, or reconfigure /
+  // switch to an existing one. Then, if a different node is live, offer to stop
+  // it so this one can take over.
+  if (advanced && interactive) {
+    paths = await promptNodeDir(paths, shell)
+    await maybeStopOtherRunningNode(paths, shell)
+  }
+
   await ensureSeedDir(paths, shell)
 
   if (await configExists(paths)) {
-    if (reconfigure && process.stdout.isTTY) {
+    if ((reconfigure || advanced) && interactive) {
       const existing = await readConfig(paths)
       const config = await runFreshWizard(paths, existing, advanced)
       await deploy(config, paths, shell)
+      await setActiveNode(paths, shell)
       p.outro(`Reconfiguration complete! Your Seed node is running.\n${MANAGE_HINT}`)
       return
     }
@@ -1906,21 +1980,12 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
   }
 
   const oldInstall = await detectOldInstall(shell)
-
-  let config: SeedConfig
-  if (oldInstall) {
-    config = await runMigrationWizard(oldInstall, paths, shell, advanced)
-  } else {
-    config = await runFreshWizard(paths, undefined, advanced)
-  }
-
-  await setupCron(paths, shell)
-  p.log.success(
-    `Cron job installed. Your node will auto-update every 10 minutes. Run '${cmd('cron remove')}' to disable.`,
-  )
+  const config = oldInstall
+    ? await runMigrationWizard(oldInstall, paths, shell, advanced)
+    : await runFreshWizard(paths, undefined, advanced)
 
   await deploy(config, paths, shell)
-
+  await setActiveNode(paths, shell)
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`)
 }
 

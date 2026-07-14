@@ -33,6 +33,7 @@ import {
   detectForeignStack,
   assertNoForeignStack,
   getRunningInstallDir,
+  installWrapper,
   getContainerImages,
   checkForNewImages,
   checkGpuAcceleration,
@@ -885,6 +886,28 @@ describe('getRunningInstallDir', () => {
 
   test('null when no daemon is running', () => {
     expect(getRunningInstallDir(makeNoopShell())).toBeNull()
+  })
+})
+
+describe('installWrapper', () => {
+  test('writes a wrapper that runs the fixed script with --dir <data dir>', () => {
+    const commands: string[] = []
+    const shell: ShellRunner = {
+      run: () => '',
+      runSafe: (cmd: string) => {
+        commands.push(cmd)
+        return cmd.includes('command -v bun') ? '/usr/local/bin/bun' : 'ok'
+      },
+      exec: () => Promise.reject(new Error('unused')),
+    }
+    installWrapper(makePaths('/opt/seed-branch'), shell)
+    const writeCmd = commands.find((c) => c.includes('base64 -d >'))!
+    const b64 = writeCmd.match(/echo (\S+) \|/)![1]
+    const content = Buffer.from(b64, 'base64').toString('utf-8')
+    // One fixed script, pointed at this node's data dir.
+    expect(content).toContain('/usr/local/lib/seed/deploy.js')
+    expect(content).toContain('--dir "/opt/seed-branch"')
+    expect(content).toContain('/usr/local/bin/bun')
   })
 })
 
