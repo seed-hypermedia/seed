@@ -344,7 +344,7 @@ function NavItemForm({
   )
 }
 
-function HMDocURLInput({
+export function HMDocURLInput({
   link,
   onUpdate,
   homeId,

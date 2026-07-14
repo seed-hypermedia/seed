@@ -272,6 +272,16 @@ export const accountSettingsRouteSchema = z.object({
 /** Navigation route for the desktop Account Settings page. */
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 
+export const siteSettingsTabSchema = z.enum(['identity', 'navigation', 'members', 'writers', 'email-subscribers'])
+export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
+
+export const siteSettingsRouteSchema = z.object({
+  key: z.literal('site-settings'),
+  id: unpackedHmIdSchema,
+  tab: siteSettingsTabSchema.optional(),
+})
+export type SiteSettingsRoute = z.infer<typeof siteSettingsRouteSchema>
+
 export const notificationsRouteSchema = z.object({
   key: z.literal('notifications'),
   view: z.enum(['all', 'unread']).optional(),
@@ -360,6 +370,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   contactRouteSchema,
   settingsRouteSchema,
   accountSettingsRouteSchema,
+  siteSettingsRouteSchema,
   notificationsRouteSchema,
   siteSettingsEmailsRouteSchema,
   documentRouteSchema,
@@ -592,6 +603,8 @@ export function createDocumentNavRoute(
       return {key: 'feed', id: docId, panel}
     case 'all-documents':
       return {key: 'all-documents', id: docId}
+    case 'site-settings':
+      return {key: 'site-settings', id: docId}
     default: {
       // ?panel=comments/COMMENT_ID (no viewTerm) → document main + comments right panel
       return {key: 'document', id: docId, panel}
@@ -617,7 +630,7 @@ export function createInspectNavRoute(
     key: 'inspect',
     id: docId,
   }
-  if (targetView) route.targetView = targetView
+  if (targetView && targetView !== 'site-settings') route.targetView = targetView
   if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
   if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
   if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid

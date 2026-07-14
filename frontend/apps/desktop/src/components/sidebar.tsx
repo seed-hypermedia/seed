@@ -64,6 +64,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Quote,
+  Settings,
   Users,
 } from 'lucide-react'
 import React, {memo} from 'react'
@@ -753,21 +754,50 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
     const {document} = resource.data
     return (
       <SidebarSection title="My Site">
-        <div
-          className={cn(
-            'border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2',
-            active && 'border-accent bg-accent text-accent-foreground hover:bg-accent/90',
-          )}
-          onClick={() => navigate({key: 'document', id: hmId(selectedAccountId)})}
-        >
-          <UIAvatar
-            id={selectedAccountId}
-            label={document.metadata.name}
-            size={40}
-            url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
-            className="shrink-0"
+        <div className="relative">
+          <div
+            className={cn(
+              'border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2 pr-8',
+              active && 'border-accent bg-accent text-accent-foreground hover:bg-accent/90',
+            )}
+            onClick={() => navigate({key: 'document', id: hmId(selectedAccountId)})}
+          >
+            <UIAvatar
+              id={selectedAccountId}
+              label={document.metadata.name}
+              size={40}
+              url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
+              className="shrink-0"
+            />
+            <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
+          </div>
+          <OptionsDropdown
+            side="right"
+            align="start"
+            button={
+              <button
+                aria-label="My site options"
+                className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            }
+            menuItems={[
+              {
+                key: 'all-documents',
+                label: 'All Documents',
+                icon: <LayoutList className="size-4" />,
+                onClick: () => navigate({key: 'all-documents', id: hmId(selectedAccountId)}),
+              },
+              {
+                key: 'site-settings',
+                label: 'Site settings',
+                icon: <Settings className="size-4" />,
+                onClick: () => navigate({key: 'site-settings', id: hmId(selectedAccountId)}),
+              },
+            ]}
           />
-          <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
         </div>
       </SidebarSection>
     )

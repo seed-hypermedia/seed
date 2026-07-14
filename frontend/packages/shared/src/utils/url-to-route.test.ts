@@ -53,6 +53,26 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
+  test('converts a settings URL into a site-settings route', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:settings')).toEqual({
+      key: 'site-settings',
+      id: unpackHmId('hm://uid1'),
+    })
+  })
+
+  test('converts a settings URL with a tab into a site-settings route with that tab', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:settings/email-subscribers')).toEqual({
+      key: 'site-settings',
+      id: unpackHmId('hm://uid1'),
+      tab: 'email-subscribers',
+    })
+  })
+
+  test('does not treat an unknown settings subpath as a settings route', () => {
+    const route = hypermediaUrlToRoute('hm://uid1/:settings/bogus')
+    expect(route?.key).not.toBe('site-settings')
+  })
+
   test('converts an activity URL into an activity route', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:activity')).toEqual({
       key: 'activity',
