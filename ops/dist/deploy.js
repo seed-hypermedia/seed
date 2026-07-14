@@ -823,7 +823,7 @@ import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
 var VERSION = "0.2.0";
-var DEFAULT_SEED_DIR = process.env.SEED_DIR || dirname(process.argv[1]);
+var DEFAULT_SEED_DIR = dirname(process.argv[1]);
 var DEFAULT_REPO_URL = "https://raw.githubusercontent.com/seed-hypermedia/seed/main";
 function getOpsBaseUrl() {
   return process.env.SEED_DEPLOY_URL || (process.env.SEED_REPO_URL ? `${process.env.SEED_REPO_URL}/ops` : `${DEFAULT_REPO_URL}/ops`);
@@ -961,26 +961,30 @@ function validateDockerImageTag(tag) {
 async function promptReleaseChannel(options) {
   const initialTag = options.initialTag ?? DEFAULT_RELEASE_CHANNEL;
   const hasCustomTag = !isPresetReleaseChannel(initialTag);
+  const showCustom = options.advanced || hasCustomTag;
+  const channelOptions = [
+    {
+      value: "latest",
+      label: "Stable",
+      hint: "official releases, recommended for production"
+    },
+    {
+      value: "dev",
+      label: "Bleeding edge",
+      hint: "main branch builds, may be unstable"
+    }
+  ];
+  if (showCustom) {
+    channelOptions.push({
+      value: CUSTOM_RELEASE_CHANNEL,
+      label: "Custom tag",
+      hint: "run images from a specific Docker tag or branch build"
+    });
+  }
   const selected = await de({
     message: "Release channel",
     initialValue: hasCustomTag ? CUSTOM_RELEASE_CHANNEL : initialTag,
-    options: [
-      {
-        value: "latest",
-        label: "Stable",
-        hint: "official releases, recommended for production"
-      },
-      {
-        value: "dev",
-        label: "Bleeding edge",
-        hint: "main branch builds, may be unstable"
-      },
-      {
-        value: CUSTOM_RELEASE_CHANNEL,
-        label: "Custom tag",
-        hint: "run images from a specific Docker tag or branch build"
-      }
-    ]
+    options: channelOptions
   });
   if (BD(selected) || selected !== CUSTOM_RELEASE_CHANNEL) {
     return selected;
@@ -1258,7 +1262,7 @@ async function migrateDataFromOldInstall(paths, shell) {
     }
   }
 }
-async function runMigrationWizard(old, paths, shell) {
+async function runMigrationWizard(old, paths, shell, advanced = false) {
   we(`Seed Node Migration v${VERSION}`);
   ye([
     `Detected an existing Seed installation at: ${old.workspace}`,
@@ -1297,7 +1301,8 @@ async function runMigrationWizard(old, paths, shell) {
       ]
     }),
     release_channel: () => promptReleaseChannel({
-      initialTag: old.imageTag
+      initialTag: old.imageTag,
+      advanced
     }),
     log_level: () => de({
       message: "Log level",
@@ -1378,7 +1383,7 @@ async function runMigrationWizard(old, paths, shell) {
   v2.success(`Config written to ${paths.configPath}`);
   return config;
 }
-async function runFreshWizard(paths, existing) {
+async function runFreshWizard(paths, existing, advanced = false) {
   const isReconfig = !!existing;
   we(isReconfig ? `Seed Node Reconfiguration v${VERSION}` : `Seed Node Setup v${VERSION}`);
   if (!isReconfig) {
@@ -1389,7 +1394,7 @@ async function runFreshWizard(paths, existing) {
       "the Docker containers, reverse proxy, and networking so your node is",
       "reachable on the public internet.",
       "",
-      `Configuration will be saved to ${paths.configPath}.`,
+      `This node's install location is ${paths.seedDir}/ (config + data live here).`,
       "Subsequent runs of this script will deploy automatically (headless mode)."
     ].join(`
 `), "First-time setup");
@@ -1429,7 +1434,8 @@ async function runFreshWizard(paths, existing) {
       ]
     }),
     release_channel: () => promptReleaseChannel({
-      initialTag: existing?.release_channel
+      initialTag: existing?.release_channel,
+      advanced
     }),
     log_level: () => de({
       message: "Log level for Seed services",
@@ -1566,6 +1572,26 @@ function containersMatchReleaseChannel(shell, config) {
       return false;
   }
   return true;
+}
+function detectForeignStack(shell, paths) {
+  const ours = composeProjectName(paths);
+  for (const name of ["seed-proxy", "seed-web", "seed-daemon"]) {
+    const project = shell.runSafe(`docker inspect ${name} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`);
+    if (project && project !== ours)
+      return project;
+  }
+  return null;
+}
+function assertNoForeignStack(shell, paths) {
+  const foreign = detectForeignStack(shell, paths);
+  if (!foreign)
+    return;
+  throw new Error([
+    `The seed containers on this host are managed by a different install (compose project '${foreign}').`,
+    `This install is '${composeProjectName(paths)}' at ${paths.seedDir}.`,
+    `Two seed stacks can't share one host \u2014 they use the same container names.`,
+    `Stop the other one first ('stop' in its directory), or run this node on a separate host.`
+  ].join(" "));
 }
 async function getContainerImages(shell) {
   const images = new Map;
@@ -1739,6 +1765,7 @@ async function deploy(config, paths, shell) {
   if (isInteractive) {
     v2.step("Starting deployment...");
   }
+  assertNoForeignStack(shell, paths);
   for (const warning of configWarnings(config)) {
     if (isInteractive)
       v2.warn(warning);
@@ -1968,19 +1995,21 @@ var COMMANDS = [
   "uninstall"
 ];
 function parseArgs(argv = process.argv) {
-  const raw = argv.slice(2);
+  const rawAll = argv.slice(2);
+  const advanced = rawAll.includes("--advanced");
+  const raw = rawAll.filter((a2) => a2 !== "--advanced");
   const first = raw[0] ?? "deploy";
   if (first === "--help" || first === "-h")
-    return { command: "help", args: [] };
+    return { command: "help", args: [], advanced };
   if (first === "--version" || first === "-v")
-    return { command: "version", args: [] };
+    return { command: "version", args: [], advanced };
   if (first === "--reconfigure")
-    return { command: "deploy", args: [], reconfigure: true };
+    return { command: "deploy", args: [], reconfigure: true, advanced };
   if (COMMANDS.includes(first)) {
     const rest = raw.slice(1);
     const reconfigure = first === "deploy" && rest.includes("--reconfigure");
     const args = reconfigure ? rest.filter((a2) => a2 !== "--reconfigure") : rest;
-    return { command: first, args, reconfigure };
+    return { command: first, args, reconfigure, advanced };
   }
   console.error(`Unknown command: ${first}
 `);
@@ -2038,13 +2067,13 @@ function printHelp() {
   console.log(lines.join(`
 `));
 }
-async function cmdDeploy(paths, shell, reconfigure = false) {
+async function cmdDeploy(paths, shell, reconfigure = false, advanced = false) {
   checkDockerAccess(shell);
   await ensureSeedDir(paths, shell);
   if (await configExists(paths)) {
     if (reconfigure && process.stdout.isTTY) {
       const existing = await readConfig(paths);
-      const config3 = await runFreshWizard(paths, existing);
+      const config3 = await runFreshWizard(paths, existing, advanced);
       await deploy(config3, paths, shell);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
@@ -2058,9 +2087,9 @@ ${MANAGE_HINT}`);
   const oldInstall = await detectOldInstall(shell);
   let config;
   if (oldInstall) {
-    config = await runMigrationWizard(oldInstall, paths, shell);
+    config = await runMigrationWizard(oldInstall, paths, shell, advanced);
   } else {
-    config = await runFreshWizard(paths);
+    config = await runFreshWizard(paths, undefined, advanced);
   }
   await setupCron(paths, shell);
   v2.success(`Cron job installed. Your node will auto-update every 10 minutes. Run '${cmd("cron remove")}' to disable.`);
@@ -2090,6 +2119,7 @@ async function cmdStart(paths, shell) {
     console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first to set up.`);
     process.exit(1);
   }
+  assertNoForeignStack(shell, paths);
   const config = await readConfig(paths);
   const envContent = buildComposeEnv(config, paths);
   console.log("Starting Seed containers...");
@@ -2572,7 +2602,7 @@ async function cmdUninstall(paths, shell) {
   fe("Seed node uninstalled.");
 }
 async function main() {
-  const { command, args, reconfigure } = parseArgs();
+  const { command, args, reconfigure, advanced } = parseArgs();
   const paths = makePaths();
   const shell = makeShellRunner();
   switch (command) {
@@ -2583,7 +2613,7 @@ async function main() {
       console.log(VERSION);
       return;
     case "deploy":
-      return cmdDeploy(paths, shell, reconfigure);
+      return cmdDeploy(paths, shell, reconfigure, advanced);
     case "upgrade":
       return cmdUpgrade(paths);
     case "stop":
@@ -2649,6 +2679,7 @@ export {
   environmentPresets,
   ensureSeedDir,
   detectOldInstall,
+  detectForeignStack,
   describePullFailure,
   describeBindFailure,
   deploy,
@@ -2662,6 +2693,7 @@ export {
   checkContainersHealthy,
   buildCrontab,
   buildComposeEnv,
+  assertNoForeignStack,
   VERSION,
   SEED_PUBLISHED_PORTS,
   OPS_BASE_URL,

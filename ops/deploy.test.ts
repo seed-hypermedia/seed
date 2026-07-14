@@ -30,6 +30,8 @@ import {
   getWorkspaceDirs,
   checkContainersHealthy,
   containersMatchReleaseChannel,
+  detectForeignStack,
+  assertNoForeignStack,
   getContainerImages,
   checkForNewImages,
   checkGpuAcceleration,
@@ -820,6 +822,57 @@ describe('containersMatchReleaseChannel', () => {
   })
 })
 
+describe('detectForeignStack / assertNoForeignStack', () => {
+  const paths = makePaths('/opt/seed') // composeProjectName → "seed"
+
+  test('null when no seed containers exist', () => {
+    expect(detectForeignStack(makeNoopShell(), paths)).toBeNull()
+  })
+
+  test('null when the containers belong to our own project', () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    })
+    expect(detectForeignStack(shell, paths)).toBeNull()
+  })
+
+  test('returns the foreign project name when another install owns a container', () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+    })
+    expect(detectForeignStack(shell, paths)).toBe('seed-group-feed')
+  })
+
+  test('ignores legacy non-compose orphans (empty project label)', () => {
+    // Empty label → not a foreign compose stack; freeConflictingPortBindings handles these.
+    const shell = makeMockShell({
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": '',
+    })
+    expect(detectForeignStack(shell, paths)).toBeNull()
+  })
+
+  test('assertNoForeignStack throws with a clear message on collision', () => {
+    const shell = makeMockShell({
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+    })
+    expect(() => assertNoForeignStack(shell, paths)).toThrow(/seed-group-feed/)
+    expect(() => assertNoForeignStack(shell, paths)).toThrow(/can't share one host/)
+  })
+
+  test('assertNoForeignStack is a no-op for our own stack', () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    })
+    expect(() => assertNoForeignStack(shell, paths)).not.toThrow()
+  })
+})
+
 describe('getContainerImages', () => {
   test('empty map when no Docker available', async () => {
     expect((await getContainerImages(makeNoopShell())).size).toBe(0)
@@ -1264,6 +1317,29 @@ describe('parseArgs', () => {
     const result = parseArgs(['node', 'deploy.js'])
     expect(result.reconfigure).toBeFalsy()
   })
+
+  test('--advanced sets the advanced flag and is stripped from args', () => {
+    const bare = parseArgs(['node', 'deploy.js', '--advanced'])
+    expect(bare.command).toBe('deploy')
+    expect(bare.advanced).toBe(true)
+    expect(bare.args).toEqual([])
+
+    const withCmd = parseArgs(['node', 'deploy.js', 'deploy', '--advanced', '--reconfigure'])
+    expect(withCmd.command).toBe('deploy')
+    expect(withCmd.advanced).toBe(true)
+    expect(withCmd.reconfigure).toBe(true)
+    expect(withCmd.args).toEqual([])
+
+    // Works after a subcommand too, without swallowing real args.
+    const logs = parseArgs(['node', 'deploy.js', 'logs', 'daemon', '--advanced'])
+    expect(logs.command).toBe('logs')
+    expect(logs.advanced).toBe(true)
+    expect(logs.args).toEqual(['daemon'])
+  })
+
+  test('advanced defaults to false when absent', () => {
+    expect(parseArgs(['node', 'deploy.js', 'deploy']).advanced).toBeFalsy()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1635,18 +1711,12 @@ describe('describePullFailure', () => {
 // ---------------------------------------------------------------------------
 
 describe('DEFAULT_SEED_DIR', () => {
-  test('derives from dirname of process.argv[1] when SEED_DIR is unset', () => {
-    // When SEED_DIR is not set in the test environment, the default should
-    // be derived from process.argv[1] (the test runner's script path).
-    // We can't fully test the env-var branch here since it would require
-    // modifying process.env before the module loads, but we verify the
-    // derivation logic is not hardcoded to "/opt/seed".
-    if (!process.env.SEED_DIR) {
-      const {dirname} = require('node:path')
-      expect(DEFAULT_SEED_DIR).toBe(dirname(process.argv[1]))
-    } else {
-      expect(DEFAULT_SEED_DIR).toBe(process.env.SEED_DIR)
-    }
+  test('derives solely from dirname of process.argv[1] (no SEED_DIR env override)', () => {
+    // The install location is where deploy.js physically lives — the hidden
+    // SEED_DIR env override was removed. Location is chosen deliberately by the
+    // bootstrap (deploy.sh --advanced), which places deploy.js accordingly.
+    const {dirname} = require('node:path')
+    expect(DEFAULT_SEED_DIR).toBe(dirname(process.argv[1]))
   })
 })
 

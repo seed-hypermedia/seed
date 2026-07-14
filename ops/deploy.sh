@@ -11,10 +11,29 @@
 #
 # Usage:
 #   sh <(curl -fsSL https://deploy.seed.hyper.media/deploy.sh)
+#   sh <(curl -fsSL https://deploy.seed.hyper.media/deploy.sh) --advanced
+#
+# `--advanced` prompts for the install location (default /opt/seed) and unlocks
+# the custom-image-tag option in the wizard. Use it for a branch/test node that
+# needs its own directory (isolated DB) alongside a main node's dir.
 
 set -e
 
-SEED_DIR="${SEED_DIR:-/opt/seed}"
+# Install location is a deliberate choice, not a hidden env var. It defaults to
+# /opt/seed; `--advanced` prompts for it — e.g. a separate dir for a branch/test
+# node whose forward DB migration must stay isolated from the main node's DB.
+ADVANCED=0
+for _arg in "$@"; do
+  [ "$_arg" = "--advanced" ] && ADVANCED=1
+done
+
+INSTALL_DIR="/opt/seed"
+if [ "$ADVANCED" -eq 1 ] && [ -e /dev/tty ]; then
+  printf 'Install location [%s]: ' "$INSTALL_DIR" > /dev/tty
+  read -r _reply < /dev/tty || _reply=""
+  [ -n "$_reply" ] && INSTALL_DIR="$_reply"
+fi
+
 SEED_BRANCH="${SEED_BRANCH:-main}"
 GH_RAW="${SEED_DEPLOY_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops}"
 GH_RELEASES_API="https://api.github.com/repos/seed-hypermedia/seed/releases/latest"
@@ -146,7 +165,7 @@ else
   info "Bun already installed: $(bun --version)"
 fi
 
-ensure_dir "${SEED_DIR}"
+ensure_dir "${INSTALL_DIR}"
 
 info "Downloading deployment script..."
 # Try to fetch deploy.js from the latest GitHub Release asset (production).
@@ -164,7 +183,7 @@ if [ -z "$DEPLOY_JS_URL" ]; then
   info "Release asset not found, falling back to raw GitHub URL..."
   DEPLOY_JS_URL="${GH_RAW}/dist/deploy.js"
 fi
-curl -fsSL "$DEPLOY_JS_URL" -o "${SEED_DIR}/deploy.js"
+curl -fsSL "$DEPLOY_JS_URL" -o "${INSTALL_DIR}/deploy.js"
 
 # Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
 # /usr/local/bin is in $PATH on every UNIX system, so no shell-config changes
@@ -173,7 +192,7 @@ curl -fsSL "$DEPLOY_JS_URL" -o "${SEED_DIR}/deploy.js"
 BUN_PATH="$(command -v bun)"
 WRAPPER="/usr/local/bin/seed-deploy"
 WRAPPER_CONTENT="#!/bin/sh
-exec \"${BUN_PATH}\" \"${SEED_DIR}/deploy.js\" \"\$@\""
+exec \"${BUN_PATH}\" \"${INSTALL_DIR}/deploy.js\" \"\$@\""
 
 SEED_DEPLOY_CLI_INSTALLED=0
 if [ -w /usr/local/bin ]; then
@@ -199,4 +218,4 @@ fi
 export SEED_DEPLOY_CLI_INSTALLED
 
 info "Running deployment script..."
-exec bun "${SEED_DIR}/deploy.js" "$@" </dev/tty
+exec bun "${INSTALL_DIR}/deploy.js" "$@" </dev/tty

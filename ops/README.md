@@ -35,8 +35,35 @@ docker-compose.yml Container definitions for proxy, web, and daemon
 | `deploy.test.ts`     | Test suite                            |
 | `docker-compose.yml` | Docker Compose service definitions    |
 
-The production bundle (`deploy.js`) is built by CI and distributed as a GitHub Release asset (prod) or uploaded to S3
-(dev). It is not committed to the repository.
+## Building & Releasing
+
+`deploy.ts` is the source; servers run the bundled `dist/deploy.js`. **`dist/deploy.js` _is_ committed** (unlike a
+typical build artifact) so the raw-GitHub fallback URL always resolves.
+
+**How the bundle stays in sync and reaches servers:**
+
+1. **Pre-commit hook** (`.git/hooks/pre-commit`) — whenever `ops/` source is staged, it rebuilds `dist/deploy.js` with
+   the pinned **Bun 1.3.10** and re-stages it. So a commit can never ship a stale bundle. (Build manually with
+   `bun run build` in `ops/`.)
+2. **CI — `.github/workflows/check-deploy-script.yml`** ("Deploy Script - Check & Build") on every PR and `ops/**` push:
+   typecheck → test → build → **fail if `dist/deploy.js` is not up to date** → upload a `deploy-script` artifact.
+3. **Dev channel publish — `dev-docker-images.yml` › `publish-deploy-script`** (on push to `main`): uploads the built
+   `deploy.js` to **S3 `s3://seedappdev/dev/latest/deploy.js`**.
+4. **Prod/release — `release-docker-images.yml`** (on a `*.*.*` tag, or manual run): attaches `deploy.js` as a **GitHub
+   Release asset**.
+
+**How a node self-updates (`upgrade`, run by cron)** — source depends on the node's `release_channel`
+(`getDeployScriptUrl`):
+
+| Channel                | Fetches `deploy.js` from                          | Updated by                          |
+| ---------------------- | ------------------------------------------------- | ----------------------------------- |
+| `dev`                  | S3 `dev/latest/deploy.js`                          | **every push to `main`** (step 3)   |
+| `latest` (prod)        | latest **GitHub Release** asset                   | cutting a release (step 4)          |
+| custom tag (e.g. `x`)  | latest **GitHub Release** asset (release code)    | cutting a release                   |
+| _fallback_             | raw `main` `ops/dist/deploy.js`                   | only if the Release API call fails  |
+
+> ⚠️ Merging to `main` auto-delivers script changes to **`dev`-channel nodes only**. `latest`/custom-channel nodes need
+> a **GitHub Release** to pick up `deploy.js` changes.
 
 ## Modes of Operation
 
@@ -45,11 +72,15 @@ The production bundle (`deploy.js`) is built by CI and distributed as a GitHub R
 When no `config.json` exists, the script launches a terminal wizard:
 
 1. **Public hostname** — the `https://` URL for the node (required)
-2. **Environment** — Production / Development
-3. **Release channel** — Stable (`latest`), Bleeding edge (`dev`), or a custom Docker image tag
+2. **P2P network** — Mainnet or Testnet (devnet). Independent of the image channel.
+3. **Release channel** — Stable (`latest`) or Bleeding edge (`dev`). The **Custom tag** option (branch/test builds)
+   appears only with `--advanced`.
 4. **Log level** — Debug / Info / Warn / Error
 5. **Gateway mode** — whether the node serves all known public content
 6. **Contact email** — optional, for security update notifications
+
+Add **`--advanced`** to also choose the **install location** and enter a **custom image tag**
+(`seed-deploy deploy --reconfigure --advanced`, or `deploy.sh --advanced` at first install).
 
 The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
 values from the old config.
@@ -95,30 +126,44 @@ seed-deploy [command] [options]
 | `restore <file>` | Restore node data from a backup archive                   |
 | `uninstall`      | Remove all containers, data, and configuration            |
 
-| Option            | Description                                     |
-| ----------------- | ----------------------------------------------- |
-| `--reconfigure`   | Re-run the setup wizard to change configuration |
-| `-h`, `--help`    | Show help message                               |
-| `-v`, `--version` | Show script version                             |
+| Option            | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `--reconfigure`   | Re-run the setup wizard to change configuration   |
+| `--advanced`      | Unlock the install-location + custom-tag prompts  |
+| `-h`, `--help`    | Show help message                                 |
+| `-v`, `--version` | Show script version                               |
 
-## Environment Presets and Image Tags
+## Network and Release Channel (independent)
 
-The "Environment" choice controls network defaults, and the "Release channel" choice controls the Docker image tag.
+The **P2P network** (mainnet vs testnet/devnet) and the **release channel** (which Docker image tag to run) are
+**orthogonal** — the image channel never changes the network. Each is its own wizard question.
 
-| Environment     | Image Tag | Network | Use Case                                    |
-| --------------- | --------- | ------- | ------------------------------------------- |
-| **Production**  | `latest`  | Mainnet | Stable releases (recommended)               |
-| **Development** | `dev`     | Testnet | Development builds on isolated test network |
+| Choice          | `config.json` field | Options                                                 |
+| --------------- | ------------------- | ------------------------------------------------------- |
+| P2P network     | `testnet`           | Mainnet (`false`) / Testnet-devnet (`true`)             |
+| Release channel | `release_channel`   | `latest` (stable) / `dev` (main branch) / custom tag    |
 
-The release channel wizard also supports **Custom tag** for testing branch builds or any other Docker tag:
+`environment` (`prod`/`dev`) is a **derived label** kept in sync with `testnet` for display and backwards
+compatibility — it does **not** independently control the network. Running a `dev` (or custom) image on **mainnet** is a
+legitimate, supported combination (bleeding-edge code, production network); the wizard prints a notice so it is never a
+surprise.
+
+### Custom image tags (advanced)
+
+The **Custom tag** channel is for testing a branch build. It appears only under `--advanced`:
 
 ```sh
-seed-deploy deploy --reconfigure
+seed-deploy deploy --reconfigure --advanced
 ```
 
 Choose **Custom tag**, then enter the exact image tag that CI pushed, for example `feature-branch`. Automatic cron
 updates keep following the saved tag by pulling `seedhypermedia/web:<tag>` and `seedhypermedia/site:<tag>` on each run.
 Docker tags cannot contain `/`; if your branch name contains slashes, use the Docker-safe tag produced by CI.
+
+> A branch build usually needs its **own install directory** (via `--advanced`, e.g. `/opt/seed-mybranch`) so its
+> forward DB migration stays isolated from the main node's database. Only **one** seed stack can run per host (the
+> container names are fixed), so the branch and main nodes take turns — `deploy`/`start` refuse to clobber a stack owned
+> by another install directory.
 
 ## Configuration
 
@@ -126,13 +171,14 @@ Stored at `<seed-dir>/config.json`. User-facing fields:
 
 | Field         | Required | Description                              |
 | ------------- | -------- | ---------------------------------------- |
-| `domain`      | Yes      | Public hostname including `https://`     |
-| `email`       | No       | Contact email for security notifications |
-| `environment` | Yes      | `prod` or `dev`                          |
-| `gateway`     | Yes      | Serve all known public content           |
+| `domain`          | Yes      | Public hostname including `https://`                        |
+| `email`           | No       | Contact email for security notifications                    |
+| `testnet`         | Yes      | P2P network: `false` = mainnet, `true` = testnet/devnet     |
+| `release_channel` | Yes      | Image tag: `latest` / `dev` / custom                        |
+| `gateway`         | Yes      | Serve all known public content                              |
 
-Internal fields (managed by the script): `compose_url`, `compose_sha`, `compose_envs`, `release_channel`, `testnet`,
-`link_secret`, `analytics`, `last_script_run`.
+`environment` (`prod`/`dev`) is a derived label kept in sync with `testnet`. Internal fields (managed by the script):
+`compose_url`, `compose_sha`, `compose_env_sha`, `compose_envs`, `link_secret`, `analytics`, `last_script_run`.
 
 ## Docker Services
 

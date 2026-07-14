@@ -11,10 +11,13 @@
  * of the new deployment system. When it exists, the script runs headless.
  * When it doesn't, it runs the interactive wizard.
  *
- * The seed directory is derived from the script's own location
+ * The seed directory is derived solely from the script's own location
  * (dirname of process.argv[1]) so that cron jobs and the seed-deploy
- * wrapper always resolve to the correct path. This can be overridden
- * via the SEED_DIR environment variable.
+ * wrapper always resolve to the correct path. The install location is a
+ * deliberate choice made by the bootstrap installer (deploy.sh), which in
+ * `--advanced` mode prompts for it (default /opt/seed) instead of relying on
+ * a hidden env var — this is what keeps branch/test nodes in their own dirs
+ * without the location silently drifting.
  */
 
 import * as p from '@clack/prompts'
@@ -25,7 +28,7 @@ import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
 export const VERSION = '0.2.0'
-export const DEFAULT_SEED_DIR = process.env.SEED_DIR || dirname(process.argv[1])
+export const DEFAULT_SEED_DIR = dirname(process.argv[1])
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 
 // SEED_DEPLOY_URL points at the ops/ directory (matches deploy.sh convention).
@@ -311,29 +314,37 @@ export function validateDockerImageTag(tag: string): string | undefined {
 
 async function promptReleaseChannel(options: {
   initialTag: string | null | undefined
+  advanced: boolean
 }): Promise<string | symbol> {
   const initialTag = options.initialTag ?? DEFAULT_RELEASE_CHANNEL
   const hasCustomTag = !isPresetReleaseChannel(initialTag)
+  // The custom-tag option is an advanced escape hatch (branch/test builds).
+  // Only show it in --advanced mode, or when the node is already on a custom
+  // tag (so a plain reconfigure never silently drops it).
+  const showCustom = options.advanced || hasCustomTag
+  const channelOptions = [
+    {
+      value: 'latest',
+      label: 'Stable',
+      hint: 'official releases, recommended for production',
+    },
+    {
+      value: 'dev',
+      label: 'Bleeding edge',
+      hint: 'main branch builds, may be unstable',
+    },
+  ]
+  if (showCustom) {
+    channelOptions.push({
+      value: CUSTOM_RELEASE_CHANNEL,
+      label: 'Custom tag',
+      hint: 'run images from a specific Docker tag or branch build',
+    })
+  }
   const selected = await p.select<string>({
     message: 'Release channel',
     initialValue: hasCustomTag ? CUSTOM_RELEASE_CHANNEL : initialTag,
-    options: [
-      {
-        value: 'latest',
-        label: 'Stable',
-        hint: 'official releases, recommended for production',
-      },
-      {
-        value: 'dev',
-        label: 'Bleeding edge',
-        hint: 'main branch builds, may be unstable',
-      },
-      {
-        value: CUSTOM_RELEASE_CHANNEL,
-        label: 'Custom tag',
-        hint: 'run images from a specific Docker tag or branch build',
-      },
-    ],
+    options: channelOptions,
   })
 
   if (p.isCancel(selected) || selected !== CUSTOM_RELEASE_CHANNEL) {
@@ -762,7 +773,12 @@ async function migrateDataFromOldInstall(paths: DeployPaths, shell: ShellRunner)
 // Migration Wizard
 // ---------------------------------------------------------------------------
 
-async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell: ShellRunner): Promise<SeedConfig> {
+async function runMigrationWizard(
+  old: OldInstallInfo,
+  paths: DeployPaths,
+  shell: ShellRunner,
+  advanced = false,
+): Promise<SeedConfig> {
   p.intro(`Seed Node Migration v${VERSION}`)
 
   p.note(
@@ -808,6 +824,7 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
       release_channel: () =>
         promptReleaseChannel({
           initialTag: old.imageTag,
+          advanced,
         }),
       log_level: () =>
         p.select({
@@ -907,7 +924,7 @@ async function runMigrationWizard(old: OldInstallInfo, paths: DeployPaths, shell
 // Fresh Install Wizard
 // ---------------------------------------------------------------------------
 
-async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promise<SeedConfig> {
+async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advanced = false): Promise<SeedConfig> {
   const isReconfig = !!existing
   p.intro(isReconfig ? `Seed Node Reconfiguration v${VERSION}` : `Seed Node Setup v${VERSION}`)
 
@@ -920,7 +937,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
         'the Docker containers, reverse proxy, and networking so your node is',
         'reachable on the public internet.',
         '',
-        `Configuration will be saved to ${paths.configPath}.`,
+        `This node's install location is ${paths.seedDir}/ (config + data live here).`,
         'Subsequent runs of this script will deploy automatically (headless mode).',
       ].join('\n'),
       'First-time setup',
@@ -967,6 +984,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig): Promis
       release_channel: () =>
         promptReleaseChannel({
           initialTag: existing?.release_channel,
+          advanced,
         }),
       log_level: () =>
         p.select({
@@ -1138,6 +1156,43 @@ export function containersMatchReleaseChannel(shell: ShellRunner, config: SeedCo
     if (got !== want) return false
   }
   return true
+}
+
+/**
+ * Detect whether the shared seed container names are owned by a *different*
+ * compose project (another install dir on this host). Returns the foreign
+ * project name, or null. Only a non-empty foreign project counts — legacy
+ * non-compose orphans (empty label) are handled by freeConflictingPortBindings.
+ */
+export function detectForeignStack(shell: ShellRunner, paths: DeployPaths): string | null {
+  const ours = composeProjectName(paths)
+  for (const name of ['seed-proxy', 'seed-web', 'seed-daemon']) {
+    const project = shell.runSafe(
+      `docker inspect ${name} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`,
+    )
+    if (project && project !== ours) return project
+  }
+  return null
+}
+
+/**
+ * Refuse to touch containers owned by another seed install. Two seed stacks
+ * can't share one host — they use the same fixed container names and would
+ * clobber each other. We abort rather than remove the other stack, because its
+ * data volumes belong to it. Branch/test nodes belong on a separate host (or,
+ * historically, in their own dir taking turns).
+ */
+export function assertNoForeignStack(shell: ShellRunner, paths: DeployPaths): void {
+  const foreign = detectForeignStack(shell, paths)
+  if (!foreign) return
+  throw new Error(
+    [
+      `The seed containers on this host are managed by a different install (compose project '${foreign}').`,
+      `This install is '${composeProjectName(paths)}' at ${paths.seedDir}.`,
+      `Two seed stacks can't share one host — they use the same container names.`,
+      `Stop the other one first ('stop' in its directory), or run this node on a separate host.`,
+    ].join(' '),
+  )
 }
 
 export async function getContainerImages(shell: ShellRunner): Promise<Map<string, string>> {
@@ -1372,6 +1427,9 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
   if (isInteractive) {
     p.log.step('Starting deployment...')
   }
+
+  // Refuse to clobber another seed install sharing this host's container names.
+  assertNoForeignStack(shell, paths)
 
   // Surface risky/confusing config (unintended devnet, dev images on mainnet)
   // on every deploy so it is visible in the cron deploy log, not silent.
@@ -1685,21 +1743,26 @@ export interface CliArgs {
   command: CliCommand | 'help' | 'version'
   args: string[]
   reconfigure?: boolean
+  advanced?: boolean
 }
 
 export function parseArgs(argv: string[] = process.argv): CliArgs {
-  const raw = argv.slice(2)
+  const rawAll = argv.slice(2)
+  // `--advanced` is a global modifier: strip it wherever it appears so it
+  // doesn't interfere with command/subcommand parsing.
+  const advanced = rawAll.includes('--advanced')
+  const raw = rawAll.filter((a) => a !== '--advanced')
   const first = raw[0] ?? 'deploy'
 
-  if (first === '--help' || first === '-h') return {command: 'help', args: []}
-  if (first === '--version' || first === '-v') return {command: 'version', args: []}
-  if (first === '--reconfigure') return {command: 'deploy', args: [], reconfigure: true}
+  if (first === '--help' || first === '-h') return {command: 'help', args: [], advanced}
+  if (first === '--version' || first === '-v') return {command: 'version', args: [], advanced}
+  if (first === '--reconfigure') return {command: 'deploy', args: [], reconfigure: true, advanced}
 
   if ((COMMANDS as readonly string[]).includes(first)) {
     const rest = raw.slice(1)
     const reconfigure = first === 'deploy' && rest.includes('--reconfigure')
     const args = reconfigure ? rest.filter((a) => a !== '--reconfigure') : rest
-    return {command: first as CliCommand, args, reconfigure}
+    return {command: first as CliCommand, args, reconfigure, advanced}
   }
 
   console.error(`Unknown command: ${first}\n`)
@@ -1771,14 +1834,14 @@ export function printHelp(): void {
 // CLI: Commands
 // ---------------------------------------------------------------------------
 
-async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = false): Promise<void> {
+async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = false, advanced = false): Promise<void> {
   checkDockerAccess(shell)
   await ensureSeedDir(paths, shell)
 
   if (await configExists(paths)) {
     if (reconfigure && process.stdout.isTTY) {
       const existing = await readConfig(paths)
-      const config = await runFreshWizard(paths, existing)
+      const config = await runFreshWizard(paths, existing, advanced)
       await deploy(config, paths, shell)
       p.outro(`Reconfiguration complete! Your Seed node is running.\n${MANAGE_HINT}`)
       return
@@ -1794,9 +1857,9 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
 
   let config: SeedConfig
   if (oldInstall) {
-    config = await runMigrationWizard(oldInstall, paths, shell)
+    config = await runMigrationWizard(oldInstall, paths, shell, advanced)
   } else {
-    config = await runFreshWizard(paths)
+    config = await runFreshWizard(paths, undefined, advanced)
   }
 
   await setupCron(paths, shell)
@@ -1835,6 +1898,8 @@ async function cmdStart(paths: DeployPaths, shell: ShellRunner): Promise<void> {
     console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first to set up.`)
     process.exit(1)
   }
+
+  assertNoForeignStack(shell, paths)
 
   const config = await readConfig(paths)
   const envContent = buildComposeEnv(config, paths)
@@ -2435,7 +2500,7 @@ async function cmdUninstall(paths: DeployPaths, shell: ShellRunner): Promise<voi
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const {command, args, reconfigure} = parseArgs()
+  const {command, args, reconfigure, advanced} = parseArgs()
   const paths = makePaths()
   const shell = makeShellRunner()
 
@@ -2447,7 +2512,7 @@ async function main(): Promise<void> {
       console.log(VERSION)
       return
     case 'deploy':
-      return cmdDeploy(paths, shell, reconfigure)
+      return cmdDeploy(paths, shell, reconfigure, advanced)
     case 'upgrade':
       return cmdUpgrade(paths)
     case 'stop':
