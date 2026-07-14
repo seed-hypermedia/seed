@@ -13,6 +13,7 @@ import {
   findContentBlock,
   getBlockText,
   getDraftNodesOutline,
+  getNodesOutline,
   hmId,
   NavRoute,
   ProfileTab,
@@ -90,13 +91,7 @@ import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
-import {
-  DocNavigationItem,
-  DocNavigationWrapper,
-  DocumentOutline,
-  isValidSiteHeaderItem,
-  useNodesOutline,
-} from './navigation'
+import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OptionsPanel} from './options-panel'
@@ -2800,12 +2795,16 @@ function ContentViewWithOutline({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
-  const publishedOutline = useNodesOutline(document, docId)
-  const draftOutline = useMemo(
-    () => (existingDraftContent ? getDraftNodesOutline(existingDraftContent, docId) : null),
-    [existingDraftContent, docId],
-  )
-  const outline = draftOutline ?? publishedOutline
+  // existingDraftContent may arrive in HMBlockNode[] or
+  // EditorBlock[] shape. Pick the outline builder that matches.
+  const outlineSource = existingDraftContent ?? document.content ?? []
+  const outline = useMemo(() => {
+    const first = outlineSource[0] as any
+    const isEditorFormat = first != null && 'type' in first && !('block' in first)
+    return isEditorFormat
+      ? getDraftNodesOutline(outlineSource as any, docId)
+      : getNodesOutline(outlineSource as any, docId)
+  }, [outlineSource, docId])
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {
