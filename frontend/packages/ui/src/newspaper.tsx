@@ -216,7 +216,7 @@ export function documentCardContainerClassName({
   hasCover = false,
 }: {banner?: boolean; hasCover?: boolean} = {}) {
   return cn(
-    'hover:bg-accent dark:hover:bg-accent @container flex w-full overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
+    'group/item hover:bg-accent dark:hover:bg-accent @container flex w-full overflow-hidden rounded-lg border border-border bg-white shadow-md transition-colors duration-300 dark:bg-black',
     banner && hasCover && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
     banner && !hasCover && 'rounded-xl',
   )
@@ -487,7 +487,9 @@ export function DocumentCard({
                 </Button>
               </Tooltip>
             )}
-            {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="top" />}
+            {menuItems.length > 0 && (
+              <OptionsDropdown menuItems={menuItems} align="end" side="top" hiddenUntilItemHover />
+            )}
           </div>
         ) : null
       }
