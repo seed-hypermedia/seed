@@ -5,9 +5,10 @@ import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createMockClient} from '@/frontend/test-utils'
 import {CreateProfileView} from './CreateProfileView'
 
-function renderCreateProfileView() {
+function renderCreateProfileView({withDelegationRequest = false} = {}) {
   const store = createStore(createMockClient(), createMockBlockstore(), '', 'https://notify.default.example.com')
   const createAccount = mock(async () => true)
+  const completeDelegation = mock(async () => true)
 
   store.state.session = {
     authenticated: true,
@@ -19,7 +20,20 @@ function renderCreateProfileView() {
     version: 2,
     accounts: [],
   }
+  if (withDelegationRequest) {
+    store.state.delegationRequest = {
+      originalUrl: 'https://vault.example.com/delegate',
+      clientId: 'https://site.example.com',
+      redirectUri: 'https://site.example.com/callback',
+      sessionKeyPrincipal: 'z6MkTest',
+      state: 'AAAAAAAAAAAAAAAAAAAAAA',
+      requestTs: Date.now(),
+      proof: 'cA',
+      vaultOrigin: 'https://vault.example.com',
+    }
+  }
   store.actions.createAccount = createAccount as typeof store.actions.createAccount
+  store.actions.completeDelegation = completeDelegation as typeof store.actions.completeDelegation
 
   render(
     <MemoryRouter initialEntries={['/profile/create']}>
@@ -29,7 +43,7 @@ function renderCreateProfileView() {
     </MemoryRouter>,
   )
 
-  return {createAccount}
+  return {createAccount, completeDelegation}
 }
 
 describe('CreateProfileView', () => {
@@ -52,6 +66,18 @@ describe('CreateProfileView', () => {
           includeEmail: true,
         },
       })
+    })
+  })
+
+  test('completes the delegation right away after creating the first account', async () => {
+    const {createAccount, completeDelegation} = renderCreateProfileView({withDelegationRequest: true})
+
+    fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
+    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+
+    await waitFor(() => {
+      expect(createAccount).toHaveBeenCalled()
+      expect(completeDelegation).toHaveBeenCalledTimes(1)
     })
   })
 

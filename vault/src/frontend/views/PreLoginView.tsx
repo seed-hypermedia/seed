@@ -56,6 +56,10 @@ export function PreLoginView() {
     await actions.handlePreLogin()
   }
 
+  const delegationSiteName = delegationRequest
+    ? delegationRequest.siteName || new URL(delegationRequest.clientId).host
+    : null
+
   return (
     <Card>
       <CardHeader>
@@ -65,9 +69,9 @@ export function PreLoginView() {
               <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600">
                 <SeedLogo className="size-4 text-white" />
               </div>
-              Good to see you again
+              Sign in to join {delegationSiteName}
             </CardTitle>
-            <CardDescription className="text-left">Use your Hypermedia account to access this site.</CardDescription>
+            <CardDescription className="text-left">Enter the email linked to your Hypermedia identity.</CardDescription>
           </>
         ) : vaultConnectionRequest ? (
           <>
@@ -88,12 +92,12 @@ export function PreLoginView() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email address</Label>
+            <Label htmlFor="email">{delegationRequest ? 'Enter your email to continue' : 'Email address'}</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={delegationRequest ? 'Enter your email' : 'you@example.com'}
               value={email}
               onChange={(e) => actions.setEmail(e.target.value)}
               required

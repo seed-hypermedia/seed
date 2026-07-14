@@ -1842,8 +1842,9 @@ describe('delegation flow', () => {
     const request = await makeSignedDelegationUrl()
     await setupDelegationState(store, request.url, bs)
 
-    await store.actions.completeDelegation()
+    const didDelegate = await store.actions.completeDelegation()
 
+    expect(didDelegate).toBe(true)
     expect(saveVaultDataCalls.length).toBe(1)
     expect(window.location.href).toContain('https://example.com/callback')
     expect(window.location.href).toContain('data=')
@@ -1914,8 +1915,9 @@ describe('delegation flow', () => {
     request.url.searchParams.set('proof', 'bad-proof')
     await setupDelegationState(store, request.url, bs)
 
-    await store.actions.completeDelegation()
+    const didDelegate = await store.actions.completeDelegation()
 
+    expect(didDelegate).toBe(false)
     expect(store.state.error).toContain('Invalid proof signature encoding')
   })
 

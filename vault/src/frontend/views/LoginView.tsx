@@ -59,10 +59,24 @@ export function LoginView() {
     <Card>
       <CardHeader>
         <CardTitle className="text-center">
-          {vaultConnectionRequest ? 'Connect your desktop app' : 'Welcome Back'}
+          {vaultConnectionRequest ? (
+            'Connect your desktop app'
+          ) : (
+            <>
+              Good to see you again <span aria-hidden>👋</span>
+            </>
+          )}
         </CardTitle>
         <CardDescription className="text-center">
-          {vaultConnectionRequest ? `Sign in to ${email} to continue connecting this vault.` : `Sign in to ${email}`}
+          {vaultConnectionRequest ? (
+            `Sign in to ${email} to continue connecting this vault.`
+          ) : (
+            <>
+              <span className="text-foreground font-medium">Confirm it's you.</span>
+              <br />
+              Signing in as {email}
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -70,8 +84,8 @@ export function LoginView() {
 
         {hasPasskeyOption && (
           <>
-            <Button variant="secondary" onClick={actions.handlePasskeyLogin} loading={loading} className="w-full">
-              🔑 Sign in with Passkey
+            <Button onClick={actions.handlePasskeyLogin} loading={loading} className="w-full">
+              Sign in with passkey
             </Button>
             {userHasPassword && !passwordVisible && (
               <Button
@@ -119,7 +133,7 @@ export function LoginView() {
             navigate('/')
           }}
         >
-          ← Use different email
+          ← Use another email
         </Button>
       </CardContent>
     </Card>

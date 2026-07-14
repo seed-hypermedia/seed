@@ -39,6 +39,18 @@ export function CreateProfileView() {
       return
     }
 
+    // The user just created their only account in this flow, so there is
+    // nothing to choose or confirm — complete the delegation right away.
+    // (Signing in with an existing account still shows the confirmation step.)
+    if (delegationRequest) {
+      const didDelegate = await actions.completeDelegation()
+      if (!didDelegate) {
+        // Show the confirmation screen with the error.
+        navigate('/delegate')
+      }
+      return
+    }
+
     navigate(getPendingFlowPath({delegationRequest, vaultConnectionRequest}))
   }
 

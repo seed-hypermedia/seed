@@ -18,6 +18,7 @@ import {
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
+  PARAM_SITE_NAME,
   PARAM_STATE,
   PARAM_TS,
   validateClientId,
@@ -124,6 +125,9 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   url.searchParams.set(PARAM_TS, String(authStartTime))
   if (config.email) {
     url.searchParams.set(PARAM_EMAIL, config.email)
+  }
+  if (config.siteName) {
+    url.searchParams.set(PARAM_SITE_NAME, config.siteName)
   }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)

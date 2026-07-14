@@ -12,7 +12,7 @@ import {
 import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
-import {Plus, User} from 'lucide-react'
+import {Check, Plus, User} from 'lucide-react'
 import {useEffect} from 'react'
 import {useSearchParams} from 'react-router-dom'
 
@@ -99,41 +99,54 @@ export function DelegateView() {
 
   const hasValidSelection = selectedAccountIndex >= 0 && selectedAccountIndex < accounts.length
 
+  const clientHostname = new URL(delegationRequest.clientId).host
+  const siteDisplayName = delegationRequest.siteName || clientHostname
+
+  const selectedAccount = hasValidSelection ? accounts[selectedAccountIndex] : undefined
+  const selectedPrincipal = selectedAccount
+    ? blobs.principalToString(blobs.nobleKeyPairFromSeed(selectedAccount.seed).principal)
+    : null
+  const selectedName = selectedPrincipal
+    ? getProfileDisplayName(profiles[selectedPrincipal], profileLoadStates[selectedPrincipal])
+    : null
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-left text-xl">Connect your Hypermedia account</CardTitle>
+        <CardTitle className="text-left text-xl">Confirm your account</CardTitle>
         <CardDescription className="text-left">
-          This will link your account so you can join and participate on{' '}
-          <span className="text-foreground font-medium">{delegationRequest.clientId}</span>
+          Join <span className="text-foreground font-medium">{siteDisplayName}</span> to comment, reply, and
+          participate.
+          {/* The site name is claimed by the requesting site, so keep the real origin visible. */}
+          {delegationRequest.siteName && (
+            <span className="text-muted-foreground my-3 block text-xs">{clientHostname}</span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {!creatingAccount && <ErrorMessage message={error} />}
 
-        {/* Account selection — only shown for multiple accounts */}
-        {accounts.length > 1 && (
+        {/* Account reminder — always visible so the user can verify which identity they join with */}
+        <div className="space-y-2">
+          {accounts.length > 1 && <p className="text-sm font-medium">Choose an account to use</p>}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Choose an account to use</p>
-            <div className="space-y-2">
-              {accounts.map((account, index) => {
-                const kp = blobs.nobleKeyPairFromSeed(account.seed)
-                const principal = blobs.principalToString(kp.principal)
-                const isSelected = index === selectedAccountIndex
-                return (
-                  <AccountSelectionItem
-                    key={principal}
-                    profile={profiles[principal]}
-                    profileLoadState={profileLoadStates[principal]}
-                    backendHttpBaseUrl={backendHttpBaseUrl}
-                    isSelected={isSelected}
-                    onClick={() => actions.selectAccount(index)}
-                  />
-                )
-              })}
-            </div>
+            {accounts.map((account, index) => {
+              const kp = blobs.nobleKeyPairFromSeed(account.seed)
+              const principal = blobs.principalToString(kp.principal)
+              const isSelected = index === selectedAccountIndex
+              return (
+                <AccountSelectionItem
+                  key={principal}
+                  profile={profiles[principal]}
+                  profileLoadState={profileLoadStates[principal]}
+                  backendHttpBaseUrl={backendHttpBaseUrl}
+                  isSelected={isSelected}
+                  onClick={() => actions.selectAccount(index)}
+                />
+              )
+            })}
           </div>
-        )}
+        </div>
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
@@ -143,7 +156,7 @@ export function DelegateView() {
             disabled={!hasValidSelection}
             onClick={actions.completeDelegation}
           >
-            Confirm & join
+            {selectedName ? `Continue as ${selectedName}` : 'Continue'}
           </Button>
           <Button variant="ghost" className="w-full" disabled={loading} onClick={actions.cancelDelegation}>
             Cancel
@@ -189,7 +202,8 @@ function AccountSelectionItem({
           <User className="text-primary size-4" />
         )}
       </div>
-      <div className={`truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
+      <div className={`flex-1 truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
+      {isSelected && <Check className="text-primary size-4 shrink-0" />}
     </button>
   )
 }

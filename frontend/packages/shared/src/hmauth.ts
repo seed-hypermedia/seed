@@ -24,6 +24,8 @@ export interface HypermediaAuthConfig {
   redirectUri?: string
   /** Optional email to pre-fill in the vault's login/registration form. */
   email?: string
+  /** Optional display name of this site, shown in the vault's consent UI. */
+  siteName?: string
 }
 
 /** Stored session key with metadata. */
@@ -89,6 +91,9 @@ export const PARAM_ERROR = 'error'
 
 /** Optional URL parameter for pre-filling the user's email in the vault. */
 export const PARAM_EMAIL = 'email'
+
+/** Optional URL parameter with the requesting site's display name, for vault UI copy. Claimed by the client — display only. */
+export const PARAM_SITE_NAME = 'site_name'
 
 /** Vault route path for handling delegation requests. */
 export const DELEGATION_PATH = '/delegate'
@@ -189,6 +194,8 @@ export interface DelegationRequest {
   vaultOrigin: string
   /** Optional pre-filled email from the requesting site. */
   email?: string
+  /** Optional display name of the requesting site. Claimed by the client — display only. */
+  siteName?: string
 }
 
 /**
@@ -325,6 +332,7 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
   const requestTs = validateRequestTimestamp(ts)
 
   const email = parsedUrl.searchParams.get(PARAM_EMAIL) || undefined
+  const siteName = parsedUrl.searchParams.get(PARAM_SITE_NAME) || undefined
 
   return {
     originalUrl,
@@ -336,6 +344,7 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
     proof,
     vaultOrigin: parsedUrl.origin,
     email,
+    siteName,
   }
 }
 

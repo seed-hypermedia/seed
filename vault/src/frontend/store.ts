@@ -1947,10 +1947,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.delegationConsented = false
 
         window.location.href = callbackUrl.toString()
+        return true
       } catch (e) {
         // Error is surfaced to the user via state.error; no console.error
         // to avoid noisy output in tests that intentionally trigger failures.
         state.error = state.error || getErrorMessage(e, 'Delegation failed')
+        return false
       } finally {
         state.loading = false
       }

@@ -7,7 +7,7 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
-import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
+import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
 import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
@@ -242,9 +242,18 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
+/** Display name of the current site from its home document, falling back to the hostname. */
+function useSiteName() {
+  const {origin, originHomeId} = useUniversalAppContext()
+  const homeResource = useResource(originHomeId)
+  const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
+  return homeDocument?.metadata?.name || hostnameStripProtocol(origin) || 'this site'
+}
+
 function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose: () => void}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
+  const siteName = useSiteName()
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
   const [customVaultUrl, setCustomVaultUrl] = useState('https://hyper.media')
@@ -272,6 +281,7 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
         clientId: origin || window.location.origin,
         redirectUri: `${origin || window.location.origin}/hm/auth/callback`,
         email: email || undefined,
+        siteName,
       })
       window.location.href = authUrl
     } catch (err) {
@@ -279,16 +289,30 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
     }
   }
 
+  const isJoin = input.source === 'join'
+
   return (
     <>
-      <DialogTitle className="flex items-center gap-2 max-sm:text-base">
+      <div className="flex items-center gap-2">
         <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
           <SeedLogo className="size-4 text-white" />
         </div>
-        {tx('your_hypermedia_identity', 'Your Hypermedia Identity')}
+        <span className="font-semibold">Hypermedia</span>
+      </div>
+      <DialogTitle className="max-sm:text-base">
+        {isJoin ? tx('join_site', ({siteName}) => `Join ${siteName}`, {siteName}) : tx('sign_in', 'Sign in')}
       </DialogTitle>
 
-      <DialogDescription className="max-sm:text-sm">Sign in or create your identity to get started.</DialogDescription>
+      <DialogDescription className="max-sm:text-sm">
+        {isJoin
+          ? tx(
+              'join_site_description',
+              ({siteName}) =>
+                `${siteName} is built with Hypermedia, a platform to create sites to share knowledge. Create your identity to participate, it takes two minutes.`,
+              {siteName},
+            )
+          : 'Sign in or create your identity to get started.'}
+      </DialogDescription>
 
       {/* <SizableText size="xs" className="text-neutral-500 dark:text-neutral-400">
                 By continuing, you agree to our{' '}
@@ -303,27 +327,26 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
                 .
               </SizableText> */}
       <Button variant="default" type="submit" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
-        {tx('Create Identity on Hypermedia')}
+        {tx('Create identity in Hypermedia')}
       </Button>
 
       <div className="flex items-center gap-2">
         <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">Or,</span>
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">Or</span>
         <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
       </div>
 
       <Button variant="outline" size="lg" className="w-full" onClick={() => handleVaultSignIn()}>
-        Already have a Hypermedia Identity?
+        {tx('Already have a Hypermedia identity')}
       </Button>
 
       <div className="text-center text-sm text-neutral-500 dark:text-neutral-400">
-        Do you have another identity domain?{' '}
         <button
           type="button"
-          className="cursor-pointer font-medium text-emerald-600 underline underline-offset-2 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+          className="cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300"
           onClick={() => setShowCustomVaultInput(true)}
         >
-          Sign in with it
+          {tx('I have a different identity domain')}
         </button>
       </div>
 
@@ -363,53 +386,33 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
     </>
   )
 }
-function VaultSuccessDialog({input, onClose}: {input: {variant: 'comment' | 'join'}; onClose: () => void}) {
-  const {origin} = useUniversalAppContext()
-  const siteName = hostnameStripProtocol(origin)
-
+function VaultSuccessDialog({onClose}: {input: {variant: 'comment'}; onClose: () => void}) {
   useEffect(() => {
-    if (input.variant !== 'comment') return
     const timer = setTimeout(onClose, 4000)
     return () => clearTimeout(timer)
-  }, [input.variant, onClose])
+  }, [onClose])
 
   return (
     <>
       <DialogTitle className="flex items-center gap-2">
         You are in <span aria-hidden>🎉</span>
       </DialogTitle>
-      {input.variant === 'comment' ? (
-        <>
-          <DialogDescription>
-            You joined the site, posting your comment now...
-            <br />
-            This post will be signed by you and shared across the network.
-          </DialogDescription>
-          <div className="flex justify-center py-2">
-            <Spinner />
-          </div>
-        </>
-      ) : (
-        <>
-          <DialogDescription>
-            You've joined <span className="font-medium">{siteName || 'this site'}</span> as a member!
-            <br />
-            Your Hypermedia account is ready. You can now comment, interact, and participate across the network.
-          </DialogDescription>
-          <DialogFooter>
-            <Button onClick={onClose}>Got it</Button>
-          </DialogFooter>
-        </>
-      )}
+      <DialogDescription>
+        You joined the site, posting your comment now...
+        <br />
+        This post will be signed by you and shared across the network.
+      </DialogDescription>
+      <div className="flex justify-center py-2">
+        <Spinner />
+      </div>
     </>
   )
 }
 
 /** Detects `?vault_success=...` in the URL and shows the matching dialog or toast. */
 export function useVaultSuccessDialog() {
-  const {origin} = useUniversalAppContext()
   const dialog = useAppDialog(VaultSuccessDialog)
-  const siteName = hostnameStripProtocol(origin) || 'this site'
+  const siteName = useSiteName()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -420,8 +423,12 @@ export function useVaultSuccessDialog() {
     url.searchParams.delete('vault_success')
     window.history.replaceState(null, '', url.pathname + url.search + url.hash)
 
-    if (variant === 'comment' || variant === 'join') {
+    if (variant === 'comment') {
       dialog.open({variant})
+      return
+    }
+    if (variant === 'join') {
+      toast.success(`You've joined ${siteName} — you can now comment and participate`)
       return
     }
     if (variant === 'login') {
