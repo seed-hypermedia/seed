@@ -612,6 +612,25 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:comments/comment123')
   })
 
+  test('comments route with openComment serializes to the same URL as the copied comment link', () => {
+    // The comment timestamp navigates to this route; the omnibar URL it
+    // produces must match what the "Copy Comment Link" button copies.
+    const url = routeToUrl(
+      {
+        key: 'comments',
+        id: hmId('z6MkOwner', {path: ['doc-path']}),
+        openComment: 'z6MkAuthor/tsid123',
+      },
+      {hostname: 'https://example.com', originHomeId: hmId('z6MkOwner')},
+    )
+    expect(url).toBe(
+      buildCopyLinkUrl({
+        id: hmId('z6MkOwner', {path: ['doc-path'], hostname: 'https://example.com'}),
+        commentId: hmId('z6MkAuthor', {path: ['tsid123']}),
+      }),
+    )
+  })
+
   test('comments route with openComment and blockRef includes fragment', () => {
     const url = routeToUrl(
       {
