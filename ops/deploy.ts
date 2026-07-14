@@ -11,13 +11,14 @@
  * of the new deployment system. When it exists, the script runs headless.
  * When it doesn't, it runs the interactive wizard.
  *
- * The seed directory is derived solely from the script's own location
- * (dirname of process.argv[1]) so that cron jobs and the seed-deploy
- * wrapper always resolve to the correct path. The install location is a
- * deliberate choice made by the bootstrap installer (deploy.sh), which in
- * `--advanced` mode prompts for it (default /opt/seed) instead of relying on
- * a hidden env var — this is what keeps branch/test nodes in their own dirs
- * without the location silently drifting.
+ * The TOOL and the DATA are separate:
+ *  - The deploy SCRIPT (this file) is installed once at a fixed path
+ *    (DEPLOY_SCRIPT_PATH) and self-updates in place. One copy, always current.
+ *  - A node's DATA/config lives in its own directory, chosen with `--dir`
+ *    (default /opt/seed). The same script manages any node via `--dir`.
+ * The wrapper and cron always pass `--dir <data-dir>`. Legacy installs that
+ * placed the script inside the data dir still work: without `--dir` the data
+ * dir falls back to the script's own directory.
  */
 
 import * as p from '@clack/prompts'
@@ -27,8 +28,29 @@ import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
-export const VERSION = '0.4.0'
-export const DEFAULT_SEED_DIR = dirname(process.argv[1])
+export const VERSION = '0.5.0'
+
+/**
+ * Fixed install path for the deploy SCRIPT (the tool). New installs place it
+ * here and invoke it via the wrapper/cron with `--dir <data-dir>`. Keeping the
+ * single script here — separate from any node's data — is what stops per-dir
+ * script copies from going stale.
+ */
+export const DEPLOY_SCRIPT_PATH = '/usr/local/lib/seed/deploy.js'
+
+/** Default node DATA directory when `--dir` is not passed. */
+export const DEFAULT_DATA_DIR = '/opt/seed'
+
+/**
+ * The node data directory to operate on when `--dir` is absent.
+ * - Running from the fixed tool path → default to /opt/seed (data lives apart).
+ * - Legacy "script-in-data-dir" install → the script's own directory, so old
+ *   wrappers/crons that pass no `--dir` keep resolving to their data.
+ */
+export const DEFAULT_SEED_DIR =
+  dirname(process.argv[1] || '') === dirname(DEPLOY_SCRIPT_PATH)
+    ? DEFAULT_DATA_DIR
+    : dirname(process.argv[1] || '')
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 
 // SEED_DEPLOY_URL points at the ops/ directory (matches deploy.sh convention).
@@ -1379,14 +1401,22 @@ async function rollback(
 // with the code already loaded in memory.
 // ---------------------------------------------------------------------------
 
-export async function selfUpdate(paths: DeployPaths): Promise<void> {
-  const scriptPath = join(paths.seedDir, 'deploy.js')
+export async function selfUpdate(scriptPath: string = process.argv[1] || ''): Promise<void> {
   const report = (msg: string) => {
     if (process.stdout.isTTY) {
       console.log(msg)
     } else {
       log(msg)
     }
+  }
+
+  // The script updates ITSELF in place, wherever it lives (the fixed tool path
+  // for new installs; the data dir for legacy installs). This is independent of
+  // the node's --dir data directory. The guard makes it impossible to overwrite
+  // anything but a deploy.js (e.g. a test file when running under `bun test`).
+  if (!scriptPath.endsWith('deploy.js')) {
+    report(`Upgrade: skipped — script path is not a deploy.js (${scriptPath}).`)
+    return
   }
 
   try {
@@ -1686,10 +1716,11 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
  * current versions. Non-seed lines are preserved untouched.
  */
 export function buildCrontab(existing: string, paths: DeployPaths, bunPath: string = '/usr/local/bin/bun'): string {
-  const deployScript = join(paths.seedDir, 'deploy.js')
+  // Run the single fixed script, pointed at this node's data dir with --dir.
+  const invoke = `${bunPath} "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}"`
   const deployLine =
-    `*/10 * * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` +
-    `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
+    `*/10 * * * * ${invoke} upgrade >> "${paths.deployLog}" 2>&1; ` +
+    `${invoke} deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
   const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`
 
   const filtered = existing
@@ -1745,25 +1776,43 @@ export interface CliArgs {
   args: string[]
   reconfigure?: boolean
   advanced?: boolean
+  /** Node data directory to operate on (overrides DEFAULT_SEED_DIR). */
+  dir?: string
 }
 
 export function parseArgs(argv: string[] = process.argv): CliArgs {
   const rawAll = argv.slice(2)
-  // `--advanced` is a global modifier: strip it wherever it appears so it
-  // doesn't interfere with command/subcommand parsing.
+  // Global modifiers, stripped wherever they appear so they don't interfere
+  // with command/subcommand parsing:
+  //   --advanced        unlock advanced prompts
+  //   --dir <path>      operate on that node's data directory
   const advanced = rawAll.includes('--advanced')
-  const raw = rawAll.filter((a) => a !== '--advanced')
+  let dir: string | undefined
+  const raw: string[] = []
+  for (let i = 0; i < rawAll.length; i++) {
+    const a = rawAll[i]
+    if (a === '--advanced') continue
+    if (a === '--dir') {
+      dir = rawAll[++i]
+      continue
+    }
+    if (a.startsWith('--dir=')) {
+      dir = a.slice('--dir='.length)
+      continue
+    }
+    raw.push(a)
+  }
   const first = raw[0] ?? 'deploy'
 
-  if (first === '--help' || first === '-h') return {command: 'help', args: [], advanced}
-  if (first === '--version' || first === '-v') return {command: 'version', args: [], advanced}
-  if (first === '--reconfigure') return {command: 'deploy', args: [], reconfigure: true, advanced}
+  if (first === '--help' || first === '-h') return {command: 'help', args: [], advanced, dir}
+  if (first === '--version' || first === '-v') return {command: 'version', args: [], advanced, dir}
+  if (first === '--reconfigure') return {command: 'deploy', args: [], reconfigure: true, advanced, dir}
 
   if ((COMMANDS as readonly string[]).includes(first)) {
     const rest = raw.slice(1)
     const reconfigure = first === 'deploy' && rest.includes('--reconfigure')
     const args = reconfigure ? rest.filter((a) => a !== '--reconfigure') : rest
-    return {command: first as CliCommand, args, reconfigure, advanced}
+    return {command: first as CliCommand, args, reconfigure, advanced, dir}
   }
 
   console.error(`Unknown command: ${first}\n`)
@@ -1795,6 +1844,8 @@ export function printHelp(): void {
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard to change configuration`,
+    `  --dir <path>   Node data directory to operate on (default ${DEFAULT_DATA_DIR})`,
+    `  --advanced     Unlock the install-location + custom-tag prompts`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -1817,14 +1868,14 @@ export function printHelp(): void {
   if (CLI_INSTALLED) {
     lines.push(
       `The 'seed-deploy' command is installed at /usr/local/bin/seed-deploy.`,
-      `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`,
+      `The deployment script lives at ${DEPLOY_SCRIPT_PATH}; node data defaults to ${DEFAULT_DATA_DIR} (override with --dir).`,
     )
   } else {
     lines.push(
       `The 'seed-deploy' CLI is not installed. You can run any command above with:`,
       `  ${CURL_INSTALL_CMD} -s -- <command>`,
       ``,
-      `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`,
+      `The deployment script lives at ${DEPLOY_SCRIPT_PATH}; node data defaults to ${DEFAULT_DATA_DIR} (override with --dir).`,
     )
   }
 
@@ -1873,9 +1924,10 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`)
 }
 
-async function cmdUpgrade(paths: DeployPaths): Promise<void> {
-  // The script updates from main for every node, independent of release_channel.
-  await selfUpdate(paths)
+async function cmdUpgrade(): Promise<void> {
+  // The script updates itself in place, from main, for every node — independent
+  // of both the data dir and release_channel.
+  await selfUpdate()
 }
 
 async function cmdStop(paths: DeployPaths, shell: ShellRunner): Promise<void> {
@@ -1936,7 +1988,7 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
   if (runningDir && runningDir !== paths.seedDir) {
     console.log(`\n  ⚠ The RUNNING node is managed from a different install: ${runningDir}`)
     console.log(`      You are inspecting ${paths.seedDir}, but the live containers belong to ${runningDir}.`)
-    console.log(`      Manage the live node from there: ${runningDir}/deploy.js (or repoint the seed-deploy wrapper).`)
+    console.log(`      Manage the live node with: seed-deploy --dir ${runningDir} <command>.`)
   }
 
   // Containers
@@ -2503,8 +2555,8 @@ async function cmdUninstall(paths: DeployPaths, shell: ShellRunner): Promise<voi
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const {command, args, reconfigure, advanced} = parseArgs()
-  const paths = makePaths()
+  const {command, args, reconfigure, advanced, dir} = parseArgs()
+  const paths = makePaths(dir ?? DEFAULT_SEED_DIR)
   const shell = makeShellRunner()
 
   switch (command) {
@@ -2517,7 +2569,7 @@ async function main(): Promise<void> {
     case 'deploy':
       return cmdDeploy(paths, shell, reconfigure, advanced)
     case 'upgrade':
-      return cmdUpgrade(paths)
+      return cmdUpgrade()
     case 'stop':
       return cmdStop(paths, shell)
     case 'start':

@@ -40,6 +40,12 @@ docker-compose.yml Container definitions for proxy, web, and daemon
 `deploy.ts` is the source; servers run the bundled `dist/deploy.js`. **`dist/deploy.js` _is_ committed** (unlike a
 typical build artifact) so the raw-GitHub fallback URL always resolves.
 
+> **Tool vs. data.** The deploy **script** (the tool) installs once at a fixed path — **`/usr/local/lib/seed/deploy.js`**
+> — and self-updates in place. A node's **data/config** lives in its own dir (default `/opt/seed`), selected with
+> **`--dir <path>`**. One script manages any node; the wrapper and cron always pass `--dir`. This is what keeps a single
+> always-current script instead of a stale copy in every data dir. (Legacy installs that placed the script inside the
+> data dir keep working; re-run the bootstrap once to move to the fixed path.)
+
 **How the bundle stays in sync and reaches servers:**
 
 1. **Pre-commit hook** (`.git/hooks/pre-commit`) — whenever `ops/` source is staged, it rebuilds `dist/deploy.js` with
@@ -82,14 +88,16 @@ When no `config.json` exists, the script launches a terminal wizard:
 Add **`--advanced`** to also choose the **install location** and enter a **custom image tag**
 (`seed-deploy deploy --reconfigure --advanced`, or `deploy.sh --advanced` at first install).
 
-**Install location:** the bootstrap installs to `/opt/seed` by default. If a node already exists it **adopts that
-directory and updates it in place** — so you can't accidentally spawn a duplicate stack at `/opt/seed`. It finds the
-existing directory in priority order: the **running `seed-daemon`** (its `/data` bind-mount → install dir, the most
-authoritative signal), then the `seed-deploy` wrapper's recorded path. Use `--advanced` to deliberately install into a
-different directory (e.g. a branch/test node).
+**Data directory:** the **script** is always at the fixed path (above); `--advanced` (or `--dir`) chooses the node's
+**data** dir, default `/opt/seed`. If a node already exists the bootstrap **adopts its data dir and updates in place**
+— so you can't accidentally spawn a duplicate stack. It finds the existing dir in priority order: the **running
+`seed-daemon`** (its `/data` bind-mount → data dir, the most authoritative signal), then the `--dir` recorded in the
+`seed-deploy` wrapper. Use `--advanced` to deliberately install a **separate** node in its own dir (e.g. a branch/test
+node whose DB migration must stay isolated).
 
-`seed-deploy doctor` **warns** when the live containers are managed from a *different* install directory than the one
-you're inspecting — the tell-tale of the two-dirs-on-one-host trap.
+`seed-deploy doctor` **warns** when the live containers are managed from a *different* data directory than the one
+you're inspecting — the tell-tale of the two-dirs-on-one-host trap. Point any command at a specific node with
+`seed-deploy --dir <path> <command>`.
 
 The wizard also detects legacy installations (from `website_deployment.sh`) and offers a migration path, pre-filling
 values from the old config.
@@ -138,6 +146,7 @@ seed-deploy [command] [options]
 | Option            | Description                                       |
 | ----------------- | ------------------------------------------------- |
 | `--reconfigure`   | Re-run the setup wizard to change configuration   |
+| `--dir <path>`    | Node data directory to operate on (default `/opt/seed`) |
 | `--advanced`      | Unlock the install-location + custom-tag prompts  |
 | `-h`, `--help`    | Show help message                                 |
 | `-v`, `--version` | Show script version                               |

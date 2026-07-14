@@ -72,9 +72,11 @@ resolve_install_dir() {
     fi
   fi
 
-  # 2) Fall back to the path recorded in the seed-deploy wrapper.
+  # 2) Fall back to the data dir recorded in the seed-deploy wrapper. New
+  #    wrappers carry `--dir "<data>"`; legacy ones embed "<data>/deploy.js".
   if [ -z "$INSTALL_DIR" ] && [ -r /usr/local/bin/seed-deploy ]; then
-    _existing=$(sed -n 's|.*"\([^"]*\)/deploy\.js".*|\1|p' /usr/local/bin/seed-deploy | head -1)
+    _existing=$(sed -n 's|.*--dir "\([^"]*\)".*|\1|p' /usr/local/bin/seed-deploy | head -1)
+    [ -z "$_existing" ] && _existing=$(sed -n 's|.*"\([^"]*\)/deploy\.js".*|\1|p' /usr/local/bin/seed-deploy | head -1)
     [ -n "$_existing" ] && [ -f "${_existing}/config.json" ] && INSTALL_DIR="$_existing"
   fi
 
@@ -201,6 +203,12 @@ fi
 resolve_install_dir
 ensure_dir "${INSTALL_DIR}"
 
+# The deploy SCRIPT (the tool) installs to a fixed path, separate from node data,
+# so there is exactly one copy that self-updates. Its dir is made writable by
+# this user so unattended `upgrade` (cron) can replace it without sudo.
+SCRIPT_PATH="/usr/local/lib/seed/deploy.js"
+ensure_dir "$(dirname "$SCRIPT_PATH")"
+
 info "Downloading deployment script..."
 # Try to fetch deploy.js from the latest GitHub Release asset (production).
 # Falls back to the raw GitHub URL if the release API is unreachable or
@@ -217,7 +225,7 @@ if [ -z "$DEPLOY_JS_URL" ]; then
   info "Release asset not found, falling back to raw GitHub URL..."
   DEPLOY_JS_URL="${GH_RAW}/dist/deploy.js"
 fi
-curl -fsSL "$DEPLOY_JS_URL" -o "${INSTALL_DIR}/deploy.js"
+curl -fsSL "$DEPLOY_JS_URL" -o "${SCRIPT_PATH}"
 
 # Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
 # /usr/local/bin is in $PATH on every UNIX system, so no shell-config changes
@@ -226,7 +234,7 @@ curl -fsSL "$DEPLOY_JS_URL" -o "${INSTALL_DIR}/deploy.js"
 BUN_PATH="$(command -v bun)"
 WRAPPER="/usr/local/bin/seed-deploy"
 WRAPPER_CONTENT="#!/bin/sh
-exec \"${BUN_PATH}\" \"${INSTALL_DIR}/deploy.js\" \"\$@\""
+exec \"${BUN_PATH}\" \"${SCRIPT_PATH}\" --dir \"${INSTALL_DIR}\" \"\$@\""
 
 SEED_DEPLOY_CLI_INSTALLED=0
 if [ -w /usr/local/bin ]; then
@@ -252,4 +260,4 @@ fi
 export SEED_DEPLOY_CLI_INSTALLED
 
 info "Running deployment script..."
-exec bun "${INSTALL_DIR}/deploy.js" "$@" </dev/tty
+exec bun "${SCRIPT_PATH}" --dir "${INSTALL_DIR}" "$@" </dev/tty

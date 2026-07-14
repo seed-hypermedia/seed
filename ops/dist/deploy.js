@@ -822,8 +822,10 @@ import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
-var VERSION = "0.4.0";
-var DEFAULT_SEED_DIR = dirname(process.argv[1]);
+var VERSION = "0.5.0";
+var DEPLOY_SCRIPT_PATH = "/usr/local/lib/seed/deploy.js";
+var DEFAULT_DATA_DIR = "/opt/seed";
+var DEFAULT_SEED_DIR = dirname(process.argv[1] || "") === dirname(DEPLOY_SCRIPT_PATH) ? DEFAULT_DATA_DIR : dirname(process.argv[1] || "");
 var DEFAULT_REPO_URL = "https://raw.githubusercontent.com/seed-hypermedia/seed/main";
 function getOpsBaseUrl() {
   return process.env.SEED_DEPLOY_URL || (process.env.SEED_REPO_URL ? `${process.env.SEED_REPO_URL}/ops` : `${DEFAULT_REPO_URL}/ops`);
@@ -1714,8 +1716,7 @@ async function rollback(previousImages, config, paths, shell) {
   shell.runSafe(`${env} docker compose -f ${paths.composePath} up -d --quiet-pull 2>&1`);
   log("Rollback complete. Check container status with: docker ps");
 }
-async function selfUpdate(paths) {
-  const scriptPath = join(paths.seedDir, "deploy.js");
+async function selfUpdate(scriptPath = process.argv[1] || "") {
   const report = (msg) => {
     if (process.stdout.isTTY) {
       console.log(msg);
@@ -1723,6 +1724,10 @@ async function selfUpdate(paths) {
       log(msg);
     }
   };
+  if (!scriptPath.endsWith("deploy.js")) {
+    report(`Upgrade: skipped \u2014 script path is not a deploy.js (${scriptPath}).`);
+    return;
+  }
   try {
     const url = getDeployScriptUrl();
     const response = await fetch(url);
@@ -1945,8 +1950,8 @@ async function deploy(config, paths, shell) {
   }
 }
 function buildCrontab(existing, paths, bunPath = "/usr/local/bin/bun") {
-  const deployScript = join(paths.seedDir, "deploy.js");
-  const deployLine = `*/10 * * * * ${bunPath} "${deployScript}" upgrade >> "${paths.deployLog}" 2>&1; ` + `${bunPath} "${deployScript}" deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`;
+  const invoke = `${bunPath} "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}"`;
+  const deployLine = `*/10 * * * * ${invoke} upgrade >> "${paths.deployLog}" 2>&1; ` + `${invoke} deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`;
   const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`;
   const filtered = existing.split(`
 `).filter((line) => !line.includes("# seed-deploy") && !line.includes("# seed-cleanup")).join(`
@@ -1988,19 +1993,34 @@ var COMMANDS = [
 function parseArgs(argv = process.argv) {
   const rawAll = argv.slice(2);
   const advanced = rawAll.includes("--advanced");
-  const raw = rawAll.filter((a2) => a2 !== "--advanced");
+  let dir;
+  const raw = [];
+  for (let i = 0;i < rawAll.length; i++) {
+    const a2 = rawAll[i];
+    if (a2 === "--advanced")
+      continue;
+    if (a2 === "--dir") {
+      dir = rawAll[++i];
+      continue;
+    }
+    if (a2.startsWith("--dir=")) {
+      dir = a2.slice("--dir=".length);
+      continue;
+    }
+    raw.push(a2);
+  }
   const first = raw[0] ?? "deploy";
   if (first === "--help" || first === "-h")
-    return { command: "help", args: [], advanced };
+    return { command: "help", args: [], advanced, dir };
   if (first === "--version" || first === "-v")
-    return { command: "version", args: [], advanced };
+    return { command: "version", args: [], advanced, dir };
   if (first === "--reconfigure")
-    return { command: "deploy", args: [], reconfigure: true, advanced };
+    return { command: "deploy", args: [], reconfigure: true, advanced, dir };
   if (COMMANDS.includes(first)) {
     const rest = raw.slice(1);
     const reconfigure = first === "deploy" && rest.includes("--reconfigure");
     const args = reconfigure ? rest.filter((a2) => a2 !== "--reconfigure") : rest;
-    return { command: first, args, reconfigure, advanced };
+    return { command: first, args, reconfigure, advanced, dir };
   }
   console.error(`Unknown command: ${first}
 `);
@@ -2032,6 +2052,8 @@ function printHelp() {
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard to change configuration`,
+    `  --dir <path>   Node data directory to operate on (default ${DEFAULT_DATA_DIR})`,
+    `  --advanced     Unlock the install-location + custom-tag prompts`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -2051,9 +2073,9 @@ function printHelp() {
     ``
   ];
   if (CLI_INSTALLED) {
-    lines.push(`The 'seed-deploy' command is installed at /usr/local/bin/seed-deploy.`, `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`);
+    lines.push(`The 'seed-deploy' command is installed at /usr/local/bin/seed-deploy.`, `The deployment script lives at ${DEPLOY_SCRIPT_PATH}; node data defaults to ${DEFAULT_DATA_DIR} (override with --dir).`);
   } else {
-    lines.push(`The 'seed-deploy' CLI is not installed. You can run any command above with:`, `  ${CURL_INSTALL_CMD} -s -- <command>`, ``, `The deployment script lives at ${DEFAULT_SEED_DIR}/deploy.js.`);
+    lines.push(`The 'seed-deploy' CLI is not installed. You can run any command above with:`, `  ${CURL_INSTALL_CMD} -s -- <command>`, ``, `The deployment script lives at ${DEPLOY_SCRIPT_PATH}; node data defaults to ${DEFAULT_DATA_DIR} (override with --dir).`);
   }
   console.log(lines.join(`
 `));
@@ -2088,8 +2110,8 @@ ${MANAGE_HINT}`);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
 }
-async function cmdUpgrade(paths) {
-  await selfUpdate(paths);
+async function cmdUpgrade() {
+  await selfUpdate();
 }
 async function cmdStop(paths, shell) {
   checkDockerAccess(shell);
@@ -2141,7 +2163,7 @@ No config found at ${paths.configPath}. Node is not set up.`);
     console.log(`
   \u26A0 The RUNNING node is managed from a different install: ${runningDir}`);
     console.log(`      You are inspecting ${paths.seedDir}, but the live containers belong to ${runningDir}.`);
-    console.log(`      Manage the live node from there: ${runningDir}/deploy.js (or repoint the seed-deploy wrapper).`);
+    console.log(`      Manage the live node with: seed-deploy --dir ${runningDir} <command>.`);
   }
   console.log(`
 Containers:`);
@@ -2593,8 +2615,8 @@ async function cmdUninstall(paths, shell) {
   fe("Seed node uninstalled.");
 }
 async function main() {
-  const { command, args, reconfigure, advanced } = parseArgs();
-  const paths = makePaths();
+  const { command, args, reconfigure, advanced, dir } = parseArgs();
+  const paths = makePaths(dir ?? DEFAULT_SEED_DIR);
   const shell = makeShellRunner();
   switch (command) {
     case "help":
@@ -2606,7 +2628,7 @@ async function main() {
     case "deploy":
       return cmdDeploy(paths, shell, reconfigure, advanced);
     case "upgrade":
-      return cmdUpgrade(paths);
+      return cmdUpgrade();
     case "stop":
       return cmdStop(paths, shell);
     case "start":
@@ -2697,10 +2719,12 @@ export {
   IMAGE_PULL_TIMEOUT_MS,
   GITHUB_RELEASES_API,
   DEV_DEPLOY_SCRIPT_URL,
+  DEPLOY_SCRIPT_PATH,
   DEFAULT_SEED_DIR,
   DEFAULT_REPO_URL,
   DEFAULT_RELEASE_CHANNEL,
   DEFAULT_EXEC_TIMEOUT_MS,
+  DEFAULT_DATA_DIR,
   DEFAULT_COMPOSE_URL,
   CURL_INSTALL_CMD,
   CLI_INSTALLED

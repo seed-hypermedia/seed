@@ -46,6 +46,8 @@ import {
   extractSeedCronLines,
   removeSeedCronLines,
   DEFAULT_SEED_DIR,
+  DEPLOY_SCRIPT_PATH,
+  DEFAULT_DATA_DIR,
   selfUpdate,
   getOpsBaseUrl,
   getDeployScriptUrl,
@@ -1160,9 +1162,10 @@ describe('buildCrontab', () => {
     const result = buildCrontab('', paths)
     expect(result).toContain('# seed-deploy')
     expect(result).toContain('# seed-cleanup')
-    expect(result).toContain('/opt/seed/deploy.js')
-    expect(result).toContain('deploy.js" upgrade')
-    expect(result).toContain('deploy.js" deploy')
+    // Runs the fixed script, pointed at the node's data dir with --dir.
+    expect(result).toContain('/usr/local/lib/seed/deploy.js')
+    expect(result).toContain('--dir "/opt/seed" upgrade')
+    expect(result).toContain('--dir "/opt/seed" deploy')
     expect(result.endsWith('\n')).toBe(true)
   })
 
@@ -1184,7 +1187,7 @@ describe('buildCrontab', () => {
     // Should contain exactly one seed-deploy line (the new one)
     const deployLines = result.split('\n').filter((l) => l.includes('# seed-deploy'))
     expect(deployLines).toHaveLength(1)
-    expect(deployLines[0]).toContain('/opt/seed/deploy.js')
+    expect(deployLines[0]).toContain('--dir "/opt/seed"')
     expect(deployLines[0]).not.toContain('/old/path')
 
     // Other job preserved
@@ -1235,8 +1238,8 @@ describe('buildCrontab', () => {
     const result = buildCrontab('', paths)
     const deployLine = result.split('\n').find((l) => l.includes('# seed-deploy'))!
     expect(deployLine).toContain('/usr/local/bin/bun')
-    expect(deployLine).toContain('"/opt/seed/deploy.js" upgrade')
-    expect(deployLine).toContain('"/opt/seed/deploy.js" deploy')
+    expect(deployLine).toContain('--dir "/opt/seed" upgrade')
+    expect(deployLine).toContain('--dir "/opt/seed" deploy')
   })
 })
 
@@ -1352,6 +1355,28 @@ describe('parseArgs', () => {
 
   test('advanced defaults to false when absent', () => {
     expect(parseArgs(['node', 'deploy.js', 'deploy']).advanced).toBeFalsy()
+  })
+
+  test('--dir <path> sets the data dir and is stripped from args', () => {
+    const spaced = parseArgs(['node', 'deploy.js', 'deploy', '--dir', '/opt/seed-branch'])
+    expect(spaced.command).toBe('deploy')
+    expect(spaced.dir).toBe('/opt/seed-branch')
+    expect(spaced.args).toEqual([])
+
+    const eq = parseArgs(['node', 'deploy.js', '--dir=/opt/foo', 'doctor'])
+    expect(eq.command).toBe('doctor')
+    expect(eq.dir).toBe('/opt/foo')
+
+    // Coexists with other flags, preserves real args.
+    const combo = parseArgs(['node', 'deploy.js', 'logs', 'daemon', '--dir', '/opt/x', '--advanced'])
+    expect(combo.command).toBe('logs')
+    expect(combo.args).toEqual(['daemon'])
+    expect(combo.dir).toBe('/opt/x')
+    expect(combo.advanced).toBe(true)
+  })
+
+  test('dir is undefined when --dir absent', () => {
+    expect(parseArgs(['node', 'deploy.js', 'deploy']).dir).toBeUndefined()
   })
 })
 
@@ -1723,13 +1748,18 @@ describe('describePullFailure', () => {
 // DEFAULT_SEED_DIR derivation
 // ---------------------------------------------------------------------------
 
-describe('DEFAULT_SEED_DIR', () => {
-  test('derives solely from dirname of process.argv[1] (no SEED_DIR env override)', () => {
-    // The install location is where deploy.js physically lives — the hidden
-    // SEED_DIR env override was removed. Location is chosen deliberately by the
-    // bootstrap (deploy.sh --advanced), which places deploy.js accordingly.
+describe('DEFAULT_SEED_DIR / DEPLOY_SCRIPT_PATH', () => {
+  test('default data dir falls back to the script dir for legacy script-in-data-dir installs', () => {
+    // When NOT running from the fixed tool path (as here, under bun test), the
+    // default data dir is the script's own directory — so a legacy install
+    // whose wrapper/cron pass no --dir still resolves to its data.
     const {dirname} = require('node:path')
     expect(DEFAULT_SEED_DIR).toBe(dirname(process.argv[1]))
+  })
+
+  test('the tool installs to a fixed path separate from node data', () => {
+    expect(DEPLOY_SCRIPT_PATH).toBe('/usr/local/lib/seed/deploy.js')
+    expect(DEFAULT_DATA_DIR).toBe('/opt/seed')
   })
 })
 
@@ -1773,12 +1803,12 @@ describe('selfUpdate', () => {
   })
 
   test('handles fetch failure gracefully (no throw)', async () => {
-    // selfUpdate uses getOpsBaseUrl() which re-reads env vars at call time,
-    // so this override makes the fetch target an unreachable host.
+    // getDeployScriptUrl honors SEED_REPO_URL, so this points the fetch at an
+    // unreachable host. Pass an explicit deploy.js script path in the temp dir.
     const origUrl = process.env.SEED_REPO_URL
     process.env.SEED_REPO_URL = 'http://localhost:1/nonexistent'
     try {
-      await selfUpdate(paths) // should not throw
+      await selfUpdate(join(tmpDir, 'deploy.js')) // should not throw
     } finally {
       if (origUrl !== undefined) {
         process.env.SEED_REPO_URL = origUrl
@@ -1788,26 +1818,30 @@ describe('selfUpdate', () => {
     }
   })
 
-  test('writes to paths.seedDir, not process.argv[1]', async () => {
-    // Regression: selfUpdate previously used process.argv[1] as the target
-    // path, which during `bun test` pointed at deploy.test.ts and corrupted
-    // the test file with the bundled output.
+  test('refuses to overwrite a path that is not a deploy.js (guards the test file)', async () => {
+    // The script self-updates in place at process.argv[1]. The guard makes it
+    // impossible to overwrite anything but a deploy.js — so even a successful
+    // fetch could never corrupt the test file during `bun test`.
+    await selfUpdate(process.argv[1]) // argv[1] ends in .test.ts → no-op
+    const content = await readFile(process.argv[1], 'utf-8')
+    expect(content).toContain('from "bun:test"')
+  })
+
+  test('targets the given script path, independent of the data dir', async () => {
+    // With the tool/data split, --dir sets the data dir but the script updates
+    // itself at its own path. A failed fetch leaves the target untouched (and
+    // never writes into paths.seedDir).
+    const scriptPath = join(tmpDir, 'deploy.js')
     const origUrl = process.env.SEED_REPO_URL
     process.env.SEED_REPO_URL = 'http://localhost:1/nonexistent'
     try {
-      await selfUpdate(paths)
+      await selfUpdate(scriptPath)
     } finally {
-      if (origUrl !== undefined) {
-        process.env.SEED_REPO_URL = origUrl
-      } else {
-        delete process.env.SEED_REPO_URL
-      }
+      if (origUrl !== undefined) process.env.SEED_REPO_URL = origUrl
+      else delete process.env.SEED_REPO_URL
     }
-
-    // The test file (process.argv[1]) must not have been modified.
-    const testFile = process.argv[1]
-    const content = await readFile(testFile, 'utf-8')
-    expect(content).toContain('from "bun:test"')
+    // Nothing written into the data dir.
+    expect(await configExists(paths)).toBe(false)
   })
 })
 
