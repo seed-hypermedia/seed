@@ -14,15 +14,13 @@ Investigate a bug report interactively, then create a clean GitHub issue via the
 
 ## Prerequisites
 
-Before starting, determine which authenticated GitHub capability is available. Prefer the connected GitHub app; use
-`gh` as a fallback. When using `gh`, verify authentication:
+Before starting, verify the `gh` CLI is installed and authenticated:
 
 ```bash
 gh auth status
 ```
 
-If neither an authenticated connector nor authenticated `gh` is available, investigate and draft the issue but stop
-before creation and explain how to unblock publication.
+If not authenticated, tell the user to run `gh auth login` first and stop.
 
 Also confirm you're inside a git repo with a GitHub remote:
 
@@ -115,7 +113,7 @@ Once everything is gathered, compose the issue using this structure:
 
 Show the full composed issue (title + body) to the user for approval before creating it.
 
-Once approved, create it with the connected GitHub app or `gh`:
+Once approved, create it:
 
 ```bash
 gh issue create --title "<title>" --body "<body>"

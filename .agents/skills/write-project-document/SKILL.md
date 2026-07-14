@@ -5,7 +5,7 @@ description: Create concise project documents in Markdown with the sections Prob
 
 # Write Project Document
 
-Create a concise project document in Markdown from the current context. Write it in `./docs/projects/` unless the user requests another location.
+Create comprehensive project document in Markdown with the sections Problem, Solution, Scope, Rabbit Holes, and No Gos based on the current context, draft, solution and scope in this specific session. write the document in the `./docs/projects/` folder (create the folder if not present).
 
 <support-material>
 
@@ -33,7 +33,7 @@ Use bullets when the content is easier to scan. Use paragraphs only where narrat
 
 - **Problem**: State the user pain, product gap, or operational issue. Explain why it matters now. Avoid solution details unless needed for context.
 - **Solution**: Describe the proposed approach in concrete terms. Include the user-facing behavior and the system changes only at the level needed for planning. Define what will be included. Prefer crisp bullets that can later become implementation tasks or acceptance criteria. if you can also add user stories to it the better.
-- **Scope**: Define the work included in the project and its boundaries. If useful, split it into phases and state dependencies. Include timeline estimates only when the user asks for them or the available evidence supports them.
+- **Scope**: the timeframe it will require to implement the solution. if the plan is multi-phase or multi-step, you can define the timeframe for each one and also dependencies of each phase/section
 - **Rabbit Holes**: List tempting investigations, extensions, or refactors that could consume time but are not required for the first useful version.
 - **No Gos**: List explicit non-goals, constraints, and things the project should not do.
 

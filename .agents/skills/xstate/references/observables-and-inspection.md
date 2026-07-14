@@ -18,6 +18,10 @@ Use it when:
 
 Prefer `fromCallback(...)` instead when the source is a callback/listener API rather than an observable.
 
+Local anchor:
+
+- typed `fromObservable(...)` example: [/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md](/Users/davidkpiano/Code/xstate/packages/core/CHANGELOG.md:645)
+
 Minimal shape:
 
 ```ts
@@ -48,6 +52,10 @@ This is useful when:
 
 It accepts either a function or an observer and returns a subscription.
 
+Local anchor:
+
+- `actor.system.inspect(...)` usage and unsubscribe behavior: [/Users/davidkpiano/Code/xstate/packages/core/test/inspect.test.ts](/Users/davidkpiano/Code/xstate/packages/core/test/inspect.test.ts:367)
+
 Minimal shape:
 
 ```ts
@@ -67,6 +75,10 @@ sub.unsubscribe();
 ## Browser inspector
 
 When the user wants visual debugging in an app, prefer `@statelyai/inspect` with `createBrowserInspector(...)`.
+
+Local anchor:
+
+- React template wiring: [/Users/davidkpiano/Code/xstate/templates/react-ts/src/App.tsx](/Users/davidkpiano/Code/xstate/templates/react-ts/src/App.tsx:1)
 
 Minimal shape:
 

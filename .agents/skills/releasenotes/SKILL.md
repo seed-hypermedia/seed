@@ -88,6 +88,8 @@ The goal is **fewer, meatier bullets**, not a 1:1 commit-to-bullet mapping.
 
 ````
 ```markdown
+<HEADER IMAGE>
+
 ## BIG FEATURE 1
 
 Description of the feature from the user perspective.

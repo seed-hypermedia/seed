@@ -10,8 +10,3 @@ should share it.
   and `.agents/skills/`.
 
 Do not depend on personal home-directory skills such as `~/.agents/skills` for team workflows.
-
-Keep a skill only when it contributes non-obvious project knowledge, a repeatable workflow, a tool protocol, or a
-stable output contract. Generic role prompts and ordinary engineering advice belong in neither skills nor adapters.
-Keep `SKILL.md` concise, move task-specific detail into references loaded on demand, and avoid duplicating canonical
-repository rules from `AGENTS.md`.

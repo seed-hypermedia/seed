@@ -1,16 +1,30 @@
 ---
 name: push
-description: Validate the current branch with the repository's canonical pre-push checks, then push it when the user explicitly asks to push or publish changes.
+description: 'Run pre-push checks including typecheck and tests.'
 ---
 
 # Push
 
-Follow root and subtree `AGENTS.md` instructions. Never modify source files merely to make a validation command runnable.
+Follow `AGENTS.md` first. Only run git commands that write state when the user explicitly asks to push or publish this
+branch.
 
-1. Inspect `git status`, the current branch, and the diff. Confirm that all changes belong to the requested publication.
-2. Run the smallest relevant local checks required by the applicable subtree instructions.
-3. Before pushing, run the matching agent-ci workflow documented in root `AGENTS.md`. Do not use `--all` or the heavy Docker-image workflow for routine changes.
-4. On agent-ci failure, fix in place and retry the named runner as documented. Report environmental or unrelated failures rather than concealing them.
-5. Commit only intended files. Do not amend, pull, rebase, or merge without explicit authorization.
-6. Push the current branch with upstream tracking.
-7. Report the commit, branch, remote, and validation results.
+Run the following pre-push checks to ensure code quality before pushing to remote:
+
+1. **Type checking**: Run `pnpm typecheck` to check for TypeScript errors.
+2. If you find any errors, fix them.
+3. Comment these lines in the `dev` file:
+
+   ```
+   run("node scripts/cleanup-desktop.js")
+   run("./scripts/cleanup-frontend.sh")
+   ```
+
+4. **Tests**: Run `./dev build-desktop && pnpm web:prod` to ensure the apps build properly and tests pass.
+5. Uncomment the lines in the `dev` file.
+6. If there are any changes you made to fix the typecheck, ask before amending the existing commit.
+7. Ask before running `git pull`.
+8. Ask before running `git push`.
+9. **Report results**: Provide a summary of which checks passed or failed.
+
+If any check fails and you cannot fix it, describe that in the report and provide details about the errors so they can
+be fixed before pushing.
