@@ -27,7 +27,7 @@ import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
 import {join, basename, dirname} from 'node:path'
 
-export const VERSION = '0.2.0'
+export const VERSION = '0.3.0'
 export const DEFAULT_SEED_DIR = dirname(process.argv[1])
 export const DEFAULT_REPO_URL = 'https://raw.githubusercontent.com/seed-hypermedia/seed/main'
 

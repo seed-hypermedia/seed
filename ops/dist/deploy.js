@@ -822,7 +822,7 @@ import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
 import { join, basename, dirname } from "path";
-var VERSION = "0.2.0";
+var VERSION = "0.3.0";
 var DEFAULT_SEED_DIR = dirname(process.argv[1]);
 var DEFAULT_REPO_URL = "https://raw.githubusercontent.com/seed-hypermedia/seed/main";
 function getOpsBaseUrl() {
