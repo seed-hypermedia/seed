@@ -2,12 +2,12 @@ import {EditorState, NodeSelection, Plugin, PluginKey, PluginView, TextSelection
 import {Decoration, DecorationSet, EditorView} from 'prosemirror-view'
 import {Node} from 'prosemirror-model'
 
-import {BlockNoteEditor} from '../../BlockNoteEditor'
+import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
-import {BlockSchema} from '../Blocks/api/blockTypes'
+import type {BlockSchema} from '../Blocks/api/blockTypes'
 import {getBlockInfoWithManualOffset} from '../Blocks/helpers/getBlockInfoFromPos'
 import {MultipleNodeSelection} from '../SideMenu/MultipleNodeSelection'
-import {selectableNodeTypes} from '../BlockManipulation/BlockManipulationExtension'
+import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 
 import './full-block-selection.css'
 

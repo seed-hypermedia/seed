@@ -7,7 +7,9 @@ import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 
-export const selectableNodeTypes = ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query']
+import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
+
+export {selectableNodeTypes}
 
 function isInteractiveEmbedClickTarget(event: MouseEvent) {
   const target = event.target as HTMLElement | null

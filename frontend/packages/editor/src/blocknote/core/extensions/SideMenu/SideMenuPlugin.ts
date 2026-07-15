@@ -1,10 +1,8 @@
 import {Plugin, PluginKey, PluginView} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
-import {BlockNoteEditor} from '../../BlockNoteEditor'
+import type {BlockNoteEditor} from '../../BlockNoteEditor'
 import {BaseUiElementState} from '../../shared/BaseUiElementTypes'
-import {EventEmitter} from '../../shared/EventEmitter'
-import {Block, BlockSchema} from '../Blocks/api/blockTypes'
-import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelectionPlugin'
+import type {Block, BlockSchema} from '../Blocks/api/blockTypes'
 import {createBlockDragGuardPlugin, setupDragMonitor} from './pragmatic-dnd-bridge'
 
 export type SideMenuState<BSchema extends BlockSchema> = BaseUiElementState & {
@@ -13,165 +11,44 @@ export type SideMenuState<BSchema extends BlockSchema> = BaseUiElementState & {
 }
 
 /**
- * PluginView that mirrors the FullBlockSelectionPlugin state into a SideMenu
- * visibility signal. The SideMenu is only shown when at least one block is
- * fully selected; in the multi-block case it anchors to the first block in
- * document order.
+ * PluginView that wires up the pragmatic drag-and-drop monitor for the editor.
+ *
+ * Selection state is NOT mirrored here: the side menu (block tools) derives its
+ * visibility directly from the FullBlockSelection plugin in SideMenuPositioner,
+ * the same single source that drives the selection outline — so the two can
+ * never disagree.
  */
-class SideMenuView<BSchema extends BlockSchema> implements PluginView {
-  private sideMenuState?: SideMenuState<BSchema>
+class SideMenuDragView<BSchema extends BlockSchema> implements PluginView {
   private monitorCleanup?: () => void
-  private prevBlockIds: string[] = []
-  private prevEditable?: boolean
 
-  constructor(
-    private readonly editor: BlockNoteEditor<BSchema>,
-    private readonly pmView: EditorView,
-    private readonly updateSideMenu: (sideMenuState: SideMenuState<BSchema>) => void,
-  ) {
-    if (this.editor.dragStateManager && this.editor.editorDragId) {
+  constructor(editor: BlockNoteEditor<BSchema>, pmView: EditorView) {
+    if (editor.dragStateManager && editor.editorDragId) {
       this.monitorCleanup = setupDragMonitor(
-        this.pmView.dom as HTMLElement,
-        this.editor,
-        this.editor.dragStateManager,
-        this.editor.editorDragId,
+        pmView.dom as HTMLElement,
+        editor,
+        editor.dragStateManager,
+        editor.editorDragId,
       )
     }
-
-    this.syncFromPluginState(this.pmView)
-  }
-
-  update(view: EditorView) {
-    this.syncFromPluginState(view)
-  }
-
-  public refresh() {
-    this.syncFromPluginState(this.pmView, true)
-  }
-
-  private syncFromPluginState(view: EditorView, force = false) {
-    const blockIds = fullBlockSelectionPluginKey.getState(view.state)?.blockIds ?? []
-    const editable = view.editable
-
-    if (!force && this.prevEditable === editable && arraysEqual(this.prevBlockIds, blockIds)) {
-      return
-    }
-
-    this.prevEditable = editable
-    this.prevBlockIds = blockIds
-    this.syncFromSelection(blockIds, editable)
-  }
-
-  private syncFromSelection(blockIds: string[], editable = this.pmView.editable) {
-    if (!editable) {
-      this.emitHide()
-      return
-    }
-    if (blockIds.length === 0) {
-      this.emitHide()
-      return
-    }
-
-    const firstId = this.findFirstBlockIdInDocOrder(blockIds)
-    if (!firstId) {
-      this.emitHide()
-      return
-    }
-
-    const blockEl = this.pmView.dom.querySelector(`[data-id="${firstId}"]`) as HTMLElement | null
-    if (!blockEl) {
-      this.emitHide()
-      return
-    }
-    const blockContent = blockEl.firstChild as HTMLElement | null
-    if (!blockContent) {
-      this.emitHide()
-      return
-    }
-
-    const block = this.editor.getBlock(firstId)
-    if (!block) {
-      this.emitHide()
-      return
-    }
-
-    const rect = blockContent.getBoundingClientRect()
-    this.sideMenuState = {
-      show: true,
-      referencePos: new DOMRect(rect.x, rect.y, rect.width, rect.height),
-      block,
-      lineHeight: window.getComputedStyle(blockContent).lineHeight,
-    }
-    this.updateSideMenu(this.sideMenuState)
-  }
-
-  private emitHide() {
-    if (!this.sideMenuState?.show) return
-    this.sideMenuState.show = false
-    this.updateSideMenu(this.sideMenuState)
-  }
-
-  private findFirstBlockIdInDocOrder(blockIds: string[]): string | undefined {
-    if (blockIds.length === 1) return blockIds[0]
-    const idSet = new Set(blockIds)
-    let firstId: string | undefined
-    this.pmView.state.doc.descendants((node) => {
-      if (firstId) return false
-      if (node.type.name !== 'blockNode') return true
-      const id = node.attrs.id as string | undefined
-      if (id && idSet.has(id)) {
-        firstId = id
-        return false
-      }
-      return true
-    })
-    return firstId
   }
 
   destroy() {
-    this.emitHide()
     this.monitorCleanup?.()
   }
 }
 
-function arraysEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false
-  }
-  return true
-}
-
 export const sideMenuPluginKey = new PluginKey('SideMenuPlugin')
 
-export class SideMenuProsemirrorPlugin<BSchema extends BlockSchema> extends EventEmitter<any> {
+export class SideMenuProsemirrorPlugin<BSchema extends BlockSchema> {
   public readonly plugin: Plugin
   public readonly blockDragGuardPlugin: Plugin
-  private view?: SideMenuView<BSchema>
 
-  constructor(private readonly editor: BlockNoteEditor<BSchema>) {
-    super()
+  constructor(editor: BlockNoteEditor<BSchema>) {
     this.plugin = new Plugin({
       key: sideMenuPluginKey,
-      view: (editorView) => {
-        this.view = new SideMenuView(editor, editorView, (sideMenuState) => {
-          this.emit('update', sideMenuState)
-        })
-        return this.view
-      },
+      view: (editorView) => new SideMenuDragView(editor, editorView),
     })
     this.blockDragGuardPlugin = createBlockDragGuardPlugin()
-  }
-
-  public onUpdate(callback: (state: SideMenuState<BSchema>) => void) {
-    return this.on('update', callback)
-  }
-
-  /**
-   * Emits the current side-menu state from the latest editor selection.
-   */
-  public refresh() {
-    this.view?.refresh()
   }
 
   /**

@@ -71,13 +71,16 @@ export type EditorTestHelpers = {
 export const test = base.extend<{
   editorHelpers: EditorTestHelpers
   editorFixture: string
+  editorEditMode: boolean
   clipboardPermissions: boolean
 }>({
   editorFixture: ['empty', {option: true}],
 
+  editorEditMode: [false, {option: true}],
+
   clipboardPermissions: [true, {option: true}],
 
-  editorHelpers: async ({page, context, editorFixture, clipboardPermissions}, use) => {
+  editorHelpers: async ({page, context, editorFixture, editorEditMode, clipboardPermissions}, use) => {
     // Grant clipboard permissions by default
     if (clipboardPermissions) {
       await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -463,7 +466,7 @@ export const test = base.extend<{
     }
 
     // Navigate to the test app before each test
-    await page.goto(`/?fixture=${encodeURIComponent(editorFixture)}`)
+    await page.goto(`/?fixture=${encodeURIComponent(editorFixture)}${editorEditMode ? '&edit=1' : ''}`)
     await helpers.waitForEditorReady()
     await helpers.focusEditor()
 

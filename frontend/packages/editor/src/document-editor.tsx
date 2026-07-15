@@ -555,8 +555,12 @@ export function DocumentEditor({
         }
 
         applySelection()
+        const appliedSelection = view.state.selection
         requestAnimationFrame(() => {
           if (view.isDestroyed) return
+          // If something moved the selection since (e.g. a click node-selected
+          // a card right after edit-start), don't clobber it with a stale cursor.
+          if (!view.state.selection.eq(appliedSelection)) return
           applySelection()
         })
       },

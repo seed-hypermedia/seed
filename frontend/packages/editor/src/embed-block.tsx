@@ -50,7 +50,7 @@ import {
   useState,
 } from 'react'
 import {createPortal} from 'react-dom'
-import {BlockSelectionWrapper, useIsBlockSelected} from './block-selection-wrapper'
+import {BlockSelectionWrapper, isBlockSelected, useIsBlockSelected} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
@@ -119,6 +119,10 @@ function DraftEmbedPlaceholder({
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  // Select-then-open: a body click on an unselected card only selects it (the
+  // editor's handleClickOn does that); clicking an already-selected card opens
+  // the draft. Captured at mousedown, before the click changes the selection.
+  const wasSelectedAtMouseDown = useRef(false)
   const summary = metadata?.summary || 'Add some details here'
 
   useEffect(() => {
@@ -197,9 +201,14 @@ function DraftEmbedPlaceholder({
     <div
       ref={containerRef}
       contentEditable={false}
+      onMouseDown={() => {
+        wasSelectedAtMouseDown.current = isBlockSelected(editor, blockId)
+      }}
       onClick={(e) => {
         e.stopPropagation()
-        void handleOpen()
+        // First click selects (handled by the editor's click handling);
+        // a click on an already-selected card opens the draft.
+        if (wasSelectedAtMouseDown.current) void handleOpen()
       }}
       className={cn('my-2', documentCardContainerClassName())}
     >
