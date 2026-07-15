@@ -550,6 +550,11 @@ export const HMDocumentMetadataSchema = z.object({
   importCategories: z.string().optional(),
   importTags: z.string().optional(),
 })
+  // Metadata is an open/extensible attribute map: the document data model
+  // supports arbitrary keys (custom fields authored in the metadata editor).
+  // Preserve unknown keys instead of stripping them, so custom metadata
+  // survives draft save/load and the published-document read-back.
+  .passthrough()
 
 export function hmMetadataJsonCorrection(metadata: any): any {
   if (typeof metadata.theme === 'string') {

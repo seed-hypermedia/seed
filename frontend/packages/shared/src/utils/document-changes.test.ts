@@ -48,6 +48,27 @@ describe('getDocAttributeChanges', () => {
     expect(changes[0]!.op.value.value.case).toBe('stringValue')
     expect(changes[0]!.op.value.value.value).toBe('Ordered')
   })
+
+  it('emits setAttribute ops for arbitrary custom metadata keys and nested objects', () => {
+    const changes = getDocAttributeChanges({
+      customText: 'hi',
+      customCount: 3,
+      customFlag: true,
+      nested: {inner: 'deep'},
+    } as Record<string, unknown>)
+
+    const byKey = new Map(
+      changes.map((change) => {
+        if (change.op.case !== 'setAttribute') throw new Error('expected setAttribute')
+        return [change.op.value.key.join('.'), change.op.value.value]
+      }),
+    )
+    expect(byKey.get('customText')).toMatchObject({case: 'stringValue', value: 'hi'})
+    expect(byKey.get('customCount')).toMatchObject({case: 'intValue', value: 3n})
+    expect(byKey.get('customFlag')).toMatchObject({case: 'boolValue', value: true})
+    // nested objects are flattened into keyed attribute paths
+    expect(byKey.get('nested.inner')).toMatchObject({case: 'stringValue', value: 'deep'})
+  })
 })
 
 describe('deduplicateBlockIds', () => {
