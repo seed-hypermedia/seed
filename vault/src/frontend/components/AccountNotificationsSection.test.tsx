@@ -113,7 +113,7 @@ describe('AccountNotificationsSection', () => {
 
   const seed = new Uint8Array(32).fill(9)
 
-  test('shows a register button when the account is not registered', async () => {
+  test('shows the switch off when the account has no notification email', async () => {
     const originalFetch = global.fetch
     const {fetchMock} = createNotificationFetchMock()
     global.fetch = fetchMock as unknown as typeof fetch
@@ -129,17 +129,19 @@ describe('AccountNotificationsSection', () => {
       )
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Register account'})).toBeDefined()
+        const toggle = screen.getByRole('switch') as HTMLButtonElement
+        expect(toggle.getAttribute('aria-checked')).toBe('false')
+        expect(toggle.disabled).toBe(false)
       })
-      expect(screen.queryByRole('button', {name: 'Set Email'})).toBeNull()
+      expect(screen.queryByText('test@example.com')).toBeNull()
     } finally {
       global.fetch = originalFetch
     }
   })
 
-  test('shows a set email button after registering without an email', async () => {
+  test('turning the switch on registers the account and subscribes the vault email', async () => {
     const originalFetch = global.fetch
-    const {fetchMock} = createNotificationFetchMock({}, {configReadsBeforeRegistrationVisible: 1})
+    const {fetchMock} = createNotificationFetchMock()
     global.fetch = fetchMock as unknown as typeof fetch
 
     try {
@@ -153,31 +155,36 @@ describe('AccountNotificationsSection', () => {
       )
 
       await waitFor(() => {
-        expect((screen.getByRole('button', {name: 'Register account'}) as HTMLButtonElement).disabled).toBe(false)
+        expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(false)
       })
 
-      fireEvent.click(screen.getByRole('button', {name: 'Register account'}))
-
-      await waitFor(() => {
-        expect(screen.getByText('Registering this account with notify.example.com...')).toBeDefined()
-      })
+      fireEvent.click(screen.getByRole('switch'))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
+        expect((screen.getByRole('switch') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true')
+        expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(false)
       })
-      expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
-      expect(countRequestPayloads(fetchMock, 'get-notification-config')).toBeGreaterThanOrEqual(3)
       expect(findRequestPayload(fetchMock, 'register-inbox')).toEqual(
         expect.objectContaining({
           action: 'register-inbox',
         }),
       )
+      expect(findRequestPayload(fetchMock, 'set-notification-config')).toEqual(
+        expect.objectContaining({
+          action: 'set-notification-config',
+          email: 'test@example.com',
+        }),
+      )
+      // Verification is pending, so the address is shown inside the
+      // verification callout (even though it matches the vault email).
+      expect(screen.getByText('test@example.com')).toBeDefined()
+      expect(screen.getByText(/Check your inbox to verify this email address\./)).toBeDefined()
     } finally {
       global.fetch = originalFetch
     }
   })
 
-  test('sets and displays the vault session email once the account is registered', async () => {
+  test('subscribes without re-registering when the account is already registered', async () => {
     const originalFetch = global.fetch
     const {fetchMock} = createNotificationFetchMock({
       isRegistered: true,
@@ -194,19 +201,16 @@ describe('AccountNotificationsSection', () => {
         />,
       )
 
-      // Registered without an email: the shared component shows an email form
-      // prefilled with the vault session email; submitting saves that address.
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
+        expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(false)
       })
 
-      fireEvent.click(screen.getByRole('button', {name: 'Set Email'}))
+      fireEvent.click(screen.getByRole('switch'))
 
       await waitFor(() => {
-        expect(screen.getByText('test@example.com')).toBeDefined()
+        expect((screen.getByRole('switch') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true')
       })
-      expect(screen.getByText('You are signed up to receive email notifications for this account.')).toBeDefined()
-      expect(screen.getByRole('button', {name: 'Edit Email'})).toBeDefined()
+      expect(findRequestPayload(fetchMock, 'register-inbox')).toBeNull()
       expect(findRequestPayload(fetchMock, 'set-notification-config')).toEqual(
         expect.objectContaining({
           action: 'set-notification-config',
@@ -218,7 +222,7 @@ describe('AccountNotificationsSection', () => {
     }
   })
 
-  test('removes the notification email and returns to the set email state', async () => {
+  test('shows the email only when it differs from the vault email, and removes it on switch off', async () => {
     const originalFetch = global.fetch
     const {fetchMock} = createNotificationFetchMock({
       isRegistered: true,
@@ -237,15 +241,18 @@ describe('AccountNotificationsSection', () => {
         />,
       )
 
+      // The subscribed address differs from the vault email, so it is shown.
       await waitFor(() => {
         expect(screen.getByText('notify@example.com')).toBeDefined()
+        expect((screen.getByRole('switch') as HTMLButtonElement).getAttribute('aria-checked')).toBe('true')
       })
 
-      fireEvent.click(screen.getByRole('button', {name: 'Remove Email'}))
+      fireEvent.click(screen.getByRole('switch'))
 
       await waitFor(() => {
-        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
+        expect((screen.getByRole('switch') as HTMLButtonElement).getAttribute('aria-checked')).toBe('false')
       })
+      expect(screen.queryByText('notify@example.com')).toBeNull()
       expect(findRequestPayload(fetchMock, 'remove-notification-config')).toEqual(
         expect.objectContaining({
           action: 'remove-notification-config',
@@ -312,7 +319,7 @@ describe('AccountNotificationsSection', () => {
       )
 
       await waitFor(() => {
-        expect(screen.getByText('Verification pending')).toBeDefined()
+        expect(screen.getByText(/Check your inbox to verify this email address\./)).toBeDefined()
       })
 
       await act(async () => {
@@ -320,7 +327,7 @@ describe('AccountNotificationsSection', () => {
       })
 
       await waitFor(() => {
-        expect(screen.queryByText('Verification pending')).toBeNull()
+        expect(screen.queryByText(/Check your inbox to verify this email address\./)).toBeNull()
         expect(countRequestPayloads(pollingFetchMock, 'get-notification-config')).toBeGreaterThanOrEqual(2)
       })
       expect(setIntervalMock).toHaveBeenCalled()
@@ -331,7 +338,7 @@ describe('AccountNotificationsSection', () => {
     }
   })
 
-  test('polls recent account registrations before showing the unregistered state', async () => {
+  test('polls recent account registrations before enabling the switch', async () => {
     const originalFetch = global.fetch
     const originalSetInterval = window.setInterval
     const originalClearInterval = window.clearInterval
@@ -381,16 +388,18 @@ describe('AccountNotificationsSection', () => {
         />,
       )
 
-      expect(screen.getByText('Registering this account with notify.example.com.')).toBeDefined()
-      expect(screen.getByText('Registering this account with notify.example.com...')).toBeDefined()
+      expect(screen.getByText('Setting up notifications...')).toBeDefined()
+      expect((screen.getByRole('switch') as HTMLButtonElement).disabled).toBe(true)
 
       await act(async () => {
         await new Promise((resolve) => window.setTimeout(resolve, 50))
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Receive an email when there is activity involving this account.')).toBeDefined()
-        expect(screen.getByRole('button', {name: 'Set Email'})).toBeDefined()
+        expect(screen.queryByText('Setting up notifications...')).toBeNull()
+        const toggle = screen.getByRole('switch') as HTMLButtonElement
+        expect(toggle.disabled).toBe(false)
+        expect(toggle.getAttribute('aria-checked')).toBe('false')
         expect(countRequestPayloads(pollingFetchMock, 'get-notification-config')).toBeGreaterThanOrEqual(2)
       })
     } finally {

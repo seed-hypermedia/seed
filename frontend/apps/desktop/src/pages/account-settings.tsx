@@ -565,6 +565,12 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
   const setConfig = useSetNotificationConfig(notifyServiceHost, accountUid)
   const removeConfig = useRemoveNotificationConfig(notifyServiceHost, accountUid)
   const resendVerification = useResendNotificationConfigVerification(notifyServiceHost, accountUid)
+  // Turning the switch on subscribes the vault email when one is known; a
+  // local (non-remote) vault has none, so the shared UI opens a dialog to
+  // enter the address instead.
+  const vaultStatus = useVaultStatus()
+  const isRemoteConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const vaultEmail = useVaultEmail({enabled: isRemoteConnected})
 
   const currentEmail = config?.email ?? null
   const isVerified = Boolean(config?.verifiedTime)
@@ -583,13 +589,11 @@ function NotificationsTab({accountUid}: {accountUid: string}) {
 
   return (
     <NotificationEmailSettings
-      serverLabel={notifyServiceHost ? notifyServiceHost.replace(/^https?:\/\//, '').replace(/\/$/, '') : null}
-      isRegistered
       isNotifyServerConnected={isNotifyServerConnected}
       loading={!hostResolved || (isLoading && !config)}
       email={currentEmail}
-      isVerified={isVerified}
       needsVerification={needsVerification}
+      defaultEmail={(isRemoteConnected && vaultEmail.data) || ''}
       verificationMessage={verificationMessage}
       error={config?.syncError ?? null}
       saving={setConfig.isLoading}

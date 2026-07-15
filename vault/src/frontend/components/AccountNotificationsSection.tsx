@@ -11,10 +11,6 @@ type AccountNotificationsSectionProps = {
   disabled?: boolean
 }
 
-function getNotificationServerLabel(notificationServerUrl: string) {
-  return notificationServerUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
-}
-
 function isNotificationSetupVisible(config: notificationApi.NotificationConfigResponse | null) {
   if (!config) {
     return false
@@ -32,7 +28,11 @@ const REGISTRATION_SYNC_POLL_MS = 250
 const REGISTRATION_SYNC_WINDOW_MS = 15_000
 
 /**
- * Displays account notification registration and email settings for a single vault account.
+ * Minimal per-account notification settings: a single switch that subscribes
+ * the vault's email address to notifications (registering the account with the
+ * notification server if needed) or removes the email when turned off. The
+ * subscribed address is only shown when it differs from the vault email (e.g.
+ * it was set from another app).
  */
 export function AccountNotificationsSection({
   seed,
@@ -51,20 +51,7 @@ export function AccountNotificationsSection({
   const [notificationError, setNotificationError] = useState('')
   const [registrationSyncDeadline, setRegistrationSyncDeadline] = useState(0)
   const hasNotificationServer = Boolean(notificationServerUrl)
-  const hasNotificationRegistration = Boolean(notificationConfig?.isRegistered || notificationConfig?.email)
   const hasPendingVerification = Boolean(notificationConfig?.email && !notificationConfig?.verifiedTime)
-  const isRegisteringNotificationSetup = notificationStatus === 'registering'
-  const notificationServerLabel = getNotificationServerLabel(notificationServerUrl)
-  const notificationStatusMessage =
-    notificationStatus === 'loading'
-      ? 'Checking notification status...'
-      : notificationStatus === 'registering'
-        ? `Registering this account with ${notificationServerLabel}...`
-        : notificationStatus === 'saving-email'
-          ? 'Saving notification email...'
-          : notificationStatus === 'removing-email'
-            ? 'Removing notification email...'
-            : ''
 
   useEffect(() => {
     let cancelled = false
@@ -166,31 +153,6 @@ export function AccountNotificationsSection({
     }
   }, [notificationServerUrl, principal, hasPendingVerification, notificationStatus])
 
-  async function handleRegister() {
-    if (!notificationServerUrl) {
-      return
-    }
-
-    setNotificationStatus('registering')
-    setRegistrationSyncDeadline(Date.now() + REGISTRATION_SYNC_WINDOW_MS)
-    setNotificationError('')
-
-    try {
-      await notificationApi.registerNotificationInbox(notificationServerUrl, kp)
-      const config = await notificationApi.getNotificationConfig(notificationServerUrl, kp)
-      setNotificationConfig(config)
-      if (isNotificationSetupVisible(config)) {
-        setNotificationStatus('ready')
-        setRegistrationSyncDeadline(0)
-      }
-    } catch (registerError) {
-      console.error('Failed to register notification inbox:', registerError)
-      setNotificationStatus('error')
-      setRegistrationSyncDeadline(0)
-      setNotificationError((registerError as Error).message || 'Failed to register this account for notifications')
-    }
-  }
-
   async function handleSetEmail(targetEmail: string) {
     const nextEmail = targetEmail.trim()
     if (!notificationServerUrl || !nextEmail) {
@@ -235,22 +197,31 @@ export function AccountNotificationsSection({
     }
   }
 
+  if (!hasNotificationServer) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Configure a notification server in vault settings to receive email notifications.
+      </p>
+    )
+  }
+
   return (
     <NotificationEmailSettings
-      serverLabel={hasNotificationServer ? notificationServerLabel : null}
-      isRegistered={hasNotificationRegistration}
-      loading={notificationStatus === 'loading' && !notificationConfig}
+      loading={notificationStatus === 'loading' || notificationStatus === 'registering'}
       email={notificationConfig?.email ?? null}
-      isVerified={Boolean(notificationConfig?.verifiedTime)}
       needsVerification={hasPendingVerification}
-      statusMessage={hasNotificationServer && notificationStatusMessage ? notificationStatusMessage : undefined}
+      statusMessage={
+        notificationStatus === 'loading'
+          ? 'Checking notification status...'
+          : notificationStatus === 'registering'
+            ? 'Setting up notifications...'
+            : undefined
+      }
       error={notificationError || null}
       defaultEmail={normalizedSessionEmail}
       disabled={disabled}
-      registering={isRegisteringNotificationSetup}
       saving={notificationStatus === 'saving-email'}
       removing={notificationStatus === 'removing-email'}
-      onRegister={handleRegister}
       onSetEmail={handleSetEmail}
       onRemoveEmail={handleRemoveEmail}
     />

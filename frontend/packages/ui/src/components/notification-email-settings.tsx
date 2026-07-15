@@ -1,32 +1,34 @@
 import {Loader2} from 'lucide-react'
 import {useEffect, useState, type FormEvent} from 'react'
 import {Button} from '../button'
-import {SizableText} from '../text'
+import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from './dialog'
 import {Input} from './input'
+import {Label} from './label'
+import {Switch} from './switch'
 
 /**
- * Shared, cross-platform per-account email-notification settings UI.
+ * Shared, cross-platform per-account email-notification settings UI: a single
+ * switch that subscribes `defaultEmail` (the vault/session email) when turned
+ * on and removes the notification email when turned off. The subscribed
+ * address is only shown when it differs from `defaultEmail` (e.g. it was set
+ * from another app). When no `defaultEmail` is known (desktop with a local
+ * identity), turning the switch on opens a dialog to enter the address instead.
  *
  * Presentational and backend-agnostic: each platform maps its own notification
  * state into these props and wires the callbacks to its own data layer (the web
- * vault signs requests to the notification server with the account key; the
- * desktop app talks to the gateway notify-service over the daemon). Capabilities
- * that only one platform currently supports are optional:
- *
- * - `onRegister` renders a "Register account" step (web's seed-signed model).
- * - `onResendVerification` renders a resend button (desktop's notify-service).
+ * vault signs requests to the notification server with the account key — and
+ * registers the account inside its onSetEmail when needed; the desktop app
+ * talks to the gateway notify-service over the daemon). `onResendVerification`
+ * renders a resend button (desktop's notify-service).
  *
  * TODO(notifications): the two platforms still differ behind this UI. The goal is
  * full parity — desktop should adopt the web's seed-signed registration model,
  * which requires a daemon API to sign notification requests with the account key.
  */
 export function NotificationEmailSettings({
-  serverLabel,
-  isRegistered,
   isNotifyServerConnected = true,
   loading = false,
   email,
-  isVerified,
   needsVerification,
   verificationMessage,
   statusMessage,
@@ -35,116 +37,82 @@ export function NotificationEmailSettings({
   disabled = false,
   saving = false,
   removing = false,
-  registering = false,
   resending = false,
-  onRegister,
   onSetEmail,
   onRemoveEmail,
   onResendVerification,
 }: {
-  /** Human-readable notify server (e.g. "notify.seed.hyper.media"), or null if none is configured. */
-  serverLabel: string | null
-  isRegistered: boolean
   isNotifyServerConnected?: boolean
   /** True while the current status is still being fetched and is not yet known. */
   loading?: boolean
   email: string | null
-  isVerified: boolean
   needsVerification: boolean
   verificationMessage?: string
   statusMessage?: string
   error?: string | null
-  /** Prefill for the email input (the web vault passes the session email). */
+  /** The email subscribed when the switch is turned on (the vault/session email). */
   defaultEmail?: string
   disabled?: boolean
   saving?: boolean
   removing?: boolean
-  registering?: boolean
   resending?: boolean
-  onRegister?: () => void
   onSetEmail?: (email: string) => void
   onRemoveEmail?: () => void
   onResendVerification?: () => void
 }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [emailInput, setEmailInput] = useState(defaultEmail)
+  // Fallback for platforms with no known vault email: flipping the switch on
+  // opens a dialog to type the address to subscribe.
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [emailInput, setEmailInput] = useState('')
 
-  // Keep the input seeded with the latest current/default email when not editing.
+  const normalizedDefaultEmail = defaultEmail.trim()
+  const subscribed = Boolean(email)
+
+  // Once an email is subscribed (or the account switches), the dialog is done.
   useEffect(() => {
-    if (!isEditing) setEmailInput(email ?? defaultEmail)
-  }, [email, defaultEmail, isEditing])
+    setEmailDialogOpen(false)
+  }, [email])
 
-  const hasServer = Boolean(serverLabel)
-  // While the status is still loading (and we don't yet have an email to show),
-  // we don't know whether this account is signed up — never render the "set up
-  // email" form in that state, or it looks like the account isn't registered.
-  const isStatusUnknown = loading && !email
-  // If we can't reach the server we also can't trust an absent email to mean
-  // "not signed up", so suppress the empty-state form and show the warning.
-  const connectionFailed = hasServer && !isNotifyServerConnected
-  const showRegister =
-    hasServer && !isStatusUnknown && !connectionFailed && !isRegistered && !registering && Boolean(onRegister)
-  const showEmailRow = hasServer && isRegistered && Boolean(email) && !isEditing
-  const showEmailForm =
-    hasServer && isRegistered && Boolean(onSetEmail) && !isStatusUnknown && (isEditing || (!email && !connectionFailed))
+  const busy = loading || saving || removing
+  const connectionFailed = !isNotifyServerConnected
+  // Flip the switch optimistically while a save/remove is in flight.
+  const checked = saving ? true : removing ? false : subscribed
+  // While verification is pending, the address is shown inside the
+  // verification callout instead of as a separate line.
+  const showEmail =
+    subscribed && !needsVerification && email!.trim().toLowerCase() !== normalizedDefaultEmail.toLowerCase()
+
+  function handleCheckedChange(next: boolean) {
+    if (next) {
+      if (!onSetEmail) return
+      if (normalizedDefaultEmail) {
+        onSetEmail(normalizedDefaultEmail)
+      } else {
+        setEmailInput('')
+        setEmailDialogOpen(true)
+      }
+    } else if (subscribed) {
+      onRemoveEmail?.()
+    }
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const next = emailInput.trim()
     if (!next || !onSetEmail) return
     onSetEmail(next)
-    setIsEditing(false)
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
-      <div className="flex flex-col gap-2">
-        <SizableText weight="bold">Email notifications</SizableText>
-        <SizableText size="sm" color="muted">
-          {!hasServer
-            ? 'Configure a notification server in vault settings before registering this account.'
-            : registering
-              ? `Registering this account with ${serverLabel}.`
-              : isStatusUnknown
-                ? 'Checking notification status…'
-                : showEmailRow
-                  ? 'You are signed up to receive email notifications for this account.'
-                  : !isRegistered
-                    ? `Register this account to receive notifications from ${serverLabel}.`
-                    : 'Receive an email when there is activity involving this account.'}
-        </SizableText>
-        {hasServer ? (
-          <SizableText size="xs" color="muted">
-            Notification server: <span className="font-medium">{serverLabel}</span>
-          </SizableText>
-        ) : null}
-      </div>
-
-      {isStatusUnknown ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="size-4 animate-spin" />
-          <p>Checking notification status…</p>
-        </div>
-      ) : null}
-
-      {hasServer && !isStatusUnknown && !isNotifyServerConnected ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          You are not connected to the notification server.
-        </div>
-      ) : null}
-
-      {statusMessage ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="size-4 animate-spin" />
-          <p>{statusMessage}</p>
-        </div>
-      ) : null}
-
+    <div className="flex flex-col gap-3">
       {needsVerification ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          <p>{verificationMessage ?? 'Notification emails are paused until you verify this email address.'}</p>
+        <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <p>
+            Notifications will be sent to <span className="font-medium">{email}</span>.{' '}
+            {verificationMessage ?? 'Check your inbox to verify this email address.'}
+          </p>
           {onResendVerification ? (
-            <div className="mt-2">
+            <div>
               <Button type="button" size="sm" variant="outline" disabled={resending} onClick={onResendVerification}>
                 {resending ? 'Sending…' : 'Resend verification email'}
               </Button>
@@ -153,72 +121,62 @@ export function NotificationEmailSettings({
         </div>
       ) : null}
 
-      {showRegister ? (
-        <Button variant="secondary" size="sm" onClick={onRegister} disabled={disabled || registering}>
-          Register account
-        </Button>
-      ) : null}
+      <div className="flex items-center justify-between gap-4">
+        <Label htmlFor="notification-email-switch" className="font-normal">
+          Get notified for mentions and replies across all Hypermedia sites
+        </Label>
+        <Switch
+          id="notification-email-switch"
+          checked={checked}
+          disabled={disabled || busy || connectionFailed || !onSetEmail}
+          onCheckedChange={handleCheckedChange}
+        />
+      </div>
 
-      {showEmailRow ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 flex-col gap-1">
-            <SizableText size="sm" weight="bold" className="truncate">
-              {email}
-            </SizableText>
-            <SizableText size="xs" color="muted">
-              {isVerified ? 'Verified' : 'Verification pending'}
-            </SizableText>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {onSetEmail ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => {
-                  setEmailInput(email ?? '')
-                  setIsEditing(true)
-                }}
-              >
-                Edit Email
-              </Button>
-            ) : null}
-            {onRemoveEmail ? (
-              <Button variant="outline" size="sm" disabled={disabled || removing} onClick={onRemoveEmail}>
-                {removing ? 'Removing…' : 'Remove Email'}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {showEmailForm ? (
-        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            value={emailInput}
-            disabled={disabled || saving}
-            onChange={(event) => setEmailInput(event.target.value)}
-          />
-          <div className="flex justify-end gap-2">
-            {email ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setEmailInput(email)
-                  setIsEditing(false)
-                }}
-              >
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="w-full max-w-[400px]">
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>Email notifications</DialogTitle>
+              <DialogDescription>
+                Enter the email address that will receive notifications for this account.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={emailInput}
+              disabled={disabled || saving}
+              autoFocus
+              onChange={(event) => setEmailInput(event.target.value)}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={saving} onClick={() => setEmailDialogOpen(false)}>
                 Cancel
               </Button>
-            ) : null}
-            <Button type="submit" disabled={disabled || saving || !emailInput.trim()}>
-              {saving ? 'Saving…' : email ? 'Save Email' : 'Set Email'}
-            </Button>
-          </div>
-        </form>
+              <Button type="submit" disabled={disabled || saving || !emailInput.trim()}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {showEmail ? (
+        <p className="text-muted-foreground text-sm">
+          Notifications are sent to <span className="font-medium">{email}</span>.
+        </p>
+      ) : null}
+
+      {connectionFailed && !loading ? (
+        <p className="text-sm text-amber-600 dark:text-amber-400">You are not connected to the notification server.</p>
+      ) : null}
+
+      {statusMessage ? (
+        <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          <p>{statusMessage}</p>
+        </div>
       ) : null}
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
