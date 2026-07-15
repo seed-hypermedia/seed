@@ -120,6 +120,12 @@ runs:
         set -euo pipefail
         cd backend/util/llama-go
 
+        # The build runs freshly compiled tools (vulkan-shaders-gen.exe), which
+        # crash with STATUS_ENTRYPOINT_NOT_FOUND if a mismatched libstdc++-6.dll
+        # from elsewhere in PATH is loaded instead of the toolchain's own
+        # (actions/runner-images#8399). Keep the compiling toolchain's DLLs first.
+        export PATH="/c/mingw64/bin:$PATH"
+
         cmake -G "MinGW Makefiles" -B build -S llama.cpp \
           -DGGML_VULKAN=ON \
           -DGGML_OPENMP=OFF \
