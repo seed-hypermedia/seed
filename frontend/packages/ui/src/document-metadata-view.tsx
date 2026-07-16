@@ -71,10 +71,16 @@ export function DocumentMetadataView({
   metadata,
   canEdit = false,
   onMetadata,
+  fileUpload,
+  openFile,
 }: {
   metadata?: HMMetadata | null
   canEdit?: boolean
   onMetadata?: (patch: MetadataPatch) => void
+  /** Uploads a file dropped onto a string field to IPFS, returning its CID. */
+  fileUpload?: (file: File) => Promise<string>
+  /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
+  openFile?: (cid: string) => void
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
@@ -98,7 +104,12 @@ export function DocumentMetadataView({
   }
 
   return (
-    <ValueEditorProvider onUndo={editable ? handleUndo : undefined} onRedo={editable ? handleRedo : undefined}>
+    <ValueEditorProvider
+      onUndo={editable ? handleUndo : undefined}
+      onRedo={editable ? handleRedo : undefined}
+      fileUpload={editable ? fileUpload : undefined}
+      openFile={openFile}
+    >
       <div className="flex flex-col gap-4 py-6">
         {/* No title here — the tab/breadcrumb (main view) and the panel header
             already label this "Attributes". */}

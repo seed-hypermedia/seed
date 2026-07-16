@@ -11,6 +11,7 @@ import {
   CopyPlus,
   Download,
   ExternalLink,
+  FileText,
   FileUp,
   GripVertical,
   Link2,
@@ -26,7 +27,9 @@ import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
+import {findIpfsUrlCid} from './get-file-url'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -259,6 +262,10 @@ type SelectionState = {
   tabbableId: string | null
   /** Opens ipfs://... URLs from link values, when the host page provides navigation. */
   openUrl?: (url: string) => void
+  /** Uploads a dropped/picked file to IPFS, returning its bare CID. */
+  fileUpload?: (file: File) => Promise<string>
+  /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
+  openFile?: (cid: string) => void
 }
 
 const SelectionActionsContext = createContext<SelectionActions | null>(null)
@@ -340,11 +347,15 @@ export function ValueEditorProvider({
   onUndo,
   onRedo,
   openUrl,
+  fileUpload,
+  openFile,
 }: {
   children: React.ReactNode
   onUndo?: () => void
   onRedo?: () => void
   openUrl?: (url: string) => void
+  fileUpload?: (file: File) => Promise<string>
+  openFile?: (cid: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The single tab-stop; defaults to the first row so Tab can enter the tree.
@@ -445,7 +456,10 @@ export function ValueEditorProvider({
     },
     openContextMenu: (position, menuActions) => setMenu({...position, actions: menuActions}),
   }).current
-  const state = useMemo<SelectionState>(() => ({selectedId, tabbableId, openUrl}), [selectedId, tabbableId, openUrl])
+  const state = useMemo<SelectionState>(
+    () => ({selectedId, tabbableId, openUrl, fileUpload, openFile}),
+    [selectedId, tabbableId, openUrl, fileUpload, openFile],
+  )
 
   useEffect(() => {
     const getSelectedHandlers = () => {
@@ -926,6 +940,11 @@ export function FieldRow({
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
+  const {openFile} = useContext(SelectionStateContext)
+  if (typeof value === 'string') {
+    const cid = findIpfsUrlCid(value)
+    if (cid) return <IpfsFileTag cid={cid} onOpen={openFile} />
+  }
   if (isDagJsonLink(value)) {
     return (
       <span className="flex items-center gap-1 font-mono text-sm break-all">
@@ -1014,9 +1033,113 @@ export function ValueEditor({
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
 }
 
-/** String leaf: free-text input, committing on blur/Enter. */
+/**
+ * String leaf: free-text input committing on blur/Enter, that also accepts a
+ * dropped file (uploads it to IPFS and stores an `ipfs://<cid>` reference). An
+ * `ipfs://` value renders as a file tag that opens the file in its own viewer.
+ */
 function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unknown) => void}) {
-  return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
+  const {fileUpload, openFile} = useContext(SelectionStateContext)
+  const [dragOver, setDragOver] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const canDrop = !!fileUpload && !uploading
+  const cid = findIpfsUrlCid(value)
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file || !fileUpload) return
+    setUploading(true)
+    try {
+      const uploadedCid = await fileUpload(file)
+      onValue(`ipfs://${uploadedCid.replace(/^ipfs:\/\//, '')}`)
+    } catch (err) {
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : 'unknown error'}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        'relative flex-1 rounded-md',
+        dragOver && canDrop && 'ring-primary bg-primary/5 ring-2 outline-none',
+      )}
+      onDragOver={
+        canDrop
+          ? (e) => {
+              e.preventDefault()
+              if (!dragOver) setDragOver(true)
+            }
+          : undefined
+      }
+      onDragLeave={
+        canDrop
+          ? (e) => {
+              // Ignore drag-leave bubbling from child elements.
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false)
+            }
+          : undefined
+      }
+      onDrop={canDrop ? handleDrop : undefined}
+    >
+      {cid ? (
+        <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
+      ) : (
+        <CommitOnBlurInput
+          key={value}
+          initialValue={value}
+          placeholder={canDrop ? 'Type text, or drop a file to upload…' : undefined}
+          onCommit={(text) => onValue(text)}
+        />
+      )}
+      {uploading && (
+        <div className="bg-background/70 absolute inset-0 flex items-center justify-center gap-2 rounded-md">
+          <Spinner className="size-4" />
+          <span className="text-muted-foreground text-xs">Uploading…</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** An `ipfs://<cid>` file reference: opens the file viewer; removable to re-edit. */
+function IpfsFileTag({cid, onOpen, onClear}: {cid: string; onOpen?: (cid: string) => void; onClear?: () => void}) {
+  const short = cid.length > 18 ? `${cid.slice(0, 9)}…${cid.slice(-6)}` : cid
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip content={onOpen ? `Open ipfs://${cid}` : `ipfs://${cid}`}>
+        <button
+          type="button"
+          disabled={!onOpen}
+          onClick={onOpen ? () => onOpen(cid) : undefined}
+          className={cn(
+            'border-border bg-muted/60 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors',
+            onOpen && 'hover:bg-muted cursor-pointer',
+          )}
+        >
+          <FileText className="text-muted-foreground size-3.5 shrink-0" />
+          <span className="truncate font-mono text-xs">{short}</span>
+          {onOpen && <ExternalLink className="text-muted-foreground size-3 shrink-0" />}
+        </button>
+      </Tooltip>
+      {onClear && (
+        <Tooltip content="Remove file reference">
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label="Remove file reference"
+            className="text-muted-foreground"
+            onClick={onClear}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </Tooltip>
+      )}
+    </div>
+  )
 }
 
 /** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */

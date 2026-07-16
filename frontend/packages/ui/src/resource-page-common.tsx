@@ -72,6 +72,7 @@ import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {useOpenUrl} from '@shm/shared/routing'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
@@ -2390,7 +2391,7 @@ function PanelContentRenderer({
     case 'metadata':
       return (
         <div className="px-4">
-          <DocumentMetadataPage document={document} />
+          <DocumentMetadataPage document={document} fileUpload={fileUpload} />
         </div>
       )
     case 'activity':
@@ -2548,13 +2549,23 @@ function DocumentOptionsPanel({
 
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
-function DocumentMetadataPage({document}: {document: HMDocument}) {
+function DocumentMetadataPage({
+  document,
+  fileUpload,
+}: {
+  document: HMDocument
+  fileUpload?: (file: File) => Promise<string>
+}) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
   const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+
+  // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
+  const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
 
   return (
     <DocumentMetadataView
@@ -2564,6 +2575,8 @@ function DocumentMetadataPage({document}: {document: HMDocument}) {
         beginEditIfNeeded()
         send({type: 'change', metadata: patch as any})
       }}
+      fileUpload={fileUpload}
+      openFile={openFile}
     />
   )
 }
@@ -2695,7 +2708,7 @@ function MainContent({
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {/* Extra left padding in the main view; the panel render keeps its own. */}
           <div className="pl-4">
-            <DocumentMetadataPage document={document} />
+            <DocumentMetadataPage document={document} fileUpload={fileUpload} />
           </div>
         </PageLayout>
       )
