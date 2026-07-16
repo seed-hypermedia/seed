@@ -65,7 +65,8 @@ export function getRouteKey(route: NavRoute): string {
     route.key === 'comments' ||
     route.key === 'activity' ||
     route.key === 'collaborators' ||
-    route.key === 'directory'
+    route.key === 'directory' ||
+    route.key === 'metadata'
   )
     return route.key === 'inspect-ipfs'
       ? `inspect-ipfs:${route.ipfsPath}`

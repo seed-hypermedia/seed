@@ -50,6 +50,8 @@ export const VIEW_TERMS = [
   ':feed',
   ':all-documents',
   ':settings',
+  ':attributes',
+  ':metadata', // backward compat: the metadata view is now surfaced as :attributes
   ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
@@ -63,6 +65,7 @@ export type ViewRouteKey =
   | 'feed'
   | 'all-documents'
   | 'site-settings'
+  | 'metadata'
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
@@ -180,6 +183,8 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':feed': 'feed',
     ':all-documents': 'all-documents',
     ':settings': 'site-settings',
+    ':attributes': 'metadata',
+    ':metadata': 'metadata', // backward compat
     ':profile': 'profile',
     ':membership': 'membership',
     ':followers': 'followers',
@@ -527,6 +532,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
       route.key === 'comments' ||
       route.key === 'collaborators' ||
       route.key === 'directory' ||
+      route.key === 'metadata' ||
       route.key === 'feed') &&
     route.panel
   ) {
@@ -585,10 +591,12 @@ export function routeToUrl(
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
-    // View-term routes use /:viewTerm in the path
-    let viewTermPath = `:${route.key}`
+    // View-term routes use /:viewTerm in the path. The metadata view is
+    // surfaced in URLs as :attributes (the route key stays `metadata`).
+    let viewTermPath = route.key === 'metadata' ? ':attributes' : `:${route.key}`
     // Append activity filter slug to view term path
     if (route.key === 'activity') {
       const filterSlug = activityFilterToSlug(route.filterEventType)
@@ -672,9 +680,10 @@ export function routeToHmUrl(route: NavRoute): string | null {
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
-    let viewTermPath = `:${route.key}`
+    let viewTermPath = route.key === 'metadata' ? ':attributes' : `:${route.key}`
     if (route.key === 'activity') {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
@@ -730,9 +739,11 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     route.key === 'directory' ||
     route.key === 'collaborators' ||
     route.key === 'comments' ||
-    route.key === 'all-documents'
+    route.key === 'all-documents' ||
+    route.key === 'metadata'
   ) {
-    return `${packBaseId(route.id.uid, route.id.path)}/:${route.key}`
+    const term = route.key === 'metadata' ? 'attributes' : route.key
+    return `${packBaseId(route.id.uid, route.id.path)}/:${term}`
   }
   if (route.key === 'site-settings') {
     return `${packBaseId(route.id.uid, route.id.path)}/:settings`

@@ -525,31 +525,37 @@ export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
   }),
 )
 
-export const HMDocumentMetadataSchema = z.object({
-  name: z.string().optional(),
-  summary: z.string().optional(),
-  icon: z.string().optional(),
-  thumbnail: z.string().optional(), // DEPRECATED
-  cover: z.string().optional(),
-  siteUrl: z.string().optional(),
-  layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
-  displayPublishTime: z.string().optional(),
-  displayAuthor: z.string().optional(),
-  seedExperimentalLogo: z.string().optional(),
-  seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
-  showOutline: z.boolean().optional(),
-  showActivity: z.boolean().optional(),
-  contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
-  childrenType: HMBlockChildrenTypeSchema.optional(),
-  theme: z
-    .object({
-      headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
-    })
-    .optional(),
-  // Import taxonomy fields (comma-separated values from external sources like WordPress)
-  importCategories: z.string().optional(),
-  importTags: z.string().optional(),
-})
+export const HMDocumentMetadataSchema = z
+  .object({
+    name: z.string().optional(),
+    summary: z.string().optional(),
+    icon: z.string().optional(),
+    thumbnail: z.string().optional(), // DEPRECATED
+    cover: z.string().optional(),
+    siteUrl: z.string().optional(),
+    layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
+    displayPublishTime: z.string().optional(),
+    displayAuthor: z.string().optional(),
+    seedExperimentalLogo: z.string().optional(),
+    seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
+    showOutline: z.boolean().optional(),
+    showActivity: z.boolean().optional(),
+    contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
+    childrenType: HMBlockChildrenTypeSchema.optional(),
+    theme: z
+      .object({
+        headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
+      })
+      .optional(),
+    // Import taxonomy fields (comma-separated values from external sources like WordPress)
+    importCategories: z.string().optional(),
+    importTags: z.string().optional(),
+  })
+  // Metadata is an open/extensible attribute map: the document data model
+  // supports arbitrary keys (custom fields authored in the metadata editor).
+  // Preserve unknown keys instead of stripping them, so custom metadata
+  // survives draft save/load and the published-document read-back.
+  .passthrough()
 
 export function hmMetadataJsonCorrection(metadata: any): any {
   if (typeof metadata.theme === 'string') {
@@ -562,6 +568,25 @@ export function hmMetadataJsonCorrection(metadata: any): any {
 }
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
+
+/** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
+export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
+
+/**
+ * Count of custom (user-authored) metadata fields on a document: keys not
+ * declared by HMDocumentMetadataSchema. Null/undefined values (e.g. removed
+ * fields staged as draft tombstones) are not counted.
+ */
+export function countCustomMetadataFields(metadata?: HMMetadata | null): number {
+  if (!metadata) return 0
+  let count = 0
+  for (const [key, value] of Object.entries(metadata)) {
+    if (BUILTIN_METADATA_KEYS.has(key)) continue
+    if (value === undefined || value === null) continue
+    count++
+  }
+  return count
+}
 
 export type HMResourceVisibility = 'PUBLIC' | 'PRIVATE'
 

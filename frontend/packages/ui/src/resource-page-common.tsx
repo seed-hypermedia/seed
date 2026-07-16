@@ -1,5 +1,6 @@
 import {
   BlockRange,
+  countCustomMetadataFields,
   HMBlockNode,
   HMComment,
   HMDocument,
@@ -74,7 +75,7 @@ import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shar
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {FilePen, Search} from 'lucide-react'
+import {FilePen, Info, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
@@ -83,6 +84,7 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
+import {DocumentMetadataView} from './document-metadata-view'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
@@ -160,6 +162,7 @@ export type ActiveView =
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
+  | 'metadata'
 
 /** Selects the action controls shown for document content. */
 export function getDocumentContentAction({
@@ -179,7 +182,7 @@ export function getDocumentContentAction({
   actionButtons: ReactNode
   allMenuItems: MenuItemType[]
 }) {
-  if (activeView !== 'content') return null
+  if (activeView !== 'content' && activeView !== 'metadata') return null
   if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
   return actionButtons
@@ -359,6 +362,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'all-documents'
     case 'site-profile':
       return 'site-profile'
+    case 'metadata':
+      return 'metadata'
     default:
       return 'content'
   }
@@ -1497,6 +1502,7 @@ function DocumentBody({
       directory: 'Sub documents',
       activity: 'Activity',
       'all-documents': 'All Documents',
+      metadata: 'Attributes',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
       items.push({label: panelLabels[activeView]})
@@ -1755,11 +1761,23 @@ function DocumentBody({
       },
     }
   }, [canEdit, panelKey, route, replaceRoute])
+  const metadataMenuItem = useMemo<MenuItemType | null>(() => {
+    if (route.key === 'inspect' || route.key === 'metadata') return null
+    return {
+      key: 'metadata',
+      label: 'Attributes',
+      icon: <Info className="size-4" />,
+      onClick: () => {
+        navigate({key: 'metadata', id: {...docId, blockRef: null, blockRange: null}})
+      },
+    }
+  }, [docId, navigate, route.key])
 
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
     // Drop share/copy-link entries while the doc is an unpublished draft —
     // its URL won't resolve for anyone else, so any "share" action is a footgun.
     if (isUnpublishedDraft) {
@@ -1771,6 +1789,7 @@ function DocumentBody({
       'new',
       'versions',
       'options',
+      'metadata',
       'copy-link',
       'link-site',
       'link',
@@ -1799,7 +1818,7 @@ function DocumentBody({
       if (item.variant === 'destructive') orderedItems.push(item)
     }
     return orderedItems
-  }, [optionsMenuItems, extraMenuItems, inspectMenuItem, documentOptionsMenuItem, isUnpublishedDraft])
+  }, [optionsMenuItems, extraMenuItems, inspectMenuItem, documentOptionsMenuItem, metadataMenuItem, isUnpublishedDraft])
 
   const hasOptions = allMenuItems.length > 0
   const actionButtons = hasOptions ? <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" /> : null
@@ -1862,6 +1881,7 @@ function DocumentBody({
                                   directory: 'Sub documents',
                                   'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
+                                  metadata: 'Attributes',
                                 } as Record<string, string>
                               )[activeView] || '',
                           },
@@ -1923,6 +1943,7 @@ function DocumentBody({
                                 directory: 'Sub documents',
                                 'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
+                                metadata: 'Attributes',
                               } as Record<string, string>
                             )[activeView] || '',
                         },
@@ -1988,6 +2009,7 @@ function DocumentBody({
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
+            metadataCount={countCustomMetadataFields(document.metadata)}
             rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
@@ -2142,6 +2164,7 @@ function DocumentBody({
       <PanelContentRenderer
         panelRoute={panelRoute!}
         docId={docId}
+        document={document}
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
@@ -2345,6 +2368,7 @@ function applyTitleResize(el: HTMLTextAreaElement) {
 function PanelContentRenderer({
   panelRoute,
   docId,
+  document,
   contentMaxWidth,
   CommentEditor,
   siteUrl,
@@ -2353,6 +2377,7 @@ function PanelContentRenderer({
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
+  document: HMDocument
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
@@ -2362,6 +2387,12 @@ function PanelContentRenderer({
   switch (panelRoute.key) {
     case 'options':
       return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
+    case 'metadata':
+      return (
+        <div className="px-4">
+          <DocumentMetadataPage document={document} />
+        </div>
+      )
     case 'activity':
       if (isDocumentVersionsPanelRoute(panelRoute)) {
         return (
@@ -2515,6 +2546,28 @@ function DocumentOptionsPanel({
   )
 }
 
+/** Metadata view wired to the document machine: edits stage into the draft
+ * and publish through the standard publish flow. */
+function DocumentMetadataPage({document}: {document: HMDocument}) {
+  const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {canEdit, beginEditIfNeeded} = useEditorGate()
+
+  // Draft metadata (partial) overrides published metadata, same as the options panel.
+  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+
+  return (
+    <DocumentMetadataView
+      metadata={metadata as any}
+      canEdit={canEdit}
+      onMetadata={(patch) => {
+        beginEditIfNeeded()
+        send({type: 'change', metadata: patch as any})
+      }}
+    />
+  )
+}
+
 function MainContent({
   docId,
   resourceId,
@@ -2634,6 +2687,16 @@ function MainContent({
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
           <CollaboratorsPage docId={docId} />
+        </PageLayout>
+      )
+
+    case 'metadata':
+      return (
+        <PageLayout contentMaxWidth={contentMaxWidth}>
+          {/* Extra left padding in the main view; the panel render keeps its own. */}
+          <div className="pl-4">
+            <DocumentMetadataPage document={document} />
+          </div>
         </PageLayout>
       )
 

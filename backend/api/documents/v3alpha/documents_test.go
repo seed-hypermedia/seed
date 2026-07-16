@@ -1214,6 +1214,38 @@ func TestDocumentAttributesFullJSONModel(t *testing.T) {
 	}
 }
 
+func TestDocumentAttributesRemoveMultiChildObject(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	// An object with multiple children, plus an unrelated key.
+	doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", "", "main").
+		SetAttribute("", []string{"name"}, "Doc").
+		SetAttribute("", []string{"obj", "b"}, "beee").
+		SetAttribute("", []string{"obj", "number"}, 123).
+		SetAttribute("", []string{"obj", "toggle"}, true).
+		Build(),
+	)
+	require.NoError(t, err)
+	testutil.StructsEqual(map[string]any{
+		"name": "Doc",
+		"obj":  map[string]any{"b": "beee", "number": float64(123), "toggle": true},
+	}, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "object must have all children")
+
+	// Removing the object with a single parent-null must clear ALL children,
+	// not just the first one (regression: the object used to survive).
+	doc, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "", doc.Version, "main").
+		SetAttribute("", []string{"obj"}, nil).
+		Build(),
+	)
+	require.NoError(t, err)
+	testutil.StructsEqual(map[string]any{
+		"name": "Doc",
+	}, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "object must be fully removed")
+}
+
 func TestRedirect(t *testing.T) {
 	t.Parallel()
 

@@ -35,6 +35,7 @@ import {
   compareBlocksWithMap,
   createBlocksMap,
   extractDeletes,
+  expandObjectRemovals,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
@@ -85,12 +86,15 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
     const editor = deps.getEditor()
-    const editorBlocks = editor?.getTopLevelBlocks() ?? []
     const cursorPosition = editor?.getCursorPosition?.() ?? null
-    const content = editorBlocksToHMBlockNodes(editorBlocks)
-
     const draftId = input.draftId ?? nanoid(10)
     const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
+    // No editor mounted (e.g. an attributes-only edit from the :metadata view):
+    // preserve the draft's existing content or the published blocks instead of
+    // clobbering the body with an empty array.
+    const content = editor
+      ? editorBlocksToHMBlockNodes(editor.getTopLevelBlocks() ?? [])
+      : existingDraft?.content ?? input.baseBlocks ?? []
     const currentPath = deps.docId.path ?? []
     const routeDraftId = getWebDraftPlaceholderId(currentPath)
     const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
@@ -201,7 +205,9 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     editDocument?.detachedBlocks?.navigation ?? null,
   )
 
-  const metadataChanges = getDocAttributeChanges(draft.metadata as HMMetadata)
+  const metadataChanges = getDocAttributeChanges(
+    expandObjectRemovals(draft.metadata as HMMetadata, editDocument?.metadata),
+  )
 
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
 

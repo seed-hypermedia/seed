@@ -1,7 +1,13 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {compareBlocksWithMap, createBlocksMap, deduplicateBlockIds, getDocAttributeChanges} from './document-changes'
+import {
+  compareBlocksWithMap,
+  createBlocksMap,
+  deduplicateBlockIds,
+  expandObjectRemovals,
+  getDocAttributeChanges,
+} from './document-changes'
 
 function para(id: string, children: EditorBlock[] = []): EditorBlock {
   return {
@@ -47,6 +53,70 @@ describe('getDocAttributeChanges', () => {
     expect(changes[0]!.op.value.key).toEqual(['childrenType'])
     expect(changes[0]!.op.value.value.case).toBe('stringValue')
     expect(changes[0]!.op.value.value.value).toBe('Ordered')
+  })
+
+  it('emits setAttribute ops for arbitrary custom metadata keys and nested objects', () => {
+    const changes = getDocAttributeChanges({
+      customText: 'hi',
+      customCount: 3,
+      customFlag: true,
+      nested: {inner: 'deep'},
+    } as Record<string, unknown>)
+
+    const byKey = new Map(
+      changes.map((change) => {
+        if (change.op.case !== 'setAttribute') throw new Error('expected setAttribute')
+        return [change.op.value.key.join('.'), change.op.value.value]
+      }),
+    )
+    expect(byKey.get('customText')).toMatchObject({case: 'stringValue', value: 'hi'})
+    expect(byKey.get('customCount')).toMatchObject({case: 'intValue', value: 3n})
+    expect(byKey.get('customFlag')).toMatchObject({case: 'boolValue', value: true})
+    // nested objects are flattened into keyed attribute paths
+    expect(byKey.get('nested.inner')).toMatchObject({case: 'stringValue', value: 'deep'})
+  })
+
+  const nullKeys = (changes: ReturnType<typeof getDocAttributeChanges>) =>
+    changes
+      .filter((c) => c.op.case === 'setAttribute' && c.op.value.value.case === 'nullValue')
+      .map((c) => (c.op.case === 'setAttribute' ? c.op.value.key.join('.') : ''))
+
+  it('deleting an object field emits a null removal for the key', () => {
+    // Row "Remove" stages { obj: null }.
+    const changes = getDocAttributeChanges({name: 'x', obj: null} as Record<string, unknown>)
+    expect(nullKeys(changes)).toContain('obj')
+  })
+
+  it('an emptied object (all children removed) emits a null removal instead of nothing', () => {
+    // With no leaves there is no attribute op to represent it, so it must clear.
+    expect(nullKeys(getDocAttributeChanges({obj: {}} as Record<string, unknown>))).toContain('obj')
+    expect(nullKeys(getDocAttributeChanges({obj: {nested: {}}} as Record<string, unknown>))).toContain('obj.nested')
+  })
+
+  it('removing object children emits per-leaf null removals', () => {
+    const changes = getDocAttributeChanges({obj: {a: null, b: null}} as Record<string, unknown>)
+    expect(nullKeys(changes)).toEqual(expect.arrayContaining(['obj.a', 'obj.b']))
+  })
+
+  it('expandObjectRemovals turns an object tombstone into a per-leaf null publish', () => {
+    // Draft removed the object (staged { test: null }); published doc has it.
+    const draft = {test: null} as never
+    const published = {name: 'Doc', test: {b: 'beee', number: 123, toggle: false}} as never
+    const expanded = expandObjectRemovals(draft, published) as Record<string, unknown>
+    // Every leaf is explicitly nulled (so publish doesn't rely on a parent-null).
+    expect(expanded.test).toEqual({b: null, number: null, toggle: null})
+    // Un-edited keys (e.g. name) are not introduced/touched.
+    expect('name' in expanded).toBe(false)
+    // Publishing yields a null op per leaf.
+    expect(nullKeys(getDocAttributeChanges(expanded as never))).toEqual(
+      expect.arrayContaining(['test.b', 'test.number', 'test.toggle']),
+    )
+  })
+
+  it('expandObjectRemovals leaves non-removal edits and scalar tombstones alone', () => {
+    const published = {a: 'x', obj: {k: 1}} as never
+    // scalar removal stays a plain null; a normal value passes through
+    expect(expandObjectRemovals({a: null, keep: 'v'} as never, published)).toEqual({a: null, keep: 'v'})
   })
 })
 

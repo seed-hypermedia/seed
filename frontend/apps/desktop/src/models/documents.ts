@@ -40,6 +40,7 @@ import {
   compareBlocksWithMap,
   createBlocksMap,
   extractDeletes,
+  expandObjectRemovals,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {filterChildDrafts} from '@shm/shared/utils/draft-children'
@@ -330,7 +331,7 @@ export function usePublishResource(
 
           const allChanges = [
             ...navigationChanges,
-            ...getDocAttributeChanges(draft.metadata),
+            ...getDocAttributeChanges(expandObjectRemovals(draft.metadata, editDocument?.metadata)),
             ...changes.changes,
             ...deleteChanges,
           ]

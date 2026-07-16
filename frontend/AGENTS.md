@@ -27,7 +27,14 @@
   - make sure `pnpm typecheck` pass.
   - make sure all tests pass (`pnpm test`).
   - make sure `pnpm audit` pass.
-  - make sure run `pnpm format:write`
+  - Formatting (the CI `Lint` job runs `prettier --check` per package and fails on ANY unformatted file):
+    - Run `pnpm -r format:write` across the WHOLE workspace, then confirm with `pnpm -r format:check`.
+      Do NOT run prettier on only the files a CI log happens to name — turbo interleaves parallel package
+      output and `head`/grep truncation hides other offenders, so a per-file fix passes locally but CI still
+      fails on the files you missed. Always fix and re-check the whole workspace.
+    - Local `format:check` may flag gitignored build artifacts (e.g. `packages/editor/e2e/playwright-report/**`,
+      `test-results/**`) that do not exist on CI. Confirm with `git check-ignore <file>`; ignore those, but never
+      assume a warning is an artifact without checking — tracked source files must be formatted.
 - For full CI parity before pushing, validate locally via agent-ci:
   `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`.
   See `docs/local-ci-with-agent-ci.md` for setup, the fix-and-retry loop, and what to skip.

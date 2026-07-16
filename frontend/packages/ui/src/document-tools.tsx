@@ -14,6 +14,7 @@ import {
   Folder,
   GitGraph,
   History,
+  Info,
   LucideIcon,
   MessageSquare,
   MessagesSquare,
@@ -32,6 +33,7 @@ export function DocumentTools({
   commentsCount = 0,
   citationsCount = 0,
   collabsCount = 0,
+  metadataCount = 0,
   activeTabAction,
   existingDraft,
   currentPanel,
@@ -42,10 +44,12 @@ export function DocumentTools({
   rightAction,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata'
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
+  /** Number of custom (non-built-in) metadata fields; shows the Attributes tab with a count when > 0. */
+  metadataCount?: number
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
   /** Optional controls rendered on the right side of the tools row. */
@@ -248,6 +252,21 @@ export function DocumentTools({
               panel: panelFor(),
             },
           },
+          // Hidden by default; shown when the view is active (opened from the
+          // options menu) or once the document has custom attributes, with a
+          // count of those custom fields.
+          ...(activeTab === 'metadata' || metadataCount > 0
+            ? [
+                {
+                  label: 'Attributes',
+                  tooltip: 'Open Document Attributes',
+                  icon: Info,
+                  active: activeTab === 'metadata',
+                  count: metadataCount,
+                  route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
+                },
+              ]
+            : []),
         ]
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =
