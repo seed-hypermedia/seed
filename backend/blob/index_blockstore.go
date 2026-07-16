@@ -44,7 +44,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 			return err
 		}
 
-		return idx.runIndexedHook(conn, hookIDs)
+		return idx.runIndexedHook(ctx, conn, hookIDs)
 	})
 }
 
@@ -108,7 +108,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				return err
 			}
 
-			return idx.runIndexedHook(conn, hookIDs)
+			return idx.runIndexedHook(ctx, conn, hookIDs)
 		})
 		release()
 		if err != nil {

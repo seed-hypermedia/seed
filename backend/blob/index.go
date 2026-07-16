@@ -138,7 +138,16 @@ func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
 // runIndexedHook invokes the registered hook (if any) with the given blob ids.
 // Runs in the caller's transaction so the maintenance commits or rolls back
 // atomically with the blobs themselves.
-func (idx *Index) runIndexedHook(conn *sqlite.Conn, ids []int64) error {
+//
+// A hook failure is deliberately NOT fatal to the transaction: the hook only
+// maintains the derived RBSR index, which the shadow-verify trickle repairs on
+// drift, whereas failing here would roll back the whole persisted batch — a
+// deterministic hook error would then permanently block those blobs from ever
+// syncing. The error is logged and swallowed, except when the context is done:
+// the transaction is doomed then anyway, so propagating preserves the normal
+// cancellation path. Partial hook writes are safe to commit (INSERT OR IGNORE,
+// per-scope repairs).
+func (idx *Index) runIndexedHook(ctx context.Context, conn *sqlite.Conn, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -148,7 +157,13 @@ func (idx *Index) runIndexedHook(conn *sqlite.Conn, ids []int64) error {
 	if fn == nil {
 		return nil
 	}
-	return fn(conn, ids)
+	if err := fn(conn, ids); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", ids), zap.Error(err))
+	}
+	return nil
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
