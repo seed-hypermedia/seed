@@ -27,6 +27,17 @@ const (
 	// is mid-download — so nothing ever converges. Protecting in-flight
 	// progress lets running discoveries finish; newcomers queue instead.
 	progressGrace = 5 * time.Second
+	// minDeadlineWake floors wakes derived from deadlines that may already be in
+	// the past: an in-progress task whose heartbeat lapsed but whose worker
+	// hasn't unwound yet (canceled, still blocked in a fetch), or a due cold
+	// task while all workers are saturated. Without the floor those produce
+	// zero-duration wakes — the timer refires immediately and rescans the task
+	// map thousands of times per second until the blocking condition clears
+	// (profiled at ~40% of daemon CPU on a desktop). Reaping or retrying at
+	// 100ms granularity is imperceptible. Deliberately NOT applied to
+	// resetTimer's ready-hot-task path, which uses a zero wake once per enqueue
+	// to dispatch immediately.
+	minDeadlineWake = 100 * time.Millisecond
 )
 
 // Queue priority tiers. Lower value = higher priority.
@@ -169,6 +180,11 @@ type scheduler struct {
 	// Heartbeat TTL for hot tasks. Installed from defaultHotTTL in newScheduler.
 	// Tests may assign a smaller value before calling run().
 	hotTTL time.Duration
+
+	// lastHotCleanup rate-limits cleanupExpiredHotTasksLocked: both dispatch
+	// paths call it on every wake, and a full task-map scan per wake was the
+	// single biggest scheduler cost under load.
+	lastHotCleanup time.Time
 }
 
 // newScheduler creates a new scheduler.
@@ -518,7 +534,10 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	if s.queue.Len() > 0 {
 		top := s.queue.Peek()
 		if top.queueTier == tierCold {
-			if d := top.nextRunTime.Sub(now); d < wake {
+			// Floored: a cold task can be already due when the dispatch loop
+			// broke on worker saturation; a zero wake would spin the timer
+			// until a worker frees up (completions re-enter us anyway).
+			if d := max(top.nextRunTime.Sub(now), minDeadlineWake); d < wake {
 				wake = d
 			}
 		}
@@ -629,6 +648,14 @@ func (s *scheduler) preemptOldestHotLocked(incoming *taskHandle, now time.Time) 
 // user is no longer viewing that document) and drops any queued ephemeral
 // hot tasks in the same state. Caller must hold s.mu.
 func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
+	// At most one full task-map scan per second: reaping a lapsed heartbeat up
+	// to a second late is imperceptible, while scanning on every wake is not
+	// (profiled at ~20% of daemon CPU).
+	if now.Sub(s.lastHotCleanup) < time.Second {
+		return
+	}
+	s.lastHotCleanup = now
+
 	var toDelete []*taskHandle
 	for _, t := range s.tasks {
 		if t.subscription {
@@ -666,6 +693,11 @@ func (s *scheduler) cleanupExpiredHotTasksLocked(now time.Time) {
 
 // boundedWake narrows `candidate` by the earliest in-progress hot-task
 // heartbeat expiry so cleanup runs promptly. Caller must hold s.mu.
+//
+// Expired deadlines are floored at minDeadlineWake, not zero: an in-progress
+// task past its heartbeat stays in that state until its worker unwinds, and a
+// zero wake would refire the timer (and rescan the task map) continuously for
+// that whole window.
 func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Duration {
 	for _, t := range s.tasks {
 		if t.state != TaskStateInProgress || t.subscription {
@@ -674,7 +706,7 @@ func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Dur
 		if t.hotDeadline.IsZero() {
 			continue
 		}
-		d := max(t.hotDeadline.Sub(now), 0)
+		d := max(t.hotDeadline.Sub(now), minDeadlineWake)
 		if d < candidate {
 			candidate = d
 		}
