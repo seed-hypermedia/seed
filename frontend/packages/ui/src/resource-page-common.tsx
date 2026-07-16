@@ -2695,7 +2695,10 @@ function MainContent({
     case 'metadata':
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          <DocumentMetadataPage document={document} />
+          {/* Extra left padding in the main view; the panel render keeps its own. */}
+          <div className="pl-4">
+            <DocumentMetadataPage document={document} />
+          </div>
         </PageLayout>
       )
 
