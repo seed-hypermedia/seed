@@ -525,31 +525,32 @@ export const HMBlockNodeSchema: z.ZodType<HMBlockNode> = z.lazy(() =>
   }),
 )
 
-export const HMDocumentMetadataSchema = z.object({
-  name: z.string().optional(),
-  summary: z.string().optional(),
-  icon: z.string().optional(),
-  thumbnail: z.string().optional(), // DEPRECATED
-  cover: z.string().optional(),
-  siteUrl: z.string().optional(),
-  layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
-  displayPublishTime: z.string().optional(),
-  displayAuthor: z.string().optional(),
-  seedExperimentalLogo: z.string().optional(),
-  seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
-  showOutline: z.boolean().optional(),
-  showActivity: z.boolean().optional(),
-  contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
-  childrenType: HMBlockChildrenTypeSchema.optional(),
-  theme: z
-    .object({
-      headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
-    })
-    .optional(),
-  // Import taxonomy fields (comma-separated values from external sources like WordPress)
-  importCategories: z.string().optional(),
-  importTags: z.string().optional(),
-})
+export const HMDocumentMetadataSchema = z
+  .object({
+    name: z.string().optional(),
+    summary: z.string().optional(),
+    icon: z.string().optional(),
+    thumbnail: z.string().optional(), // DEPRECATED
+    cover: z.string().optional(),
+    siteUrl: z.string().optional(),
+    layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
+    displayPublishTime: z.string().optional(),
+    displayAuthor: z.string().optional(),
+    seedExperimentalLogo: z.string().optional(),
+    seedExperimentalHomeOrder: z.union([z.literal('UpdatedFirst'), z.literal('CreatedFirst')]).optional(),
+    showOutline: z.boolean().optional(),
+    showActivity: z.boolean().optional(),
+    contentWidth: z.union([z.literal('S'), z.literal('M'), z.literal('L')]).optional(),
+    childrenType: HMBlockChildrenTypeSchema.optional(),
+    theme: z
+      .object({
+        headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
+      })
+      .optional(),
+    // Import taxonomy fields (comma-separated values from external sources like WordPress)
+    importCategories: z.string().optional(),
+    importTags: z.string().optional(),
+  })
   // Metadata is an open/extensible attribute map: the document data model
   // supports arbitrary keys (custom fields authored in the metadata editor).
   // Preserve unknown keys instead of stripping them, so custom metadata
