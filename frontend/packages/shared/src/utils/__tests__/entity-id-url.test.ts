@@ -600,7 +600,7 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:comments')
   })
 
-  test('metadata route includes :metadata viewTerm', () => {
+  test('metadata route is surfaced as the :attributes viewTerm', () => {
     const url = routeToUrl(
       {
         key: 'metadata',
@@ -608,7 +608,7 @@ describe('routeToUrl', () => {
       },
       {hostname: 'https://gw.com'},
     )
-    expect(url).toBe('https://gw.com/hm/uid1/:metadata')
+    expect(url).toBe('https://gw.com/hm/uid1/:attributes')
   })
 
   test('comments route with openComment includes commentId in path', () => {
