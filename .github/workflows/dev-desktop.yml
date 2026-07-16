@@ -57,8 +57,12 @@ jobs:
     runs-on: ${{ matrix.config.os }}
     # if: startsWith(github.ref, 'refs/tags/')
     needs: [build-info, frontend-tests, deploy-script]
+    # Publish whatever platforms built. A failing leg must neither cancel its
+    # siblings (fail-fast) nor skip notify-on-discord (continue-on-error).
+    # The "Check platform artifacts" step there prunes missing platforms from
+    # latest.json and reports the gap.
+    continue-on-error: true
     strategy:
-      # One platform failing must not cancel the other legs' real status.
       fail-fast: false
       matrix:
         config:
@@ -348,6 +352,50 @@ jobs:
         with:
           path: artifacts
 
+      # build-binaries is continue-on-error, so a failed leg reaches here as a
+      # silently absent artifact dir. Re-assert what actually built, and hand
+      # the latest.json step the jq paths of the platforms to drop.
+      - name: Check platform artifacts
+        id: platforms
+        run: |
+          set -euo pipefail
+          KEYS=(x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-gnu x86_64-pc-windows-gnu)
+          NAMES=("macOS x64" "macOS arm64" "Linux x64" "Windows x64")
+          PATHS=(.assets.macos.x64 .assets.macos.arm64 .assets.linux .assets.win32)
+
+          present=() ; missing=() ; prune=()
+          for i in "${!KEYS[@]}"; do
+            dir="artifacts/artifacts-${KEYS[$i]}"
+            if [ -d "$dir" ] && [ -n "$(ls -A "$dir")" ]; then
+              present+=("${NAMES[$i]}")
+            else
+              missing+=("${NAMES[$i]}")
+              prune+=("${PATHS[$i]}")
+            fi
+          done
+
+          echo "Publishing: ${present[*]:-(none)}"
+          {
+            echo "## Dev desktop artifacts"
+            echo "- built: ${present[*]:-(none)}"
+            echo "- missing: ${missing[*]:-(none)}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "::error::No platform artifacts built; not publishing latest.json."
+            exit 1
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # "${arr[*]}" joins on IFS's first char only, so build the list
+            # explicitly to keep the ", " separator.
+            joined="$(printf '%s, ' "${missing[@]}")"
+            joined="${joined%, }"
+            echo "::warning::Partial dev build — no artifacts for: ${joined}"
+            echo "missing=${joined}" >> "$GITHUB_OUTPUT"
+            echo "prune=${prune[*]}" >> "$GITHUB_OUTPUT"
+          fi
+
       # Step 3: Generate artifact URLs and send to Discord
       - name: Send Discord Notification
         env:
@@ -355,6 +403,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           VERSION: ${{ needs.build-info.outputs.version }}
+          MISSING_PLATFORMS: ${{ steps.platforms.outputs.missing }}
         run: |
           # Debug: List all files in artifacts directory
           echo "Listing all files in artifacts directory:"
@@ -377,6 +426,10 @@ jobs:
           # # Add performance dashboard link
           # MESSAGE="${MESSAGE}\n\n**[View Performance Dashboard](${DASHBOARD_URL})**"
           # MESSAGE="${MESSAGE}\n(Performance results for this build will be available in the dashboard soon)"
+
+          if [ -n "${MISSING_PLATFORMS}" ]; then
+            MESSAGE="${MESSAGE}\n⚠️ Missing platforms (build failed): ${MISSING_PLATFORMS}"
+          fi
 
           # Send the message to Discord
           echo "Sending Discord Notification..."
@@ -431,6 +484,17 @@ jobs:
             }
           }
           EOF
+
+          # Drop platforms whose builds failed, so the in-app updater never
+          # advertises downloads that were not uploaded this run. A missing
+          # key resolves to a null asset in auto-update.ts, not a dead URL.
+          for path in ${{ steps.platforms.outputs.prune }}; do
+            jq "del(${path})" latest.json > latest.json.tmp
+            mv latest.json.tmp latest.json
+          done
+
+          echo "Publishing latest.json:"
+          cat latest.json
 
           # Upload to S3
           aws s3 cp latest.json s3://seedappdev/dev/latest.json
