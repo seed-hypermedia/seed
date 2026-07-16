@@ -568,6 +568,25 @@ export function hmMetadataJsonCorrection(metadata: any): any {
 
 export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 
+/** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
+export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
+
+/**
+ * Count of custom (user-authored) metadata fields on a document: keys not
+ * declared by HMDocumentMetadataSchema. Null/undefined values (e.g. removed
+ * fields staged as draft tombstones) are not counted.
+ */
+export function countCustomMetadataFields(metadata?: HMMetadata | null): number {
+  if (!metadata) return 0
+  let count = 0
+  for (const [key, value] of Object.entries(metadata)) {
+    if (BUILTIN_METADATA_KEYS.has(key)) continue
+    if (value === undefined || value === null) continue
+    count++
+  }
+  return count
+}
+
 export type HMResourceVisibility = 'PUBLIC' | 'PRIVATE'
 
 const visibilityMap: Record<string | number, HMResourceVisibility> = {

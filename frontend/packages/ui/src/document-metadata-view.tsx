@@ -101,7 +101,7 @@ export function DocumentMetadataView({
     <ValueEditorProvider onUndo={editable ? handleUndo : undefined} onRedo={editable ? handleRedo : undefined}>
       <div className="flex flex-col gap-4 py-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Metadata</h2>
+          <h2 className="text-2xl font-bold">Attributes</h2>
           {editable && (
             <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
               <Button
@@ -120,7 +120,7 @@ export function DocumentMetadataView({
         ) : editable ? (
           <>
             {entries.length === 0 ? (
-              <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+              <p className="text-muted-foreground text-sm">This document has no attributes.</p>
             ) : (
               <div className="flex flex-col">
                 {entries.map(([key, value]) => (
@@ -148,7 +148,7 @@ export function DocumentMetadataView({
             />
           </>
         ) : entries.length === 0 ? (
-          <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+          <p className="text-muted-foreground text-sm">This document has no attributes.</p>
         ) : (
           <dl className="flex flex-col">
             {entries.map(([key, value]) => (
@@ -188,7 +188,7 @@ function MetadataJsonEditor({
     if (text === serialized) return {dirty: false as const}
     try {
       const parsed: unknown = JSON.parse(text)
-      if (!isPlainObject(parsed)) return {dirty: true as const, error: 'Metadata must be a JSON object'}
+      if (!isPlainObject(parsed)) return {dirty: true as const, error: 'Attributes must be a JSON object'}
       const problem = findInvalidValue(parsed, METADATA_VALUE_RULES)
       if (problem) return {dirty: true as const, error: problem}
       return {dirty: true as const, value: parsed}

@@ -1,5 +1,6 @@
 import {
   BlockRange,
+  countCustomMetadataFields,
   HMBlockNode,
   HMComment,
   HMDocument,
@@ -1501,7 +1502,7 @@ function DocumentBody({
       directory: 'Sub documents',
       activity: 'Activity',
       'all-documents': 'All Documents',
-      metadata: 'Metadata',
+      metadata: 'Attributes',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
       items.push({label: panelLabels[activeView]})
@@ -1764,7 +1765,7 @@ function DocumentBody({
     if (route.key === 'inspect' || route.key === 'metadata') return null
     return {
       key: 'metadata',
-      label: 'Metadata',
+      label: 'Attributes',
       icon: <Info className="size-4" />,
       onClick: () => {
         navigate({key: 'metadata', id: {...docId, blockRef: null, blockRange: null}})
@@ -1880,7 +1881,7 @@ function DocumentBody({
                                   directory: 'Sub documents',
                                   'all-documents': 'All Documents',
                                   'site-profile': 'Profile',
-                                  metadata: 'Metadata',
+                                  metadata: 'Attributes',
                                 } as Record<string, string>
                               )[activeView] || '',
                           },
@@ -1942,7 +1943,7 @@ function DocumentBody({
                                 directory: 'Sub documents',
                                 'all-documents': 'All Documents',
                                 'site-profile': 'Profile',
-                                metadata: 'Metadata',
+                                metadata: 'Attributes',
                               } as Record<string, string>
                             )[activeView] || '',
                         },
@@ -2008,6 +2009,7 @@ function DocumentBody({
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
+            metadataCount={countCustomMetadataFields(document.metadata)}
             rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
