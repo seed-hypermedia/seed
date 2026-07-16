@@ -84,4 +84,21 @@ describe('value editor keyboard navigation', () => {
     press(rowFor('inner'), 'ArrowLeft')
     expect(activeKey()).toBe('obj')
   })
+
+  it("selection follows focus into a field's editor (no highlight left behind)", () => {
+    render({aa: 'x', bb: 'y'})
+    const bbInput = rowFor('bb').querySelector('input') as HTMLInputElement
+    act(() => bbInput.focus())
+    // The bb row is highlighted, not aa.
+    expect(rowFor('bb').getAttribute('aria-selected')).toBe('true')
+    expect(rowFor('aa').getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('focusing a nested field selects the innermost row, not its ancestor', () => {
+    render({obj: {inner: 'y'}})
+    const innerInput = rowFor('inner').querySelector('input') as HTMLInputElement
+    act(() => innerInput.focus())
+    expect(rowFor('inner').getAttribute('aria-selected')).toBe('true')
+    expect(rowFor('obj').getAttribute('aria-selected')).toBe('false')
+  })
 })

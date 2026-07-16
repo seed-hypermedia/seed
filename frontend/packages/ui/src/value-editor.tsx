@@ -628,8 +628,11 @@ function useRowSelection(
     'aria-selected': isSelected,
     ...(row.isContainer ? {'aria-expanded': !row.collapsed} : {}),
     onFocus: (e: React.FocusEvent) => {
-      // Only when the row element itself is focused, not a child editor.
-      if (e.target === e.currentTarget) ctx.select(id)
+      // Selection follows focus — whether the row itself or any editor inside
+      // it is focused (so tabbing between fields moves the highlight too). The
+      // innermost row wins, so focusing a nested object's field selects it, not
+      // its ancestors.
+      if ((e.target as HTMLElement).closest('[role="treeitem"]') === e.currentTarget) ctx.select(id)
     },
     onKeyDown: (e: React.KeyboardEvent) => {
       // Let inner editors handle their own keys (text nav, etc.).
@@ -890,15 +893,15 @@ export function FieldRow({
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* Field name first so names align regardless of type; the collapse
+            chevron sits after the name for containers. */}
         <div className="flex items-center gap-1">
-          {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
           <span className={cn(FIELD_LABEL_CLASS, 'truncate')} title={fieldKey}>
             {fieldKey}
           </span>
+          {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
         </div>
-        {/* Indent the value under the collapse toggle only for containers; flat
-            scalar fields stay flush-left so the attributes list aligns. */}
-        <div className={isContainer ? 'pl-5' : undefined}>
+        <div>
           {isContainer && collapsed ? (
             <CollapsedSummary value={value} rules={rules} onExpand={() => setCollapsed(false)} />
           ) : (
