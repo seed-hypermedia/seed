@@ -11,6 +11,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/storage"
 	"seed/backend/testutil"
+	"seed/backend/util/colx"
 
 	"github.com/ipfs/boxo/exchange"
 	blocks "github.com/ipfs/go-block-format"
@@ -132,4 +133,31 @@ func (fakeBitswap) NewSession(context.Context) exchange.Fetcher {
 
 func (fakeBitswap) FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo {
 	panic("unexpected provider lookup during reindex rejection test")
+}
+
+// TestServer_WarmScopeServeNeedsNoWriter proves the steady-state serve path is
+// writer-free: with the pool's only write connection held hostage, a serve of
+// an already-materialized scope must still complete (phases 1 and 3 run on
+// read connections; phase 2 is skipped for warm scopes).
+func TestServer_WarmScopeServeNeedsNoWriter(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
+	materializeFixtureScope(t, db, dkey)
+
+	srv := &Server{db: db, log: zap.NewNop()}
+
+	// Hold the writer for the duration of the serve.
+	_, releaseWriter, err := db.WriteConn(context.Background())
+	require.NoError(t, err)
+	defer releaseWriter()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dkeys := make(colx.HashSet[DiscoveryKey], 1)
+	dkeys.Put(dkey)
+	store, err := srv.loadStoreFromIndex(ctx, dkeys, nil)
+	require.NoError(t, err, "warm-scope serve must not need the writer connection")
+	require.NotNil(t, store)
 }

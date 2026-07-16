@@ -87,13 +87,22 @@ func scopeAllowsType(s DiscoveryKey, t string) bool {
 }
 
 // qMediaClosure walks blob_links forward from a single seed blob along EVERY
-// link type, transitively, excluding stashed blobs — byte-for-byte the same
-// traversal collectBlobs runs from its whole seed set ("Fill media files"),
-// restricted here to one new blob. This subsumes the ref/head + change/dep
-// change-closure: those are just two of the link types this walk follows, which
-// is why collectBlobs pulls Changes into a scope even when the type filter omits
-// them. The closure is deliberately not type-filtered; only the seeding
-// decision is (see affectedScopes).
+// link type, transitively, excluding stashed and not-yet-downloaded blobs —
+// the same traversal collectBlobs runs from its whole seed set ("Fill media
+// files"), restricted here to one new blob. This subsumes the ref/head +
+// change/dep change-closure: those are just two of the link types this walk
+// follows, which is why collectBlobs pulls Changes into a scope even when the
+// type filter omits them. The closure is deliberately not type-filtered; only
+// the seeding decision is (see affectedScopes).
+//
+// The size >= 0 gate keeps rbsr_item on the membership contract shared by
+// materialize/shadow-verify (downloaded, non-stashed): blob_links routinely
+// point at size=-1 placeholders (a comment's target-version Changes, embedded
+// media), and inserting those creates permanent drift against a fresh
+// materialization. When the placeholder later downloads, the late-arrival
+// reverse edge (scopesLinkingTo) re-adds it. Filtering only the final SELECT
+// (not the recursive arms) is safe: an undownloaded blob is never indexed, so
+// it has no outgoing blob_links to traverse through anyway.
 var qMediaClosure = dqb.Str(`
 	WITH RECURSIVE media (id) AS (
 		SELECT bl.target
@@ -106,8 +115,9 @@ var qMediaClosure = dqb.Str(`
 	)
 	SELECT m.id
 	FROM media m
+	JOIN blobs b ON b.id = m.id
 	LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = m.id
-	WHERE stashed_blobs.id IS NULL;`)
+	WHERE stashed_blobs.id IS NULL AND b.size >= 0;`)
 
 // qBlobFacts fetches the type and resource IRI (empty when unanchored, as for
 // Changes) of a freshly-indexed blob.

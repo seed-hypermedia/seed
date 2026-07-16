@@ -429,38 +429,23 @@ func (s *Server) loadStoreLegacy(ctx context.Context, dkeys colx.HashSet[Discove
 	return store.WithFilter(authorizedSpaces), nil
 }
 
-// loadStoreFromIndex serves from the maintained index: materialize each scope
-// once (the only place the expensive collectBlobs closure runs), then build the
-// tree-backed store from the union of persisted rows. The incremental oracle
-// keeps the set current so reconciliation no longer rebuilds it per round.
+// loadStoreFromIndex serves from the maintained index via the shared
+// three-phase load (see loadIndexedScopes): warm scopes never touch the writer
+// connection, cold ones materialize once — the only place the expensive
+// collectBlobs closure runs. The incremental oracle keeps the sets current so
+// reconciliation no longer rebuilds them per round.
 func (s *Server) loadStoreFromIndex(ctx context.Context, dkeys colx.HashSet[DiscoveryKey], authorizedSpaces []core.Principal) (rbsr.Store, error) {
 	store := newAuthorizedTreeStore()
-	if err := s.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		scopeIDs := make([]int64, 0, len(dkeys))
-		for dkey := range dkeys {
-			// resolveScope returns errScopeNotRepresentable for an exotic blob-type
-			// filter the flattened index doesn't maintain; that error propagates out
-			// of the tx so loadStore falls back to the legacy rebuild, which honors
-			// arbitrary filters.
-			id, materialized, err := resolveScope(conn, dkey)
-			if err != nil {
-				return err
-			}
-			if !materialized {
-				if err := materializeScope(conn, id, dkey); err != nil {
-					return err
-				}
-			}
-			scopeIDs = append(scopeIDs, id)
-		}
-		return buildStoreFromScopes(conn, scopeIDs, store)
-	}); err != nil {
+	refresh, err := loadIndexedScopes(ctx, s.db, dkeys, store)
+	if err != nil {
 		return nil, err
 	}
 
 	if err := store.Seal(); err != nil {
 		return nil, err
 	}
+
+	touchScopesAsync(s.db, s.log, refresh)
 
 	return store.WithFilter(authorizedSpaces), nil
 }

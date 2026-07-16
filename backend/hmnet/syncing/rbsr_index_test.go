@@ -6,6 +6,7 @@ import (
 
 	"seed/backend/blob"
 	"seed/backend/hmnet/syncing/rbsr"
+	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -141,4 +142,39 @@ func TestRbsrIndex_ResolveScopeIdempotent(t *testing.T) {
 		require.True(t, matAfter, "scope is materialized after materializeScope")
 		return nil
 	}))
+}
+
+// TestLoadIndexedScopes_ClientPathMatchesLegacy covers the client store build:
+// the shared three-phase load must produce the same store as the legacy
+// per-call rebuild — both on the cold (materializing) first call and the warm
+// (read-only) second one — and a request-carried Version must not matter,
+// since scope identity ignores versions exactly like fillTables does.
+func TestLoadIndexedScopes_ClientPathMatchesLegacy(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	ctx := context.Background()
+
+	versioned := DiscoveryKey{IRI: blob.IRI(base), Version: "bafyfakeversion", Recursive: true}
+
+	want := newAuthorizedStore()
+	require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return loadRBSRStore(conn, map[DiscoveryKey]struct{}{versioned: {}}, want)
+	}))
+	require.NoError(t, want.Seal())
+
+	indexKey := versioned
+	indexKey.Version = ""
+	for _, phase := range []string{"cold", "warm"} {
+		got := newAuthorizedTreeStore()
+		_, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{indexKey: {}}, got)
+		require.NoError(t, err, phase)
+		require.NoError(t, got.Seal(), phase)
+		require.Equal(t, want.Size(), got.Size(), "%s: size must match legacy", phase)
+		require.Equal(t, fingerprintOf(t, want), fingerprintOf(t, got), "%s: fingerprint must match legacy", phase)
+	}
+
+	// Exotic type filters have no maintained scope kind and must fall back.
+	exotic := DiscoveryKey{IRI: blob.IRI(base), BlobTypes: "Comment"}
+	_, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{exotic: {}}, newAuthorizedTreeStore())
+	require.ErrorIs(t, err, errScopeNotRepresentable)
 }

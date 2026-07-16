@@ -408,6 +408,9 @@ type Index interface {
 	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
 	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
 	GetSpacesByAccount(ctx context.Context, accounts []core.Principal) (map[core.PrincipalUnsafeString][]core.Principal, error)
+	// ReindexInfo lets the shadow-verify trickle pause while the derived
+	// tables are being torn down and rebuilt by a full reindex.
+	ReindexInfo() blob.ReindexInfo
 }
 
 type protocolChecker struct {
@@ -520,19 +523,16 @@ func (s *Service) Run(ctx context.Context) error {
 	return s.scheduler.run(ctx)
 }
 
-// shadowVerifyInterval is how often the maintained RBSR index is checked against
-// a fresh collectBlobs materialization. Drift (a scope whose incrementally
-// maintained set diverged — e.g. via an edge the oracle defers) forces that
-// scope to re-materialize, which is the safety net for the deferred edges.
-const shadowVerifyInterval = 5 * time.Minute
-
+// runShadowVerify drives the trickle sweep over the maintained RBSR index: each
+// tick verifies one page of scopes against a fresh collectBlobs computation and
+// heals any divergence in place (see shadow_verify.go for the design). Timer,
+// not Ticker: a tick can run long on drifted pages; re-arming after each tick
+// prevents runs from stacking.
 func (s *Service) runShadowVerify(ctx context.Context) {
-	// Timer, not Ticker: the sweep recomputes every scope via collectBlobs and
-	// can run long; a Ticker would keep firing on a fixed cadence regardless,
-	// stacking runs. Fire once at 0, then reset to the interval after each cycle.
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
+	var cursor int64
 	for {
 		select {
 		case <-ctx.Done():
@@ -540,17 +540,37 @@ func (s *Service) runShadowVerify(ctx context.Context) {
 		case <-timer.C:
 		}
 
-		checked, drifted, err := shadowVerifySweep(ctx, s.db)
-		switch {
-		case err != nil:
-			s.log.Warn("ShadowVerifyFailed", zap.Error(err))
-		case drifted > 0:
-			s.log.Warn("ShadowVerifyDrift", zap.Int("checked", checked), zap.Int("drifted", drifted))
-		default:
-			s.log.Debug("ShadowVerifyClean", zap.Int("checked", checked))
+		// While a reindex is tearing down / rebuilding the derived tables the
+		// serve path falls back to legacy anyway; verifying would only fight
+		// the reindexer for the writer. Skip the tick.
+		if st := s.index.ReindexInfo().State; st == blob.ReindexStatePending || st == blob.ReindexStateInProgress {
+			timer.Reset(shadowVerifyTick)
+			continue
 		}
 
-		timer.Reset(shadowVerifyInterval)
+		next, stats, err := shadowVerifySweep(ctx, s.db, s.log, cursor, shadowVerifyBatch, time.Now())
+		cursor = next
+		switch {
+		case err != nil:
+			if ctx.Err() == nil {
+				s.log.Warn("ShadowVerifyFailed", zap.Error(err))
+			}
+		case stats.drifted > 0 || stats.failed > 0:
+			s.log.Warn("ShadowVerifyDrift",
+				zap.Int("checked", stats.checked),
+				zap.Int("drifted", stats.drifted),
+				zap.Int("healed", stats.healed),
+				zap.Int("failed", stats.failed),
+				zap.Int("skipped", stats.skipped),
+				zap.Int("evicted", stats.evicted))
+		default:
+			s.log.Debug("ShadowVerifyClean",
+				zap.Int("checked", stats.checked),
+				zap.Int("healed", stats.healed),
+				zap.Int("skipped", stats.skipped))
+		}
+
+		timer.Reset(shadowVerifyTick)
 	}
 }
 
