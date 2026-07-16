@@ -521,7 +521,16 @@ function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
       : previousRoute
   }, [navState])
 
-  return <InspectIpfsPage ipfsPath={ipfsPath} exitRoute={exitRoute} getRouteForUrl={getRouteForUrl} />
+  // On web the current site is the gateway serving the file.
+  const gatewayUrl = typeof window !== 'undefined' ? window.location.origin : undefined
+  return (
+    <InspectIpfsPage
+      ipfsPath={ipfsPath}
+      exitRoute={exitRoute}
+      getRouteForUrl={getRouteForUrl}
+      gatewayUrl={gatewayUrl}
+    />
+  )
 }
 
 const DISCOVERY_POLL_INTERVAL_MS = 2_000

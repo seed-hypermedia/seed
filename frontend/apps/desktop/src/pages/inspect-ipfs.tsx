@@ -1,5 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {CloseButton} from '@/components/window-controls'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {
   createInspectIpfsNavRoute,
   createInspectNavRouteFromRoute,
@@ -38,11 +39,13 @@ export default function DesktopInspectIpfsPage() {
   }, [navState])
 
   const isMac = platform === 'darwin'
+  const gatewayUrl = useGatewayUrl().data || undefined
   return (
     <InspectIpfsPage
       ipfsPath={route.ipfsPath}
       exitRoute={exitRoute}
       getRouteForUrl={getRouteForUrl}
+      gatewayUrl={gatewayUrl}
       trafficLightInset={isMac}
       windowControls={
         isMac ? undefined : (

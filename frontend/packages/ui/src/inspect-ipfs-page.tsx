@@ -1,8 +1,9 @@
 import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
 import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Check, Copy, FileEdit, MoreHorizontal, X} from 'lucide-react'
+import {Check, FileEdit, MoreHorizontal, X} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
@@ -14,7 +15,7 @@ import {useFileUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {Spinner} from './spinner'
 import {toast} from './toast'
-import {Tooltip} from './tooltip'
+import {OmnibarUrl} from './url-omnibar'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from './value-editor'
 
 type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
@@ -84,6 +85,7 @@ export function InspectIpfsPage({
   getRouteForUrl,
   windowControls,
   trafficLightInset = false,
+  gatewayUrl = DEFAULT_GATEWAY_URL,
 }: {
   ipfsPath: string
   exitRoute?: NavRoute | null
@@ -92,6 +94,8 @@ export function InspectIpfsPage({
   windowControls?: ReactNode
   /** Reserve space at the left of the top bar for macOS traffic lights. */
   trafficLightInset?: boolean
+  /** Gateway origin for the shareable `https://<gateway>/ipfs/<cid>` link. */
+  gatewayUrl?: string
 }) {
   const [cid, ...pathSegments] = ipfsPath.split('/').filter(Boolean)
   const hasSubpath = pathSegments.length > 0
@@ -170,12 +174,7 @@ export function InspectIpfsPage({
     }
   }
 
-  const copyUrl = () => {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) return
-    navigator.clipboard.writeText(`ipfs://${ipfsPath}`)
-    toast.success('Copied ipfs:// URL')
-  }
-
+  const gatewayLink = `${gatewayUrl.replace(/\/+$/, '')}/ipfs/${ipfsPath}`
   const exitLinkProps = useRouteLink(exitRoute || null)
 
   let body: ReactNode
@@ -229,11 +228,11 @@ export function InspectIpfsPage({
   return (
     <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">
       <IpfsTopBar
-        ipfsPath={ipfsPath}
+        restingUrl={`ipfs://${ipfsPath}`}
+        gatewayLink={gatewayLink}
         editing={mode === 'edit'}
         canEdit={canEdit}
         publishing={publishing}
-        onCopy={copyUrl}
         onStartEditing={startEditing}
         onCancel={() => setMode('view')}
         onPublish={publish}
@@ -251,13 +250,13 @@ export function InspectIpfsPage({
   )
 }
 
-/** The slim, non-editable top bar: read-only URL + copy + "…" menu, or draft controls. */
+/** The slim, non-editable top bar: omnibar-style URL + copy + "…" menu, or draft controls. */
 function IpfsTopBar({
-  ipfsPath,
+  restingUrl,
+  gatewayLink,
   editing,
   canEdit,
   publishing,
-  onCopy,
   onStartEditing,
   onCancel,
   onPublish,
@@ -266,11 +265,11 @@ function IpfsTopBar({
   windowControls,
   trafficLightInset,
 }: {
-  ipfsPath: string
+  restingUrl: string
+  gatewayLink: string
   editing: boolean
   canEdit: boolean
   publishing: boolean
-  onCopy: () => void
   onStartEditing: () => void
   onCancel: () => void
   onPublish: () => void
@@ -279,9 +278,37 @@ function IpfsTopBar({
   windowControls?: ReactNode
   trafficLightInset?: boolean
 }) {
+  // Only surface the "…" menu when it would contain at least one action.
+  const hasMenu = canEdit || !!exitRoute
+  const menu = hasMenu ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="iconSm" aria-label="More actions">
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {canEdit && (
+          <DropdownMenuItem onSelect={onStartEditing}>
+            <FileEdit className="size-4" />
+            Edit
+          </DropdownMenuItem>
+        )}
+        {exitRoute && (
+          <DropdownMenuItem asChild>
+            <a {...exitLinkProps}>
+              <X className="size-4" />
+              Open Resource
+            </a>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : undefined
+
   return (
     <div
-      className="window-drag border-border bg-background flex h-10 shrink-0 items-center gap-2 border-b px-3"
+      className="window-drag border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-3"
       style={trafficLightInset ? {paddingLeft: 78} : undefined}
     >
       {editing ? (
@@ -301,41 +328,7 @@ function IpfsTopBar({
           </div>
         </>
       ) : (
-        <>
-          <span className="text-muted-foreground no-window-drag min-w-0 flex-1 truncate font-mono text-xs select-text">
-            ipfs://{ipfsPath}
-          </span>
-          <div className="no-window-drag flex items-center gap-1">
-            <Tooltip content="Copy ipfs:// URL">
-              <Button variant="ghost" size="iconSm" aria-label="Copy ipfs:// URL" onClick={onCopy}>
-                <Copy className="size-3.5" />
-              </Button>
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="iconSm" aria-label="More actions">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {canEdit && (
-                  <DropdownMenuItem onSelect={onStartEditing}>
-                    <FileEdit className="size-4" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                {exitRoute && (
-                  <DropdownMenuItem asChild>
-                    <a {...exitLinkProps}>
-                      <X className="size-4" />
-                      Open Resource
-                    </a>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </>
+        <OmnibarUrl restingUrl={restingUrl} copyUrl={gatewayLink} rightActions={menu} />
       )}
       {windowControls}
     </div>
