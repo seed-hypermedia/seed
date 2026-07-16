@@ -1,10 +1,10 @@
-import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {Braces, Check} from 'lucide-react'
-import {useEffect, useMemo, useState} from 'react'
-import {Button} from './button'
-import {Textarea} from './components/textarea'
-import {Tooltip} from './tooltip'
-import {cn} from './utils'
+import type { HMMetadata } from '@seed-hypermedia/client/hm-types'
+import { Braces, Check } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Button } from './button'
+import { Textarea } from './components/textarea'
+import { Tooltip } from './tooltip'
+import { cn } from './utils'
 import {
   AddFieldForm,
   canonicalEntries,
@@ -78,7 +78,7 @@ export function DocumentMetadataView({
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
-  const entries = canonicalEntries(current, {hideNull: true})
+  const entries = canonicalEntries(current, { hideNull: true })
   const editable = canEdit && !!onMetadata
 
   // Undo/redo over snapshots of the merged metadata: `record()` before each
@@ -103,7 +103,7 @@ export function DocumentMetadataView({
         {/* No title here — the tab/breadcrumb (main view) and the panel header
             already label this "Attributes". */}
         {editable && (
-          <div className="flex items-center justify-end">
+          <div className="flex justify-end items-center">
             <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
               <Button
                 variant={jsonMode ? 'secondary' : 'ghost'}
@@ -121,7 +121,7 @@ export function DocumentMetadataView({
         ) : editable ? (
           <>
             {entries.length === 0 ? (
-              <p className="text-muted-foreground text-sm">This document has no attributes.</p>
+              <p className="text-sm text-muted-foreground">This document has no attributes.</p>
             ) : (
               <div className="flex flex-col">
                 {entries.map(([key, value]) => (
@@ -131,11 +131,11 @@ export function DocumentMetadataView({
                     fieldKey={key}
                     value={value}
                     siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-                    onValue={(newValue) => stage({[key]: newValue})}
+                    onValue={(newValue) => stage({ [key]: newValue })}
                     onEditField={(newKey, newValue) =>
-                      stage(newKey === key ? {[key]: newValue} : {[key]: null, [newKey]: newValue})
+                      stage(newKey === key ? { [key]: newValue } : { [key]: null, [newKey]: newValue })
                     }
-                    onRemove={() => stage({[key]: null})}
+                    onRemove={() => stage({ [key]: null })}
                     rules={METADATA_VALUE_RULES}
                     path={[key]}
                   />
@@ -145,11 +145,11 @@ export function DocumentMetadataView({
             <AddFieldForm
               rules={METADATA_VALUE_RULES}
               existingKeys={entries.map(([key]) => key)}
-              onAdd={(key, value) => stage({[key]: value})}
+              onAdd={(key, value) => stage({ [key]: value })}
             />
           </>
         ) : entries.length === 0 ? (
-          <p className="text-muted-foreground text-sm">This document has no attributes.</p>
+          <p className="text-sm text-muted-foreground">This document has no attributes.</p>
         ) : (
           <dl className="flex flex-col">
             {entries.map(([key, value]) => (
@@ -178,7 +178,7 @@ function MetadataJsonEditor({
   onMetadata?: (patch: MetadataPatch) => void
 }) {
   const currentVisible = useMemo(
-    () => toCanonicalOrder(metadata, {hideNull: true}) as Record<string, unknown>,
+    () => toCanonicalOrder(metadata, { hideNull: true }) as Record<string, unknown>,
     [metadata],
   )
   const serialized = useMemo(() => JSON.stringify(currentVisible, null, 2), [currentVisible])
@@ -186,20 +186,20 @@ function MetadataJsonEditor({
   useEffect(() => setText(serialized), [serialized])
 
   const validation = useMemo(() => {
-    if (text === serialized) return {dirty: false as const}
+    if (text === serialized) return { dirty: false as const }
     try {
       const parsed: unknown = JSON.parse(text)
-      if (!isPlainObject(parsed)) return {dirty: true as const, error: 'Attributes must be a JSON object'}
+      if (!isPlainObject(parsed)) return { dirty: true as const, error: 'Attributes must be a JSON object' }
       const problem = findInvalidValue(parsed, METADATA_VALUE_RULES)
-      if (problem) return {dirty: true as const, error: problem}
-      return {dirty: true as const, value: parsed}
+      if (problem) return { dirty: true as const, error: problem }
+      return { dirty: true as const, value: parsed }
     } catch (e) {
-      return {dirty: true as const, error: e instanceof Error ? e.message : 'Invalid JSON'}
+      return { dirty: true as const, error: e instanceof Error ? e.message : 'Invalid JSON' }
     }
   }, [text, serialized])
 
   if (!editable) {
-    return <pre className="bg-muted/50 overflow-x-auto rounded-md p-4 font-mono text-sm">{serialized}</pre>
+    return <pre className="overflow-x-auto p-4 font-mono text-sm rounded-md bg-muted/50">{serialized}</pre>
   }
 
   return (
@@ -211,10 +211,10 @@ function MetadataJsonEditor({
         className={cn('font-mono text-sm', validation.dirty && 'error' in validation && 'border-destructive')}
         onChange={(e) => setText(e.target.value)}
       />
-      <div className="flex min-h-8 items-center gap-2">
+      <div className="flex gap-2 items-center min-h-8">
         {validation.dirty ? (
           'error' in validation ? (
-            <p className="text-destructive text-xs">{validation.error}</p>
+            <p className="text-xs text-destructive">{validation.error}</p>
           ) : (
             <>
               <Button
@@ -232,9 +232,7 @@ function MetadataJsonEditor({
             </>
           )
         ) : (
-          <p className="text-muted-foreground text-xs">
-            Values may be text, whole numbers, true/false, or nested objects.
-          </p>
+          <></>
         )}
       </div>
     </div>
