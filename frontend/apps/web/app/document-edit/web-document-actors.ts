@@ -35,6 +35,7 @@ import {
   compareBlocksWithMap,
   createBlocksMap,
   extractDeletes,
+  expandObjectRemovals,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
 import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
@@ -204,7 +205,9 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     editDocument?.detachedBlocks?.navigation ?? null,
   )
 
-  const metadataChanges = getDocAttributeChanges(draft.metadata as HMMetadata)
+  const metadataChanges = getDocAttributeChanges(
+    expandObjectRemovals(draft.metadata as HMMetadata, editDocument?.metadata),
+  )
 
   const allChanges = [...navChanges, ...metadataChanges, ...blockDiff.changes, ...deleteChanges]
 

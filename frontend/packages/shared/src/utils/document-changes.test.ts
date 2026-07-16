@@ -1,7 +1,13 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {compareBlocksWithMap, createBlocksMap, deduplicateBlockIds, getDocAttributeChanges} from './document-changes'
+import {
+  compareBlocksWithMap,
+  createBlocksMap,
+  deduplicateBlockIds,
+  expandObjectRemovals,
+  getDocAttributeChanges,
+} from './document-changes'
 
 function para(id: string, children: EditorBlock[] = []): EditorBlock {
   return {
@@ -90,6 +96,27 @@ describe('getDocAttributeChanges', () => {
   it('removing object children emits per-leaf null removals', () => {
     const changes = getDocAttributeChanges({obj: {a: null, b: null}} as Record<string, unknown>)
     expect(nullKeys(changes)).toEqual(expect.arrayContaining(['obj.a', 'obj.b']))
+  })
+
+  it('expandObjectRemovals turns an object tombstone into a per-leaf null publish', () => {
+    // Draft removed the object (staged { test: null }); published doc has it.
+    const draft = {test: null} as never
+    const published = {name: 'Doc', test: {b: 'beee', number: 123, toggle: false}} as never
+    const expanded = expandObjectRemovals(draft, published) as Record<string, unknown>
+    // Every leaf is explicitly nulled (so publish doesn't rely on a parent-null).
+    expect(expanded.test).toEqual({b: null, number: null, toggle: null})
+    // Un-edited keys (e.g. name) are not introduced/touched.
+    expect('name' in expanded).toBe(false)
+    // Publishing yields a null op per leaf.
+    expect(nullKeys(getDocAttributeChanges(expanded as never))).toEqual(
+      expect.arrayContaining(['test.b', 'test.number', 'test.toggle']),
+    )
+  })
+
+  it('expandObjectRemovals leaves non-removal edits and scalar tombstones alone', () => {
+    const published = {a: 'x', obj: {k: 1}} as never
+    // scalar removal stays a plain null; a normal value passes through
+    expect(expandObjectRemovals({a: null, keep: 'v'} as never, published)).toEqual({a: null, keep: 'v'})
   })
 })
 

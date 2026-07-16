@@ -24,6 +24,47 @@ export function getDocAttributeChanges(metadata: HMMetadata, baseMetadata?: HMMe
   )
 }
 
+/** Recursively null every leaf of an object. */
+function deepNullObject(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = isPlainObject(v) ? deepNullObject(v) : null
+  }
+  return out
+}
+
+/**
+ * Rewrite object-removal tombstones into per-leaf nulls before publishing.
+ *
+ * Removing an object stages `{key: null}`. Publishing that as a single
+ * parent-null attribute op is unreliable: the server only clears one child of
+ * a multi-child object, so the rest (and thus the object) survive. Where the
+ * published document holds `key` as an object, replace the null with a
+ * deeply-nulled copy so publish emits an explicit `nullValue` op per leaf.
+ *
+ * Only null-valued keys whose published value is an object are touched; every
+ * other key (including keys absent from a partial draft) passes through
+ * unchanged, so un-edited metadata is never affected.
+ */
+export function expandObjectRemovals(
+  metadata: HMMetadata,
+  publishedMetadata: HMMetadata | undefined | null,
+): HMMetadata {
+  if (!publishedMetadata) return metadata
+  const meta = metadata as Record<string, unknown>
+  const published = publishedMetadata as Record<string, unknown>
+  const out: Record<string, unknown> = {...meta}
+  for (const [key, value] of Object.entries(meta)) {
+    const pub = published[key]
+    if (value === null && isPlainObject(pub)) {
+      out[key] = deepNullObject(pub)
+    } else if (isPlainObject(value) && isPlainObject(pub)) {
+      out[key] = expandObjectRemovals(value as HMMetadata, pub as HMMetadata)
+    }
+  }
+  return out as HMMetadata
+}
+
 function getAttributeChangesForObject(
   metadata: Record<string, unknown>,
   baseMetadata: Record<string, unknown> | undefined,
