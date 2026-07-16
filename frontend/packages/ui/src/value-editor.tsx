@@ -527,21 +527,48 @@ function CollapseToggle({collapsed, onToggle}: {collapsed: boolean; onToggle: ()
   )
 }
 
-/** Summary line shown in place of a collapsed container's editor. */
-function CollapsedSummary({value, onExpand}: {value: unknown; onExpand: () => void}) {
-  const summary = Array.isArray(value)
-    ? `List · ${value.length} ${value.length === 1 ? 'item' : 'items'}`
-    : (() => {
-        const count = canonicalEntries(value as Record<string, unknown>).length
-        return `Object · ${count} ${count === 1 ? 'field' : 'fields'}`
-      })()
+/** A compact, single-line rendering of a value's actual data (for collapsed rows). */
+function compactValuePreview(value: unknown, rules: ValueEditorRules): string {
+  if (value === null) return 'null'
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (isDagJsonLink(value)) return `→ ${value['/']}`
+  if (isDagJsonBytes(value)) {
+    try {
+      return `${formatByteSize(base64ToBytes(value['/'].bytes).length)} binary`
+    } catch {
+      return 'binary'
+    }
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => compactValuePreview(item, rules)).join(', ')}]`
+  }
+  if (isPlainObject(value)) {
+    const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
+    return `{${entries.map(([key, child]) => `${key}: ${compactValuePreview(child, rules)}`).join(', ')}}`
+  }
+  return String(value)
+}
+
+/** Collapsed container: a one-line preview of the actual data; click to expand. */
+function CollapsedSummary({
+  value,
+  rules,
+  onExpand,
+}: {
+  value: unknown
+  rules: ValueEditorRules
+  onExpand: () => void
+}) {
+  const preview = compactValuePreview(value, rules)
   return (
     <button
       type="button"
-      className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
+      title={preview}
+      className="text-muted-foreground hover:text-foreground block max-w-full truncate text-left font-mono text-xs transition-colors"
       onClick={onExpand}
     >
-      {summary}
+      {preview}
     </button>
   )
 }
@@ -662,7 +689,7 @@ export function FieldRow({
             scalar fields stay flush-left so the attributes list aligns. */}
         <div className={isContainer ? 'pl-5' : undefined}>
           {isContainer && collapsed ? (
-            <CollapsedSummary value={value} onExpand={() => setCollapsed(false)} />
+            <CollapsedSummary value={value} rules={rules} onExpand={() => setCollapsed(false)} />
           ) : (
             <ValueEditor value={value} onValue={onValue} rules={rules} path={path} />
           )}
@@ -1165,7 +1192,7 @@ function ListItemRow({
       <div className="min-w-0 flex-1">
         {isContainer && collapsed ? (
           <div className="pt-1">
-            <CollapsedSummary value={item} onExpand={() => setCollapsed(false)} />
+            <CollapsedSummary value={item} rules={rules} onExpand={() => setCollapsed(false)} />
           </div>
         ) : (
           <ValueEditor value={item} onValue={onItem} rules={rules} path={path} />
