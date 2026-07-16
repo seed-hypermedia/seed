@@ -219,6 +219,7 @@ const documentPanelRoute = z.discriminatedUnion('key', [
   directoryRouteSchema,
   collaboratorsRouteSchema,
   documentOptionsRouteSchema,
+  metadataRouteSchema,
 ])
 export type DocumentPanelRoute = z.infer<typeof documentPanelRoute>
 export type PanelSelectionOptions = DocumentPanelRoute['key']

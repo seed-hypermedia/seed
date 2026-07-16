@@ -53,6 +53,8 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
       return 'Collaborators'
     case 'options':
       return 'Draft Options'
+    case 'metadata':
+      return 'Attributes'
     default:
       return ''
   }

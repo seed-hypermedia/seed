@@ -2024,18 +2024,14 @@ function DocumentBody({
             activeTabAction={
               activeView !== 'content' &&
               activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'metadata' ? (
+              activeView !== 'all-documents' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<
-                            ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'metadata'
-                          >,
+                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
                           id: docId,
                         }
                   }
@@ -2170,6 +2166,7 @@ function DocumentBody({
       <PanelContentRenderer
         panelRoute={panelRoute!}
         docId={docId}
+        document={document}
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
         siteUrl={siteUrl}
@@ -2373,6 +2370,7 @@ function applyTitleResize(el: HTMLTextAreaElement) {
 function PanelContentRenderer({
   panelRoute,
   docId,
+  document,
   contentMaxWidth,
   CommentEditor,
   siteUrl,
@@ -2381,6 +2379,7 @@ function PanelContentRenderer({
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
+  document: HMDocument
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
@@ -2390,6 +2389,12 @@ function PanelContentRenderer({
   switch (panelRoute.key) {
     case 'options':
       return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
+    case 'metadata':
+      return (
+        <div className="px-4">
+          <DocumentMetadataPage document={document} />
+        </div>
+      )
     case 'activity':
       if (isDocumentVersionsPanelRoute(panelRoute)) {
         return (
