@@ -226,21 +226,73 @@ export type ContextMenuAction = {
   onClick: () => void
 }
 
-type SelectionContextValue = {
-  selectedId: string | null
-  select: (id: string) => void
-  clear: () => void
-  register: (id: string, handlers: SelectionHandlers) => void
+/** Everything the tree needs to know about a rendered row, for navigation + focus. */
+type RowInfo = {
+  path: ValuePath
+  handlers: SelectionHandlers
+  isContainer: boolean
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
+  getMenuActions: () => ContextMenuAction[]
+}
+
+type NavDirection = 'up' | 'down' | 'left' | 'right' | 'home' | 'end'
+
+/**
+ * Stable tree actions (referentially constant across renders, so row `ref`
+ * callbacks don't churn and element registration stays reliable).
+ */
+type SelectionActions = {
+  register: (id: string, info: RowInfo) => void
   unregister: (id: string) => void
+  setElement: (id: string, element: HTMLElement | null) => void
+  /** Select a row (highlight + make it the tab-stop) without moving DOM focus. */
+  select: (id: string) => void
+  /** Select a row and move DOM focus to it. */
+  focusRow: (id: string) => void
+  clear: () => void
+  /** Arrow-key navigation from a row. */
+  navigate: (id: string, direction: NavDirection) => void
+  /** Enter/Space on a row: toggle a container, else focus its first editor. */
+  activate: (id: string) => void
   openContextMenu: (position: {x: number; y: number}, actions: ContextMenuAction[]) => void
+}
+
+/** Reactive tree state; changes here re-render rows (highlight, roving tab-stop). */
+type SelectionState = {
+  selectedId: string | null
+  /** The single tab-stop for the whole tree (roving tabindex / one focus group). */
+  tabbableId: string | null
   /** Opens ipfs://... URLs from link values, when the host page provides navigation. */
   openUrl?: (url: string) => void
 }
 
-const SelectionContext = createContext<SelectionContextValue | null>(null)
+const SelectionActionsContext = createContext<SelectionActions | null>(null)
+const SelectionStateContext = createContext<SelectionState>({selectedId: null, tabbableId: null})
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]')
+}
+
+/** Registered rows in current DOM order (skips unmounted/collapsed-away rows). */
+function domOrderedRows(
+  registry: Map<string, RowInfo>,
+  elements: Map<string, HTMLElement>,
+): {id: string; info: RowInfo; element: HTMLElement}[] {
+  const rows: {id: string; info: RowInfo; element: HTMLElement}[] = []
+  registry.forEach((info, id) => {
+    const element = elements.get(id)
+    if (element?.isConnected) rows.push({id, info, element})
+  })
+  rows.sort((a, b) =>
+    a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+  )
+  return rows
+}
+
+/** True when `child` is a strictly-deeper path under `parent`. */
+function isDescendantPath(child: ValuePath, parent: ValuePath): boolean {
+  return child.length > parent.length && parent.every((seg, i) => child[i] === seg)
 }
 
 /** Parse and validate clipboard-ish text for pasting. Non-JSON pastes as a string. */
@@ -278,10 +330,18 @@ async function pasteFromClipboard(handlers: SelectionHandlers) {
 }
 
 /**
- * Enables row selection, clipboard, context menus, and undo shortcuts for all
- * value editors below it. Click a row to select it: Cmd/Ctrl+C copies the
- * value as JSON, Cmd/Ctrl+V pastes over it (validated), Delete removes it,
- * Escape deselects. Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z call onUndo/onRedo.
+ * Keyboard-navigable tree of value editors. Rows form one focus group with a
+ * roving tab-stop: Tab enters the tree, then:
+ *   ↑/↓        move between visible rows
+ *   ←          collapse an expanded container, else move to the parent row
+ *   →          expand a collapsed container, else move to the first child
+ *   Home/End   first / last visible row
+ *   Enter      toggle a container, else focus the row's value editor
+ *   Escape     deselect (or close the context menu)
+ *   Cmd/Ctrl+C / V   copy / paste the focused value (validated)
+ *   Delete/Backspace remove the focused row
+ *   Cmd/Ctrl+Z / Shift+…  undo / redo
+ * Selection follows DOM focus, so it stays consistent as the tree changes.
  */
 export function ValueEditorProvider({
   children,
@@ -295,8 +355,11 @@ export function ValueEditorProvider({
   openUrl?: (url: string) => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The single tab-stop; defaults to the first row so Tab can enter the tree.
+  const [tabbableId, setTabbableId] = useState<string | null>(null)
   const [menu, setMenu] = useState<{x: number; y: number; actions: ContextMenuAction[]} | null>(null)
-  const registry = useRef(new Map<string, SelectionHandlers>())
+  const registry = useRef(new Map<string, RowInfo>())
+  const elements = useRef(new Map<string, HTMLElement>())
 
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId
@@ -305,20 +368,97 @@ export function ValueEditorProvider({
   const redoRef = useRef(onRedo)
   redoRef.current = onRedo
 
-  const ctx = useRef<SelectionContextValue>({
-    selectedId: null,
-    select: (id) => setSelectedId(id),
+  const select = useCallback((id: string) => {
+    setSelectedId(id)
+    setTabbableId(id)
+  }, [])
+  const focusRow = useCallback(
+    (id: string) => {
+      select(id)
+      elements.current.get(id)?.focus()
+    },
+    [select],
+  )
+  const navigate = useCallback(
+    (id: string, direction: NavDirection) => {
+      const rows = domOrderedRows(registry.current, elements.current)
+      const idx = rows.findIndex((r) => r.id === id)
+      if (idx < 0) return
+      const {info} = rows[idx]!
+      const go = (target?: {id: string}) => {
+        if (target) focusRow(target.id)
+      }
+      switch (direction) {
+        case 'down':
+          go(rows[idx + 1])
+          break
+        case 'up':
+          go(rows[idx - 1])
+          break
+        case 'home':
+          go(rows[0])
+          break
+        case 'end':
+          go(rows[rows.length - 1])
+          break
+        case 'right':
+          if (info.isContainer && info.collapsed) info.setCollapsed(false)
+          else if (info.isContainer) {
+            const next = rows[idx + 1]
+            if (next && isDescendantPath(next.info.path, info.path)) go(next)
+          }
+          break
+        case 'left':
+          if (info.isContainer && !info.collapsed) info.setCollapsed(true)
+          else go(rows.find((r) => r.id === pathId(info.path.slice(0, -1))))
+          break
+      }
+    },
+    [focusRow],
+  )
+  const activate = useCallback((id: string) => {
+    const info = registry.current.get(id)
+    if (!info) return
+    if (info.isContainer) {
+      info.setCollapsed(!info.collapsed)
+      return
+    }
+    // Leaf: focus its first editable control so typing edits the value.
+    elements.current.get(id)?.querySelector<HTMLElement>('input, textarea, [role="combobox"]')?.focus()
+  }, [])
+
+  // Stable actions object (identity never changes) — so row ref callbacks and
+  // effects don't churn as selection state changes.
+  const actions = useRef<SelectionActions>({
+    select,
+    focusRow,
     clear: () => setSelectedId(null),
-    register: (id, handlers) => registry.current.set(id, handlers),
-    unregister: (id) => registry.current.delete(id),
-    openContextMenu: (position, actions) => setMenu({...position, actions}),
-  })
-  ctx.current = {...ctx.current, selectedId, openUrl}
+    navigate,
+    activate,
+    register: (id, info) => {
+      registry.current.set(id, info)
+      // The first row to register becomes the tree's tab-stop.
+      setTabbableId((cur) => cur ?? id)
+    },
+    unregister: (id) => {
+      // NB: the effect that calls this re-runs every render, so its cleanup
+      // fires on re-renders too — only touch the registry here. The `elements`
+      // map is owned by the row's ref callback, which clears it on real unmount.
+      registry.current.delete(id)
+      setTabbableId((cur) => (cur === id ? (registry.current.keys().next().value ?? null) : cur))
+    },
+    setElement: (id, element) => {
+      if (element) elements.current.set(id, element)
+      else elements.current.delete(id)
+    },
+    openContextMenu: (position, menuActions) => setMenu({...position, actions: menuActions}),
+  }).current
+  const state = useMemo<SelectionState>(() => ({selectedId, tabbableId, openUrl}), [selectedId, tabbableId, openUrl])
 
   useEffect(() => {
     const getSelectedHandlers = () => {
       const id = selectedIdRef.current
-      return id ? registry.current.get(id) : undefined
+      return id ? registry.current.get(id)?.handlers : undefined
     }
 
     const onCopy = (e: ClipboardEvent) => {
@@ -378,9 +518,10 @@ export function ValueEditorProvider({
   }, [])
 
   return (
-    <SelectionContext.Provider value={ctx.current}>
-      {children}
-      {menu && (
+    <SelectionActionsContext.Provider value={actions}>
+      <SelectionStateContext.Provider value={state}>
+        {children}
+        {menu && (
         <div
           className="fixed inset-0 z-[100]"
           onClick={() => setMenu(null)}
@@ -418,45 +559,107 @@ export function ValueEditorProvider({
             ))}
           </div>
         </div>
-      )}
-    </SelectionContext.Provider>
+        )}
+      </SelectionStateContext.Provider>
+    </SelectionActionsContext.Provider>
   )
 }
 
-/** Row-level wiring for selection and the context menu. */
-function useRowSelection(id: string, handlers: SelectionHandlers, getMenuActions: () => ContextMenuAction[]) {
-  const ctx = useContext(SelectionContext)
-  const isSelected = ctx?.selectedId === id
+const ARROW_DIRECTIONS: Record<string, NavDirection> = {
+  ArrowDown: 'down',
+  ArrowUp: 'up',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  Home: 'home',
+  End: 'end',
+}
 
-  // Keep the registry fresh with the latest value/handlers on every render.
+/**
+ * Row-level wiring: registers the row for tree navigation and returns props to
+ * spread on the row element (roving tabindex, focus, arrow keys, context menu).
+ */
+function useRowSelection(
+  id: string,
+  row: {
+    path: ValuePath
+    handlers: SelectionHandlers
+    isContainer: boolean
+    collapsed: boolean
+    setCollapsed: (collapsed: boolean) => void
+    getMenuActions: () => ContextMenuAction[]
+  },
+) {
+  const actions = useContext(SelectionActionsContext)
+  const {selectedId, tabbableId} = useContext(SelectionStateContext)
+  const isSelected = selectedId === id
+  const isTabbable = tabbableId === id
+
+  // Keep the registry fresh with the latest value/handlers/collapse on every render.
   useEffect(() => {
-    if (!ctx) return
-    ctx.register(id, handlers)
-    return () => ctx.unregister(id)
+    if (!actions) return
+    actions.register(id, {
+      path: row.path,
+      handlers: row.handlers,
+      isContainer: row.isContainer,
+      collapsed: row.collapsed,
+      setCollapsed: row.setCollapsed,
+      getMenuActions: row.getMenuActions,
+    })
+    return () => actions.unregister(id)
   })
 
-  const onRowClick = ctx
-    ? (e: React.MouseEvent) => {
-        const target = e.target as HTMLElement
-        if (target.closest('input,textarea,button,select,a,[contenteditable="true"],[role="combobox"]')) return
-        e.stopPropagation()
-        if (isSelected) ctx.clear()
-        else ctx.select(id)
-      }
-    : undefined
+  // `actions` is referentially stable, so this ref callback never churns.
+  const setRef = useCallback(
+    (element: HTMLElement | null) => {
+      actions?.setElement(id, element)
+    },
+    [actions, id],
+  )
 
-  const onContextMenu = ctx
-    ? (e: React.MouseEvent) => {
-        // Right-click inside inputs keeps the native text menu.
-        if (isEditableTarget(e.target)) return
+  if (!actions) {
+    return {isSelected: false, rowProps: {} as Record<string, never>}
+  }
+  const ctx = actions
+
+  const rowProps = {
+    ref: setRef,
+    role: 'treeitem' as const,
+    tabIndex: isTabbable ? 0 : -1,
+    'aria-selected': isSelected,
+    ...(row.isContainer ? {'aria-expanded': !row.collapsed} : {}),
+    onFocus: (e: React.FocusEvent) => {
+      // Only when the row element itself is focused, not a child editor.
+      if (e.target === e.currentTarget) ctx.select(id)
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      // Let inner editors handle their own keys (text nav, etc.).
+      if (e.target !== e.currentTarget) return
+      const direction = ARROW_DIRECTIONS[e.key]
+      if (direction) {
         e.preventDefault()
-        e.stopPropagation()
-        ctx.select(id)
-        ctx.openContextMenu({x: e.clientX, y: e.clientY}, getMenuActions())
+        ctx.navigate(id, direction)
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        ctx.activate(id)
       }
-    : undefined
+    },
+    onClick: (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('input,textarea,button,select,a,[contenteditable="true"],[role="combobox"]')) return
+      e.stopPropagation()
+      ctx.focusRow(id)
+    },
+    onContextMenu: (e: React.MouseEvent) => {
+      // Right-click inside inputs keeps the native text menu.
+      if (isEditableTarget(e.target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      ctx.focusRow(id)
+      ctx.openContextMenu({x: e.clientX, y: e.clientY}, row.getMenuActions())
+    },
+  }
 
-  return {isSelected: !!isSelected, onRowClick, onContextMenu}
+  return {isSelected: !!isSelected, rowProps}
 }
 
 const ROW_CLASS = '-mx-1 rounded-md px-1 py-0.5 transition-colors'
@@ -667,14 +870,20 @@ export function FieldRow({
       onClick: onRemove,
     },
   ]
-  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, getMenuActions)
+  const {isSelected, rowProps} = useRowSelection(pathId(path), {
+    path,
+    handlers,
+    isContainer,
+    collapsed,
+    setCollapsed,
+    getMenuActions,
+  })
 
   return (
     <div
-      onClick={onRowClick}
-      onContextMenu={onContextMenu}
+      {...rowProps}
       className={cn(
-        'group/row relative flex items-start gap-2',
+        'group/row relative flex items-start gap-2 outline-none',
         ROW_CLASS,
         isSelected && ROW_SELECTED_CLASS,
         className,
@@ -823,7 +1032,7 @@ function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unk
 
 /** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
 function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
-  const ctx = useContext(SelectionContext)
+  const {openUrl} = useContext(SelectionStateContext)
   const cid = value['/']
   const isValid = !!parseCidString(cid)
   return (
@@ -844,14 +1053,14 @@ function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (valu
           onValue({'/': next})
         }}
       />
-      {ctx?.openUrl && isValid && (
+      {openUrl && isValid && (
         <Tooltip content={`Open ipfs://${cid}`}>
           <Button
             variant="ghost"
             size="iconSm"
             aria-label={`Open ipfs://${cid}`}
             className="text-muted-foreground"
-            onClick={() => ctx.openUrl!(`ipfs://${cid}`)}
+            onClick={() => openUrl(`ipfs://${cid}`)}
           >
             <ExternalLink className="size-3.5" />
           </Button>
@@ -1141,12 +1350,18 @@ function ListItemRow({
       onClick: onRemove,
     },
   ]
-  const {isSelected, onRowClick, onContextMenu} = useRowSelection(pathId(path), handlers, getMenuActions)
+  const {isSelected, rowProps} = useRowSelection(pathId(path), {
+    path,
+    handlers,
+    isContainer,
+    collapsed,
+    setCollapsed,
+    getMenuActions,
+  })
 
   return (
     <div
-      onClick={onRowClick}
-      onContextMenu={onContextMenu}
+      {...rowProps}
       onDragOver={(e) => {
         if (!drag.active) return
         e.preventDefault()
@@ -1159,7 +1374,7 @@ function ListItemRow({
         drag.onDrop()
       }}
       className={cn(
-        'group/item relative flex items-start gap-2',
+        'group/item relative flex items-start gap-2 outline-none',
         ROW_CLASS,
         isSelected && ROW_SELECTED_CLASS,
         drag.isDragging && 'opacity-40',
