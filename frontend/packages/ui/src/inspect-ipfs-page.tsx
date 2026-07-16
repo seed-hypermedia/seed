@@ -1,18 +1,27 @@
-import {NavRoute, useCID} from '@shm/shared'
-import {useRouteLink} from '@shm/shared/routing'
+import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
+import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
+import {useRouteLink, useUniversalClient} from '@shm/shared/routing'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {Check, Copy, FileEdit, MoreHorizontal, X} from 'lucide-react'
+import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
+import {Textarea} from './components/textarea'
 import {DataViewer} from './data-viewer'
-import {useImageUrl} from './get-file-url'
-import {InspectorShell} from './inspector-shell'
+import {useFileUrl, useImageUrl} from './get-file-url'
+import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {Spinner} from './spinner'
+import {toast} from './toast'
+import {Tooltip} from './tooltip'
+import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from './value-editor'
+
+type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
 
 /**
  * Probes whether an image URL loads. Returns `null` while testing, `true`/`false`
- * once known. Used to decide between the image view and the DAG-JSON tree —
- * raw uploaded files (images) are not DAG-CBOR, so this is more reliable than a
- * content-type header the daemon/gateway may not set.
+ * once known. More reliable than a content-type header the gateway may not set.
  */
 function useIsLoadableImage(imageUrl: string): boolean | null {
   const [isImage, setIsImage] = useState<boolean | null>(imageUrl ? null : false)
@@ -38,25 +47,75 @@ function useIsLoadableImage(imageUrl: string): boolean | null {
   return isImage
 }
 
-/** Renders raw IPFS data inside the shared inspector layout. */
+/** Fetches an IPFS file as text (for editing/viewing plain-text blobs). */
+function useIpfsText(url: string): {text: string | null; loading: boolean} {
+  const [state, setState] = useState<{text: string | null; loading: boolean}>({text: null, loading: !!url})
+  useEffect(() => {
+    if (!url) {
+      setState({text: null, loading: false})
+      return
+    }
+    let cancelled = false
+    setState({text: null, loading: true})
+    fetch(url)
+      .then((r) => r.text())
+      .then((text) => {
+        if (!cancelled) setState({text, loading: false})
+      })
+      .catch(() => {
+        if (!cancelled) setState({text: null, loading: false})
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+  return state
+}
+
+/**
+ * Dedicated IPFS file viewer/editor. Shows the read-only `ipfs://` URL in a
+ * slim top bar with a copy action and a "…" menu. For DAG-CBOR blobs and plain
+ * text files, the menu offers Edit — which turns the view into an unpublished
+ * draft (the CID disappears) and lets you Publish a new blob with a new CID.
+ */
 export function InspectIpfsPage({
   ipfsPath,
   exitRoute,
   getRouteForUrl,
+  windowControls,
+  trafficLightInset = false,
 }: {
   ipfsPath: string
   exitRoute?: NavRoute | null
   getRouteForUrl?: (url: string) => NavRoute | string | null
+  /** Desktop-only window controls (e.g. close button on non-macOS) shown at the far right. */
+  windowControls?: ReactNode
+  /** Reserve space at the left of the top bar for macOS traffic lights. */
+  trafficLightInset?: boolean
 }) {
   const [cid, ...pathSegments] = ipfsPath.split('/').filter(Boolean)
+  const hasSubpath = pathSegments.length > 0
   const ipfsData = useCID(cid)
-  const exitLinkProps = useRouteLink(exitRoute || null)
+  const client = useUniversalClient()
+  const replaceRoute = useNavigate('replace')
 
-  // Only a bare CID (no sub-path) can be a raw image file; a path implies
-  // structured DAG data.
+  // The CID's codec tells us definitively whether this is structured DAG-CBOR
+  // (0x71) or a raw UnixFS file (dag-pb / raw) — an image or plain text.
+  const codec = useMemo(() => {
+    try {
+      return CID.parse(cid!).code
+    } catch {
+      return null
+    }
+  }, [cid])
+  const isDagCbor = codec === DAG_CBOR_CODE
+  const isFile = codec != null && !isDagCbor
+
   const getImageUrl = useImageUrl()
-  const imageUrl = pathSegments.length === 0 && cid ? getImageUrl(`ipfs://${cid}`) : ''
+  const imageUrl = isFile && !hasSubpath && cid ? getImageUrl(`ipfs://${cid}`) : ''
   const isImage = useIsLoadableImage(imageUrl)
+
+  const getFileUrl = useFileUrl()
 
   const preparedData = useMemo(() => {
     if (!ipfsData.data?.value) return null
@@ -64,23 +123,85 @@ export function InspectIpfsPage({
     return readInspectIpfsPath(cleaned, pathSegments)
   }, [ipfsData.data?.value, pathSegments])
 
-  const toolbar = exitRoute ? (
-    <div className="flex justify-end">
-      <Button asChild size="sm" variant="outline">
-        <a {...exitLinkProps}>Open Resource</a>
-      </Button>
-    </div>
-  ) : undefined
+  // Resolve what kind of content this is.
+  let kind: IpfsKind
+  if (hasSubpath || isDagCbor) {
+    kind = ipfsData.isLoading ? 'loading' : 'cbor'
+  } else if (isFile) {
+    kind = isImage === null ? 'loading' : isImage ? 'image' : 'text'
+  } else {
+    kind = ipfsData.isLoading ? 'loading' : ipfsData.data?.value != null ? 'cbor' : 'text'
+  }
+
+  const textUrl = kind === 'text' && !hasSubpath && cid ? getFileUrl(`ipfs://${cid}`) : ''
+  const {text: rawText, loading: textLoading} = useIpfsText(textUrl)
+
+  const canEdit = !hasSubpath && (kind === 'cbor' || kind === 'text')
+
+  // Edit/draft state. Resets whenever the viewed CID changes.
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [editJson, setEditJson] = useState<unknown>(undefined)
+  const [editText, setEditText] = useState('')
+  const [publishing, setPublishing] = useState(false)
+  useEffect(() => {
+    setMode('view')
+    setEditJson(undefined)
+    setEditText('')
+    setPublishing(false)
+  }, [ipfsPath])
+
+  const startEditing = () => {
+    if (kind === 'cbor') setEditJson(ipfsData.data?.value ?? {})
+    else if (kind === 'text') setEditText(rawText ?? '')
+    setMode('edit')
+  }
+
+  const publish = async () => {
+    setPublishing(true)
+    try {
+      const newCid = kind === 'text' ? await publishTextBlob(client, editText) : await publishCborBlob(client, editJson)
+      toast.success('Published a new blob')
+      setMode('view')
+      replaceRoute(createInspectIpfsNavRoute(newCid))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to publish')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const copyUrl = () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return
+    navigator.clipboard.writeText(`ipfs://${ipfsPath}`)
+    toast.success('Copied ipfs:// URL')
+  }
+
+  const exitLinkProps = useRouteLink(exitRoute || null)
 
   let body: ReactNode
-  if (isImage === null) {
-    // Still probing whether this CID is a loadable image.
+  if (mode === 'edit' && kind === 'cbor') {
+    body = (
+      <ValueEditorProvider>
+        <ValueEditor value={editJson} onValue={setEditJson} rules={CBOR_VALUE_RULES} />
+      </ValueEditorProvider>
+    )
+  } else if (mode === 'edit' && kind === 'text') {
+    body = (
+      <Textarea
+        autoFocus
+        value={editText}
+        onChange={(e) => setEditText(e.target.value)}
+        spellCheck={false}
+        className="min-h-[60vh] font-mono text-sm"
+      />
+    )
+  } else if (kind === 'loading' || (kind === 'text' && textLoading)) {
     body = (
       <div className="flex items-center justify-center py-8">
         <Spinner />
       </div>
     )
-  } else if (isImage) {
+  } else if (kind === 'image') {
     body = (
       <div className="flex justify-center">
         <img
@@ -90,12 +211,15 @@ export function InspectIpfsPage({
         />
       </div>
     )
-  } else if (ipfsData.isLoading) {
-    body = (
-      <div className="flex items-center justify-center py-8">
-        <Spinner />
-      </div>
-    )
+  } else if (kind === 'text') {
+    body =
+      rawText == null ? (
+        <div className="text-muted-foreground text-sm">No IPFS data found.</div>
+      ) : (
+        <pre className="bg-background overflow-x-auto rounded-md border p-4 font-mono text-sm whitespace-pre-wrap">
+          {rawText}
+        </pre>
+      )
   } else if (preparedData === null || preparedData === undefined) {
     body = <div className="text-muted-foreground text-sm">No IPFS data found.</div>
   } else {
@@ -103,12 +227,117 @@ export function InspectIpfsPage({
   }
 
   return (
-    <div className="flex h-full max-h-full flex-col overflow-hidden bg-zinc-100">
-      <div className="flex-1 overflow-y-auto">
-        <InspectorShell title={`ipfs://${ipfsPath}`} toolbar={toolbar}>
+    <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">
+      <IpfsTopBar
+        ipfsPath={ipfsPath}
+        editing={mode === 'edit'}
+        canEdit={canEdit}
+        publishing={publishing}
+        onCopy={copyUrl}
+        onStartEditing={startEditing}
+        onCancel={() => setMode('view')}
+        onPublish={publish}
+        exitRoute={exitRoute}
+        exitLinkProps={exitLinkProps}
+        windowControls={windowControls}
+        trafficLightInset={trafficLightInset}
+      />
+      <div className="flex-1 overflow-y-auto bg-zinc-100">
+        <div className="mx-auto w-full px-4 py-4" style={{maxWidth: 960}}>
           <div className="flex flex-col gap-4">{body}</div>
-        </InspectorShell>
+        </div>
       </div>
+    </div>
+  )
+}
+
+/** The slim, non-editable top bar: read-only URL + copy + "…" menu, or draft controls. */
+function IpfsTopBar({
+  ipfsPath,
+  editing,
+  canEdit,
+  publishing,
+  onCopy,
+  onStartEditing,
+  onCancel,
+  onPublish,
+  exitRoute,
+  exitLinkProps,
+  windowControls,
+  trafficLightInset,
+}: {
+  ipfsPath: string
+  editing: boolean
+  canEdit: boolean
+  publishing: boolean
+  onCopy: () => void
+  onStartEditing: () => void
+  onCancel: () => void
+  onPublish: () => void
+  exitRoute?: NavRoute | null
+  exitLinkProps: ReturnType<typeof useRouteLink>
+  windowControls?: ReactNode
+  trafficLightInset?: boolean
+}) {
+  return (
+    <div
+      className="window-drag border-border bg-background flex h-10 shrink-0 items-center gap-2 border-b px-3"
+      style={trafficLightInset ? {paddingLeft: 78} : undefined}
+    >
+      {editing ? (
+        <>
+          <span className="bg-muted text-muted-foreground no-window-drag rounded px-2 py-0.5 text-xs font-medium">
+            Unpublished draft
+          </span>
+          <div className="flex-1" />
+          <div className="no-window-drag flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onCancel} disabled={publishing}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={onPublish} disabled={publishing}>
+              {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
+              Publish
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className="text-muted-foreground no-window-drag min-w-0 flex-1 truncate font-mono text-xs select-text">
+            ipfs://{ipfsPath}
+          </span>
+          <div className="no-window-drag flex items-center gap-1">
+            <Tooltip content="Copy ipfs:// URL">
+              <Button variant="ghost" size="iconSm" aria-label="Copy ipfs:// URL" onClick={onCopy}>
+                <Copy className="size-3.5" />
+              </Button>
+            </Tooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="iconSm" aria-label="More actions">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canEdit && (
+                  <DropdownMenuItem onSelect={onStartEditing}>
+                    <FileEdit className="size-4" />
+                    Edit
+                  </DropdownMenuItem>
+                )}
+                {exitRoute && (
+                  <DropdownMenuItem asChild>
+                    <a {...exitLinkProps}>
+                      <X className="size-4" />
+                      Open Resource
+                    </a>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </>
+      )}
+      {windowControls}
     </div>
   )
 }

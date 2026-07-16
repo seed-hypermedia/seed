@@ -1,3 +1,5 @@
+import {useAppContext} from '@/app-context'
+import {CloseButton} from '@/components/window-controls'
 import {
   createInspectIpfsNavRoute,
   createInspectNavRouteFromRoute,
@@ -12,6 +14,7 @@ import {useCallback, useMemo} from 'react'
 export default function DesktopInspectIpfsPage() {
   const route = useNavRoute()
   const navState = useNavigationState()
+  const {platform} = useAppContext()
 
   if (route.key !== 'inspect-ipfs') {
     throw new Error(`DesktopInspectIpfsPage: unsupported route ${route.key}`)
@@ -34,5 +37,20 @@ export default function DesktopInspectIpfsPage() {
       : previousRoute
   }, [navState])
 
-  return <InspectIpfsPage ipfsPath={route.ipfsPath} exitRoute={exitRoute} getRouteForUrl={getRouteForUrl} />
+  const isMac = platform === 'darwin'
+  return (
+    <InspectIpfsPage
+      ipfsPath={route.ipfsPath}
+      exitRoute={exitRoute}
+      getRouteForUrl={getRouteForUrl}
+      trafficLightInset={isMac}
+      windowControls={
+        isMac ? undefined : (
+          <div className="no-window-drag flex size-[26px] items-center justify-center">
+            <CloseButton />
+          </div>
+        )
+      }
+    />
+  )
 }

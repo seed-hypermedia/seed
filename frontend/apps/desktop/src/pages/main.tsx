@@ -199,6 +199,22 @@ export default function Main({className}: {className?: string}) {
         </ErrorBoundary>
       </div>
     )
+  } else if (windowType === 'inspect-ipfs') {
+    // Chromeless: no sidebar, no omnibar. The page renders its own slim top bar
+    // (read-only ipfs:// URL + copy + "…" menu) as the window's title bar.
+    return (
+      <div className={cn(windowContainerStyles, 'p-0', className)}>
+        <ErrorBoundary
+          resetKeys={[routeKey]}
+          FallbackComponent={AppErrorPage}
+          onReset={() => {
+            window.location.reload()
+          }}
+        >
+          <PageComponent />
+        </ErrorBoundary>
+      </div>
+    )
   } else if (windowType === 'deleted-content') {
     titlebar = (
       <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
