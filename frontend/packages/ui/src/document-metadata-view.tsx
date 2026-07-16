@@ -127,7 +127,7 @@ export function DocumentMetadataView({
                 {entries.map(([key, value]) => (
                   <FieldRow
                     key={key}
-                    className="border-border border-b py-3 last:border-b-0"
+                    className="py-2"
                     fieldKey={key}
                     value={value}
                     siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
@@ -153,7 +153,7 @@ export function DocumentMetadataView({
         ) : (
           <dl className="flex flex-col">
             {entries.map(([key, value]) => (
-              <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+              <div key={key} className="flex flex-col gap-1 py-2">
                 <dt className={FIELD_LABEL_CLASS}>{key}</dt>
                 <dd>
                   <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />

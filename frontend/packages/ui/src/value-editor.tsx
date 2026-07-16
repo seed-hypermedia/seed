@@ -159,6 +159,8 @@ export function findInvalidValue(value: unknown, rules: ValueEditorRules, path: 
 // No text-transform: keys are case-sensitive data, so they display verbatim.
 export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium'
 const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-1 border-l-2 pl-3'
+// Expanded objects get a boxed treatment (border + slight fill) so their extent is clear.
+const NESTED_OBJECT_CLASS = 'border-border bg-muted/40 flex flex-col gap-1 rounded-md border px-3 py-2'
 
 // ---------------------------------------------------------------------------
 // Undo history
@@ -541,11 +543,11 @@ function compactValuePreview(value: unknown, rules: ValueEditorRules): string {
     }
   }
   if (Array.isArray(value)) {
-    return `[${value.map((item) => compactValuePreview(item, rules)).join(', ')}]`
+    return `[${value.map((item) => compactValuePreview(item, rules)).join(' ')}]`
   }
   if (isPlainObject(value)) {
     const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
-    return `{${entries.map(([key, child]) => `${key}: ${compactValuePreview(child, rules)}`).join(', ')}}`
+    return entries.map(([key, child]) => `${key}: ${compactValuePreview(child, rules)}`).join('   ')
   }
   return String(value)
 }
@@ -565,7 +567,7 @@ function CollapsedSummary({
     <button
       type="button"
       title={preview}
-      className="text-muted-foreground hover:text-foreground block max-w-full truncate text-left font-mono text-xs transition-colors"
+      className="text-muted-foreground hover:text-foreground block max-w-full overflow-hidden text-left font-mono text-xs text-ellipsis whitespace-pre transition-colors"
       onClick={onExpand}
     >
       {preview}
@@ -971,7 +973,7 @@ export function ObjectEditor({
     }
   }
   return (
-    <div className={NESTED_GROUP_CLASS}>
+    <div className={NESTED_OBJECT_CLASS}>
       {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
       {entries.map(([key, child]) => (
         <FieldRow
