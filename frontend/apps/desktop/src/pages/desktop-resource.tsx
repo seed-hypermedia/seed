@@ -318,6 +318,10 @@ export default function DesktopResourcePage() {
 
   // Editor ref for draft saving — captured via onEditorReady callback
   const editorRef = useRef<any>(null)
+  // Published document content (editor-block form); the content fallback when
+  // no editor is mounted (e.g. saving an attributes-only draft from the
+  // :metadata view) so we never clobber the body with an empty array.
+  const lastPublishedContentRef = useRef<any>(null)
   const selectedAccountId = useSelectedAccountId()
   const selectedAccount = useSelectedAccount()
   const handleEditorReady = useCallback((editor: any) => {
@@ -394,9 +398,16 @@ export default function DesktopResourcePage() {
     () =>
       fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
         const editor = editorRef.current
-        const content = editor ? editor.topLevelBlocks : []
-        const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const draftId = input.draftId || nanoid(10)
+        const existingDraft = input.draftId ? await client.drafts.get.query(input.draftId) : null
+        // When no editor is mounted (e.g. an attributes-only edit from the
+        // :metadata view), preserve the draft's existing content or the
+        // published document's blocks — writing [] would publish the body as a
+        // full delete.
+        const content = editor
+          ? editor.topLevelBlocks
+          : existingDraft?.content ?? lastPublishedContentRef.current ?? []
+        const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const contentSummary = summarizeEditorBlocksForCleanup(content)
         cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor reading editor content`, {
           draftId,
@@ -414,7 +425,6 @@ export default function DesktopResourcePage() {
         //   signingAccountId: input.signingAccountId,
         //   hasEditor: !!editor,
         // })
-        const existingDraft = input.draftId ? await client.drafts.get.query(input.draftId) : null
         const currentPath = docIdRef.current.path ?? []
         const routeDraftId = getDraftIdFromDraftPathSegment(currentPath.at(-1))
         const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
@@ -643,6 +653,10 @@ export default function DesktopResourcePage() {
   // Hooks for options dropdown
   const resource = useResource(documentResourceId)
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
+  lastPublishedContentRef.current = useMemo(
+    () => (doc?.content ? hmBlocksToEditorContent(doc.content, {childrenType: 'Group'}) : null),
+    [doc],
+  )
   const docIsInMyAccount = myAccountIds.data?.includes(docId.uid)
 
   // Key off the route's docId rather than the resolved doc.{account,path,version}
@@ -945,7 +959,7 @@ export default function DesktopResourcePage() {
     })
   }
 
-  const showPublishToolbar = route.key === 'document'
+  const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens

@@ -182,7 +182,7 @@ export function getDocumentContentAction({
   actionButtons: ReactNode
   allMenuItems: MenuItemType[]
 }) {
-  if (activeView !== 'content') return null
+  if (activeView !== 'content' && activeView !== 'metadata') return null
   if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
   return actionButtons
