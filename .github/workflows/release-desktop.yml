@@ -52,7 +52,12 @@ jobs:
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
     needs: [build-info, frontend-tests, deploy-script]
+    # Publish whatever platforms built. A failing leg must neither cancel its
+    # siblings (fail-fast) nor skip publish-to-github (continue-on-error).
+    # The "Check platform artifacts" step in publish-to-github reports the gap.
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         config:
           - os: macos-15-large
@@ -350,11 +355,56 @@ jobs:
         with:
           path: artifacts
 
+      # build-binaries is continue-on-error, so a failed leg reaches here as a
+      # silently absent artifact dir. Re-assert what actually built.
+      - name: Check platform artifacts
+        id: platforms
+        run: |
+          set -euo pipefail
+          KEYS=(x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-gnu x86_64-pc-windows-gnu)
+          NAMES=("macOS x64" "macOS arm64" "Linux x64" "Windows x64")
+
+          present=() ; missing=()
+          for i in "${!KEYS[@]}"; do
+            dir="artifacts/artifacts-${KEYS[$i]}"
+            if [ -d "$dir" ] && [ -n "$(ls -A "$dir")" ]; then
+              present+=("${NAMES[$i]}")
+            else
+              missing+=("${NAMES[$i]}")
+            fi
+          done
+
+          echo "Publishing: ${present[*]:-(none)}"
+          {
+            echo "## Desktop release artifacts"
+            echo "- built: ${present[*]:-(none)}"
+            echo "- missing: ${missing[*]:-(none)}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "::error::No platform artifacts built; refusing to publish an empty release."
+            exit 1
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            # "${arr[*]}" joins on IFS's first char only, so build the list
+            # explicitly to keep the ", " separator.
+            joined="$(printf '%s, ' "${missing[@]}")"
+            joined="${joined%, }"
+            echo "::warning::Partial release — no artifacts for: ${joined}"
+            {
+              echo "notice<<NOTICE_EOF"
+              echo "> ⚠️ **Partial release.** Builds failed for: ${joined}"
+              echo "NOTICE_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 'create release'
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
         with:
+          body: ${{ steps.platforms.outputs.notice }}
           tag_name: '${{ needs.build-info.outputs.version }}'
           prerelease: true
           generate_release_notes: true

@@ -32,6 +32,8 @@ jobs:
     name: Test on ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
     strategy:
+      # One platform failing must not cancel the other legs' real status.
+      fail-fast: false
       matrix:
         config:
           - os: macos-15-large
