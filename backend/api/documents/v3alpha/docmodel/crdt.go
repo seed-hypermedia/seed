@@ -154,29 +154,47 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 func (e *docCRDT) GetMetadata() map[string]any {
 	out := make(map[string]any, e.stateMetadata.Len())
 
-	var prevEntry struct {
-		Key   []string
-		ID    opID
-		Value any
+	// When a key is set to null it removes any nested map previously stored
+	// under it. Keys are stored flattened and iterated in prefix order (a
+	// parent immediately precedes all of its descendants), so we keep a stack
+	// of the "removal" ancestors currently in scope. A descendant is dropped
+	// when it lives under such a removal and is older than it; a newer value
+	// under the same prefix means the key was re-set and is kept.
+	// Search for "attrprefixhack" in the codebase.
+	type removal struct {
+		Key []string
+		ID  opID
 	}
+	var removals []removal
 	for k, v := range e.stateMetadata.Items() {
 		id, vv, ok := v.GetLatestWithID()
 
-		// If current key has prefix of the previous key and the value timestamp is lower, then skip this.
-		// TODO(burdiyan): There're other places in the code where this is done. DRY.
-		// Search for "attrprefixhack" in the codebase.
-		if !ok || vv == nil || (colx.HasPrefix(k, prevEntry.Key) && id.Compare(prevEntry.ID) < 0) {
-			prevEntry.Key = k
-			prevEntry.ID = id
-			prevEntry.Value = vv
+		// Pop removal ancestors we've iterated out of.
+		for len(removals) > 0 && !colx.HasPrefix(k, removals[len(removals)-1].Key) {
+			removals = removals[:len(removals)-1]
+		}
+
+		if !ok || vv == nil {
+			// A null value removes its subtree; remember it so every older
+			// descendant (not just the first one) is dropped.
+			if ok && vv == nil {
+				removals = append(removals, removal{Key: k, ID: id})
+			}
+			continue
+		}
+
+		dropped := false
+		for _, r := range removals {
+			if colx.HasPrefix(k, r.Key) && id.Compare(r.ID) < 0 {
+				dropped = true
+				break
+			}
+		}
+		if dropped {
 			continue
 		}
 
 		colx.ObjectSet(out, k, vv)
-
-		prevEntry.Key = k
-		prevEntry.ID = id
-		prevEntry.Value = vv
 	}
 
 	return out
