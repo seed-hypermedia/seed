@@ -69,6 +69,28 @@ describe('getDocAttributeChanges', () => {
     // nested objects are flattened into keyed attribute paths
     expect(byKey.get('nested.inner')).toMatchObject({case: 'stringValue', value: 'deep'})
   })
+
+  const nullKeys = (changes: ReturnType<typeof getDocAttributeChanges>) =>
+    changes
+      .filter((c) => c.op.case === 'setAttribute' && c.op.value.value.case === 'nullValue')
+      .map((c) => (c.op.case === 'setAttribute' ? c.op.value.key.join('.') : ''))
+
+  it('deleting an object field emits a null removal for the key', () => {
+    // Row "Remove" stages { obj: null }.
+    const changes = getDocAttributeChanges({name: 'x', obj: null} as Record<string, unknown>)
+    expect(nullKeys(changes)).toContain('obj')
+  })
+
+  it('an emptied object (all children removed) emits a null removal instead of nothing', () => {
+    // With no leaves there is no attribute op to represent it, so it must clear.
+    expect(nullKeys(getDocAttributeChanges({obj: {}} as Record<string, unknown>))).toContain('obj')
+    expect(nullKeys(getDocAttributeChanges({obj: {nested: {}}} as Record<string, unknown>))).toContain('obj.nested')
+  })
+
+  it('removing object children emits per-leaf null removals', () => {
+    const changes = getDocAttributeChanges({obj: {a: null, b: null}} as Record<string, unknown>)
+    expect(nullKeys(changes)).toEqual(expect.arrayContaining(['obj.a', 'obj.b']))
+  })
 })
 
 describe('deduplicateBlockIds', () => {

@@ -41,6 +41,13 @@ function pushAttributeChanges(changes: DocumentChange[], key: string[], value: u
     const valueObj = isPlainObject(value) ? value : undefined
     const baseObj = isPlainObject(baseValue) ? baseValue : undefined
     const keys = new Set([...Object.keys(baseObj ?? {}), ...Object.keys(valueObj ?? {})])
+    // An object with no leaves can't be represented in the attribute model
+    // (there's no "set empty object" op). Emit a removal so an emptied object
+    // is cleared on publish instead of silently persisting the old value.
+    if (keys.size === 0) {
+      changes.push(docAttributeChangeNull(key))
+      return
+    }
     for (const childKey of Array.from(keys)) {
       pushAttributeChanges(changes, [...key, childKey], valueObj?.[childKey], baseObj?.[childKey])
     }
