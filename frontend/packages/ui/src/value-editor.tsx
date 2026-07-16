@@ -914,7 +914,9 @@ export function FieldRow({
         <RowActionsMenu
           label={`Actions for ${fieldKey}`}
           getActions={getMenuActions}
-          className={cn('group-focus-within/row:opacity-100 group-hover/row:opacity-100', isSelected && 'opacity-100')}
+          // Only the selected row shows its actions (selection follows focus),
+          // so nested objects don't light up every ancestor's menu at once.
+          className={cn(isSelected && 'opacity-100')}
         />
       </div>
       <FieldDialog
@@ -1423,10 +1425,8 @@ function ListItemRow({
         <RowActionsMenu
           label={`Actions for item ${index + 1}`}
           getActions={getMenuActions}
-          className={cn(
-            'group-focus-within/item:opacity-100 group-hover/item:opacity-100',
-            isSelected && 'opacity-100',
-          )}
+          // Only the selected item shows its actions (selection follows focus).
+          className={cn(isSelected && 'opacity-100')}
         />
       </div>
       <FieldDialog
