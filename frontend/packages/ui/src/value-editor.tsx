@@ -653,16 +653,14 @@ export function FieldRow({
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-1">
-          {isContainer ? (
-            <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-          ) : (
-            <span className="size-4 shrink-0" />
-          )}
+          {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
           <span className={cn(FIELD_LABEL_CLASS, 'truncate')} title={fieldKey}>
             {fieldKey}
           </span>
         </div>
-        <div className="pl-5">
+        {/* Indent the value under the collapse toggle only for containers; flat
+            scalar fields stay flush-left so the attributes list aligns. */}
+        <div className={isContainer ? 'pl-5' : undefined}>
           {isContainer && collapsed ? (
             <CollapsedSummary value={value} onExpand={() => setCollapsed(false)} />
           ) : (

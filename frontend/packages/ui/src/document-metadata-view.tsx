@@ -100,9 +100,10 @@ export function DocumentMetadataView({
   return (
     <ValueEditorProvider onUndo={editable ? handleUndo : undefined} onRedo={editable ? handleRedo : undefined}>
       <div className="flex flex-col gap-4 py-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Attributes</h2>
-          {editable && (
+        {/* No title here — the tab/breadcrumb (main view) and the panel header
+            already label this "Attributes". */}
+        {editable && (
+          <div className="flex items-center justify-end">
             <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
               <Button
                 variant={jsonMode ? 'secondary' : 'ghost'}
@@ -113,8 +114,8 @@ export function DocumentMetadataView({
                 <Braces className="size-4" />
               </Button>
             </Tooltip>
-          )}
-        </div>
+          </div>
+        )}
         {jsonMode ? (
           <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
         ) : editable ? (
