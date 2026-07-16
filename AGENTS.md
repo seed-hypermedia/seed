@@ -37,6 +37,8 @@
 
 ## Workflow
 
+- To cut a release, follow `docs/releasing.md` (interactive runbook: `.agents/skills/run-release`).
+
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
