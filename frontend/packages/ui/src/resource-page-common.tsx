@@ -2022,9 +2022,7 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' ? (
+              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={

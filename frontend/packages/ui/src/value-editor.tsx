@@ -19,23 +19,17 @@ import {
   Plus,
   X,
 } from 'lucide-react'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from './button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './components/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './components/dropdown-menu'
-import { Input } from './components/input'
-import { Switch } from './components/switch'
-import { base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString } from './dag-json'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select-dropdown'
-import { toast } from './toast'
-import { Tooltip } from './tooltip'
-import { cn } from './utils'
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
+import {Button} from './button'
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
+import {Input} from './components/input'
+import {Switch} from './components/switch'
+import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {toast} from './toast'
+import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 /**
  * Behavior rules for the recursive value editor, so it can serve both the
@@ -102,14 +96,14 @@ export function dagCborKeyCompare(a: string, b: string): number {
 }
 
 /** Entries of an object in canonical DAG-CBOR key order. */
-export function canonicalEntries(value: Record<string, unknown>, opts?: { hideNull?: boolean }): [string, unknown][] {
+export function canonicalEntries(value: Record<string, unknown>, opts?: {hideNull?: boolean}): [string, unknown][] {
   return Object.entries(value)
     .filter(([, v]) => v !== undefined && (!opts?.hideNull || v !== null))
     .sort(([a], [b]) => dagCborKeyCompare(a, b))
 }
 
 /** Rebuild a value with all nested object keys in canonical order (for JSON display). */
-export function toCanonicalOrder(value: unknown, opts?: { hideNull?: boolean }): unknown {
+export function toCanonicalOrder(value: unknown, opts?: {hideNull?: boolean}): unknown {
   if (Array.isArray(value)) return value.map((item) => toCanonicalOrder(item, opts))
   if (isPlainObject(value)) {
     return Object.fromEntries(canonicalEntries(value, opts).map(([k, v]) => [k, toCanonicalOrder(v, opts)]))
@@ -184,21 +178,21 @@ export function useValueHistory<T>(current: T) {
     redoStack.current = []
   }, [])
 
-  const undo = useCallback((): { value: T } | null => {
+  const undo = useCallback((): {value: T} | null => {
     if (undoStack.current.length === 0) return null
     const value = undoStack.current.pop()!
     redoStack.current.push(currentRef.current)
-    return { value }
+    return {value}
   }, [])
 
-  const redo = useCallback((): { value: T } | null => {
+  const redo = useCallback((): {value: T} | null => {
     if (redoStack.current.length === 0) return null
     const value = redoStack.current.pop()!
     undoStack.current.push(currentRef.current)
-    return { value }
+    return {value}
   }, [])
 
-  return { record, undo, redo }
+  return {record, undo, redo}
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +249,7 @@ type SelectionActions = {
   navigate: (id: string, direction: NavDirection) => void
   /** Enter/Space on a row: toggle a container, else focus its first editor. */
   activate: (id: string) => void
-  openContextMenu: (position: { x: number; y: number }, actions: ContextMenuAction[]) => void
+  openContextMenu: (position: {x: number; y: number}, actions: ContextMenuAction[]) => void
 }
 
 /** Reactive tree state; changes here re-render rows (highlight, roving tab-stop). */
@@ -268,7 +262,7 @@ type SelectionState = {
 }
 
 const SelectionActionsContext = createContext<SelectionActions | null>(null)
-const SelectionStateContext = createContext<SelectionState>({ selectedId: null, tabbableId: null })
+const SelectionStateContext = createContext<SelectionState>({selectedId: null, tabbableId: null})
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !!target.closest('input,textarea,select,[contenteditable="true"]')
@@ -278,15 +272,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function domOrderedRows(
   registry: Map<string, RowInfo>,
   elements: Map<string, HTMLElement>,
-): { id: string; info: RowInfo; element: HTMLElement }[] {
-  const rows: { id: string; info: RowInfo; element: HTMLElement }[] = []
+): {id: string; info: RowInfo; element: HTMLElement}[] {
+  const rows: {id: string; info: RowInfo; element: HTMLElement}[] = []
   registry.forEach((info, id) => {
     const element = elements.get(id)
-    if (element?.isConnected) rows.push({ id, info, element })
+    if (element?.isConnected) rows.push({id, info, element})
   })
-  rows.sort((a, b) =>
-    a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-  )
+  rows.sort((a, b) => (a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))
   return rows
 }
 
@@ -296,7 +288,7 @@ function isDescendantPath(child: ValuePath, parent: ValuePath): boolean {
 }
 
 /** Parse and validate clipboard-ish text for pasting. Non-JSON pastes as a string. */
-function parsePastedText(text: string, rules: ValueEditorRules): { value: unknown } | null {
+function parsePastedText(text: string, rules: ValueEditorRules): {value: unknown} | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -308,7 +300,7 @@ function parsePastedText(text: string, rules: ValueEditorRules): { value: unknow
     toast.error(`Cannot paste: ${problem}`)
     return null
   }
-  return { value: parsed }
+  return {value: parsed}
 }
 
 function copyValueToClipboard(value: unknown) {
@@ -357,7 +349,7 @@ export function ValueEditorProvider({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The single tab-stop; defaults to the first row so Tab can enter the tree.
   const [tabbableId, setTabbableId] = useState<string | null>(null)
-  const [menu, setMenu] = useState<{ x: number; y: number; actions: ContextMenuAction[] } | null>(null)
+  const [menu, setMenu] = useState<{x: number; y: number; actions: ContextMenuAction[]} | null>(null)
   const registry = useRef(new Map<string, RowInfo>())
   const elements = useRef(new Map<string, HTMLElement>())
 
@@ -384,8 +376,8 @@ export function ValueEditorProvider({
       const rows = domOrderedRows(registry.current, elements.current)
       const idx = rows.findIndex((r) => r.id === id)
       if (idx < 0) return
-      const { info } = rows[idx]!
-      const go = (target?: { id: string }) => {
+      const {info} = rows[idx]!
+      const go = (target?: {id: string}) => {
         if (target) focusRow(target.id)
       }
       switch (direction) {
@@ -445,15 +437,15 @@ export function ValueEditorProvider({
       // fires on re-renders too — only touch the registry here. The `elements`
       // map is owned by the row's ref callback, which clears it on real unmount.
       registry.current.delete(id)
-      setTabbableId((cur) => (cur === id ? (registry.current.keys().next().value ?? null) : cur))
+      setTabbableId((cur) => (cur === id ? registry.current.keys().next().value ?? null : cur))
     },
     setElement: (id, element) => {
       if (element) elements.current.set(id, element)
       else elements.current.delete(id)
     },
-    openContextMenu: (position, menuActions) => setMenu({ ...position, actions: menuActions }),
+    openContextMenu: (position, menuActions) => setMenu({...position, actions: menuActions}),
   }).current
-  const state = useMemo<SelectionState>(() => ({ selectedId, tabbableId, openUrl }), [selectedId, tabbableId, openUrl])
+  const state = useMemo<SelectionState>(() => ({selectedId, tabbableId, openUrl}), [selectedId, tabbableId, openUrl])
 
   useEffect(() => {
     const getSelectedHandlers = () => {
@@ -531,7 +523,7 @@ export function ValueEditorProvider({
             }}
           >
             <div
-              className="flex absolute flex-col p-1 rounded-md border shadow-md bg-popover text-popover-foreground min-w-44"
+              className="bg-popover text-popover-foreground absolute flex min-w-44 flex-col rounded-md border p-1 shadow-md"
               style={{
                 left: Math.min(menu.x, typeof window !== 'undefined' ? window.innerWidth - 200 : menu.x),
                 top: Math.min(
@@ -590,7 +582,7 @@ function useRowSelection(
   },
 ) {
   const actions = useContext(SelectionActionsContext)
-  const { selectedId, tabbableId } = useContext(SelectionStateContext)
+  const {selectedId, tabbableId} = useContext(SelectionStateContext)
   const isSelected = selectedId === id
   const isTabbable = tabbableId === id
 
@@ -617,7 +609,7 @@ function useRowSelection(
   )
 
   if (!actions) {
-    return { isSelected: false, rowProps: {} as Record<string, never> }
+    return {isSelected: false, rowProps: {} as Record<string, never>}
   }
   const ctx = actions
 
@@ -626,7 +618,7 @@ function useRowSelection(
     role: 'treeitem' as const,
     tabIndex: isTabbable ? 0 : -1,
     'aria-selected': isSelected,
-    ...(row.isContainer ? { 'aria-expanded': !row.collapsed } : {}),
+    ...(row.isContainer ? {'aria-expanded': !row.collapsed} : {}),
     onFocus: (e: React.FocusEvent) => {
       // Selection follows focus — whether the row itself or any editor inside
       // it is focused (so tabbing between fields moves the highlight too). The
@@ -658,11 +650,11 @@ function useRowSelection(
       e.preventDefault()
       e.stopPropagation()
       ctx.focusRow(id)
-      ctx.openContextMenu({ x: e.clientX, y: e.clientY }, row.getMenuActions())
+      ctx.openContextMenu({x: e.clientX, y: e.clientY}, row.getMenuActions())
     },
   }
 
-  return { isSelected: !!isSelected, rowProps }
+  return {isSelected: !!isSelected, rowProps}
 }
 
 const ROW_CLASS = '-mx-1 rounded-md px-1 py-0.5 transition-colors'
@@ -721,13 +713,13 @@ function RowActionsMenu({
   )
 }
 
-function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function CollapseToggle({collapsed, onToggle}: {collapsed: boolean; onToggle: () => void}) {
   return (
     <button
       type="button"
       aria-label={collapsed ? 'Expand' : 'Collapse'}
       aria-expanded={!collapsed}
-      className="flex justify-center items-center text-muted-foreground hover:text-foreground size-4 shrink-0"
+      className="text-muted-foreground hover:text-foreground flex size-4 shrink-0 items-center justify-center"
       onClick={onToggle}
     >
       {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
@@ -752,28 +744,20 @@ function compactValuePreview(value: unknown, rules: ValueEditorRules): string {
     return `[${value.map((item) => compactValuePreview(item, rules)).join(' ')}]`
   }
   if (isPlainObject(value)) {
-    const entries = canonicalEntries(value, { hideNull: rules.hideNullEntries })
+    const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
     return entries.map(([key, child]) => `${key}: ${compactValuePreview(child, rules)}`).join('   ')
   }
   return String(value)
 }
 
 /** Collapsed container: a one-line preview of the actual data; click to expand. */
-function CollapsedSummary({
-  value,
-  rules,
-  onExpand,
-}: {
-  value: unknown
-  rules: ValueEditorRules
-  onExpand: () => void
-}) {
+function CollapsedSummary({value, rules, onExpand}: {value: unknown; rules: ValueEditorRules; onExpand: () => void}) {
   const preview = compactValuePreview(value, rules)
   return (
     <button
       type="button"
       title={preview}
-      className="block overflow-hidden max-w-full font-mono text-xs text-left whitespace-pre transition-colors text-muted-foreground hover:text-foreground text-ellipsis"
+      className="text-muted-foreground hover:text-foreground block max-w-full overflow-hidden text-left font-mono text-xs text-ellipsis whitespace-pre transition-colors"
       onClick={onExpand}
     >
       {preview}
@@ -856,9 +840,9 @@ export function FieldRow({
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
-  const handlers: SelectionHandlers = { getValue: () => value, setValue: onValue, remove: onRemove, rules }
+  const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
   const getMenuActions = () => [
-    ...baseMenuActions({ value, handlers, isContainer, collapsed, setCollapsed }),
+    ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
     {
       key: 'edit',
       label: 'Edit field',
@@ -873,7 +857,7 @@ export function FieldRow({
       onClick: onRemove,
     },
   ]
-  const { isSelected, rowProps } = useRowSelection(pathId(path), {
+  const {isSelected, rowProps} = useRowSelection(pathId(path), {
     path,
     handlers,
     isContainer,
@@ -892,10 +876,10 @@ export function FieldRow({
         className,
       )}
     >
-      <div className="flex flex-col flex-1 gap-1 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         {/* Field name first so names align regardless of type; the collapse
             chevron sits after the name for containers. */}
-        <div className="flex gap-1 items-center">
+        <div className="flex items-center gap-1">
           <span className={cn(FIELD_LABEL_CLASS, 'truncate')} title={fieldKey}>
             {fieldKey}
           </span>
@@ -910,7 +894,7 @@ export function FieldRow({
         </div>
       </div>
       {/* Floating so nested rows keep their full width. */}
-      <div className="absolute right-0 top-1">
+      <div className="absolute top-1 right-0">
         <RowActionsMenu
           label={`Actions for ${fieldKey}`}
           getActions={getMenuActions}
@@ -941,10 +925,10 @@ export function FieldRow({
 // ---------------------------------------------------------------------------
 
 /** Read-only recursive rendering of a value. */
-export function ValueDisplay({ value, rules = CBOR_VALUE_RULES }: { value: unknown; rules?: ValueEditorRules }) {
+export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
   if (isDagJsonLink(value)) {
     return (
-      <span className="flex gap-1 items-center font-mono text-sm break-all">
+      <span className="flex items-center gap-1 font-mono text-sm break-all">
         <Link2 className="text-muted-foreground size-3.5 shrink-0" />
         {value['/']}
       </span>
@@ -964,12 +948,12 @@ export function ValueDisplay({ value, rules = CBOR_VALUE_RULES }: { value: unkno
     )
   }
   if (Array.isArray(value)) {
-    if (value.length === 0) return <p className="text-sm text-muted-foreground">Empty list</p>
+    if (value.length === 0) return <p className="text-muted-foreground text-sm">Empty list</p>
     return (
       <div className={NESTED_GROUP_CLASS}>
         {value.map((item, index) => (
-          <div key={index} className="flex gap-2 items-baseline">
-            <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span>
+          <div key={index} className="flex items-baseline gap-2">
+            <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
             <ValueDisplay value={item} rules={rules} />
           </div>
         ))}
@@ -977,8 +961,8 @@ export function ValueDisplay({ value, rules = CBOR_VALUE_RULES }: { value: unkno
     )
   }
   if (isPlainObject(value)) {
-    const entries = canonicalEntries(value, { hideNull: rules.hideNullEntries })
-    if (entries.length === 0) return <p className="text-sm text-muted-foreground">No fields</p>
+    const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
+    if (entries.length === 0) return <p className="text-muted-foreground text-sm">No fields</p>
     return (
       <div className={NESTED_GROUP_CLASS}>
         {entries.map(([key, child]) => (
@@ -990,8 +974,8 @@ export function ValueDisplay({ value, rules = CBOR_VALUE_RULES }: { value: unkno
       </div>
     )
   }
-  if (value === '') return <span className="text-sm text-muted-foreground">(empty)</span>
-  return <span className="font-mono text-sm whitespace-pre-wrap break-words">{String(value)}</span>
+  if (value === '') return <span className="text-muted-foreground text-sm">(empty)</span>
+  return <span className="font-mono text-sm break-words whitespace-pre-wrap">{String(value)}</span>
 }
 
 /** Recursive type-aware editor for one value. */
@@ -1027,21 +1011,21 @@ export function ValueEditor({
   if (isPlainObject(value)) {
     return <ObjectEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
-  return <span className="font-mono text-sm text-muted-foreground">{String(value)}</span>
+  return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
 }
 
 /** String leaf: free-text input, committing on blur/Enter. */
-function StringLeafEditor({ value, onValue }: { value: string; onValue: (value: unknown) => void }) {
+function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unknown) => void}) {
   return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
 }
 
 /** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
-function LinkValueEditor({ value, onValue }: { value: { '/': string }; onValue: (value: unknown) => void }) {
-  const { openUrl } = useContext(SelectionStateContext)
+function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
+  const {openUrl} = useContext(SelectionStateContext)
   const cid = value['/']
   const isValid = !!parseCidString(cid)
   return (
-    <div className="flex gap-1 items-center">
+    <div className="flex items-center gap-1">
       <Tooltip content="IPLD link">
         <Link2 className={cn('size-3.5 shrink-0', isValid ? 'text-muted-foreground' : 'text-destructive')} />
       </Tooltip>
@@ -1055,7 +1039,7 @@ function LinkValueEditor({ value, onValue }: { value: { '/': string }; onValue: 
             toast.error('Not a valid CID')
             return
           }
-          onValue({ '/': next })
+          onValue({'/': next})
         }}
       />
       {openUrl && isValid && (
@@ -1076,7 +1060,7 @@ function LinkValueEditor({ value, onValue }: { value: { '/': string }; onValue: 
 }
 
 /** IPLD bytes (`{"/": {bytes}}`): size readout with download and replace-from-file. */
-function BytesValueEditor({ value, onValue }: { value: { '/': { bytes: string } }; onValue: (value: unknown) => void }) {
+function BytesValueEditor({value, onValue}: {value: {'/': {bytes: string}}; onValue: (value: unknown) => void}) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const b64 = value['/'].bytes
   const size = useMemo(() => {
@@ -1089,7 +1073,7 @@ function BytesValueEditor({ value, onValue }: { value: { '/': { bytes: string } 
 
   const download = () => {
     const bytes = base64ToBytes(b64)
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/octet-stream' }))
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], {type: 'application/octet-stream'}))
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = 'bytes.bin'
@@ -1098,7 +1082,7 @@ function BytesValueEditor({ value, onValue }: { value: { '/': { bytes: string } 
   }
 
   return (
-    <div className="flex flex-wrap gap-1 items-center">
+    <div className="flex flex-wrap items-center gap-1">
       <span className={cn('font-mono text-sm', size === null && 'text-destructive')}>
         {size === null ? 'Invalid base64 data' : `${formatByteSize(size)} binary`}
       </span>
@@ -1136,7 +1120,7 @@ function BytesValueEditor({ value, onValue }: { value: { '/': { bytes: string } 
           if (!file) return
           file
             .arrayBuffer()
-            .then((buffer) => onValue({ '/': { bytes: bytesToBase64(new Uint8Array(buffer)) } }))
+            .then((buffer) => onValue({'/': {bytes: bytesToBase64(new Uint8Array(buffer))}}))
             .catch(() => toast.error('Failed to read file'))
         }}
       />
@@ -1159,12 +1143,12 @@ export function ObjectEditor({
   rules: ValueEditorRules
   path?: ValuePath
 }) {
-  const entries = canonicalEntries(value, { hideNull: rules.hideNullEntries })
+  const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
   const removeKey = (key: string) => {
     if (rules.removeKeys === 'tombstone') {
-      onValue({ ...value, [key]: null })
+      onValue({...value, [key]: null})
     } else {
-      const next = { ...value }
+      const next = {...value}
       delete next[key]
       onValue(next)
     }
@@ -1174,13 +1158,13 @@ export function ObjectEditor({
   // the new key to the (already coerced) value.
   const editField = (key: string, newKey: string, newValue: unknown) => {
     if (newKey === key) {
-      onValue({ ...value, [key]: newValue })
+      onValue({...value, [key]: newValue})
       return
     }
     if (rules.removeKeys === 'tombstone') {
-      onValue({ ...value, [key]: null, [newKey]: newValue })
+      onValue({...value, [key]: null, [newKey]: newValue})
     } else {
-      const next = { ...value }
+      const next = {...value}
       delete next[key]
       next[newKey] = newValue
       onValue(next)
@@ -1188,14 +1172,14 @@ export function ObjectEditor({
   }
   return (
     <div className={NESTED_OBJECT_CLASS}>
-      {entries.length === 0 && <p className="text-sm text-muted-foreground">No fields</p>}
+      {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
       {entries.map(([key, child]) => (
         <FieldRow
           key={key}
           fieldKey={key}
           value={child}
           siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-          onValue={(newChild) => onValue({ ...value, [key]: newChild })}
+          onValue={(newChild) => onValue({...value, [key]: newChild})}
           onEditField={(newKey, newValue) => editField(key, newKey, newValue)}
           onRemove={() => removeKey(key)}
           rules={rules}
@@ -1206,7 +1190,7 @@ export function ObjectEditor({
         compact
         rules={rules}
         existingKeys={entries.map(([key]) => key)}
-        onAdd={(key, newChild) => onValue({ ...value, [key]: newChild })}
+        onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
       />
     </div>
   )
@@ -1240,7 +1224,7 @@ export function ListEditor({
   }
   return (
     <div className={NESTED_GROUP_CLASS}>
-      {value.length === 0 && <p className="text-sm text-muted-foreground">Empty list</p>}
+      {value.length === 0 && <p className="text-muted-foreground text-sm">Empty list</p>}
       {value.map((item, index) => (
         <ListItemRow
           key={index}
@@ -1312,9 +1296,9 @@ function ListItemRow({
   const isContainer = isEditableContainer(item)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
-  const handlers: SelectionHandlers = { getValue: () => item, setValue: onItem, remove: onRemove, rules }
+  const handlers: SelectionHandlers = {getValue: () => item, setValue: onItem, remove: onRemove, rules}
   const getMenuActions = () => [
-    ...baseMenuActions({ value: item, handlers, isContainer, collapsed, setCollapsed }),
+    ...baseMenuActions({value: item, handlers, isContainer, collapsed, setCollapsed}),
     {
       key: 'edit-type',
       label: 'Edit type',
@@ -1329,23 +1313,23 @@ function ListItemRow({
     },
     ...(index > 0
       ? [
-        {
-          key: 'move-up',
-          label: 'Move up',
-          icon: <ArrowUp className="size-4" />,
-          onClick: () => onMove(index, index - 1),
-        },
-      ]
+          {
+            key: 'move-up',
+            label: 'Move up',
+            icon: <ArrowUp className="size-4" />,
+            onClick: () => onMove(index, index - 1),
+          },
+        ]
       : []),
     ...(index < count - 1
       ? [
-        {
-          key: 'move-down',
-          label: 'Move down',
-          icon: <ArrowDown className="size-4" />,
-          onClick: () => onMove(index, index + 1),
-        },
-      ]
+          {
+            key: 'move-down',
+            label: 'Move down',
+            icon: <ArrowDown className="size-4" />,
+            onClick: () => onMove(index, index + 1),
+          },
+        ]
       : []),
     {
       key: 'remove',
@@ -1355,7 +1339,7 @@ function ListItemRow({
       onClick: onRemove,
     },
   ]
-  const { isSelected, rowProps } = useRowSelection(pathId(path), {
+  const {isSelected, rowProps} = useRowSelection(pathId(path), {
     path,
     handlers,
     isContainer,
@@ -1409,9 +1393,9 @@ function ListItemRow({
         ) : (
           <span className="size-4 shrink-0" />
         )}
-        <span className="font-mono text-xs text-muted-foreground">{index + 1}.</span>
+        <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         {isContainer && collapsed ? (
           <div className="pt-1">
             <CollapsedSummary value={item} rules={rules} onExpand={() => setCollapsed(false)} />
@@ -1421,7 +1405,7 @@ function ListItemRow({
         )}
       </div>
       {/* Floating so nested rows keep their full width. */}
-      <div className="absolute right-0 top-1">
+      <div className="absolute top-1 right-0">
         <RowActionsMenu
           label={`Actions for item ${index + 1}`}
           getActions={getMenuActions}
@@ -1492,7 +1476,7 @@ function NumberInput({
           if (e.key === 'Escape') setText(initial)
         }}
       />
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   )
 }
@@ -1584,9 +1568,9 @@ function defaultValueForType(type: NewFieldType): unknown {
     case 'null':
       return null
     case 'link':
-      return { '/': '' }
+      return {'/': ''}
     case 'bytes':
-      return { '/': { bytes: '' } }
+      return {'/': {bytes: ''}}
   }
 }
 
@@ -1620,9 +1604,9 @@ export function coerceFieldValue(value: unknown, toType: NewFieldType, rules: Va
     case 'link':
       if (typeof value === 'string') {
         const cid = value.trim().replace(/^ipfs:\/\//, '')
-        if (parseCidString(cid)) return { '/': cid }
+        if (parseCidString(cid)) return {'/': cid}
       }
-      return { '/': '' }
+      return {'/': ''}
     case 'object':
     case 'list':
     case 'bytes':
@@ -1714,7 +1698,7 @@ function FieldDialog({
         <div className="flex flex-col gap-3">
           {!itemMode && (
             <div className="flex flex-col gap-1">
-              <label htmlFor="field-dialog-name" className="text-xs text-muted-foreground">
+              <label htmlFor="field-dialog-name" className="text-muted-foreground text-xs">
                 Field name
               </label>
               <Input
@@ -1733,7 +1717,7 @@ function FieldDialog({
             </div>
           )}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Type</label>
+            <label className="text-muted-foreground text-xs">Type</label>
             <Select value={type} onValueChange={(v) => setType(v as NewFieldType)}>
               <SelectTrigger>
                 <SelectValue />
@@ -1747,7 +1731,7 @@ function FieldDialog({
               </SelectContent>
             </Select>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>

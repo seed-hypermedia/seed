@@ -404,9 +404,7 @@ export default function DesktopResourcePage() {
         // :metadata view), preserve the draft's existing content or the
         // published document's blocks — writing [] would publish the body as a
         // full delete.
-        const content = editor
-          ? editor.topLevelBlocks
-          : existingDraft?.content ?? lastPublishedContentRef.current ?? []
+        const content = editor ? editor.topLevelBlocks : existingDraft?.content ?? lastPublishedContentRef.current ?? []
         const cursorPosition = editor?._tiptapEditor?.view?.state?.selection?.$anchor?.pos ?? undefined
         const contentSummary = summarizeEditorBlocksForCleanup(content)
         cleanupInfo(`${CLEANUP_LOG_PREFIX} renderer writeDraft actor reading editor content`, {
