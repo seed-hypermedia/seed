@@ -73,6 +73,7 @@ export function DocumentMetadataView({
   onMetadata,
   fileUpload,
   openFile,
+  onCreateBlob,
 }: {
   metadata?: HMMetadata | null
   canEdit?: boolean
@@ -81,6 +82,8 @@ export function DocumentMetadataView({
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
   openFile?: (cid: string) => void
+  /** Opens a blank blob editor (new IPFS object) in its own window. */
+  onCreateBlob?: () => void
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
@@ -109,6 +112,7 @@ export function DocumentMetadataView({
       onRedo={editable ? handleRedo : undefined}
       fileUpload={editable ? fileUpload : undefined}
       openFile={openFile}
+      onCreateBlob={editable ? onCreateBlob : undefined}
     >
       <div className="flex flex-col gap-4 py-6">
         {/* No title here — the tab/breadcrumb (main view) and the panel header

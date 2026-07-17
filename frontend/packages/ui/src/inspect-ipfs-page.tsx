@@ -20,6 +20,9 @@ import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from './value-editor
 
 type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
 
+/** Sentinel `ipfsPath` that opens the viewer in "author a new object" mode. */
+const NEW_IPFS_BLOB_PATH = 'new'
+
 /**
  * Probes whether an image URL loads. Returns `null` while testing, `true`/`false`
  * once known. More reliable than a content-type header the gateway may not set.
@@ -99,7 +102,9 @@ export function InspectIpfsPage({
 }) {
   const [cid, ...pathSegments] = ipfsPath.split('/').filter(Boolean)
   const hasSubpath = pathSegments.length > 0
-  const ipfsData = useCID(cid)
+  // The `new` sentinel path means "author a brand-new CBOR object" — no CID yet.
+  const isCreate = cid === NEW_IPFS_BLOB_PATH && !hasSubpath
+  const ipfsData = useCID(isCreate ? undefined : cid)
   const client = useUniversalClient()
   const replaceRoute = useNavigate('replace')
 
@@ -129,7 +134,9 @@ export function InspectIpfsPage({
 
   // Resolve what kind of content this is.
   let kind: IpfsKind
-  if (hasSubpath || isDagCbor) {
+  if (isCreate) {
+    kind = 'cbor'
+  } else if (hasSubpath || isDagCbor) {
     kind = ipfsData.isLoading ? 'loading' : 'cbor'
   } else if (isFile) {
     kind = isImage === null ? 'loading' : isImage ? 'image' : 'text'
@@ -142,17 +149,18 @@ export function InspectIpfsPage({
 
   const canEdit = !hasSubpath && (kind === 'cbor' || kind === 'text')
 
-  // Edit/draft state. Resets whenever the viewed CID changes.
-  const [mode, setMode] = useState<'view' | 'edit'>('view')
-  const [editJson, setEditJson] = useState<unknown>(undefined)
+  // Edit/draft state. Resets whenever the viewed CID changes. Create mode opens
+  // straight into an empty-object draft.
+  const [mode, setMode] = useState<'view' | 'edit'>(isCreate ? 'edit' : 'view')
+  const [editJson, setEditJson] = useState<unknown>(isCreate ? {} : undefined)
   const [editText, setEditText] = useState('')
   const [publishing, setPublishing] = useState(false)
   useEffect(() => {
-    setMode('view')
-    setEditJson(undefined)
+    setMode(isCreate ? 'edit' : 'view')
+    setEditJson(isCreate ? {} : undefined)
     setEditText('')
     setPublishing(false)
-  }, [ipfsPath])
+  }, [ipfsPath, isCreate])
 
   const startEditing = () => {
     if (kind === 'cbor') setEditJson(ipfsData.data?.value ?? {})
@@ -230,6 +238,7 @@ export function InspectIpfsPage({
       <IpfsTopBar
         restingUrl={`ipfs://${ipfsPath}`}
         gatewayLink={gatewayLink}
+        creating={isCreate}
         editing={mode === 'edit'}
         canEdit={canEdit}
         publishing={publishing}
@@ -254,6 +263,7 @@ export function InspectIpfsPage({
 function IpfsTopBar({
   restingUrl,
   gatewayLink,
+  creating,
   editing,
   canEdit,
   publishing,
@@ -267,6 +277,7 @@ function IpfsTopBar({
 }: {
   restingUrl: string
   gatewayLink: string
+  creating: boolean
   editing: boolean
   canEdit: boolean
   publishing: boolean
@@ -314,13 +325,15 @@ function IpfsTopBar({
       {editing ? (
         <>
           <span className="bg-muted text-muted-foreground no-window-drag rounded px-2 py-0.5 text-xs font-medium">
-            Unpublished draft
+            {creating ? 'New object · unpublished' : 'Unpublished draft'}
           </span>
           <div className="flex-1" />
           <div className="no-window-drag flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel} disabled={publishing}>
-              Cancel
-            </Button>
+            {!creating && (
+              <Button variant="ghost" size="sm" onClick={onCancel} disabled={publishing}>
+                Cancel
+              </Button>
+            )}
             <Button size="sm" onClick={onPublish} disabled={publishing}>
               {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
               Publish

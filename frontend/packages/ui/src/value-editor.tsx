@@ -11,6 +11,7 @@ import {
   CopyPlus,
   Download,
   ExternalLink,
+  FilePlus,
   FileText,
   FileUp,
   GripVertical,
@@ -266,6 +267,8 @@ type SelectionState = {
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
   openFile?: (cid: string) => void
+  /** Opens a blank blob editor (a new IPFS object) in its own window. */
+  onCreateBlob?: () => void
 }
 
 const SelectionActionsContext = createContext<SelectionActions | null>(null)
@@ -349,6 +352,7 @@ export function ValueEditorProvider({
   openUrl,
   fileUpload,
   openFile,
+  onCreateBlob,
 }: {
   children: React.ReactNode
   onUndo?: () => void
@@ -356,6 +360,7 @@ export function ValueEditorProvider({
   openUrl?: (url: string) => void
   fileUpload?: (file: File) => Promise<string>
   openFile?: (cid: string) => void
+  onCreateBlob?: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The single tab-stop; defaults to the first row so Tab can enter the tree.
@@ -457,8 +462,8 @@ export function ValueEditorProvider({
     openContextMenu: (position, menuActions) => setMenu({...position, actions: menuActions}),
   }).current
   const state = useMemo<SelectionState>(
-    () => ({selectedId, tabbableId, openUrl, fileUpload, openFile}),
-    [selectedId, tabbableId, openUrl, fileUpload, openFile],
+    () => ({selectedId, tabbableId, openUrl, fileUpload, openFile, onCreateBlob}),
+    [selectedId, tabbableId, openUrl, fileUpload, openFile, onCreateBlob],
   )
 
   useEffect(() => {
@@ -854,9 +859,21 @@ export function FieldRow({
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
+  const {onCreateBlob} = useContext(SelectionStateContext)
   const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
   const getMenuActions = () => [
     ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
+    // Text fields can spawn a new IPFS object (blob) to reference here.
+    ...(typeof value === 'string' && onCreateBlob
+      ? [
+          {
+            key: 'new-blob',
+            label: 'New blob…',
+            icon: <FilePlus className="size-4" />,
+            onClick: onCreateBlob,
+          },
+        ]
+      : []),
     {
       key: 'edit',
       label: 'Edit field',

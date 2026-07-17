@@ -2566,6 +2566,9 @@ function DocumentMetadataPage({
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
+  // Open a blank blob editor (new IPFS object) in its own window; the `new`
+  // sentinel path puts the viewer into create mode.
+  const onCreateBlob = useCallback(() => openUrl('hm://inspect/ipfs/new', true), [openUrl])
 
   return (
     <DocumentMetadataView
@@ -2577,6 +2580,7 @@ function DocumentMetadataPage({
       }}
       fileUpload={fileUpload}
       openFile={openFile}
+      onCreateBlob={onCreateBlob}
     />
   )
 }
