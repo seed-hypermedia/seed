@@ -184,6 +184,11 @@ export function getDocumentContentAction({
   allMenuItems: MenuItemType[]
 }) {
   if (activeView !== 'content' && activeView !== 'metadata') return null
+  // The Attributes (metadata) view edits fields inline — it has no separate edit
+  // mode like the content view's persistent edit-capable toolbar. So only surface
+  // the publish toolbar while there are pending edits (actively editing or an
+  // unsaved draft); it disappears once published or with nothing to publish.
+  if (activeView === 'metadata' && !isEditing && !hasDraft) return actionButtons
   if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
   if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
   return actionButtons

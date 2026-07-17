@@ -132,6 +132,49 @@ describe('getDocumentContentAction', () => {
     ).toBe('options-actions')
   })
 
+  it('shows the publish toolbar on the metadata view while editing', () => {
+    const editingFloatingActions = vi.fn(() => 'editing-actions')
+    expect(
+      getDocumentContentAction({
+        activeView: 'metadata',
+        isEditing: true,
+        hasDraft: true,
+        allMenuItems: menuItems,
+        editingFloatingActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('editing-actions')
+  })
+
+  it('shows the publish toolbar on the metadata view when an unsaved draft exists', () => {
+    const editingFloatingActions = vi.fn(() => 'editing-actions')
+    expect(
+      getDocumentContentAction({
+        activeView: 'metadata',
+        isEditing: false,
+        hasDraft: true,
+        allMenuItems: menuItems,
+        editingFloatingActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('editing-actions')
+  })
+
+  it('hides the publish toolbar on the metadata view with nothing to publish (e.g. after publishing)', () => {
+    const editingFloatingActions = vi.fn(() => 'editing-actions')
+    expect(
+      getDocumentContentAction({
+        activeView: 'metadata',
+        isEditing: false,
+        hasDraft: false,
+        allMenuItems: menuItems,
+        editingFloatingActions,
+        actionButtons: 'options-actions',
+      }),
+    ).toBe('options-actions')
+    expect(editingFloatingActions).not.toHaveBeenCalled()
+  })
+
   it('hides content actions outside the content view', () => {
     expect(
       getDocumentContentAction({
