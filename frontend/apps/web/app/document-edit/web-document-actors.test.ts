@@ -9,7 +9,12 @@ import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
-import {publishWebDocument, type CreateWebDocumentMachineDeps, type WebEditorAccessor} from './web-document-actors'
+import {
+  publishWebDocument,
+  resolveWriteDraftContent,
+  type CreateWebDocumentMachineDeps,
+  type WebEditorAccessor,
+} from './web-document-actors'
 import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
@@ -692,5 +697,45 @@ describe('publishWebDocument', () => {
     const deps = makeDeps({})
     ;(deps.client as any).publishDocument = undefined
     await expect(publishWebDocument(baseInput, deps)).rejects.toThrow(/does not provide publishDocument/)
+  })
+})
+
+describe('resolveWriteDraftContent', () => {
+  const editorParagraph = (text: string) => ({
+    id: 'b1',
+    type: 'paragraph',
+    props: {},
+    content: [{type: 'text', text, styles: {}}],
+    children: [],
+  })
+  const hmParagraph = (text: string): HMBlockNode =>
+    ({
+      block: {id: 'b1', type: 'Paragraph', text, annotations: [], attributes: {}},
+      children: [],
+    }) as unknown as HMBlockNode
+
+  it('uses editor blocks when the content editor has blocks', () => {
+    const result = resolveWriteDraftContent([editorParagraph('Body') as any], null, [hmParagraph('Published')])
+    expect(result.length).toBe(1)
+    expect((result[0] as any).block.text).toBe('Body')
+  })
+
+  it('falls back to the published body when no content editor is mounted (attributes-only edit)', () => {
+    // Regression: the :attributes view mounts no body editor, so the accessor
+    // reports zero blocks. Persisting that empty body blanked the Content tab
+    // and wiped content on publish. It must fall back to the published body.
+    const published = [hmParagraph('Published body')]
+    expect(resolveWriteDraftContent([], null, published)).toBe(published)
+    expect(resolveWriteDraftContent(null, null, published)).toBe(published)
+  })
+
+  it('prefers the draft existing body over the published body when present', () => {
+    const existing = [hmParagraph('Draft body')]
+    const published = [hmParagraph('Published body')]
+    expect(resolveWriteDraftContent(null, existing, published)).toBe(existing)
+  })
+
+  it('returns an empty array only when there is genuinely nothing to preserve', () => {
+    expect(resolveWriteDraftContent(null, null, null)).toEqual([])
   })
 })

@@ -16,7 +16,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,
@@ -83,18 +83,41 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
   })
 }
 
+/**
+ * Decide what body a draft save should persist.
+ *
+ * A live content editor always reports at least one top-level block (an empty
+ * paragraph). Zero blocks (or a null accessor) means there is no mounted content
+ * editor — e.g. the `:attributes` view, which edits metadata only. Persisting the
+ * editor's empty output there would blank the Content tab and wipe the body on
+ * publish. In that case fall back to the draft's existing body, then the
+ * published body (`baseBlocks`, populated by the machine from
+ * `context.document.content`).
+ *
+ * Exported for unit testing.
+ */
+export function resolveWriteDraftContent(
+  editorTopBlocks: EditorBlock[] | null | undefined,
+  existingContent: HMBlockNode[] | null | undefined,
+  baseBlocks: HMBlockNode[] | null | undefined,
+): HMBlockNode[] {
+  if (editorTopBlocks && editorTopBlocks.length) {
+    return editorBlocksToHMBlockNodes(editorTopBlocks)
+  }
+  return existingContent ?? baseBlocks ?? []
+}
+
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
     const editor = deps.getEditor()
     const cursorPosition = editor?.getCursorPosition?.() ?? null
     const draftId = input.draftId ?? nanoid(10)
     const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
-    // No editor mounted (e.g. an attributes-only edit from the :metadata view):
-    // preserve the draft's existing content or the published blocks instead of
-    // clobbering the body with an empty array.
-    const content = editor
-      ? editorBlocksToHMBlockNodes(editor.getTopLevelBlocks() ?? [])
-      : existingDraft?.content ?? input.baseBlocks ?? []
+    const content = resolveWriteDraftContent(
+      editor?.getTopLevelBlocks() ?? null,
+      existingDraft?.content,
+      input.baseBlocks,
+    )
     const currentPath = deps.docId.path ?? []
     const routeDraftId = getWebDraftPlaceholderId(currentPath)
     const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
