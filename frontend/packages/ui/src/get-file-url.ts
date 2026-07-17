@@ -33,13 +33,18 @@ export function isIpfsUrl(url: string): boolean {
 }
 
 /**
- * Convert an IPFS gateway URL (`https://<gateway>/ipfs/<cid>[/path]`) into the
- * canonical `ipfs://<cid>[/path]` form, or return null if it isn't one. The CID
- * segment is validated so ordinary URLs that merely contain `/ipfs/` aren't
- * mistakenly rewritten. Host-agnostic: any gateway's `/ipfs/` link converts.
+ * Convert an http(s) URL that references an IPFS blob into the canonical
+ * `ipfs://<cid>[/path]` form, or return null if it isn't one. Matches an
+ * `/ipfs/<cid>` segment anywhere in the path, so it covers gateway file URLs
+ * (`<host>/ipfs/<cid>`) as well as this app's own inspect URLs
+ * (`<host>/inspect/ipfs/<cid>`, `<host>/hm/inspect/ipfs/<cid>`). The CID is
+ * validated so ordinary URLs that merely contain `/ipfs/` aren't rewritten.
+ * Host-agnostic — pasting the current web server's own inspect URL converts too.
  */
 export function gatewayUrlToIpfs(url: string): string | null {
-  const match = url.trim().match(/^https?:\/\/[^/]+\/ipfs\/([^/?#]+)((?:\/[^?#]*)?)/i)
+  const trimmed = url.trim()
+  if (!/^https?:\/\//i.test(trimmed)) return null
+  const match = trimmed.match(/\/ipfs\/([^/?#]+)((?:\/[^?#]*)?)/i)
   if (!match) return null
   const cid = match[1]!
   if (!parseCidString(cid)) return null

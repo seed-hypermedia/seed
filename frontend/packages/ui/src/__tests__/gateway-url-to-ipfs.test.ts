@@ -13,6 +13,11 @@ describe('gatewayUrlToIpfs', () => {
     expect(gatewayUrlToIpfs(`https://some-other-gateway.example/ipfs/${CID}`)).toBe(`ipfs://${CID}`)
   })
 
+  it("converts the app's own inspect URLs (the web server host)", () => {
+    expect(gatewayUrlToIpfs(`http://localhost:3000/inspect/ipfs/${CID}`)).toBe(`ipfs://${CID}`)
+    expect(gatewayUrlToIpfs(`https://hyper.media/hm/inspect/ipfs/${CID}`)).toBe(`ipfs://${CID}`)
+  })
+
   it('preserves a sub-path after the CID', () => {
     expect(gatewayUrlToIpfs(`https://hyper.media/ipfs/${CID}/meta/title`)).toBe(`ipfs://${CID}/meta/title`)
   })
