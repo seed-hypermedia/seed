@@ -28,7 +28,7 @@ import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
-import {findIpfsUrlCid} from './get-file-url'
+import {findIpfsUrlCid, gatewayUrlToIpfs} from './get-file-url'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {Spinner} from './spinner'
 import {toast} from './toast'
@@ -1108,7 +1108,9 @@ function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unk
         <CommitOnBlurInput
           key={value}
           initialValue={value}
-          placeholder={canDrop ? 'Type text, or drop a file to upload…' : undefined}
+          placeholder={'Empty Text'}
+          // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
+          normalize={gatewayUrlToIpfs}
           onCommit={(text) => onValue(text)}
         />
       )}
@@ -1629,6 +1631,7 @@ function CommitOnBlurInput({
   autoFocus,
   onCommit,
   onFocusChange,
+  normalize,
 }: {
   initialValue: string
   placeholder?: string
@@ -1636,6 +1639,8 @@ function CommitOnBlurInput({
   autoFocus?: boolean
   onCommit: (text: string) => void
   onFocusChange?: (focused: boolean) => void
+  /** Rewrite the text before it commits (e.g. gateway URL → `ipfs://`). Returns null to leave it unchanged. */
+  normalize?: (text: string) => string | null
 }) {
   const [text, setText] = useState(initialValue)
   return (
@@ -1646,8 +1651,23 @@ function CommitOnBlurInput({
       autoFocus={autoFocus}
       onFocus={() => onFocusChange?.(true)}
       onChange={(e) => setText(e.target.value)}
+      onPaste={
+        normalize
+          ? (e) => {
+              // Convert a pasted gateway URL to ipfs:// immediately (so it
+              // renders as a file tag) instead of waiting for blur.
+              const pasted = e.clipboardData.getData('text')
+              const converted = normalize(pasted)
+              if (converted && converted !== pasted) {
+                e.preventDefault()
+                setText(converted)
+                onCommit(converted)
+              }
+            }
+          : undefined
+      }
       onBlur={() => {
-        if (text !== initialValue) onCommit(text)
+        if (text !== initialValue) onCommit(normalize?.(text) ?? text)
         onFocusChange?.(false)
       }}
       onKeyDown={(e) => {

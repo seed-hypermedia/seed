@@ -98,6 +98,19 @@ describe('string field IPFS file references', () => {
     expect(onValue).toHaveBeenCalledWith('ipfs://bafyuploadedcid')
   })
 
+  it('converts a pasted gateway /ipfs/ URL into an ipfs:// reference', () => {
+    const onValue = vi.fn()
+    renderString('', {onValue})
+    const input = container.querySelector('input') as HTMLInputElement
+    const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
+    const pasteEvent = new Event('paste', {bubbles: true}) as Event & {clipboardData: unknown}
+    pasteEvent.clipboardData = {getData: () => `https://hyper.media/ipfs/${cid}`}
+    act(() => {
+      input.dispatchEvent(pasteEvent)
+    })
+    expect(onValue).toHaveBeenCalledWith(`ipfs://${cid}`)
+  })
+
   it('does not double-prefix an ipfs:// CID returned by the uploader', async () => {
     const onValue = vi.fn()
     const fileUpload = vi.fn(async () => 'ipfs://bafyalready')

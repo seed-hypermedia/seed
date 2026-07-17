@@ -1,5 +1,6 @@
 import {OptimizedImageSize, useUniversalAppContext} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
+import {parseCidString} from './dag-json'
 
 export function getDaemonFileUrl(ipfsUrl?: string, filename?: string) {
   if (ipfsUrl) {
@@ -29,6 +30,20 @@ export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
 
 export function isIpfsUrl(url: string): boolean {
   return url.startsWith('ipfs://')
+}
+
+/**
+ * Convert an IPFS gateway URL (`https://<gateway>/ipfs/<cid>[/path]`) into the
+ * canonical `ipfs://<cid>[/path]` form, or return null if it isn't one. The CID
+ * segment is validated so ordinary URLs that merely contain `/ipfs/` aren't
+ * mistakenly rewritten. Host-agnostic: any gateway's `/ipfs/` link converts.
+ */
+export function gatewayUrlToIpfs(url: string): string | null {
+  const match = url.trim().match(/^https?:\/\/[^/]+\/ipfs\/([^/?#]+)((?:\/[^?#]*)?)/i)
+  if (!match) return null
+  const cid = match[1]!
+  if (!parseCidString(cid)) return null
+  return `ipfs://${cid}${match[2] || ''}`
 }
 
 export function useImageUrl() {
