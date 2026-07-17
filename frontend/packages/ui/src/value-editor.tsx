@@ -305,6 +305,12 @@ function parsePastedText(text: string, rules: ValueEditorRules): {value: unknown
   } catch {
     parsed = text
   }
+  // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference,
+  // matching the text-input paste behavior (this path fires when a row — not
+  // the input — is selected).
+  if (typeof parsed === 'string') {
+    parsed = gatewayUrlToIpfs(parsed) ?? parsed
+  }
   const problem = findInvalidValue(parsed, rules)
   if (problem) {
     toast.error(`Cannot paste: ${problem}`)

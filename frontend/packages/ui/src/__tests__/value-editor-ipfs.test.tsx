@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {METADATA_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
+import {METADATA_VALUE_RULES, ObjectEditor, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -109,6 +109,28 @@ describe('string field IPFS file references', () => {
       input.dispatchEvent(pasteEvent)
     })
     expect(onValue).toHaveBeenCalledWith(`ipfs://${cid}`)
+  })
+
+  it('converts a gateway URL pasted onto a selected row (input not focused)', () => {
+    const onValue = vi.fn()
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <ValueEditorProvider>
+            <ObjectEditor value={{title: 'x'}} onValue={onValue} rules={METADATA_VALUE_RULES} path={[]} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
+      )
+    })
+    const row = container.querySelector('[role="treeitem"]') as HTMLElement
+    act(() => row.focus())
+    const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
+    const pasteEvent = new Event('paste', {bubbles: true}) as Event & {clipboardData: unknown}
+    pasteEvent.clipboardData = {getData: () => `https://hyper.media/ipfs/${cid}`}
+    act(() => {
+      row.dispatchEvent(pasteEvent)
+    })
+    expect(onValue).toHaveBeenCalledWith({title: `ipfs://${cid}`})
   })
 
   it('does not double-prefix an ipfs:// CID returned by the uploader', async () => {
