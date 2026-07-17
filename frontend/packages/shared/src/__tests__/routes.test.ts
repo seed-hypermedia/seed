@@ -484,6 +484,21 @@ describe('routeToHref', () => {
     expect(href).toBe('/hm/uid2/:comments/z6Mk/z6FC')
   })
 
+  test('metadata route is surfaced as the :attributes view term', () => {
+    const href = routeToHref({key: 'metadata', id: hmId('uid1', {path: ['doc']})}, {originHomeId: originHome})
+    expect(href).toBe('/doc/:attributes')
+  })
+
+  test('document (Content) route with latest and no version links to the base path (no ?v=)', () => {
+    // The Content tab passes a version-stripped, latest id so switching tabs
+    // never pins the reader to the resolved snapshot version.
+    const href = routeToHref(
+      {key: 'document', id: hmId('uid1', {path: ['doc'], version: null, latest: true})},
+      {originHomeId: originHome},
+    )
+    expect(href).toBe('/doc')
+  })
+
   describe('view-term routes preserve panel query param', () => {
     test('collaborators route with comments panel preserves panel', () => {
       const href = routeToHref(
