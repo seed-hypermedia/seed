@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {METADATA_VALUE_RULES, ObjectEditor, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
+import {
+  CBOR_VALUE_RULES,
+  METADATA_VALUE_RULES,
+  ObjectEditor,
+  ValueEditor,
+  ValueEditorProvider,
+} from '@shm/ui/value-editor'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -131,6 +137,46 @@ describe('string field IPFS file references', () => {
       row.dispatchEvent(pasteEvent)
     })
     expect(onValue).toHaveBeenCalledWith({title: `ipfs://${cid}`})
+  })
+
+  it('in a DAG-CBOR blob, pasting an IPFS URL creates a native IPLD link', () => {
+    const onValue = vi.fn()
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <ValueEditorProvider>
+            <ValueEditor value="" onValue={onValue} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
+      )
+    })
+    const input = container.querySelector('input') as HTMLInputElement
+    const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
+    const pasteEvent = new Event('paste', {bubbles: true}) as Event & {clipboardData: unknown}
+    pasteEvent.clipboardData = {getData: () => `https://hyper.media/ipfs/${cid}`}
+    act(() => {
+      input.dispatchEvent(pasteEvent)
+    })
+    // Native IPLD link, not a plain ipfs:// string.
+    expect(onValue).toHaveBeenCalledWith({'/': cid})
+  })
+
+  it('an IPLD link opens the referenced blob via openFile (new window)', () => {
+    const openFile = vi.fn()
+    const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <ValueEditorProvider openFile={openFile}>
+            <ValueEditor value={{'/': cid}} onValue={() => {}} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
+      )
+    })
+    const openBtn = container.querySelector(`button[aria-label="Open ipfs://${cid}"]`) as HTMLButtonElement
+    expect(openBtn).toBeTruthy()
+    act(() => openBtn.click())
+    expect(openFile).toHaveBeenCalledWith(cid)
   })
 
   it('does not double-prefix an ipfs:// CID returned by the uploader', async () => {

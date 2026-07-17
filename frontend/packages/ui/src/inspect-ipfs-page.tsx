@@ -186,6 +186,10 @@ export function InspectIpfsPage({
     if (cid) openUrl(`hm://inspect/ipfs/${NEW_IPFS_BLOB_PATH}/${cid}`, true)
   }
 
+  // Open a linked IPFS blob (from a native IPLD link) in its own new window.
+  const openLinkedBlob = (linkCid: string) => openUrl(`hm://inspect/ipfs/${linkCid}`, true)
+  const openIpfsUrl = (ipfsUrl: string) => openLinkedBlob(ipfsUrl.replace(/^ipfs:\/\//i, ''))
+
   const publish = async () => {
     setPublishing(true)
     try {
@@ -213,7 +217,7 @@ export function InspectIpfsPage({
           <Spinner />
         </div>
       ) : (
-        <ValueEditorProvider>
+        <ValueEditorProvider openFile={openLinkedBlob}>
           <ValueEditor value={editJson} onValue={setEditJson} rules={CBOR_VALUE_RULES} />
         </ValueEditorProvider>
       )
@@ -260,7 +264,7 @@ export function InspectIpfsPage({
   } else if (preparedData === null || preparedData === undefined) {
     body = <div className="text-muted-foreground text-sm">No IPFS data found.</div>
   } else {
-    body = <DataViewer data={preparedData} getRouteForUrl={getRouteForUrl} />
+    body = <DataViewer data={preparedData} getRouteForUrl={getRouteForUrl} onOpenIpfsLink={openIpfsUrl} />
   }
 
   return (

@@ -1039,7 +1039,7 @@ export function ValueEditor({
     return <NumberInput value={value} onValue={onValue} rules={rules} />
   }
   if (typeof value === 'string') {
-    return <StringLeafEditor value={value} onValue={onValue} />
+    return <StringLeafEditor value={value} onValue={onValue} rules={rules} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -1056,12 +1056,37 @@ export function ValueEditor({
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
 }
 
+/** Extract a bare CID from a raw CID, an `ipfs://` URL, or a gateway `/ipfs/` URL. */
+function linkCidFromText(text: string): string | null {
+  let s = text.trim()
+  const gateway = gatewayUrlToIpfs(s)
+  if (gateway) s = gateway
+  s = s.replace(/^ipfs:\/\//i, '')
+  const first = s.split('/')[0] ?? ''
+  return parseCidString(first) ? first : null
+}
+
+/** True when the text is explicitly an IPFS URL (not merely a bare CID string). */
+function isIpfsUrlText(text: string): boolean {
+  const t = text.trim()
+  return /^ipfs:\/\//i.test(t) || !!gatewayUrlToIpfs(t)
+}
+
 /**
  * String leaf: free-text input committing on blur/Enter, that also accepts a
  * dropped file (uploads it to IPFS and stores an `ipfs://<cid>` reference). An
  * `ipfs://` value renders as a file tag that opens the file in its own viewer.
+ * In IPLD mode (raw DAG-CBOR blobs), pasting an IPFS URL creates a native link.
  */
-function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unknown) => void}) {
+function StringLeafEditor({
+  value,
+  onValue,
+  rules,
+}: {
+  value: string
+  onValue: (value: unknown) => void
+  rules: ValueEditorRules
+}) {
   const {fileUpload, openFile} = useContext(SelectionStateContext)
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -1117,7 +1142,18 @@ function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unk
           placeholder={'Empty Text'}
           // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
           normalize={gatewayUrlToIpfs}
-          onCommit={(text) => onValue(text)}
+          onCommit={(text) => {
+            // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
+            // ({"/": cid}); in metadata it stays an ipfs:// string reference.
+            if (rules.ipld && isIpfsUrlText(text)) {
+              const linkCid = linkCidFromText(text)
+              if (linkCid) {
+                onValue({'/': linkCid})
+                return
+              }
+            }
+            onValue(text)
+          }}
         />
       )}
       {uploading && (
@@ -1169,35 +1205,40 @@ function IpfsFileTag({cid, onOpen, onClear}: {cid: string; onOpen?: (cid: string
 
 /** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
 function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
-  const {openUrl} = useContext(SelectionStateContext)
+  const {openUrl, openFile} = useContext(SelectionStateContext)
   const cid = value['/']
   const isValid = !!parseCidString(cid)
+  // Prefer openFile (opens the linked blob in its own window); fall back to openUrl.
+  const openLink = openFile ? () => openFile(cid) : openUrl ? () => openUrl(`ipfs://${cid}`) : undefined
   return (
     <div className="flex items-center gap-1">
-      <Tooltip content="IPLD link">
+      <Tooltip content="IPLD link — a native reference to another IPFS blob">
         <Link2 className={cn('size-3.5 shrink-0', isValid ? 'text-muted-foreground' : 'text-destructive')} />
       </Tooltip>
       <CommitOnBlurInput
         key={cid}
         initialValue={cid}
         className="font-mono text-xs"
+        placeholder="CID or ipfs:// URL"
+        // Accept a bare CID, an ipfs:// URL, or a gateway /ipfs/ URL.
+        normalize={linkCidFromText}
         onCommit={(text) => {
-          const next = text.trim()
+          const next = linkCidFromText(text) ?? text.trim()
           if (!parseCidString(next)) {
-            toast.error('Not a valid CID')
+            toast.error('Not a valid CID or IPFS URL')
             return
           }
           onValue({'/': next})
         }}
       />
-      {openUrl && isValid && (
+      {openLink && isValid && (
         <Tooltip content={`Open ipfs://${cid}`}>
           <Button
             variant="ghost"
             size="iconSm"
             aria-label={`Open ipfs://${cid}`}
             className="text-muted-foreground"
-            onClick={() => openUrl(`ipfs://${cid}`)}
+            onClick={openLink}
           >
             <ExternalLink className="size-3.5" />
           </Button>
@@ -1693,7 +1734,7 @@ const FIELD_TYPE_LABEL: Record<NewFieldType, string> = {
   object: 'Object',
   list: 'List',
   null: 'Null',
-  link: 'Link',
+  link: 'IPFS Link',
   bytes: 'Bytes',
 }
 
