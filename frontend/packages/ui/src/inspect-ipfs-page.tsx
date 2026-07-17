@@ -11,7 +11,7 @@ import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Textarea} from './components/textarea'
 import {base64ToBytes, isDagJsonBytes} from './dag-json'
-import {useFileUrl, useImageUrl} from './get-file-url'
+import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {Spinner} from './spinner'
 import {toast} from './toast'
@@ -131,7 +131,9 @@ export function InspectIpfsPage({
   const imageUrl = !isDraft && isFile && !hasSubpath && contentCid ? getImageUrl(`ipfs://${contentCid}`) : ''
   const isImage = useIsLoadableImage(imageUrl)
 
-  const getFileUrl = useFileUrl()
+  // Proxy URL (/hm/api/file/<cid>) on web so text fetches don't hit a localhost
+  // daemon URL; falls back to the direct daemon URL on desktop.
+  const getFileUrl = useFileProxyUrl()
 
   const preparedData = useMemo(() => {
     if (ipfsData.data?.value === undefined) return null
