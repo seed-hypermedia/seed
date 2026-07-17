@@ -5,6 +5,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
+import {isBlockSelected} from './block-selection-wrapper'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
@@ -26,7 +27,12 @@ export const WebEmbed = createReactBlockSpec({
       default: 'false',
     },
   },
-  containsInlineContent: true,
+  // No inline content is ever rendered for this block: a leaf node (like
+  // query) lets browsers represent its NodeSelection cleanly instead of
+  // bouncing the DOM selection into phantom editable positions, and removes
+  // the invisible-content merge/caret traps.
+  containsInlineContent: false,
+  selectable: true,
 
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
@@ -89,6 +95,11 @@ const WebEmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
 
   const containerRef = useRef(null)
   const isInitialized = useRef(false)
+  // Snapshot whether the block was already node-selected when the press began.
+  // PM's handleClickOn selects the block on mouseup (before this React click),
+  // so we must capture the pre-click state at mousedown to distinguish the
+  // first click (select only) from a click on an already-selected embed (open).
+  const wasSelectedAtMouseDown = useRef(false)
 
   const url = block.props.url
   // @ts-ignore
@@ -156,8 +167,13 @@ const WebEmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       block={block}
       mediaType="web-embed"
       assign={assign}
+      onMediaMouseDown={() => {
+        wasSelectedAtMouseDown.current = isBlockSelected(editor, block.id)
+      }}
       onPress={() => {
-        if (block.props.link) {
+        // First click selects only (PM handleClickOn made the NodeSelection);
+        // open the link only when the block was already selected at mousedown.
+        if (wasSelectedAtMouseDown.current && block.props.link) {
           openUrl(block.props.link)
         }
       }}

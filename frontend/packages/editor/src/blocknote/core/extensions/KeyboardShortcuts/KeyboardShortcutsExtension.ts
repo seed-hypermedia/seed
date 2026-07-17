@@ -8,6 +8,7 @@ import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
+import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos} from '../Blocks/helpers/getGroupInfoFromPos'
 import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
@@ -163,20 +164,24 @@ export const KeyboardShortcutsExtension = Extension.create<{
                   return true
                 }
                 if (!prevBlockInfo) return false
-                if (
-                  ['file', 'embed', 'video', 'web-embed', 'math'].includes(prevBlockInfo.blockContentType) ||
-                  (prevBlockInfo.blockContentType === 'image' && prevBlockInfo.blockContent.node.attrs.url.length === 0)
-                ) {
+                // Backspace at the start of a paragraph directly below any
+                // selectable block NodeSelects that block (matching the arrow-key
+                // selection list), instead of merging text into its invisible
+                // inline content. Image is included unconditionally here too: the
+                // caption-merge behavior is not relied on (see image-caption e2e).
+                if (selectableNodeTypes.includes(prevBlockInfo.blockContentType)) {
                   if (dispatch) {
                     state.tr.setSelection(NodeSelection.create(state.doc, prevBlockInfo.block.beforePos + 1))
 
-                    // Uncomment to not delete the text where the current selection is in.
-                    // if (!blockInfo.contentNode.textContent) {
-                    state.tr.deleteRange(
-                      blockInfo.block.beforePos + 1,
-                      blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
-                    )
-                    // }
+                    // Only remove the current paragraph when it is empty. When it
+                    // still has text, Backspace just moves selection up onto the
+                    // previous block; deleting here would silently drop that text.
+                    if (!blockInfo.blockContent.node.textContent) {
+                      state.tr.deleteRange(
+                        blockInfo.block.beforePos + 1,
+                        blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 1,
+                      )
+                    }
                     return true
                   }
                 }

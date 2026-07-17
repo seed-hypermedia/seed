@@ -153,6 +153,13 @@ export function blockToNode<BSchema extends BlockSchema>(block: PartialBlock<BSc
   } else if (!block.content) {
     // @ts-ignore
     contentNode = schema.nodes[type].create(block.props)
+  } else if (schema.nodes[type]?.spec.content === '') {
+    // Leaf block type (embed/video/file/button/query/…): it holds no inline
+    // content. Old persisted drafts may still carry text content for a type
+    // that has since become a leaf; creating it with children would produce an
+    // invalid node that gets silently destroyed later. Drop the content.
+    // @ts-ignore
+    contentNode = schema.nodes[type].create(block.props)
   } else if (typeof block.content === 'string') {
     // @ts-ignore
     contentNode = schema.nodes[type].create(block.props, schema.text(block.content))

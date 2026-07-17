@@ -24,6 +24,8 @@ vi.mock('@shm/ui/tooltip', () => ({
 
 vi.mock('./blocknote/react/ReactBlockSpec', () => ({
   InlineContent: (props: any) => <span data-testid="inline-content" {...props} />,
+  // Block specs pulled in transitively (e.g. button.tsx) just need a value.
+  createReactBlockSpec: (config: any) => ({config}),
 }))
 
 import {MediaContainer} from './media-container'

@@ -30,7 +30,12 @@ export const ButtonBlock = createReactBlockSpec({
       default: 'false',
     },
   },
-  containsInlineContent: true,
+  // No inline content is ever rendered for this block: a leaf node (like
+  // query) lets browsers represent its NodeSelection cleanly instead of
+  // bouncing the DOM selection into phantom editable positions, and removes
+  // the invisible-content merge/caret traps.
+  containsInlineContent: false,
+  selectable: true,
   // @ts-ignore
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) => (
     <ButtonBlockView block={block} editor={editor} />

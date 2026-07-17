@@ -1,6 +1,5 @@
-import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import {Link, MessageSquare} from 'lucide-react'
-import React, {useCallback, useEffect, useRef, useState} from 'react'
+import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {BlockNoteEditor} from '../../core/BlockNoteEditor'
 import {
   BlockHoverActionsCallbacks,
@@ -70,7 +69,7 @@ function getPublishedBlockRevision<BSchema extends BlockSchema>(
   blockId: string,
 ): string {
   let revision = ''
-  editor.prosemirrorView.state?.doc?.descendants?.((node: any) => {
+  editor.prosemirrorView?.state?.doc?.descendants?.((node: any) => {
     if (revision) return false
     if (node.type?.name !== 'blockNode' || node.attrs?.id !== blockId) return
     if (typeof node.attrs?.revision === 'string') {
@@ -86,7 +85,7 @@ function getPublishedBlockRevision<BSchema extends BlockSchema>(
   })
   if (revision) return revision
 
-  const blockElement = editor.prosemirrorView.dom.querySelector(`[data-id="${blockId}"]`) as HTMLElement | null
+  const blockElement = editor.prosemirrorView?.dom?.querySelector(`[data-id="${blockId}"]`) as HTMLElement | null
   return blockElement?.querySelector('[data-revision]')?.getAttribute('data-revision') || ''
 }
 
@@ -146,14 +145,50 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     }
   }, [])
 
-  // Hide the card and remove highlight class on document scroll.
-  useHideOnDocumentScroll(
-    useCallback(() => {
-      setHoverState({show: false, blockId: null, referenceRect: null})
-      highlightedElRef.current?.classList.remove(HOVER_BG_CLASS)
-      highlightedElRef.current = null
-    }, []),
-  )
+  // Follow the block on scroll/resize instead of hiding: the card's
+  // visibility derives from selection state alone; scrolling only moves it.
+  // Capture-phase listener catches scrolls of any inner scroll container
+  // (e.g. the desktop ScrollArea viewport), rAF-throttled.
+  useEffect(() => {
+    if (!hoverState.show) return
+
+    let raf = 0
+    const reposition = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        editor.blockHoverActions?.refresh()
+      })
+    }
+    window.addEventListener('scroll', reposition, {capture: true, passive: true})
+    window.addEventListener('resize', reposition)
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', reposition, {capture: true})
+      window.removeEventListener('resize', reposition)
+    }
+  }, [hoverState.show, editor])
+
+  // Referenceability and the supernumber-badge lookup depend only on the block
+  // identity, not its rect, so memoize both. Otherwise every scroll frame (which
+  // refreshes the rect) would re-run a full doc.descendants walk and a
+  // querySelectorAll on gated surfaces. These hooks must run before the early
+  // returns below; they tolerate a null blockId while the card is hidden.
+  const canReferenceBlock = useMemo(() => {
+    if (!hoverState.blockId) return false
+    return isBlockReferenceable
+      ? isBlockReferenceable(hoverState.blockId)
+      : !!getPublishedBlockRevision(editor, hoverState.blockId)
+  }, [hoverState.blockId, editor, isBlockReferenceable])
+
+  const supernumberBadge = useMemo(() => {
+    if (!hoverState.blockId) return undefined
+    const dom = editor.prosemirrorView?.dom
+    if (!dom) return undefined
+    return Array.from(dom.querySelectorAll('.bn-supernumber-badge')).find(
+      (badge) => badge instanceof HTMLElement && badge.dataset.blockId === hoverState.blockId,
+    ) as HTMLElement | undefined
+  }, [hoverState.blockId, editor, isBlockReferenceable])
 
   if (!hasActions || !hoverState.show || !hoverState.referenceRect || !hoverState.blockId) {
     return null
@@ -161,17 +196,11 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
 
   const rect = hoverState.referenceRect
   const blockId = hoverState.blockId
-  const canReferenceBlock = isBlockReferenceable
-    ? isBlockReferenceable(blockId)
-    : !!getPublishedBlockRevision(editor, blockId)
   if (!canReferenceBlock) {
     return null
   }
   const commentCount = getCommentCount?.(blockId) ?? 0
 
-  const supernumberBadge = Array.from(editor.prosemirrorView.dom.querySelectorAll('.bn-supernumber-badge')).find(
-    (badge) => badge instanceof HTMLElement && badge.dataset.blockId === blockId,
-  ) as HTMLElement | undefined
   const hasSupernumberBadge = !!supernumberBadge?.isConnected
   const anchorRect = hasSupernumberBadge ? supernumberBadge.getBoundingClientRect() : rect
 

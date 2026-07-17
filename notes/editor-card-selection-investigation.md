@@ -1,5 +1,11 @@
 # Editor Card Selection Investigation (issue #857 follow-on)
 
+## 2026-07-17 UPDATE — root causes found and fixed (see bottom section)
+
+The 2026-07-15 mystery is resolved. "Block tools" = **BlockHoverActionsPositioner** (the copy-link + comment card, right of the block) — a component the earlier session never examined and which the harness never even mounted (DocumentEditor only renders it when onBlockSelect/onBlockCommentClick are passed; the harness passed neither, so "passed in harness, failed live" was structural). See "2026-07-17 session" section at the end for the full fix list.
+
+---
+
 Status as of 2026-07-15. Branch `fix/857-draft-card-matches-published`. **The core desktop bug is NOT yet resolved** — Eric reports block tools still don't appear on first click of a card, despite every fix here passing in the test harness. This doc captures everything learned so the next session can pick up without re-deriving it.
 
 ## Problem statement (Eric's spec)
@@ -107,3 +113,30 @@ npx vitest --run                                 # units (readonly-viewer-galler
 ./dev run-desktop-mainnet -- --remote-debugging-port=9222
 # then: playwright chromium.connectOverCDP('http://localhost:9222')
 ```
+
+---
+
+## 2026-07-17 session — unified block selection (all block types)
+
+Spec (Eric): for EVERY block type, first click selects (blue outline + block tools + side menu), ArrowUp/Down move the selection, tools visible whenever selected, ONE selection source. "Block tools" = **BlockHoverActionsPositioner** (copy-link + comment card, right of the block).
+
+### Root causes found
+
+1. **The hover-actions card had its own selection derivation** (BlockHoverActionsPlugin.selectionBlockState: hasFocus + own ancestor walk) — never read FullBlockSelectionPlugin. Now it does (single block only; collapsed-cursor fallback for text blocks).
+2. **Referenceability gate**: the card returned null for any block not in the published version — on a draft card/new block, tools could NEVER appear (the core desktop mystery). Now tools always show; unpublished-block actions open the PublishRequiredDialog (same policy as the formatting-toolbar fragment actions).
+3. **Scroll one-way hide**: both positioners hid on the machine `scrolling` event with no re-show path (harness had no scroll wiring → "passed in harness, failed live"). Now they FOLLOW scroll: hover card via capture-phase scroll listener + plugin.refresh(); side menu via live getReferenceClientRect (popper re-reads per scroll).
+4. **DOM-observer echoes**: ProseMirror draws a DOM range for NodeSelections; Chrome bounces it off contentEditable=false node views into the nearest editable text, and readDOMChange silently downgraded the block selection (or worse: re-parsed KaTeX and WIPED math content). Fixes: blockNode nodeView ignoreMutation for wrapper attribute mutations (pragmatic-dnd drop-target attrs etc. were forcing re-parses); suppressingSelectionUpdates while a NodeSelection is active (lifted on mousedown/pointerdown over editable text, with a 500ms RECENT_INTERACTION_MS standdown for the restore/focus-recovery machinery); appendTransaction NodeSelection-restore for exact-coverage echoes; focusin recovery when focus gets bounced into an editable island.
+5. **Phantom inline content**: video/file/embed/web-embed/button declared `content: 'inline*'` they never rendered → un-representable DOM selections, invisible-caret traps, merge-into-invisible-content data bugs. All five are now LEAF nodes (containsInlineContent: false, selectable: true — like query). Fallout fixed: updateBlock leaf conversion selects the converted block; link-menu embed creation no longer appends schema.text(' '); blockToNode drops legacy content for leaf types.
+6. Assorted: CellSelection no longer marks every block selected; query unsuppressed from block tools (hover-suppression is read-mode-only); math selects on first click and opens LaTeX on second (standard outline via BlockSelectionWrapper); button face click selects; web-embed is select-then-open; Backspace boundary list = selectableNodeTypes with the paragraph-emptiness guard restored; arrows use view.endOfTextblock (soft-wrap/code-block safe); edit.start-while-editing no longer clobbers a NodeSelection with a stale cursor; initial mandatory NodeSelection demoted at edit start (all-leaf docs get a trailing paragraph).
+
+### Eric's follow-ups (same day)
+- Focusing the draft-card title input selects the card (selectBlockNodeById with focus:false).
+- Published card titles (embed Card view AND query-block cards) render as links: hover underline, navigate on FIRST click, even while editing (titleLinkOnly={canEdit}; plumbed through QueryBlockContent → DocumentCardGrid).
+
+### Test infrastructure
+- The harness now mounts the REAL BlockHoverActionsPositioner (onBlockSelect/onBlockCommentClick recorders → window.TEST_BLOCK_TOOL_CALLS; `?published=none` for the publish-gate path).
+- `allBlocks` fixture (every selectable type + text blocks); TEST_EDITOR gained hoverActionsBlockId() (DOM-geometry) and outlinedBlockIds().
+- e2e/tests/block-selection-consistency.e2e.ts: 18 tests — per-type first-click, arrow walk, backspace (delete + boundary text preservation), scroll-follow, publish gate, copy-link recording, draft-title select, title-link navigation.
+- Adversarially reviewed via a 25-agent workflow: 13 confirmed findings, all fixed (see commit).
+
+Validation: full editor e2e 97 passed / 12 skipped; units 320/321 (readonly-viewer-gallery pre-existing, fails on main); tsc clean in editor, ui, shared.

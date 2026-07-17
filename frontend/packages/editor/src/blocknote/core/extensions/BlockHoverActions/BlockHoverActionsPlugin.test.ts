@@ -2,6 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, NodeSelection, TextSelection} from 'prosemirror-state'
 import {EditorView} from 'prosemirror-view'
 import {afterEach, describe, expect, it} from 'vitest'
+import {FullBlockSelectionProsemirrorPlugin} from '../FullBlockSelection/FullBlockSelectionPlugin'
 import {
   BlockHoverActionsProsemirrorPlugin,
   BlockHoverActionsState,
@@ -16,6 +17,7 @@ const schema = new Schema({
     doc: {content: 'blockNode+'},
     blockNode: {
       content: 'block blockChildren?',
+      group: 'blockNodeChild', // matches the real schema so getBlockInfo helpers work
       attrs: {id: {default: ''}},
       toDOM: (node) => ['div', {'data-node-type': 'blockNode', 'data-id': node.attrs.id}, 0],
     },
@@ -61,7 +63,11 @@ function createView(editable: boolean, doc = createSingleBlockDoc()) {
   const coneDebugs: (PredictionConeDebugState | null)[] = []
   hoverActions.onConeDebug((state) => coneDebugs.push(state))
 
-  const state = EditorState.create({doc, plugins: [hoverActions.plugin]})
+  // In production the hover-actions plugin always coexists with the
+  // FullBlockSelection plugin — its editing-mode derivation reads that
+  // plugin's state (the single selection source).
+  const fullBlockSelection = new FullBlockSelectionProsemirrorPlugin(editor as any)
+  const state = EditorState.create({doc, plugins: [hoverActions.plugin, fullBlockSelection.plugin]})
   const mount = document.createElement('div')
   document.body.appendChild(mount)
   mounts.push(mount)
@@ -72,7 +78,7 @@ function createView(editable: boolean, doc = createSingleBlockDoc()) {
   })
   views.push(view)
 
-  return {view, updates, coneDebugs}
+  return {view, updates, coneDebugs, hoverActions}
 }
 
 function createSingleBlockDoc() {
@@ -228,6 +234,61 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
     view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 1)))
 
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+  })
+
+  it('emits for a block selection even when the editor lost DOM focus while editing', () => {
+    const {view, updates} = createView(true, createAtomicBlockDoc('image'))
+    // No forceFocused: the outline ignores focus in editing mode, so the
+    // action card must too — they derive from the same selection source.
+
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 1)))
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+  })
+
+  it('emits for a blockNode-level NodeSelection while editing', () => {
+    const {view, updates} = createView(true, createAtomicBlockDoc('image'))
+    forceFocused(view)
+
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 0)))
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+  })
+
+  it('emits for a selected query block while editing (suppression is hover-only)', () => {
+    const {view, updates} = createView(true, createAtomicBlockDoc('query'))
+    forceFocused(view)
+
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 1)))
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'query'})
+  })
+
+  it('emits when a text selection fully covers a block while editing', () => {
+    const {view, updates} = createView(true)
+    forceFocused(view)
+
+    // "hello world": paragraph content spans positions 2..13.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 13)))
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
+  })
+
+  it('refresh() re-emits when the reference rect changed', () => {
+    const {view, updates, hoverActions} = createView(true, createAtomicBlockDoc('image'))
+    forceFocused(view)
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, 1)))
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+    const countBefore = updates.length
+
+    // Simulate a scroll: the block's rect moves, selection unchanged.
+    const content = view.dom.querySelector('[data-content-type="image"]') as HTMLElement
+    setRect(content, {top: 100, bottom: 120, y: 100})
+    hoverActions.refresh()
+
+    expect(updates.length).toBeGreaterThan(countBefore)
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'image'})
+    expect(updates.at(-1)?.referenceRect?.y).toBe(100)
   })
 
   it('suppresses query blocks even when hovering nested DOM inside them', () => {

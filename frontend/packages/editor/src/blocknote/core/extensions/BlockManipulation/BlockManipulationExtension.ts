@@ -189,24 +189,23 @@ export const BlockManipulationExtension = Extension.create<{
             if (mentionState?.active) return false
             const {state} = view
             if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-              let hasHardBreak = false
-              const blockInfo = getBlockInfoFromSelection(state)
-              // Find if the selected node has break line and check if the selection's from position is before or after the hard break
-              blockInfo.blockContent.node.content.descendants((node, pos) => {
-                if (node.type.name === 'hardBreak') {
-                  if (blockInfo.block.beforePos + pos + 2 < state.selection.from) {
-                    hasHardBreak = true
-                    return
-                  }
-                }
-              })
-              // Stop execution and let other handlers be called if the selection if after the hard break
-              if (hasHardBreak) return false
+              // When the current selection is a text cursor (not a whole-block
+              // NodeSelection), only step out to the neighbor once the cursor is
+              // on the first visual line of the block. endOfTextblock('up')
+              // accounts for soft-wrapped lines and code-block '\n' lines, which
+              // an explicit hardBreak scan would miss.
+              if (event.key === 'ArrowUp' && !(state.selection instanceof NodeSelection)) {
+                if (!view.endOfTextblock('up')) return false
+              }
               const prevBlockInfo = findPreviousBlock(view, state.selection.head)
               if (prevBlockInfo) {
                 const {prevBlock, prevBlockPos} = prevBlockInfo
                 const prevNode = prevBlock.firstChild!
                 const prevNodePos = prevBlockPos + 1
+                // On the first block, findPreviousBlock's out-of-range clamp can
+                // resolve back to the current block; don't re-select it.
+                const currentBlockInfo = getBlockInfoFromSelection(state)
+                if (prevBlockPos === currentBlockInfo.block.beforePos) return false
                 if (event.shiftKey) {
                   if (event.key === 'ArrowLeft') return false
 
@@ -266,19 +265,21 @@ export const BlockManipulationExtension = Extension.create<{
               }
               return false
             } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-              let lastHardBreakPos: number | null = null
-              const blockInfo = getBlockInfoFromSelection(state)
-              // Find the position of last hard break in node content, if any
-              blockInfo.blockContent.node.content.descendants((node, pos) => {
-                if (node.type.name === 'hardBreak') {
-                  lastHardBreakPos = blockInfo.block.beforePos + pos + 2
-                }
-              })
-              // Stop execution and let other handlers be called if selection's to position is before the last hard break pos
-              if (lastHardBreakPos && state.selection.to <= lastHardBreakPos) return false
+              // When the current selection is a text cursor (not a whole-block
+              // NodeSelection), only step out to the neighbor once the cursor is
+              // on the last visual line of the block. endOfTextblock('down')
+              // accounts for soft-wrapped lines and code-block '\n' lines, which
+              // an explicit hardBreak scan would miss.
+              if (event.key === 'ArrowDown' && !(state.selection instanceof NodeSelection)) {
+                if (!view.endOfTextblock('down')) return false
+              }
               const nextBlockInfo = findNextBlock(view, state.selection.from)
               if (nextBlockInfo) {
                 const blockInfo = getBlockInfoFromSelection(state)
+                // On the last block, findNextBlock's out-of-range clamp can
+                // resolve back to the current block; don't re-select it and
+                // swallow the keypress.
+                if (nextBlockInfo.nextBlockPos === blockInfo.block.beforePos) return false
                 if (event.shiftKey) {
                   if (blockInfo.block.beforePos + 1 === state.selection.from) return false
                   if (event.key === 'ArrowRight') return false

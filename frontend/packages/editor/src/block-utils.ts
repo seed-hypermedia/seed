@@ -1,10 +1,46 @@
 import {HMBlockChildrenType} from '@seed-hypermedia/client/hm-types'
 import {Node} from '@tiptap/pm/model'
+import {NodeSelection} from 'prosemirror-state'
 import {EditorView} from '@tiptap/pm/view'
 import {BlockNoteEditor, getBlockInfoFromPos} from './blocknote'
 import {updateGroupCommand} from './blocknote/core/api/blockManipulation/commands/updateGroup'
 import {getNodeById} from './blocknote/core/api/util/nodeUtil'
 import {HMBlockSchema} from './schema'
+
+/**
+ * Put a NodeSelection on the block with the given id in the CURRENT editor
+ * document, then focus the view. Resolves the position fresh from the live
+ * doc so it is safe to call after transactions that moved/replaced content.
+ * Returns true if a matching block was found and selected.
+ */
+export function selectBlockNodeById(
+  editor: BlockNoteEditor<HMBlockSchema>,
+  blockId: string,
+  opts?: {
+    /**
+     * Focus the editor view after selecting (default). Pass false when the
+     * selection accompanies focus that must stay elsewhere — e.g. selecting
+     * a draft card because the user focused its title input.
+     */
+    focus?: boolean
+  },
+): boolean {
+  const view = editor._tiptapEditor?.view
+  const doc = view?.state?.doc
+  if (!view || !doc) return false
+  let found = false
+  doc.descendants((node: Node, pos: number) => {
+    if (found) return false
+    if (node.type.name === 'blockNode' && node.attrs?.id === blockId) {
+      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos + 1)))
+      found = true
+      return false
+    }
+    return true
+  })
+  if (found && opts?.focus !== false) view.focus()
+  return found
+}
 
 export function updateGroup(editor: BlockNoteEditor<HMBlockSchema>, block: any, listType: HMBlockChildrenType) {
   let {posBeforeNode} = getNodeById(block.id, editor._tiptapEditor.state.doc)

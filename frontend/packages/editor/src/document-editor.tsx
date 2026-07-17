@@ -16,7 +16,7 @@ import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {hmLinkTargetsDocument} from '@shm/shared/utils/document-card-cleanup'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
-import {Plugin, PluginKey, TextSelection} from 'prosemirror-state'
+import {NodeSelection as PMNodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BlockHoverActionsPositioner,
@@ -480,6 +480,34 @@ export function DocumentEditor({
           suppressChangeRef.current = false
         }
         lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
+        // When the document starts with a non-text block, ProseMirror's
+        // mandatory initial selection is a NodeSelection on it — which would
+        // show the block as user-selected the moment editing starts. Demote
+        // it to a cursor in the first text block (selection chrome derives
+        // from NodeSelections; a caret shows none). If the draft has NO text
+        // block at all (e.g. a single card), append an empty trailing
+        // paragraph to host the cursor — it also gives the user somewhere to
+        // type.
+        const view = editor._tiptapEditor?.view
+        if (view && view.state.selection instanceof PMNodeSelection && !view.hasFocus()) {
+          const textSelection = TextSelection.findFrom(view.state.doc.resolve(0), 1, true)
+          if (textSelection) {
+            view.dispatch(view.state.tr.setSelection(textSelection))
+          } else {
+            const lastBlock = editor.topLevelBlocks.at(-1)
+            if (lastBlock) {
+              suppressChangeRef.current = true
+              try {
+                editor.insertBlocks([{type: 'paragraph', content: ''}], lastBlock.id, 'after')
+              } finally {
+                suppressChangeRef.current = false
+              }
+              const insertedBlock = editor.topLevelBlocks.at(-1)
+              if (insertedBlock) editor.setTextCursorPosition(insertedBlock, 'start')
+              lastEditorContentKeyRef.current = JSON.stringify(editor.topLevelBlocks)
+            }
+          }
+        }
         actorRef.send({type: 'editor.baselineUpdate', blocks: editor.topLevelBlocks as any})
         actorRef.send({type: 'childDraftRefs.changed', draftIds: collectChildDraftIds(editor.topLevelBlocks)})
       },
@@ -636,12 +664,12 @@ export function DocumentEditor({
     }
   }, [onBlockSelect, onBlockCommentClick, isUnpublishedDraft, isBlockInPublishedVersion])
 
-  const isHoverActionBlockReferenceable = useCallback(
-    (blockId: string) => {
-      return !shouldRequirePublishForBlockAction({blockId, isUnpublishedDraft, isBlockInPublishedVersion})
-    },
-    [isUnpublishedDraft, isBlockInPublishedVersion],
-  )
+  // The block-tools card is visible for every selected/hovered block —
+  // including blocks that aren't published yet. Publish-gating happens at
+  // action time (fragmentActionsValue intercepts with PublishRequiredDialog),
+  // not by hiding the tools; hiding made tools-visibility inconsistent
+  // between draft-only and published blocks.
+  const hoverActionAlwaysReferenceable = useCallback(() => true, [])
 
   // Memo so the FormattingToolbarPositioner doesn't rebuild its React
   // tree on every parent render. An inline arrow here was causing
@@ -679,12 +707,10 @@ export function DocumentEditor({
           {(onBlockSelect || onBlockCommentClick) && (
             <BlockHoverActionsPositioner
               editor={editor}
-              isBlockReferenceable={isHoverActionBlockReferenceable}
+              isBlockReferenceable={hoverActionAlwaysReferenceable}
               getCommentCount={(blockId) => blockCitations?.[blockId]?.comments}
-              onCopyBlockLink={onBlockSelect ? (blockId) => onBlockSelect(blockId, {copyToClipboard: true}) : undefined}
-              onStartComment={
-                onBlockCommentClick ? (blockId) => onBlockCommentClick(blockId, undefined, true) : undefined
-              }
+              onCopyBlockLink={fragmentActionsValue?.onCopyBlockLink}
+              onStartComment={fragmentActionsValue?.onCommentOnBlock}
             />
           )}
           {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}

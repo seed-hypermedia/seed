@@ -51,6 +51,7 @@ import {
 } from 'react'
 import {createPortal} from 'react-dom'
 import {BlockSelectionWrapper, isBlockSelected, useIsBlockSelected} from './block-selection-wrapper'
+import {selectBlockNodeById} from './block-utils'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
@@ -78,7 +79,12 @@ export const EmbedBlock = createReactBlockSpec({
       default: '',
     },
   },
-  containsInlineContent: true,
+  // No inline content is ever rendered for this block: a leaf node (like
+  // query) lets browsers represent its NodeSelection cleanly instead of
+  // bouncing the DOM selection into phantom editable positions, and removes
+  // the invisible-content merge/caret traps.
+  containsInlineContent: false,
+  selectable: true,
 
   render: ({block, editor}: {block: Block<HMBlockSchema>; editor: BlockNoteEditor<HMBlockSchema>}) =>
     Render(block, editor),
@@ -228,7 +234,14 @@ function DraftEmbedPlaceholder({
             onPointerDownCapture={stopEditorPropagation}
             onClickCapture={stopEditorPropagation}
             onPasteCapture={stopEditorPropagation}
-            onFocus={stopEditorPropagation}
+            onFocus={(e) => {
+              stopEditorPropagation(e)
+              // Editing the title means working with this card: select it,
+              // but keep DOM focus in the input.
+              if (editor.isEditable && !isBlockSelected(editor, blockId)) {
+                selectBlockNodeById(editor, blockId, {focus: false})
+              }
+            }}
             onCompositionStartCapture={stopEditorPropagation}
             onCompositionUpdateCapture={stopEditorPropagation}
             onCompositionEndCapture={stopEditorPropagation}
@@ -408,7 +421,9 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       {block.props.url && (
         <EditorEmbedContent
           openOnClick={!canEdit || !isEditing}
-          titleLinkOnly={canEdit && !isEditing}
+          // Card titles navigate on first click (with hover underline) even
+          // while editing — select-then-open applies to the card BODY only.
+          titleLinkOnly={canEdit}
           parentBlockId={block.props.parentBlockId || null}
           hideInlineActions={isEditing && isAtomicEmbedView}
           block={{

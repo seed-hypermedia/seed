@@ -280,12 +280,12 @@ describe('EmbedBlock card navigation mode', () => {
     expect(container.querySelector('[aria-label="Subdocument options"]')).toBeNull()
   })
 
-  it('disables title-only navigation while editing so the first click can select the block', () => {
+  it('keeps title-link navigation while editing: the title opens on first click, the body selects', () => {
     renderEmbedBlock({canEdit: true, isEditing: true, view: 'Card'})
 
     const card = container.querySelector('[data-testid="block-embed-card"]') as HTMLElement | null
     expect(card).toBeTruthy()
-    expect(card?.dataset.titleLinkOnly).toBe('false')
+    expect(card?.dataset.titleLinkOnly).toBe('true')
     expect(card?.dataset.openOnClick).toBe('false')
     expect(card?.dataset.hideInlineActions).toBe('true')
   })

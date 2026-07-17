@@ -137,7 +137,14 @@ const mockUniversalClient = {
 }
 
 // Editor initial content fixtures for link tests
-type FixtureName = 'empty' | 'withExternalLink' | 'withHmLink' | 'withEmbed' | 'withTwoEmbeds' | 'draftAndPublished'
+type FixtureName =
+  | 'empty'
+  | 'withExternalLink'
+  | 'withHmLink'
+  | 'withEmbed'
+  | 'withTwoEmbeds'
+  | 'draftAndPublished'
+  | 'allBlocks'
 
 const text = (text: string) =>
   ({
@@ -204,6 +211,78 @@ const fixtures: Record<FixtureName, Block<HMBlockSchema>[]> = {
     embed('embed-pub', 'hm://bafy-doc-uid/Root', 'Card'),
     p('p-bottom', [text('Below the cards')]),
   ],
+
+  // One block of every selectable node type (selectable-node-types.ts) plus
+  // text blocks, for the cross-block-type selection-consistency suite.
+  // A tiny 1x1 gif data URL keeps the image offline-renderable.
+  allBlocks: [
+    p('p-top', [text('First paragraph')]),
+    {
+      id: 'blk-image',
+      type: 'image',
+      props: {url: 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', name: ''},
+      content: [text('the caption')],
+      children: [],
+    } as any,
+    {
+      id: 'blk-video',
+      type: 'video',
+      props: {url: '', name: ''},
+      content: [],
+      children: [],
+    } as any,
+    {
+      id: 'blk-file',
+      type: 'file',
+      props: {url: 'ipfs://bafyfilefixture', name: 'notes.txt', size: '123'},
+      content: [],
+      children: [],
+    } as any,
+    embed('blk-embed', 'hm://bafy-doc-uid/Root', 'Card'),
+    {
+      id: 'blk-draft',
+      type: 'embed',
+      props: {url: '', view: 'Content', draftId: 'draft-2'},
+      content: [],
+      children: [],
+    } as any,
+    {
+      id: 'blk-web',
+      type: 'web-embed',
+      props: {url: 'https://x.com/seed/status/1'},
+      content: [],
+      children: [],
+    } as any,
+    {
+      id: 'blk-button',
+      type: 'button',
+      props: {url: 'hm://bafy-doc-uid/Root', name: 'Click me', alignment: 'center'},
+      content: [],
+      children: [],
+    } as any,
+    {
+      id: 'blk-math',
+      type: 'math',
+      props: {},
+      content: [text('x^2 + y^2 = z^2')],
+      children: [],
+    } as any,
+    {
+      id: 'blk-query',
+      type: 'query',
+      props: {
+        style: 'Card',
+        columnCount: '1',
+        queryLimit: '',
+        queryIncludes: JSON.stringify([{space: 'bafy-doc-uid', path: '', mode: 'Children'}]),
+        querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+        banner: 'false',
+      },
+      content: [],
+      children: [],
+    } as any,
+    p('p-bottom', [text('Last paragraph')]),
+  ],
 }
 
 function getFixtureFromUrl(): FixtureName {
@@ -224,10 +303,14 @@ declare global {
       focus: () => void
       /** Raw ProseMirror selection summary. */
       pmSelection: () => {kind: string; from: number; to: number; nodeType: string | null; blockId: string | null}
-      /** Block id the SideMenu (block tools) is currently showing for, or null if hidden. */
+      /** Block id the SideMenu (drag handle) is currently showing for, or null if hidden. */
       blockToolsBlockId: () => string | null
+      /** Block id the hover-actions card (copy-link + comment block tools) is anchored to, or null if hidden. */
+      hoverActionsBlockId: () => string | null
       /** Block ids the FullBlockSelection plugin considers fully selected (the block-tools source). */
       fullBlockIds: () => string[]
+      /** Block ids currently showing the blue selection outline in the DOM. */
+      outlinedBlockIds: () => string[]
     }
   }
 }
@@ -257,7 +340,17 @@ function buildTestEditorApi(editor: any) {
       const s = editor._tiptapEditor.state.selection as any
       let blockId: string | null = null
       try {
-        blockId = editor._tiptapEditor.state.doc.resolve(s.from).parent?.attrs?.id ?? null
+        // Nearest containing blockNode id (works for text carets and
+        // NodeSelections alike).
+        const $pos = editor._tiptapEditor.state.doc.resolve(s.from)
+        for (let d = $pos.depth; d >= 0; d--) {
+          const n = $pos.node(d)
+          if (n.type?.name === 'blockNode' && n.attrs?.id) {
+            blockId = n.attrs.id
+            break
+          }
+        }
+        if (!blockId) blockId = $pos.parent?.attrs?.id ?? null
       } catch {}
       return {
         kind: s.node ? 'NodeSelection' : s.empty ? 'TextSelection(empty)' : s.constructor?.name ?? 'unknown',
@@ -286,9 +379,37 @@ function buildTestEditorApi(editor: any) {
       })
       return best && (best as any).dist < 60 ? (best as any).id : null
     },
+    // Which block the RENDERED hover-actions card (copy-link + comment) is
+    // anchored to, derived purely from visible DOM geometry: the card is
+    // top-aligned with its block's content element and placed just right of it.
+    hoverActionsBlockId: () => {
+      const card = document.querySelector('[data-bn-block-hover-actions="true"]') as HTMLElement | null
+      if (!card) return null
+      const cardRect = card.getBoundingClientRect()
+      if (cardRect.width === 0 || cardRect.height === 0) return null
+      let best: {id: string; score: number} | null = null
+      document.querySelectorAll('[data-node-type="blockNode"][data-id]').forEach((el) => {
+        // Mirror the plugin's findDirectContentElement: direct child or one
+        // wrapper level down.
+        const content = el.querySelector(
+          ':scope > [data-content-type], :scope > :not([data-node-type="blockChildren"]) > [data-content-type]',
+        )
+        const r = (content ?? el).getBoundingClientRect()
+        if (r.height === 0) return
+        const score = Math.abs(r.top - cardRect.top) + Math.abs(r.right + 8 - cardRect.left)
+        const id = el.getAttribute('data-id')!
+        if (!best || score < best.score) best = {id, score}
+      })
+      return best && (best as any).score < 60 ? (best as any).id : null
+    },
     fullBlockIds: () => {
       const st = fullBlockSelectionPluginKey.getState(editor._tiptapEditor.state)
       return st?.blockIds ?? []
+    },
+    outlinedBlockIds: () => {
+      return Array.from(document.querySelectorAll('.bn-media-selected'))
+        .map((el) => el.closest('[data-node-type="blockNode"][data-id]')?.getAttribute('data-id'))
+        .filter((id): id is string => !!id)
     },
   }
 }
@@ -331,8 +452,14 @@ function RealModeInner({fixtureName}: {fixtureName: FixtureName}) {
   }, [actorRef])
 
   // Optional saved-draft cursor position, to exercise the edit-start placeCursor path.
-  const cursorParam = new URLSearchParams(window.location.search).get('cursor')
+  const sp = new URLSearchParams(window.location.search)
+  const cursorParam = sp.get('cursor')
   const draftCursorPosition = cursorParam ? Number(cursorParam) : undefined
+
+  // `?published=none` marks every block as draft-only, so block-tool actions
+  // hit the publish-required interception. Default: everything published.
+  const publishedParam = sp.get('published') ?? 'all'
+  const isBlockInPublishedVersion = publishedParam === 'none' ? () => false : () => true
 
   return (
     <div className="test-harness" data-testid="editor-harness">
@@ -342,11 +469,25 @@ function RealModeInner({fixtureName}: {fixtureName: FixtureName}) {
           resourceId={editModeId}
           onEditorReady={setEditor}
           draftCursorPosition={draftCursorPosition}
+          isUnpublishedDraft={publishedParam === 'none'}
+          isBlockInPublishedVersion={isBlockInPublishedVersion}
+          onBlockSelect={(blockId: string, opts: any) => {
+            blockToolCalls.copyLink.push({blockId, opts})
+          }}
+          onBlockCommentClick={(blockId?: string | null, range?: any, startNew?: boolean) => {
+            blockToolCalls.comment.push({blockId, range, startNew})
+          }}
         />
       </div>
     </div>
   )
 }
+
+// Recording block-tool callbacks: mounting these makes DocumentEditor render
+// the REAL BlockHoverActionsPositioner (copy-link + comment card), exactly
+// like desktop resource-page-common does.
+const blockToolCalls: {copyLink: any[]; comment: any[]} = {copyLink: [], comment: []}
+;(window as any).TEST_BLOCK_TOOL_CALLS = blockToolCalls
 
 // Recording DraftActions mock: lets DraftEmbedPlaceholder (draft cards) render
 // like on desktop, and records navigation calls for tests to assert on.

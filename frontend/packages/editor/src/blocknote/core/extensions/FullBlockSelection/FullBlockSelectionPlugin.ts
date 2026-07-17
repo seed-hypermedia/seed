@@ -1,4 +1,4 @@
-import {EditorState, NodeSelection, Plugin, PluginKey, PluginView, TextSelection} from 'prosemirror-state'
+import {AllSelection, EditorState, NodeSelection, Plugin, PluginKey, PluginView, TextSelection} from 'prosemirror-state'
 import {Decoration, DecorationSet, EditorView} from 'prosemirror-view'
 import {Node} from 'prosemirror-model'
 
@@ -35,6 +35,13 @@ type PluginState = {
 export const fullBlockSelectionPluginKey = new PluginKey<PluginState>('FullBlockSelectionPlugin')
 
 const DECORATION_CLASS = 'bn-full-block-selected'
+
+/**
+ * Window after a user press on an editable target during which the
+ * NodeSelection-protection machinery (focus recovery, echo restore) stands
+ * down — the user is deliberately placing a text selection.
+ */
+const RECENT_INTERACTION_MS = 500
 
 /**
  * Detect which blocks have their entire text content covered by the current
@@ -109,16 +116,21 @@ function detectFullySelectedBlocks(state: EditorState): string[] {
     return fullySelected
   }
 
-  // AllSelection or unknown: walk the entire doc.
-  state.doc.descendants((node) => {
-    if (node.type.name === 'blockNode') {
-      const id = node.attrs['id'] as string | undefined
-      if (id) fullySelected.push(id)
-      return false // don't collect nested blocks inside this blockNode
-    }
-    return true
-  })
+  // AllSelection: every top-level block is fully selected.
+  if (selection instanceof AllSelection) {
+    state.doc.descendants((node) => {
+      if (node.type.name === 'blockNode') {
+        const id = node.attrs['id'] as string | undefined
+        if (id) fullySelected.push(id)
+        return false // don't collect nested blocks inside this blockNode
+      }
+      return true
+    })
+    return fullySelected
+  }
 
+  // Other selection shapes (e.g. CellSelection inside a table) don't fully
+  // select any block.
   return fullySelected
 }
 
@@ -207,13 +219,70 @@ function arraysEqual(a: string[], b: string[]): boolean {
  */
 class FullBlockSelectionView implements PluginView {
   private prevBlockIds: string[] = []
+  private prevSelection: EditorState['selection'] | null = null
 
   constructor(
     private readonly pmView: EditorView,
     private readonly onUpdate: (state: FullBlockSelectionState) => void,
-  ) {}
+    private readonly interaction: {editableAt: number},
+  ) {
+    this.pmView.dom.ownerDocument.addEventListener('selectionchange', this.onDocumentSelectionChange)
+    this.pmView.dom.ownerDocument.addEventListener('focusin', this.onDocumentSelectionChange)
+  }
+
+  /**
+   * While a block is node-selected, browsers can bounce the drawn DOM
+   * selection into a nested editable island (e.g. an image caption), moving
+   * DOM focus there. Keyboard events then stop reaching the editor and the
+   * selected block appears "stuck". Pull focus back to the editor root —
+   * but ONLY out of a nested contentEditable island the browser bounced
+   * into on its own: never within RECENT_INTERACTION_MS of a user press on
+   * an editable target (that's the user clicking the caption to edit it),
+   * and never from real controls (buttons, inputs — not contentEditable).
+   */
+  private onDocumentSelectionChange = () => {
+    const view = this.pmView
+    if (!view.editable || !(view.state.selection instanceof NodeSelection)) return
+    if (view.hasFocus()) return
+    if (Date.now() - this.interaction.editableAt < RECENT_INTERACTION_MS) return
+    const active = view.dom.ownerDocument.activeElement
+    if (!active || !view.dom.contains(active)) return
+    if (!(active instanceof HTMLElement) || !active.isContentEditable)
+      return // Focus the editor root directly — view.focus() would redraw the
+      // unrepresentable DOM range and bounce focus right back. With no DOM
+      // range at all there is nothing for the browser to normalize; the state
+      // selection stays authoritative (observer reads are suppressed above).
+    ;(view.dom as HTMLElement).focus({preventScroll: true})
+    const domSelection = view.dom.ownerDocument.getSelection()
+    domSelection?.removeAllRanges()
+  }
 
   update(view: EditorView) {
+    // While a NodeSelection is active, suppress the DOM observer's selection
+    // reads. ProseMirror draws a DOM selection spanning the node; browsers
+    // bounce it off contentEditable=false node views back to some text
+    // position (often asynchronously, after React re-renders), firing
+    // selectionchange events that would silently replace the block selection
+    // with a stray text cursor. While suppressed, ProseMirror re-asserts the
+    // state selection instead of reading the browser's. Real user actions
+    // (mouse, keyboard) go through event handlers, not the observer, so they
+    // still change the selection normally — and unsuppress it here.
+    // Only toggle the flag on NodeSelection transitions so ProseMirror's own
+    // short suppression windows (e.g. its Android-Chrome backspace
+    // workaround) survive unrelated text-editing transactions.
+    const selection = view.state.selection
+    const isNode = selection instanceof NodeSelection
+    const wasNode = this.prevSelection instanceof NodeSelection
+    const domObserver = (view as any).domObserver
+    if (domObserver && 'suppressingSelectionUpdates' in domObserver) {
+      if (isNode) {
+        domObserver.suppressingSelectionUpdates = true
+      } else if (wasNode) {
+        domObserver.suppressingSelectionUpdates = false
+      }
+    }
+    this.prevSelection = selection
+
     const pluginState = fullBlockSelectionPluginKey.getState(view.state)
     if (!pluginState) return
 
@@ -225,6 +294,8 @@ class FullBlockSelectionView implements PluginView {
   }
 
   destroy() {
+    this.pmView.dom.ownerDocument.removeEventListener('selectionchange', this.onDocumentSelectionChange)
+    this.pmView.dom.ownerDocument.removeEventListener('focusin', this.onDocumentSelectionChange)
     // Emit empty state on teardown so subscribers can clean up.
     if (this.prevBlockIds.length > 0) {
       this.onUpdate({blockIds: []})
@@ -253,6 +324,40 @@ export class FullBlockSelectionProsemirrorPlugin<
 
   constructor(_editor: BlockNoteEditor<BSchema>) {
     super()
+
+    // Timestamp of the last user press on an editable target, shared between
+    // the DOM handlers and the plugin view: it marks "the user is placing a
+    // text selection right now", so the NodeSelection-protection machinery
+    // (focus recovery, echo restore) must stand down.
+    const interaction = {editableAt: 0}
+
+    // Lift the observer suppression when the user presses down in an
+    // editable text area (mouse AND touch/pen via pointerdown, which fires
+    // before long-press text selection on mobile); presses on non-editable
+    // block chrome keep it, so the post-dispatch bounce stays contained.
+    const liftSuppressionForEditableTarget = (view: EditorView, event: Event) => {
+      if (!(view.state.selection instanceof NodeSelection)) return false
+      let el: Element | null = event.target instanceof Element ? event.target : null
+      let editableTarget = false
+      while (el && el !== view.dom) {
+        const ce = el.getAttribute?.('contenteditable')
+        if (ce === 'true') {
+          editableTarget = true
+          break
+        }
+        if (ce === 'false') break
+        el = el.parentElement
+      }
+      if (el === view.dom) editableTarget = true
+      if (editableTarget) {
+        interaction.editableAt = Date.now()
+        const domObserver = (view as any).domObserver
+        if (domObserver && 'suppressingSelectionUpdates' in domObserver) {
+          domObserver.suppressingSelectionUpdates = false
+        }
+      }
+      return false
+    }
 
     this.plugin = new Plugin<PluginState>({
       key: fullBlockSelectionPluginKey,
@@ -291,12 +396,66 @@ export class FullBlockSelectionProsemirrorPlugin<
         decorations(state) {
           return fullBlockSelectionPluginKey.getState(state)?.decorations ?? DecorationSet.empty
         },
+
+        handleDOMEvents: {
+          // While a NodeSelection is active the DOM observer's selection
+          // reads are suppressed (see FullBlockSelectionView.update). Plain
+          // text clicks and mobile long-press selection rely on that observer
+          // path: the browser places the caret/range and ProseMirror reads it
+          // back. Lift the suppression for presses on editable text.
+          mousedown: liftSuppressionForEditableTarget,
+          pointerdown: liftSuppressionForEditableTarget,
+        },
+      },
+
+      // Keep NodeSelections stable against the DOM-observer echo: after we
+      // node-select a block whose node view renders a contentDOM (e.g. an
+      // image with its caption), the browser normalizes the drawn DOM
+      // selection into that contentDOM and ProseMirror's DOMObserver reads it
+      // back as a TextSelection exactly covering the node's inline content —
+      // silently downgrading the block selection. Detect that precise shape
+      // (selection-only change, same node, full coverage) and restore the
+      // NodeSelection. Genuine user selections never match it: clicks produce
+      // carets and drags produce ranges that don't exactly equal the node
+      // boundaries of a previously node-selected block.
+      appendTransaction(transactions, oldState, newState) {
+        if (!(oldState.selection instanceof NodeSelection)) return null
+        if (newState.selection instanceof NodeSelection) return null
+        if (!(newState.selection instanceof TextSelection)) return null
+        if (!transactions.some((tr) => tr.selectionSet)) return null
+
+        // Never fight user-driven selection changes: pointer/uiEvent/
+        // composition-tagged transactions, or anything right after a press on
+        // an editable target (e.g. a click into an EMPTY image caption, whose
+        // caret position coincides with "full coverage" below).
+        if (transactions.some((tr) => tr.getMeta('pointer') || tr.getMeta('uiEvent') || tr.getMeta('composition'))) {
+          return null
+        }
+        if (Date.now() - interaction.editableAt < RECENT_INTERACTION_MS) return null
+
+        const {from} = oldState.selection
+        const node = oldState.selection.node
+        const coversExactly = newState.selection.from === from + 1 && newState.selection.to === from + node.nodeSize - 1
+        if (!coversExactly) return null
+
+        // The echo can arrive as a doc-"changing" transaction (node-view
+        // re-renders get re-parsed), so don't gate on tr.docChanged — require
+        // instead that the node at the selection position is still the same
+        // block content.
+        const nodeAtPos = newState.doc.nodeAt(from)
+        if (!nodeAtPos || !nodeAtPos.eq(node)) return null
+
+        return newState.tr.setSelection(NodeSelection.create(newState.doc, from))
       },
 
       view: (editorView) => {
-        return new FullBlockSelectionView(editorView, (state) => {
-          this.emit('update', state)
-        })
+        return new FullBlockSelectionView(
+          editorView,
+          (state) => {
+            this.emit('update', state)
+          },
+          interaction,
+        )
       },
     })
   }

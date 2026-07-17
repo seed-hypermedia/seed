@@ -71,13 +71,10 @@ export function HypermediaLinkPreview(
       const node = schema.nodes.button.create({url: props.url, name: title})
       insertNode(props.editor, props.id, props.url, props.text, props.type, node)
     } else if (type === 'embed' || type === 'card' || type === 'comments' || type === 'embed-link') {
-      const node = schema.nodes.embed.create(
-        {
-          url: props.url,
-          view: type === 'embed' ? 'Content' : type === 'card' ? 'Card' : type === 'embed-link' ? 'Link' : 'Comments',
-        },
-        schema.text(' '),
-      )
+      const node = schema.nodes.embed.create({
+        url: props.url,
+        view: type === 'embed' ? 'Content' : type === 'card' ? 'Card' : type === 'embed-link' ? 'Link' : 'Comments',
+      })
       insertNode(props.editor, props.id, props.url, props.text, props.type, node)
     }
 
@@ -167,7 +164,7 @@ export function transformEmbedNode(
   } else if (toType === 'button') {
     node = schema.nodes.button.create({url, name: fallbackTitle || url})
   } else {
-    node = schema.nodes.embed.create({url, view: toType === 'card' ? 'Card' : 'Content'}, schema.text(' '))
+    node = schema.nodes.embed.create({url, view: toType === 'card' ? 'Card' : 'Content'})
   }
   insertNode(editor, selectedId, url, '', 'embed', node)
 }

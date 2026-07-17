@@ -5,6 +5,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
@@ -33,7 +34,6 @@ export const MathBlock = (type: 'math') =>
   })
 
 const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) => {
-  const [selected, setSelected] = useState(false)
   const [opened, setOpened] = useState(false)
   const mathRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -41,21 +41,22 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const selection = tiptapEditor.state.selection
   const containerRef = useRef<HTMLDivElement>(null)
   const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] = useState(true)
+  // Snapshot at mousedown whether the block was already node-selected. PM's
+  // handleClickOn selects the block on mouseup (before this React click), so
+  // the first click is select-only and only a click on an already-selected
+  // math block opens the LaTeX editor.
+  const wasSelectedAtMouseDown = useRef(false)
 
   const commentStyle = editor.renderType === 'comment'
 
+  // Close the LaTeX editor when the selection moves off this block.
   useEffect(() => {
+    if (!opened) return
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
-    if (selectedNode && selectedNode.block.node.attrs.id) {
-      if (selectedNode.block.node.attrs.id === block.id && selectedNode.block.beforePos + 1 === selection.$anchor.pos) {
-        setSelected(true)
-        setOpened(true)
-      } else if (selectedNode.block.node.attrs.id !== block.id) {
-        setSelected(false)
-        setOpened(false)
-      }
+    if (selectedNode?.block.node.attrs.id !== block.id) {
+      setOpened(false)
     }
-  }, [selection, block.id])
+  }, [selection, block.id, opened])
 
   useEffect(() => {
     if (mathRef.current) {
@@ -180,128 +181,131 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [measureContentAndContainer])
 
   return (
-    <div
-      contentEditable={false}
-      className={cn(
-        block.type,
-        'flex w-full flex-col overflow-hidden rounded-md border-2 transition-colors',
-        selected
-          ? 'border-foreground/20 dark:border-foreground/30 bg-muted'
-          : commentStyle
-            ? 'border-border bg-black/5 dark:bg-white/10'
-            : 'bg-muted border-border',
-        'hover:bg-black/3 dark:hover:bg-white/3',
-      )}
+    <BlockSelectionWrapper
+      editor={editor}
+      block={block}
+      selectOnMouseDown
+      // The wrapper's capture-phase handler selects the block BEFORE this
+      // component's own mousedown fires, so the was-selected snapshot must
+      // come from the wrapper (pre-dispatch), not from a local handler.
+      onSelectMouseDown={(wasSelected) => {
+        wasSelectedAtMouseDown.current = wasSelected
+      }}
     >
       <div
-        ref={containerRef}
-        onClick={() => {
-          if (selected && !opened && editor.isEditable) {
-            const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
-            if (
-              selectedNode?.block.node.attrs.id === block.id &&
-              selectedNode.block.beforePos + 1 === selection.$anchor.pos
-            ) {
-              setSelected(true)
-              setOpened(true)
-            }
-          }
-        }}
+        contentEditable={false}
         className={cn(
-          'relative flex min-h-7 w-full flex-col px-3 py-[10px] select-none',
-          isContentSmallerThanContainer ? 'items-center overflow-hidden' : 'items-start overflow-scroll',
+          block.type,
+          'flex w-full flex-col overflow-hidden rounded-md border-2 transition-colors',
+          commentStyle ? 'border-border bg-black/5 dark:bg-white/10' : 'bg-muted border-border',
+          'hover:bg-black/3 dark:hover:bg-white/3',
         )}
       >
-        <p ref={mathRef} className="text-base select-none" />
-      </div>
-      {opened && editor.isEditable && (
-        <div className="flex flex-col">
-          <Separator />
-          <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">
-            <Textarea
-              ref={inputRef}
-              onBlur={() => setOpened(false)}
-              onKeyDown={(e) => {
-                const key = e.key
-
-                if (key === 'ArrowUp') {
-                  e.preventDefault()
-                  const {state, view} = tiptapEditor
-                  const prevBlockInfo = findPreviousBlock(view, state.selection.from)
-
-                  if (prevBlockInfo) {
-                    const {prevBlock, prevBlockPos} = prevBlockInfo
-                    const prevNode = prevBlock.firstChild!
-                    const prevNodePos = prevBlockPos + 1
-
-                    if (selectableNodeTypes.includes(prevNode.type.name)) {
-                      const selection = NodeSelection.create(state.doc, prevNodePos)
-                      view.dispatch(state.tr.setSelection(selection))
-                    } else {
-                      editor.setTextCursorPosition(editor.getTextCursorPosition().prevBlock!, 'end')
-                    }
-
-                    view.focus()
-                    setOpened(false)
-                  }
-                } else if (key === 'ArrowDown') {
-                  e.preventDefault()
-                  const {state, view} = tiptapEditor
-                  const nextBlockInfo = findNextBlock(view, state.selection.from)
-
-                  if (nextBlockInfo) {
-                    const {nextBlock, nextBlockPos} = nextBlockInfo
-                    const nextNode = nextBlock.firstChild!
-                    const nextNodePos = nextBlockPos + 1
-
-                    if (selectableNodeTypes.includes(nextNode.type.name)) {
-                      const selection = NodeSelection.create(state.doc, nextNodePos)
-                      view.dispatch(state.tr.setSelection(selection))
-                    } else {
-                      editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
-                    }
-
-                    view.focus()
-                    setOpened(false)
-                  }
-                } else if (key === 'Backspace') {
-                  const blockInfo = getBlockInfoFromSelection(tiptapEditor.state)
-                  if (blockInfo.block.node.attrs.id === block.id && !blockInfo.blockContent.node.textContent.length) {
-                    const {state, view} = tiptapEditor
-                    view.dispatch(state.tr.delete(blockInfo.block.beforePos + 1, blockInfo.block.afterPos - 1))
-                    editor.focus()
-                  }
-                }
-              }}
-              placeholder="E = mc^2"
-              // @ts-expect-error
-              value={block.content[0]?.text ?? ''}
-              onChange={(e) => {
-                const newText = e.target.value
-                // @ts-expect-error
-                if (newText !== block.content?.[0]?.text) {
-                  editor.updateBlock(
-                    block,
-                    // @ts-ignore
-                    {
-                      ...block,
-                      content: [
-                        {
-                          type: 'text',
-                          text: newText,
-                          styles: {},
-                        },
-                      ],
-                    },
-                    true,
-                  )
-                }
-              }}
-              className="w-full"
-            />
-          </div>
+        <div
+          ref={containerRef}
+          onClick={() => {
+            // First click selects (PM handleClickOn makes the NodeSelection);
+            // a click on an already-selected block opens the LaTeX editor.
+            if (editor.isEditable && !opened && wasSelectedAtMouseDown.current) {
+              setOpened(true)
+            }
+          }}
+          className={cn(
+            'relative flex min-h-7 w-full flex-col px-3 py-[10px] select-none',
+            isContentSmallerThanContainer ? 'items-center overflow-hidden' : 'items-start overflow-scroll',
+          )}
+        >
+          <p ref={mathRef} className="text-base select-none" />
         </div>
-      )}
-    </div>
+        {opened && editor.isEditable && (
+          <div className="flex flex-col">
+            <Separator />
+            <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">
+              <Textarea
+                ref={inputRef}
+                onBlur={() => setOpened(false)}
+                onKeyDown={(e) => {
+                  const key = e.key
+
+                  if (key === 'ArrowUp') {
+                    e.preventDefault()
+                    const {state, view} = tiptapEditor
+                    const prevBlockInfo = findPreviousBlock(view, state.selection.from)
+
+                    if (prevBlockInfo) {
+                      const {prevBlock, prevBlockPos} = prevBlockInfo
+                      const prevNode = prevBlock.firstChild!
+                      const prevNodePos = prevBlockPos + 1
+
+                      if (selectableNodeTypes.includes(prevNode.type.name)) {
+                        const selection = NodeSelection.create(state.doc, prevNodePos)
+                        view.dispatch(state.tr.setSelection(selection))
+                      } else {
+                        editor.setTextCursorPosition(editor.getTextCursorPosition().prevBlock!, 'end')
+                      }
+
+                      view.focus()
+                      setOpened(false)
+                    }
+                  } else if (key === 'ArrowDown') {
+                    e.preventDefault()
+                    const {state, view} = tiptapEditor
+                    const nextBlockInfo = findNextBlock(view, state.selection.from)
+
+                    if (nextBlockInfo) {
+                      const {nextBlock, nextBlockPos} = nextBlockInfo
+                      const nextNode = nextBlock.firstChild!
+                      const nextNodePos = nextBlockPos + 1
+
+                      if (selectableNodeTypes.includes(nextNode.type.name)) {
+                        const selection = NodeSelection.create(state.doc, nextNodePos)
+                        view.dispatch(state.tr.setSelection(selection))
+                      } else {
+                        editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock!, 'start')
+                      }
+
+                      view.focus()
+                      setOpened(false)
+                    }
+                  } else if (key === 'Backspace') {
+                    const blockInfo = getBlockInfoFromSelection(tiptapEditor.state)
+                    if (blockInfo.block.node.attrs.id === block.id && !blockInfo.blockContent.node.textContent.length) {
+                      const {state, view} = tiptapEditor
+                      view.dispatch(state.tr.delete(blockInfo.block.beforePos + 1, blockInfo.block.afterPos - 1))
+                      editor.focus()
+                    }
+                  }
+                }}
+                placeholder="E = mc^2"
+                // @ts-expect-error
+                value={block.content[0]?.text ?? ''}
+                onChange={(e) => {
+                  const newText = e.target.value
+                  // @ts-expect-error
+                  if (newText !== block.content?.[0]?.text) {
+                    editor.updateBlock(
+                      block,
+                      // @ts-ignore
+                      {
+                        ...block,
+                        content: [
+                          {
+                            type: 'text',
+                            text: newText,
+                            styles: {},
+                          },
+                        ],
+                      },
+                      true,
+                    )
+                  }
+                }}
+                className="w-full"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </BlockSelectionWrapper>
   )
 }

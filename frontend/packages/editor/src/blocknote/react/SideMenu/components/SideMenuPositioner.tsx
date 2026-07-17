@@ -1,10 +1,9 @@
 import {Block, BlockNoteEditor, BlockSchema, DefaultBlockSchema, SideMenuProsemirrorPlugin} from '../../../core'
 import {getGroupInfoFromPos} from '../../../core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {fullBlockSelectionPluginKey} from '../../../core/extensions/FullBlockSelection/FullBlockSelectionPlugin'
-import {useHideOnDocumentScroll} from '@shm/shared/models/use-document-machine'
 import Tippy from '@tippyjs/react'
 import type {Node as PMNode} from 'prosemirror-model'
-import {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {FC, useEffect, useMemo, useRef, useState} from 'react'
 import {DefaultSideMenu} from './DefaultSideMenu'
 import {DragHandleMenuProps} from './DragHandleMenu/DragHandleMenu'
 import {DropIndicator} from './DropIndicator'
@@ -75,32 +74,29 @@ export const SideMenuPositioner = <BSchema extends BlockSchema = DefaultBlockSch
     return unsubscribe
   }, [props.editor])
 
-  const handleHide = useCallback(() => {
-    props.editor.sideMenu!.unfreezeMenu()
-    setShow(false)
-  }, [props.editor])
-
-  useHideOnDocumentScroll(handleHide)
-
-  useEffect(() => {
-    window.addEventListener('resize', handleHide)
-    return () => {
-      window.removeEventListener('resize', handleHide)
-    }
-  }, [handleHide])
-
   const getReferenceClientRect = useMemo(
     () => {
-      if (!referencePos.current) {
+      if (!referencePos.current || !block) {
         return undefined
       }
 
-      const ref = referencePos.current
-      // Return a rect covering only the first line of the block so Tippy
-      // centers the side menu button at the top of the block, not its vertical center.
-      const lhValue = parseInt(lh, 10) || 24
-      const firstLineHeight = lhValue + 6 // include blockContent padding (3px top + 3px bottom)
-      return () => new DOMRect(ref.x, ref.y, ref.width, firstLineHeight)
+      const blockId = block.id
+      const editor = props.editor
+      // Read the block's CURRENT rect lazily on every popper computation, so
+      // the menu follows the block through scrolls and layout changes (popper
+      // re-invokes this on ancestor scroll/resize). Visibility stays purely a
+      // function of the selection state — scrolling never hides the menu.
+      return () => {
+        const view = editor._tiptapEditor?.view
+        const blockEl = view?.dom.querySelector(`[data-id="${blockId}"]`) as HTMLElement | null
+        const blockContent = blockEl?.firstChild instanceof HTMLElement ? blockEl.firstChild : null
+        const rect = blockContent?.getBoundingClientRect() ?? referencePos.current!
+        // Cover only the first line of the block so Tippy centers the side
+        // menu button at the top of the block, not its vertical center.
+        const lhValue = parseInt(lh, 10) || 24
+        const firstLineHeight = lhValue + 6 // include blockContent padding (3px top + 3px bottom)
+        return new DOMRect(rect.x, rect.y, rect.width, firstLineHeight)
+      }
     },
     // `block` is a dependency so Tippy repositions when the selection moves to
     // a different block (a new callback identity forces popper to recompute).
