@@ -264,52 +264,66 @@ export function useHideOnDocumentScroll(onScroll: () => void) {
   }, [actorRef])
 }
 
+export type DocumentSyncAction = 'loaded' | 'remoteUpdate' | 'skip'
+
+/**
+ * Decide how a newly-resolved document version should sync into the machine.
+ *
+ * Skips a version we've already seen and moved past — i.e. a document that
+ * reverts to an earlier version. This guards against the post-publish race on
+ * web: `invalidateAfterPublish` writes the new doc to cache but also refetches
+ * "latest", and the remote daemon's latest pointer may still lag, returning the
+ * pre-publish version. Without this guard that stale version clobbers the freshly
+ * published document and the UI shows stale values until a manual refresh.
+ * Genuine remote edits always carry a NEW (unseen) version, so they still apply.
+ */
+export function resolveDocumentSyncAction(
+  prevVersion: string | null,
+  seenVersions: Set<string>,
+  incomingVersion: string,
+): DocumentSyncAction {
+  if (incomingVersion && seenVersions.has(incomingVersion) && incomingVersion !== prevVersion) {
+    return 'skip'
+  }
+  if (prevVersion === null) return 'loaded'
+  if (prevVersion === '' && incomingVersion) return 'loaded'
+  if (incomingVersion !== prevVersion) return 'remoteUpdate'
+  return 'skip'
+}
+
 /**
  * Sync a resolved document into the machine.
  * Sends `document.loaded` on first non-null document, then `document.remoteUpdate`
- * whenever the version changes.
+ * whenever the version changes — ignoring reverts to already-seen versions.
  */
 export function useDocumentSync(document: HMDocument | null | undefined) {
   const actorRef = useDocumentMachineRef()
   const prevVersionRef = useRef<string | null>(null)
+  const seenVersionsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!document) {
       return
     }
-
-    if (prevVersionRef.current === null) {
-      // First time we have a document — transition from loading → loaded
-      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.loaded`, {
-        account: document.account,
-        path: document.path,
-        version: document.version,
-        topLevelBlockCount: countTopLevelBlocks(document.content),
-      })
-      actorRef.send({type: 'document.loaded', document})
-      prevVersionRef.current = document.version
-    } else if (prevVersionRef.current === '' && document.version) {
-      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending late document.loaded`, {
-        account: document.account,
-        path: document.path,
-        previousVersion: prevVersionRef.current,
-        nextVersion: document.version,
-        topLevelBlockCount: countTopLevelBlocks(document.content),
-      })
-      actorRef.send({type: 'document.loaded', document})
-      prevVersionRef.current = document.version
-    } else if (document.version !== prevVersionRef.current) {
-      // Version changed — remote update
-      documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.remoteUpdate`, {
-        account: document.account,
-        path: document.path,
-        previousVersion: prevVersionRef.current,
-        nextVersion: document.version,
-        topLevelBlockCount: countTopLevelBlocks(document.content),
-      })
-      actorRef.send({type: 'document.remoteUpdate', document})
-      prevVersionRef.current = document.version
+    const version = document.version
+    const action = resolveDocumentSyncAction(prevVersionRef.current, seenVersionsRef.current, version)
+    if (version) seenVersionsRef.current.add(version)
+    if (action === 'skip') {
+      return
     }
+
+    documentEmbedCleanupInfo(
+      `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.${action === 'loaded' ? 'loaded' : 'remoteUpdate'}`,
+      {
+        account: document.account,
+        path: document.path,
+        previousVersion: prevVersionRef.current,
+        nextVersion: version,
+        topLevelBlockCount: countTopLevelBlocks(document.content),
+      },
+    )
+    actorRef.send({type: action === 'loaded' ? 'document.loaded' : 'document.remoteUpdate', document})
+    prevVersionRef.current = version
   }, [actorRef, document])
 }
 
