@@ -4,6 +4,7 @@ import {
   CBOR_VALUE_RULES,
   METADATA_VALUE_RULES,
   ObjectEditor,
+  ValueDisplay,
   ValueEditor,
   ValueEditorProvider,
 } from '@shm/ui/value-editor'
@@ -161,7 +162,7 @@ describe('string field IPFS file references', () => {
     expect(onValue).toHaveBeenCalledWith({'/': cid})
   })
 
-  it('an IPLD link opens the referenced blob via openFile (new window)', () => {
+  it('renders a valid IPLD link as a tag that opens the blob via openFile', () => {
     const openFile = vi.fn()
     const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
     act(() => {
@@ -173,9 +174,34 @@ describe('string field IPFS file references', () => {
         </TooltipProvider>,
       )
     })
-    const openBtn = container.querySelector(`button[aria-label="Open ipfs://${cid}"]`) as HTMLButtonElement
-    expect(openBtn).toBeTruthy()
-    act(() => openBtn.click())
+    // A valid link renders as a tag (no CID input), like an ipfs:// reference.
+    expect(container.querySelector('input')).toBeNull()
+    // The tag's open button is the one that isn't the "Clear link" button.
+    const tag = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.getAttribute('aria-label') !== 'Clear link',
+    ) as HTMLButtonElement
+    expect(tag).toBeTruthy()
+    act(() => tag.click())
+    expect(openFile).toHaveBeenCalledWith(cid)
+  })
+
+  it('published view (ValueDisplay) renders a native link as a read-only tag', () => {
+    const openFile = vi.fn()
+    const cid = 'bafyreia6fzsx6pkwdolb6qqa6b4tb7kxt2xcjuhuoxyvvt4p6lucacfg2y'
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <ValueEditorProvider openFile={openFile}>
+            <ValueDisplay value={{'/': cid}} rules={CBOR_VALUE_RULES} />
+          </ValueEditorProvider>
+        </TooltipProvider>,
+      )
+    })
+    // Read-only: a tag with no clear/remove button.
+    expect(container.querySelector('button[aria-label="Clear link"]')).toBeNull()
+    const tag = container.querySelector('button') as HTMLButtonElement
+    expect(tag).toBeTruthy()
+    act(() => tag.click())
     expect(openFile).toHaveBeenCalledWith(cid)
   })
 

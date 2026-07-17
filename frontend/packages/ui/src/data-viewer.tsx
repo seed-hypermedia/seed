@@ -7,18 +7,10 @@ type DataViewerProps = {
   level?: number
   onNavigate?: (url: string) => void
   getRouteForUrl?: (url: string) => NavRoute | string | null
-  /** Open an `ipfs://` link in a new window/tab instead of navigating in place. */
-  onOpenIpfsLink?: (url: string) => void
 }
 
 /** Renders nested JSON-like document data using the shared explorer tree view. */
-export const DataViewer = memo(function DataViewer({
-  data,
-  level = 0,
-  onNavigate,
-  getRouteForUrl,
-  onOpenIpfsLink,
-}: DataViewerProps) {
+export const DataViewer = memo(function DataViewer({data, level = 0, onNavigate, getRouteForUrl}: DataViewerProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const isTopLevel = level === 0
 
@@ -55,15 +47,8 @@ export const DataViewer = memo(function DataViewer({
       )
     }
 
-    if ((data.startsWith('hm://') || data.startsWith('ipfs://')) && (onNavigate || getRouteForUrl || onOpenIpfsLink)) {
-      return (
-        <DataViewerLink
-          url={data}
-          onNavigate={onNavigate}
-          getRouteForUrl={getRouteForUrl}
-          onOpenIpfsLink={onOpenIpfsLink}
-        />
-      )
+    if ((data.startsWith('hm://') || data.startsWith('ipfs://')) && (onNavigate || getRouteForUrl)) {
+      return <DataViewerLink url={data} onNavigate={onNavigate} getRouteForUrl={getRouteForUrl} />
     }
 
     return <span className="font-mono text-black">{data}</span>
@@ -86,13 +71,7 @@ export const DataViewer = memo(function DataViewer({
               <div className={isTopLevel ? 'overflow-auto' : 'overflow-auto border-l border-gray-200 pl-2'}>
                 {data.map((item, index) => (
                   <div key={index} className="my-2 overflow-auto">
-                    <DataViewer
-                      data={item}
-                      level={level + 1}
-                      onNavigate={onNavigate}
-                      getRouteForUrl={getRouteForUrl}
-                      onOpenIpfsLink={onOpenIpfsLink}
-                    />
+                    <DataViewer data={item} level={level + 1} onNavigate={onNavigate} getRouteForUrl={getRouteForUrl} />
                   </div>
                 ))}
               </div>
@@ -146,7 +125,6 @@ export const DataViewer = memo(function DataViewer({
                           level={level + 1}
                           onNavigate={onNavigate}
                           getRouteForUrl={getRouteForUrl}
-                          onOpenIpfsLink={onOpenIpfsLink}
                         />
                       ) : (
                         <div className="ml-4 overflow-auto">
@@ -155,7 +133,6 @@ export const DataViewer = memo(function DataViewer({
                             level={level + 1}
                             onNavigate={onNavigate}
                             getRouteForUrl={getRouteForUrl}
-                            onOpenIpfsLink={onOpenIpfsLink}
                           />
                         </div>
                       )}
@@ -179,31 +156,13 @@ function DataViewerLink({
   url,
   onNavigate,
   getRouteForUrl,
-  onOpenIpfsLink,
 }: {
   url: string
   onNavigate?: (url: string) => void
   getRouteForUrl?: (url: string) => NavRoute | string | null
-  onOpenIpfsLink?: (url: string) => void
 }) {
   const route = getRouteForUrl?.(url) || null
   const linkProps = useRouteLink(route)
-
-  // An ipfs:// link opens the referenced blob in its own new window/tab.
-  if (url.startsWith('ipfs://') && onOpenIpfsLink) {
-    return (
-      <a
-        href="#"
-        className="cursor-pointer font-mono text-blue-600 underline hover:underline"
-        onClick={(e) => {
-          e.preventDefault()
-          onOpenIpfsLink(url)
-        }}
-      >
-        {url}
-      </a>
-    )
-  }
 
   if (route) {
     return (

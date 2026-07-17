@@ -4,19 +4,19 @@ import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Check, FileEdit, MoreHorizontal, X} from 'lucide-react'
-import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
+import {CID} from 'multiformats/cid'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Textarea} from './components/textarea'
-import {DataViewer} from './data-viewer'
+import {base64ToBytes, isDagJsonBytes} from './dag-json'
 import {useFileUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {OmnibarUrl} from './url-omnibar'
-import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from './value-editor'
+import {CBOR_VALUE_RULES, isPlainObject, ValueDisplay, ValueEditor, ValueEditorProvider} from './value-editor'
 
 type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
 
@@ -85,13 +85,13 @@ function useIpfsText(url: string): {text: string | null; loading: boolean} {
 export function InspectIpfsPage({
   ipfsPath,
   exitRoute,
-  getRouteForUrl,
   windowControls,
   trafficLightInset = false,
   gatewayUrl = DEFAULT_GATEWAY_URL,
 }: {
   ipfsPath: string
   exitRoute?: NavRoute | null
+  /** Retained for API compatibility; hm:// / ipfs:// links now route via the app openUrl. */
   getRouteForUrl?: (url: string) => NavRoute | string | null
   /** Desktop-only window controls (e.g. close button on non-macOS) shown at the far right. */
   windowControls?: ReactNode
@@ -134,9 +134,10 @@ export function InspectIpfsPage({
   const getFileUrl = useFileUrl()
 
   const preparedData = useMemo(() => {
-    if (!ipfsData.data?.value) return null
-    const cleaned = cleanInspectIpfsData(ipfsData.data.value)
-    return readInspectIpfsPath(cleaned, pathSegments)
+    if (ipfsData.data?.value === undefined) return null
+    // Keep IPLD links/bytes in their DAG-JSON shape so ValueDisplay renders them
+    // like the editor; only decode `signer` bytes to a readable hm:// principal.
+    return readInspectIpfsPath(decodeSignerBytes(ipfsData.data.value), pathSegments)
   }, [ipfsData.data?.value, pathSegments])
 
   // Resolve what kind of content this is.
@@ -188,7 +189,8 @@ export function InspectIpfsPage({
 
   // Open a linked IPFS blob (from a native IPLD link) in its own new window.
   const openLinkedBlob = (linkCid: string) => openUrl(`hm://inspect/ipfs/${linkCid}`, true)
-  const openIpfsUrl = (ipfsUrl: string) => openLinkedBlob(ipfsUrl.replace(/^ipfs:\/\//i, ''))
+  // Open an hm:// reference (e.g. a decoded signer) in a new window.
+  const openInNewWindow = (url: string) => openUrl(url, true)
 
   const publish = async () => {
     setPublishing(true)
@@ -264,7 +266,13 @@ export function InspectIpfsPage({
   } else if (preparedData === null || preparedData === undefined) {
     body = <div className="text-muted-foreground text-sm">No IPFS data found.</div>
   } else {
-    body = <DataViewer data={preparedData} getRouteForUrl={getRouteForUrl} onOpenIpfsLink={openIpfsUrl} />
+    // Render the published blob with the editor's own value renderer so the view
+    // matches the editor (native IPLD links show as tags, opening in a new window).
+    body = (
+      <ValueEditorProvider openFile={openLinkedBlob} openUrl={openInNewWindow}>
+        <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
+      </ValueEditorProvider>
+    )
   }
 
   return (
@@ -330,7 +338,7 @@ function IpfsTopBar({
         {canEdit && (
           <DropdownMenuItem onSelect={onEdit}>
             <FileEdit className="size-4" />
-            Edit in new window
+            Edit...
           </DropdownMenuItem>
         )}
         {exitRoute && (
@@ -371,43 +379,25 @@ function IpfsTopBar({
   )
 }
 
-function cleanInspectIpfsData(data: unknown, parentKey?: string): unknown {
-  if (!data) return null
-
-  if (typeof data === 'object' && data && '/' in data) {
-    const linkData = data as {'/': unknown}
-    if (typeof linkData['/'] === 'object' && linkData['/'] && 'bytes' in (linkData['/'] as Record<string, unknown>)) {
-      const bytesValue = (linkData['/'] as Record<string, unknown>).bytes
-      if (typeof bytesValue !== 'string') return null
-      const binaryString = atob(bytesValue)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i += 1) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-      return parentKey === 'signer' ? `hm://${base58btc.encode(bytes)}` : bytes
-    }
-
-    if (typeof linkData['/'] === 'string') {
-      return `ipfs://${linkData['/']}`
+/**
+ * Decode DAG-CBOR `signer` byte fields into a readable `hm://<principal>` string
+ * while leaving IPLD links (`{"/": cid}`) and other bytes in their DAG-JSON shape
+ * so ValueDisplay can render them like the editor does.
+ */
+function decodeSignerBytes(data: unknown, parentKey?: string): unknown {
+  if (parentKey === 'signer' && isDagJsonBytes(data)) {
+    try {
+      return `hm://${base58btc.encode(base64ToBytes(data['/'].bytes))}`
+    } catch {
+      return data
     }
   }
-
-  if (data instanceof Uint8Array) {
-    return parentKey === 'signer' ? `hm://${base58btc.encode(data)}` : data
-  }
-
   if (Array.isArray(data)) {
-    return data.map((item) => cleanInspectIpfsData(item))
+    return data.map((item) => decodeSignerBytes(item))
   }
-
-  if (typeof data === 'object' && data !== null) {
-    return Object.fromEntries(
-      Object.entries(data).map(([key, value]) => {
-        return [key, cleanInspectIpfsData(value, key)]
-      }),
-    )
+  if (isPlainObject(data) && !isDagJsonBytes(data) && !('/' in data)) {
+    return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, decodeSignerBytes(value, key)]))
   }
-
   return data
 }
 

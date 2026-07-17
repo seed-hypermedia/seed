@@ -963,10 +963,25 @@ export function FieldRow({
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
-  const {openFile} = useContext(SelectionStateContext)
+  const {openFile, openUrl} = useContext(SelectionStateContext)
   if (typeof value === 'string') {
     const cid = findIpfsUrlCid(value)
     if (cid) return <IpfsFileTag cid={cid} onOpen={openFile} />
+    if (value.startsWith('hm://') && openUrl) {
+      return (
+        <button
+          type="button"
+          className="text-primary font-mono text-sm break-all hover:underline"
+          onClick={() => openUrl(value)}
+        >
+          {value}
+        </button>
+      )
+    }
+  }
+  // A native IPLD link renders as the same tag as an ipfs:// reference.
+  if (isDagJsonLink(value) && parseCidString(value['/'])) {
+    return <IpfsFileTag cid={value['/']} variant="link" onOpen={openFile} />
   }
   if (isDagJsonLink(value)) {
     return (
@@ -1166,9 +1181,25 @@ function StringLeafEditor({
   )
 }
 
-/** An `ipfs://<cid>` file reference: opens the file viewer; removable to re-edit. */
-function IpfsFileTag({cid, onOpen, onClear}: {cid: string; onOpen?: (cid: string) => void; onClear?: () => void}) {
+/**
+ * A tag for an IPFS reference — either an `ipfs://<cid>` string (`variant="file"`)
+ * or a native IPLD link `{"/": cid}` (`variant="link"`). Clicking opens the
+ * referenced blob; the optional clear button makes it editable again. Both
+ * variants share the same pill so a pasted URL looks the same either way.
+ */
+function IpfsFileTag({
+  cid,
+  onOpen,
+  onClear,
+  variant = 'file',
+}: {
+  cid: string
+  onOpen?: (cid: string) => void
+  onClear?: () => void
+  variant?: 'file' | 'link'
+}) {
   const short = cid.length > 18 ? `${cid.slice(0, 9)}…${cid.slice(-6)}` : cid
+  const Icon = variant === 'link' ? Link2 : FileText
   return (
     <div className="flex items-center gap-1">
       <Tooltip content={onOpen ? `Open ipfs://${cid}` : `ipfs://${cid}`}>
@@ -1181,17 +1212,17 @@ function IpfsFileTag({cid, onOpen, onClear}: {cid: string; onOpen?: (cid: string
             onOpen && 'hover:bg-muted cursor-pointer',
           )}
         >
-          <FileText className="text-muted-foreground size-3.5 shrink-0" />
+          <Icon className="text-muted-foreground size-3.5 shrink-0" />
           <span className="truncate font-mono text-xs">{short}</span>
           {onOpen && <ExternalLink className="text-muted-foreground size-3 shrink-0" />}
         </button>
       </Tooltip>
       {onClear && (
-        <Tooltip content="Remove file reference">
+        <Tooltip content={variant === 'link' ? 'Clear link' : 'Remove file reference'}>
           <Button
             variant="ghost"
             size="iconSm"
-            aria-label="Remove file reference"
+            aria-label={variant === 'link' ? 'Clear link' : 'Remove file reference'}
             className="text-muted-foreground"
             onClick={onClear}
           >
@@ -1203,17 +1234,26 @@ function IpfsFileTag({cid, onOpen, onClear}: {cid: string; onOpen?: (cid: string
   )
 }
 
-/** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
+/**
+ * IPLD link (`{"/": cid}`): a valid link renders as a file tag (matching the
+ * `ipfs://` string reference); an empty/invalid link shows an input to enter a
+ * CID or IPFS URL.
+ */
 function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
   const {openUrl, openFile} = useContext(SelectionStateContext)
   const cid = value['/']
   const isValid = !!parseCidString(cid)
   // Prefer openFile (opens the linked blob in its own window); fall back to openUrl.
-  const openLink = openFile ? () => openFile(cid) : openUrl ? () => openUrl(`ipfs://${cid}`) : undefined
+  const onOpen = openFile ?? (openUrl ? (c: string) => openUrl(`ipfs://${c}`) : undefined)
+
+  if (isValid) {
+    return <IpfsFileTag cid={cid} variant="link" onOpen={onOpen} onClear={() => onValue({'/': ''})} />
+  }
+
   return (
     <div className="flex items-center gap-1">
       <Tooltip content="IPLD link — a native reference to another IPFS blob">
-        <Link2 className={cn('size-3.5 shrink-0', isValid ? 'text-muted-foreground' : 'text-destructive')} />
+        <Link2 className={cn('size-3.5 shrink-0', cid ? 'text-destructive' : 'text-muted-foreground')} />
       </Tooltip>
       <CommitOnBlurInput
         key={cid}
@@ -1231,19 +1271,6 @@ function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (valu
           onValue({'/': next})
         }}
       />
-      {openLink && isValid && (
-        <Tooltip content={`Open ipfs://${cid}`}>
-          <Button
-            variant="ghost"
-            size="iconSm"
-            aria-label={`Open ipfs://${cid}`}
-            className="text-muted-foreground"
-            onClick={openLink}
-          >
-            <ExternalLink className="size-3.5" />
-          </Button>
-        </Tooltip>
-      )}
     </div>
   )
 }
