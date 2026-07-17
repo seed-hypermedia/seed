@@ -8,6 +8,7 @@ import {
   getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
   getDocumentContentAction,
+  getDocumentMachineKey,
   getLatestRouteForCurrentDocumentRoute,
   getOlderVersionToastId,
   shouldShowOlderVersionToast,
@@ -144,6 +145,32 @@ describe('getDocumentContentAction', () => {
         actionButtons: 'options-actions',
       }),
     ).toBeNull()
+  })
+})
+
+describe('getDocumentMachineKey', () => {
+  it('stays stable across a resolved-version bump on the latest view (no remount on own publish)', () => {
+    // Reproduces the "Publish button stays green" bug: publishing bumps the
+    // resolved latest version, which previously changed the key and recreated
+    // the machine mid-publish, re-loading the just-cleared draft.
+    const routeLatest = hmId('alice', {path: ['doc']}) // no ?v=
+    const resolvedOld = hmId('alice', {path: ['doc'], version: 'v-old'})
+    const resolvedNew = hmId('alice', {path: ['doc'], version: 'v-new'})
+    expect(getDocumentMachineKey(resolvedOld, routeLatest)).toBe(getDocumentMachineKey(resolvedNew, routeLatest))
+  })
+
+  it('changes when the route pins a specific version (?v=)', () => {
+    const rendered = hmId('alice', {path: ['doc'], version: 'v'})
+    const latest = hmId('alice', {path: ['doc']})
+    const pinned = hmId('alice', {path: ['doc'], version: 'v', latest: false})
+    expect(getDocumentMachineKey(rendered, latest)).not.toBe(getDocumentMachineKey(rendered, pinned))
+  })
+
+  it('changes when the resolved doc path changes (first-publish slug)', () => {
+    const route = hmId('alice', {path: ['-draft-1']})
+    const draftRendered = hmId('alice', {path: ['-draft-1']})
+    const publishedRendered = hmId('alice', {path: ['my-slug']})
+    expect(getDocumentMachineKey(draftRendered, route)).not.toBe(getDocumentMachineKey(publishedRendered, route))
   })
 })
 

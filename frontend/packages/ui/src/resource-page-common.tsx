@@ -207,6 +207,21 @@ export function getRenderedDocumentId(
   return resourceData?.type === 'document' ? resourceData.id : routeDocId
 }
 
+/**
+ * React key for `DocumentMachineProvider`. Recreates the machine only when the
+ * bound identity changes: the resolved doc id (path change on first publish) or
+ * the ROUTE's explicitly pinned version (`?v=`). It must NOT depend on the
+ * *resolved* latest version — that bumps on the user's own publish, which would
+ * destroy + recreate the actor mid-publish and re-load the just-cleared draft,
+ * stranding the machine in `editing` (Publish button stuck green).
+ */
+export function getDocumentMachineKey(
+  renderedDocId: UnpackedHypermediaId,
+  routeDocId: UnpackedHypermediaId,
+): string {
+  return `${renderedDocId.id}@${routeDocId.version ?? 'latest'}`
+}
+
 function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
   if (!blockRange) return undefined
   if (
@@ -831,11 +846,12 @@ export function ResourcePage({
 
   return (
     <DocumentMachineProvider
-      // Key on the route id so the machine actor is recreated when the URL
-      // path changes (e.g. after first publish from `-${draftId}` → real slug).
-      // Without this, useActorRef keeps the original actor instance and its
-      // context still references the old documentId/editPath.
-      key={`${renderedDocId.id}@${renderedDocId.version ?? 'latest'}`}
+      // Recreate the machine only when the identity it's bound to changes: the
+      // resolved doc id (path change on first publish) or the ROUTE's pinned
+      // version (?v=). Deliberately NOT the *resolved* latest version — that
+      // bumps on our own publish, which would destroy + recreate the machine
+      // mid-publish and re-load the just-cleared draft, stranding it in editing.
+      key={getDocumentMachineKey(renderedDocId, docId)}
       input={{
         documentId: renderedDocId,
         canEdit: effectiveCanEdit,
