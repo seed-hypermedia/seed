@@ -309,6 +309,24 @@ export function shouldUseDraftForRenderedDocument({
   return true
 }
 
+/**
+ * Collapse the resolved-draft state into what gets handed to the document
+ * machine. `undefined` means "draft resolution is still loading" and MUST be
+ * preserved end-to-end: the machine's one-shot `draft.resolved` only fires once,
+ * so prematurely collapsing `undefined` to `false` (no draft) latches it to the
+ * no-draft branch and strands a saved draft that finishes loading a moment later.
+ * Only once `existingDraft` has genuinely settled do we apply the
+ * `shouldUseDraft` gate (which is intentionally false while `existingDraft` is
+ * still `undefined`, since `!undefined` is truthy).
+ */
+export function resolveEffectiveExistingDraft(
+  existingDraft: HMExistingDraft | false | undefined,
+  shouldUseDraft: boolean,
+): HMExistingDraft | false | undefined {
+  if (existingDraft === undefined) return undefined
+  return shouldUseDraft ? existingDraft : false
+}
+
 /** Return true when a local draft should bypass remote resource loading states. */
 export function hasUnpublishedDraftForResourceState({
   existingDraft,
@@ -826,7 +844,9 @@ export function ResourcePage({
   const shouldUseDraft = shouldUseDraftForRenderedDocument({docId: renderedDocId, existingDraft, isLatest})
   const effectiveCanEdit =
     (canEdit || (resourceFetchId === null && !!existingDraft)) && (!renderedDocId.version || isLatest || shouldUseDraft)
-  const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
+  // Preserve `undefined` (draft still loading) so the machine's one-shot
+  // `draft.resolved` doesn't latch to "no draft". See helper doc.
+  const effectiveExistingDraft = resolveEffectiveExistingDraft(existingDraft, shouldUseDraft)
   const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
   const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
   const effectiveExistingDraftCursorPosition = shouldUseDraft ? existingDraftCursorPosition : undefined

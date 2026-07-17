@@ -12,6 +12,7 @@ import {
   getLatestRouteForCurrentDocumentRoute,
   getOlderVersionToastId,
   shouldShowOlderVersionToast,
+  resolveEffectiveExistingDraft,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -421,5 +422,26 @@ describe('getRenderedDocumentId', () => {
 
   it('keeps the route document id for local-only draft routes even if stale resource data exists', () => {
     expect(getRenderedDocumentId(oldId, redirectedDocument, null)).toEqual(oldId)
+  })
+})
+
+describe('resolveEffectiveExistingDraft', () => {
+  const draft = {id: 'draft-1', metadata: {name: 'Draft'}} as any
+
+  it('preserves undefined (draft still loading) so the machine does not latch to no-draft', () => {
+    // Regression: during the async startup window `existingDraft` is undefined and
+    // `shouldUseDraft` is false (since `!undefined` is truthy). Collapsing to false
+    // here fired `draft.resolved{draftId:null}` and stranded a saved draft on reload.
+    expect(resolveEffectiveExistingDraft(undefined, false)).toBeUndefined()
+    expect(resolveEffectiveExistingDraft(undefined, true)).toBeUndefined()
+  })
+
+  it('returns the draft once settled and the draft should be used', () => {
+    expect(resolveEffectiveExistingDraft(draft, true)).toBe(draft)
+  })
+
+  it('returns false when settled with no draft, or when the draft should not be used', () => {
+    expect(resolveEffectiveExistingDraft(false, true)).toBe(false)
+    expect(resolveEffectiveExistingDraft(draft, false)).toBe(false)
   })
 })

@@ -15,6 +15,8 @@ export interface WebCanEditResult {
   signingAccountId: string | null
   /** The HMCapability that grants edit access (owner synthetic or matching writer/agent). */
   capability: HMCapability | null
+  /** True while the capabilities lookup is still resolving (so `canEdit` is not yet final). */
+  capabilitiesLoading: boolean
 }
 
 /**
@@ -29,7 +31,7 @@ export function resolveWebCanEdit(args: {
   capabilities: HMCapability[] | null | undefined
   isBrowser: boolean
   isGateway?: boolean
-}): WebCanEditResult {
+}): Omit<WebCanEditResult, 'capabilitiesLoading'> {
   if (!args.isBrowser) return {canEdit: false, signingAccountId: null, capability: null}
   if (!args.docId) return {canEdit: false, signingAccountId: null, capability: null}
 
@@ -82,10 +84,11 @@ export function useWebCanEdit(docId: UnpackedHypermediaId | null | undefined): W
   const userKeyPair = useLocalKeyPair()
   const {origin, originHomeId} = useUniversalAppContext()
   const capabilities = useCapabilities(docId ?? undefined)
+  const capabilitiesLoading = capabilities.isLoading
 
   return useMemo<WebCanEditResult>(
-    () =>
-      resolveWebCanEdit({
+    () => ({
+      ...resolveWebCanEdit({
         docId,
         delegatedAccountUid: userKeyPair?.delegatedAccountUid,
         origin: origin ?? null,
@@ -94,6 +97,8 @@ export function useWebCanEdit(docId: UnpackedHypermediaId | null | undefined): W
         isBrowser: typeof window !== 'undefined',
         isGateway: WEB_IS_GATEWAY,
       }),
-    [docId, userKeyPair?.delegatedAccountUid, capabilities.data, origin, originHomeId],
+      capabilitiesLoading,
+    }),
+    [docId, userKeyPair?.delegatedAccountUid, capabilities.data, capabilitiesLoading, origin, originHomeId],
   )
 }

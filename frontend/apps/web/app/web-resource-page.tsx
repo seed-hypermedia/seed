@@ -32,7 +32,14 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {FileInput} from 'lucide-react'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
+import {
+  EditProfileDialog,
+  LogoutButton,
+  useCreateAccount,
+  useLocalKeyPair,
+  useLocalKeyPairLoaded,
+  useVaultSuccessDialog,
+} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
@@ -126,7 +133,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const vaultSuccessContent = useVaultSuccessDialog()
   const universalClient = useUniversalClient()
   const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
-  const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
+  const {canEdit, signingAccountId, capability, capabilitiesLoading} = useWebCanEdit(docId)
+  const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
 
   // Editor accessor — populated by the editor's onEditorReady callback.
@@ -240,13 +248,41 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     startWebDocumentCardCleanupCoordinator({client: universalClient})
   }, [universalClient])
 
+  // Mirror of the draftQuery `enabled` gate below — a draft could still be
+  // loading whenever this is true.
+  const draftQueryEnabled =
+    typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId)
+
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
+    // CRITICAL: returning `false` here declares "no draft exists", which latches
+    // the document machine's `draft.resolved` to the no-draft branch (it only
+    // fires once). During the async startup window — identity still loading from
+    // IndexedDB, or capability lookup not yet settled, or the draft query not yet
+    // resolved — `effectiveCanEdit` is transiently false and `draftData` is
+    // undefined. Returning `false` then would strand a saved draft (it loads a
+    // moment later but the machine already resolved to "no draft"). Hold at
+    // `undefined` (still loading) until each of those settles.
+    if (!keyPairLoaded) return undefined
+    if (!!signingAccountId && !canEdit && capabilitiesLoading) return undefined
+    if (draftQueryEnabled && !draftQuery.isSuccess && !draftQuery.isError) return undefined
     if (!effectiveCanEdit) return false
     if (draftQuery.isLoading) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
-  }, [effectiveCanEdit, draftQuery.isLoading, draftData, isDraftStale])
+  }, [
+    keyPairLoaded,
+    signingAccountId,
+    canEdit,
+    capabilitiesLoading,
+    draftQueryEnabled,
+    draftQuery.isSuccess,
+    draftQuery.isError,
+    effectiveCanEdit,
+    draftQuery.isLoading,
+    draftData,
+    isDraftStale,
+  ])
   const reservedDraftId =
     placeholderDraftId && !draftData && isReservedLazyDraftId(placeholderDraftId) ? placeholderDraftId : null
   const useLocalDraftShell = shouldUseLocalWebDraftShell({

@@ -162,4 +162,41 @@ describe('useUnpublishedChangeCount', () => {
       cleanup(root, container)
     }
   })
+
+  // Regression: after a publish, the machine's baseline is rebuilt from the
+  // published document via `hmBlocksToEditorContent`, which represents an empty
+  // trailing paragraph as `content: [{type: 'text', text: ''}]` — NOT `content: []`
+  // like the live editor. If `removeTrailingEmptyParagraphs` only stripped the
+  // `content: []` form, the two representations diffed into a permanent phantom
+  // "delete", leaving the Publish button green forever after publishing.
+  it('does not count a trailing empty paragraph that carries an empty text node (post-publish baseline shape)', () => {
+    const contentBlock = {
+      id: 'c1',
+      type: 'paragraph',
+      props: {},
+      content: [{type: 'text', text: 'Hello', styles: {}}],
+      children: [],
+    }
+    const trailingEmptyWithTextNode = {
+      id: 'e1',
+      type: 'paragraph',
+      props: {},
+      content: [{type: 'text', text: '', styles: {}}],
+      children: [],
+    }
+    // No active draft: the diff baseline comes from `editorBaseline`, which is
+    // what `updatePublishedVersion` sets from the freshly published document.
+    selectMock.draftId = null
+    selectMock.editorBaseline = [contentBlock, trailingEmptyWithTextNode] as any
+    handlersRefMock.current = {
+      getCurrentBlocks: () => [contentBlock],
+    }
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('0')
+    } finally {
+      cleanup(root, container)
+    }
+  })
 })

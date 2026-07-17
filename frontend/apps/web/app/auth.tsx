@@ -60,6 +60,11 @@ export type LocalWebIdentity = CryptoKeyPair & {
   notifyServerUrl?: string
 }
 let keyPair: LocalWebIdentity | null = null
+// Whether the first attempt to load the local identity from IndexedDB has
+// completed. Before this flips true we cannot tell "logged out" apart from
+// "keys still loading" — consumers that must not act on a premature null
+// (e.g. draft resolution) gate on this via `useLocalKeyPairLoaded`.
+let keyPairLoaded = false
 const keyPairHandlers = new Set<() => void>()
 
 export async function getCurrentAccountUidWithDelegation(): Promise<string | null> {
@@ -108,10 +113,22 @@ function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
   }
 }
 
+function markKeyPairLoaded() {
+  if (keyPairLoaded) return
+  keyPairLoaded = true
+  keyPairHandlers.forEach((callback) => callback())
+}
+
 function updateKeyPair() {
   loadLocalWebIdentity()
-    .then(syncKeyPair)
+    .then((next) => {
+      syncKeyPair(next)
+      markKeyPairLoaded()
+    })
     .catch((err) => {
+      // Even on failure we've settled the initial load: treat as "no identity"
+      // rather than hanging draft resolution forever.
+      markKeyPairLoaded()
       console.error(err)
       reportError(err, {feature: 'auth', operation: 'load-local-identity'})
     })
@@ -149,6 +166,24 @@ export function useLocalKeyPair() {
     },
     () => keyPair,
     () => null,
+  )
+}
+
+/**
+ * True once the initial IndexedDB identity load has settled (whether it found an
+ * identity or not). Use this to avoid treating the pre-load `null` keyPair as
+ * "logged out". Always false during SSR.
+ */
+export function useLocalKeyPairLoaded() {
+  return useSyncExternalStore(
+    (callback: () => void) => {
+      keyPairHandlers.add(callback)
+      return () => {
+        keyPairHandlers.delete(callback)
+      }
+    },
+    () => keyPairLoaded,
+    () => false,
   )
 }
 

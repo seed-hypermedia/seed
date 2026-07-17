@@ -16,6 +16,22 @@ import {
   useDocumentSelector,
 } from './use-document-machine'
 
+/**
+ * A paragraph counts as "empty" when it has no inline content at all, or its
+ * inline content is only empty text nodes. The live editor represents an empty
+ * trailing paragraph as `content: []`, but the same block round-tripped through
+ * `hmBlocksToEditorContent` (i.e. loaded back from a published document) comes
+ * back as `content: [{type: 'text', text: '', ...}]`. Both must be treated as
+ * empty, otherwise the two representations diff against each other and produce a
+ * phantom "delete" that never clears — leaving the Publish button green forever
+ * after a publish.
+ */
+function isEmptyEditorContent(content: EditorBlock['content']): boolean {
+  if (!content || (Array.isArray(content) && content.length === 0)) return true
+  if (!Array.isArray(content)) return false
+  return content.every((item: any) => item?.type === 'text' && (item.text ?? '') === '')
+}
+
 function removeTrailingEmptyParagraphs(blocks: EditorBlock[]): EditorBlock[] {
   const trimmed = [...blocks]
   while (true) {
@@ -23,7 +39,7 @@ function removeTrailingEmptyParagraphs(blocks: EditorBlock[]): EditorBlock[] {
     if (!lastBlock) break
     if (lastBlock.type !== 'paragraph') break
     if (lastBlock.children.length !== 0) break
-    if ((lastBlock.content?.length ?? 0) !== 0) break
+    if (!isEmptyEditorContent(lastBlock.content)) break
     trimmed.pop()
   }
   return trimmed
