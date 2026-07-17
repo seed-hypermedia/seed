@@ -291,12 +291,12 @@ function HmLinkEmbed({
                 e.stopPropagation()
                 titleLink.onClick?.(e)
               }}
-              className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+              className="line-clamp-2 max-w-full text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
             >
               {title}
             </a>
           ) : (
-            <span className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 dark:text-blue-400">
+            <span className="line-clamp-2 max-w-full text-base font-bold text-blue-600 dark:text-blue-400">
               {title}
             </span>
           )}
@@ -352,7 +352,7 @@ function ExternalLinkEmbed({
       >
         {icon}
         <div className="min-w-0 flex-1 overflow-hidden">
-          <span className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 dark:text-blue-400">
+          <span className="line-clamp-2 max-w-full text-base font-bold text-blue-600 dark:text-blue-400">
             {linkText}
           </span>
         </div>
@@ -380,7 +380,7 @@ function ExternalLinkEmbed({
           }}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block max-w-full truncate align-middle text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+          className="line-clamp-2 max-w-full text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
         >
           {linkText}
         </a>

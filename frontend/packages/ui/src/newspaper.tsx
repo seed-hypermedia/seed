@@ -307,8 +307,8 @@ export function DocumentCard({
     ),
   }
   const titleClassName = cn(
-    'text-foreground block font-sans leading-tight! font-bold',
-    banner ? 'text-2xl' : 'truncate text-lg',
+    'text-foreground font-sans leading-tight! font-bold',
+    banner ? 'block text-2xl' : 'line-clamp-2 text-lg',
   )
   const title = resolvedMetadata?.name
   const content = (
@@ -359,7 +359,7 @@ export function DocumentCard({
                   e.stopPropagation()
                   routeOnClick?.(e)
                 }}
-                className={cn(titleClassName, 'inline-block max-w-full cursor-pointer no-underline hover:underline')}
+                className={cn(titleClassName, 'max-w-full cursor-pointer no-underline hover:underline')}
               >
                 {title}
               </a>
