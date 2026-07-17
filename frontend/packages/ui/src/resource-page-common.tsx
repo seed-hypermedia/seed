@@ -208,18 +208,17 @@ export function getRenderedDocumentId(
 }
 
 /**
- * React key for `DocumentMachineProvider`. Recreates the machine only when the
- * bound identity changes: the resolved doc id (path change on first publish) or
- * the ROUTE's explicitly pinned version (`?v=`). It must NOT depend on the
- * *resolved* latest version — that bumps on the user's own publish, which would
- * destroy + recreate the actor mid-publish and re-load the just-cleared draft,
- * stranding the machine in `editing` (Publish button stuck green).
+ * React key for `DocumentMachineProvider`. Recreates the machine ONLY when the
+ * bound document identity changes — i.e. the uid+path (`renderedDocId.id`,
+ * version-independent), which changes on a first-publish slug. It deliberately
+ * does NOT depend on the version: publishing bumps the resolved version and the
+ * content route resets `?v=` to latest, both of which would otherwise recreate
+ * the actor mid/post-publish and re-load the just-cleared draft, stranding the
+ * machine in `editing` (Publish button stuck green). Version changes are handled
+ * in-place via `version.changed` / `document.remoteUpdate` events, not a remount.
  */
-export function getDocumentMachineKey(
-  renderedDocId: UnpackedHypermediaId,
-  routeDocId: UnpackedHypermediaId,
-): string {
-  return `${renderedDocId.id}@${routeDocId.version ?? 'latest'}`
+export function getDocumentMachineKey(renderedDocId: UnpackedHypermediaId): string {
+  return renderedDocId.id
 }
 
 function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
@@ -851,7 +850,7 @@ export function ResourcePage({
       // version (?v=). Deliberately NOT the *resolved* latest version — that
       // bumps on our own publish, which would destroy + recreate the machine
       // mid-publish and re-load the just-cleared draft, stranding it in editing.
-      key={getDocumentMachineKey(renderedDocId, docId)}
+      key={getDocumentMachineKey(renderedDocId)}
       input={{
         documentId: renderedDocId,
         canEdit: effectiveCanEdit,
