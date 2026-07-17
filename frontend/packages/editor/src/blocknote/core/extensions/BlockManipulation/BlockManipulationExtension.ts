@@ -1,11 +1,11 @@
-import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {Extension} from '@tiptap/core'
 import {EditorView} from '@tiptap/pm/view'
 import {Node} from 'prosemirror-model'
 import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {findNextBlock, findPreviousBlock} from '../../../../block-utils'
-import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
+import {mentionSuggestionPluginKey} from '../../../../mention-suggestion-plugin'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
+import {isInGridContainer} from '../Blocks/nodes/BlockChildren'
 
 export const selectableNodeTypes = ['image', 'file', 'embed', 'video', 'web-embed', 'math', 'button', 'query']
 
@@ -106,7 +106,34 @@ export const BlockManipulationExtension = Extension.create<{
   addProseMirrorPlugins() {
     const openUrl = this.options.openUrl
 
+    // Whether the most recent mousedown landed inside a media caption.
+    let lastMousedownInCaption = false
+
     return [
+      // Veto select caption transactions unless the user actually
+      // clicked in the caption.
+      new Plugin({
+        key: new PluginKey('MediaCaptionSelectionGuard'),
+        props: {
+          handleDOMEvents: {
+            mousedown(_view, event) {
+              const target = event.target as Element | null
+              lastMousedownInCaption = !!target?.closest?.('[data-media-container-ignore-select]')
+              return false
+            },
+          },
+        },
+        filterTransaction(tr, state) {
+          if (tr.docChanged || !tr.selectionSet) return true
+          const prev = state.selection
+          if (!(prev instanceof NodeSelection)) return true
+          const next = tr.selection
+          if (!(next instanceof TextSelection) || !next.empty) return true
+          const insideSelectedNode = next.from > prev.from && next.from < prev.to
+          if (insideSelectedNode && !lastMousedownInCaption) return false
+          return true
+        },
+      }),
       new Plugin({
         key: new PluginKey('CursorSelectPlugin'),
         props: {

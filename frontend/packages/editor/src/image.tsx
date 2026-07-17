@@ -449,6 +449,7 @@ export const ImageDisplay = ({editor, block, assign}: DisplayComponentProps) => 
           src={imageSrc}
           alt={block.props.name || block.props.alt}
           contentEditable={false}
+          draggable={false}
         />
       )}
     </MediaContainer>
