@@ -44,7 +44,13 @@ import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
-import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, type WebDocDraft} from './web-draft-db'
+import {
+  deleteWebDocDraft,
+  getWebDocDraft,
+  listWebDocDraftsForDoc,
+  putWebDocDraft,
+  type WebDocDraft,
+} from './web-draft-db'
 import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 
@@ -75,7 +81,7 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
     actors: {
       writeDraft: makeWriteDraftActor(deps),
       publishDocument: makePublishDocumentActor(deps),
-      discardDraft: makeDiscardDraftActor(),
+      discardDraft: makeDiscardDraftActor(deps),
       pushDocument: fromPromise<void, PushDocumentInput>(async () => {
         // V1: no-op. Future: post to a web push endpoint.
       }),
@@ -168,12 +174,35 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
   })
 }
 
-function makeDiscardDraftActor() {
+/**
+ * Discard a document's local draft: delete the tracked draft plus EVERY other
+ * draft record for the same document.
+ *
+ * Duplicate records can accumulate for a single doc (e.g. an autosave racing
+ * ahead of the assigned draftId mints a fresh nanoid, and the machine only ever
+ * tracks one id). Removing just the tracked `draftId` leaves the rest behind,
+ * and the next load resurrects the draft via `getLatestWebDocDraftForDoc` — the
+ * "discarded changes reappear after refresh" bug. Exported for unit testing.
+ */
+export async function discardAllDraftsForDocument(
+  docId: string,
+  draftId: string,
+  deletedChildDraftIds: string[] = [],
+): Promise<void> {
+  await discardWebDocDraft(draftId, deletedChildDraftIds)
+  const remaining = await listWebDocDraftsForDoc(docId)
+  for (const draft of remaining) {
+    await deleteWebDocDraft(draft.draftId)
+  }
+}
+
+function makeDiscardDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<void, DiscardDraftInput>(async ({input}) => {
-    await discardWebDocDraft(input.draftId, input.deletedChildDraftIds)
+    await discardAllDraftsForDocument(deps.docId.id, input.draftId, input.deletedChildDraftIds)
     invalidateQueries([queryKeys.DRAFT, input.draftId])
     invalidateQueries([queryKeys.DRAFTS_LIST])
     invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    invalidateQueries(['web-doc-draft', deps.docId.id])
   })
 }
 

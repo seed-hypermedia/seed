@@ -10,12 +10,18 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {
+  discardAllDraftsForDocument,
   publishWebDocument,
   resolveWriteDraftContent,
   type CreateWebDocumentMachineDeps,
   type WebEditorAccessor,
 } from './web-document-actors'
-import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft} from './web-draft-db'
+import {
+  _resetWebDocDraftDBForTesting,
+  putWebDocDraft,
+  getWebDocDraft,
+  listWebDocDraftsForDoc,
+} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
@@ -737,5 +743,59 @@ describe('resolveWriteDraftContent', () => {
 
   it('returns an empty array only when there is genuinely nothing to preserve', () => {
     expect(resolveWriteDraftContent(null, null, null)).toEqual([])
+  })
+})
+
+describe('discardAllDraftsForDocument', () => {
+  const DOC = 'hm://acct/foo1'
+  const baseDraft = (draftId: string, updatedAt: number) => ({
+    draftId,
+    docId: DOC,
+    signingAccountId: 'acct',
+    content: [] as HMBlockNode[],
+    metadata: {a: draftId},
+    deps: [],
+    navigation: null,
+    locationUid: null,
+    locationPath: null,
+    editUid: null,
+    editPath: null,
+    cursorPosition: null,
+    updatedAt,
+  })
+
+  beforeEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+  afterEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  it('deletes EVERY draft record for the document, not just the tracked one', async () => {
+    // Reproduces "discarded changes reappear after refresh": duplicate draft
+    // records accumulate for one doc; discarding only the tracked id leaves an
+    // orphan that the next load resurrects.
+    await putWebDocDraft(baseDraft('orphanA', 1000))
+    await putWebDocDraft(baseDraft('orphanB', 2000))
+
+    // Discard the tracked draft (orphanB) — orphanA must also be removed.
+    await discardAllDraftsForDocument(DOC, 'orphanB')
+
+    const remaining = await listWebDocDraftsForDoc(DOC)
+    expect(remaining).toEqual([])
+    expect(await getWebDocDraft('orphanA')).toBeNull()
+    expect(await getWebDocDraft('orphanB')).toBeNull()
+  })
+
+  it('does not touch drafts belonging to other documents', async () => {
+    await putWebDocDraft(baseDraft('mine', 1000))
+    await putWebDocDraft({...baseDraft('other', 1000), docId: 'hm://acct/bar'})
+
+    await discardAllDraftsForDocument(DOC, 'mine')
+
+    expect(await getWebDocDraft('mine')).toBeNull()
+    expect(await getWebDocDraft('other')).not.toBeNull()
   })
 })
