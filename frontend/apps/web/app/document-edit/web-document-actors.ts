@@ -258,25 +258,22 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   await (deps.client as any).publish(publishInput)
 
-  // Refetch by explicit version CID — the daemon's "latest" pointer may not
-  // have caught up yet after the Ref publish.
+  // The blob is now published. Refetch by explicit version CID to get the
+  // resulting document — but the daemon may not have indexed the new version
+  // yet, so retry with backoff. CRITICAL: never throw here. Throwing after a
+  // successful publish would send the machine back to `editing` (via the
+  // publishDocument actor's onError), leaving the draft/metadata staged so the
+  // Publish button stays green/visible even though the publish succeeded.
   const newVersionStr = changeCid.toString()
-  const after = await deps.client.request('Resource', {
-    ...deps.docId,
-    path: publishPath,
-    version: newVersionStr,
-  })
-  if (after.type !== 'document') {
-    throw new Error('post-publish resource is not a document')
-  }
+  const publishedDocument = await resolvePublishedDocument(deps, publishPath, newVersionStr, editDocument, draft)
 
   await cleanupWebDocDrafts(input.draftId, input.deletedChildDraftIds)
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
-  invalidateAfterPublish(publishedDocId, after.document)
+  invalidateAfterPublish(publishedDocId, publishedDocument)
   if (publishedDocId.id !== deps.docId.id) {
-    invalidateAfterPublish(deps.docId, after.document)
+    invalidateAfterPublish(deps.docId, publishedDocument)
   }
   invalidateQueries(['web-doc-draft', deps.docId.id])
   enqueueParentCardAfterFirstPublish({
@@ -294,9 +291,46 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     // Non-critical: draft cache will clear on next mount via invalidation.
   }
 
-  deps.onPublishSuccess?.(after.document)
+  deps.onPublishSuccess?.(publishedDocument)
 
-  return after.document
+  return publishedDocument
+}
+
+/**
+ * Resolve the just-published document by explicit version, retrying while the
+ * daemon indexes it. Falls back to an optimistic document (base + published
+ * metadata + new version) rather than throwing, so a successful publish always
+ * completes the machine's publish flow. The query refetch corrects the display
+ * once the daemon catches up.
+ */
+async function resolvePublishedDocument(
+  deps: CreateWebDocumentMachineDeps,
+  publishPath: string[],
+  newVersionStr: string,
+  editDocument: HMDocument | null,
+  draft: {metadata: HMMetadata | null | undefined},
+): Promise<HMDocument> {
+  const RETRY_DELAYS_MS = [150, 300, 500, 800, 1200]
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const res = await deps.client.request('Resource', {...deps.docId, path: publishPath, version: newVersionStr})
+      if (res.type === 'document') return res.document
+    } catch {
+      // Not yet indexed / transient — retry.
+    }
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+    }
+  }
+  if (!editDocument) {
+    // First publish with nothing to fall back to — surface the failure.
+    throw new Error('post-publish resource is not a document')
+  }
+  return {
+    ...editDocument,
+    version: newVersionStr,
+    metadata: {...(editDocument.metadata ?? {}), ...((draft.metadata as HMMetadata) ?? {})},
+  } as HMDocument
 }
 
 function enqueueParentCardAfterFirstPublish({

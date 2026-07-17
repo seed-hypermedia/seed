@@ -182,6 +182,57 @@ describe('publishWebDocument', () => {
     await expect(publishWebDocument(baseInput, deps)).rejects.toThrow(/draft.*not found/)
   })
 
+  it('resolves (does not throw) when the daemon has not yet indexed the new version after publish', async () => {
+    // Reproduces "the Publish button stays green after publishing on web": the
+    // blob publishes fine, but the immediate re-fetch of the new version lags on
+    // the remote daemon. The actor must retry and resolve — throwing would send
+    // the state machine back to `editing`, leaving the draft staged so the
+    // Publish button stays green/visible even though the publish succeeded.
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {name: 'Edited'},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const baseline = makeBaselineDoc([paragraph('b1', 'hello')])
+    const after = makeBaselineDoc([paragraph('b1', 'hello')], {version: 'bafynew', metadata: {name: 'Edited'}})
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') return {unsignedChange: createTestUnsignedChangeBytes()}
+      if (key === 'Resource') {
+        resourceCalls += 1
+        // 1: load editDocument. 2: post-publish fetch, not indexed yet. 3+: indexed.
+        if (resourceCalls === 1) return {type: 'document', document: baseline} as any
+        if (resourceCalls === 2) return {type: 'not-found'} as any
+        return {type: 'document', document: after} as any
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({
+      request: requestMock,
+      baseline,
+      after,
+      editorBlocks: [
+        {id: 'b1', type: 'paragraph', props: {childrenType: 'Group'}, content: [{type: 'text', text: 'hello'}], children: []},
+      ],
+    })
+
+    const result = await publishWebDocument(baseInput, deps)
+    expect(result.version).toBe('bafynew')
+    // It retried past the transient not-found rather than throwing.
+    expect(resourceCalls).toBeGreaterThanOrEqual(3)
+  })
+
   it('owner publish: sends single replaceBlock for new paragraph + deletes draft', async () => {
     await putWebDocDraft({
       draftId,
