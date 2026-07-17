@@ -21,6 +21,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
@@ -1152,9 +1153,10 @@ function StringLeafEditor({
         <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
       ) : (
         <CommitOnBlurInput
-          key={value}
           initialValue={value}
           placeholder={'Empty Text'}
+          // Save while typing (debounced) so edits persist without blurring.
+          autosave
           // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
           normalize={gatewayUrlToIpfs}
           onCommit={(text) => {
@@ -1698,6 +1700,8 @@ function NumberInput({
 }
 
 /** Text input that stages its value on blur or Enter, resets on Escape. */
+const AUTOSAVE_DEBOUNCE_MS = 600
+
 function CommitOnBlurInput({
   initialValue,
   placeholder,
@@ -1706,6 +1710,7 @@ function CommitOnBlurInput({
   onCommit,
   onFocusChange,
   normalize,
+  autosave = false,
 }: {
   initialValue: string
   placeholder?: string
@@ -1715,15 +1720,39 @@ function CommitOnBlurInput({
   onFocusChange?: (focused: boolean) => void
   /** Rewrite the text before it commits (e.g. gateway URL → `ipfs://`). Returns null to leave it unchanged. */
   normalize?: (text: string) => string | null
+  /** Commit on a debounce while typing (not only on blur/Enter). */
+  autosave?: boolean
 }) {
   const [text, setText] = useState(initialValue)
+  const focusedRef = useRef(false)
+  const commit = (value: string) => onCommit(normalize?.(value) ?? value)
+
+  // Resync from external value changes only when this field isn't being edited,
+  // so an autosave round-trip (which updates `initialValue`) never moves the cursor.
+  useEffect(() => {
+    if (!focusedRef.current) setText(initialValue)
+  }, [initialValue])
+
+  // Autosave while typing: commit the debounced text. The draft state machine
+  // further debounces the actual write, and the value is already staged before
+  // any Publish click (which otherwise races the blur commit).
+  const debouncedText = useDebounce(text, AUTOSAVE_DEBOUNCE_MS)
+  useEffect(() => {
+    if (!autosave || !focusedRef.current) return
+    if (debouncedText !== initialValue) commit(debouncedText)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedText])
+
   return (
     <Input
       value={text}
       placeholder={placeholder}
       className={className}
       autoFocus={autoFocus}
-      onFocus={() => onFocusChange?.(true)}
+      onFocus={() => {
+        focusedRef.current = true
+        onFocusChange?.(true)
+      }}
       onChange={(e) => setText(e.target.value)}
       onPaste={
         normalize
@@ -1741,7 +1770,8 @@ function CommitOnBlurInput({
           : undefined
       }
       onBlur={() => {
-        if (text !== initialValue) onCommit(normalize?.(text) ?? text)
+        focusedRef.current = false
+        if (text !== initialValue) commit(text)
         onFocusChange?.(false)
       }}
       onKeyDown={(e) => {

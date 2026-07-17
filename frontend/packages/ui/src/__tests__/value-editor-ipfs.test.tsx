@@ -118,6 +118,30 @@ describe('string field IPFS file references', () => {
     expect(onValue).toHaveBeenCalledWith(`ipfs://${cid}`)
   })
 
+  it('autosaves a text attribute while typing (debounced), without needing a blur', () => {
+    vi.useFakeTimers()
+    try {
+      const onValue = vi.fn()
+      renderString('', {onValue})
+      const input = container.querySelector('input') as HTMLInputElement
+      act(() => input.focus())
+      const setNativeValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+      act(() => {
+        setNativeValue.call(input, 'hello')
+        input.dispatchEvent(new Event('input', {bubbles: true}))
+      })
+      // Nothing committed yet — still within the debounce window.
+      expect(onValue).not.toHaveBeenCalled()
+      act(() => {
+        vi.advanceTimersByTime(600)
+      })
+      // Committed while typing, no blur required.
+      expect(onValue).toHaveBeenCalledWith('hello')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('converts a gateway URL pasted onto a selected row (input not focused)', () => {
     const onValue = vi.fn()
     act(() => {
