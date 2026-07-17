@@ -1,7 +1,7 @@
 import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
 import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useRouteLink, useUniversalClient} from '@shm/shared/routing'
+import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Check, FileEdit, MoreHorizontal, X} from 'lucide-react'
 import {CID} from 'multiformats/cid'
@@ -100,28 +100,35 @@ export function InspectIpfsPage({
   /** Gateway origin for the shareable `https://<gateway>/ipfs/<cid>` link. */
   gatewayUrl?: string
 }) {
-  const [cid, ...pathSegments] = ipfsPath.split('/').filter(Boolean)
+  const segments = ipfsPath.split('/').filter(Boolean)
+  // `new` opens a draft: `new` alone is a blank object; `new/<cid>` forks an
+  // existing blob into a draft (so "Edit" leaves the original window alone).
+  const isDraft = segments[0] === NEW_IPFS_BLOB_PATH
+  const forkCid = isDraft ? segments[1] : undefined
+  const cid = isDraft ? undefined : segments[0]
+  const pathSegments = isDraft ? [] : segments.slice(1)
   const hasSubpath = pathSegments.length > 0
-  // The `new` sentinel path means "author a brand-new CBOR object" — no CID yet.
-  const isCreate = cid === NEW_IPFS_BLOB_PATH && !hasSubpath
-  const ipfsData = useCID(isCreate ? undefined : cid)
+  // The blob we fetch — to display (view) or to prefill the draft (fork).
+  const contentCid = isDraft ? forkCid : cid
+  const ipfsData = useCID(contentCid)
   const client = useUniversalClient()
   const replaceRoute = useNavigate('replace')
+  const openUrl = useOpenUrl()
 
   // The CID's codec tells us definitively whether this is structured DAG-CBOR
   // (0x71) or a raw UnixFS file (dag-pb / raw) — an image or plain text.
   const codec = useMemo(() => {
     try {
-      return CID.parse(cid!).code
+      return CID.parse(contentCid!).code
     } catch {
       return null
     }
-  }, [cid])
+  }, [contentCid])
   const isDagCbor = codec === DAG_CBOR_CODE
   const isFile = codec != null && !isDagCbor
 
   const getImageUrl = useImageUrl()
-  const imageUrl = isFile && !hasSubpath && cid ? getImageUrl(`ipfs://${cid}`) : ''
+  const imageUrl = !isDraft && isFile && !hasSubpath && contentCid ? getImageUrl(`ipfs://${contentCid}`) : ''
   const isImage = useIsLoadableImage(imageUrl)
 
   const getFileUrl = useFileUrl()
@@ -134,8 +141,8 @@ export function InspectIpfsPage({
 
   // Resolve what kind of content this is.
   let kind: IpfsKind
-  if (isCreate) {
-    kind = 'cbor'
+  if (isDraft && !forkCid) {
+    kind = 'cbor' // brand-new empty object
   } else if (hasSubpath || isDagCbor) {
     kind = ipfsData.isLoading ? 'loading' : 'cbor'
   } else if (isFile) {
@@ -144,34 +151,46 @@ export function InspectIpfsPage({
     kind = ipfsData.isLoading ? 'loading' : ipfsData.data?.value != null ? 'cbor' : 'text'
   }
 
-  const textUrl = kind === 'text' && !hasSubpath && cid ? getFileUrl(`ipfs://${cid}`) : ''
+  const textUrl = kind === 'text' && !hasSubpath && contentCid ? getFileUrl(`ipfs://${contentCid}`) : ''
   const {text: rawText, loading: textLoading} = useIpfsText(textUrl)
 
-  const canEdit = !hasSubpath && (kind === 'cbor' || kind === 'text')
+  // "Edit" is offered on an editable view (not already a draft, not a sub-path).
+  const canEdit = !isDraft && !hasSubpath && (kind === 'cbor' || kind === 'text')
 
-  // Edit/draft state. Resets whenever the viewed CID changes. Create mode opens
-  // straight into an empty-object draft.
-  const [mode, setMode] = useState<'view' | 'edit'>(isCreate ? 'edit' : 'view')
-  const [editJson, setEditJson] = useState<unknown>(isCreate ? {} : undefined)
-  const [editText, setEditText] = useState('')
+  // Edit/draft state. A draft window opens straight into edit mode; a fork
+  // prefills from the source blob once it loads.
+  const [mode, setMode] = useState<'view' | 'edit'>(isDraft ? 'edit' : 'view')
+  const [editJson, setEditJson] = useState<unknown>(isDraft && !forkCid ? {} : undefined)
+  const [editText, setEditText] = useState<string | null>(null)
   const [publishing, setPublishing] = useState(false)
   useEffect(() => {
-    setMode(isCreate ? 'edit' : 'view')
-    setEditJson(isCreate ? {} : undefined)
-    setEditText('')
+    setMode(isDraft ? 'edit' : 'view')
+    setEditJson(isDraft && !forkCid ? {} : undefined)
+    setEditText(null)
     setPublishing(false)
-  }, [ipfsPath, isCreate])
+  }, [ipfsPath, isDraft, forkCid])
 
-  const startEditing = () => {
-    if (kind === 'cbor') setEditJson(ipfsData.data?.value ?? {})
-    else if (kind === 'text') setEditText(rawText ?? '')
-    setMode('edit')
+  // Fork: seed the draft from the source blob once it has loaded (only if the
+  // user hasn't started editing yet).
+  useEffect(() => {
+    if (!isDraft || !forkCid) return
+    if (kind === 'cbor' && ipfsData.data?.value !== undefined) {
+      setEditJson((cur: unknown) => (cur === undefined ? ipfsData.data!.value : cur))
+    } else if (kind === 'text' && rawText != null) {
+      setEditText((cur) => (cur === null ? rawText : cur))
+    }
+  }, [isDraft, forkCid, kind, ipfsData.data?.value, rawText])
+
+  // "Edit" forks the blob into a draft in a NEW window, leaving this one alone.
+  const editInNewWindow = () => {
+    if (cid) openUrl(`hm://inspect/ipfs/${NEW_IPFS_BLOB_PATH}/${cid}`, true)
   }
 
   const publish = async () => {
     setPublishing(true)
     try {
-      const newCid = kind === 'text' ? await publishTextBlob(client, editText) : await publishCborBlob(client, editJson)
+      const newCid =
+        kind === 'text' ? await publishTextBlob(client, editText ?? '') : await publishCborBlob(client, editJson)
       toast.success('Published a new blob')
       setMode('view')
       replaceRoute(createInspectIpfsNavRoute(newCid))
@@ -187,21 +206,32 @@ export function InspectIpfsPage({
 
   let body: ReactNode
   if (mode === 'edit' && kind === 'cbor') {
-    body = (
-      <ValueEditorProvider>
-        <ValueEditor value={editJson} onValue={setEditJson} rules={CBOR_VALUE_RULES} />
-      </ValueEditorProvider>
-    )
+    // A fork is still loading its source until editJson is seeded.
+    body =
+      editJson === undefined ? (
+        <div className="flex items-center justify-center py-8">
+          <Spinner />
+        </div>
+      ) : (
+        <ValueEditorProvider>
+          <ValueEditor value={editJson} onValue={setEditJson} rules={CBOR_VALUE_RULES} />
+        </ValueEditorProvider>
+      )
   } else if (mode === 'edit' && kind === 'text') {
-    body = (
-      <Textarea
-        autoFocus
-        value={editText}
-        onChange={(e) => setEditText(e.target.value)}
-        spellCheck={false}
-        className="min-h-[60vh] font-mono text-sm"
-      />
-    )
+    body =
+      editText === null && forkCid ? (
+        <div className="flex items-center justify-center py-8">
+          <Spinner />
+        </div>
+      ) : (
+        <Textarea
+          autoFocus
+          value={editText ?? ''}
+          onChange={(e) => setEditText(e.target.value)}
+          spellCheck={false}
+          className="min-h-[60vh] font-mono text-sm"
+        />
+      )
   } else if (kind === 'loading' || (kind === 'text' && textLoading)) {
     body = (
       <div className="flex items-center justify-center py-8">
@@ -238,12 +268,10 @@ export function InspectIpfsPage({
       <IpfsTopBar
         restingUrl={`ipfs://${ipfsPath}`}
         gatewayLink={gatewayLink}
-        creating={isCreate}
         editing={mode === 'edit'}
         canEdit={canEdit}
         publishing={publishing}
-        onStartEditing={startEditing}
-        onCancel={() => setMode('view')}
+        onEdit={editInNewWindow}
         onPublish={publish}
         exitRoute={exitRoute}
         exitLinkProps={exitLinkProps}
@@ -263,12 +291,10 @@ export function InspectIpfsPage({
 function IpfsTopBar({
   restingUrl,
   gatewayLink,
-  creating,
   editing,
   canEdit,
   publishing,
-  onStartEditing,
-  onCancel,
+  onEdit,
   onPublish,
   exitRoute,
   exitLinkProps,
@@ -277,12 +303,10 @@ function IpfsTopBar({
 }: {
   restingUrl: string
   gatewayLink: string
-  creating: boolean
   editing: boolean
   canEdit: boolean
   publishing: boolean
-  onStartEditing: () => void
-  onCancel: () => void
+  onEdit: () => void
   onPublish: () => void
   exitRoute?: NavRoute | null
   exitLinkProps: ReturnType<typeof useRouteLink>
@@ -300,9 +324,9 @@ function IpfsTopBar({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {canEdit && (
-          <DropdownMenuItem onSelect={onStartEditing}>
+          <DropdownMenuItem onSelect={onEdit}>
             <FileEdit className="size-4" />
-            Edit
+            Edit in new window
           </DropdownMenuItem>
         )}
         {exitRoute && (
@@ -325,15 +349,10 @@ function IpfsTopBar({
       {editing ? (
         <>
           <span className="bg-muted text-muted-foreground no-window-drag rounded px-2 py-0.5 text-xs font-medium">
-            {creating ? 'New object · unpublished' : 'Unpublished draft'}
+            Unpublished draft
           </span>
           <div className="flex-1" />
           <div className="no-window-drag flex items-center gap-2">
-            {!creating && (
-              <Button variant="ghost" size="sm" onClick={onCancel} disabled={publishing}>
-                Cancel
-              </Button>
-            )}
             <Button size="sm" onClick={onPublish} disabled={publishing}>
               {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
               Publish
