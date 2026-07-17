@@ -175,16 +175,17 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
 }
 
 /**
- * Discard a document's local draft: delete the tracked draft plus EVERY other
- * draft record for the same document.
+ * Delete EVERY local draft record for a document (the tracked draft, its removed
+ * children, and any other records for the same doc).
  *
  * Duplicate records can accumulate for a single doc (e.g. an autosave racing
  * ahead of the assigned draftId mints a fresh nanoid, and the machine only ever
- * tracks one id). Removing just the tracked `draftId` leaves the rest behind,
- * and the next load resurrects the draft via `getLatestWebDocDraftForDoc` — the
- * "discarded changes reappear after refresh" bug. Exported for unit testing.
+ * tracks one id). Removing just the tracked `draftId` leaves the rest behind, so
+ * the next load resurrects a draft via `getLatestWebDocDraftForDoc` — the
+ * "discarded changes reappear after refresh" and "empty draft lingers after
+ * publish" bugs. Used by both the discard and publish flows. Exported for tests.
  */
-export async function discardAllDraftsForDocument(
+export async function deleteAllDocumentDrafts(
   docId: string,
   draftId: string,
   deletedChildDraftIds: string[] = [],
@@ -198,7 +199,7 @@ export async function discardAllDraftsForDocument(
 
 function makeDiscardDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<void, DiscardDraftInput>(async ({input}) => {
-    await discardAllDraftsForDocument(deps.docId.id, input.draftId, input.deletedChildDraftIds)
+    await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds)
     invalidateQueries([queryKeys.DRAFT, input.draftId])
     invalidateQueries([queryKeys.DRAFTS_LIST])
     invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
@@ -319,7 +320,11 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   const newVersionStr = changeCid.toString()
   const publishedDocument = await resolvePublishedDocument(deps, publishPath, newVersionStr, editDocument, draft)
 
-  await cleanupWebDocDrafts(input.draftId, input.deletedChildDraftIds)
+  // Delete every local draft for this doc, not just the published one. A stray
+  // orphan record (e.g. an empty draft from an earlier autosave race) would
+  // otherwise survive the publish and reload as a blank draft on the next visit
+  // — "after publishing, the Content tab is blank with an active Publish button".
+  await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds)
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.

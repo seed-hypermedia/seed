@@ -10,7 +10,7 @@ import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 import {
-  discardAllDraftsForDocument,
+  deleteAllDocumentDrafts,
   publishWebDocument,
   resolveWriteDraftContent,
   type CreateWebDocumentMachineDeps,
@@ -286,6 +286,53 @@ describe('publishWebDocument', () => {
     expect(opCases).toContain('replaceBlock')
 
     expect(await getWebDocDraft(draftId)).toBeNull()
+  })
+
+  it('publish removes stray orphan drafts for the same doc, not just the published one', async () => {
+    // Reproduces "after publishing, the Content tab is blank with an active
+    // Publish button": an empty orphan draft (e.g. from an earlier autosave
+    // race) that the machine no longer tracks must not survive the publish and
+    // reload as a blank draft.
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+    await putWebDocDraft({
+      draftId: 'empty-orphan',
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {},
+      deps: [],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const deps = makeDeps({
+      editorBlocks: [
+        {id: 'b1', type: 'paragraph', props: {childrenType: 'Group'}, content: [{type: 'text', text: 'hello'}], children: []},
+      ],
+    })
+
+    await publishWebDocument(baseInput, deps)
+
+    expect(await getWebDocDraft(draftId)).toBeNull()
+    expect(await getWebDocDraft('empty-orphan')).toBeNull()
+    expect(await listWebDocDraftsForDoc(makeDocId(OWNER).id)).toEqual([])
   })
 
   it('publish deletes removed child drafts after successful parent publish', async () => {
@@ -746,7 +793,7 @@ describe('resolveWriteDraftContent', () => {
   })
 })
 
-describe('discardAllDraftsForDocument', () => {
+describe('deleteAllDocumentDrafts', () => {
   const DOC = 'hm://acct/foo1'
   const baseDraft = (draftId: string, updatedAt: number) => ({
     draftId,
@@ -781,7 +828,7 @@ describe('discardAllDraftsForDocument', () => {
     await putWebDocDraft(baseDraft('orphanB', 2000))
 
     // Discard the tracked draft (orphanB) — orphanA must also be removed.
-    await discardAllDraftsForDocument(DOC, 'orphanB')
+    await deleteAllDocumentDrafts(DOC, 'orphanB')
 
     const remaining = await listWebDocDraftsForDoc(DOC)
     expect(remaining).toEqual([])
@@ -793,7 +840,7 @@ describe('discardAllDraftsForDocument', () => {
     await putWebDocDraft(baseDraft('mine', 1000))
     await putWebDocDraft({...baseDraft('other', 1000), docId: 'hm://acct/bar'})
 
-    await discardAllDraftsForDocument(DOC, 'mine')
+    await deleteAllDocumentDrafts(DOC, 'mine')
 
     expect(await getWebDocDraft('mine')).toBeNull()
     expect(await getWebDocDraft('other')).not.toBeNull()
