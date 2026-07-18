@@ -27,7 +27,7 @@ services:
 
   seed-web:
     container_name: seed-web
-    image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
+    image: ${SEED_WEB_IMAGE:-seedhypermedia/web:${SEED_SITE_TAG:-latest}}
     user: "${SEED_UID}:${SEED_GID}"
     depends_on:
       - seed-daemon
@@ -49,7 +49,7 @@ services:
 
   seed-daemon:
     container_name: seed-daemon
-    image: seedhypermedia/site:${SEED_SITE_TAG:-latest}
+    image: ${SEED_SITE_IMAGE:-seedhypermedia/site:${SEED_SITE_TAG:-latest}}
     user: "${SEED_UID}:${SEED_GID}"
     restart: unless-stopped
     ports:
