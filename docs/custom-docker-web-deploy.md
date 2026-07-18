@@ -76,6 +76,20 @@ SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/op
 Confirm each node's `config.json` stores both `deploy_url` and `compose_url` under
 `https://raw.githubusercontent.com/horacioh/seed/custom-images/ops`. Only then replace `main` with the clean branch.
 
+## One-time branch migration
+
+Before replacing the fork's old `main`, repoint every existing custom node at `custom-images` while the currently
+installed fork deploy tool is still available:
+
+```sh
+seed-deploy backup
+SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops \
+  seed-deploy deploy --reconfigure
+```
+
+Confirm each node's `config.json` stores both `deploy_url` and `compose_url` under
+`https://raw.githubusercontent.com/horacioh/seed/custom-images/ops`. Only then replace `main` with the clean branch.
+
 ## Server bootstrap or migration
 
 Use the Horacio fork as the deploy source, not the upstream hosted installer:
