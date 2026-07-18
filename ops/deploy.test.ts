@@ -738,7 +738,7 @@ describe('config read/write/exists', () => {
   test('config preserves all SeedConfig fields', async () => {
     await writeConfig(
       makeTestConfig({
-        deploy_url: 'https://raw.githubusercontent.com/horacioh/seed/main/ops',
+        deploy_url: 'https://raw.githubusercontent.com/horacioh/seed/custom-images/ops',
         web_image: 'ghcr.io/horacioh/seed-web:main',
         site_image: 'ghcr.io/horacioh/seed-site:main',
       }),
@@ -2237,8 +2237,8 @@ describe('getDeployScriptUrl', () => {
     delete process.env.SEED_DEPLOY_URL
     delete process.env.SEED_REPO_URL
     try {
-      expect(getDeployScriptUrl('https://raw.githubusercontent.com/horacioh/seed/main/ops/')).toBe(
-        'https://raw.githubusercontent.com/horacioh/seed/main/ops/dist/deploy.js',
+      expect(getDeployScriptUrl('https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/')).toBe(
+        'https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/dist/deploy.js',
       )
     } finally {
       if (origDeploy !== undefined) process.env.SEED_DEPLOY_URL = origDeploy
