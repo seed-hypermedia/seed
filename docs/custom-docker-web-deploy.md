@@ -4,42 +4,64 @@ Operator notes for running the Horacio fork deployment while tracking upstream S
 
 ## Model
 
+Two branches keep the fork clean while still shipping custom images:
+
+- `main`: a clean mirror of `seed-hypermedia/seed:main` plus a single sync workflow commit. It carries no product
+  customizations, so pulling upstream stays trivial.
+- `custom-images`: rebased on top of `main`, it holds every fork customization (custom web/site images, the
+  fork-hosted `deploy.js` updater, and the query-block filters). The GHCR image build runs from this branch.
+
+Other pointers:
+
 - Fork remote: `origin` = `horacioh/seed`.
-- Deployment branch: `origin/main`.
+- Deployment branch: `origin/custom-images`.
 - Upstream: `seed-hypermedia/seed:main`.
-- Server deploy source: `https://raw.githubusercontent.com/horacioh/seed/main/ops`.
+- Server deploy source: `https://raw.githubusercontent.com/horacioh/seed/custom-images/ops`.
 - Custom images:
   - Web: `ghcr.io/horacioh/seed-web:main` and `ghcr.io/horacioh/seed-web:sha-<sha>`.
   - Daemon/site: `ghcr.io/horacioh/seed-site:main` and `ghcr.io/horacioh/seed-site:sha-<sha>`.
 
-`main` is the moving deployment channel. `sha-<sha>` tags are immutable rollback targets.
+The `main` image tag is the moving deployment channel (built from `custom-images`); `sha-<sha>` tags are immutable
+rollback targets.
 
-## Daily upstream rebase
+## Upstream sync (automated)
 
-Run from a clean local checkout of the fork:
+The `Custom - Sync Fork From Upstream` workflow (`.github/workflows/custom-rebase-main.yml`) runs every 6 hours (and on
+demand) from `main`. It:
+
+1. Rebases `main` onto `seed-hypermedia/seed:main` and force-with-lease pushes `main`.
+2. Rebases `custom-images` onto the freshly synced `main` and force-with-lease pushes `custom-images`.
+3. Dispatches the GHCR image build for `custom-images`.
+
+If either rebase hits a conflict, the workflow opens (or comments on) a tracking issue and stops so it can be resolved
+manually.
+
+To reproduce it locally:
 
 ```sh
 git fetch upstream main
-git fetch origin main
 git switch main
 git rebase upstream/main
 git push --force-with-lease origin main
+
+git switch custom-images
+git rebase origin/main
+git push --force-with-lease origin custom-images
 ```
 
 If rebase conflicts occur, stop and resolve them manually. Do not push a conflicted or unverified rebase. After the push,
 confirm the image build workflow publishes fresh `main` and SHA tags before expecting servers to update.
 
-Caveat: branch protection that blocks force pushes is incompatible with this exact rebase model. Either allow
-administrator/maintainer force-with-lease pushes for `main`, or use a separate deployment branch with matching build and
-server configuration.
+Caveat: branch protection that blocks force pushes is incompatible with this rebase model. Allow the actions bot to
+force-with-lease push `main` and `custom-images`.
 
 ## Server bootstrap or migration
 
 Use the Horacio fork as the deploy source, not the upstream hosted installer:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/horacioh/seed/main/ops/deploy.sh | \
-  SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/main/ops sh
+curl -fsSL https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/deploy.sh | \
+  SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops sh
 ```
 
 For an existing install, first take a backup, then re-run the fork bootstrap. The deploy script stores state under the
@@ -50,7 +72,7 @@ instead of replacing it with upstream's S3 build.
 
 ```sh
 seed-deploy backup
-SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/main/ops seed-deploy deploy --reconfigure
+SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops seed-deploy deploy --reconfigure
 ```
 
 When prompted for a custom Docker image tag, use `main` for the normal moving channel. Full GHCR image refs are
@@ -87,8 +109,8 @@ The relevant fields should be:
 
 ```json
 {
-  "deploy_url": "https://raw.githubusercontent.com/horacioh/seed/main/ops",
-  "compose_url": "https://raw.githubusercontent.com/horacioh/seed/main/ops/docker-compose.yml",
+  "deploy_url": "https://raw.githubusercontent.com/horacioh/seed/custom-images/ops",
+  "compose_url": "https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/docker-compose.yml",
   "release_channel": "main",
   "web_image": "ghcr.io/horacioh/seed-web:main",
   "site_image": "ghcr.io/horacioh/seed-site:main"
@@ -123,13 +145,13 @@ crontab -l | grep 'seed-'
 Manual deploy:
 
 ```sh
-SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/main/ops seed-deploy deploy
+SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops seed-deploy deploy
 ```
 
 Reconfigure deploy settings:
 
 ```sh
-SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/main/ops seed-deploy deploy --reconfigure
+SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops seed-deploy deploy --reconfigure
 ```
 
 Start, stop, restart, and logs:
@@ -149,7 +171,7 @@ seed-deploy logs proxy
 2. Reconfigure the server to that tag:
 
    ```sh
-   SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/main/ops seed-deploy deploy --reconfigure
+   SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops seed-deploy deploy --reconfigure
    ```
 
 3. Edit `/opt/seed/config.json` so `web_image` and `site_image` point at matching `sha-<sha>` tags.
