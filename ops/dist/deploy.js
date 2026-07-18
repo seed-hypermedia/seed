@@ -835,11 +835,36 @@ var DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
 var NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media";
 var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
+function currentDeployUrl() {
+  return getOpsBaseUrl().replace(/\/+$/, "");
+}
+function currentComposeUrl() {
+  return `${currentDeployUrl()}/docker-compose.yml`;
+}
+function configuredDeployUrl(existing) {
+  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL)
+    return currentDeployUrl();
+  if (existing?.deploy_url)
+    return existing.deploy_url.replace(/\/+$/, "");
+  return currentDeployUrl();
+}
+function configuredComposeUrl(existing) {
+  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL)
+    return currentComposeUrl();
+  if (existing?.deploy_url)
+    return `${existing.deploy_url.replace(/\/+$/, "")}/docker-compose.yml`;
+  if (existing?.compose_url)
+    return existing.compose_url;
+  return currentComposeUrl();
+}
 var GITHUB_RELEASES_API = "https://api.github.com/repos/seed-hypermedia/seed/releases/latest";
 var DEV_DEPLOY_SCRIPT_URL = "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/deploy.js";
-function getDeployScriptUrl() {
+function getDeployScriptUrl(deployUrl) {
   if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL) {
     return `${getOpsBaseUrl()}/dist/deploy.js`;
+  }
+  if (deployUrl) {
+    return `${deployUrl.replace(/\/+$/, "")}/dist/deploy.js`;
   }
   return DEV_DEPLOY_SCRIPT_URL;
 }
@@ -944,6 +969,26 @@ function validateDockerImageTag(tag) {
   if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(tag)) {
     return "Use a Docker image tag: letters, numbers, _, . or -; must start with a letter, number or _";
   }
+}
+function validateDockerImageRef(ref) {
+  if (!ref)
+    return;
+  if (ref.trim() !== ref)
+    return "Remove leading or trailing spaces";
+  if (/\s/.test(ref))
+    return "Docker image refs cannot contain spaces";
+  const lastSlash = ref.lastIndexOf("/");
+  const lastColon = ref.lastIndexOf(":");
+  if (lastColon <= lastSlash)
+    return "Include an explicit image tag, for example ghcr.io/horacioh/seed-web:main";
+  const name = ref.slice(0, lastColon);
+  const tag = ref.slice(lastColon + 1);
+  if (!name || !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(name) || name.includes("://")) {
+    return "Use a Docker image ref such as ghcr.io/horacioh/seed-web:main";
+  }
+  const tagError = validateDockerImageTag(tag);
+  if (tagError)
+    return `Invalid image tag: ${tagError}`;
 }
 async function promptReleaseChannel(options) {
   const initialTag = options.initialTag ?? DEFAULT_RELEASE_CHANNEL;
@@ -1291,6 +1336,16 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
       initialTag: old.imageTag,
       advanced
     }),
+    web_image: () => ue({
+      message: "Full web image ref (optional)",
+      placeholder: "ghcr.io/horacioh/seed-web:main",
+      validate: validateDockerImageRef
+    }),
+    site_image: () => ue({
+      message: "Full site/daemon image ref (optional)",
+      placeholder: "ghcr.io/horacioh/seed-site:main",
+      validate: validateDockerImageRef
+    }),
     log_level: () => de({
       message: "Log level",
       initialValue: old.logLevel ?? "info",
@@ -1341,7 +1396,8 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
   const config = {
     domain: answers.domain,
     email: answers.email || "",
-    compose_url: DEFAULT_COMPOSE_URL,
+    deploy_url: currentDeployUrl(),
+    compose_url: currentComposeUrl(),
     compose_sha: "",
     compose_env_sha: "",
     compose_envs: {
@@ -1349,6 +1405,8 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
     },
     environment: env,
     release_channel: answers.release_channel,
+    web_image: answers.web_image || undefined,
+    site_image: answers.site_image || undefined,
     testnet,
     link_secret: secret,
     analytics: old.trafficStats,
@@ -1424,6 +1482,18 @@ async function runFreshWizard(paths, existing, advanced = false) {
       initialTag: existing?.release_channel,
       advanced
     }),
+    web_image: () => ue({
+      message: "Full web image ref (optional)",
+      initialValue: existing?.web_image,
+      placeholder: "ghcr.io/horacioh/seed-web:main",
+      validate: validateDockerImageRef
+    }),
+    site_image: () => ue({
+      message: "Full site/daemon image ref (optional)",
+      initialValue: existing?.site_image,
+      placeholder: "ghcr.io/horacioh/seed-site:main",
+      validate: validateDockerImageRef
+    }),
     log_level: () => de({
       message: "Log level for Seed services",
       initialValue: existing?.compose_envs?.LOG_LEVEL ?? "info",
@@ -1467,7 +1537,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
   const config = {
     domain: answers.domain,
     email: answers.email || "",
-    compose_url: DEFAULT_COMPOSE_URL,
+    deploy_url: configuredDeployUrl(existing),
+    compose_url: configuredComposeUrl(existing),
     compose_sha: existing?.compose_sha ?? "",
     compose_env_sha: existing?.compose_env_sha ?? "",
     compose_envs: {
@@ -1475,6 +1546,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     },
     environment: env,
     release_channel: answers.release_channel,
+    web_image: answers.web_image || undefined,
+    site_image: answers.site_image || undefined,
     testnet,
     link_secret: secret,
     analytics: existing?.analytics ?? false,
@@ -1486,6 +1559,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     ["email", config.email],
     ["network", config.testnet ? "testnet (devnet)" : "mainnet"],
     ["release_channel", config.release_channel],
+    ["web_image", config.web_image || "(default)"],
+    ["site_image", config.site_image || "(default)"],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["gateway", String(config.gateway)]
   ];
@@ -1494,6 +1569,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     email: existing.email,
     network: existing.testnet ? "testnet (devnet)" : "mainnet",
     release_channel: existing.release_channel,
+    web_image: existing.web_image || "(default)",
+    site_image: existing.site_image || "(default)",
     log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
     gateway: String(existing.gateway)
   } : undefined;
@@ -1633,6 +1710,34 @@ async function getContainerImages(shell) {
   }
   return images;
 }
+function expectedServiceImages(config) {
+  const tag = config.release_channel || DEFAULT_RELEASE_CHANNEL;
+  return [
+    { container: "seed-web", expectedImage: config.web_image || `seedhypermedia/web:${tag}` },
+    { container: "seed-daemon", expectedImage: config.site_image || `seedhypermedia/site:${tag}` }
+  ];
+}
+function imageBase(ref) {
+  const lastSlash = ref.lastIndexOf("/");
+  const lastColon = ref.lastIndexOf(":");
+  if (lastColon > lastSlash)
+    return ref.slice(0, lastColon);
+  return ref;
+}
+function rollbackImageTargets(config) {
+  return expectedServiceImages(config).map(({ expectedImage }) => ({
+    base: imageBase(expectedImage),
+    target: expectedImage
+  }));
+}
+function rollbackTagRefs(container, runningImage, config) {
+  const tags = new Set([`${imageBase(runningImage)}:rollback`]);
+  const expected = expectedServiceImages(config).find((image) => image.container === container);
+  if (expected) {
+    tags.add(`${imageBase(expected.expectedImage)}:rollback`);
+  }
+  return [...tags];
+}
 async function checkForNewImages(config, paths, shell) {
   const env = buildComposeEnv(config, paths);
   const beforeImages = await getContainerImages(shell);
@@ -1707,6 +1812,12 @@ function buildComposeEnv(config, paths) {
     NOTIFY_SERVICE_HOST,
     SEED_SITE_MONITORING_WORKDIR: join(paths.seedDir, "monitoring")
   };
+  if (config.web_image) {
+    vars.SEED_WEB_IMAGE = config.web_image;
+  }
+  if (config.site_image) {
+    vars.SEED_SITE_IMAGE = config.site_image;
+  }
   return Object.entries(vars).map(([k3, v3]) => `${k3}="${v3}"`).join(" ");
 }
 function getWorkspaceDirs(paths) {
@@ -1736,12 +1847,11 @@ async function ensureSeedDir(paths, shell) {
 }
 async function rollback(previousImages, config, paths, shell) {
   log("Deployment failed \u2014 rolling back to previous images...");
-  const tag = config.release_channel || "latest";
-  for (const base of ["seedhypermedia/site", "seedhypermedia/web"]) {
+  for (const { base, target } of rollbackImageTargets(config)) {
     const hasRollback = shell.runSafe(`docker image inspect ${base}:rollback >/dev/null 2>&1 && echo yes`);
     if (hasRollback === "yes") {
-      shell.runSafe(`docker tag ${base}:rollback ${base}:${tag}`);
-      log(`  Restored ${base}:${tag} from rollback image`);
+      shell.runSafe(`docker tag ${base}:rollback ${target}`);
+      log(`  Restored ${target} from rollback image`);
     }
   }
   for (const [name] of previousImages) {
@@ -1753,7 +1863,7 @@ async function rollback(previousImages, config, paths, shell) {
   shell.runSafe(`${env} docker compose -f ${paths.composePath} up -d --quiet-pull 2>&1`);
   log("Rollback complete. Check container status with: docker ps");
 }
-async function selfUpdate(scriptPath = process.argv[1] || "") {
+async function selfUpdate(scriptPath = process.argv[1] || "", deployUrl) {
   const report = (msg) => {
     if (process.stdout.isTTY) {
       console.log(msg);
@@ -1766,7 +1876,7 @@ async function selfUpdate(scriptPath = process.argv[1] || "") {
     return;
   }
   try {
-    const url = getDeployScriptUrl();
+    const url = getDeployScriptUrl(deployUrl);
     const response = await fetch(url);
     if (!response.ok) {
       report(`Upgrade: failed to fetch ${url}: ${response.status}`);
@@ -1808,7 +1918,7 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   spinner?.start("Fetching docker-compose.yml...");
   step("Fetching docker-compose.yml...");
   const hasEnvOverride = process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL;
-  const composeUrl = hasEnvOverride ? `${getOpsBaseUrl()}/docker-compose.yml` : config.compose_url;
+  const composeUrl = hasEnvOverride ? `${getOpsBaseUrl()}/docker-compose.yml` : config.deploy_url ? `${config.deploy_url.replace(/\/+$/, "")}/docker-compose.yml` : config.compose_url;
   const composeResponse = await fetch(composeUrl);
   if (!composeResponse.ok) {
     spinner?.stop("Failed to fetch docker-compose.yml");
@@ -1904,8 +2014,9 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   for (const [name, imageId] of previousImages) {
     const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
     if (imageName) {
-      const base = imageName.split(":")[0];
-      shell.runSafe(`docker tag ${imageId} ${base}:rollback 2>/dev/null`);
+      for (const tagRef of rollbackTagRefs(name, imageName, config)) {
+        shell.runSafe(`docker tag ${imageId} ${tagRef} 2>/dev/null`);
+      }
     }
   }
   const env = buildComposeEnv(config, paths);
@@ -1962,7 +2073,8 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   config.compose_env_sha = envSha;
   config.last_script_run = new Date().toISOString();
   await writeConfig(config, paths);
-  for (const base of ["seedhypermedia/site", "seedhypermedia/web"]) {
+  for (const { expectedImage } of expectedServiceImages(config)) {
+    const base = imageBase(expectedImage);
     shell.runSafe(`docker rmi ${base}:rollback 2>/dev/null`);
   }
   step("Cleaning up unused images...");
@@ -2202,8 +2314,14 @@ ${MANAGE_HINT}`);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
 }
-async function cmdUpgrade() {
-  await selfUpdate();
+async function cmdUpgrade(paths) {
+  let deployUrl;
+  try {
+    if (await configExists(paths)) {
+      deployUrl = (await readConfig(paths)).deploy_url;
+    }
+  } catch {}
+  await selfUpdate(undefined, deployUrl);
 }
 async function cmdStop(paths, shell) {
   checkDockerAccess(shell);
@@ -2241,6 +2359,12 @@ Configuration:`);
     console.log(`  Domain:      ${config.domain}`);
     console.log(`  Network:     ${config.testnet ? "Testnet (devnet)" : "Mainnet"}`);
     console.log(`  Channel:     ${config.release_channel}`);
+    if (config.deploy_url)
+      console.log(`  Deploy URL:  ${config.deploy_url}`);
+    if (config.web_image)
+      console.log(`  Web image:   ${config.web_image}`);
+    if (config.site_image)
+      console.log(`  Site image:  ${config.site_image}`);
     console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
     console.log(`  Config:      ${paths.configPath}`);
     for (const warning of configWarnings(config)) {
@@ -2284,7 +2408,6 @@ Containers:`);
   Tip: Check logs with '${cmd("logs daemon|web|proxy")}'`);
   }
   if (config) {
-    const expectedTag = config.release_channel;
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET;
     const expectedTestnetName = config.testnet ? "dev" : "";
     const checks = [
@@ -2301,10 +2424,7 @@ Containers:`);
       "seed-daemon": daemonEnvs,
       "seed-web": webEnvs
     };
-    const imageChecks = [
-      { container: "seed-web", expectedImage: `seedhypermedia/web:${expectedTag}` },
-      { container: "seed-daemon", expectedImage: `seedhypermedia/site:${expectedTag}` }
-    ];
+    const imageChecks = expectedServiceImages(config);
     let hasMismatch = false;
     const mismatches = [];
     for (const { container, envVar, expected, label } of checks) {
@@ -2720,7 +2840,7 @@ async function main() {
     case "deploy":
       return cmdDeploy(paths, shell, reconfigure, advanced);
     case "upgrade":
-      return cmdUpgrade();
+      return cmdUpgrade(paths);
     case "stop":
       return cmdStop(paths, shell);
     case "start":
@@ -2754,11 +2874,14 @@ if (import.meta.main) {
 export {
   writeConfig,
   validateDockerImageTag,
+  validateDockerImageRef,
   takeOverHost,
   stopStackByProject,
   sha256,
   setupCron,
   selfUpdate,
+  rollbackTagRefs,
+  rollbackImageTargets,
   removeSeedCronLines,
   removeLegacyHostCronLines,
   removeLegacyHostCron,
@@ -2786,6 +2909,7 @@ export {
   freeConflictingPortBindings,
   extractSeedCronLines,
   extractDns,
+  expectedServiceImages,
   environmentPresets,
   ensureSeedDir,
   detectOldInstall,
