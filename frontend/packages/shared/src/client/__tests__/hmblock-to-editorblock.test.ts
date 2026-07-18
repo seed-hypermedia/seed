@@ -876,6 +876,7 @@ describe('HMBlock to EditorBlock', () => {
           query: {
             includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
             sort: [{term: 'updated', reverse: true}],
+            filters: [{type: 'Author', uid: 'author-a'}],
           },
         },
         revision: 'revision123',
@@ -895,6 +896,7 @@ describe('HMBlock to EditorBlock', () => {
         props: {
           queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
           querySort: '[{"term":"updated","reverse":true}]',
+          queryFilters: '[{"type":"Author","uid":"author-a"}]',
           queryLimit: '',
           style: 'Card',
           columnCount: '1',
@@ -932,6 +934,52 @@ describe('HMBlock to EditorBlock', () => {
         style: 'Table',
         tableConfig: '{"columns":[{"id":"title","visible":true,"width":280},{"id":"metadata:status","visible":false}]}',
       })
+    test('query block drops unsupported filter attributes while preserving supported filters', () => {
+      const hmBlock = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [],
+            filters: [
+              {type: 'Author', uid: 'author-a'},
+              {type: 'PublishDate', after: '2026-01-01'},
+              {type: 'Author', uid: 42},
+            ],
+          },
+        },
+      } as unknown as HMBlockQuery
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect((val as EditorQueryBlock).props.queryFilters).toBe('[{"type":"Author","uid":"author-a"}]')
+    })
+
+    test('query block treats malformed filter attributes as no filters', () => {
+      const hmBlock = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [],
+            filters: {type: 'PublishDate', after: '2026-01-01'},
+          },
+        },
+      } as unknown as HMBlockQuery
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect((val as EditorQueryBlock).props.queryFilters).toBe('[]')
     })
   })
 

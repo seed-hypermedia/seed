@@ -5,6 +5,7 @@ import {
   HMQueryTableConfig,
   UnpackedHypermediaId,
   normalizeQuerySort,
+  parseHMQueryFiltersJSON,
 } from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath, useRenderResourceStack} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
@@ -34,8 +35,15 @@ import {createReactBlockSpec} from './blocknote/react'
 import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
+import {QueryAccountFilterInput} from './query-account-filter-input'
 
-import {defaultQueryIncludes, defaultQuerySort, getQueryBlockInput, resolveQueryIncludes} from './query-block-input'
+import {
+  defaultQueryFilters,
+  defaultQueryIncludes,
+  defaultQuerySort,
+  getQueryBlockInput,
+  resolveQueryIncludes,
+} from './query-block-input'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -56,6 +64,9 @@ export const QueryBlock = createReactBlockSpec({
     },
     querySort: {
       default: defaultQuerySort,
+    },
+    queryFilters: {
+      default: defaultQueryFilters,
     },
     banner: {
       default: 'false',
@@ -88,6 +99,11 @@ export const QueryBlock = createReactBlockSpec({
 
 type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
 type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
+type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
+
+function parseQueryFilters(rawFilters: string | undefined): HMQueryBlockFilters {
+  return parseHMQueryFiltersJSON(rawFilters || defaultQueryFilters)
+}
 
 function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
   const client = useUniversalClient()
@@ -108,6 +124,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const querySort = useMemo(() => {
     return normalizeQuerySort(JSON.parse(block.props.querySort || defaultQuerySort))
   }, [block.props.querySort])
+
+  const queryFilters: HMQueryBlockFilters = useMemo(() => {
+    return parseQueryFilters(block.props.queryFilters)
+  }, [block.props.queryFilters])
 
   const banner = block.props.banner === 'true'
   const queryTargetId = useMemo<UnpackedHypermediaId | null>(() => {
@@ -252,7 +272,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
             queryDocName={queryBlock.data?.queryTargetName || ''}
             queryIncludes={queryIncludes}
             querySort={querySort}
-            style={style}
+            queryFilters={queryFilters}
             banner={banner}
             // @ts-expect-error
             block={block}
@@ -286,6 +306,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
+  queryFilters,
   editor,
   banner,
   beginEditIfNeeded,
@@ -294,6 +315,7 @@ function QuerySettings({
   block: EditorQueryBlock
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
+  queryFilters: HMQueryBlockFilters
   banner: boolean
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
@@ -356,6 +378,23 @@ function QuerySettings({
     }
   }, [popoverState.open, editor, block.id])
 
+  const authorFilters = queryFilters.filter((filter) => filter.type === 'Author')
+
+  const saveFilters = (filters: HMQueryBlockFilters) => {
+    const queryFilters = JSON.stringify(filters)
+    queueMicrotask(() => {
+      onValuesChange({
+        id: null,
+        props: {
+          queryFilters,
+        } as EditorQueryBlock['props'],
+      })
+    })
+  }
+
+  const updateAuthorFilters = (uids: string[]) => {
+    saveFilters(uids.map((uid) => ({type: 'Author' as const, uid})))
+  }
   return (
     <>
       <div className="relative flex justify-end py-1">
@@ -432,6 +471,11 @@ function QuerySettings({
                   {label: 'Show only Direct Children', value: 'Children'},
                   {label: 'Show all Descendants', value: 'AllDescendants'},
                 ]}
+              />
+
+              <QueryAccountFilterInput
+                selectedUids={authorFilters.map((filter) => filter.uid)}
+                onSelectedUidsChange={updateAuthorFilters}
               />
 
               <SelectField
