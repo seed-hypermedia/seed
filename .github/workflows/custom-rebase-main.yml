@@ -1,0 +1,123 @@
+name: Custom - Sync Fork From Upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Keep the fork close to upstream every 6 hours.
+    - cron: '17 */6 * * *'
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync-main:
+    name: Rebase main onto upstream/main
+    runs-on: ubuntu-latest
+    if: github.repository == 'horacioh/seed'
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure actions bot identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Record starting HEAD
+        id: before
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Add and fetch upstream
+        run: |
+          git remote add upstream https://github.com/seed-hypermedia/seed.git
+          git fetch --prune upstream main
+
+      - name: Rebase main onto upstream/main
+        run: git rebase upstream/main
+
+      - name: Record rebased HEAD
+        id: after
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push rebased main
+        if: steps.after.outputs.sha != steps.before.outputs.sha
+        run: git push --force-with-lease origin HEAD:main
+
+      - name: Open or update failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Upstream sync of main failed'
+          body="The scheduled rebase of \`main\` onto \`seed-hypermedia/seed:main\` failed. Resolve it manually, then re-run the workflow.
+
+          Failed run: $RUN_URL"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Sync failed again: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
+
+  rebase-custom-images:
+    name: Rebase custom-images onto main
+    needs: sync-main
+    runs-on: ubuntu-latest
+    if: github.repository == 'horacioh/seed'
+    steps:
+      - name: Checkout custom-images
+        uses: actions/checkout@v4
+        with:
+          ref: custom-images
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure actions bot identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch updated main
+        run: git fetch --prune origin main
+
+      - name: Record starting HEAD
+        id: before
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Rebase custom-images onto origin/main
+        run: git rebase origin/main
+
+      - name: Record rebased HEAD
+        id: after
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push rebased custom-images
+        if: steps.after.outputs.sha != steps.before.outputs.sha
+        run: git push --force-with-lease origin HEAD:custom-images
+
+      - name: Open or update failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Rebase of custom-images failed'
+          body="The scheduled rebase of \`custom-images\` onto the freshly synced \`main\` failed, most likely due to a conflict with the fork's custom commits. Resolve it manually, then re-run the workflow.
+
+          Failed run: $RUN_URL"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Rebase failed again: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
