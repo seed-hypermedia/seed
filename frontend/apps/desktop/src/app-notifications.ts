@@ -116,7 +116,6 @@ async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise
   // same notify server the web vault and the UI use; fall back to the local
   // default (appStore / NOTIFY_SERVICE_HOST, seeded from the renderer).
   const host = explicit || vaultHost || fallback
-  log.error('🔔 NOTIFY resolveNotifyHost', {explicit: explicit ?? null, vaultHost, fallback, chosen: host ?? null})
   if (!host) {
     throw new Error('Notify service host is not configured')
   }
@@ -379,16 +378,7 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
   const syncStart = Date.now()
 
   try {
-    const localConfigBefore = getOrCreateAccountState(accountUid).snapshot.config
     const remoteState = await getNotificationState(host, signer)
-    log.error('🔔 NOTIFY SYNC remote-state', {
-      accountUid,
-      host,
-      signingKeyName: signingKeyNameCache.get(accountUid) ?? '(unresolved)',
-      localBefore: {email: localConfigBefore.email, verifiedTime: localConfigBefore.verifiedTime},
-      remote: {email: remoteState.config.email, verifiedTime: remoteState.config.verifiedTime},
-      pendingActions: getOrCreateAccountState(accountUid).pendingActions.map((a) => a.type),
-    })
     updateAccountState(accountUid, (current) => ({
       ...current,
       snapshot: reduceNotificationStateActions(
@@ -401,13 +391,6 @@ async function runSync(accountUid: string, notifyServiceHost?: string): Promise<
       lastSyncAtMs: syncStart,
       lastSyncError: null,
     }))
-    log.error('🔔 NOTIFY SYNC after-reduce', {
-      accountUid,
-      config: {
-        email: getOrCreateAccountState(accountUid).snapshot.config.email,
-        verifiedTime: getOrCreateAccountState(accountUid).snapshot.config.verifiedTime,
-      },
-    })
 
     const pendingBeforeApply = getOrCreateAccountState(accountUid).pendingActions
     if (pendingBeforeApply.length > 0) {
