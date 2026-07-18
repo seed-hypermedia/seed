@@ -9,6 +9,7 @@ import type {
   MediaBlockProps,
 } from './editor-types'
 import {
+  getSupportedHMQueryFilters,
   isSurrogate,
   type HMAnnotation,
   type HMBlock,
@@ -231,6 +232,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.columnCount = String(block.attributes?.columnCount || '')
     queryProps.queryIncludes = JSON.stringify(block.attributes?.query?.includes || [])
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
+    queryProps.queryFilters = JSON.stringify(getSupportedHMQueryFilters(block.attributes?.query?.filters))
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
   }

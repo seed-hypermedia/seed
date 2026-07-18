@@ -19,6 +19,8 @@ function makeEntry(
     updateTime: string
     latestChangeTime: string
     latestCommentTime: string
+    authors: string[]
+    displayPublishTime: string
   }>,
 ): HMDocumentInfo {
   const path = overrides.path ?? ['projects', 'a']
@@ -26,7 +28,7 @@ function makeEntry(
     type: 'document',
     id: overrides.id ?? hmId('alice', {path}),
     path,
-    authors: [],
+    authors: overrides.authors ?? [],
     createTime: overrides.createTime ?? '2024-01-01T00:00:00Z',
     updateTime: overrides.updateTime ?? '2024-01-01T00:00:00Z',
     sortTime: new Date(overrides.updateTime ?? '2024-01-01T00:00:00Z'),
@@ -41,7 +43,10 @@ function makeEntry(
       isUnread: false,
     },
     generationInfo: {genesis: '', generation: 0n},
-    metadata: {name: overrides.name ?? path[path.length - 1] ?? 'Untitled'},
+    metadata: {
+      name: overrides.name ?? path[path.length - 1] ?? 'Untitled',
+      displayPublishTime: overrides.displayPublishTime,
+    },
     visibility: 'PUBLIC',
   } as unknown as HMDocumentInfo
 }
@@ -81,6 +86,73 @@ describe('createQueryResolver', () => {
       },
     })
     expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Newer', 'Older'])
+  })
+
+  it('filters results by author before sorting', async () => {
+    const parent = makeEntry({id: hmId('alice', {path: ['projects']}), path: ['projects'], name: 'Projects'})
+    const authoredByAlice = makeEntry({
+      id: hmId('alice', {path: ['projects', 'alice']}),
+      path: ['projects', 'alice'],
+      name: 'Alice',
+      authors: ['alice-author', 'co-author'],
+      updateTime: '2024-01-01T00:00:00Z',
+    })
+    const authoredByBob = makeEntry({
+      id: hmId('alice', {path: ['projects', 'bob']}),
+      path: ['projects', 'bob'],
+      name: 'Bob',
+      authors: ['bob-author'],
+      updateTime: '2024-03-01T00:00:00Z',
+    })
+
+    const listDirectory = vi.fn().mockResolvedValue({documents: [parent, authoredByBob, authoredByAlice]})
+    const resolver = createQueryResolver({documents: {listDirectory}} as any)
+
+    const result = await resolver({
+      includes: [{space: 'alice', path: '/projects', mode: 'AllDescendants'}],
+      sort: [{term: 'UpdateTime', reverse: false}],
+      filters: [{type: 'Author', uid: 'alice-author'}],
+    })
+
+    expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Alice'])
+  })
+
+  it('matches any selected author filter before sorting', async () => {
+    const parent = makeEntry({id: hmId('alice', {path: ['projects']}), path: ['projects'], name: 'Projects'})
+    const authoredByAlice = makeEntry({
+      id: hmId('alice', {path: ['projects', 'alice']}),
+      path: ['projects', 'alice'],
+      name: 'Alice',
+      authors: ['alice-author'],
+    })
+    const authoredByBob = makeEntry({
+      id: hmId('alice', {path: ['projects', 'bob']}),
+      path: ['projects', 'bob'],
+      name: 'Bob',
+      authors: ['bob-author'],
+    })
+    const authoredByCarol = makeEntry({
+      id: hmId('alice', {path: ['projects', 'carol']}),
+      path: ['projects', 'carol'],
+      name: 'Carol',
+      authors: ['carol-author'],
+    })
+
+    const listDirectory = vi
+      .fn()
+      .mockResolvedValue({documents: [parent, authoredByCarol, authoredByBob, authoredByAlice]})
+    const resolver = createQueryResolver({documents: {listDirectory}} as any)
+
+    const result = await resolver({
+      includes: [{space: 'alice', path: '/projects', mode: 'AllDescendants'}],
+      sort: [{term: 'Title', reverse: false}],
+      filters: [
+        {type: 'Author', uid: 'alice-author'},
+        {type: 'Author', uid: 'bob-author'},
+      ],
+    })
+
+    expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Alice', 'Bob'])
   })
 
   it('still uses listDirectory for unsupported server sorts and applies client-side sorting', async () => {

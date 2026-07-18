@@ -5,6 +5,7 @@ import {
   HMBlockButtonAlignmentSchema,
   type HMBlockNode,
   HMBlockSchema,
+  parseHMQueryFiltersJSON,
   type HMBlockType,
   toNumber,
 } from './hm-types'
@@ -326,12 +327,15 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (blockQuery && editorBlock.type == 'query') {
     blockQuery.attributes.style = editorBlock.props.style
     blockQuery.attributes.columnCount = Number(editorBlock.props.columnCount)
-    const query: {includes: unknown[]; sort: unknown[]; limit?: number} = {
+    const query: {includes: unknown[]; sort: unknown[]; filters?: unknown[]; limit?: number} = {
       includes: [],
       sort: [],
     }
     if (editorBlock.props.queryIncludes) query.includes = JSON.parse(editorBlock.props.queryIncludes)
     if (editorBlock.props.querySort) query.sort = JSON.parse(editorBlock.props.querySort)
+    if (editorBlock.props.queryFilters) {
+      query.filters = parseHMQueryFiltersJSON(editorBlock.props.queryFilters)
+    }
     if (editorBlock.props.queryLimit) query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'

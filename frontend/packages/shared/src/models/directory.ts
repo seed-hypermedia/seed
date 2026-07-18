@@ -1,4 +1,10 @@
-import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  HMDocumentInfo,
+  HMQuery,
+  HMQueryFilter,
+  HMQueryResult,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {SortAttribute} from '../client/.generated/documents/v3alpha/documents_pb'
 import {BIG_INT} from '../constants'
 import {queryBlockSortedItems} from '../content'
@@ -6,6 +12,15 @@ import {GRPCClient} from '../grpc-client'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {prepareHMDocumentInfo} from './entity'
+
+function filterQueryResults(entries: HMDocumentInfo[], filters: HMQueryFilter[] | undefined): HMDocumentInfo[] {
+  if (!filters?.length) return entries
+
+  const authorUids = filters.map((filter) => filter.uid).filter(Boolean)
+  if (!authorUids.length) return entries
+
+  return entries.filter((entry) => authorUids.some((uid) => entry.authors.includes(uid)))
+}
 
 function createDirectoryResolver(client: GRPCClient) {
   async function getDirectory(
@@ -48,7 +63,7 @@ function createDirectoryResolver(client: GRPCClient) {
 export function createQueryResolver(client: GRPCClient) {
   const getDirectory = createDirectoryResolver(client)
   async function getQueryResults(query: HMQuery): Promise<HMQueryResult | null> {
-    const {includes, sort} = query
+    const {includes, sort, filters} = query
     if (includes.length !== 1) return null // only support one include for now
     const {path, mode, space} = includes[0]!
     const inId = hmId(space, {
@@ -57,10 +72,11 @@ export function createQueryResolver(client: GRPCClient) {
     const dir = await getDirectory(inId, mode, sort)
     if (!inId) return null
 
+    const filteredDir = filterQueryResults(dir, filters)
     const sortedDir = sort
-      ? queryBlockSortedItems({entries: dir, sort})
+      ? queryBlockSortedItems({entries: filteredDir, sort})
       : queryBlockSortedItems({
-          entries: dir,
+          entries: filteredDir,
           sort: [{term: 'UpdateTime', reverse: false}],
         })
     return {in: inId, results: sortedDir, mode} satisfies HMQueryResult

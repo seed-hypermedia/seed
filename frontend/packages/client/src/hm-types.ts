@@ -783,6 +783,41 @@ export const HMQuerySortSchema = z.object({
 })
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
+export const HMQueryFilterSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('Author'),
+    uid: z.string(),
+  }),
+])
+export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
+
+/** Returns only query filters supported by this client, dropping malformed or future filter types. */
+export function getSupportedHMQueryFilters(val: unknown): HMQueryFilter[] {
+  if (!Array.isArray(val)) return []
+  return val.filter(
+    (filter): filter is HMQueryFilter =>
+      filter !== null &&
+      typeof filter === 'object' &&
+      (filter as {type?: unknown}).type === 'Author' &&
+      typeof (filter as {uid?: unknown}).uid === 'string',
+  )
+}
+
+/** Parses stored query filter JSON, returning an empty list for invalid or unsupported payloads. */
+export function parseHMQueryFiltersJSON(rawFilters: string | undefined): HMQueryFilter[] {
+  if (!rawFilters) return []
+  try {
+    return getSupportedHMQueryFilters(JSON.parse(rawFilters))
+  } catch {
+    return []
+  }
+}
+
+function removeUnsupportedQueryFilters(val: unknown) {
+  if (val === undefined) return undefined
+  return getSupportedHMQueryFilters(val)
+}
+
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
@@ -790,6 +825,7 @@ export const HMQuerySchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
+  filters: z.preprocess(removeUnsupportedQueryFilters, z.array(HMQueryFilterSchema).optional()),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
 

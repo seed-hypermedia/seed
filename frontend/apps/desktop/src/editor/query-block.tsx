@@ -7,7 +7,7 @@ import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockQuery, parseHMQueryFiltersJSON, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -26,9 +26,11 @@ import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useState} from 'react'
 import {HMBlockSchema} from './schema'
+import {QueryAccountFilterInput} from '@shm/editor/query-account-filter-input'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
+const defaultQueryFilters = '[]'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -49,6 +51,9 @@ export const QueryBlock = createReactBlockSpec({
     },
     querySort: {
       default: defaultQuerySort,
+    },
+    queryFilters: {
+      default: defaultQueryFilters,
     },
     banner: {
       default: 'false',
@@ -89,6 +94,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     return JSON.parse(block.props.querySort || defaultQuerySort)
   }, [block.props.querySort])
 
+  const queryFilters: HMQueryBlockFilters = useMemo(() => {
+    return parseQueryFilters(block.props.queryFilters)
+  }, [block.props.queryFilters])
+
   const banner = useMemo(() => {
     return Boolean(block.props.banner == 'true')
   }, [block.props.banner])
@@ -104,9 +113,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         includes: queryIncludes,
         sort: querySort,
         limit: queryLimit,
+        filters: queryFilters,
       },
     }
-  }, [queryIncludes, querySort, queryLimit])
+  }, [queryIncludes, querySort, queryLimit, queryFilters])
   const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
   const sortedItems = queryBlock.data?.results ?? []
 
@@ -185,7 +195,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         queryDocName={queryBlock.data?.queryTargetName || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
-        style={block.props.style as 'Card' | 'List'}
+        queryFilters={queryFilters}
         banner={banner}
         // @ts-expect-error
         block={block}
@@ -243,6 +253,11 @@ function BlankQueryBlockMessage({message}: {message: string}) {
 
 type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
 type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
+type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
+
+function parseQueryFilters(rawFilters: string | undefined): HMQueryBlockFilters {
+  return parseHMQueryFiltersJSON(rawFilters || defaultQueryFilters)
+}
 
 function QuerySettings({
   queryDocName = '',
@@ -250,6 +265,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
+  queryFilters,
   editor,
   banner,
 }: {
@@ -257,6 +273,7 @@ function QuerySettings({
   block: EditorQueryBlock
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
+  queryFilters: HMQueryBlockFilters
   banner: boolean
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
@@ -265,6 +282,23 @@ function QuerySettings({
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
   const [limit, setLimit] = useState(!!block.props.queryLimit)
 
+  const authorFilters = queryFilters.filter((filter) => filter.type === 'Author')
+
+  const saveFilters = (filters: HMQueryBlockFilters) => {
+    const queryFilters = JSON.stringify(filters)
+    queueMicrotask(() => {
+      onValuesChange({
+        id: null,
+        props: {
+          queryFilters,
+        } as EditorQueryBlock['props'],
+      })
+    })
+  }
+
+  const updateAuthorFilters = (uids: string[]) => {
+    saveFilters(uids.map((uid) => ({type: 'Author' as const, uid})))
+  }
   return (
     <>
       <div
@@ -353,6 +387,11 @@ function QuerySettings({
                     value: 'AllDescendants',
                   },
                 ]}
+              />
+
+              <QueryAccountFilterInput
+                selectedUids={authorFilters.map((filter) => filter.uid)}
+                onSelectedUidsChange={updateAuthorFilters}
               />
 
               <SelectField

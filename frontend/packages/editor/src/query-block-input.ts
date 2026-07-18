@@ -9,18 +9,21 @@
 
 export const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 export const defaultQuerySort = '[{"term":"UpdateTime","reverse":false}]'
+export const defaultQueryFilters = '[]'
 
 export type QueryBlockInputProps = {
   queryIncludes?: string
   querySort?: string
   queryLimit?: string
+  queryFilters?: string
 }
 
 export function getQueryBlockInput(
   props: QueryBlockInputProps,
-): {query: {includes: any[]; sort: any; limit: number | undefined}} | null {
+): {query: {includes: any[]; sort: any; limit: number | undefined; filters: any[]}} | null {
   const queryIncludes = JSON.parse(props.queryIncludes || defaultQueryIncludes)
   const querySort = JSON.parse(props.querySort || defaultQuerySort)
+  const queryFilters = JSON.parse(props.queryFilters || defaultQueryFilters)
   const parsedLimit = parseInt(props.queryLimit || '', 10)
   if (!queryIncludes?.[0]?.space) return null
   return {
@@ -28,6 +31,7 @@ export function getQueryBlockInput(
       includes: queryIncludes,
       sort: querySort,
       limit: parsedLimit > 0 ? parsedLimit : undefined,
+      filters: queryFilters,
     },
   }
 }
