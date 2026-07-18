@@ -27,25 +27,11 @@ export function useNotificationConfig(
   const enabled = !!accountUid && (options?.enabled ?? true)
   return useQuery({
     queryKey: [queryKeys.NOTIFICATION_CONFIG, notifyServiceHost, accountUid],
-    queryFn: async () => {
-      const result = await client.notificationConfig.getConfig.query({
+    queryFn: () =>
+      client.notificationConfig.getConfig.query({
         accountUid: accountUid!,
         notifyServiceHost,
-      })
-      // eslint-disable-next-line no-console
-      console.error(
-        '🔔 NOTIFY renderer getConfig ' +
-          JSON.stringify({
-            accountUid,
-            notifyServiceHost,
-            email: result.email,
-            verifiedTime: result.verifiedTime,
-            isNotifyServerConnected: result.isNotifyServerConnected,
-            syncError: result.syncError,
-          }),
-      )
-      return result
-    },
+      }),
     enabled,
     staleTime: 0,
     refetchOnMount: 'always',
