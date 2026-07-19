@@ -1,0 +1,31 @@
+{
+  "name": "Link schema",
+  "description": "The variant for a link (CID), optionally naming the expected target type.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "hm://hyper.media/link"
+      ]
+    },
+    "ref": {
+      "type": "hm://hyper.media/string"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}

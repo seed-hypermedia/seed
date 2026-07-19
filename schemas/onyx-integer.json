@@ -1,0 +1,5 @@
+{
+  "name": "Integer",
+  "description": "A whole number. DAG-CBOR encodes integers distinctly from floats.",
+  "type": "hm://hyper.media/integer"
+}

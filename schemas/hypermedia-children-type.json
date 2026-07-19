@@ -1,0 +1,12 @@
+{
+  "name": "Children type",
+  "description": "How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.",
+  "type": "hm://hyper.media/string",
+  "enum": [
+    "Group",
+    "Ordered",
+    "Unordered",
+    "Blockquote",
+    "Grid"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Registry",
+  "description": "A map from ids to person links — Map<Link<Person>>.",
+  "type": "hm://hyper.media/map",
+  "values": {
+    "type": "hm://hyper.media/link",
+    "ref": "hm://example.com/person"
+  }
+}

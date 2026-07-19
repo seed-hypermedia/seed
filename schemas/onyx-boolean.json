@@ -1,0 +1,5 @@
+{
+  "name": "Boolean",
+  "description": "A true or false value.",
+  "type": "hm://hyper.media/boolean"
+}

@@ -1,0 +1,43 @@
+{
+  "name": "Ref",
+  "description": "A signed pointer (like a Git ref) claiming that a path in a space points at the current head Changes of a document.",
+  "ref": "hm://seed.hyper.media/blob",
+  "required": [
+    "heads"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Ref"
+      ]
+    },
+    "space": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "path": {
+      "ref": "hm://hyper.media/string"
+    },
+    "genesisBlob": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "capability": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "heads": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/cid"
+      }
+    },
+    "redirect": {
+      "ref": "hm://seed.hyper.media/redirect-target"
+    },
+    "generation": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "visibility": {
+      "ref": "hm://seed.hyper.media/visibility"
+    }
+  }
+}

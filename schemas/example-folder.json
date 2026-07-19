@@ -1,0 +1,25 @@
+{
+  "type": "hm://hyper.media/map",
+  "required": [
+    "name"
+  ],
+  "properties": {
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "files": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/file"
+      }
+    },
+    "subfolders": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/folder"
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "MyApp change",
+  "description": "A Change instantiated with this app's block type — Change<example-app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the app's blocks (core + Poll), deep inside the op stack — a block type the app doesn't know is rejected, unlike the open default Change.",
+  "ref": "hm://seed.hyper.media/change",
+  "args": {
+    "Block": { "ref": "hm://example.com/app-block" }
+  }
+}

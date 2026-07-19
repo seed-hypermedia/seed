@@ -1,0 +1,49 @@
+{
+  "name": "Comment",
+  "description": "A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.",
+  "ref": "hm://seed.hyper.media/blob",
+  "required": [
+    "body"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Comment"
+      ]
+    },
+    "id": {
+      "ref": "hm://hyper.media/string"
+    },
+    "capability": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "space": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "path": {
+      "ref": "hm://hyper.media/string"
+    },
+    "version": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/cid"
+      }
+    },
+    "threadRoot": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "replyParent": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "body": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/comment-block"
+      }
+    },
+    "visibility": {
+      "ref": "hm://seed.hyper.media/visibility"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Geo point",
+  "description": "A latitude/longitude coordinate with an optional altitude.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "lat",
+    "lng"
+  ],
+  "properties": {
+    "lat": {
+      "ref": "hm://hyper.media/float"
+    },
+    "lng": {
+      "ref": "hm://hyper.media/float"
+    },
+    "altitude": {
+      "ref": "hm://hyper.media/integer"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Filesystem entry",
+  "description": "Either a folder or a file (a union).",
+  "anyOf": [
+    {
+      "ref": "hm://example.com/folder"
+    },
+    {
+      "ref": "hm://example.com/file"
+    }
+  ]
+}
