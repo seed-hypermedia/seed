@@ -1,0 +1,11 @@
+{
+  "name": "Embed view",
+  "description": "How an Embed block renders its target: Content, Card, Comments, or Link.",
+  "type": "hm://hyper.media/string",
+  "enum": [
+    "Content",
+    "Card",
+    "Comments",
+    "Link"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Annotation",
+  "description": "An inline text annotation (bold, link, …) over character ranges, plus arbitrary inline attributes.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "type": {
+      "ref": "hm://hyper.media/string"
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    },
+    "starts": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/integer"
+      }
+    },
+    "ends": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/integer"
+      }
+    }
+  },
+  "values": {
+    "ref": "hm://seed.hyper.media/value"
+  }
+}

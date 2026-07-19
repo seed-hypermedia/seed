@@ -1,0 +1,36 @@
+{
+  "name": "Embed block",
+  "description": "An embed of another Hypermedia document (an hm:// URL).",
+  "ref": "hm://seed.hyper.media/block-base",
+  "required": [
+    "link"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Embed"
+      ]
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {
+        "childrenType": {
+          "ref": "hm://seed.hyper.media/children-type"
+        },
+        "columnCount": {
+          "ref": "hm://hyper.media/float"
+        },
+        "view": {
+          "ref": "hm://seed.hyper.media/embed-view"
+        }
+      },
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  }
+}
