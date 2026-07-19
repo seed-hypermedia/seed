@@ -1,0 +1,10 @@
+{
+  "$type": "hm://example.com/employee",
+  "value": {
+    "name": "Bob",
+    "employeeId": "E-7",
+    "department": "Engineering",
+    "active": true,
+    "age": 35
+  }
+}

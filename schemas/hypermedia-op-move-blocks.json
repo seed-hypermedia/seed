@@ -1,0 +1,32 @@
+{
+  "name": "MoveBlocks op",
+  "description": "Move blocks under a parent, using RGA CRDT reference ids.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type",
+    "blocks"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "MoveBlocks"
+      ]
+    },
+    "parent": {
+      "ref": "hm://hyper.media/string"
+    },
+    "blocks": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    },
+    "ref": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/integer"
+      }
+    }
+  }
+}

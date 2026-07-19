@@ -1,0 +1,20 @@
+{
+  "name": "Tree",
+  "description": "A node holding an integer value and links to child nodes.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "value"
+  ],
+  "properties": {
+    "value": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "children": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/tree"
+      }
+    }
+  }
+}

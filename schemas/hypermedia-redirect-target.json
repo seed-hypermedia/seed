@@ -1,0 +1,16 @@
+{
+  "name": "Redirect target",
+  "description": "A redirect from one document to another space and/or path.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "space": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "path": {
+      "ref": "hm://hyper.media/string"
+    },
+    "republish": {
+      "ref": "hm://hyper.media/boolean"
+    }
+  }
+}
