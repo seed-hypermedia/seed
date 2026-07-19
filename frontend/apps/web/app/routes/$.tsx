@@ -26,6 +26,7 @@ import {WebFeedPage} from '@/web-feed-page'
 import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {extractRawBlobRouteFromPath, WebRawBlobPage} from '@/web-raw-blob'
+import {extractOnyxRouteFromPath, WebOnyxPage} from '@/web-onyx'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
@@ -43,6 +44,7 @@ import {
   hypermediaUrlToRoute,
   hmId,
   InspectTab,
+  OnyxRoute,
   RawBlobRoute,
   isSiteProfileTab,
   VIEW_TERMS,
@@ -82,11 +84,19 @@ type RawBlobPayload = {
   siteHost: string
 }
 
+type OnyxPayload = {
+  kind: 'onyx'
+  route: OnyxRoute
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}
+
 type DocumentPayload =
   | ExtendedSitePayload
   | InspectIpfsPayload
   | SiteSettingsEmailsPayload
   | RawBlobPayload
+  | OnyxPayload
   | 'unregistered'
   | 'no-site'
 
@@ -257,6 +267,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
     const {route} = payload
     return [{title: route.cid ? `ipfs://${route.cid}` : route.schemaCid ? 'New Instance' : 'New Blob'}]
   }
+  if ('kind' in payload && payload.kind === 'onyx') {
+    return [{title: payload.route.slug ? `Onyx · ${payload.route.slug}` : 'Onyx — the schema tour'}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -390,6 +403,22 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     } satisfies RawBlobPayload)
   }
 
+  // The Onyx schema explorer / tour (reserved `/hm/onyx/…` URLs). Client-side
+  // only — the bundled schemas + engine live in the browser — so the loader just
+  // hands the parsed route to the provider; no server fetch.
+  const onyxRoute = extractOnyxRouteFromPath(pathParts)
+  if (onyxRoute) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'onyx',
+      route: onyxRoute,
+      originHomeId: hmId(registeredAccountUid),
+      siteHost: hostname,
+    } satisfies OnyxPayload)
+  }
+
   let documentId
   let isInspect = false
   let viewTerm: ViewRouteKey | null = null
@@ -519,6 +548,13 @@ export default function UnifiedDocumentPage() {
     return (
       <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
         <WebRawBlobPage />
+      </WebSiteProvider>
+    )
+  }
+  if ('kind' in data && data.kind === 'onyx') {
+    return (
+      <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
+        <WebOnyxPage />
       </WebSiteProvider>
     )
   }
