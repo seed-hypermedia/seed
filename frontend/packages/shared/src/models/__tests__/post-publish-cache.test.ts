@@ -37,4 +37,9 @@ describe('invalidateAfterPublish', () => {
     })
     expect(invalidateQueries).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
   })
+
+  it('does NOT invalidate the doc ENTITY query (avoids a stale post-publish refetch clobbering the fresh doc)', () => {
+    invalidateAfterPublish(docId, document)
+    expect(invalidateQueries).not.toHaveBeenCalledWith([queryKeys.ENTITY, docId.id])
+  })
 })

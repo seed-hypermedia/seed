@@ -16,7 +16,13 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMBlockNode,
+  HMDocument,
+  HMMetadata,
+  HMSigner,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,
@@ -44,7 +50,13 @@ import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
-import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft, type WebDocDraft} from './web-draft-db'
+import {
+  deleteWebDocDraft,
+  getWebDocDraft,
+  listWebDocDraftsForDoc,
+  putWebDocDraft,
+  type WebDocDraft,
+} from './web-draft-db'
 import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 
@@ -75,12 +87,36 @@ export function createWebDocumentMachine(deps: CreateWebDocumentMachineDeps) {
     actors: {
       writeDraft: makeWriteDraftActor(deps),
       publishDocument: makePublishDocumentActor(deps),
-      discardDraft: makeDiscardDraftActor(),
+      discardDraft: makeDiscardDraftActor(deps),
       pushDocument: fromPromise<void, PushDocumentInput>(async () => {
         // V1: no-op. Future: post to a web push endpoint.
       }),
     },
   })
+}
+
+/**
+ * Decide what body a draft save should persist.
+ *
+ * A live content editor always reports at least one top-level block (an empty
+ * paragraph). Zero blocks (or a null accessor) means there is no mounted content
+ * editor — e.g. the `:attributes` view, which edits metadata only. Persisting the
+ * editor's empty output there would blank the Content tab and wipe the body on
+ * publish. In that case fall back to the draft's existing body, then the
+ * published body (`baseBlocks`, populated by the machine from
+ * `context.document.content`).
+ *
+ * Exported for unit testing.
+ */
+export function resolveWriteDraftContent(
+  editorTopBlocks: EditorBlock[] | null | undefined,
+  existingContent: HMBlockNode[] | null | undefined,
+  baseBlocks: HMBlockNode[] | null | undefined,
+): HMBlockNode[] {
+  if (editorTopBlocks && editorTopBlocks.length) {
+    return editorBlocksToHMBlockNodes(editorTopBlocks)
+  }
+  return existingContent ?? baseBlocks ?? []
 }
 
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
@@ -89,12 +125,11 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
     const cursorPosition = editor?.getCursorPosition?.() ?? null
     const draftId = input.draftId ?? nanoid(10)
     const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
-    // No editor mounted (e.g. an attributes-only edit from the :metadata view):
-    // preserve the draft's existing content or the published blocks instead of
-    // clobbering the body with an empty array.
-    const content = editor
-      ? editorBlocksToHMBlockNodes(editor.getTopLevelBlocks() ?? [])
-      : existingDraft?.content ?? input.baseBlocks ?? []
+    const content = resolveWriteDraftContent(
+      editor?.getTopLevelBlocks() ?? null,
+      existingDraft?.content,
+      input.baseBlocks,
+    )
     const currentPath = deps.docId.path ?? []
     const routeDraftId = getWebDraftPlaceholderId(currentPath)
     const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
@@ -145,12 +180,36 @@ function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {
   })
 }
 
-function makeDiscardDraftActor() {
+/**
+ * Delete EVERY local draft record for a document (the tracked draft, its removed
+ * children, and any other records for the same doc).
+ *
+ * Duplicate records can accumulate for a single doc (e.g. an autosave racing
+ * ahead of the assigned draftId mints a fresh nanoid, and the machine only ever
+ * tracks one id). Removing just the tracked `draftId` leaves the rest behind, so
+ * the next load resurrects a draft via `getLatestWebDocDraftForDoc` — the
+ * "discarded changes reappear after refresh" and "empty draft lingers after
+ * publish" bugs. Used by both the discard and publish flows. Exported for tests.
+ */
+export async function deleteAllDocumentDrafts(
+  docId: string,
+  draftId: string,
+  deletedChildDraftIds: string[] = [],
+): Promise<void> {
+  await discardWebDocDraft(draftId, deletedChildDraftIds)
+  const remaining = await listWebDocDraftsForDoc(docId)
+  for (const draft of remaining) {
+    await deleteWebDocDraft(draft.draftId)
+  }
+}
+
+function makeDiscardDraftActor(deps: CreateWebDocumentMachineDeps) {
   return fromPromise<void, DiscardDraftInput>(async ({input}) => {
-    await discardWebDocDraft(input.draftId, input.deletedChildDraftIds)
+    await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds)
     invalidateQueries([queryKeys.DRAFT, input.draftId])
     invalidateQueries([queryKeys.DRAFTS_LIST])
     invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    invalidateQueries(['web-doc-draft', deps.docId.id])
   })
 }
 
@@ -258,25 +317,26 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
 
   await (deps.client as any).publish(publishInput)
 
-  // Refetch by explicit version CID — the daemon's "latest" pointer may not
-  // have caught up yet after the Ref publish.
+  // The blob is now published. Refetch by explicit version CID to get the
+  // resulting document — but the daemon may not have indexed the new version
+  // yet, so retry with backoff. CRITICAL: never throw here. Throwing after a
+  // successful publish would send the machine back to `editing` (via the
+  // publishDocument actor's onError), leaving the draft/metadata staged so the
+  // Publish button stays green/visible even though the publish succeeded.
   const newVersionStr = changeCid.toString()
-  const after = await deps.client.request('Resource', {
-    ...deps.docId,
-    path: publishPath,
-    version: newVersionStr,
-  })
-  if (after.type !== 'document') {
-    throw new Error('post-publish resource is not a document')
-  }
+  const publishedDocument = await resolvePublishedDocument(deps, publishPath, newVersionStr, editDocument, draft)
 
-  await cleanupWebDocDrafts(input.draftId, input.deletedChildDraftIds)
+  // Delete every local draft for this doc, not just the published one. A stray
+  // orphan record (e.g. an empty draft from an earlier autosave race) would
+  // otherwise survive the publish and reload as a blank draft on the next visit
+  // — "after publishing, the Content tab is blank with an active Publish button".
+  await deleteAllDocumentDrafts(deps.docId.id, input.draftId, input.deletedChildDraftIds)
 
   // Shared cache invalidation: writes new doc to cache + marks stale.
   // Do NOT refetch ENTITY — daemon's "latest" pointer may still be stale.
-  invalidateAfterPublish(publishedDocId, after.document)
+  invalidateAfterPublish(publishedDocId, publishedDocument)
   if (publishedDocId.id !== deps.docId.id) {
-    invalidateAfterPublish(deps.docId, after.document)
+    invalidateAfterPublish(deps.docId, publishedDocument)
   }
   invalidateQueries(['web-doc-draft', deps.docId.id])
   enqueueParentCardAfterFirstPublish({
@@ -294,9 +354,46 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     // Non-critical: draft cache will clear on next mount via invalidation.
   }
 
-  deps.onPublishSuccess?.(after.document)
+  deps.onPublishSuccess?.(publishedDocument)
 
-  return after.document
+  return publishedDocument
+}
+
+/**
+ * Resolve the just-published document by explicit version, retrying while the
+ * daemon indexes it. Falls back to an optimistic document (base + published
+ * metadata + new version) rather than throwing, so a successful publish always
+ * completes the machine's publish flow. The query refetch corrects the display
+ * once the daemon catches up.
+ */
+async function resolvePublishedDocument(
+  deps: CreateWebDocumentMachineDeps,
+  publishPath: string[],
+  newVersionStr: string,
+  editDocument: HMDocument | null,
+  draft: {metadata: HMMetadata | null | undefined},
+): Promise<HMDocument> {
+  const RETRY_DELAYS_MS = [150, 300, 500, 800, 1200]
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const res = await deps.client.request('Resource', {...deps.docId, path: publishPath, version: newVersionStr})
+      if (res.type === 'document') return res.document
+    } catch {
+      // Not yet indexed / transient — retry.
+    }
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+    }
+  }
+  if (!editDocument) {
+    // First publish with nothing to fall back to — surface the failure.
+    throw new Error('post-publish resource is not a document')
+  }
+  return {
+    ...editDocument,
+    version: newVersionStr,
+    metadata: {...(editDocument.metadata ?? {}), ...((draft.metadata as HMMetadata) ?? {})},
+  } as HMDocument
 }
 
 function enqueueParentCardAfterFirstPublish({

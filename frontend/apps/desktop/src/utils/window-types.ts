@@ -1,7 +1,7 @@
 import {NavRoute} from '@shm/shared/routes'
 
 export type WindowTypeInfo = {
-  key: 'settings' | 'comment' | 'main' | 'deleted-content'
+  key: 'settings' | 'comment' | 'main' | 'deleted-content' | 'inspect-ipfs'
   minWidth: number
   minHeight: number
   maxWidth: number | undefined
@@ -37,6 +37,20 @@ export function getRouteWindowType(route: NavRoute): WindowTypeInfo {
       trafficLightPosition: {
         x: 12,
         y: 10,
+      },
+    } as const
+  if (route.key === 'inspect-ipfs')
+    return {
+      key: 'inspect-ipfs',
+      initWidth: 800,
+      initHeight: 600,
+      minWidth: 480,
+      minHeight: 320,
+      maxWidth: undefined,
+      maxHeight: undefined,
+      trafficLightPosition: {
+        x: 12,
+        y: 14,
       },
     } as const
   return {

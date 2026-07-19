@@ -296,8 +296,11 @@ export function routeToHref(
     } else {
       basePath = `/hm/${docId.uid}${docId.path?.length ? `/${docId.path.join('/')}` : ''}`
     }
-    // Add view term - need a / separator between path and view term
-    let viewTerm = `:${route.key}`
+    // Add view term - need a / separator between path and view term.
+    // The 'metadata' route is surfaced in URLs as `:attributes` (the `:metadata`
+    // term is still parsed for backward compat). Keep this in sync with the URL
+    // builders in `entity-id-url.ts`.
+    let viewTerm = route.key === 'metadata' ? ':attributes' : `:${route.key}`
     // Append activity filter slug to view term path
     if (route.key === 'activity') {
       const filterSlug = activityFilterToSlug(route.filterEventType)

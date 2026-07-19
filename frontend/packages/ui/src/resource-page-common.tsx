@@ -72,6 +72,7 @@ import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {activityFilterToSlug, getCommentTargetId, parseFragment} from '@shm/shared/utils/entity-id-url'
+import {useOpenUrl} from '@shm/shared/routing'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
@@ -206,6 +207,20 @@ export function getRenderedDocumentId(
   return resourceData?.type === 'document' ? resourceData.id : routeDocId
 }
 
+/**
+ * React key for `DocumentMachineProvider`. Recreates the machine ONLY when the
+ * bound document identity changes — i.e. the uid+path (`renderedDocId.id`,
+ * version-independent), which changes on a first-publish slug. It deliberately
+ * does NOT depend on the version: publishing bumps the resolved version and the
+ * content route resets `?v=` to latest, both of which would otherwise recreate
+ * the actor mid/post-publish and re-load the just-cleared draft, stranding the
+ * machine in `editing` (Publish button stuck green). Version changes are handled
+ * in-place via `version.changed` / `document.remoteUpdate` events, not a remount.
+ */
+export function getDocumentMachineKey(renderedDocId: UnpackedHypermediaId): string {
+  return renderedDocId.id
+}
+
 function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
   if (!blockRange) return undefined
   if (
@@ -292,6 +307,24 @@ export function shouldUseDraftForRenderedDocument({
   // to their draft and edit affordances.
   if (docId.version && !isLatest) return false
   return true
+}
+
+/**
+ * Collapse the resolved-draft state into what gets handed to the document
+ * machine. `undefined` means "draft resolution is still loading" and MUST be
+ * preserved end-to-end: the machine's one-shot `draft.resolved` only fires once,
+ * so prematurely collapsing `undefined` to `false` (no draft) latches it to the
+ * no-draft branch and strands a saved draft that finishes loading a moment later.
+ * Only once `existingDraft` has genuinely settled do we apply the
+ * `shouldUseDraft` gate (which is intentionally false while `existingDraft` is
+ * still `undefined`, since `!undefined` is truthy).
+ */
+export function resolveEffectiveExistingDraft(
+  existingDraft: HMExistingDraft | false | undefined,
+  shouldUseDraft: boolean,
+): HMExistingDraft | false | undefined {
+  if (existingDraft === undefined) return undefined
+  return shouldUseDraft ? existingDraft : false
 }
 
 /** Return true when a local draft should bypass remote resource loading states. */
@@ -811,7 +844,9 @@ export function ResourcePage({
   const shouldUseDraft = shouldUseDraftForRenderedDocument({docId: renderedDocId, existingDraft, isLatest})
   const effectiveCanEdit =
     (canEdit || (resourceFetchId === null && !!existingDraft)) && (!renderedDocId.version || isLatest || shouldUseDraft)
-  const effectiveExistingDraft = shouldUseDraft ? existingDraft : false
+  // Preserve `undefined` (draft still loading) so the machine's one-shot
+  // `draft.resolved` doesn't latch to "no draft". See helper doc.
+  const effectiveExistingDraft = resolveEffectiveExistingDraft(existingDraft, shouldUseDraft)
   const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
   const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
   const effectiveExistingDraftCursorPosition = shouldUseDraft ? existingDraftCursorPosition : undefined
@@ -830,11 +865,12 @@ export function ResourcePage({
 
   return (
     <DocumentMachineProvider
-      // Key on the route id so the machine actor is recreated when the URL
-      // path changes (e.g. after first publish from `-${draftId}` → real slug).
-      // Without this, useActorRef keeps the original actor instance and its
-      // context still references the old documentId/editPath.
-      key={`${renderedDocId.id}@${renderedDocId.version ?? 'latest'}`}
+      // Recreate the machine only when the identity it's bound to changes: the
+      // resolved doc id (path change on first publish) or the ROUTE's pinned
+      // version (?v=). Deliberately NOT the *resolved* latest version — that
+      // bumps on our own publish, which would destroy + recreate the machine
+      // mid-publish and re-load the just-cleared draft, stranding it in editing.
+      key={getDocumentMachineKey(renderedDocId)}
       input={{
         documentId: renderedDocId,
         canEdit: effectiveCanEdit,
@@ -2390,7 +2426,7 @@ function PanelContentRenderer({
     case 'metadata':
       return (
         <div className="px-4">
-          <DocumentMetadataPage document={document} />
+          <DocumentMetadataPage document={document} fileUpload={fileUpload} />
         </div>
       )
     case 'activity':
@@ -2548,13 +2584,26 @@ function DocumentOptionsPanel({
 
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
-function DocumentMetadataPage({document}: {document: HMDocument}) {
+function DocumentMetadataPage({
+  document,
+  fileUpload,
+}: {
+  document: HMDocument
+  fileUpload?: (file: File) => Promise<string>
+}) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
   const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+
+  // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
+  const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
+  // Open a blank blob editor (new IPFS object) in its own window; the `new`
+  // sentinel path puts the viewer into create mode.
+  const onCreateBlob = useCallback(() => openUrl('hm://inspect/ipfs/new', true), [openUrl])
 
   return (
     <DocumentMetadataView
@@ -2564,6 +2613,9 @@ function DocumentMetadataPage({document}: {document: HMDocument}) {
         beginEditIfNeeded()
         send({type: 'change', metadata: patch as any})
       }}
+      fileUpload={fileUpload}
+      openFile={openFile}
+      onCreateBlob={onCreateBlob}
     />
   )
 }
@@ -2695,7 +2747,7 @@ function MainContent({
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {/* Extra left padding in the main view; the panel render keeps its own. */}
           <div className="pl-4">
-            <DocumentMetadataPage document={document} />
+            <DocumentMetadataPage document={document} fileUpload={fileUpload} />
           </div>
         </PageLayout>
       )

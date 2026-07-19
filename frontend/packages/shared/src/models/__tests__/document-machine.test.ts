@@ -248,6 +248,36 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('clears staged metadata and draft/editing state after publishing an attribute edit', async () => {
+    // Reproduces the "publish button stays green/visible after publishing on the
+    // :metadata view" report. The button is green when the unpublished change
+    // count > 0 (Object.keys(context.metadata).length is one input) and it shows
+    // while editing / a draft exists. So after publishing an attribute edit the
+    // machine must clear context.metadata, draftId, and leave the editing state.
+    const actor = createTestActor()
+    actor.start()
+    actor.send({type: 'document.loaded', document: mockDocument})
+    actor.send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null})
+
+    // Edit an attribute (Attributes view sends edit.start then change{metadata}).
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', metadata: {name: 'New Title'}})
+    expect(actor.getSnapshot().context.metadata).toEqual({name: 'New Title'})
+    expect(actor.getSnapshot().matches('editing')).toBe(true)
+
+    // Publish.
+    actor.send({type: 'publish.start'})
+    await new Promise((r) => setTimeout(r, 60))
+
+    const snap = actor.getSnapshot()
+    expect(snap.value).toBe('loaded')
+    // These three drive the publish button visibility/greying — all must reset.
+    expect(snap.context.metadata).toEqual({}) // no staged metadata → change count 0
+    expect(snap.context.draftId).toBeNull() // no draft
+    expect(snap.matches('editing')).toBe(false) // not editing
+    actor.stop()
+  })
+
   it('draftContent is cleared on publish', async () => {
     const actor = createTestActor({existingDraftId: 'my-draft'})
     actor.start()

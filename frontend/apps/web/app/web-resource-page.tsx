@@ -16,6 +16,7 @@ import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
+import {getDocumentTitle} from '@shm/shared/content'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
@@ -32,7 +33,14 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {FileInput} from 'lucide-react'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {EditProfileDialog, LogoutButton, useCreateAccount, useLocalKeyPair, useVaultSuccessDialog} from './auth'
+import {
+  EditProfileDialog,
+  LogoutButton,
+  useCreateAccount,
+  useLocalKeyPair,
+  useLocalKeyPairLoaded,
+  useVaultSuccessDialog,
+} from './auth'
 import {preloadCommenting} from './client-lazy'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
@@ -126,7 +134,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const vaultSuccessContent = useVaultSuccessDialog()
   const universalClient = useUniversalClient()
   const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
-  const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
+  const {canEdit, signingAccountId, capability, capabilitiesLoading} = useWebCanEdit(docId)
+  const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
 
   // Editor accessor — populated by the editor's onEditorReady callback.
@@ -147,36 +156,42 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   replaceRouteRef.current = replaceRoute
   const routeRef = useRef(route)
   routeRef.current = route
-  const onPublishSuccess = useCallback((newDocument?: {account?: string; path?: string | null}) => {
-    const currentRoute = routeRef.current
-    if (currentRoute.key === 'document') {
-      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
-      if (newDocument?.account) {
-        const publishedId = hmId(newDocument.account, {
-          path: entityQueryPathToHmIdPath(newDocument.path),
-          latest: true,
-        })
-        if (currentId && publishedId.id !== currentId.id) {
-          replaceRouteRef.current({...currentRoute, id: publishedId} as any)
-          return
+  const onPublishSuccess = useCallback(
+    (newDocument?: {account?: string; path?: string | null; metadata?: HMDocument['metadata']}) => {
+      const publishedTitle =
+        getDocumentTitle({metadata: newDocument?.metadata ?? {}, path: newDocument?.path ?? ''}) || 'Document'
+      toast.success(`${publishedTitle} Published.`)
+      const currentRoute = routeRef.current
+      if (currentRoute.key === 'document') {
+        const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+        if (newDocument?.account) {
+          const publishedId = hmId(newDocument.account, {
+            path: entityQueryPathToHmIdPath(newDocument.path),
+            latest: true,
+          })
+          if (currentId && publishedId.id !== currentId.id) {
+            replaceRouteRef.current({...currentRoute, id: publishedId} as any)
+            return
+          }
+        }
+        if (currentId?.version) {
+          replaceRouteRef.current({
+            ...currentRoute,
+            id: {...currentId, version: null},
+          } as any)
+        }
+      } else if (currentRoute.key === 'site-profile') {
+        const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+        if (currentId?.version) {
+          replaceRouteRef.current({
+            ...currentRoute,
+            id: {...currentId, version: null},
+          } as any)
         }
       }
-      if (currentId?.version) {
-        replaceRouteRef.current({
-          ...currentRoute,
-          id: {...currentId, version: null},
-        } as any)
-      }
-    } else if (currentRoute.key === 'site-profile') {
-      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
-      if (currentId?.version) {
-        replaceRouteRef.current({
-          ...currentRoute,
-          id: {...currentId, version: null},
-        } as any)
-      }
-    }
-  }, [])
+    },
+    [],
+  )
 
   const placeholderDraftId = useMemo(() => getWebDraftShellId(docId.path), [docId.path])
 
@@ -240,13 +255,40 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     startWebDocumentCardCleanupCoordinator({client: universalClient})
   }, [universalClient])
 
+  // Mirror of the draftQuery `enabled` gate below — a draft could still be
+  // loading whenever this is true.
+  const draftQueryEnabled = typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId)
+
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
+    // CRITICAL: returning `false` here declares "no draft exists", which latches
+    // the document machine's `draft.resolved` to the no-draft branch (it only
+    // fires once). During the async startup window — identity still loading from
+    // IndexedDB, or capability lookup not yet settled, or the draft query not yet
+    // resolved — `effectiveCanEdit` is transiently false and `draftData` is
+    // undefined. Returning `false` then would strand a saved draft (it loads a
+    // moment later but the machine already resolved to "no draft"). Hold at
+    // `undefined` (still loading) until each of those settles.
+    if (!keyPairLoaded) return undefined
+    if (!!signingAccountId && !canEdit && capabilitiesLoading) return undefined
+    if (draftQueryEnabled && !draftQuery.isSuccess && !draftQuery.isError) return undefined
     if (!effectiveCanEdit) return false
     if (draftQuery.isLoading) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
-  }, [effectiveCanEdit, draftQuery.isLoading, draftData, isDraftStale])
+  }, [
+    keyPairLoaded,
+    signingAccountId,
+    canEdit,
+    capabilitiesLoading,
+    draftQueryEnabled,
+    draftQuery.isSuccess,
+    draftQuery.isError,
+    effectiveCanEdit,
+    draftQuery.isLoading,
+    draftData,
+    isDraftStale,
+  ])
   const reservedDraftId =
     placeholderDraftId && !draftData && isReservedLazyDraftId(placeholderDraftId) ? placeholderDraftId : null
   const useLocalDraftShell = shouldUseLocalWebDraftShell({

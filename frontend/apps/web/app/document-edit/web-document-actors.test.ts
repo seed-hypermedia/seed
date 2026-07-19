@@ -9,8 +9,14 @@ import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
-import {publishWebDocument, type CreateWebDocumentMachineDeps, type WebEditorAccessor} from './web-document-actors'
-import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft} from './web-draft-db'
+import {
+  deleteAllDocumentDrafts,
+  publishWebDocument,
+  resolveWriteDraftContent,
+  type CreateWebDocumentMachineDeps,
+  type WebEditorAccessor,
+} from './web-document-actors'
+import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft, listWebDocDraftsForDoc} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
@@ -182,6 +188,63 @@ describe('publishWebDocument', () => {
     await expect(publishWebDocument(baseInput, deps)).rejects.toThrow(/draft.*not found/)
   })
 
+  it('resolves (does not throw) when the daemon has not yet indexed the new version after publish', async () => {
+    // Reproduces "the Publish button stays green after publishing on web": the
+    // blob publishes fine, but the immediate re-fetch of the new version lags on
+    // the remote daemon. The actor must retry and resolve — throwing would send
+    // the state machine back to `editing`, leaving the draft staged so the
+    // Publish button stays green/visible even though the publish succeeded.
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {name: 'Edited'},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const baseline = makeBaselineDoc([paragraph('b1', 'hello')])
+    const after = makeBaselineDoc([paragraph('b1', 'hello')], {version: 'bafynew', metadata: {name: 'Edited'}})
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') return {unsignedChange: createTestUnsignedChangeBytes()}
+      if (key === 'Resource') {
+        resourceCalls += 1
+        // 1: load editDocument. 2: post-publish fetch, not indexed yet. 3+: indexed.
+        if (resourceCalls === 1) return {type: 'document', document: baseline} as any
+        if (resourceCalls === 2) return {type: 'not-found'} as any
+        return {type: 'document', document: after} as any
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({
+      request: requestMock,
+      baseline,
+      after,
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hello'}],
+          children: [],
+        },
+      ],
+    })
+
+    const result = await publishWebDocument(baseInput, deps)
+    expect(result.version).toBe('bafynew')
+    // It retried past the transient not-found rather than throwing.
+    expect(resourceCalls).toBeGreaterThanOrEqual(3)
+  })
+
   it('owner publish: sends single replaceBlock for new paragraph + deletes draft', async () => {
     await putWebDocDraft({
       draftId,
@@ -224,6 +287,59 @@ describe('publishWebDocument', () => {
     expect(opCases).toContain('replaceBlock')
 
     expect(await getWebDocDraft(draftId)).toBeNull()
+  })
+
+  it('publish removes stray orphan drafts for the same doc, not just the published one', async () => {
+    // Reproduces "after publishing, the Content tab is blank with an active
+    // Publish button": an empty orphan draft (e.g. from an earlier autosave
+    // race) that the machine no longer tracks must not survive the publish and
+    // reload as a blank draft.
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+    await putWebDocDraft({
+      draftId: 'empty-orphan',
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {},
+      deps: [],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+
+    const deps = makeDeps({
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hello'}],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument(baseInput, deps)
+
+    expect(await getWebDocDraft(draftId)).toBeNull()
+    expect(await getWebDocDraft('empty-orphan')).toBeNull()
+    expect(await listWebDocDraftsForDoc(makeDocId(OWNER).id)).toEqual([])
   })
 
   it('publish deletes removed child drafts after successful parent publish', async () => {
@@ -641,5 +757,99 @@ describe('publishWebDocument', () => {
     const deps = makeDeps({})
     ;(deps.client as any).publishDocument = undefined
     await expect(publishWebDocument(baseInput, deps)).rejects.toThrow(/does not provide publishDocument/)
+  })
+})
+
+describe('resolveWriteDraftContent', () => {
+  const editorParagraph = (text: string) => ({
+    id: 'b1',
+    type: 'paragraph',
+    props: {},
+    content: [{type: 'text', text, styles: {}}],
+    children: [],
+  })
+  const hmParagraph = (text: string): HMBlockNode =>
+    ({
+      block: {id: 'b1', type: 'Paragraph', text, annotations: [], attributes: {}},
+      children: [],
+    }) as unknown as HMBlockNode
+
+  it('uses editor blocks when the content editor has blocks', () => {
+    const result = resolveWriteDraftContent([editorParagraph('Body') as any], null, [hmParagraph('Published')])
+    expect(result.length).toBe(1)
+    expect((result[0] as any).block.text).toBe('Body')
+  })
+
+  it('falls back to the published body when no content editor is mounted (attributes-only edit)', () => {
+    // Regression: the :attributes view mounts no body editor, so the accessor
+    // reports zero blocks. Persisting that empty body blanked the Content tab
+    // and wiped content on publish. It must fall back to the published body.
+    const published = [hmParagraph('Published body')]
+    expect(resolveWriteDraftContent([], null, published)).toBe(published)
+    expect(resolveWriteDraftContent(null, null, published)).toBe(published)
+  })
+
+  it('prefers the draft existing body over the published body when present', () => {
+    const existing = [hmParagraph('Draft body')]
+    const published = [hmParagraph('Published body')]
+    expect(resolveWriteDraftContent(null, existing, published)).toBe(existing)
+  })
+
+  it('returns an empty array only when there is genuinely nothing to preserve', () => {
+    expect(resolveWriteDraftContent(null, null, null)).toEqual([])
+  })
+})
+
+describe('deleteAllDocumentDrafts', () => {
+  const DOC = 'hm://acct/foo1'
+  const baseDraft = (draftId: string, updatedAt: number) => ({
+    draftId,
+    docId: DOC,
+    signingAccountId: 'acct',
+    content: [] as HMBlockNode[],
+    metadata: {a: draftId},
+    deps: [],
+    navigation: null,
+    locationUid: null,
+    locationPath: null,
+    editUid: null,
+    editPath: null,
+    cursorPosition: null,
+    updatedAt,
+  })
+
+  beforeEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+  afterEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  it('deletes EVERY draft record for the document, not just the tracked one', async () => {
+    // Reproduces "discarded changes reappear after refresh": duplicate draft
+    // records accumulate for one doc; discarding only the tracked id leaves an
+    // orphan that the next load resurrects.
+    await putWebDocDraft(baseDraft('orphanA', 1000))
+    await putWebDocDraft(baseDraft('orphanB', 2000))
+
+    // Discard the tracked draft (orphanB) — orphanA must also be removed.
+    await deleteAllDocumentDrafts(DOC, 'orphanB')
+
+    const remaining = await listWebDocDraftsForDoc(DOC)
+    expect(remaining).toEqual([])
+    expect(await getWebDocDraft('orphanA')).toBeNull()
+    expect(await getWebDocDraft('orphanB')).toBeNull()
+  })
+
+  it('does not touch drafts belonging to other documents', async () => {
+    await putWebDocDraft(baseDraft('mine', 1000))
+    await putWebDocDraft({...baseDraft('other', 1000), docId: 'hm://acct/bar'})
+
+    await deleteAllDocumentDrafts(DOC, 'mine')
+
+    expect(await getWebDocDraft('mine')).toBeNull()
+    expect(await getWebDocDraft('other')).not.toBeNull()
   })
 })

@@ -8,9 +8,11 @@ import {
   getRenderedDocumentId,
   shouldUseDraftForRenderedDocument,
   getDocumentContentAction,
+  getDocumentMachineKey,
   getLatestRouteForCurrentDocumentRoute,
   getOlderVersionToastId,
   shouldShowOlderVersionToast,
+  resolveEffectiveExistingDraft,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -144,6 +146,26 @@ describe('getDocumentContentAction', () => {
         actionButtons: 'options-actions',
       }),
     ).toBeNull()
+  })
+})
+
+describe('getDocumentMachineKey', () => {
+  it('stays stable across any version change on the same document (no remount on publish/version reset)', () => {
+    // Reproduces the "Publish button stays green" bug: publishing bumps the
+    // resolved version (and the content route resets ?v= to latest), which
+    // previously changed the key and recreated the machine mid/post-publish,
+    // re-loading the just-cleared draft.
+    const latest = hmId('alice', {path: ['doc']})
+    const resolvedOld = hmId('alice', {path: ['doc'], version: 'v-old'})
+    const resolvedNew = hmId('alice', {path: ['doc'], version: 'v-new'})
+    expect(getDocumentMachineKey(resolvedOld)).toBe(getDocumentMachineKey(resolvedNew))
+    expect(getDocumentMachineKey(resolvedOld)).toBe(getDocumentMachineKey(latest))
+  })
+
+  it('changes when the document path changes (first-publish slug)', () => {
+    const draftRendered = hmId('alice', {path: ['-draft-1']})
+    const publishedRendered = hmId('alice', {path: ['my-slug']})
+    expect(getDocumentMachineKey(draftRendered)).not.toBe(getDocumentMachineKey(publishedRendered))
   })
 })
 
@@ -400,5 +422,26 @@ describe('getRenderedDocumentId', () => {
 
   it('keeps the route document id for local-only draft routes even if stale resource data exists', () => {
     expect(getRenderedDocumentId(oldId, redirectedDocument, null)).toEqual(oldId)
+  })
+})
+
+describe('resolveEffectiveExistingDraft', () => {
+  const draft = {id: 'draft-1', metadata: {name: 'Draft'}} as any
+
+  it('preserves undefined (draft still loading) so the machine does not latch to no-draft', () => {
+    // Regression: during the async startup window `existingDraft` is undefined and
+    // `shouldUseDraft` is false (since `!undefined` is truthy). Collapsing to false
+    // here fired `draft.resolved{draftId:null}` and stranded a saved draft on reload.
+    expect(resolveEffectiveExistingDraft(undefined, false)).toBeUndefined()
+    expect(resolveEffectiveExistingDraft(undefined, true)).toBeUndefined()
+  })
+
+  it('returns the draft once settled and the draft should be used', () => {
+    expect(resolveEffectiveExistingDraft(draft, true)).toBe(draft)
+  })
+
+  it('returns false when settled with no draft, or when the draft should not be used', () => {
+    expect(resolveEffectiveExistingDraft(false, true)).toBe(false)
+    expect(resolveEffectiveExistingDraft(draft, false)).toBe(false)
   })
 })

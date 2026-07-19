@@ -1313,7 +1313,11 @@ export const documentMachine = setup({
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
                   mineTouchedIds: context.mineTouchedIds,
-                  baseBlocks: context.baseBlocks,
+                  // Fall back to the published document body so an
+                  // attributes-only edit (no content editor mounted) preserves
+                  // the existing content instead of persisting an empty draft
+                  // body that blanks the Content tab and wipes content on publish.
+                  baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                 }),
                 onDone: [
                   {
@@ -1399,7 +1403,11 @@ export const documentMachine = setup({
                   editPath: context.editPath,
                   signingAccountId: context.signingAccountId,
                   mineTouchedIds: context.mineTouchedIds,
-                  baseBlocks: context.baseBlocks,
+                  // Fall back to the published document body so an
+                  // attributes-only edit (no content editor mounted) preserves
+                  // the existing content instead of persisting an empty draft
+                  // body that blanks the Content tab and wipes content on publish.
+                  baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
                 }),
                 onDone: [
                   {

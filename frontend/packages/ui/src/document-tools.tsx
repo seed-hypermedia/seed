@@ -113,7 +113,13 @@ export function DocumentTools({
 
   const documentRoute: NavRoute = {
     key: 'document',
-    id,
+    // Link the Content tab to the latest content at the base path — never pin
+    // the resolved version. `id` here is the RESOLVED document id, which carries
+    // the concrete version even when the current route (e.g. the Attributes tab)
+    // has no `?v=`. Without stripping it, switching to Content would jump to
+    // `/path?v=<resolved>`, pinning the reader to a snapshot and desyncing from
+    // later edits. The sibling view tabs already render version-independent hrefs.
+    id: {...id, version: null, latest: true},
     panel: panelFor(),
   }
   const inspectActivityPanelParam =

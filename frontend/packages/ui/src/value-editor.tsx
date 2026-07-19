@@ -11,6 +11,8 @@ import {
   CopyPlus,
   Download,
   ExternalLink,
+  FilePlus,
+  FileText,
   FileUp,
   GripVertical,
   Link2,
@@ -19,6 +21,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
@@ -26,7 +29,9 @@ import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
+import {findIpfsUrlCid, gatewayUrlToIpfs} from './get-file-url'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
+import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -259,6 +264,12 @@ type SelectionState = {
   tabbableId: string | null
   /** Opens ipfs://... URLs from link values, when the host page provides navigation. */
   openUrl?: (url: string) => void
+  /** Uploads a dropped/picked file to IPFS, returning its bare CID. */
+  fileUpload?: (file: File) => Promise<string>
+  /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
+  openFile?: (cid: string) => void
+  /** Opens a blank blob editor (a new IPFS object) in its own window. */
+  onCreateBlob?: () => void
 }
 
 const SelectionActionsContext = createContext<SelectionActions | null>(null)
@@ -294,6 +305,12 @@ function parsePastedText(text: string, rules: ValueEditorRules): {value: unknown
     parsed = JSON.parse(text)
   } catch {
     parsed = text
+  }
+  // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference,
+  // matching the text-input paste behavior (this path fires when a row — not
+  // the input — is selected).
+  if (typeof parsed === 'string') {
+    parsed = gatewayUrlToIpfs(parsed) ?? parsed
   }
   const problem = findInvalidValue(parsed, rules)
   if (problem) {
@@ -340,11 +357,17 @@ export function ValueEditorProvider({
   onUndo,
   onRedo,
   openUrl,
+  fileUpload,
+  openFile,
+  onCreateBlob,
 }: {
   children: React.ReactNode
   onUndo?: () => void
   onRedo?: () => void
   openUrl?: (url: string) => void
+  fileUpload?: (file: File) => Promise<string>
+  openFile?: (cid: string) => void
+  onCreateBlob?: () => void
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // The single tab-stop; defaults to the first row so Tab can enter the tree.
@@ -445,7 +468,10 @@ export function ValueEditorProvider({
     },
     openContextMenu: (position, menuActions) => setMenu({...position, actions: menuActions}),
   }).current
-  const state = useMemo<SelectionState>(() => ({selectedId, tabbableId, openUrl}), [selectedId, tabbableId, openUrl])
+  const state = useMemo<SelectionState>(
+    () => ({selectedId, tabbableId, openUrl, fileUpload, openFile, onCreateBlob}),
+    [selectedId, tabbableId, openUrl, fileUpload, openFile, onCreateBlob],
+  )
 
   useEffect(() => {
     const getSelectedHandlers = () => {
@@ -840,9 +866,21 @@ export function FieldRow({
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
+  const {onCreateBlob} = useContext(SelectionStateContext)
   const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
   const getMenuActions = () => [
     ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
+    // Text fields can spawn a new IPFS object (blob) to reference here.
+    ...(typeof value === 'string' && onCreateBlob
+      ? [
+          {
+            key: 'new-blob',
+            label: 'New blob…',
+            icon: <FilePlus className="size-4" />,
+            onClick: onCreateBlob,
+          },
+        ]
+      : []),
     {
       key: 'edit',
       label: 'Edit field',
@@ -926,6 +964,26 @@ export function FieldRow({
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
+  const {openFile, openUrl} = useContext(SelectionStateContext)
+  if (typeof value === 'string') {
+    const cid = findIpfsUrlCid(value)
+    if (cid) return <IpfsFileTag cid={cid} onOpen={openFile} />
+    if (value.startsWith('hm://') && openUrl) {
+      return (
+        <button
+          type="button"
+          className="text-primary font-mono text-sm break-all hover:underline"
+          onClick={() => openUrl(value)}
+        >
+          {value}
+        </button>
+      )
+    }
+  }
+  // A native IPLD link renders as the same tag as an ipfs:// reference.
+  if (isDagJsonLink(value) && parseCidString(value['/'])) {
+    return <IpfsFileTag cid={value['/']} variant="link" onOpen={openFile} />
+  }
   if (isDagJsonLink(value)) {
     return (
       <span className="flex items-center gap-1 font-mono text-sm break-all">
@@ -997,7 +1055,7 @@ export function ValueEditor({
     return <NumberInput value={value} onValue={onValue} rules={rules} />
   }
   if (typeof value === 'string') {
-    return <StringLeafEditor value={value} onValue={onValue} />
+    return <StringLeafEditor value={value} onValue={onValue} rules={rules} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -1014,47 +1072,207 @@ export function ValueEditor({
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
 }
 
-/** String leaf: free-text input, committing on blur/Enter. */
-function StringLeafEditor({value, onValue}: {value: string; onValue: (value: unknown) => void}) {
-  return <CommitOnBlurInput key={value} initialValue={value} onCommit={(text) => onValue(text)} />
+/** Extract a bare CID from a raw CID, an `ipfs://` URL, or a gateway `/ipfs/` URL. */
+function linkCidFromText(text: string): string | null {
+  let s = text.trim()
+  const gateway = gatewayUrlToIpfs(s)
+  if (gateway) s = gateway
+  s = s.replace(/^ipfs:\/\//i, '')
+  const first = s.split('/')[0] ?? ''
+  return parseCidString(first) ? first : null
 }
 
-/** IPLD link (`{"/": cid}`): editable CID with validation and an open action. */
-function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
-  const {openUrl} = useContext(SelectionStateContext)
-  const cid = value['/']
-  const isValid = !!parseCidString(cid)
+/** True when the text is explicitly an IPFS URL (not merely a bare CID string). */
+function isIpfsUrlText(text: string): boolean {
+  const t = text.trim()
+  return /^ipfs:\/\//i.test(t) || !!gatewayUrlToIpfs(t)
+}
+
+/**
+ * String leaf: free-text input committing on blur/Enter, that also accepts a
+ * dropped file (uploads it to IPFS and stores an `ipfs://<cid>` reference). An
+ * `ipfs://` value renders as a file tag that opens the file in its own viewer.
+ * In IPLD mode (raw DAG-CBOR blobs), pasting an IPFS URL creates a native link.
+ */
+function StringLeafEditor({
+  value,
+  onValue,
+  rules,
+}: {
+  value: string
+  onValue: (value: unknown) => void
+  rules: ValueEditorRules
+}) {
+  const {fileUpload, openFile} = useContext(SelectionStateContext)
+  const [dragOver, setDragOver] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const canDrop = !!fileUpload && !uploading
+  const cid = findIpfsUrlCid(value)
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file || !fileUpload) return
+    setUploading(true)
+    try {
+      const uploadedCid = await fileUpload(file)
+      onValue(`ipfs://${uploadedCid.replace(/^ipfs:\/\//, '')}`)
+    } catch (err) {
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : 'unknown error'}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        'relative flex-1 rounded-md',
+        dragOver && canDrop && 'ring-primary bg-primary/5 ring-2 outline-none',
+      )}
+      onDragOver={
+        canDrop
+          ? (e) => {
+              e.preventDefault()
+              if (!dragOver) setDragOver(true)
+            }
+          : undefined
+      }
+      onDragLeave={
+        canDrop
+          ? (e) => {
+              // Ignore drag-leave bubbling from child elements.
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false)
+            }
+          : undefined
+      }
+      onDrop={canDrop ? handleDrop : undefined}
+    >
+      {cid ? (
+        <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
+      ) : (
+        <CommitOnBlurInput
+          initialValue={value}
+          placeholder={'Empty Text'}
+          // Save while typing (debounced) so edits persist without blurring.
+          autosave
+          // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
+          normalize={gatewayUrlToIpfs}
+          onCommit={(text) => {
+            // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
+            // ({"/": cid}); in metadata it stays an ipfs:// string reference.
+            if (rules.ipld && isIpfsUrlText(text)) {
+              const linkCid = linkCidFromText(text)
+              if (linkCid) {
+                onValue({'/': linkCid})
+                return
+              }
+            }
+            onValue(text)
+          }}
+        />
+      )}
+      {uploading && (
+        <div className="bg-background/70 absolute inset-0 flex items-center justify-center gap-2 rounded-md">
+          <Spinner className="size-4" />
+          <span className="text-muted-foreground text-xs">Uploading…</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A tag for an IPFS reference — either an `ipfs://<cid>` string (`variant="file"`)
+ * or a native IPLD link `{"/": cid}` (`variant="link"`). Clicking opens the
+ * referenced blob; the optional clear button makes it editable again. Both
+ * variants share the same pill so a pasted URL looks the same either way.
+ */
+function IpfsFileTag({
+  cid,
+  onOpen,
+  onClear,
+  variant = 'file',
+}: {
+  cid: string
+  onOpen?: (cid: string) => void
+  onClear?: () => void
+  variant?: 'file' | 'link'
+}) {
+  const short = cid.length > 18 ? `${cid.slice(0, 9)}…${cid.slice(-6)}` : cid
+  const Icon = variant === 'link' ? Link2 : FileText
   return (
     <div className="flex items-center gap-1">
-      <Tooltip content="IPLD link">
-        <Link2 className={cn('size-3.5 shrink-0', isValid ? 'text-muted-foreground' : 'text-destructive')} />
+      <Tooltip content={onOpen ? `Open ipfs://${cid}` : `ipfs://${cid}`}>
+        <button
+          type="button"
+          disabled={!onOpen}
+          onClick={onOpen ? () => onOpen(cid) : undefined}
+          className={cn(
+            'border-border bg-muted/60 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors',
+            onOpen && 'hover:bg-muted cursor-pointer',
+          )}
+        >
+          <Icon className="text-muted-foreground size-3.5 shrink-0" />
+          <span className="truncate font-mono text-xs">{short}</span>
+          {onOpen && <ExternalLink className="text-muted-foreground size-3 shrink-0" />}
+        </button>
+      </Tooltip>
+      {onClear && (
+        <Tooltip content={variant === 'link' ? 'Clear link' : 'Remove file reference'}>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label={variant === 'link' ? 'Clear link' : 'Remove file reference'}
+            className="text-muted-foreground"
+            onClick={onClear}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
+/**
+ * IPLD link (`{"/": cid}`): a valid link renders as a file tag (matching the
+ * `ipfs://` string reference); an empty/invalid link shows an input to enter a
+ * CID or IPFS URL.
+ */
+function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
+  const {openUrl, openFile} = useContext(SelectionStateContext)
+  const cid = value['/']
+  const isValid = !!parseCidString(cid)
+  // Prefer openFile (opens the linked blob in its own window); fall back to openUrl.
+  const onOpen = openFile ?? (openUrl ? (c: string) => openUrl(`ipfs://${c}`) : undefined)
+
+  if (isValid) {
+    return <IpfsFileTag cid={cid} variant="link" onOpen={onOpen} onClear={() => onValue({'/': ''})} />
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <Tooltip content="IPLD link — a native reference to another IPFS blob">
+        <Link2 className={cn('size-3.5 shrink-0', cid ? 'text-destructive' : 'text-muted-foreground')} />
       </Tooltip>
       <CommitOnBlurInput
         key={cid}
         initialValue={cid}
         className="font-mono text-xs"
+        placeholder="CID or ipfs:// URL"
+        // Accept a bare CID, an ipfs:// URL, or a gateway /ipfs/ URL.
+        normalize={linkCidFromText}
         onCommit={(text) => {
-          const next = text.trim()
+          const next = linkCidFromText(text) ?? text.trim()
           if (!parseCidString(next)) {
-            toast.error('Not a valid CID')
+            toast.error('Not a valid CID or IPFS URL')
             return
           }
           onValue({'/': next})
         }}
       />
-      {openUrl && isValid && (
-        <Tooltip content={`Open ipfs://${cid}`}>
-          <Button
-            variant="ghost"
-            size="iconSm"
-            aria-label={`Open ipfs://${cid}`}
-            className="text-muted-foreground"
-            onClick={() => openUrl(`ipfs://${cid}`)}
-          >
-            <ExternalLink className="size-3.5" />
-          </Button>
-        </Tooltip>
-      )}
     </div>
   )
 }
@@ -1482,6 +1700,8 @@ function NumberInput({
 }
 
 /** Text input that stages its value on blur or Enter, resets on Escape. */
+const AUTOSAVE_DEBOUNCE_MS = 600
+
 function CommitOnBlurInput({
   initialValue,
   placeholder,
@@ -1489,6 +1709,8 @@ function CommitOnBlurInput({
   autoFocus,
   onCommit,
   onFocusChange,
+  normalize,
+  autosave = false,
 }: {
   initialValue: string
   placeholder?: string
@@ -1496,18 +1718,60 @@ function CommitOnBlurInput({
   autoFocus?: boolean
   onCommit: (text: string) => void
   onFocusChange?: (focused: boolean) => void
+  /** Rewrite the text before it commits (e.g. gateway URL → `ipfs://`). Returns null to leave it unchanged. */
+  normalize?: (text: string) => string | null
+  /** Commit on a debounce while typing (not only on blur/Enter). */
+  autosave?: boolean
 }) {
   const [text, setText] = useState(initialValue)
+  const focusedRef = useRef(false)
+  const commit = (value: string) => onCommit(normalize?.(value) ?? value)
+
+  // Resync from external value changes only when this field isn't being edited,
+  // so an autosave round-trip (which updates `initialValue`) never moves the cursor.
+  useEffect(() => {
+    if (!focusedRef.current) setText(initialValue)
+  }, [initialValue])
+
+  // Autosave while typing: commit the debounced text. The draft state machine
+  // further debounces the actual write, and the value is already staged before
+  // any Publish click (which otherwise races the blur commit).
+  const debouncedText = useDebounce(text, AUTOSAVE_DEBOUNCE_MS)
+  useEffect(() => {
+    if (!autosave || !focusedRef.current) return
+    if (debouncedText !== initialValue) commit(debouncedText)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedText])
+
   return (
     <Input
       value={text}
       placeholder={placeholder}
       className={className}
       autoFocus={autoFocus}
-      onFocus={() => onFocusChange?.(true)}
+      onFocus={() => {
+        focusedRef.current = true
+        onFocusChange?.(true)
+      }}
       onChange={(e) => setText(e.target.value)}
+      onPaste={
+        normalize
+          ? (e) => {
+              // Convert a pasted gateway URL to ipfs:// immediately (so it
+              // renders as a file tag) instead of waiting for blur.
+              const pasted = e.clipboardData.getData('text')
+              const converted = normalize(pasted)
+              if (converted && converted !== pasted) {
+                e.preventDefault()
+                setText(converted)
+                onCommit(converted)
+              }
+            }
+          : undefined
+      }
       onBlur={() => {
-        if (text !== initialValue) onCommit(text)
+        focusedRef.current = false
+        if (text !== initialValue) commit(text)
         onFocusChange?.(false)
       }}
       onKeyDown={(e) => {
@@ -1527,7 +1791,7 @@ const FIELD_TYPE_LABEL: Record<NewFieldType, string> = {
   object: 'Object',
   list: 'List',
   null: 'Null',
-  link: 'Link',
+  link: 'IPFS Link',
   bytes: 'Bytes',
 }
 

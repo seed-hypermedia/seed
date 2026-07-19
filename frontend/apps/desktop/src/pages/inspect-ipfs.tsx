@@ -1,3 +1,6 @@
+import {useAppContext} from '@/app-context'
+import {CloseButton} from '@/components/window-controls'
+import {useGatewayUrl} from '@/models/gateway-settings'
 import {
   createInspectIpfsNavRoute,
   createInspectNavRouteFromRoute,
@@ -12,6 +15,7 @@ import {useCallback, useMemo} from 'react'
 export default function DesktopInspectIpfsPage() {
   const route = useNavRoute()
   const navState = useNavigationState()
+  const {platform} = useAppContext()
 
   if (route.key !== 'inspect-ipfs') {
     throw new Error(`DesktopInspectIpfsPage: unsupported route ${route.key}`)
@@ -34,5 +38,22 @@ export default function DesktopInspectIpfsPage() {
       : previousRoute
   }, [navState])
 
-  return <InspectIpfsPage ipfsPath={route.ipfsPath} exitRoute={exitRoute} getRouteForUrl={getRouteForUrl} />
+  const isMac = platform === 'darwin'
+  const gatewayUrl = useGatewayUrl().data || undefined
+  return (
+    <InspectIpfsPage
+      ipfsPath={route.ipfsPath}
+      exitRoute={exitRoute}
+      getRouteForUrl={getRouteForUrl}
+      gatewayUrl={gatewayUrl}
+      trafficLightInset={isMac}
+      windowControls={
+        isMac ? undefined : (
+          <div className="no-window-drag flex size-[26px] items-center justify-center">
+            <CloseButton />
+          </div>
+        )
+      }
+    />
+  )
 }
