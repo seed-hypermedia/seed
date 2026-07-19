@@ -288,6 +288,12 @@ export function routeToHref(
     return '/hm/blob/new'
   }
 
+  // The Onyx schema explorer ("the tour"). Reserved `/hm/onyx/…` gateway form
+  // so a site document at `/onyx` can't collide.
+  if (typeof route !== 'string' && route.key === 'onyx') {
+    return route.slug ? `/hm/onyx/${route.slug}` : '/hm/onyx'
+  }
+
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)
   if (
     typeof route !== 'string' &&

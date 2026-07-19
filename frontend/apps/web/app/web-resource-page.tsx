@@ -31,7 +31,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {FileInput} from 'lucide-react'
+import {FileCode2, FileInput} from 'lucide-react'
 import {blobBuilderMenuItems} from '@/web-raw-blob'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -143,7 +143,18 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   // enables developerMode by default). "New Schema" is a new instance of the
   // built-in meta-schema. The editor's own menu offers these too once open.
   const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
-    () => (experiments?.developerMode ? blobBuilderMenuItems(navigate) : []),
+    () =>
+      experiments?.developerMode
+        ? [
+            ...blobBuilderMenuItems(navigate),
+            {
+              key: 'onyx-tour',
+              label: 'Onyx Schema Tour',
+              icon: <FileCode2 className="size-4" />,
+              onClick: () => navigate({key: 'onyx'}),
+            },
+          ]
+        : [],
     [experiments?.developerMode, navigate],
   )
 

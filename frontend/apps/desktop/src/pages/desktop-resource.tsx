@@ -910,6 +910,13 @@ export default function DesktopResourcePage() {
       icon: <FileCode2 className="size-4" />,
       onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
     })
+
+    menuItems.push({
+      key: 'onyx-tour',
+      label: 'Onyx Schema Tour',
+      icon: <FileCode2 className="size-4" />,
+      onClick: () => navigate({key: 'onyx'}),
+    })
   }
 
   // Publish / Unpublish site options (only for home documents)
