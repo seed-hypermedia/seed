@@ -13,7 +13,7 @@ import {
 } from '../routes'
 import {routeToHref} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
-import {appRouteOfId} from '../utils/navigation'
+import {appRouteOfId, getRouteKey} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
@@ -1073,5 +1073,24 @@ describe('recent route identity', () => {
       }),
     ).toBe('hm://alice/post')
     expect(getRecentsRouteEntityUrl({key: 'draft', id: 'draft'} as NavRoute)).toBeNull()
+  })
+})
+
+describe('rawBlobRouteSchema', () => {
+  test('parses with no cid (new blob)', () => {
+    expect(navRouteSchema.parse({key: 'raw-blob'})).toEqual({key: 'raw-blob'})
+  })
+
+  test('parses with schemaCid for new-instance seeding', () => {
+    expect(navRouteSchema.parse({key: 'raw-blob', schemaCid: 'bafySchema'})).toEqual({
+      key: 'raw-blob',
+      schemaCid: 'bafySchema',
+    })
+  })
+
+  test('getRouteKey separates new-blob mounts by schemaCid', () => {
+    expect(getRouteKey({key: 'raw-blob'})).toBe('raw-blob:new:')
+    expect(getRouteKey({key: 'raw-blob', schemaCid: 'bafySchema'})).toBe('raw-blob:new:bafySchema')
+    expect(getRouteKey({key: 'raw-blob', cid: 'bafyBlob'})).toBe('raw-blob:bafyBlob')
   })
 })
