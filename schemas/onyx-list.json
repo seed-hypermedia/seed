@@ -1,0 +1,5 @@
+{
+  "name": "List",
+  "description": "An ordered sequence — List<Any> until parameterized with items.",
+  "type": "hm://hyper.media/list"
+}
