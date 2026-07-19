@@ -16,6 +16,7 @@ import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
+import {getDocumentTitle} from '@shm/shared/content'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
@@ -155,36 +156,42 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   replaceRouteRef.current = replaceRoute
   const routeRef = useRef(route)
   routeRef.current = route
-  const onPublishSuccess = useCallback((newDocument?: {account?: string; path?: string | null}) => {
-    const currentRoute = routeRef.current
-    if (currentRoute.key === 'document') {
-      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
-      if (newDocument?.account) {
-        const publishedId = hmId(newDocument.account, {
-          path: entityQueryPathToHmIdPath(newDocument.path),
-          latest: true,
-        })
-        if (currentId && publishedId.id !== currentId.id) {
-          replaceRouteRef.current({...currentRoute, id: publishedId} as any)
-          return
+  const onPublishSuccess = useCallback(
+    (newDocument?: {account?: string; path?: string | null; metadata?: HMDocument['metadata']}) => {
+      const publishedTitle =
+        getDocumentTitle({metadata: newDocument?.metadata ?? {}, path: newDocument?.path ?? ''}) || 'Document'
+      toast.success(`${publishedTitle} Published.`)
+      const currentRoute = routeRef.current
+      if (currentRoute.key === 'document') {
+        const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+        if (newDocument?.account) {
+          const publishedId = hmId(newDocument.account, {
+            path: entityQueryPathToHmIdPath(newDocument.path),
+            latest: true,
+          })
+          if (currentId && publishedId.id !== currentId.id) {
+            replaceRouteRef.current({...currentRoute, id: publishedId} as any)
+            return
+          }
+        }
+        if (currentId?.version) {
+          replaceRouteRef.current({
+            ...currentRoute,
+            id: {...currentId, version: null},
+          } as any)
+        }
+      } else if (currentRoute.key === 'site-profile') {
+        const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
+        if (currentId?.version) {
+          replaceRouteRef.current({
+            ...currentRoute,
+            id: {...currentId, version: null},
+          } as any)
         }
       }
-      if (currentId?.version) {
-        replaceRouteRef.current({
-          ...currentRoute,
-          id: {...currentId, version: null},
-        } as any)
-      }
-    } else if (currentRoute.key === 'site-profile') {
-      const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
-      if (currentId?.version) {
-        replaceRouteRef.current({
-          ...currentRoute,
-          id: {...currentId, version: null},
-        } as any)
-      }
-    }
-  }, [])
+    },
+    [],
+  )
 
   const placeholderDraftId = useMemo(() => getWebDraftShellId(docId.path), [docId.path])
 
@@ -250,8 +257,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   // Mirror of the draftQuery `enabled` gate below — a draft could still be
   // loading whenever this is true.
-  const draftQueryEnabled =
-    typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId)
+  const draftQueryEnabled = typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId)
 
   const existingDraft: HMExistingDraft | false | undefined = useMemo(() => {
     // CRITICAL: returning `false` here declares "no draft exists", which latches
