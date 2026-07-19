@@ -1,0 +1,8 @@
+{
+  "$type": "hm://example.com/person",
+  "value": {
+    "name": "Carol",
+    "age": 42,
+    "active": false
+  }
+}

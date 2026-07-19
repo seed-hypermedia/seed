@@ -1,0 +1,52 @@
+{
+  "name": "Reference schema",
+  "description": "The variant for a reference: a bare include, or an extension when it carries refinements.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "ref"
+  ],
+  "properties": {
+    "ref": {
+      "type": "hm://hyper.media/string"
+    },
+    "properties": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    },
+    "required": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "values": {
+      "ref": "hm://hyper.media/schema"
+    },
+    "items": {
+      "ref": "hm://hyper.media/schema"
+    },
+    "enum": {
+      "type": "hm://hyper.media/list"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    },
+    "args": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}

@@ -938,6 +938,11 @@ function useCurrentRouteUrl(): {
       return {displayUrl: url, copyableUrl: url}
     }
 
+    if (route.key === 'raw-blob') {
+      const url = route.cid ? `ipfs://${route.cid}` : null
+      return {displayUrl: url, copyableUrl: url}
+    }
+
     return {displayUrl: null, copyableUrl: null}
   }, [
     routeId,
@@ -1057,6 +1062,7 @@ function useOmnibarState(currentUrl: string | null) {
           value.startsWith('http://') ||
           value.startsWith('https://') ||
           value.startsWith('hm://') ||
+          value.startsWith('ipfs://') ||
           (value.includes('.') && !value.includes(' '))
 
         if (!looksLikeUrl) {
@@ -1147,7 +1153,7 @@ export function Omnibar() {
             const isHttpUrl = url.startsWith('http://') || url.startsWith('https://')
             const unpacked = unpackHmId(url)
 
-            if (unpacked) {
+            if (unpacked || url.startsWith('ipfs://')) {
               // Sync navigation - blur immediately
               handleUrlNavigation(url)
               blur()

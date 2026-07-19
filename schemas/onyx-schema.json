@@ -1,0 +1,27 @@
+{
+  "name": "Onyx schema",
+  "description": "The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.",
+  "anyOf": [
+    {
+      "ref": "hm://hyper.media/map-schema"
+    },
+    {
+      "ref": "hm://hyper.media/list-schema"
+    },
+    {
+      "ref": "hm://hyper.media/scalar-schema"
+    },
+    {
+      "ref": "hm://hyper.media/link-schema"
+    },
+    {
+      "ref": "hm://hyper.media/include-schema"
+    },
+    {
+      "ref": "hm://hyper.media/union-schema"
+    },
+    {
+      "ref": "hm://hyper.media/var-schema"
+    }
+  ]
+}

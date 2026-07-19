@@ -1,0 +1,43 @@
+{
+  "name": "Map schema",
+  "description": "The variant for a map value — a closed struct (via properties) or an open map (via values).",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "hm://hyper.media/map"
+      ]
+    },
+    "properties": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    },
+    "required": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/string"
+      }
+    },
+    "values": {
+      "ref": "hm://hyper.media/schema"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "Constrained record",
+  "description": "Exercises the value constraints: string length + pattern, numeric bounds, and list size.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "username",
+    "score"
+  ],
+  "properties": {
+    "username": {
+      "type": "hm://hyper.media/string",
+      "minLength": 3,
+      "maxLength": 12,
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "score": {
+      "type": "hm://hyper.media/integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "tags": {
+      "type": "hm://hyper.media/list",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Block",
+  "description": "The open block: the common fields (id, type, text, link, annotations, attributes) plus arbitrary extra fields of any type, requiring only id and type. This is the forward-compatible wire type Change ops and comment bodies reference — a block type this client has no schema for (a future or third-party type) is still a valid Block, so a document is never rejected over an unrecognized block. Every concrete block is a subtype; the strict recognized set is hypermedia-block-core. To ADD a block type, extend hypermedia-block-base and union it with the core (see example-poll-block / example-app-block).",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "id",
+    "type"
+  ],
+  "properties": {
+    "id": {
+      "ref": "hm://hyper.media/string"
+    },
+    "revision": {
+      "ref": "hm://hyper.media/string"
+    },
+    "type": {
+      "ref": "hm://hyper.media/string"
+    },
+    "text": {
+      "ref": "hm://hyper.media/string"
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    },
+    "annotations": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/annotation"
+      }
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {},
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  },
+  "values": {
+    "ref": "hm://hyper.media/any"
+  }
+}
