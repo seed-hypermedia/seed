@@ -25,6 +25,7 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
 import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
+import {extractRawBlobRouteFromPath, WebRawBlobPage} from '@/web-raw-blob'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
@@ -42,6 +43,7 @@ import {
   hypermediaUrlToRoute,
   hmId,
   InspectTab,
+  RawBlobRoute,
   isSiteProfileTab,
   VIEW_TERMS,
   viewTermToRouteKey,
@@ -73,7 +75,20 @@ type InspectIpfsPayload = {
   siteHost: string
 }
 
-type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
+type RawBlobPayload = {
+  kind: 'raw-blob'
+  route: RawBlobRoute
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}
+
+type DocumentPayload =
+  | ExtendedSitePayload
+  | InspectIpfsPayload
+  | SiteSettingsEmailsPayload
+  | RawBlobPayload
+  | 'unregistered'
+  | 'no-site'
 
 function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
   return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
@@ -238,6 +253,10 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
+  if ('kind' in payload && payload.kind === 'raw-blob') {
+    const {route} = payload
+    return [{title: route.cid ? `ipfs://${route.cid}` : route.schemaCid ? 'New Instance' : 'New Blob'}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -353,6 +372,22 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
       originHomeId: hmId(registeredAccountUid),
       siteHost: hostname,
     } satisfies InspectIpfsPayload)
+  }
+
+  // The raw blob / schema editor page (reserved `/hm/blob/…` URLs). Client-side
+  // only — the editor fetches/publishes blobs through the universal client — so
+  // the loader just hands the parsed route to the provider; no server fetch.
+  const rawBlobRoute = extractRawBlobRouteFromPath(pathParts)
+  if (rawBlobRoute) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'raw-blob',
+      route: rawBlobRoute,
+      originHomeId: hmId(registeredAccountUid),
+      siteHost: hostname,
+    } satisfies RawBlobPayload)
   }
 
   let documentId
@@ -480,7 +515,14 @@ export default function UnifiedDocumentPage() {
       </WebSiteProvider>
     )
   }
-  const siteData: ExtendedSitePayload = data
+  if ('kind' in data && data.kind === 'raw-blob') {
+    return (
+      <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
+        <WebRawBlobPage />
+      </WebSiteProvider>
+    )
+  }
+  const siteData: ExtendedSitePayload = data as ExtendedSitePayload
 
   // The resource isn't available locally yet; discovery is running in the
   // background. Render a fast shim page that polls until it arrives.

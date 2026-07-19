@@ -56,6 +56,7 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@seed-hypermedia/agents-protocol": "file:../../../agents/protocol",
     "@seed-hypermedia/client": "workspace:*",
+    "multiformats": "^13.4.1",
     "@shm/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.8",
@@ -81,6 +82,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@ipld/dag-cbor": "^9.2.5",
     "shadcn": "^2.6.3",
     "typescript": "5.8.3",
     "vitest": "4.1.8"

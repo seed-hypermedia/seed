@@ -1,0 +1,20 @@
+{
+  "name": "Address",
+  "description": "A postal address: street and city (required) plus an optional postal code.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "street",
+    "city"
+  ],
+  "properties": {
+    "street": {
+      "ref": "hm://hyper.media/string"
+    },
+    "city": {
+      "ref": "hm://hyper.media/string"
+    },
+    "postalCode": {
+      "ref": "hm://hyper.media/string"
+    }
+  }
+}

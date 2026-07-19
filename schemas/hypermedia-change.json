@@ -1,0 +1,38 @@
+{
+  "name": "Change",
+  "description": "An append-only change to a document, linked into a causal DAG via deps. Carries the operations that mutate document content and metadata.",
+  "ref": "hm://seed.hyper.media/blob",
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Change"
+      ]
+    },
+    "genesis": {
+      "ref": "hm://seed.hyper.media/cid"
+    },
+    "deps": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/cid"
+      }
+    },
+    "depth": {
+      "ref": "hm://hyper.media/integer"
+    },
+    "body": {
+      "ref": "hm://seed.hyper.media/change-body",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
+    }
+  },
+  "params": {
+    "Block": {
+      "ref": "hm://seed.hyper.media/block"
+    }
+  }
+}
