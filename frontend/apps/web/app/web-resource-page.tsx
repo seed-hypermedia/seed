@@ -34,6 +34,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {FileInput} from 'lucide-react'
+import {blobBuilderMenuItems} from '@/web-raw-blob'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,
@@ -174,7 +175,7 @@ function useClientDocumentEditor(): React.ComponentType<DocumentContentProps> | 
 
 export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResourcePageProps) {
   const DocumentContentComponent = useClientDocumentEditor()
-  const {origin, originHomeId} = useUniversalAppContext()
+  const {origin, originHomeId, experiments} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
@@ -187,6 +188,14 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {createAccount, content: createAccountContent} = useCreateAccount()
   const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
+
+  // Building-block entry points (desktop shows these under Developer Mode; web
+  // enables developerMode by default). "New Schema" is a new instance of the
+  // built-in meta-schema. The editor's own menu offers these too once open.
+  const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
+    () => (experiments?.developerMode ? blobBuilderMenuItems(navigate) : []),
+    [experiments?.developerMode, navigate],
+  )
 
   // Editor accessor — populated by the editor's onEditorReady callback.
   const editorRef = useRef<any>(null)
@@ -654,8 +663,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, moveMenuItem, webMenuItems],
+    () =>
+      [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
+    [deleteMenuItem, moveMenuItem, webMenuItems, schemaBuilderMenuItems],
   )
 
   // Inline subscribe box for non-members

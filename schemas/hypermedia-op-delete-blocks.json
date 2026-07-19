@@ -1,0 +1,23 @@
+{
+  "name": "DeleteBlocks op",
+  "description": "Delete blocks by id.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type",
+    "blocks"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "DeleteBlocks"
+      ]
+    },
+    "blocks": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/string"
+      }
+    }
+  }
+}

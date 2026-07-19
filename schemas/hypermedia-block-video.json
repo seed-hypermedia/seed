@@ -1,0 +1,48 @@
+{
+  "name": "Video block",
+  "description": "A video, referenced by a URL.",
+  "ref": "hm://seed.hyper.media/block-base",
+  "required": [
+    "link"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Video"
+      ]
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {
+        "childrenType": {
+          "ref": "hm://seed.hyper.media/children-type"
+        },
+        "columnCount": {
+          "ref": "hm://hyper.media/float"
+        },
+        "width": {
+          "ref": "hm://hyper.media/float"
+        },
+        "name": {
+          "ref": "hm://hyper.media/string"
+        },
+        "autoplay": {
+          "ref": "hm://hyper.media/boolean"
+        },
+        "loop": {
+          "ref": "hm://hyper.media/boolean"
+        },
+        "muted": {
+          "ref": "hm://hyper.media/boolean"
+        }
+      },
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  }
+}

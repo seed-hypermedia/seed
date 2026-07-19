@@ -1,0 +1,19 @@
+{
+  "name": "Web embed block",
+  "description": "An embed of an external web resource (an http(s) URL).",
+  "ref": "hm://seed.hyper.media/block-base",
+  "required": [
+    "link"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "WebEmbed"
+      ]
+    },
+    "link": {
+      "ref": "hm://hyper.media/string"
+    }
+  }
+}
