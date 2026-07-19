@@ -2058,14 +2058,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'metadata' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'metadata'
+                          >,
                           id: docId,
                         }
                   }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"seed/backend/blob"
+	"seed/backend/hmnet"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite/sqlitex"
@@ -12,6 +13,7 @@ import (
 
 	"seed/backend/util/must"
 
+	"github.com/ipfs/boxo/exchange/offline"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multihash"
@@ -28,6 +30,8 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 
 	db := storage.MakeTestMemoryDB(t)
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, zap.NewNop()))
+	// Offline exchange = local-only lookups, same wiring as cfg.Syncing.NoDiscovery.
+	fm := hmnet.NewFileManager(zap.NewNop(), idx, offline.Exchange(idx), idx)
 
 	// Create two blocks and store them.
 	privateData := []byte("private blob content")
@@ -55,7 +59,7 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	// The private blob has no blob_visibility entry, so it's not in public_blobs.
 
 	t.Run("PublicOnly=true blocks private blobs", func(t *testing.T) {
-		handler := publicOnlyMiddleware(true)(makeBlobDAGJSONHandler(idx))
+		handler := publicOnlyMiddleware(true)(makeBlobDAGJSONHandler(fm))
 
 		// Private blob should return 404.
 		rec := serveBlobDAGJSON(t, handler, privateCID.String())
@@ -69,7 +73,7 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	})
 
 	t.Run("PublicOnly=false serves all blobs", func(t *testing.T) {
-		handler := publicOnlyMiddleware(false)(makeBlobDAGJSONHandler(idx))
+		handler := publicOnlyMiddleware(false)(makeBlobDAGJSONHandler(fm))
 
 		// Both blobs should be found (not 404).
 		rec := serveBlobDAGJSON(t, handler, privateCID.String())
@@ -80,7 +84,7 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	})
 
 	t.Run("nonexistent CID returns 404", func(t *testing.T) {
-		handler := makeBlobDAGJSONHandler(idx)
+		handler := makeBlobDAGJSONHandler(fm)
 
 		fakeCID := makeCID(t, []byte("does not exist"))
 		rec := serveBlobDAGJSON(t, handler, fakeCID.String())

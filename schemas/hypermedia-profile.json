@@ -1,0 +1,28 @@
+{
+  "name": "Profile",
+  "description": "A snapshot describing an account: display name, avatar, and description — or an alias redirecting to another key.",
+  "ref": "hm://seed.hyper.media/blob",
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Profile"
+      ]
+    },
+    "alias": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "avatar": {
+      "ref": "hm://hyper.media/string"
+    },
+    "description": {
+      "ref": "hm://hyper.media/string"
+    },
+    "account": {
+      "ref": "hm://seed.hyper.media/principal"
+    }
+  }
+}

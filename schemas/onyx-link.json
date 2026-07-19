@@ -1,0 +1,5 @@
+{
+  "name": "Link",
+  "description": "A content-addressed pointer (CID) to another block.",
+  "type": "hm://hyper.media/link"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "SetKey op",
+  "description": "Deprecated: set a single flat metadata key to a value.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "SetKey"
+      ]
+    },
+    "key": {
+      "ref": "hm://hyper.media/string"
+    },
+    "value": {
+      "ref": "hm://seed.hyper.media/value"
+    }
+  }
+}

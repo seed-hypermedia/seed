@@ -55,9 +55,11 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@seed-hypermedia/client": "workspace:*",
+    "multiformats": "^13.4.1",
     "@shm/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.8",
+    "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -78,6 +80,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@ipld/dag-cbor": "^9.2.5",
     "shadcn": "^2.6.3",
     "typescript": "5.8.3",
     "vitest": "4.1.8"

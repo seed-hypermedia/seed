@@ -1,0 +1,33 @@
+{
+  "name": "Code block",
+  "description": "A code block, optionally tagged with a language.",
+  "ref": "hm://seed.hyper.media/block-base",
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Code"
+      ]
+    },
+    "text": {
+      "ref": "hm://hyper.media/string"
+    },
+    "attributes": {
+      "type": "hm://hyper.media/map",
+      "properties": {
+        "childrenType": {
+          "ref": "hm://seed.hyper.media/children-type"
+        },
+        "columnCount": {
+          "ref": "hm://hyper.media/float"
+        },
+        "language": {
+          "ref": "hm://hyper.media/string"
+        }
+      },
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  }
+}

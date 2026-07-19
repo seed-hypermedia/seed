@@ -32,6 +32,8 @@ export const appExperimentsSchema = z
     embeddingEnabled: z.boolean().optional(),
     notifications: z.boolean().optional(),
     advancedCopyLinkOptions: z.boolean().optional(),
+    /** Surfaces experimental building-block features (blob editor, schemas, …) in regular menus. */
+    developerMode: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>
@@ -274,6 +276,16 @@ export function routeToHref(
     }
     const basePath = options?.originHomeId ? '/inspect' : '/hm/inspect'
     return `${basePath}/ipfs/${route.ipfsPath}`
+  }
+
+  // The raw DAG-CBOR blob / schema editor. Always the reserved `/hm/blob/…`
+  // gateway form (not site-relative) so a site document at `/blob` can't
+  // collide. `new-instance/<schemaCid>` seeds an instance of that schema (the
+  // meta-schema CID here is "New Schema"); `new` is a blank blob.
+  if (typeof route !== 'string' && route.key === 'raw-blob') {
+    if (route.cid) return `/hm/blob/ipfs/${route.cid}`
+    if (route.schemaCid) return `/hm/blob/new-instance/${route.schemaCid}`
+    return '/hm/blob/new'
   }
 
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)

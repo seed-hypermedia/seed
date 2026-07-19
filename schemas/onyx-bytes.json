@@ -1,0 +1,5 @@
+{
+  "name": "Bytes",
+  "description": "Raw binary data (a byte string).",
+  "type": "hm://hyper.media/bytes"
+}

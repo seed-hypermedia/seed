@@ -1,0 +1,24 @@
+{
+  "name": "Comment",
+  "description": "A comment with an author and replies, which are themselves comments.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "text"
+  ],
+  "properties": {
+    "text": {
+      "ref": "hm://hyper.media/string"
+    },
+    "author": {
+      "type": "hm://hyper.media/link",
+      "ref": "hm://example.com/person"
+    },
+    "replies": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "type": "hm://hyper.media/link",
+        "ref": "hm://example.com/comment"
+      }
+    }
+  }
+}

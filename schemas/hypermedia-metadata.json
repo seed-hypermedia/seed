@@ -1,0 +1,67 @@
+{
+  "name": "Document metadata",
+  "description": "Resolved document metadata (merged from Change ops): known keys plus arbitrary extras.",
+  "type": "hm://hyper.media/map",
+  "properties": {
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "summary": {
+      "ref": "hm://hyper.media/string"
+    },
+    "icon": {
+      "ref": "hm://hyper.media/string"
+    },
+    "cover": {
+      "ref": "hm://hyper.media/string"
+    },
+    "siteUrl": {
+      "ref": "hm://hyper.media/string"
+    },
+    "layout": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Seed/Experimental/Newspaper",
+        ""
+      ]
+    },
+    "displayPublishTime": {
+      "ref": "hm://hyper.media/string"
+    },
+    "displayAuthor": {
+      "ref": "hm://hyper.media/string"
+    },
+    "showOutline": {
+      "ref": "hm://hyper.media/boolean"
+    },
+    "showActivity": {
+      "ref": "hm://hyper.media/boolean"
+    },
+    "contentWidth": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "S",
+        "M",
+        "L"
+      ]
+    },
+    "childrenType": {
+      "ref": "hm://hyper.media/string"
+    },
+    "theme": {
+      "type": "hm://hyper.media/map",
+      "properties": {
+        "headerLayout": {
+          "type": "hm://hyper.media/string",
+          "enum": [
+            "Center",
+            ""
+          ]
+        }
+      }
+    }
+  },
+  "values": {
+    "ref": "hm://seed.hyper.media/value"
+  }
+}

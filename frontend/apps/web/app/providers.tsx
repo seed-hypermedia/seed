@@ -227,6 +227,11 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
   return url
 }
 
+// Experiments enabled for every web visitor. Web has no per-user experiments
+// toggle, so building-block features that desktop hides behind Developer Mode
+// are simply on here (see the blob/schema editor at /hm/blob/…).
+const WEB_EXPERIMENTS = {developerMode: true} as const
+
 export function WebSiteProvider(props: {
   originHomeId: UnpackedHypermediaId
   children: React.ReactNode
@@ -298,6 +303,10 @@ export function WebSiteProvider(props: {
     <UniversalAppProvider
       origin={props.origin}
       originHomeId={props.originHomeId}
+      // The blob/schema building-block features (desktop gates these behind a
+      // Developer Mode toggle) are enabled by default on web — there is no
+      // per-user toggle here, so the experimental surfaces are always on.
+      experiments={WEB_EXPERIMENTS}
       languagePack={languagePack}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}

@@ -1,0 +1,37 @@
+{
+  "name": "List schema",
+  "description": "The variant for a list value; items types the elements.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "hm://hyper.media/list"
+      ]
+    },
+    "items": {
+      "ref": "hm://hyper.media/schema"
+    },
+    "minItems": {
+      "type": "hm://hyper.media/integer"
+    },
+    "maxItems": {
+      "type": "hm://hyper.media/integer"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}

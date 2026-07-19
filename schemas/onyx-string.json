@@ -1,0 +1,5 @@
+{
+  "name": "String",
+  "description": "UTF-8 text.",
+  "type": "hm://hyper.media/string"
+}

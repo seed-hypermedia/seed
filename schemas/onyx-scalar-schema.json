@@ -1,0 +1,51 @@
+{
+  "name": "Scalar schema",
+  "description": "The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "hm://hyper.media/null",
+        "hm://hyper.media/boolean",
+        "hm://hyper.media/integer",
+        "hm://hyper.media/float",
+        "hm://hyper.media/string",
+        "hm://hyper.media/bytes"
+      ]
+    },
+    "enum": {
+      "type": "hm://hyper.media/list"
+    },
+    "minLength": {
+      "type": "hm://hyper.media/integer"
+    },
+    "maxLength": {
+      "type": "hm://hyper.media/integer"
+    },
+    "pattern": {
+      "type": "hm://hyper.media/string"
+    },
+    "minimum": {
+      "type": "hm://hyper.media/integer"
+    },
+    "maximum": {
+      "type": "hm://hyper.media/integer"
+    },
+    "name": {
+      "type": "hm://hyper.media/string"
+    },
+    "description": {
+      "type": "hm://hyper.media/string"
+    },
+    "params": {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/schema"
+      }
+    }
+  }
+}

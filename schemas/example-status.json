@@ -1,0 +1,10 @@
+{
+  "name": "Status",
+  "description": "A publication status: draft, published, or archived.",
+  "ref": "hm://hyper.media/string",
+  "enum": [
+    "draft",
+    "published",
+    "archived"
+  ]
+}
