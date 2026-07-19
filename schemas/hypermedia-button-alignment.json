@@ -1,0 +1,10 @@
+{
+  "name": "Button alignment",
+  "description": "Horizontal alignment of a Button block.",
+  "type": "hm://hyper.media/string",
+  "enum": [
+    "flex-start",
+    "center",
+    "flex-end"
+  ]
+}

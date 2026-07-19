@@ -1,0 +1,5 @@
+{
+  "name": "Timestamp",
+  "description": "A timestamp, encoded as an integer of Unix milliseconds.",
+  "ref": "hm://hyper.media/integer"
+}
