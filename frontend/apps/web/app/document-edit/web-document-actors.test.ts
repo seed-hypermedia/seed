@@ -16,12 +16,7 @@ import {
   type CreateWebDocumentMachineDeps,
   type WebEditorAccessor,
 } from './web-document-actors'
-import {
-  _resetWebDocDraftDBForTesting,
-  putWebDocDraft,
-  getWebDocDraft,
-  listWebDocDraftsForDoc,
-} from './web-draft-db'
+import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft, listWebDocDraftsForDoc} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
@@ -234,7 +229,13 @@ describe('publishWebDocument', () => {
       baseline,
       after,
       editorBlocks: [
-        {id: 'b1', type: 'paragraph', props: {childrenType: 'Group'}, content: [{type: 'text', text: 'hello'}], children: []},
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hello'}],
+          children: [],
+        },
       ],
     })
 
@@ -324,7 +325,13 @@ describe('publishWebDocument', () => {
 
     const deps = makeDeps({
       editorBlocks: [
-        {id: 'b1', type: 'paragraph', props: {childrenType: 'Group'}, content: [{type: 'text', text: 'hello'}], children: []},
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'hello'}],
+          children: [],
+        },
       ],
     })
 

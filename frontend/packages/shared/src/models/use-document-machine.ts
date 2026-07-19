@@ -313,7 +313,9 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
     }
 
     documentEmbedCleanupInfo(
-      `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.${action === 'loaded' ? 'loaded' : 'remoteUpdate'}`,
+      `${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer sending document.${
+        action === 'loaded' ? 'loaded' : 'remoteUpdate'
+      }`,
       {
         account: document.account,
         path: document.path,

@@ -16,7 +16,13 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {HMBlockNode, HMDocument, HMMetadata, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMBlockNode,
+  HMDocument,
+  HMMetadata,
+  HMSigner,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,
