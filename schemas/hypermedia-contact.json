@@ -1,0 +1,28 @@
+{
+  "name": "Contact",
+  "description": "A contact record: one account's named reference to another account (the subject), with subscription preferences.",
+  "ref": "hm://seed.hyper.media/blob",
+  "properties": {
+    "type": {
+      "type": "hm://hyper.media/string",
+      "enum": [
+        "Contact"
+      ]
+    },
+    "id": {
+      "ref": "hm://hyper.media/string"
+    },
+    "account": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "subject": {
+      "ref": "hm://seed.hyper.media/principal"
+    },
+    "name": {
+      "ref": "hm://hyper.media/string"
+    },
+    "subscribe": {
+      "ref": "hm://seed.hyper.media/contact-subscribe"
+    }
+  }
+}

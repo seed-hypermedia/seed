@@ -1878,6 +1878,9 @@ importers:
       mermaid:
         specifier: 11.16.1
         version: 11.16.1
+      multiformats:
+        specifier: ^13.4.1
+        version: 13.4.2
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -1918,6 +1921,9 @@ importers:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@18.2.21)(@types/react@18.2.64)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
     devDependencies:
+      '@ipld/dag-cbor':
+        specifier: ^9.2.5
+        version: 9.2.5
       shadcn:
         specifier: ^2.6.3
         version: 2.10.0(@types/node@22.19.7)(typescript@5.8.3)

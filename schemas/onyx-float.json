@@ -1,0 +1,5 @@
+{
+  "name": "Float",
+  "description": "A floating-point number.",
+  "type": "hm://hyper.media/float"
+}

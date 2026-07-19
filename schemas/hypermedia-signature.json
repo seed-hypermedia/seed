@@ -1,0 +1,5 @@
+{
+  "name": "Signature",
+  "description": "A cryptographic signature over the blob — raw CBOR bytes.",
+  "ref": "hm://hyper.media/bytes"
+}

@@ -1,0 +1,39 @@
+{
+  "name": "Any",
+  "description": "The top type — matches any Onyx value: null, boolean, number, string, bytes, link, or a (recursively any) list or map. Use it for open, forward-compatible data.",
+  "anyOf": [
+    {
+      "ref": "hm://hyper.media/null"
+    },
+    {
+      "ref": "hm://hyper.media/boolean"
+    },
+    {
+      "ref": "hm://hyper.media/integer"
+    },
+    {
+      "ref": "hm://hyper.media/float"
+    },
+    {
+      "ref": "hm://hyper.media/string"
+    },
+    {
+      "ref": "hm://hyper.media/bytes"
+    },
+    {
+      "ref": "hm://hyper.media/link"
+    },
+    {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://hyper.media/any"
+      }
+    },
+    {
+      "type": "hm://hyper.media/map",
+      "values": {
+        "ref": "hm://hyper.media/any"
+      }
+    }
+  ]
+}
