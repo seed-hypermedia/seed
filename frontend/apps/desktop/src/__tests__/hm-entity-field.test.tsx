@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import type {BlobSchema} from '@shm/ui/blob-schema'
-import {BlobSchemaProvider} from '@shm/ui/blob-schema-context'
+import {OnyxSchemaProvider, type OnyxSchema} from '@shm/ui/onyx/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import React from 'react'
@@ -45,12 +44,12 @@ afterEach(() => {
   container.remove()
 })
 
-function renderField(value: Record<string, unknown>, schema: BlobSchema) {
+function renderField(value: Record<string, unknown>, schema: OnyxSchema) {
   act(() => {
     root.render(
       <TooltipProvider>
         <ValueEditorProvider openUrl={() => {}}>
-          <BlobSchemaProvider schema={schema} registry={{}} value={value}>
+          <OnyxSchemaProvider schema={schema} registry={{}} value={value}>
             <ValueEditor
               value={value}
               onValue={(next) => {
@@ -58,20 +57,20 @@ function renderField(value: Record<string, unknown>, schema: BlobSchema) {
               }}
               rules={CBOR_VALUE_RULES}
             />
-          </BlobSchemaProvider>
+          </OnyxSchemaProvider>
         </ValueEditorProvider>
       </TooltipProvider>,
     )
   })
 }
 
-const PROFILE_SCHEMA: BlobSchema = {
-  type: 'object',
-  properties: {author: {type: 'string', format: 'hm-profile'}},
+const PROFILE_SCHEMA: OnyxSchema = {
+  type: 'hm://hyper.media/map',
+  properties: {author: {type: 'hm://hyper.media/string', format: 'hm-profile'}},
 }
-const DOC_SCHEMA: BlobSchema = {
-  type: 'object',
-  properties: {post: {type: 'string', format: 'hm-url'}},
+const DOC_SCHEMA: OnyxSchema = {
+  type: 'hm://hyper.media/map',
+  properties: {post: {type: 'hm://hyper.media/string', format: 'hm-url'}},
 }
 
 describe('HM entity fields', () => {
@@ -89,9 +88,12 @@ describe('HM entity fields', () => {
     expect(container.textContent).toContain('My Post')
   })
 
-  it('a profile URL with a path warns and renders the search input instead', () => {
+  it('a profile URL with a path is non-conforming and renders the search input instead', () => {
+    // The Onyx engine doesn't validate `format` (it's advisory UI only), so a
+    // path-bearing profile URL produces no warning badge — unlike v1. The
+    // preserved behavior: it's non-conforming, so HMEntityField swaps the resolved
+    // display for the editable search input seeded with the raw value.
     renderField({author: `hm://${ACCOUNT}/blog`}, PROFILE_SCHEMA)
-    expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
     const input = Array.from(container.querySelectorAll('input')).find((el) =>
       el.placeholder.includes('Search accounts'),
     )

@@ -1,7 +1,6 @@
 import * as cbor from '@ipld/dag-cbor'
-import {BLOB_META_SCHEMA, BLOB_META_SCHEMA_CID, instantiateSchema, isSchemaBlob} from '@shm/ui/blob-schema'
 import {dagJsonToIpld} from '@shm/ui/dag-json'
-import {isPlainObject} from '@shm/ui/value-editor'
+import {isOnyxSchema, ONYX_SCHEMAS, seedValue} from '@shm/ui/onyx/index'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {describe, expect, it} from 'vitest'
@@ -39,25 +38,22 @@ describe('blob editor DAG-CBOR encoding', () => {
 })
 
 describe('schema publish path', () => {
-  it('meta-schema encodes to its pinned CID through the publish pipeline', async () => {
-    // Exactly what BlobEditor.publish() runs when storing the meta-schema
-    // blob alongside a schema — drift here would dangle every schema link.
-    const data = cbor.encode(dagJsonToIpld(BLOB_META_SCHEMA))
+  it('a new-schema starter runs the publish pipeline to a stable content-addressed CID', async () => {
+    // Exactly what BlobEditor.publish() runs when storing a New Schema blob:
+    // encode the seeded meta-schema instance and content-address it.
+    const starter = seedValue(ONYX_SCHEMAS['onyx-schema'])
+    const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
-    expect(CID.createV1(0x71, digest).toString()).toBe(BLOB_META_SCHEMA_CID)
+    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihxitwxlabd35a3mxq3ipelelo7oxuztbdfyyy6crhjmxz3gjcqcq')
   })
 
-  it('a new-schema starter value is itself recognized as a schema blob', () => {
+  it('a new-schema starter value is itself recognized as an Onyx schema', () => {
     // Mirrors NewInstanceEditor seeding with schemaCid = meta-schema CID.
-    const starter = instantiateSchema(BLOB_META_SCHEMA, {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA})
-    const value = {
-      ...(isPlainObject(starter) ? starter : {}),
-      schema: {'/': BLOB_META_SCHEMA_CID},
-    }
-    expect(isSchemaBlob(value)).toBe(true)
+    const starter = seedValue(ONYX_SCHEMAS['onyx-schema'])
+    expect(isOnyxSchema(starter)).toBe(true)
   })
 
   it('an instance linking a regular schema is not itself a schema', () => {
-    expect(isSchemaBlob({schema: {'/': CID_STR}, title: 'x'})).toBe(false)
+    expect(isOnyxSchema({schema: {'/': CID_STR}, title: 'x'})).toBe(false)
   })
 })
