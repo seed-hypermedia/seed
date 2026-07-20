@@ -121,8 +121,11 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
         <label className="text-muted-foreground text-xs font-medium">Fields</label>
         <div className="flex flex-col gap-1.5">
           {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
-          {entries.map(([name, ps]) => (
-            <div key={name} className="flex items-center gap-2">
+          {entries.map(([name, ps], index) => (
+            // Stable index key: renaming changes the property name but not the
+            // row's identity, so the (controlled) name input never remounts and
+            // keeps focus while typing.
+            <div key={index} className="flex items-center gap-2">
               <Input
                 value={name}
                 className="flex-1 font-mono text-sm"
