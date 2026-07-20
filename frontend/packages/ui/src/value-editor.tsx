@@ -36,8 +36,8 @@ import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-import {instantiateAtPath} from './blob-schema'
-import {useBlobSchema, useSubschema} from './blob-schema-context'
+import {seedValue} from './onyx/onyx-data-editor'
+import {onyxSubschema, useOnyxSchema, useSubschema} from './onyx/onyx-schema-context'
 import {HMEntityField} from './hm-entity-field'
 import {
   EnumValueSelect,
@@ -48,7 +48,7 @@ import {
   useSchemaFieldSuggestions,
   useSchemaKeyLabel,
   type LiteralOption,
-} from './value-editor-schema'
+} from './onyx/onyx-value-editor-schema'
 
 /**
  * Behavior rules for the recursive value editor, so it can serve both the
@@ -2021,11 +2021,12 @@ export function coerceFieldValue(value: unknown, toType: NewFieldType, rules: Va
  * picked a type the schema starter doesn't match, the default wins.
  */
 function useCreateFieldValue() {
-  const ctx = useBlobSchema()
+  const ctx = useOnyxSchema()
   return useCallback(
     (targetPath: ValuePath, type: NewFieldType, rules: ValueEditorRules): unknown => {
       if (ctx) {
-        const starter = instantiateAtPath(ctx.rootSchema, targetPath, ctx.registry)
+        const sub = onyxSubschema(ctx.rootSchema, targetPath, ctx.registry)
+        const starter = sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
         if (starter !== undefined && valueToFieldType(starter) === type && findInvalidValue(starter, rules) === null) {
           return starter
         }
