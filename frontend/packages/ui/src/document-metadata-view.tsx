@@ -5,7 +5,12 @@ import {seedValue} from './onyx/onyx-data-editor'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
 import {SCHEMA_DEFINITION_KEY, schemaDefinitionCid} from './onyx/schema-document'
 import {SchemaEditorDialog} from './onyx/onyx-schema-editor'
-import {buildSchemaKeyRoot, collectSchemaKeyCids, schemaKeyCid} from './onyx/onyx-metadata-schema-keys'
+import {
+  buildSchemaKeyRoot,
+  collectSchemaKeyCids,
+  documentMetadataSchema,
+  schemaKeyCid,
+} from './onyx/onyx-metadata-schema-keys'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import type {OnyxSchema} from './onyx/onyx-engine'
 import {Button} from './button'
@@ -123,13 +128,22 @@ export function DocumentMetadataView({
   }, [keysDep, pendingSchemaCid, schemaDefCid])
   const {byCid} = useOnyxSchemaRegistry(seedCids)
   const schemaDefSchema = schemaDefCid ? byCid[schemaDefCid] : undefined
-  // Include the pending key so the add-field form is schema-driven the moment
-  // a schema URL is typed as the field name (dropdowns for literal unions,
-  // matching value inputs) — before the field even exists.
-  const schemaRoot = useMemo(
-    () => buildSchemaKeyRoot(pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys, byCid),
-    [keysDep, pendingSchemaCid, byCid],
-  )
+  // The metadata schema that drives field suggestions + advisory validation.
+  // When the document describes a type (has a schemaDefinition), its metadata
+  // EXTENDS the base document-metadata schema (`hypermedia-metadata`): the
+  // standard fields (name/summary/…) are inherited and the document type's own
+  // fields are added — required ones surface as prepopulated chips, optional ones
+  // as add-field suggestions. Kept OPEN (`values: {}`) so the schemaDefinition
+  // field itself and any arbitrary key are still allowed. Without a
+  // schemaDefinition, only schema-keyed (ipfs://) fields drive hints (arbitrary
+  // field names otherwise — the prior behavior). The pending key keeps the
+  // add-field form schema-driven the moment a schema URL is typed as a name.
+  const schemaRoot = useMemo(() => {
+    const keys = pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys
+    const keyRoot = buildSchemaKeyRoot(keys, byCid)
+    if (!schemaDefSchema) return keyRoot
+    return documentMetadataSchema(schemaDefSchema, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
+  }, [keysDep, pendingSchemaCid, byCid, schemaDefSchema])
 
   // Undo/redo over snapshots of the merged metadata: `record()` before each
   // staged patch; undo/redo apply the diff back to the snapshot.
