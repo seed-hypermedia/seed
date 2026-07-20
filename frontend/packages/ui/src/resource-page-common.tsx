@@ -134,6 +134,7 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
+import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
 import {
@@ -2631,6 +2632,18 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // A document that describes a type (carries a resolvable `schemaDefinition`)
+  // gets header actions: view the schema, and create a value of that type.
+  const schemaDocActions = isSchemaDocument(document.metadata) ? (
+    <SchemaDocumentHeaderActions metadata={document.metadata} />
+  ) : null
+  const topBarActions =
+    schemaDocActions || documentContentAction ? (
+      <>
+        {schemaDocActions}
+        {documentContentAction}
+      </>
+    ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
@@ -2646,7 +2659,7 @@ function DocumentBody({
           </>
         ) : null
       }
-      actions={documentContentAction}
+      actions={topBarActions}
       isMobile={isMobile}
     />
   )
