@@ -63,6 +63,7 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectCanEdit,
   selectCanEditCurrentRoute,
   selectContext,
   selectFolderQueryBlock,
@@ -134,6 +135,7 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
+import {RequiredAttributesEditor} from './required-attributes-editor'
 import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
@@ -3812,6 +3814,14 @@ function ContentViewWithOutline({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  // Required custom attributes (from the doc's schema) render above the body.
+  const canEdit = useDocumentSelector(selectCanEdit)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const send = useDocumentSend()
+  const requiredAttrMetadata = useMemo(
+    () => ({...document.metadata, ...ctx.metadata}),
+    [document.metadata, ctx.metadata],
+  )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
@@ -3858,6 +3868,17 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
+        {canEdit && (
+          <RequiredAttributesEditor
+            metadata={requiredAttrMetadata}
+            onMetadata={(patch) => {
+              // A published doc isn't editing yet — enter editing first so the
+              // `change` is accepted (drafts are already in the editing state).
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: patch})
+            }}
+          />
+        )}
         <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
           {DocumentContentComponent ? (
             <DocumentContentComponent

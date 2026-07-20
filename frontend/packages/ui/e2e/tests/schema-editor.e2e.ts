@@ -123,7 +123,7 @@ test.describe('schema editor', () => {
     await expect(edit).toBeVisible()
     await expect(edit).toBeEnabled()
     // The bundled schema resolves synchronously, so the row names the type.
-    await expect(page.getByText('Employee')).toBeVisible()
+    await expect(page.getByText('Employee', {exact: true})).toBeVisible()
   })
 
   test('schemaDefinition row: "Remove schema" deletes the field', async ({page}) => {
@@ -220,19 +220,27 @@ test.describe('schema editor', () => {
     await expect(dialog.getByRole('button', {name: 'JSON'})).toBeVisible()
   })
 
-  test('field suggestions: a required field of the document type surfaces as a "*" chip', async ({page}) => {
+  test('required field of the document type is an always-visible row; optional fields are add suggestions', async ({
+    page,
+  }) => {
     await openHarness(page)
     const cid = await bundledEmployeeCid(page)
     await openHarness(page, {name: 'X', schemaDefinition: `ipfs://${cid}`})
 
+    // The Employee schema requires employeeId — it renders as an always-visible
+    // required row (seeded if absent), so it never has to be "added".
+    await expect(page.getByText('employeeId', {exact: true})).toBeVisible()
+    await expect(page.getByText('required', {exact: true}).first()).toBeVisible()
+    // The seeded value is shown but NOT written to the draft (no auto-pollution).
+    expect(await meta(page)).toEqual({name: 'X', schemaDefinition: `ipfs://${cid}`})
+
+    // Optional declared fields are still offered as add-field suggestions, and
+    // the required one is NOT re-offered (it's already shown as a row).
     await openAddFieldDialog(page)
     const dialog = page.getByRole('dialog', {name: 'Add field'})
-
-    // The Employee schema requires employeeId; it shows as a required chip.
     await expect(dialog.getByText('Schema fields')).toBeVisible()
-    await expect(dialog.getByRole('button', {name: 'employeeId *'})).toBeVisible()
-    // Optional declared fields show without the asterisk.
     await expect(dialog.getByRole('button', {name: 'department', exact: true})).toBeVisible()
+    await expect(dialog.getByRole('button', {name: 'employeeId *'})).toHaveCount(0)
   })
 
   // --- extra coverage: metadata field add / rename / remove ------------------
