@@ -18,4 +18,13 @@ describe('WebResourcePage restore action wiring', () => {
     expect(source).toContain('draft: {')
     expect(source).toContain('draftId: draftMoveId')
   })
+
+  it('provides a query block document search input on web', () => {
+    const source = readFileSync(join(__dirname, 'web-resource-page.tsx'), 'utf8')
+
+    expect(source).toContain("import {QuerySearchInputProvider} from '@shm/editor/query-search-context'")
+    expect(source).toContain("import {WebQuerySearchInput} from './web-query-search-input'")
+    expect(source).toContain('<QuerySearchInputProvider value={WebQuerySearchInput}>')
+    expect(source).toContain('</QuerySearchInputProvider>')
+  })
 })

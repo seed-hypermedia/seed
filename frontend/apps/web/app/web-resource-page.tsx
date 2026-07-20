@@ -1,4 +1,5 @@
 import {HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
@@ -61,6 +62,7 @@ import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
+import {WebQuerySearchInput} from './web-query-search-input'
 import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
@@ -578,39 +580,41 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
               lastCreatedDraftId={lastCreatedDraftId}
               setLastCreatedDraftId={setLastCreatedDraftId}
             >
-              <WebDraftBreadcrumbProvider>
-                <ResourcePage
-                  docId={docId}
-                  resourceId={useLocalDraftShell ? null : docId}
-                  CommentEditor={CommentEditor}
-                  pageFooter={<PageFooter id={docId} />}
-                  onEditProfile={onEditProfile}
-                  profileHeaderButtons={profileHeaderButtons}
-                  onFollowClick={onFollowClick}
-                  rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                  optionsMenuItems={optionsMenuItems}
-                  inlineInsert={inlineInsert}
-                  DocumentContentComponent={DocumentContentComponent}
-                  ssrContentHTML={ssrContentHTML}
-                  perspectiveAccountUid={ownAccountUid}
-                  linkExtensionOptions={linkExtensionOptions}
-                  canEdit={effectiveCanEdit}
-                  machine={machine}
-                  machineExtras={<WebDraftExternalModificationListener />}
-                  signingAccountId={signingAccountId ?? undefined}
-                  publishAccountUid={signingAccountId ?? undefined}
-                  onEditorReady={onEditorReady}
-                  existingDraft={existingDraft}
-                  reservedDraftId={reservedDraftId}
-                  existingDraftVisibility={draftData?.visibility}
-                  existingDraftContent={existingDraftContent}
-                  existingDraftCursorPosition={existingDraftCursorPosition}
-                  existingDraftDeps={draftData?.deps}
-                  draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                  editingFloatingActions={editingFloatingActions}
-                  fileUpload={fileUpload}
-                />
-              </WebDraftBreadcrumbProvider>
+              <QuerySearchInputProvider value={WebQuerySearchInput}>
+                <WebDraftBreadcrumbProvider>
+                  <ResourcePage
+                    docId={docId}
+                    resourceId={useLocalDraftShell ? null : docId}
+                    CommentEditor={CommentEditor}
+                    pageFooter={<PageFooter id={docId} />}
+                    onEditProfile={onEditProfile}
+                    profileHeaderButtons={profileHeaderButtons}
+                    onFollowClick={onFollowClick}
+                    rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                    optionsMenuItems={optionsMenuItems}
+                    inlineInsert={inlineInsert}
+                    DocumentContentComponent={DocumentContentComponent}
+                    ssrContentHTML={ssrContentHTML}
+                    perspectiveAccountUid={ownAccountUid}
+                    linkExtensionOptions={linkExtensionOptions}
+                    canEdit={effectiveCanEdit}
+                    machine={machine}
+                    machineExtras={<WebDraftExternalModificationListener />}
+                    signingAccountId={signingAccountId ?? undefined}
+                    publishAccountUid={signingAccountId ?? undefined}
+                    onEditorReady={onEditorReady}
+                    existingDraft={existingDraft}
+                    reservedDraftId={reservedDraftId}
+                    existingDraftVisibility={draftData?.visibility}
+                    existingDraftContent={existingDraftContent}
+                    existingDraftCursorPosition={existingDraftCursorPosition}
+                    existingDraftDeps={draftData?.deps}
+                    draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                    editingFloatingActions={editingFloatingActions}
+                    fileUpload={fileUpload}
+                  />
+                </WebDraftBreadcrumbProvider>
+              </QuerySearchInputProvider>
             </QueryBlockDraftsProvider>
           </WebDraftActionsProvider>
         </DocumentActionsProvider>
