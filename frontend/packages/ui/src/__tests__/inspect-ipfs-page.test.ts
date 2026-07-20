@@ -2,23 +2,23 @@ import * as cbor from '@ipld/dag-cbor'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {beforeAll, describe, expect, test} from 'vitest'
-import {BLOB_META_SCHEMA_CID} from '../blob-schema'
 import {inspectorBlobActions} from '../inspect-ipfs-page'
 
-// BLOB_META_SCHEMA_CID is a real DAG-CBOR (0x71) CIDv1, so it doubles as a valid
-// "editable blob" CID here. OTHER_CBOR_CID is a second, distinct DAG-CBOR CID
-// (a non-meta schema an instance points at).
-const CBOR_CID = BLOB_META_SCHEMA_CID
+// Two distinct real DAG-CBOR (0x71) CIDv1s: CBOR_CID stands in for the blob's
+// own editable CID; OTHER_CBOR_CID is a schema an instance points at. Under
+// Onyx a blob "is a schema" when it validates against the meta-schema, so the
+// fixtures use real Onyx-dialect schemas (`type: hm://…`), not a meta-CID link.
+let CBOR_CID: string
 let OTHER_CBOR_CID: string
 
 beforeAll(async () => {
-  const digest = await sha256.digest(cbor.encode({some: 'schema'}))
-  OTHER_CBOR_CID = CID.createV1(0x71, digest).toString()
+  CBOR_CID = CID.createV1(0x71, await sha256.digest(cbor.encode({a: 1}))).toString()
+  OTHER_CBOR_CID = CID.createV1(0x71, await sha256.digest(cbor.encode({some: 'schema'}))).toString()
 })
 
 describe('inspectorBlobActions', () => {
-  test('a schema blob offers Edit + New Instance and reads as a schema', () => {
-    const value = {schema: {'/': BLOB_META_SCHEMA_CID}, type: 'object'}
+  test('an Onyx schema blob offers Edit + New Instance and reads as a schema', () => {
+    const value = {type: 'hm://hyper.media/map', properties: {}, name: 'Thing'} // a valid Onyx schema
     expect(inspectorBlobActions(CBOR_CID, value, true)).toEqual({
       canEdit: true,
       valueIsSchema: true,
@@ -28,7 +28,7 @@ describe('inspectorBlobActions', () => {
   })
 
   test('an instance with an attached schema link exposes that CID for validation', () => {
-    const value = {schema: {'/': OTHER_CBOR_CID}, title: 'hi'}
+    const value = {schema: {'/': OTHER_CBOR_CID}, name: 'hi'} // not itself a schema
     expect(inspectorBlobActions(CBOR_CID, value, true)).toEqual({
       canEdit: true,
       valueIsSchema: false,
@@ -51,13 +51,12 @@ describe('inspectorBlobActions', () => {
   })
 
   test('a non-DAG-CBOR schema link is not treated as an attached schema', () => {
-    // a raw (0x55) codec link is not a schema blob we can validate against
-    const value = {schema: {'/': 'bafkreщ-not-cbor'}, title: 'hi'}
+    const value = {schema: {'/': 'bafkreщ-not-cbor'}, name: 'hi'}
     expect(inspectorBlobActions(CBOR_CID, value, true).attachedSchemaCid).toBeUndefined()
   })
 
   test('a deep path (sub-value, not the blob root) offers no blob-level actions', () => {
-    const value = {schema: {'/': BLOB_META_SCHEMA_CID}, type: 'object'}
+    const value = {type: 'hm://hyper.media/map', properties: {}}
     expect(inspectorBlobActions(CBOR_CID, value, false)).toEqual({
       canEdit: false,
       valueIsSchema: false,
