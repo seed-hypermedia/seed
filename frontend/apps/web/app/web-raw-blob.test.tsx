@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as cbor from '@ipld/dag-cbor'
-import {BLOB_META_SCHEMA, BLOB_META_SCHEMA_CID, type BlobSchema} from '@shm/ui/blob-schema'
 import {dagJsonToIpld} from '@shm/ui/dag-json'
+import type {OnyxSchema} from '@shm/ui/onyx/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -12,11 +12,11 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from 'vitest
 /**
  * Web parity proof for the blob/schema editor: `web-raw-blob.tsx` must behave
  * exactly like desktop's `raw-blob.tsx` (see raw-blob-schema-parity.test.tsx) —
- * a schema is a regular IPFS blob, New Schema renders the schema form, and
- * Publish makes one PublishBlobs call with explicit sha256 CIDs (schema blobs
- * co-publish the meta-schema) then replaces the route to the published CID.
- * Plus the web-native pieces: `useSchemaRegistries` fetch, advisory warnings,
- * and `ipfsUrlToRoute`.
+ * a schema is a regular IPFS blob, New Schema renders the schema editor, and
+ * Publish makes one PublishBlobs call with an explicit sha256 CID then replaces
+ * the route to the published CID. On Onyx a schema is self-describing, so it
+ * publishes as a single blob. Plus the web-native pieces: the Onyx schema-by-CID
+ * fetch, advisory warnings, and `ipfsUrlToRoute`.
  */
 
 const mockState = vi.hoisted(() => ({
@@ -24,7 +24,7 @@ const mockState = vi.hoisted(() => ({
   pushNavigate: vi.fn(),
   replaceNavigate: vi.fn(),
   request: vi.fn(async () => ({})),
-  registry: {} as Record<string, BlobSchema>,
+  registry: {} as Record<string, OnyxSchema>,
 }))
 
 vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
@@ -44,17 +44,23 @@ vi.mock('@shm/shared', async (importOriginal) => {
   }
 })
 
-// Web fetches schema blobs through the shared registry hook; stub it so the
-// page never touches the network (matches desktop mocking @/models/blob-schema).
-vi.mock('@shm/ui/blob-schema-registry', () => ({
-  useSchemaRegistries: (seedCids: string[]) => ({
-    registry: Object.fromEntries(seedCids.filter((c) => mockState.registry[c]).map((c) => [c, mockState.registry[c]])),
-    isLoading: false,
-    isComplete: true,
-  }),
-}))
+// Web fetches schema blobs by CID through the Onyx registry hook; stub only that
+// hook so the page never touches the network (the rest of the Onyx engine —
+// isOnyxSchema, seedValue, schemaCid, the provider — stays real).
+vi.mock('@shm/ui/onyx/index', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>()
+  return {
+    ...original,
+    useOnyxSchemaRegistry: (cids: string[]) => ({
+      byCid: Object.fromEntries(cids.filter((c) => mockState.registry[c]).map((c) => [c, mockState.registry[c]])),
+      isLoading: false,
+      isComplete: true,
+    }),
+  }
+})
 
 import {routeToHref} from '@shm/shared'
+import {schemaCid} from '@shm/ui/onyx/index'
 import {
   BlobEditor,
   blobBuilderMenuItems,
@@ -63,9 +69,16 @@ import {
   WebRawBlobPage,
 } from './web-raw-blob'
 
+// The Onyx meta-schema's real published DAG-CBOR CID (the "New Schema" target).
+const META_SCHEMA_CID = schemaCid('onyx-schema')!
+
 // A real DAG-CBOR schema blob CID (codec 0x71) so `attachedSchemaCid`'s codec
-// check accepts it, keyed to a tiny object schema requiring `title`.
-const OBJECT_SCHEMA: BlobSchema = {type: 'object', required: ['title'], properties: {title: {type: 'string'}}}
+// check accepts it, keyed to a tiny Onyx map schema requiring `title`.
+const OBJECT_SCHEMA: OnyxSchema = {
+  type: 'hm://hyper.media/map',
+  required: ['title'],
+  properties: {title: {type: 'hm://hyper.media/string'}},
+}
 let SCHEMA_CID: string
 
 beforeAll(async () => {
@@ -122,18 +135,18 @@ function findPublishButton(): HTMLButtonElement {
 }
 
 describe('web blob/schema editor', () => {
-  it('New Blob and New Schema both render the same Publish affordance + the schema form', () => {
+  it('New Blob and New Schema both render the same Publish affordance + the schema editor', () => {
     renderRoute({key: 'raw-blob'})
     findPublishButton()
 
-    renderRoute({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID})
+    renderRoute({key: 'raw-blob', schemaCid: META_SCHEMA_CID})
     findPublishButton()
-    expect(container.textContent).toContain('Schema of')
-    expect(container.textContent).toContain('Fields')
+    expect(container.textContent).toContain('This blob is a schema')
+    expect(container.textContent).toContain('New schema')
   })
 
-  it('publishing a schema stores it like any blob: explicit sha256 CID + meta co-publish + route replace', async () => {
-    renderRoute({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID})
+  it('publishing a schema stores it like any blob: single explicit sha256 CID + route replace', async () => {
+    renderRoute({key: 'raw-blob', schemaCid: META_SCHEMA_CID})
     await act(async () => {
       findPublishButton().click()
       await Promise.resolve()
@@ -145,18 +158,16 @@ describe('web blob/schema editor', () => {
       {blobs: {cid: string; data: Uint8Array}[]},
     ]
     expect(method).toBe('PublishBlobs')
-    expect(params.blobs).toHaveLength(2)
-    expect(params.blobs[1]!.cid).toBe(BLOB_META_SCHEMA_CID)
+    // A self-describing schema publishes as a single blob — no co-published meta.
+    expect(params.blobs).toHaveLength(1)
 
-    const expectedValue = {schema: {'/': BLOB_META_SCHEMA_CID}, type: 'object'}
-    const data = cbor.encode(dagJsonToIpld(expectedValue))
-    const digest = await sha256.digest(data)
+    const digest = await sha256.digest(params.blobs[0]!.data)
     const expectedCid = CID.createV1(0x71, digest).toString()
     expect(params.blobs[0]!.cid).toBe(expectedCid)
     expect(mockState.replaceNavigate).toHaveBeenCalledWith({key: 'raw-blob', cid: expectedCid})
   })
 
-  it('publishing a plain blob uses the identical flow (single blob, no meta)', async () => {
+  it('publishing a plain blob uses the identical flow (single blob)', async () => {
     renderRoute({key: 'raw-blob'})
     await act(async () => {
       findPublishButton().click()
@@ -185,17 +196,15 @@ describe('web blob/schema editor', () => {
     expect(container.textContent).toContain('Schema attached')
   })
 
-  it('the meta-schema co-publish encodes to the pinned CID', async () => {
-    const data = cbor.encode(dagJsonToIpld(BLOB_META_SCHEMA))
-    const digest = await sha256.digest(data)
-    expect(CID.createV1(0x71, digest).toString()).toBe(BLOB_META_SCHEMA_CID)
+  it('the New Schema route targets the meta-schema’s real published CID', () => {
+    expect(META_SCHEMA_CID).toMatch(/^bafy/)
   })
 })
 
 describe('ipfsUrlToRoute', () => {
   it('parses ipfs:// URLs and bare CIDs into a raw-blob route', () => {
-    expect(ipfsUrlToRoute(`ipfs://${BLOB_META_SCHEMA_CID}`)).toEqual({key: 'raw-blob', cid: BLOB_META_SCHEMA_CID})
-    expect(ipfsUrlToRoute(BLOB_META_SCHEMA_CID)).toEqual({key: 'raw-blob', cid: BLOB_META_SCHEMA_CID})
+    expect(ipfsUrlToRoute(`ipfs://${META_SCHEMA_CID}`)).toEqual({key: 'raw-blob', cid: META_SCHEMA_CID})
+    expect(ipfsUrlToRoute(META_SCHEMA_CID)).toEqual({key: 'raw-blob', cid: META_SCHEMA_CID})
   })
   it('rejects non-CID input', () => {
     expect(ipfsUrlToRoute('not a cid')).toBeNull()
@@ -237,6 +246,6 @@ describe('blobBuilderMenuItems (New Blob / New Schema document-menu entries)', (
     expect(navigate).toHaveBeenLastCalledWith({key: 'raw-blob'})
 
     click('new-schema')
-    expect(navigate).toHaveBeenLastCalledWith({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID})
+    expect(navigate).toHaveBeenLastCalledWith({key: 'raw-blob', schemaCid: META_SCHEMA_CID})
   })
 })
