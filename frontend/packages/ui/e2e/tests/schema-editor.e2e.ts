@@ -172,6 +172,32 @@ test.describe('schema editor', () => {
     expect(published.properties.y).toBeUndefined()
   })
 
+  test('field-name input keeps focus while typing character-by-character (no blur-per-keystroke)', async ({page}) => {
+    // Regression: renaming on every keystroke re-keyed the row and remounted it,
+    // blurring the input so only one char could be typed. `.fill()` hides this
+    // (single op), so type char-by-char and assert focus survives.
+    await openHarness(page, {name: 'X', schemaDefinition: ''})
+    await page.getByRole('button', {name: 'Define schema'}).click()
+    const dialog = defineDialog(page)
+    await dialog.getByPlaceholder('e.g. Employee').fill('Comp')
+    await dialog.getByRole('button', {name: 'Add field'}).click()
+
+    const fieldName = dialog.getByRole('textbox', {name: 'Field name'})
+    await fieldName.click()
+    await fieldName.press('ControlOrMeta+a')
+    await fieldName.pressSequentially('salary', {delay: 15})
+
+    // The whole word landed AND the input never lost focus mid-type.
+    await expect(fieldName).toBeFocused()
+    await expect(fieldName).toHaveValue('salary')
+
+    // Commit on blur → the property is renamed.
+    await fieldName.blur()
+    await dialog.getByRole('button', {name: 'Create type'}).click()
+    const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
+    expect(Object.keys(published.properties)).toEqual(['salary'])
+  })
+
   test('JSON toggle: switch to raw JSON view and back to the struct form', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
     await page.getByRole('button', {name: 'Define schema'}).click()
