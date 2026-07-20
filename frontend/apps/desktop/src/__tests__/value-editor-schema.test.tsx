@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import type {BlobSchema} from '@shm/ui/blob-schema'
-import {BlobSchemaProvider} from '@shm/ui/blob-schema-context'
+import {OnyxSchemaProvider, type OnyxSchema} from '@shm/ui/onyx/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {CBOR_VALUE_RULES, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import React from 'react'
@@ -8,13 +7,13 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
-const ARTICLE_SCHEMA: BlobSchema = {
-  type: 'object',
+const ARTICLE_SCHEMA: OnyxSchema = {
+  type: 'hm://hyper.media/map',
   required: ['title', 'status'],
   properties: {
-    title: {type: 'string', minLength: 1},
-    status: {type: 'string', enum: ['draft', 'published']},
-    count: {type: 'integer'},
+    title: {type: 'hm://hyper.media/string', minLength: 1},
+    status: {type: 'hm://hyper.media/string', enum: ['draft', 'published']},
+    count: {type: 'hm://hyper.media/integer'},
   },
 }
 
@@ -32,14 +31,14 @@ afterEach(() => {
   container.remove()
 })
 
-function renderEditor(value: unknown, schema?: BlobSchema) {
+function renderEditor(value: unknown, schema?: OnyxSchema) {
   act(() => {
     root.render(
       <TooltipProvider>
         <ValueEditorProvider openUrl={() => {}}>
-          <BlobSchemaProvider schema={schema} registry={{}} value={value}>
+          <OnyxSchemaProvider schema={schema} registry={{}} value={value}>
             <ValueEditor value={value} onValue={() => {}} rules={CBOR_VALUE_RULES} />
-          </BlobSchemaProvider>
+          </OnyxSchemaProvider>
         </ValueEditorProvider>
       </TooltipProvider>,
     )
@@ -89,16 +88,26 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('keeps unknown extra fields editable (advisory only)', () => {
-    renderEditor({title: 'Hello', status: 'draft', extra: 'kept'}, {...ARTICLE_SCHEMA, additionalProperties: false})
+    // An Onyx map with `properties` but no `values` is closed, so an extra key
+    // is advisory-only non-conforming (the v1 `additionalProperties: false`).
+    // Onyx attributes the "unexpected key" warning to the containing map's path,
+    // so nest the closed map under a field to get a rendered row to badge.
+    const schema: OnyxSchema = {
+      type: 'hm://hyper.media/map',
+      values: {},
+      properties: {article: ARTICLE_SCHEMA},
+    }
+    renderEditor({article: {title: 'Hello', status: 'draft', extra: 'kept'}}, schema)
     const inputs = Array.from(container.querySelectorAll('input')).map((el) => el.value)
     expect(inputs).toContain('kept')
     expect(container.querySelector('.lucide-triangle-alert')).not.toBeNull()
   })
 
   it('an enum containing "" renders safely (labels are JSON-quoted, so Radix never sees value="")', () => {
-    const schema: BlobSchema = {
-      type: 'object',
-      properties: {status: {type: 'string', enum: ['', 'draft']}},
+    const schema: OnyxSchema = {
+      type: 'hm://hyper.media/map',
+      values: {},
+      properties: {status: {type: 'hm://hyper.media/string', enum: ['', 'draft']}},
     }
     renderEditor({status: 'draft'}, schema)
     const combo = container.querySelector('[role="combobox"]')
@@ -107,8 +116,9 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('mixed-type literal unions render number members as a dropdown too', () => {
-    const schema: BlobSchema = {
-      type: 'object',
+    const schema: OnyxSchema = {
+      type: 'hm://hyper.media/map',
+      values: {},
       properties: {level: {enum: ['low', 1, 2, true]}},
     }
     renderEditor({level: 1}, schema)
@@ -122,9 +132,10 @@ describe('schema-aware value editor rendering', () => {
   })
 
   it('an enum with duplicate members falls back to free text', () => {
-    const schema: BlobSchema = {
-      type: 'object',
-      properties: {status: {type: 'string', enum: ['draft', 'draft']}},
+    const schema: OnyxSchema = {
+      type: 'hm://hyper.media/map',
+      values: {},
+      properties: {status: {type: 'hm://hyper.media/string', enum: ['draft', 'draft']}},
     }
     renderEditor({status: 'draft'}, schema)
     expect(container.querySelector('[role="combobox"]')).toBeNull()
@@ -159,13 +170,13 @@ describe('schema-aware value editor rendering', () => {
       return (
         <TooltipProvider>
           <ValueEditorProvider openUrl={() => {}}>
-            <BlobSchemaProvider schema={ARTICLE_SCHEMA} registry={{}} value={value}>
+            <OnyxSchemaProvider schema={ARTICLE_SCHEMA} registry={{}} value={value}>
               <ValueEditor
                 value={value}
                 onValue={(v) => setValue(v as Record<string, unknown>)}
                 rules={CBOR_VALUE_RULES}
               />
-            </BlobSchemaProvider>
+            </OnyxSchemaProvider>
           </ValueEditorProvider>
         </TooltipProvider>
       )
@@ -191,8 +202,8 @@ describe('schema-aware value editor rendering', () => {
     expect(current.status).toBe('draft')
     // it renders inline as a dropdown of the enum, with no warning badge
     expect(container.querySelector('.lucide-triangle-alert')).toBeNull()
-    const combo = Array.from(container.querySelectorAll('[role="combobox"]')).find((el) =>
-      el.textContent?.includes('draft'),
+    const combo = Array.from(container.querySelectorAll('[role="combobox"]')).find(
+      (el) => el.textContent?.includes('draft'),
     )
     expect(combo).toBeTruthy()
   })
