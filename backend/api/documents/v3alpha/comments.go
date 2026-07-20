@@ -510,9 +510,14 @@ var qGetCommentByCID = dqb.Str(`
 	WHERE (codec, multihash) = (:codec, :multihash)
 `)
 
+// qGetReplyCountByID counts distinct replying COMMENTS, not distinct reply
+// blobs: each edit of a comment is a separate blob carrying the same links, so
+// counting sources directly inflated the number by one per edit. Dedupe by the
+// source comment's identity (author + tsid).
 var qGetReplyCountByID = dqb.Str(`
-SELECT count(distinct source)
-FROM  blob_links bl
+SELECT count(DISTINCT src.author || ':' || (src.extra_attrs->>'tsid'))
+FROM blob_links bl
+JOIN structural_blobs src ON src.id = bl.source
 WHERE bl.target = (
    SELECT id
    FROM structural_blobs sb
@@ -522,7 +527,7 @@ WHERE bl.target = (
    AND sb.extra_attrs->>'tsid' = :tsid
 )
 AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
-AND (SELECT sb.extra_attrs->>'deleted' FROM structural_blobs sb WHERE id = source) is not true
+AND src.extra_attrs->>'deleted' is not true
 `)
 
 var qListCommentVersions = dqb.Str(`
