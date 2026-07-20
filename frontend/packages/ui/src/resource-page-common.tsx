@@ -86,6 +86,7 @@ import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {DocumentMetadataView} from './document-metadata-view'
+import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
@@ -1873,7 +1874,19 @@ function DocumentBody({
         {documentContentAction}
       </div>
     ) : null
-  const documentToolsRightAction = isMobile ? documentContentAction : null
+  // A document that describes a type (carries a resolvable `schemaDefinition`)
+  // gets header actions: view the schema, and create a value of that type.
+  const schemaDocActions = isSchemaDocument(document.metadata) ? (
+    <SchemaDocumentHeaderActions metadata={document.metadata} />
+  ) : null
+  const mobileContentAction = isMobile ? documentContentAction : null
+  const documentToolsRightAction =
+    schemaDocActions || mobileContentAction ? (
+      <div className="flex items-center gap-2">
+        {schemaDocActions}
+        {mobileContentAction}
+      </div>
+    ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // Main page content (used in both mobile and desktop layouts)
