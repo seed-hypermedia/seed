@@ -88,64 +88,6 @@ function CreateInstance({schema, typeName}: {schema: Record<string, any>; typeNa
   )
 }
 
-/**
- * Inline "define a new type" flow for the metadata editor: when a user adds a
- * metadata field named `schemaDefinition`, this authoring panel appears — build
- * a schema with the meta-schema-driven editor, publish it, and attach it (its
- * ipfs://<cid> becomes the document's `schemaDefinition`, so the document now
- * describes that type).
- */
-export function SchemaDefinitionBuilder({onAttach, onCancel}: {onAttach: (cid: string) => void; onCancel: () => void}) {
-  const client = useUniversalClient()
-  const metaSchema = ONYX_SCHEMAS['onyx-schema']
-  const [value, setValue] = useState<unknown>(() => seedValue(metaSchema))
-  const [publishing, setPublishing] = useState(false)
-  const errors = validate(metaSchema, value)
-
-  const publish = async () => {
-    setPublishing(true)
-    try {
-      const data = cbor.encode(dagJsonToIpld(value) as any)
-      const digest = await sha256.digest(data)
-      const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()
-      await client.request('PublishBlobs', {blobs: [{cid, data}]})
-      toast.success('Schema published and attached')
-      onAttach(cid)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to publish schema')
-    } finally {
-      setPublishing(false)
-    }
-  }
-
-  return (
-    <div className="border-primary/30 flex flex-col gap-2 rounded-md border p-3">
-      <div className="text-sm font-semibold">Define a new type</div>
-      <p className="text-muted-foreground text-xs">
-        You're adding <code className="bg-muted rounded px-1">schemaDefinition</code> — build a schema below. Publishing
-        attaches it to this document, so this document then <em>describes</em> that type (and gains Schema / Create
-        actions in its header).
-      </p>
-      <OnyxDataEditor schema={metaSchema} value={value} onValue={setValue} />
-      <div className="flex items-center justify-between border-t pt-2">
-        <span className={errors.length ? 'text-destructive text-xs' : 'text-xs text-green-600'}>
-          {errors.length
-            ? `${errors.length} issue${errors.length > 1 ? 's' : ''} — not yet a valid schema`
-            : '✓ valid schema'}
-        </span>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={publish} disabled={publishing || errors.length > 0}>
-            {publishing ? 'Publishing…' : 'Publish & attach'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /** Header actions for a document that describes a type. Renders nothing otherwise. */
 export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
   const cid = schemaDefinitionCid(metadata)
