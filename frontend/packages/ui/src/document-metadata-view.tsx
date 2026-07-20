@@ -1,9 +1,10 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {Braces, Check, FileCode2} from 'lucide-react'
+import {Braces, Check, FileCode2, X} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './onyx/onyx-data-editor'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {SCHEMA_DEFINITION_KEY, SchemaDefinitionBuilder} from './onyx/schema-document'
+import {SCHEMA_DEFINITION_KEY, schemaDefinitionCid} from './onyx/schema-document'
+import {SchemaEditorDialog} from './onyx/onyx-schema-editor'
 import {buildSchemaKeyRoot, collectSchemaKeyCids, schemaKeyCid} from './onyx/onyx-metadata-schema-keys'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import type {OnyxSchema} from './onyx/onyx-engine'
@@ -95,9 +96,11 @@ export function DocumentMetadataView({
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const [attachMode, setAttachMode] = useState(false)
-  // When the user types `schemaDefinition` as a new field key, we surface an
-  // inline schema-authoring panel instead of a plain value input.
-  const [schemaDefMode, setSchemaDefMode] = useState(false)
+  // The schema editor dialog: open with an `editingSchema` to edit the document's
+  // existing type, or without one to define a new type (opened when the user adds
+  // a `schemaDefinition` field, or from the existing schemaDefinition row).
+  const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
+  const [editingSchema, setEditingSchema] = useState<OnyxSchema | undefined>(undefined)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
   const entries = canonicalEntries(current, {hideNull: true})
   const editable = canEdit && !!onMetadata
@@ -110,12 +113,16 @@ export function DocumentMetadataView({
   const [pendingSchemaCid, setPendingSchemaCid] = useState<string | null>(null)
   const visibleKeys = entries.map(([key]) => key)
   const keysDep = visibleKeys.join('\n')
+  // The schema this document describes (the `schemaDefinition` field's CID), if any.
+  const schemaDefCid = schemaDefinitionCid(current)
   const seedCids = useMemo(() => {
     const cids = collectSchemaKeyCids(visibleKeys)
     if (pendingSchemaCid && !cids.includes(pendingSchemaCid)) cids.push(pendingSchemaCid)
+    if (schemaDefCid && !cids.includes(schemaDefCid)) cids.push(schemaDefCid)
     return cids
-  }, [keysDep, pendingSchemaCid])
+  }, [keysDep, pendingSchemaCid, schemaDefCid])
   const {byCid} = useOnyxSchemaRegistry(seedCids)
+  const schemaDefSchema = schemaDefCid ? byCid[schemaDefCid] : undefined
   // Include the pending key so the add-field form is schema-driven the moment
   // a schema URL is typed as the field name (dropdowns for literal unions,
   // matching value inputs) — before the field even exists.
@@ -194,13 +201,15 @@ export function DocumentMetadataView({
               }}
             />
           )}
-          {editable && schemaDefMode && !jsonMode && (
-            <SchemaDefinitionBuilder
-              onCancel={() => setSchemaDefMode(false)}
-              onAttach={(cid) => {
-                stage({[SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`})
-                setSchemaDefMode(false)
+          {editable && schemaEditorOpen && (
+            <SchemaEditorDialog
+              open={schemaEditorOpen}
+              onOpenChange={(open) => {
+                setSchemaEditorOpen(open)
+                if (!open) setEditingSchema(undefined)
               }}
+              initialSchema={editingSchema}
+              onSaved={(cid) => stage({[SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`})}
             />
           )}
           {jsonMode ? (
@@ -211,22 +220,37 @@ export function DocumentMetadataView({
                 <p className="text-muted-foreground text-sm">This document has no metadata.</p>
               ) : (
                 <div className="flex flex-col">
-                  {entries.map(([key, value]) => (
-                    <FieldRow
-                      key={key}
-                      className="border-border border-b py-3 last:border-b-0"
-                      fieldKey={key}
-                      value={value}
-                      siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-                      onValue={(newValue) => stage({[key]: newValue})}
-                      onEditField={(newKey, newValue) =>
-                        stage(newKey === key ? {[key]: newValue} : {[key]: null, [newKey]: newValue})
-                      }
-                      onRemove={() => stage({[key]: null})}
-                      rules={METADATA_VALUE_RULES}
-                      path={[key]}
-                    />
-                  ))}
+                  {entries.map(([key, value]) =>
+                    // The reserved schemaDefinition field describes the document's
+                    // type — edit it with the schema editor, never as a raw string.
+                    key === SCHEMA_DEFINITION_KEY ? (
+                      <SchemaDefinitionRow
+                        key={key}
+                        typeName={typeof schemaDefSchema?.name === 'string' ? schemaDefSchema.name : undefined}
+                        loaded={!!schemaDefSchema}
+                        onEdit={() => {
+                          setEditingSchema(schemaDefSchema)
+                          setSchemaEditorOpen(true)
+                        }}
+                        onRemove={() => stage({[key]: null})}
+                      />
+                    ) : (
+                      <FieldRow
+                        key={key}
+                        className="border-border border-b py-3 last:border-b-0"
+                        fieldKey={key}
+                        value={value}
+                        siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                        onValue={(newValue) => stage({[key]: newValue})}
+                        onEditField={(newKey, newValue) =>
+                          stage(newKey === key ? {[key]: newValue} : {[key]: null, [newKey]: newValue})
+                        }
+                        onRemove={() => stage({[key]: null})}
+                        rules={METADATA_VALUE_RULES}
+                        path={[key]}
+                      />
+                    ),
+                  )}
                 </div>
               )}
               <AddFieldForm
@@ -235,8 +259,11 @@ export function DocumentMetadataView({
                 existingKeys={entries.map(([key]) => key)}
                 onKeyTextChange={(keyText) => {
                   const trimmed = keyText.trim()
-                  // Typing the reserved `schemaDefinition` key opens the schema builder.
-                  if (trimmed === SCHEMA_DEFINITION_KEY) setSchemaDefMode(true)
+                  // Typing the reserved `schemaDefinition` key opens the schema editor.
+                  if (trimmed === SCHEMA_DEFINITION_KEY) {
+                    setEditingSchema(undefined)
+                    setSchemaEditorOpen(true)
+                  }
                   const cidText = trimmed.replace(/^ipfs:\/\//, '')
                   setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
                 }}
@@ -263,6 +290,45 @@ export function DocumentMetadataView({
         </div>
       </OnyxSchemaProvider>
     </ValueEditorProvider>
+  )
+}
+
+/**
+ * The row shown for the reserved `schemaDefinition` field: this document
+ * describes a type. Instead of a raw ipfs:// string input, it names the type and
+ * offers to edit its schema (in the schema editor) or detach it.
+ */
+function SchemaDefinitionRow({
+  typeName,
+  loaded,
+  onEdit,
+  onRemove,
+}: {
+  typeName?: string
+  loaded: boolean
+  onEdit: () => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="border-border flex items-center justify-between gap-2 border-b py-3 last:border-b-0">
+      <div className="flex items-center gap-2">
+        <FileCode2 className="text-muted-foreground size-4 shrink-0" />
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">
+            {typeName || (loaded ? 'Untitled type' : 'This document describes a type')}
+          </span>
+          <span className="text-muted-foreground text-xs">Its schema — edit it as a form, not raw JSON.</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" onClick={onEdit} disabled={!loaded}>
+          Edit schema
+        </Button>
+        <Button variant="ghost" size="iconSm" aria-label="Remove schema" onClick={onRemove}>
+          <X className="size-4" />
+        </Button>
+      </div>
+    </div>
   )
 }
 
