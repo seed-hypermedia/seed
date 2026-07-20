@@ -39,6 +39,19 @@ export function getCommentGroups(comments?: Array<HMComment>, targetCommentId?: 
     }
   })
 
+  const commentTime = (c: HMComment | undefined): number => {
+    if (!c?.updateTime || typeof c.updateTime !== 'string') return 0
+    const t = new Date(c.updateTime).getTime()
+    return Number.isFinite(t) ? t : 0
+  }
+  const byId = new Map(comments.map((c) => [c.id, c]))
+
+  // Latest activity per group across the WHOLE thread — the linear chain plus
+  // every branched reply behind moreCommentsCount. Sorting by the chain alone
+  // pins a thread in place when someone replies deep in a branch, so fresh
+  // activity was invisible in the list order.
+  const latestActivity = new Map<string, number>()
+
   groups.forEach((group) => {
     // @ts-ignore
     let comment: HMComment | null = group.comments[0]
@@ -56,43 +69,30 @@ export function getCommentGroups(comments?: Array<HMComment>, targetCommentId?: 
       }
     }
 
-    const lastGroupComment = group.comments.at(-1)
-    if (!lastGroupComment || !comments) return
+    let latest = Math.max(0, ...group.comments.map(commentTime))
 
-    const moreComments = new Set<string>()
-    let walkMoreCommentIds = new Set<string>([lastGroupComment.id])
-    while (walkMoreCommentIds.size) {
-      walkMoreCommentIds.forEach((commentId) => moreComments.add(commentId))
-      walkMoreCommentIds = new Set<string>(
-        comments.filter((c) => c.replyParent && walkMoreCommentIds.has(c.replyParent)).map((comment) => comment.id),
-      )
+    const lastGroupComment = group.comments.at(-1)
+    if (lastGroupComment && comments) {
+      const moreComments = new Set<string>()
+      let walkMoreCommentIds = new Set<string>([lastGroupComment.id])
+      while (walkMoreCommentIds.size) {
+        walkMoreCommentIds.forEach((commentId) => moreComments.add(commentId))
+        walkMoreCommentIds = new Set<string>(
+          comments.filter((c) => c.replyParent && walkMoreCommentIds.has(c.replyParent)).map((comment) => comment.id),
+        )
+      }
+
+      group.moreCommentsCount = moreComments.size - 1
+      moreComments.forEach((id) => {
+        latest = Math.max(latest, commentTime(byId.get(id)))
+      })
     }
 
-    group.moreCommentsCount = moreComments.size - 1
+    latestActivity.set(group.id, latest)
   })
 
-  // Sort groups by latest activity (newest first)
-  const sortedGroups = groups.sort((a, b) => {
-    // Get the latest update time from all comments in group A
-    const aLatestTime = Math.max(
-      ...a.comments
-        .map((c) => (c.updateTime && typeof c.updateTime === 'string' ? new Date(c.updateTime).getTime() : 0))
-        .filter((t) => t > 0),
-      0,
-    )
-
-    // Get the latest update time from all comments in group B
-    const bLatestTime = Math.max(
-      ...b.comments
-        .map((c) => (c.updateTime && typeof c.updateTime === 'string' ? new Date(c.updateTime).getTime() : 0))
-        .filter((t) => t > 0),
-      0,
-    )
-
-    return bLatestTime - aLatestTime // Newest first (descending order)
-  })
-
-  return sortedGroups
+  // Sort groups by latest thread activity (newest first).
+  return groups.sort((a, b) => (latestActivity.get(b.id) ?? 0) - (latestActivity.get(a.id) ?? 0))
 }
 
 export function useCommentParents(comments: Array<HMComment> | undefined, focusedCommentId: string) {
