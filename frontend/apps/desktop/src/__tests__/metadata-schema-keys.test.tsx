@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {DocumentMetadataView} from '@shm/ui/document-metadata-view'
+import type {OnyxSchema} from '@shm/ui/onyx/index'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
@@ -16,31 +17,31 @@ const SCHEMA_KEY = `ipfs://${SCHEMA_CID}`
 const LITERAL_CID = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
 const LITERAL_KEY = `ipfs://${LITERAL_CID}`
 
-const ARTICLE_SCHEMA = {
-  title: 'Article',
-  type: 'object',
+const ARTICLE_SCHEMA: OnyxSchema = {
+  name: 'Article',
+  type: 'hm://hyper.media/map',
   required: ['headline', 'status'],
   properties: {
-    headline: {type: 'string', minLength: 1},
-    status: {type: 'string', enum: ['draft', 'published']},
+    headline: {type: 'hm://hyper.media/string', minLength: 1},
+    status: {type: 'hm://hyper.media/string', enum: ['draft', 'published']},
   },
 }
 
 // A schema that is a literal union at its root.
-const STATUS_SCHEMA = {
-  title: 'Status',
+const STATUS_SCHEMA: OnyxSchema = {
+  name: 'Status',
   enum: ['todo', 'doing', 'done'],
 }
 
-const KNOWN_SCHEMAS: Record<string, unknown> = {
+const KNOWN_SCHEMAS: Record<string, OnyxSchema> = {
   [SCHEMA_CID]: ARTICLE_SCHEMA,
   [LITERAL_CID]: STATUS_SCHEMA,
 }
 
 // The registry fetch hook is network-bound; supply the schemas directly.
-vi.mock('@shm/ui/blob-schema-registry', () => ({
-  useSchemaRegistries: (seedCids: string[]) => ({
-    registry: Object.fromEntries(seedCids.filter((cid) => KNOWN_SCHEMAS[cid]).map((cid) => [cid, KNOWN_SCHEMAS[cid]])),
+vi.mock('@shm/ui/onyx/onyx-schema-registry-cid', () => ({
+  useOnyxSchemaRegistry: (cids: string[]) => ({
+    byCid: Object.fromEntries(cids.filter((cid) => KNOWN_SCHEMAS[cid]).map((cid) => [cid, KNOWN_SCHEMAS[cid]])),
     isLoading: false,
     isComplete: true,
   }),
