@@ -145,6 +145,30 @@ export function DocumentMetadataView({
     return documentMetadataSchema(schemaDefSchema, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
   }, [keysDep, pendingSchemaCid, byCid, schemaDefSchema])
 
+  // Custom required fields declared by the document's schema are ALWAYS shown
+  // (seeded if absent), so the user never has to "add" a mandatory field. The
+  // standard header fields (name/summary) are excluded — they live in the header.
+  const requiredKeys = useMemo(
+    () =>
+      (Array.isArray(schemaRoot?.required) ? (schemaRoot!.required as string[]) : []).filter(
+        (k) => k !== SCHEMA_DEFINITION_KEY && k !== 'name' && k !== 'summary',
+      ),
+    [schemaRoot],
+  )
+  const requiredRows = useMemo(
+    () =>
+      requiredKeys.map((key) => ({
+        key,
+        value:
+          key in current && current[key] != null
+            ? current[key]
+            : seedValue((schemaRoot?.properties?.[key] as OnyxSchema) ?? {}),
+      })),
+    [requiredKeys, current, schemaRoot],
+  )
+  const requiredSet = useMemo(() => new Set(requiredKeys), [requiredKeys])
+  const otherEntries = useMemo(() => entries.filter(([k]) => !requiredSet.has(k)), [entries, requiredSet])
+
   // Undo/redo over snapshots of the merged metadata: `record()` before each
   // staged patch; undo/redo apply the diff back to the snapshot.
   const history = useValueHistory(current)
@@ -230,11 +254,35 @@ export function DocumentMetadataView({
             <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
           ) : editable ? (
             <>
-              {entries.length === 0 ? (
+              {requiredRows.length === 0 && otherEntries.length === 0 ? (
                 <p className="text-muted-foreground text-sm">This document has no metadata.</p>
               ) : (
                 <div className="flex flex-col">
-                  {entries.map(([key, value]) =>
+                  {/* Required fields declared by the schema come first and are
+                      ALWAYS shown (seeded if the value is absent), so a mandatory
+                      field never has to be "added" by hand. */}
+                  {requiredRows.map(({key, value}) => (
+                    <FieldRow
+                      key={key}
+                      className="border-border border-b py-3 last:border-b-0"
+                      fieldKey={key}
+                      value={value}
+                      badge={
+                        <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                          required
+                        </span>
+                      }
+                      siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                      onValue={(newValue) => stage({[key]: newValue})}
+                      // Required fields are schema-defined: their name is fixed, and
+                      // "removing" only clears the value (it reappears seeded).
+                      onEditField={(_newKey, newValue) => stage({[key]: newValue})}
+                      onRemove={() => stage({[key]: null})}
+                      rules={METADATA_VALUE_RULES}
+                      path={[key]}
+                    />
+                  ))}
+                  {otherEntries.map(([key, value]) =>
                     // The reserved schemaDefinition field describes the document's
                     // type — edit it with the schema editor, never as a raw string.
                     key === SCHEMA_DEFINITION_KEY ? (
@@ -272,7 +320,7 @@ export function DocumentMetadataView({
               <AddFieldForm
                 rules={METADATA_VALUE_RULES}
                 path={[]}
-                existingKeys={entries.map(([key]) => key)}
+                existingKeys={[...entries.map(([key]) => key), ...requiredKeys]}
                 onKeyTextChange={(keyText) => {
                   const trimmed = keyText.trim()
                   // Typing the reserved `schemaDefinition` key opens the schema editor.
