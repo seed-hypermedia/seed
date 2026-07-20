@@ -3,6 +3,7 @@ import {Braces, Check, FileCode2} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {instantiateSchema} from './blob-schema'
 import {BlobSchemaProvider} from './blob-schema-context'
+import {SCHEMA_DEFINITION_KEY, SchemaDefinitionBuilder} from './onyx/schema-document'
 import {buildSchemaKeyRoot, collectSchemaKeyCids, schemaKeyCid} from './blob-schema-edit'
 import {useSchemaRegistries} from './blob-schema-registry'
 import {Button} from './button'
@@ -93,6 +94,9 @@ export function DocumentMetadataView({
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const [attachMode, setAttachMode] = useState(false)
+  // When the user types `schemaDefinition` as a new field key, we surface an
+  // inline schema-authoring panel instead of a plain value input.
+  const [schemaDefMode, setSchemaDefMode] = useState(false)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
   const entries = canonicalEntries(current, {hideNull: true})
   const editable = canEdit && !!onMetadata
@@ -189,6 +193,15 @@ export function DocumentMetadataView({
               }}
             />
           )}
+          {editable && schemaDefMode && !jsonMode && (
+            <SchemaDefinitionBuilder
+              onCancel={() => setSchemaDefMode(false)}
+              onAttach={(cid) => {
+                stage({[SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`})
+                setSchemaDefMode(false)
+              }}
+            />
+          )}
           {jsonMode ? (
             <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
           ) : editable ? (
@@ -220,7 +233,10 @@ export function DocumentMetadataView({
                 path={[]}
                 existingKeys={entries.map(([key]) => key)}
                 onKeyTextChange={(keyText) => {
-                  const cidText = keyText.trim().replace(/^ipfs:\/\//, '')
+                  const trimmed = keyText.trim()
+                  // Typing the reserved `schemaDefinition` key opens the schema builder.
+                  if (trimmed === SCHEMA_DEFINITION_KEY) setSchemaDefMode(true)
+                  const cidText = trimmed.replace(/^ipfs:\/\//, '')
                   setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
                 }}
                 onAdd={(key, value) => {
