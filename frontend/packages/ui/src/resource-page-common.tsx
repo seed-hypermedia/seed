@@ -118,6 +118,7 @@ import {
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTopBar} from './document-top-bar'
+import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {Feed, type DraftVersionEntry} from './feed'
@@ -2371,12 +2372,24 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
+  // A document that describes a type (carries a resolvable `schemaDefinition`)
+  // gets header actions: view the schema, and create a value of that type.
+  const schemaDocActions = isSchemaDocument(document.metadata) ? (
+    <SchemaDocumentHeaderActions metadata={document.metadata} />
+  ) : null
+  const topBarActions =
+    schemaDocActions || documentContentAction ? (
+      <>
+        {schemaDocActions}
+        {documentContentAction}
+      </>
+    ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
   const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
   const documentTopBar = (
-    <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={documentContentAction} isMobile={isMobile} />
+    <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={topBarActions} isMobile={isMobile} />
   )
 
   // Main page content (used in both mobile and desktop layouts)
