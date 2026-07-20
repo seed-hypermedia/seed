@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {isOnyxSchema, ONYX_SCHEMAS, validate} from '../onyx-engine'
+import {documentMetadataSchema} from '../onyx-metadata-schema-keys'
 import {onyxSubschema, parseOnyxError} from '../onyx-schema-context'
 import {literalEnumOptions, suggestedFieldType} from '../onyx-value-editor-schema'
 
@@ -58,6 +59,31 @@ describe('suggestedFieldType', () => {
     expect(suggestedFieldType(S('onyx-null'))).toBe('null')
     expect(suggestedFieldType(S('onyx-link'))).toBe('link')
     expect(suggestedFieldType(S('onyx-bytes'))).toBe('bytes')
+  })
+})
+
+describe('documentMetadataSchema (document-schema extension)', () => {
+  it('inherits the base metadata fields and adds the document type fields', () => {
+    const merged = documentMetadataSchema(S('example-employee'))
+    // inherited from hypermedia-metadata (the base document schema)
+    expect(merged.properties).toHaveProperty('name')
+    expect(merged.properties).toHaveProperty('summary')
+    // added by the employee schema (which extends example-person)
+    expect(merged.properties).toHaveProperty('employeeId')
+    expect(merged.properties).toHaveProperty('department')
+    expect(merged.properties).toHaveProperty('name') // person's name too, same key
+    // employee's required field surfaces as required
+    expect(merged.required).toContain('employeeId')
+    // open: arbitrary keys (e.g. schemaDefinition itself) are accepted
+    expect(merged.values).toEqual({})
+    expect(
+      validate(merged, {name: 'Acme Co', schemaDefinition: 'ipfs://x', employeeId: '7', department: 'Eng'}),
+    ).toEqual([])
+  })
+
+  it('folds in schema-keyed extra properties', () => {
+    const merged = documentMetadataSchema(S('example-geo'), {'ipfs://cidkey': S('onyx-string')})
+    expect(merged.properties).toHaveProperty('ipfs://cidkey')
   })
 })
 
