@@ -42,6 +42,31 @@ export function schemaCid(nameOrUrl: string): string | undefined {
   return url ? ONYX_MANIFEST[url] : undefined
 }
 
+// Reverse of the manifest: a published DAG-CBOR CID -> the bundled schema's
+// basename. Lets a document's `schemaDefinition` (ipfs://<cid>) resolve to a
+// bundled Onyx schema without a network fetch — the bundled schemas encode to
+// the same CIDs as the published ones (see schemas/publish.mjs).
+const CID_TO_NAME: Record<string, string> = (() => {
+  const out: Record<string, string> = {}
+  for (const [url, cid] of Object.entries(ONYX_MANIFEST)) {
+    const name = refToName(url)
+    if (name) out[cid] = name
+  }
+  return out
+})()
+
+/** A bundled schema's basename for a published CID (accepts a bare CID or an ipfs://<cid> URL). */
+export function nameForCid(cidOrUrl: string): string | undefined {
+  const cid = cidOrUrl.replace(/^ipfs:\/\//i, '').split('/')[0] ?? ''
+  return CID_TO_NAME[cid]
+}
+
+/** The bundled Onyx schema for a published CID (or ipfs://<cid> URL), if known. */
+export function schemaForCid(cidOrUrl: string): OnyxSchema | undefined {
+  const name = nameForCid(cidOrUrl)
+  return name ? ONYX_SCHEMAS[name] : undefined
+}
+
 export function loadFrom(registry: OnyxRegistry, ref: string): OnyxSchema | undefined {
   const name = refToName(ref)
   return registry[name] ?? ONYX_SCHEMAS[name]
