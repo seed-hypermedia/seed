@@ -85,7 +85,11 @@ export function OnyxSchemaProvider({
     const warningsByPath = new Map<string, SchemaWarning[]>()
     for (const err of validate(schema, value, '$', {}, registry)) {
       const warning = parseOnyxError(err)
+      // Suppress noise about the reserved attachment key: both a value warning
+      // at ['schema'] and the closed-map "unexpected key" warning at the root.
       if (attachmentKey && warning.path.length === 1 && warning.path[0] === attachmentKey) continue
+      if (attachmentKey && warning.path.length === 0 && warning.message.includes(`unexpected key "${attachmentKey}"`))
+        continue
       const key = warningKey(warning.path)
       const existing = warningsByPath.get(key)
       if (existing) existing.push(warning)

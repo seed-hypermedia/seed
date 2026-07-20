@@ -4,27 +4,26 @@ import {useCID} from '@shm/shared/models/entity'
 import {createInspectIpfsNavRoute} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {ipfsUrlToRoute} from '@/omnibar-url'
-import {useSchemaRegistry} from '@/models/blob-schema'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Textarea} from '@shm/ui/components/textarea'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {dagJsonToIpld, findSeedIndexerCollision, isDagJsonBytes, isDagJsonLink, parseCidString} from '@shm/ui/dag-json'
 import {
-  BLOB_META_SCHEMA,
-  BLOB_META_SCHEMA_CID,
-  instantiateSchema,
-  isSchemaBlob,
-  type SchemaRegistry,
-} from '@shm/ui/blob-schema'
-import {BlobSchemaProvider, useSchemaWarningCount, useSchemaWarnings} from '@shm/ui/blob-schema-context'
-import {BlobSchemaEditor} from '@shm/ui/blob-schema-editor'
-import {isPlainObject} from '@shm/ui/value-editor'
+  isOnyxSchema,
+  ONYX_SCHEMAS,
+  OnyxSchemaProvider,
+  schemaCid,
+  seedValue,
+  useOnyxSchemaRegistry,
+  useSchemaWarningCount,
+  useSchemaWarnings,
+} from '@shm/ui/onyx/index'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {CBOR_VALUE_RULES, useValueHistory, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
+import {CBOR_VALUE_RULES, isPlainObject, useValueHistory, ValueEditor, ValueEditorProvider} from '@shm/ui/value-editor'
 import {Braces, Check, Copy, FileCode2, Link2, Search, TriangleAlert, UploadCloud} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -33,9 +32,11 @@ import {useEffect, useMemo, useState} from 'react'
 /** Multicodec code for DAG-CBOR, the only codec this editor can decode/encode. */
 const DAG_CBOR_CODE = 0x71
 
-// Module-level so its identity is stable across renders — BlobSchemaProvider
-// memoizes validation on (schema, registry, value) identity.
-const META_REGISTRY: SchemaRegistry = {[BLOB_META_SCHEMA_CID]: BLOB_META_SCHEMA}
+// The Onyx meta-schema's published DAG-CBOR CID — the "New Schema" route target.
+// A schema is self-describing (it validates against the meta-schema); unlike v1
+// it carries no `schema` link, and the meta-schema is bundled in the app, so
+// publishing a schema needs no co-published meta blob.
+const META_SCHEMA_CID = schemaCid('onyx-schema')!
 
 /** Full-page GUI editor for raw DAG-CBOR IPFS blobs. */
 export default function RawBlobPage() {
@@ -93,24 +94,24 @@ function ExistingBlobEditor({cid}: {cid: string}) {
 /**
  * "New instance" flow: loads the schema blob, materializes a starter value
  * shaped by it (defaults + required fields), links it via the reserved
- * `schema` key, and hands off to the editor. The meta-schema is built in, so
- * "New Schema" needs no fetch.
+ * `schema` key, and hands off to the editor. The meta-schema is bundled, so
+ * "New Schema" needs no fetch and seeds a blank self-describing schema.
  */
 function NewInstanceEditor({schemaCid}: {schemaCid: string}) {
-  const isMeta = schemaCid === BLOB_META_SCHEMA_CID
-  const fetched = useSchemaRegistry(isMeta ? undefined : schemaCid)
-  const schema = isMeta ? BLOB_META_SCHEMA : fetched.rootSchema
-  const registry: SchemaRegistry = isMeta ? META_REGISTRY : fetched.registry
+  const isMeta = schemaCid === META_SCHEMA_CID
+  // Bundled schema CIDs resolve synchronously; only unbundled ones are fetched.
+  const {byCid, isLoading} = useOnyxSchemaRegistry(isMeta ? [] : [schemaCid])
+  const schema = isMeta ? ONYX_SCHEMAS['onyx-schema'] : byCid[schemaCid]
 
   if (isMeta) {
-    // "New Schema": most schemas describe documents, so start as an object —
-    // the schema form opens straight into the fields table.
-    return <BlobEditor initialValue={{schema: {'/': schemaCid}, type: 'object'}} />
+    // "New Schema": seed a blank Onyx schema (itself an instance of the
+    // meta-schema). A schema is self-describing — it carries no `schema` link.
+    return <BlobEditor initialValue={seedValue(ONYX_SCHEMAS['onyx-schema'])} />
   }
   if (!schema) {
-    return <BlobSearching cid={schemaCid} notFoundYet={!fetched.isLoading} />
+    return <BlobSearching cid={schemaCid} notFoundYet={!isLoading} />
   }
-  const starter = instantiateSchema(schema, registry)
+  const starter = seedValue(schema)
   // A non-object root (e.g. type: "string") can't carry the `schema` key —
   // the starter value itself wins over the attachment convention.
   const initialValue = isPlainObject(starter)
@@ -170,10 +171,10 @@ function BlobFallback({cid, message, children}: {cid: string; message: string; c
  * route with the new CID. Blobs are immutable: editing a published blob and
  * publishing again creates a new blob with a new CID.
  *
- * When the value carries a `schema` IPLD link, the linked schema drives
- * advisory hints and warnings throughout the editor (never blocking). A blob
- * whose schema link targets the built-in meta-schema IS a schema; publishing
- * it also stores the meta-schema blob so the link always resolves.
+ * When the value carries a `schema` IPLD link, the linked schema drives advisory
+ * hints and warnings throughout the editor (never blocking). A blob that
+ * validates against the Onyx meta-schema IS itself a schema, edited against the
+ * bundled meta-schema; publishing it is the identical single-blob flow.
  */
 function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) {
   const client = useUniversalClient()
@@ -183,9 +184,6 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
   const [jsonMode, setJsonMode] = useState(false)
   const [attachMode, setAttachMode] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  // Schema blobs open in the purpose-built schema form; raw fields remain an
-  // escape hatch for keywords the form doesn't surface.
-  const [rawFieldsMode, setRawFieldsMode] = useState(false)
 
   const history = useValueHistory(value)
   const update = (newValue: unknown) => {
@@ -201,19 +199,26 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
     if (snapshot) setValue(snapshot.value)
   }
 
-  // Attached schema: a `schema` key holding a valid DAG-CBOR link. The
-  // meta-schema is built into the app, so schemas-being-edited never wait on
-  // a fetch (and work before the meta-schema blob is ever published).
+  // A blob IS a schema when it validates against the bundled Onyx meta-schema.
+  const valueIsSchema = useMemo(() => isOnyxSchema(value), [value])
+  // Attached schema: a non-schema instance whose `schema` key holds a valid
+  // DAG-CBOR link. Bundled schema CIDs resolve synchronously; user-published
+  // ones are fetched. Schemas themselves carry no `schema` link.
   const attachedSchemaCid = useMemo(() => {
-    if (!isPlainObject(value) || !isDagJsonLink(value.schema)) return undefined
+    if (valueIsSchema || !isPlainObject(value) || !isDagJsonLink(value.schema)) return undefined
     const parsed = parseCidString(value.schema['/'])
     return parsed?.code === DAG_CBOR_CODE ? value.schema['/'] : undefined
-  }, [value])
-  const isMetaAttached = attachedSchemaCid === BLOB_META_SCHEMA_CID
-  const fetched = useSchemaRegistry(isMetaAttached ? undefined : attachedSchemaCid)
-  const schema = isMetaAttached ? BLOB_META_SCHEMA : fetched.rootSchema
-  const registry: SchemaRegistry = isMetaAttached ? META_REGISTRY : fetched.registry
-  const valueIsSchema = isSchemaBlob(value)
+  }, [value, valueIsSchema])
+  const {byCid, isLoading} = useOnyxSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
+  const schema = valueIsSchema ? ONYX_SCHEMAS['onyx-schema'] : attachedSchemaCid ? byCid[attachedSchemaCid] : undefined
+  // The reserved `schema` attachment link is app plumbing, not user data — drop
+  // it from advisory validation so a well-formed instance reads as matching even
+  // against a closed-map schema (which would otherwise flag it as an extra key).
+  const advisoryValue = useMemo(() => {
+    if (!attachedSchemaCid || !isPlainObject(value)) return value
+    const {schema: _attachment, ...rest} = value
+    return rest
+  }, [value, attachedSchemaCid])
 
   const isDirty = useMemo(() => JSON.stringify(value) !== JSON.stringify(initialValue), [value, initialValue])
   const canPublish = (!cid || isDirty) && !isPublishing
@@ -226,13 +231,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       const data = cbor.encode(dagJsonToIpld(value))
       const digest = await sha256.digest(data)
       const newCid = CID.createV1(DAG_CBOR_CODE, digest).toString()
-      const blobs: {cid: string; data: Uint8Array}[] = [{cid: newCid, data}]
-      if (isMetaAttached) {
-        // Publishing a schema: store the meta-schema alongside it so the
-        // schema's own `schema` link resolves on any node that has this blob.
-        blobs.push({cid: BLOB_META_SCHEMA_CID, data: cbor.encode(dagJsonToIpld(BLOB_META_SCHEMA))})
-      }
-      await client.request('PublishBlobs', {blobs})
+      await client.request('PublishBlobs', {blobs: [{cid: newCid, data}]})
       toast.success(`Published ipfs://${newCid}`)
       replace({key: 'raw-blob', cid: newCid})
     } catch (e) {
@@ -265,14 +264,6 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       onClick: () => setJsonMode((mode) => !mode),
     },
   ]
-  if (valueIsSchema && !jsonMode) {
-    menuItems.push({
-      key: 'schema-form-mode',
-      label: rawFieldsMode ? 'Edit as Schema Form' : 'Edit as Raw Fields',
-      icon: <FileCode2 className="size-4" />,
-      onClick: () => setRawFieldsMode((mode) => !mode),
-    })
-  }
   // Attach requires a real map value: DAG-JSON link/bytes forms are leaf
   // kinds a `schema` key would corrupt. Hidden in JSON mode — the textarea
   // snapshots the value at open, so a concurrent attach would be silently
@@ -326,7 +317,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
       key: 'new-schema',
       label: 'New Schema',
       icon: <FileCode2 className="size-4" />,
-      onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
+      onClick: () => navigate({key: 'raw-blob', schemaCid: META_SCHEMA_CID}),
     },
   )
 
@@ -339,7 +330,7 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
         if (route) navigate(route)
       }}
     >
-      <BlobSchemaProvider schema={schema} registry={registry} value={value}>
+      <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
         <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm md:top-4 md:right-4">
           {canPublish && (
             <Button variant="default" size="sm" disabled={isPublishing} onClick={publish}>
@@ -372,12 +363,8 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
               attachedSchemaCid={attachedSchemaCid}
               valueIsSchema={valueIsSchema}
               schemaLoaded={!!schema}
-              schemaLoading={!isMetaAttached && !!attachedSchemaCid && fetched.isLoading}
-              onOpenSchema={
-                attachedSchemaCid && !isMetaAttached
-                  ? () => navigate({key: 'raw-blob', cid: attachedSchemaCid})
-                  : undefined
-              }
+              schemaLoading={!!attachedSchemaCid && isLoading && !schema}
+              onOpenSchema={attachedSchemaCid ? () => navigate({key: 'raw-blob', cid: attachedSchemaCid}) : undefined}
             />
             {attachMode && (
               <AttachSchemaBar
@@ -401,22 +388,20 @@ function BlobEditor({cid, initialValue}: {cid?: string; initialValue: unknown}) 
                 }}
                 onCancel={() => setJsonMode(false)}
               />
-            ) : valueIsSchema && !rawFieldsMode && isPlainObject(value) ? (
-              <BlobSchemaEditor value={value} onValue={update} />
             ) : (
               <ValueEditor value={value} onValue={update} rules={CBOR_VALUE_RULES} />
             )}
           </div>
         </div>
-      </BlobSchemaProvider>
+      </OnyxSchemaProvider>
     </ValueEditorProvider>
   )
 }
 
 /**
- * One quiet line about the attached schema: what it is, whether it loaded,
- * and how many advisory warnings the current value has. Warnings never block
- * editing or publishing.
+ * One quiet line about the schema in play: whether the blob is itself a schema
+ * or carries an attached one, whether it loaded, and how many advisory warnings
+ * the current value has. Warnings never block editing or publishing.
  */
 function SchemaStatusRow({
   attachedSchemaCid,
@@ -435,14 +420,14 @@ function SchemaStatusRow({
   // Root-level warnings (missing required keys, root type mismatch…) have no
   // field row to badge, so they surface here.
   const rootWarnings = useSchemaWarnings([])
-  if (!attachedSchemaCid) return null
+  if (!attachedSchemaCid && !valueIsSchema) return null
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <span className="text-muted-foreground flex items-center gap-1">
         <FileCode2 className="size-3.5" />
         {valueIsSchema ? 'This blob is a schema' : 'Schema attached'}
       </span>
-      {!valueIsSchema && (
+      {!valueIsSchema && attachedSchemaCid && (
         <button
           className={cn(
             'text-muted-foreground flex max-w-56 items-center gap-1 truncate font-mono',

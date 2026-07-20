@@ -73,7 +73,7 @@ import {displayHostname, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
-import {BLOB_META_SCHEMA_CID} from '@shm/ui/blob-schema'
+import {schemaCid} from '@shm/ui/onyx/index'
 import {createCopyLinkMenuItem} from '@shm/ui/copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
@@ -908,7 +908,7 @@ export default function DesktopResourcePage() {
       key: 'new-schema',
       label: 'New Schema',
       icon: <FileCode2 className="size-4" />,
-      onClick: () => navigate({key: 'raw-blob', schemaCid: BLOB_META_SCHEMA_CID}),
+      onClick: () => navigate({key: 'raw-blob', schemaCid: schemaCid('onyx-schema')}),
     })
 
     menuItems.push({
