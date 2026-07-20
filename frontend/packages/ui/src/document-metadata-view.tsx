@@ -241,9 +241,11 @@ export function DocumentMetadataView({
                       <SchemaDefinitionRow
                         key={key}
                         typeName={typeof schemaDefSchema?.name === 'string' ? schemaDefSchema.name : undefined}
-                        loaded={!!schemaDefSchema}
-                        onEdit={() => {
-                          setEditingSchema(schemaDefSchema)
+                        state={schemaDefCid ? (schemaDefSchema ? 'edit' : 'loading') : 'define'}
+                        onOpen={() => {
+                          // Empty/invalid schemaDefinition → define a fresh type;
+                          // a resolved one → edit it.
+                          setEditingSchema(schemaDefCid ? schemaDefSchema : undefined)
                           setSchemaEditorOpen(true)
                         }}
                         onRemove={() => stage({[key]: null})}
@@ -282,6 +284,13 @@ export function DocumentMetadataView({
                   setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
                 }}
                 onAdd={(key, value) => {
+                  // schemaDefinition is authored via the schema editor dialog, not
+                  // added as a plain field — never stage an empty string for it.
+                  if (key.trim() === SCHEMA_DEFINITION_KEY) {
+                    setEditingSchema(undefined)
+                    setSchemaEditorOpen(true)
+                    return
+                  }
                   stage({[key]: value})
                   setPendingSchemaCid(null)
                 }}
@@ -314,29 +323,35 @@ export function DocumentMetadataView({
  */
 function SchemaDefinitionRow({
   typeName,
-  loaded,
-  onEdit,
+  state,
+  onOpen,
   onRemove,
 }: {
   typeName?: string
-  loaded: boolean
-  onEdit: () => void
+  /** 'edit' = schema resolved; 'loading' = valid CID still fetching; 'define' =
+   * empty/invalid value (recover by authoring a schema). */
+  state: 'edit' | 'loading' | 'define'
+  onOpen: () => void
   onRemove: () => void
 }) {
+  const title =
+    state === 'define'
+      ? 'This document describes a type'
+      : typeName || (state === 'loading' ? 'Loading schema…' : 'Untitled type')
+  const subtitle =
+    state === 'define' ? 'No schema set yet — define one as a form.' : 'Its schema — edit it as a form, not raw JSON.'
   return (
     <div className="border-border flex items-center justify-between gap-2 border-b py-3 last:border-b-0">
       <div className="flex items-center gap-2">
         <FileCode2 className="text-muted-foreground size-4 shrink-0" />
         <div className="flex flex-col">
-          <span className="text-sm font-medium">
-            {typeName || (loaded ? 'Untitled type' : 'This document describes a type')}
-          </span>
-          <span className="text-muted-foreground text-xs">Its schema — edit it as a form, not raw JSON.</span>
+          <span className="text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground text-xs">{subtitle}</span>
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" onClick={onEdit} disabled={!loaded}>
-          Edit schema
+        <Button variant="outline" size="sm" onClick={onOpen} disabled={state === 'loading'}>
+          {state === 'define' ? 'Define schema' : 'Edit schema'}
         </Button>
         <Button variant="ghost" size="iconSm" aria-label="Remove schema" onClick={onRemove}>
           <X className="size-4" />
