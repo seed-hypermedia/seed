@@ -77,6 +77,13 @@ type taskHandle struct {
 	subscription bool
 	hotDeadline  time.Time
 	runCount     uint64 // Number of times task has been executed.
+	// runningCold marks an in-progress run that was dispatched without a live
+	// hot heartbeat and therefore counted against the cold worker cap. Read on
+	// unwind to decrement scheduler.inProgressCold. Guarded by scheduler.mu.
+	runningCold bool
+	// runStartedAt is when the current (or latest) run was dispatched. Young
+	// runs are protected from preemption — see isActivelyProgressing.
+	runStartedAt time.Time
 
 	// Cancellation. Set by dispatchReadyTasks under s.mu before dispatching, cleared in executeTask's unwind.
 	cancelFunc context.CancelFunc
@@ -121,6 +128,17 @@ func (task *taskHandle) IsHot(now time.Time) bool {
 // or one idle on both signals past the grace, is not protected. Caller must hold
 // scheduler.mu (the watermark fields are mutated here).
 func (task *taskHandle) isActivelyProgressing(now time.Time) bool {
+	// A run younger than progressGrace hasn't had a chance to make visible
+	// progress yet: peer selection and auth compute come before any reconcile
+	// or download. Killing it there wastes the whole round, and under a
+	// post-restart hot storm every newcomer used to murder the previous task
+	// at its first step (observed: rounds dying in SELECT over the peers
+	// table with SQLITE_INTERRUPT, so a viewed document synced nothing for
+	// minutes). Protecting the young window lets every started round reach
+	// the phases where the progress signals below take over.
+	if !task.runStartedAt.IsZero() && now.Sub(task.runStartedAt) < progressGrace {
+		return true
+	}
 	if task.progress == nil {
 		return false
 	}
@@ -176,6 +194,13 @@ type scheduler struct {
 	// goroutine. Bounded by cfg.MaxWorkers. Used to detect saturation for
 	// preemption decisions.
 	inProgress int
+
+	// inProgressCold counts the subset of inProgress runs dispatched without a
+	// live hot heartbeat (background subscription rounds). Capped below
+	// MaxWorkers by dispatchReadyTasks so one slot always remains for hot
+	// tasks: without the reservation, MaxWorkers multi-second cold rounds
+	// occupy the whole pool and on-screen discovery waits behind them.
+	inProgressCold int
 
 	// Heartbeat TTL for hot tasks. Installed from defaultHotTTL in newScheduler.
 	// Tests may assign a smaller value before calling run().
@@ -290,6 +315,10 @@ func (s *scheduler) executeTask(task *taskHandle) {
 	}
 	task.runCtx = nil
 	s.inProgress--
+	if task.runningCold {
+		task.runningCold = false
+		s.inProgressCold--
+	}
 
 	now := time.Now()
 
@@ -402,11 +431,22 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 				task.progress = nil
 			}
 			s.enqueueLocked(task, now)
-		} else if task.queueIndex.IsSet() {
-			// Re-touching an already-queued task: its hot deadline changed, which
-			// may move it up in the hot tier (LIFO ordering) or migrate it from
-			// cold into hot. Re-seat it in the queue without changing nextRunTime.
-			s.enqueueLocked(task, now)
+		} else {
+			// A hot touch on a task scheduled beyond the hot cooldown — a
+			// subscription riding out its background interval — pulls the
+			// next run within the cooldown: content on screen must not wait
+			// out a background cadence. No-op for ephemeral hot tasks, whose
+			// nextRunTime never exceeds the cooldown.
+			if soonest := now.Add(defaultHotCooldown); task.nextRunTime.After(soonest) {
+				task.nextRunTime = soonest
+			}
+			if task.queueIndex.IsSet() {
+				// Re-touching an already-queued task: its hot deadline (and
+				// possibly nextRunTime) changed, which may move it up in the
+				// hot tier (LIFO ordering) or migrate it from cold into hot.
+				// Re-seat it in the queue.
+				s.enqueueLocked(task, now)
+			}
 		}
 	}
 
@@ -439,6 +479,23 @@ func (s *scheduler) removeSubscriptions(keys ...DiscoveryKey) {
 
 // dispatchReadyTasks sends ready tasks to workers. Caller must hold s.mu.
 func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Duration) {
+	// Cold runs may fill every worker slot but one; the last is reserved for
+	// hot tasks. Without the reservation, MaxWorkers multi-second subscription
+	// rounds occupy the whole pool and a freshly-viewed document waits for a
+	// full round (or a lucky preemption) before its discovery even starts.
+	// Single-worker pools skip the reservation — a standing reserve would
+	// starve cold work entirely there — and rely on the preemption paths
+	// below for the hot case.
+	coldCap := s.cfg.MaxWorkers
+	if coldCap > 1 {
+		coldCap--
+	}
+
+	// Cold tasks set aside because the cold lane is full. Re-enqueued after
+	// the scan: a due hot task can sit behind blocked cold heads (within the
+	// cold tier ordering), so the scan must drain past them to reach it.
+	var blockedCold []*taskHandle
+
 	for s.queue.Len() > 0 {
 		task := s.queue.Peek()
 
@@ -469,19 +526,38 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		}
 
 		// Clump cold tasks slightly into the future to save battery on
-		// end-user devices. Hot tasks always dispatch immediately.
+		// end-user devices. Hot tasks always dispatch immediately. The break
+		// falls through to the shared wake computation at the bottom, which
+		// derives the same head-due wake this path used to return directly.
 		const lookAhead = 10 * time.Second
 		if task.queueTier == tierCold && task.nextRunTime.After(now.Add(lookAhead)) {
-			s.cleanupExpiredHotTasksLocked(now)
-			wake := task.nextRunTime.Sub(now)
-			return s.boundedWake(wake, time.Now())
+			break
+		}
+
+		// A live heartbeat classifies the run as hot for the worker-lane
+		// accounting regardless of the tier it happened to be queued in (a
+		// hot task riding out its cooldown sits in the cold tier until due).
+		isHot := task.IsHot(now)
+		if !isHot && s.inProgressCold >= coldCap {
+			// Cold lane full: set the task aside and keep scanning — a due
+			// hot task deeper in the queue can still take the reserved slot.
+			s.queue.Pop()
+			blockedCold = append(blockedCold, task)
+			continue
 		}
 
 		// Task is ready. Pop it from the queue and prepare its run context.
 		s.queue.Pop()
 		task.state = TaskStateInProgress
 		task.progress = &Progress{}
-		taskCtx, cancel := context.WithCancel(ctx)
+		task.runStartedAt = now
+		runParent := ctx
+		if isHot {
+			// Interactive run: syncWithManyPeers picks the latency-first
+			// wave-cut policy for contexts tagged hot.
+			runParent = contextWithHotDiscovery(ctx)
+		}
+		taskCtx, cancel := context.WithCancel(runParent)
 		task.runCtx = taskCtx
 		task.cancelFunc = cancel
 
@@ -493,6 +569,10 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 			return nil
 		}) {
 			s.inProgress++
+			if !isHot {
+				s.inProgressCold++
+				task.runningCold = true
+			}
 			continue
 		}
 
@@ -526,6 +606,13 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	}
 
 	now := time.Now()
+
+	// Put back any cold tasks the scan set aside; they keep their due times
+	// and dispatch as cold slots free up (worker completions re-enter us).
+	for _, task := range blockedCold {
+		s.enqueueLocked(task, now)
+	}
+
 	s.cleanupExpiredHotTasksLocked(now)
 
 	// Sleep forever unless an in-progress hot task's heartbeat is about to
@@ -715,20 +802,26 @@ func (s *scheduler) boundedWake(candidate time.Duration, now time.Time) time.Dur
 }
 
 // scheduleNext calculates the next run time and enqueues/fixes the task.
-// Subscriptions reschedule on the configured interval. Ephemeral hot tasks
-// whose heartbeat is still fresh stay in the map with a short cooldown so
-// polling callers can read the last result; cleanupExpiredHotTasksLocked
-// drops them once the heartbeat expires. Ephemeral tasks whose heartbeat
-// has already expired are dropped immediately.
+// Tasks with a fresh hot heartbeat reschedule on the short hot cooldown —
+// including subscriptions: a subscribed space that is actively being viewed
+// must re-sync at interactive cadence instead of waiting out the background
+// interval (checking subscription first used to shadow the heartbeat, so
+// viewing a subscribed space was stuck on the interval cadence). A
+// subscription whose heartbeat lapses falls back to the configured interval
+// on its next completion. Ephemeral hot tasks whose heartbeat is still fresh
+// stay in the map with the cooldown so polling callers can read the last
+// result; cleanupExpiredHotTasksLocked drops them once the heartbeat
+// expires. Ephemeral tasks whose heartbeat has already expired are dropped
+// immediately.
 // Caller must hold s.mu.
 func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate bool) {
 	switch {
 	case forceImmediate || task.runCount == 0:
 		task.nextRunTime = now
-	case task.subscription:
-		task.nextRunTime = now.Add(s.cfg.Interval)
 	case task.IsHot(now):
 		task.nextRunTime = now.Add(defaultHotCooldown)
+	case task.subscription:
+		task.nextRunTime = now.Add(s.cfg.Interval)
 	default:
 		if task.queueIndex.IsSet() {
 			s.queue.Remove(task.queueIndex.Value())

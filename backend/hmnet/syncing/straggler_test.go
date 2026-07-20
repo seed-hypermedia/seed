@@ -60,6 +60,38 @@ func TestShouldDropStragglers(t *testing.T) {
 	})
 }
 
+// TestShouldCutHotWave covers the interactive wave-cut policy: a hot round must
+// end once a few live peers have fully synced with nothing owed and downloads
+// idle past the short hot grace — the completion quorum counts failures, so a
+// fleet of stale peers otherwise gates the round at the pace of their dial
+// timeouts (the observed 60s viewed-document latency with 34 dead peers of 60).
+func TestShouldCutHotWave(t *testing.T) {
+	tests := []struct {
+		name        string
+		syncedOK    int64
+		total       int
+		idle        time.Duration
+		outstanding int64
+		want        bool
+	}{
+		// The completion quorum (70% of 60 = 42) would still be waiting on dead
+		// peers in every one of these; the hot policy only needs 3 successes.
+		{"not enough successes even when fully idle", 2, 60, time.Minute, 0, false},
+		{"success quorum but content still owed", 3, 60, time.Minute, 10, false},
+		{"success quorum, nothing owed, idle below hot grace", 3, 60, time.Second, 0, false},
+		{"success quorum, nothing owed, idle past hot grace", 3, 60, stragglerHotGrace, 0, true},
+		{"negative outstanding counts as nothing owed", 3, 60, stragglerHotGrace, -5, true},
+		{"small wave caps the success quorum at wave size", 1, 1, stragglerHotGrace, 0, true},
+		{"small wave still needs its capped quorum", 0, 1, stragglerHotGrace, 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, shouldCutHotWave(tt.syncedOK, tt.total, tt.idle, tt.outstanding))
+		})
+	}
+}
+
 // TestShouldKeepDrainingTier covers the per-tier gate: a large still-owed backlog
 // within the idle-strike budget keeps waiting (transient delivery gap); a small
 // tail (absolute or relative to the tier) or an exhausted budget abandons.

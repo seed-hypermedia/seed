@@ -722,6 +722,16 @@ const (
 	// the short grace. Above it (or above maxReconciled/20) the bulk is still owed.
 	stragglerNearDoneAbs = 256
 
+	// stragglerHotGrace is the download-idle window after which an interactive
+	// (hot-task) wave is cut once hotWaveQuorumOK peers have synced OK with
+	// nothing reconciled still owed. Shorter than stragglerGrace because hot
+	// waves re-run on the ~10s cooldown — a premature cut costs one cycle, while
+	// waiting costs on-screen latency.
+	stragglerHotGrace = 2 * time.Second
+	// hotWaveQuorumOK is how many successfully-synced peers an interactive wave
+	// needs (capped by the wave size) before the hot cut applies.
+	hotWaveQuorumOK = 3
+
 	// maxIdleStrikes is how many consecutive idle windows a fetch tier tolerates
 	// while it still has a large backlog before abandoning it (each strike is one
 	// idleTimeout). Bounds the wait for a delivery gap without hanging forever on a
@@ -778,6 +788,47 @@ func shouldDropStragglers(completed, quorum int64, idle time.Duration, maxReconc
 	}
 	nearDoneBand := max(int64(stragglerNearDoneAbs), int64(maxReconciled)/20)
 	return outstanding <= nearDoneBand
+}
+
+// hotDiscoveryCtxKey marks a discovery context as backing a hot (interactive)
+// scheduler task — a resource someone is looking at right now. Set by the
+// scheduler at dispatch; read by syncWithManyPeers to pick the wave-cut policy.
+type hotDiscoveryCtxKey struct{}
+
+// contextWithHotDiscovery tags ctx as an interactive discovery run.
+func contextWithHotDiscovery(ctx context.Context) context.Context {
+	return context.WithValue(ctx, hotDiscoveryCtxKey{}, true)
+}
+
+// isHotDiscovery reports whether ctx belongs to an interactive discovery run.
+func isHotDiscovery(ctx context.Context) bool {
+	on, _ := ctx.Value(hotDiscoveryCtxKey{}).(bool)
+	return on
+}
+
+// shouldCutHotWave reports whether an interactive (hot-task) wave should cancel
+// its remaining peers ahead of the completion quorum. Hot waves back a document
+// on screen and re-run on the ~10s cooldown, so they trade tail-thoroughness
+// for latency: once a few live peers have fully synced and downloads have been
+// idle past the short hot grace with nothing reconciled still owed, the round
+// has converged as far as the responsive peers can take it. Waiting further
+// only waits out dead peers' dial timeouts — the completion quorum counts
+// failures, so with many stale known peers it is reached at the pace of their
+// timeouts (observed: 34 unreachable peers of 60 stretched every wave to ~60s,
+// turning a fresh comment on an open document into a minute of latency).
+// Unreachable stragglers lose nothing here: the next cooldown round and the
+// cold subscription sweep remain the completeness backstop.
+//
+// syncedOK must be this wave's own success count (not the cumulative discovery
+// progress, which spans the root-directory and full-scope phases).
+func shouldCutHotWave(syncedOK int64, total int, idle time.Duration, outstanding int64) bool {
+	if syncedOK < min(int64(hotWaveQuorumOK), int64(total)) {
+		return false
+	}
+	if outstanding > 0 {
+		return false
+	}
+	return idle >= stragglerHotGrace
 }
 
 // shouldKeepDrainingTier reports whether a fetch tier that just hit its idle
@@ -963,7 +1014,11 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 	// Straggler watcher (see the rationale at the top of the function). Drops
 	// the slow tail once a quorum has finished and downloads have gone idle for
-	// the grace window; the download-idle check makes it cold-safe.
+	// the grace window; the download-idle check makes it cold-safe. Interactive
+	// (hot-task) waves additionally cut on a success quorum (shouldCutHotWave):
+	// the completion quorum counts failures, so it is otherwise reached at the
+	// pace of dead peers' dial timeouts.
+	hot := isHotDiscovery(ctx)
 	watcherDone := make(chan struct{})
 	go func() {
 		const (
@@ -994,6 +1049,11 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 				}
 				idle := now.Sub(idleSince)
 				maxRec := prog.MaxReconciledWants.Load()
+				outstanding := int64(maxRec) - int64(lastDownloaded)
+				if hot && shouldCutHotWave(atomic.LoadInt64(&res.NumSyncOK), total, idle, outstanding) {
+					cancel()
+					return
+				}
 				// Keep the wave draining while a peer still owes us a large
 				// reconciled backlog (the bulk still streaming from a complete
 				// peer, gapped under load — not a straggler tail). Cut only when
