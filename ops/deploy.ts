@@ -1205,6 +1205,35 @@ export function assertNoForeignStack(shell: ShellRunner, paths: DeployPaths): vo
 }
 
 /**
+ * Stop and remove the compose stack identified by its project label, whether
+ * or not its install dir (and compose file) still exists — `compose -p down`
+ * works from container labels alone. Any stragglers still carrying the label
+ * (e.g. after a partial down) are force-removed by name as a fallback.
+ */
+export function stopStackByProject(shell: ShellRunner, project: string): void {
+  shell.runSafe(`docker compose -p "${project}" down --remove-orphans`)
+  for (const name of LEGACY_CONTAINER_NAMES) {
+    const proj = shell.runSafe(
+      `docker inspect ${name} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`,
+    )
+    if (proj === project) shell.runSafe(`docker rm -f ${name} 2>/dev/null`)
+  }
+}
+
+/**
+ * Stop another install's stack so this one can take over the host's shared
+ * container names. The seed cron is disarmed FIRST: the old node's cron deploy
+ * would otherwise fire mid-switch (e.g. while the user is in the wizard) and
+ * resurrect the stack we just stopped. setActiveNode reinstalls the cron for
+ * the new node once its deploy completes. The old install's data dir is never
+ * touched.
+ */
+export function takeOverHost(shell: ShellRunner, foreignProject: string): void {
+  clearSeedCron(shell)
+  stopStackByProject(shell, foreignProject)
+}
+
+/**
  * The install directory the currently-running seed-daemon actually mounts, or
  * null if no daemon is running. Read from the /data bind-mount source, which is
  * always `<install-dir>/daemon`. This is the authoritative "what's live" signal,
@@ -1216,6 +1245,50 @@ export function getRunningInstallDir(shell: ShellRunner): string | null {
   )
   if (!src) return null
   return dirname(src) // strip the trailing "/daemon"
+}
+
+/**
+ * Deploy-time handling of a stack owned by another install. Interactive runs
+ * offer to take it over — or re-take silently when the user already approved a
+ * takeover this run (the old node's cron may have raced us and resurrected its
+ * stack). Headless runs keep the fatal guard, with one exception: when the
+ * foreign stack's install dir no longer exists on disk (the folder was moved
+ * or renamed), the stack is provably orphaned, so it is removed and the deploy
+ * proceeds. The cron is left alone in that path — a headless run never
+ * reinstalls it, and clearing it here would disarm auto-updates for good.
+ */
+export async function handleForeignStack(
+  shell: ShellRunner,
+  paths: DeployPaths,
+  interactive: boolean,
+  takeoverApproved: boolean,
+): Promise<void> {
+  const foreign = detectForeignStack(shell, paths)
+  if (!foreign) return
+
+  if (takeoverApproved) {
+    takeOverHost(shell, foreign)
+    return
+  }
+
+  const foreignDir = getRunningInstallDir(shell)
+
+  if (interactive) {
+    const ok = await p.confirm({
+      message: `The seed containers on this host belong to ${foreignDir ? `the node at ${foreignDir}` : `compose project '${foreign}'`}. Stop it and take over? (its data is kept)`,
+    })
+    if (p.isCancel(ok) || !ok) assertNoForeignStack(shell, paths)
+    takeOverHost(shell, foreign)
+    return
+  }
+
+  if (foreignDir && !(await access(foreignDir).then(() => true, () => false))) {
+    log(`Foreign stack '${foreign}' mounts ${foreignDir}, which no longer exists — removing the orphaned stack.`)
+    stopStackByProject(shell, foreign)
+    return
+  }
+
+  assertNoForeignStack(shell, paths)
 }
 
 export async function getContainerImages(shell: ShellRunner): Promise<Map<string, string>> {
@@ -1446,7 +1519,12 @@ export async function selfUpdate(scriptPath: string = process.argv[1] || ''): Pr
   }
 }
 
-export async function deploy(config: SeedConfig, paths: DeployPaths, shell: ShellRunner): Promise<void> {
+export async function deploy(
+  config: SeedConfig,
+  paths: DeployPaths,
+  shell: ShellRunner,
+  takeoverApproved = false,
+): Promise<void> {
   const isInteractive = process.stdout.isTTY
   const spinner = isInteractive ? p.spinner() : null
 
@@ -1459,8 +1537,9 @@ export async function deploy(config: SeedConfig, paths: DeployPaths, shell: Shel
     p.log.step('Starting deployment...')
   }
 
-  // Refuse to clobber another seed install sharing this host's container names.
-  assertNoForeignStack(shell, paths)
+  // Never clobber another seed install silently: interactive runs offer a
+  // takeover, headless runs only remove provably orphaned stacks.
+  await handleForeignStack(shell, paths, isInteractive, takeoverApproved)
 
   // Surface risky/confusing config (unintended devnet, dev images on mainnet)
   // on every deploy so it is visible in the cron deploy log, not silent.
@@ -1723,13 +1802,20 @@ export function buildCrontab(existing: string, paths: DeployPaths, bunPath: stri
     `${invoke} deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`
   const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`
 
-  const filtered = existing
-    .split('\n')
-    .filter((line) => !line.includes('# seed-deploy') && !line.includes('# seed-cleanup'))
-    .join('\n')
-    .trim()
+  const filtered = removeSeedCronLines(existing).trim()
 
   return [filtered, deployLine, cleanupLine].filter(Boolean).join('\n') + '\n'
+}
+
+/**
+ * Disarm the seed-managed cron jobs, leaving other cron lines untouched. Used
+ * while taking over the host from another install: that node's cron deploy
+ * would otherwise resurrect its stack between our `down` and `up`.
+ */
+export function clearSeedCron(shell: ShellRunner): void {
+  const existing = shell.runSafe('crontab -l 2>/dev/null') ?? ''
+  if (!existing.includes('# seed-deploy') && !existing.includes('# seed-cleanup')) return
+  shell.runSafe(`echo '${removeSeedCronLines(existing)}' | crontab -`)
 }
 
 export async function setupCron(paths: DeployPaths, shell: ShellRunner): Promise<void> {
@@ -1910,21 +1996,27 @@ async function promptNodeDir(current: DeployPaths, shell: ShellRunner): Promise<
 }
 
 /**
- * Only one node runs per host (shared container names). If a different node is
- * live, confirm and stop it before switching. Its data is untouched.
+ * Only one node runs per host (shared container names). If another node's
+ * stack is present — running or stopped, detected by compose project label or
+ * by the daemon's data mount — confirm and take it over. Its data is
+ * untouched. Returns true when the user approved a takeover, so later steps
+ * can re-stop a raced resurrection without asking again.
  */
-async function maybeStopOtherRunningNode(target: DeployPaths, shell: ShellRunner): Promise<void> {
+async function maybeStopOtherRunningNode(target: DeployPaths, shell: ShellRunner): Promise<boolean> {
+  const foreign = detectForeignStack(shell, target)
   const running = getRunningInstallDir(shell)
-  if (!running || running === target.seedDir) return
+  const otherDir = running && running !== target.seedDir ? running : null
+  if (!foreign && !otherDir) return false
   const ok = await p.confirm({
-    message: `Another node is running at ${running}. Stop it and switch to ${target.seedDir}? (its data is kept)`,
+    message: `Another node (${otherDir ?? `compose project '${foreign}'`}) owns the seed containers on this host. Stop it and switch to ${target.seedDir}? (its data is kept)`,
   })
   if (p.isCancel(ok) || !ok) {
     p.cancel('Cancelled — the running node was left in place.')
     process.exit(0)
   }
-  shell.runSafe(`docker compose -f "${makePaths(running).composePath}" down`)
-  p.log.success(`Stopped the node at ${running}.`)
+  takeOverHost(shell, foreign ?? composeProjectName(target))
+  p.log.success(`Stopped the node${otherDir ? ` at ${otherDir}` : ''}. This one takes over when the deploy completes.`)
+  return true
 }
 
 /**
@@ -1956,9 +2048,10 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
   // drives everything — create a branch node in a new dir, or reconfigure /
   // switch to an existing one. Then, if a different node is live, offer to stop
   // it so this one can take over.
+  let takeoverApproved = false
   if (advanced && interactive) {
     paths = await promptNodeDir(paths, shell)
-    await maybeStopOtherRunningNode(paths, shell)
+    takeoverApproved = await maybeStopOtherRunningNode(paths, shell)
   }
 
   await ensureSeedDir(paths, shell)
@@ -1967,7 +2060,7 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
     if ((reconfigure || advanced) && interactive) {
       const existing = await readConfig(paths)
       const config = await runFreshWizard(paths, existing, advanced)
-      await deploy(config, paths, shell)
+      await deploy(config, paths, shell, takeoverApproved)
       await setActiveNode(paths, shell)
       p.outro(`Reconfiguration complete! Your Seed node is running.\n${MANAGE_HINT}`)
       return
@@ -1984,7 +2077,7 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
     ? await runMigrationWizard(oldInstall, paths, shell, advanced)
     : await runFreshWizard(paths, undefined, advanced)
 
-  await deploy(config, paths, shell)
+  await deploy(config, paths, shell, takeoverApproved)
   await setActiveNode(paths, shell)
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`)
 }

@@ -32,6 +32,10 @@ import {
   containersMatchReleaseChannel,
   detectForeignStack,
   assertNoForeignStack,
+  stopStackByProject,
+  takeOverHost,
+  clearSeedCron,
+  handleForeignStack,
   getRunningInstallDir,
   installWrapper,
   getContainerImages,
@@ -873,6 +877,125 @@ describe('detectForeignStack / assertNoForeignStack', () => {
       "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
     })
     expect(() => assertNoForeignStack(shell, paths)).not.toThrow()
+  })
+})
+
+/** A mock shell that records every command and answers from `responses` (first `includes` match wins). */
+function makeRecordingShell(responses: Record<string, string> = {}): {shell: ShellRunner; commands: string[]} {
+  const commands: string[] = []
+  const inner = makeMockShell(responses)
+  const shell: ShellRunner = {
+    run: (cmd) => {
+      commands.push(cmd)
+      return inner.run(cmd)
+    },
+    runSafe: (cmd) => {
+      commands.push(cmd)
+      return inner.runSafe(cmd)
+    },
+    exec: (cmd) => {
+      commands.push(cmd)
+      return inner.exec(cmd)
+    },
+  }
+  return {shell, commands}
+}
+
+describe('stopStackByProject', () => {
+  test('downs the stack by project label, not by compose file path', () => {
+    const {shell, commands} = makeRecordingShell()
+    stopStackByProject(shell, 'seed')
+    expect(commands[0]).toBe('docker compose -p "seed" down --remove-orphans')
+  })
+
+  test('force-removes stragglers still carrying the project label', () => {
+    const {shell, commands} = makeRecordingShell({
+      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'other',
+    })
+    stopStackByProject(shell, 'seed')
+    expect(commands).toContain('docker rm -f seed-daemon 2>/dev/null')
+    expect(commands.find((c) => c === 'docker rm -f seed-web 2>/dev/null')).toBeUndefined()
+  })
+})
+
+describe('clearSeedCron', () => {
+  test('strips seed-managed lines and keeps everything else', () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': '0 0 * * * /backup.sh\n*/10 * * * * bun deploy # seed-deploy\n0 * * * * docker image prune # seed-cleanup',
+    })
+    clearSeedCron(shell)
+    const install = commands.find((c) => c.includes('| crontab -'))!
+    expect(install).toContain('/backup.sh')
+    expect(install).not.toContain('# seed-deploy')
+    expect(install).not.toContain('# seed-cleanup')
+  })
+
+  test('no-op when no seed-managed lines exist', () => {
+    const {shell, commands} = makeRecordingShell({'crontab -l': '0 0 * * * /backup.sh'})
+    clearSeedCron(shell)
+    expect(commands.find((c) => c.includes('| crontab -'))).toBeUndefined()
+  })
+})
+
+describe('takeOverHost', () => {
+  test('disarms the seed cron BEFORE stopping the stack (cron resurrection race)', () => {
+    // If the old node's cron stays armed while its stack is down, a cron tick
+    // mid-switch redeploys the old node and the takeover fails.
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': '*/10 * * * * bun deploy # seed-deploy',
+    })
+    takeOverHost(shell, 'seed')
+    const cronIdx = commands.findIndex((c) => c.includes('| crontab -'))
+    const downIdx = commands.findIndex((c) => c.includes('docker compose -p "seed" down'))
+    expect(cronIdx).toBeGreaterThanOrEqual(0)
+    expect(downIdx).toBeGreaterThanOrEqual(0)
+    expect(cronIdx).toBeLessThan(downIdx)
+  })
+})
+
+describe('handleForeignStack', () => {
+  const paths = makePaths('/opt/seed-group-feed') // composeProjectName → "seed-group-feed"
+  const foreignLabels = {
+    "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+  }
+
+  test('no-op when no foreign stack exists', async () => {
+    const {shell, commands} = makeRecordingShell()
+    await handleForeignStack(shell, paths, false, false)
+    expect(commands.find((c) => c.includes('down'))).toBeUndefined()
+  })
+
+  test('takes over without prompting when the takeover was already approved this run', async () => {
+    const {shell, commands} = makeRecordingShell({...foreignLabels, 'crontab -l': ''})
+    await handleForeignStack(shell, paths, false, true)
+    expect(commands).toContain('docker compose -p "seed" down --remove-orphans')
+  })
+
+  test('headless: removes the stack when its install dir no longer exists (folder was moved)', async () => {
+    const {shell, commands} = makeRecordingShell({
+      ...foreignLabels,
+      'range .Mounts': '/gone-install-dir/daemon',
+    })
+    await handleForeignStack(shell, paths, false, false)
+    expect(commands).toContain('docker compose -p "seed" down --remove-orphans')
+    // Orphan cleanup must not touch the cron — headless runs never reinstall it.
+    expect(commands.find((c) => c.includes('crontab'))).toBeUndefined()
+  })
+
+  test('headless: still refuses when the foreign install dir exists on disk', async () => {
+    const {shell} = makeRecordingShell({
+      ...foreignLabels,
+      'range .Mounts': `${tmpdir()}/daemon`,
+    })
+    await expect(handleForeignStack(shell, paths, false, false)).rejects.toThrow(/can't share one host/)
+  })
+
+  test("headless: still refuses when the foreign install dir can't be determined", async () => {
+    const {shell} = makeRecordingShell(foreignLabels)
+    await expect(handleForeignStack(shell, paths, false, false)).rejects.toThrow(/can't share one host/)
   })
 })
 

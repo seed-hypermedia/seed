@@ -1580,11 +1580,48 @@ function assertNoForeignStack(shell, paths) {
     `Stop the other one first ('stop' in its directory), or run this node on a separate host.`
   ].join(" "));
 }
+function stopStackByProject(shell, project) {
+  shell.runSafe(`docker compose -p "${project}" down --remove-orphans`);
+  for (const name of LEGACY_CONTAINER_NAMES) {
+    const proj = shell.runSafe(`docker inspect ${name} --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null`);
+    if (proj === project)
+      shell.runSafe(`docker rm -f ${name} 2>/dev/null`);
+  }
+}
+function takeOverHost(shell, foreignProject) {
+  clearSeedCron(shell);
+  stopStackByProject(shell, foreignProject);
+}
 function getRunningInstallDir(shell) {
   const src = shell.runSafe(`docker inspect seed-daemon --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null`);
   if (!src)
     return null;
   return dirname(src);
+}
+async function handleForeignStack(shell, paths, interactive, takeoverApproved) {
+  const foreign = detectForeignStack(shell, paths);
+  if (!foreign)
+    return;
+  if (takeoverApproved) {
+    takeOverHost(shell, foreign);
+    return;
+  }
+  const foreignDir = getRunningInstallDir(shell);
+  if (interactive) {
+    const ok = await me({
+      message: `The seed containers on this host belong to ${foreignDir ? `the node at ${foreignDir}` : `compose project '${foreign}'`}. Stop it and take over? (its data is kept)`
+    });
+    if (BD(ok) || !ok)
+      assertNoForeignStack(shell, paths);
+    takeOverHost(shell, foreign);
+    return;
+  }
+  if (foreignDir && !await access(foreignDir).then(() => true, () => false)) {
+    log(`Foreign stack '${foreign}' mounts ${foreignDir}, which no longer exists \u2014 removing the orphaned stack.`);
+    stopStackByProject(shell, foreign);
+    return;
+  }
+  assertNoForeignStack(shell, paths);
 }
 async function getContainerImages(shell) {
   const images = new Map;
@@ -1750,7 +1787,7 @@ async function selfUpdate(scriptPath = process.argv[1] || "") {
     report(`Upgrade: skipped (${err})`);
   }
 }
-async function deploy(config, paths, shell) {
+async function deploy(config, paths, shell, takeoverApproved = false) {
   const isInteractive = process.stdout.isTTY;
   const spinner = isInteractive ? L2() : null;
   const step = (msg) => {
@@ -1761,7 +1798,7 @@ async function deploy(config, paths, shell) {
   if (isInteractive) {
     v2.step("Starting deployment...");
   }
-  assertNoForeignStack(shell, paths);
+  await handleForeignStack(shell, paths, isInteractive, takeoverApproved);
   for (const warning of configWarnings(config)) {
     if (isInteractive)
       v2.warn(warning);
@@ -1953,12 +1990,16 @@ function buildCrontab(existing, paths, bunPath = "/usr/local/bin/bun") {
   const invoke = `${bunPath} "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}"`;
   const deployLine = `*/10 * * * * ${invoke} upgrade >> "${paths.deployLog}" 2>&1; ` + `${invoke} deploy >> "${paths.deployLog}" 2>&1 # seed-deploy`;
   const cleanupLine = `0 * * * * docker image prune -f --filter "until=1h" # seed-cleanup`;
-  const filtered = existing.split(`
-`).filter((line) => !line.includes("# seed-deploy") && !line.includes("# seed-cleanup")).join(`
-`).trim();
+  const filtered = removeSeedCronLines(existing).trim();
   return [filtered, deployLine, cleanupLine].filter(Boolean).join(`
 `) + `
 `;
+}
+function clearSeedCron(shell) {
+  const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
+  if (!existing.includes("# seed-deploy") && !existing.includes("# seed-cleanup"))
+    return;
+  shell.runSafe(`echo '${removeSeedCronLines(existing)}' | crontab -`);
 }
 async function setupCron(paths, shell) {
   const bunPath = shell.runSafe("which bun") ?? "/usr/local/bin/bun";
@@ -2099,18 +2140,21 @@ async function promptNodeDir(current, shell) {
   return makePaths(chosen);
 }
 async function maybeStopOtherRunningNode(target, shell) {
+  const foreign = detectForeignStack(shell, target);
   const running = getRunningInstallDir(shell);
-  if (!running || running === target.seedDir)
-    return;
+  const otherDir = running && running !== target.seedDir ? running : null;
+  if (!foreign && !otherDir)
+    return false;
   const ok = await me({
-    message: `Another node is running at ${running}. Stop it and switch to ${target.seedDir}? (its data is kept)`
+    message: `Another node (${otherDir ?? `compose project '${foreign}'`}) owns the seed containers on this host. Stop it and switch to ${target.seedDir}? (its data is kept)`
   });
   if (BD(ok) || !ok) {
     ve("Cancelled \u2014 the running node was left in place.");
     process.exit(0);
   }
-  shell.runSafe(`docker compose -f "${makePaths(running).composePath}" down`);
-  v2.success(`Stopped the node at ${running}.`);
+  takeOverHost(shell, foreign ?? composeProjectName(target));
+  v2.success(`Stopped the node${otherDir ? ` at ${otherDir}` : ""}. This one takes over when the deploy completes.`);
+  return true;
 }
 function installWrapper(paths, shell) {
   const bunPath = shell.runSafe("command -v bun") ?? "/usr/local/bin/bun";
@@ -2130,16 +2174,17 @@ async function setActiveNode(paths, shell) {
 async function cmdDeploy(paths, shell, reconfigure = false, advanced = false) {
   checkDockerAccess(shell);
   const interactive = process.stdout.isTTY;
+  let takeoverApproved = false;
   if (advanced && interactive) {
     paths = await promptNodeDir(paths, shell);
-    await maybeStopOtherRunningNode(paths, shell);
+    takeoverApproved = await maybeStopOtherRunningNode(paths, shell);
   }
   await ensureSeedDir(paths, shell);
   if (await configExists(paths)) {
     if ((reconfigure || advanced) && interactive) {
       const existing = await readConfig(paths);
       const config3 = await runFreshWizard(paths, existing, advanced);
-      await deploy(config3, paths, shell);
+      await deploy(config3, paths, shell, takeoverApproved);
       await setActiveNode(paths, shell);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
@@ -2152,7 +2197,7 @@ ${MANAGE_HINT}`);
   }
   const oldInstall = await detectOldInstall(shell);
   const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runFreshWizard(paths, undefined, advanced);
-  await deploy(config, paths, shell);
+  await deploy(config, paths, shell, takeoverApproved);
   await setActiveNode(paths, shell);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
@@ -2709,6 +2754,8 @@ if (import.meta.main) {
 export {
   writeConfig,
   validateDockerImageTag,
+  takeOverHost,
+  stopStackByProject,
   sha256,
   setupCron,
   selfUpdate,
@@ -2727,6 +2774,7 @@ export {
   log,
   installWrapper,
   inferEnvironment,
+  handleForeignStack,
   getWorkspaceDirs,
   getRunningInstallDir,
   getOpsBaseUrl,
@@ -2750,6 +2798,7 @@ export {
   configExists,
   composeProjectName,
   cmd,
+  clearSeedCron,
   checkGpuAcceleration,
   checkForNewImages,
   checkContainersHealthy,
