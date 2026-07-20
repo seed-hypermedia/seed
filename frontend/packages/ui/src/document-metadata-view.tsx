@@ -1,11 +1,12 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {Braces, Check, FileCode2} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
-import {instantiateSchema} from './blob-schema'
-import {BlobSchemaProvider} from './blob-schema-context'
+import {seedValue} from './onyx/onyx-data-editor'
+import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
 import {SCHEMA_DEFINITION_KEY, SchemaDefinitionBuilder} from './onyx/schema-document'
-import {buildSchemaKeyRoot, collectSchemaKeyCids, schemaKeyCid} from './blob-schema-edit'
-import {useSchemaRegistries} from './blob-schema-registry'
+import {buildSchemaKeyRoot, collectSchemaKeyCids, schemaKeyCid} from './onyx/onyx-metadata-schema-keys'
+import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
+import type {OnyxSchema} from './onyx/onyx-engine'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Textarea} from './components/textarea'
@@ -114,13 +115,13 @@ export function DocumentMetadataView({
     if (pendingSchemaCid && !cids.includes(pendingSchemaCid)) cids.push(pendingSchemaCid)
     return cids
   }, [keysDep, pendingSchemaCid])
-  const {registry} = useSchemaRegistries(seedCids)
+  const {byCid} = useOnyxSchemaRegistry(seedCids)
   // Include the pending key so the add-field form is schema-driven the moment
   // a schema URL is typed as the field name (dropdowns for literal unions,
   // matching value inputs) — before the field even exists.
   const schemaRoot = useMemo(
-    () => buildSchemaKeyRoot(pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys),
-    [keysDep, pendingSchemaCid],
+    () => buildSchemaKeyRoot(pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys, byCid),
+    [keysDep, pendingSchemaCid, byCid],
   )
 
   // Undo/redo over snapshots of the merged metadata: `record()` before each
@@ -147,7 +148,7 @@ export function DocumentMetadataView({
       openFile={openFile}
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
-      <BlobSchemaProvider schema={schemaRoot} registry={registry} value={current}>
+      <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={current}>
         <div className="flex flex-col gap-4 py-6">
           {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}
@@ -180,7 +181,7 @@ export function DocumentMetadataView({
           {editable && attachMode && !jsonMode && (
             <AttachSchemaFieldBar
               existingKeys={visibleKeys}
-              registry={registry}
+              registry={byCid}
               onPendingCid={setPendingSchemaCid}
               onCancel={() => {
                 setPendingSchemaCid(null)
@@ -260,7 +261,7 @@ export function DocumentMetadataView({
             </dl>
           )}
         </div>
-      </BlobSchemaProvider>
+      </OnyxSchemaProvider>
     </ValueEditorProvider>
   )
 }
@@ -306,7 +307,7 @@ function AttachSchemaFieldBar({
     // rejects them) falls back to an empty object; the advisory warnings
     // then guide the user within what metadata supports.
     const schema = registry[cidText]
-    const starter = schema ? instantiateSchema(schema as never, registry as never) : undefined
+    const starter = schema ? seedValue(schema as OnyxSchema) : undefined
     const usable = starter !== undefined && findInvalidValue(starter, METADATA_VALUE_RULES) === null
     onAttach(key, usable ? starter : {})
   }
