@@ -1,6 +1,5 @@
 import {useCID} from '@shm/shared'
-import {validateValue} from '@shm/ui/blob-schema'
-import {useSchemaRegistries} from '@shm/ui/blob-schema-registry'
+import {useOnyxSchemaRegistry, validate} from '@shm/ui/onyx/index'
 import {inspectorBlobActions} from '@shm/ui/inspect-ipfs-page'
 import {Pencil} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
@@ -38,12 +37,9 @@ const IPFS: React.FC = () => {
   )
   const editUrl = canEdit ? seedEditUrl(import.meta.env.VITE_SEED_WEB_ORIGIN, cid) : null
   const schemaSeeds = useMemo(() => (attachedSchemaCid ? [attachedSchemaCid] : []), [attachedSchemaCid])
-  const {registry, isComplete: schemaComplete} = useSchemaRegistries(schemaSeeds)
-  const rootSchema = attachedSchemaCid ? registry[attachedSchemaCid] : undefined
-  const warningCount = useMemo(
-    () => (rootSchema ? validateValue(rawValue, rootSchema, registry).length : 0),
-    [rootSchema, registry, rawValue],
-  )
+  const {byCid, isComplete: schemaComplete} = useOnyxSchemaRegistry(schemaSeeds)
+  const rootSchema = attachedSchemaCid ? byCid[attachedSchemaCid] : undefined
+  const warningCount = useMemo(() => (rootSchema ? validate(rootSchema, rawValue).length : 0), [rootSchema, rawValue])
 
   return (
     <div className="container mx-auto p-4">
