@@ -87,9 +87,18 @@ function discoveryWarn(message: string, fields?: Record<string, unknown>): void 
 }
 
 // Polling intervals (base values, multiplied by getPollingMultiplier())
-const DISCOVERY_POLL_INTERVAL_MS = 14_000
+const DISCOVERY_POLL_INTERVAL_MS = 8_000
 const ACTIVITY_POLL_INTERVAL_MS = 1_000
 const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
+
+// Ceiling for the discovery poll delay after the background multiplier. Each
+// poll re-touches the daemon's hot discovery task for the viewed resource, and
+// the daemon drops that task when no touch arrives within its 40s heartbeat
+// TTL. The base cadence tracks the daemon's ~10s hot re-sync cooldown; the
+// ceiling keeps the task alive while no window is focused — reading the same
+// document in a browser next to an unfocused app must not degrade fresh
+// content (e.g. new comments) to background-subscription latency.
+const DISCOVERY_POLL_MAX_MS = 30_000
 
 /** Returns 1 when app is focused, 10 when backgrounded. */
 function getPollingMultiplier(): number {
@@ -99,6 +108,11 @@ function getPollingMultiplier(): number {
 /** Apply adaptive multiplier to a base interval. */
 function getAdaptiveInterval(baseMs: number): number {
   return baseMs * getPollingMultiplier()
+}
+
+/** Adaptive discovery poll delay, capped so the daemon-side hot task never lapses between polls. */
+function getDiscoveryPollInterval(): number {
+  return Math.min(getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS), DISCOVERY_POLL_MAX_MS)
 }
 
 // Debounce window for batching invalidations
@@ -451,6 +465,9 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
     appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
     appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+    // Reply counts are what the discussions list shows per thread; without
+    // this, "Reply (N)" stays stale until remount when a comment syncs in.
+    appInvalidateQueries([queryKeys.COMMENT_REPLY_COUNT])
     if (commentTargetIds.size > 0) {
       commentTargetIds.forEach((id) => appInvalidateQueries([queryKeys.COMMENTS, id]))
     } else {
@@ -954,7 +971,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
 
     if (nowCovered) {
       // Defer to the recursive subscription
-      discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+      discoveryTimer = setTimeout(discoveryLoop, getDiscoveryPollInterval())
       return
     }
 
@@ -972,7 +989,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
         // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
-        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryPollInterval())
       })
       .catch((error) => {
         if (cancelled) return
@@ -982,7 +999,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
           id: id.id,
           error: getErrorMessage(error),
         })
-        discoveryTimer = setTimeout(discoveryLoop, getAdaptiveInterval(DISCOVERY_POLL_INTERVAL_MS))
+        discoveryTimer = setTimeout(discoveryLoop, getDiscoveryPollInterval())
       })
   }
 
