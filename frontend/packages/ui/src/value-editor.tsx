@@ -876,6 +876,7 @@ export function FieldRow({
   rules,
   path,
   className,
+  badge,
 }: {
   fieldKey: string
   value: unknown
@@ -891,6 +892,8 @@ export function FieldRow({
   rules: ValueEditorRules
   path: ValuePath
   className?: string
+  /** Optional marker rendered next to the field label (e.g. "required"). */
+  badge?: React.ReactNode
 }) {
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
@@ -970,6 +973,7 @@ export function FieldRow({
             </span>
           )}
           {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
+          {badge}
           <SchemaWarningBadge path={path} />
         </div>
         <div className="pl-5">
