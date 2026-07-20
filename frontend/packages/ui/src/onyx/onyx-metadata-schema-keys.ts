@@ -5,7 +5,7 @@
 // schema-keyed keys are validated against their (inlined) schemas; every other
 // key is accepted (`values: {}` — the empty schema imposes no constraint).
 import {parseCidString} from '../dag-json'
-import type {OnyxSchema} from './onyx-engine'
+import {ONYX_SCHEMAS, resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -40,4 +40,27 @@ export function buildSchemaKeyRoot(keys: string[], byCid: Record<string, OnyxSch
   }
   if (Object.keys(properties).length === 0) return undefined
   return {type: 'hm://hyper.media/map', properties, values: {}}
+}
+
+/**
+ * The effective schema for a document's metadata: the base document-metadata
+ * schema (`hypermedia-metadata` — name/summary/icon/…) EXTENDED by the document's
+ * own type schema (its `schemaDefinition`). Standard fields are inherited; the
+ * document type's fields are added (required ones surface as prepopulated chips).
+ * Kept OPEN (`values: {}`) so the schemaDefinition field itself and arbitrary
+ * extra keys are still allowed. `extraProps` folds in any schema-keyed fields.
+ */
+export function documentMetadataSchema(
+  docTypeSchema: OnyxSchema,
+  extraProps: Record<string, OnyxSchema> = {},
+  registry: OnyxRegistry = {},
+): OnyxSchema {
+  const base = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
+  const doc = resolveSchema(docTypeSchema, {}, registry).schema
+  return {
+    type: 'hm://hyper.media/map',
+    properties: {...(base.properties || {}), ...(doc.properties || {}), ...extraProps},
+    required: Array.from(new Set<string>([...(base.required || []), ...(doc.required || [])])),
+    values: {},
+  }
 }
