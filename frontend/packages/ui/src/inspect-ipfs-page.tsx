@@ -10,7 +10,7 @@ import {type ReactNode, useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Textarea} from './components/textarea'
-import {isSchemaBlob} from './blob-schema'
+import {isOnyxSchema} from './onyx/onyx-engine'
 import {base64ToBytes, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
@@ -433,10 +433,10 @@ export function inspectorBlobActions(
   isTopLevel: boolean,
 ): {canEdit: boolean; valueIsSchema: boolean; hasAttachedSchema: boolean; attachedSchemaCid: string | undefined} {
   const isDagCbor = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
-  const valueIsSchema = isTopLevel && isSchemaBlob(rawValue)
+  const valueIsSchema = isTopLevel && isOnyxSchema(rawValue)
   // A non-schema instance's `schema` link, when it's a DAG-CBOR CID we could
-  // fetch and validate against. (A schema blob's own `schema` link points at the
-  // meta-schema — that's `valueIsSchema`, handled separately, not validated here.)
+  // fetch and validate against. (A value that IS itself an Onyx schema is
+  // `valueIsSchema`, handled separately, not validated here.)
   const schemaLink =
     isTopLevel && !valueIsSchema && !!rawValue && typeof rawValue === 'object'
       ? (rawValue as Record<string, unknown>).schema
