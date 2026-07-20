@@ -264,6 +264,18 @@ export function validate(
 /** Advisory (warn-don't-block) validation — identical checks to validate(). */
 export const validateAdvisory = validate
 
+/**
+ * True when a value is itself an Onyx schema — i.e. it validates against the
+ * meta-schema (`onyx-schema`). Replaces v1's `isSchemaBlob` (which matched a
+ * reserved `schema` link to a fixed meta-schema CID); here a blob IS a schema
+ * iff it conforms to the discriminated-union meta-schema.
+ */
+export function isOnyxSchema(value: unknown, reg: OnyxRegistry = {}): boolean {
+  const meta = ONYX_SCHEMAS['onyx-schema']
+  if (!meta || !value || typeof value !== 'object') return false
+  return validate(meta, value, '$', {}, reg).length === 0
+}
+
 // --- dependency graph (for the explorer) -----------------------------------
 
 /** All schema refs a schema node mentions (recursively), as basenames. */
