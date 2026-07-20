@@ -51,6 +51,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectCanEdit,
   selectContext,
   selectIsEditing,
   selectIsUnpublishedDraft,
@@ -86,6 +87,7 @@ import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {DocumentMetadataView} from './document-metadata-view'
+import {RequiredAttributesEditor} from './required-attributes-editor'
 import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
@@ -2929,6 +2931,14 @@ function ContentViewWithOutline({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  // Required custom attributes (from the doc's schema) render above the body.
+  const canEdit = useDocumentSelector(selectCanEdit)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const send = useDocumentSend()
+  const requiredAttrMetadata = useMemo(
+    () => ({...document.metadata, ...ctx.metadata}),
+    [document.metadata, ctx.metadata],
+  )
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
@@ -2975,6 +2985,17 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
+        {canEdit && (
+          <RequiredAttributesEditor
+            metadata={requiredAttrMetadata}
+            onMetadata={(patch) => {
+              // A published doc isn't editing yet — enter editing first so the
+              // `change` is accepted (drafts are already in the editing state).
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: patch})
+            }}
+          />
+        )}
         <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
           {DocumentContentComponent ? (
             <DocumentContentComponent
