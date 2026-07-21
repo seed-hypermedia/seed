@@ -1385,6 +1385,140 @@ func TestSubscriptions(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestHotDiscoveryDeliversCommentsFast verifies the interactive delivery path:
+// a subscriber whose background pull interval is effectively disabled (1h)
+// still receives a brand-new comment within seconds while it hot-touches the
+// subscribed space via DiscoverEntity — the way the desktop app polls
+// discovery for the resource on screen. This locks in two scheduler
+// behaviors: a hot touch pulls a subscription's far-out next run within the
+// hot cooldown, and a subscription with a live heartbeat reschedules on the
+// cooldown instead of the interval.
+func TestHotDiscoveryDeliversCommentsFast(t *testing.T) {
+	t.Parallel()
+
+	// Alice is the author (site-like); her sync cadence is irrelevant here.
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceIdentity := coretest.NewTester("alice")
+
+	// Bob's background pull is effectively disabled: anything arriving after
+	// the initial subscription round must come through hot discovery.
+	bobCfg := makeTestConfig(t)
+	bobCfg.Syncing.Interval = time.Hour
+	bobCfg.Syncing.WarmupDuration = time.Millisecond
+	bob := makeTestApp(t, "bob", bobCfg, true)
+
+	ctx := context.Background()
+
+	// Alice needs a home document: it makes Bob's space discovery complete
+	// with a non-empty result, so his hot touches exercise the cooldown
+	// rescheduling rather than the empty-result retry path.
+	_, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceDoc, err := createTestDocumentChange(ctx, t, alice, &apitest.DocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/watched",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Watched doc"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Hello"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
+	})
+	require.NoError(t, err)
+
+	// Bob subscribes to Alice's whole space; the fresh subscription runs one
+	// immediate round that brings the current state over.
+	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+		Account:   aliceDoc.Account,
+		Path:      "",
+		Recursive: true,
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		doc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceDoc.Account,
+			Path:    aliceDoc.Path,
+		})
+		return err == nil && doc.Version == aliceDoc.Version
+	}, time.Second*10, time.Millisecond*100, "initial subscription round must bring the document over")
+
+	// Let the initial round fully settle so the subscription is parked on its
+	// 1h interval before the comment even exists.
+	time.Sleep(time.Second * 2)
+
+	aliceComment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount:  aliceDoc.Account,
+		TargetPath:     aliceDoc.Path,
+		TargetVersion:  aliceDoc.Version,
+		Content:        []*documents.BlockNode{{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Do you see my comment?"}}},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	// Control: with the pull parked and nothing viewed, the comment must not
+	// arrive on its own.
+	time.Sleep(time.Second * 2)
+	comments, err := bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+		TargetAccount: aliceDoc.Account,
+		TargetPath:    aliceDoc.Path,
+	})
+	require.NoError(t, err)
+	require.Empty(t, comments.Comments, "comment must not arrive while the pull is parked and nothing is viewed")
+
+	// Bob starts "viewing" the space: hot-touch discovery on the subscribed
+	// key, like the desktop app polls for the resource on screen. The comment
+	// must arrive within seconds (touch pulls the run within the ~10s hot
+	// cooldown) despite the 1h pull interval.
+	viewingSince := time.Now()
+	require.Eventually(t, func() bool {
+		_, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account:   aliceDoc.Account,
+			Recursive: true,
+		})
+		require.NoError(t, err)
+
+		comments, err := bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
+			TargetAccount: aliceDoc.Account,
+			TargetPath:    aliceDoc.Path,
+		})
+		require.NoError(t, err)
+		return len(comments.Comments) == 1
+	}, time.Second*20, time.Millisecond*250, "hot discovery must deliver the comment within seconds despite the parked pull")
+	t.Logf("comment arrived %v after viewing started", time.Since(viewingSince))
+
+	got, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{Id: aliceComment.Id})
+	require.NoError(t, err)
+	require.Equal(t, aliceComment.Content, got.Content)
+}
+
 func TestRelatedMaterials(t *testing.T) {
 	t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)

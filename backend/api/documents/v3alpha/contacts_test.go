@@ -725,3 +725,86 @@ func TestListContactsBySubjectWithTombstone(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Contacts, 0, "Tombstoned contact should not appear when querying by account")
 }
+
+// TestListContactsTombstoneSameTimestamp is a regression guard for a flaky CI
+// failure: a deleted contact reappeared in ListContacts. Contact mutations are
+// stamped with millisecond wall-clock timestamps (structural_blobs.ts), so a
+// rapid create/update/delete sequence routinely lands the final write and its
+// tombstone in the same millisecond. When sb.ts ties, the "latest blob wins"
+// resolution (ROW_NUMBER OVER (... ORDER BY sb.ts DESC) for ListContacts, and
+// ORDER BY sb.ts DESC LIMIT 1 for GetContact) was non-deterministic and could
+// rank the non-deleted blob first, leaking the deleted contact back into the
+// list. The queries now break ties on sb.id (rowid / insert order), so the
+// tombstone — always Put last — wins. This test forces the tie explicitly by
+// giving the contact and its tombstone an identical timestamp, so it fails
+// deterministically against the un-fixed queries instead of relying on timing.
+func TestListContactsTombstoneSameTimestamp(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+
+	bob := coretest.NewTester("bob")
+
+	// Single timestamp shared by both the contact and its tombstone, rounded
+	// for blob encoding. This collapses sb.ts to a tie, leaving sb.id (insert
+	// order) as the only discriminator between the two blobs.
+	ts := time.Now().Round(blob.ClockPrecision)
+
+	contact, err := blob.NewContact(
+		alice.me.Account,
+		"", // empty TSID = generate new one
+		alice.me.Account.Principal(),
+		bob.Account.Principal(),
+		"Bob",
+		nil,
+		ts,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, contact))
+
+	// Tombstone with the SAME timestamp as the contact, Put last.
+	tombstone, err := blob.NewContact(
+		alice.me.Account,
+		contact.TSID(),               // same TSID as the contact
+		alice.me.Account.Principal(), // same account
+		nil,                          // nil subject = tombstone
+		"",                           // empty name for tombstone
+		nil,
+		ts,
+	)
+	require.NoError(t, err)
+	require.NoError(t, alice.idx.Put(ctx, tombstone))
+
+	// ListContacts by account must not surface the tombstoned contact.
+	resp, err := alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Account{
+			Account: alice.me.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 0, "Deleted contact must not appear when querying by account, even with a tied timestamp")
+
+	// ListContacts by subject must not surface it either.
+	resp, err = alice.ListContacts(ctx, &documents.ListContactsRequest{
+		PageSize: 10,
+		Filter: &documents.ListContactsRequest_Subject{
+			Subject: bob.Account.PublicKey.String(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Contacts, 0, "Deleted contact must not appear when querying by subject, even with a tied timestamp")
+
+	// GetContact must report NotFound.
+	contactID := blob.RecordID{
+		Authority: alice.me.Account.Principal(),
+		TSID:      contact.TSID(),
+	}.String()
+	_, err = alice.GetContact(ctx, &documents.GetContactRequest{
+		Id: contactID,
+	})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	require.Equal(t, codes.NotFound, st.Code(), "GetContact must return NotFound for a tombstoned contact with a tied timestamp")
+}

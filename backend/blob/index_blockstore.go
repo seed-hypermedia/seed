@@ -37,7 +37,14 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 		}
 
 		// Single-blob path: a fresh per-call cache (no cross-blob reuse to exploit).
-		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache())
+		// hookIDs collects this blob plus any older blobs the unstash cascade
+		// re-indexes, so the maintained RBSR index sees them all.
+		hookIDs := make([]int64, 0, 1)
+		if err := indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache(), &hookIDs); err != nil {
+			return err
+		}
+
+		return idx.runIndexedHook(ctx, conn, hookIDs)
 	})
 }
 
@@ -74,8 +81,12 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 		err = sqlitex.WithTx(conn, func() error {
 			// Track every blob we actually indexed in this batch so we can run
 			// one coalesced visibility propagation pass at the end instead of
-			// N separate recursive CTE walks (one per blob).
+			// N separate recursive CTE walks (one per blob). hookIDs additionally
+			// captures blobs re-indexed by the unstash cascade (which self-propagate
+			// visibility, so they're not in `indexed`) so the maintained RBSR index
+			// hook sees them too.
 			indexed := make([]int64, 0, len(batch))
+			hookIDs := make([]int64, 0, len(batch))
 			for _, blk := range batch {
 				codec, hash := ipfs.DecodeCID(blk.Cid())
 				id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
@@ -87,13 +98,17 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 					continue
 				}
 
-				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc); err != nil {
+				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs); err != nil {
 					return err
 				}
 				indexed = append(indexed, id)
 			}
 
-			return propagateVisibilityBatch(conn, indexed)
+			if err := propagateVisibilityBatch(conn, indexed); err != nil {
+				return err
+			}
+
+			return idx.runIndexedHook(ctx, conn, hookIDs)
 		})
 		release()
 		if err != nil {

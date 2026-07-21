@@ -28,6 +28,12 @@ var derivedTables = []string{
 	storage.T_Fts,
 	storage.T_FtsIndex,
 	storage.T_BlobVisibility,
+	// The maintained RBSR index is derived: drop it on reindex and let it
+	// re-materialize lazily on the next reconcile. rbsr_item has an FK to
+	// rbsr_scope with ON DELETE CASCADE, but reindex deletes tables in list
+	// order, so list rbsr_item before rbsr_scope to avoid relying on cascade.
+	storage.T_RbsrItem,
+	storage.T_RbsrScope,
 }
 
 // ReindexState represents the state of the initial re-indexing process.
@@ -147,7 +153,9 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
-			err = indexBlob(false, false, conn, id, c, data, idx.bs, idx.log, reindexWriterCache)
+			// Full reindex rebuilds the derived tables (incl. the RBSR index) from
+			// scratch, so no incremental hook is needed here — pass nil.
+			err = indexBlob(false, false, conn, id, c, data, idx.bs, idx.log, reindexWriterCache, nil)
 			blobsIndexed++
 
 			// We batch updates for progress reporting.

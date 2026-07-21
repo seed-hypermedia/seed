@@ -3,6 +3,7 @@ package syncing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -286,16 +287,51 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// buildStore loads the local RBSR set (the blobs we already have) for a
 	// given scope, so each sync phase reconciles against the right slice of the
 	// subtree. Reused for the root-first depthOne phase and the full scope.
+	//
+	// It serves from the maintained index when the scope is representable
+	// (subscriptions hit the same scopes every round, so the expensive
+	// collectBlobs closure amortizes to first-touch plus repairs), falling back
+	// to the legacy per-call rebuild on any error — same shape as the server's
+	// loadStore. Correctness note: the client store drives wants (peer-has
+	// minus I-have); the maintained set filters size<0 placeholders, so it
+	// never claims a blob we haven't downloaded — an over-claim would suppress
+	// wants and silently miss content, whereas an under-claim only costs a
+	// benign re-want that the preflight Has drops.
 	buildStore := func(ctx context.Context, scope entityScope, btypes []string) (*authorizedStore, error) {
-		dkeys := colx.HashSet[DiscoveryKey]{
-			DiscoveryKey{
-				IRI:       entityID,
-				Version:   version,
-				Recursive: scope.Recursive,
-				DepthOne:  scope.DepthOne,
-				BlobTypes: BlobTypesString(btypes),
-			}: {},
+		dkey := DiscoveryKey{
+			IRI:       entityID,
+			Version:   version,
+			Recursive: scope.Recursive,
+			DepthOne:  scope.DepthOne,
+			BlobTypes: BlobTypesString(btypes),
 		}
+
+		if st := s.index.ReindexInfo().State; st != blob.ReindexStatePending && st != blob.ReindexStateInProgress {
+			// Scope identity deliberately ignores versions (fillTables does
+			// too), so strip it for the canonical rbsr_scope row.
+			indexKey := dkey
+			indexKey.Version = ""
+			st := newAuthorizedTreeStore()
+			refresh, err := loadIndexedScopes(ctx, s.db, colx.HashSet[DiscoveryKey]{indexKey: {}}, st)
+			if err == nil {
+				if err := st.Seal(); err != nil {
+					return nil, fmt.Errorf("failed to seal RBSR store: %w", err)
+				}
+				touchScopesAsync(s.db, s.log, refresh)
+				return st, nil
+			}
+			// Mirror the server's fallback classification: not-representable
+			// keys and canceled contexts are expected; anything else deserves
+			// a Warn before degrading to the legacy rebuild.
+			switch {
+			case ctx.Err() != nil, errors.Is(err, errScopeNotRepresentable):
+				s.log.Debug("RBSRIndexClientFallback", zap.Error(err))
+			default:
+				s.log.Warn("RBSRIndexClientFallback", zap.Error(err))
+			}
+		}
+
+		dkeys := colx.HashSet[DiscoveryKey]{dkey: {}}
 		st := newAuthorizedStore()
 		// WithSaveTempOnly: loadRBSRStore writes only to TEMP tables
 		// (rbsr_iris / rbsr_blobs / rbsr_authorized_spaces). These don't take

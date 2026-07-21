@@ -24,7 +24,8 @@ func testConfig(interval time.Duration, maxWorkers int) config.Syncing {
 type mockDiscoverer struct {
 	mu           sync.Mutex
 	calls        map[blob.IRI]int
-	blockCh      chan struct{} // If non-nil, DiscoverObjectWithProgress returns only after this channel is closed.
+	hotCtx       map[blob.IRI]bool // If non-nil, records whether each run's context was tagged hot.
+	blockCh      chan struct{}     // If non-nil, DiscoverObjectWithProgress returns only after this channel is closed.
 	onDiscoverFn func(blob.IRI)
 	interval     time.Duration
 }
@@ -32,6 +33,9 @@ type mockDiscoverer struct {
 func (m *mockDiscoverer) DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (blob.Version, error) {
 	m.mu.Lock()
 	m.calls[entityID]++
+	if m.hotCtx != nil {
+		m.hotCtx[entityID] = isHotDiscovery(ctx)
+	}
 	onDiscover := m.onDiscoverFn
 	m.mu.Unlock()
 
@@ -411,6 +415,17 @@ func withHotTTL(s *scheduler, ttl time.Duration) {
 	s.hotTTL = ttl
 }
 
+// backdateRunStart ages a running task's runStartedAt past the young-run
+// preemption protection, so tests can exercise the stalled-task preemption and
+// cleanup paths without waiting out progressGrace in real time.
+func backdateRunStart(s *scheduler, key DiscoveryKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if task, ok := s.tasks[key]; ok {
+		task.runStartedAt = time.Now().Add(-progressGrace - time.Second)
+	}
+}
+
 // waitForState blocks until the given task reaches the expected state or the
 // deadline elapses. Returns once the state matches; fails the test otherwise.
 func waitForState(t *testing.T, s *scheduler, key DiscoveryKey, want TaskState, msg string) {
@@ -441,6 +456,10 @@ func TestScheduler_HotPreemptsSubscription(t *testing.T) {
 
 	s.scheduleTask(subKey, time.Now(), schedOpts{forceSubscription: true})
 	waitForState(t, s, subKey, TaskStateInProgress, "subscription must start running")
+
+	// Age the running subscription past the young-run protection window so the
+	// preemption path is exercised (young runs are deliberately unpreemptable).
+	backdateRunStart(s, subKey)
 
 	// Fire a hot task. Workers are saturated, so the scheduler should cancel
 	// the subscription via preemption.
@@ -552,6 +571,9 @@ func TestScheduler_PreemptOldestHotWhenSaturated(t *testing.T) {
 	s.scheduleTask(keyA, time.Now(), schedOpts{isHot: true})
 	waitForState(t, s, keyA, TaskStateInProgress, "A must start running")
 
+	// Age A past the young-run protection so it is a valid preemption victim.
+	backdateRunStart(s, keyA)
+
 	// Give B a strictly later hotDeadline so the preemption logic will pick A as the victim.
 	time.Sleep(5 * time.Millisecond)
 	s.scheduleTask(keyB, time.Now(), schedOpts{isHot: true})
@@ -611,6 +633,40 @@ func TestScheduler_NoPreemptWhileDownloading(t *testing.T) {
 	// With no further downloads, once progressGrace elapses it becomes preemptible.
 	require.True(t, s.preemptOldestHotLocked(incoming, now.Add(progressGrace+time.Second)),
 		"a stalled task (no download within progressGrace) must be preemptible")
+	require.True(t, cancelled, "the stalled task's cancelFunc must be called")
+}
+
+// TestScheduler_NoPreemptYoungRun verifies the young-run gate: a run younger
+// than progressGrace is protected from preemption even with zero recorded
+// progress — peer selection and auth compute precede any reconcile/download,
+// so without this a hot storm kills every round at its first step (observed:
+// rounds dying in the peers-table SELECT with SQLITE_INTERRUPT after an app
+// restart, so the viewed document synced nothing for minutes). Once the run
+// ages past the grace with no progress, it becomes a normal stalled victim.
+func TestScheduler_NoPreemptYoungRun(t *testing.T) {
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int)}
+	s := newScheduler(disc, testConfig(10*time.Second, 6))
+	now := time.Now()
+
+	incoming := &taskHandle{key: DiscoveryKey{IRI: "hm://incoming"}, hotDeadline: now.Add(s.hotTTL)}
+
+	cancelled := false
+	young := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://young"},
+		state:        TaskStateInProgress,
+		hotDeadline:  now.Add(s.hotTTL - 10*time.Second),
+		cancelFunc:   func() { cancelled = true },
+		progress:     &Progress{},
+		runStartedAt: now,
+	}
+	s.tasks[young.key] = young
+
+	require.False(t, s.preemptOldestHotLocked(incoming, now.Add(time.Second)),
+		"a run younger than progressGrace must not be preempted even with zero progress")
+	require.False(t, cancelled)
+
+	require.True(t, s.preemptOldestHotLocked(incoming, now.Add(progressGrace+time.Second)),
+		"a run older than progressGrace with no progress becomes a normal stalled victim")
 	require.True(t, cancelled, "the stalled task's cancelFunc must be called")
 }
 
@@ -732,6 +788,10 @@ func TestScheduler_HeartbeatCleanupCancelsRunningHot(t *testing.T) {
 	s.scheduleTask(key, time.Now(), schedOpts{isHot: true})
 	waitForState(t, s, key, TaskStateInProgress, "task must start running")
 
+	// Age the run past the young-run protection so the TTL reaper sees a
+	// stalled task rather than extending a just-started one.
+	backdateRunStart(s, key)
+
 	// Don't touch it again. The heartbeat (150ms) expires. On the next
 	// dispatch tick, the scheduler should cancel the running context and,
 	// because the task is ephemeral, delete it.
@@ -797,6 +857,223 @@ func TestScheduler_HotTierBeatsColdTier(t *testing.T) {
 	s.queue.Push(hot)
 
 	require.Equal(t, hot.key, s.queue.Peek().key, "hot tier must outrank cold tier")
+}
+
+// TestScheduler_HotSubscriptionReschedulesAtCooldown verifies that a
+// subscription with a live hot heartbeat (its space is on screen) reschedules
+// on the hot cooldown, and falls back to the background interval once the
+// heartbeat lapses. Before the reorder in scheduleNext, the subscription
+// branch shadowed the heartbeat and a viewed subscribed space stayed on the
+// interval cadence.
+func TestScheduler_HotSubscriptionReschedulesAtCooldown(t *testing.T) {
+	s := newScheduler(nil, testConfig(time.Minute, 2))
+	now := time.Now()
+
+	task := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://site/space"},
+		subscription: true,
+		hotDeadline:  now.Add(s.hotTTL),
+		runCount:     1,
+	}
+	s.tasks[task.key] = task
+
+	s.scheduleNext(task, now, false)
+	require.Equal(t, now.Add(defaultHotCooldown), task.nextRunTime,
+		"a subscription with a live heartbeat must reschedule on the hot cooldown, not the interval")
+
+	// Heartbeat lapsed: back to the background interval, and the task stays.
+	later := now.Add(s.hotTTL + time.Second)
+	s.scheduleNext(task, later, false)
+	require.Equal(t, later.Add(s.cfg.Interval), task.nextRunTime,
+		"a subscription without a live heartbeat must reschedule on the interval")
+	_, exists := s.tasks[task.key]
+	require.True(t, exists, "a subscription must never be dropped when its heartbeat lapses")
+
+	// An ephemeral task with a lapsed heartbeat must still be dropped.
+	eph := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://doc/gone"},
+		hotDeadline: later.Add(-time.Second),
+		runCount:    1,
+	}
+	s.tasks[eph.key] = eph
+	s.scheduleNext(eph, later, false)
+	_, exists = s.tasks[eph.key]
+	require.False(t, exists, "an ephemeral task with a lapsed heartbeat must be dropped")
+}
+
+// TestScheduler_HotTouchPullsSubscriptionForward verifies that hot-touching a
+// subscription waiting out its background interval pulls its next run within
+// the hot cooldown, so a freshly-opened subscribed space starts syncing at
+// interactive cadence instead of waiting out the remainder of the interval.
+func TestScheduler_HotTouchPullsSubscriptionForward(t *testing.T) {
+	s := newScheduler(nil, testConfig(time.Minute, 2))
+	now := time.Now()
+	key := DiscoveryKey{IRI: "hm://site/space"}
+
+	s.mu.Lock()
+	task := &taskHandle{
+		key:          key,
+		subscription: true,
+		runCount:     1,
+		state:        TaskStateCompleted,
+		result:       "v1", // Good result: none of the hot retry-now conditions apply.
+		nextRunTime:  now.Add(time.Minute),
+	}
+	s.tasks[key] = task
+	s.enqueueLocked(task, now)
+	s.mu.Unlock()
+
+	touchAt := now.Add(time.Second)
+	s.scheduleTask(key, touchAt, schedOpts{isHot: true})
+
+	s.mu.Lock()
+	require.Equal(t, touchAt.Add(defaultHotCooldown), s.tasks[key].nextRunTime,
+		"hot touch must pull the far-out subscription run within the cooldown")
+	s.mu.Unlock()
+}
+
+// TestScheduler_ColdLaneLeavesRoomForHot verifies the worker reservation: cold
+// runs may fill every slot but one, so a hot task always dispatches without
+// waiting for (or preempting) a multi-second background round.
+func TestScheduler_ColdLaneLeavesRoomForHot(t *testing.T) {
+	blockCh := make(chan struct{})
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int), blockCh: blockCh}
+
+	// 2 workers: the cold lane is capped at 1, the other slot is hot-reserved.
+	s := newScheduler(disc, testConfig(10*time.Second, 2))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = s.run(ctx) }()
+
+	subA := DiscoveryKey{IRI: "hm://sub/a"}
+	subB := DiscoveryKey{IRI: "hm://sub/b"}
+	hot := DiscoveryKey{IRI: "hm://doc/viewed"}
+
+	s.scheduleTask(subA, time.Now(), schedOpts{forceSubscription: true})
+	waitForState(t, s, subA, TaskStateInProgress, "first subscription must start")
+
+	// The second subscription must be held back by the cold-lane cap even
+	// though a worker slot is technically free.
+	s.scheduleTask(subB, time.Now(), schedOpts{forceSubscription: true})
+	time.Sleep(50 * time.Millisecond)
+	s.mu.Lock()
+	require.NotEqual(t, TaskStateInProgress, s.tasks[subB].state,
+		"second cold task must not take the hot-reserved slot")
+	s.mu.Unlock()
+
+	// A hot task takes the reserved slot immediately, with no preemption.
+	s.scheduleTask(hot, time.Now(), schedOpts{isHot: true})
+	waitForState(t, s, hot, TaskStateInProgress, "hot task must dispatch into the reserved slot")
+
+	s.mu.Lock()
+	require.Equal(t, TaskStateInProgress, s.tasks[subA].state,
+		"running subscription must not be preempted while the reserved slot is free")
+	s.mu.Unlock()
+
+	close(blockCh)
+
+	// Once the cold lane frees up, the held-back subscription runs too.
+	require.Eventually(t, func() bool {
+		disc.mu.Lock()
+		defer disc.mu.Unlock()
+		return disc.calls[subB.IRI] > 0
+	}, 2*time.Second, 10*time.Millisecond, "blocked cold task must run once the cold lane frees up")
+}
+
+// TestScheduler_DueHotBehindBlockedColdStillDispatches verifies that the
+// dispatch scan drains past cold tasks blocked by the lane cap to reach a due
+// hot task deeper in the queue: a hot task riding out its cooldown sits in the
+// cold tier (ordered after earlier-due cold tasks), and stopping at the first
+// blocked cold head would leave the reserved slot idle while the hot task
+// starves behind it.
+func TestScheduler_DueHotBehindBlockedColdStillDispatches(t *testing.T) {
+	blockCh := make(chan struct{})
+	disc := &mockDiscoverer{calls: make(map[blob.IRI]int), blockCh: blockCh}
+	s := newScheduler(disc, testConfig(time.Minute, 2)) // Cold lane capped at 1.
+	ctx := context.Background()
+	now := time.Now()
+
+	s.mu.Lock()
+	// Cold lane already full: one subscription mid-run (never completes here).
+	running := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://sub/running"},
+		subscription: true,
+		state:        TaskStateInProgress,
+		runningCold:  true,
+	}
+	s.tasks[running.key] = running
+	s.inProgress = 1
+	s.inProgressCold = 1
+
+	// A due cold subscription ahead of the hot task in the cold-tier order.
+	coldB := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://sub/b"},
+		subscription: true,
+		runCount:     1,
+		nextRunTime:  now.Add(-2 * time.Second),
+	}
+	s.tasks[coldB.key] = coldB
+	s.enqueueLocked(coldB, now)
+
+	// A hot task that was queued on its cooldown (cold tier) and is now due.
+	// Its later nextRunTime sorts it behind coldB within the cold tier.
+	hotTask := &taskHandle{
+		key:         DiscoveryKey{IRI: "hm://doc/viewed"},
+		hotDeadline: now.Add(time.Minute),
+		runCount:    1,
+		nextRunTime: now.Add(-time.Second),
+		queueTier:   tierCold,
+	}
+	s.tasks[hotTask.key] = hotTask
+	s.queue.Push(hotTask)
+
+	s.dispatchReadyTasks(ctx)
+
+	require.Equal(t, TaskStateInProgress, hotTask.state,
+		"due hot task must dispatch into the reserved slot despite blocked cold heads ahead of it")
+	require.NotEqual(t, TaskStateInProgress, coldB.state, "cold task must stay held back by the lane cap")
+	require.True(t, coldB.queueIndex.IsSet(), "held-back cold task must be re-enqueued, not lost")
+	require.Equal(t, 1, s.inProgressCold, "a hot dispatch must not count against the cold lane")
+	s.mu.Unlock()
+
+	close(blockCh)
+	require.Eventually(t, func() bool {
+		disc.mu.Lock()
+		defer disc.mu.Unlock()
+		return disc.calls[hotTask.key.IRI] > 0
+	}, 2*time.Second, 10*time.Millisecond, "dispatched hot task must actually run")
+}
+
+// TestScheduler_HotDispatchTagsContext verifies that a run dispatched with a
+// live hot heartbeat carries the hot-discovery context tag (which selects the
+// latency-first wave-cut policy in syncWithManyPeers), while a plain
+// subscription run does not.
+func TestScheduler_HotDispatchTagsContext(t *testing.T) {
+	disc := &mockDiscoverer{
+		calls:  make(map[blob.IRI]int),
+		hotCtx: make(map[blob.IRI]bool),
+	}
+	s := newScheduler(disc, testConfig(time.Minute, 2))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = s.run(ctx) }()
+
+	hotKey := DiscoveryKey{IRI: "hm://doc/viewed"}
+	subKey := DiscoveryKey{IRI: "hm://site/background"}
+
+	s.scheduleTask(hotKey, time.Now(), schedOpts{isHot: true})
+	s.scheduleTask(subKey, time.Now(), schedOpts{forceSubscription: true})
+
+	require.Eventually(t, func() bool {
+		disc.mu.Lock()
+		defer disc.mu.Unlock()
+		return disc.calls[hotKey.IRI] > 0 && disc.calls[subKey.IRI] > 0
+	}, 2*time.Second, 10*time.Millisecond, "both tasks must run")
+
+	disc.mu.Lock()
+	defer disc.mu.Unlock()
+	require.True(t, disc.hotCtx[hotKey.IRI], "hot task's run context must be tagged as hot discovery")
+	require.False(t, disc.hotCtx[subKey.IRI], "subscription run context must not be tagged hot")
 }
 
 // TestScheduler_RetouchPromotesColdToHot verifies that touching a subscription

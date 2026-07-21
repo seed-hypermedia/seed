@@ -122,6 +122,10 @@ func (f *fakeAuthIndex) Has(context.Context, cid.Cid) (bool, error) {
 	panic("unexpected Has call")
 }
 
+func (f *fakeAuthIndex) ReindexInfo() blob.ReindexInfo {
+	return blob.ReindexInfo{}
+}
+
 func (f *fakeAuthIndex) GetAuthorizedSpacesForPeer(context.Context, peer.ID, []blob.IRI) ([]core.Principal, error) {
 	panic("unexpected GetAuthorizedSpacesForPeer call")
 }

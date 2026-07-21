@@ -377,3 +377,39 @@ CREATE VIRTUAL TABLE embeddings USING vec0(
     multilingual_minilm_l12_v2 int8[384] distance_metric=cosine,
     fts_id int
 );
+
+-- Maintained RBSR fingerprint index.
+-- Each rbsr_scope is one reconciliation scope, identified by its resource IRI
+-- and a single kind enum. The kind flattens what used to be separate recursion
+-- flags and a blob-type allowlist into one dimension: anything we need to filter
+-- is its own kind rather than a per-scope filter column. The wire protocol
+-- version is intentionally NOT part of the identity — canonicalization only
+-- changes advertised codecs, never which blobs belong to a scope, so it is
+-- applied at serve time; a protocol bump just rebuilds the index.
+-- rbsr_item holds the resolved blob set for the scope, maintained incrementally
+-- by the syncing oracle so reconciliation no longer rebuilds the set per round.
+CREATE TABLE rbsr_scope (
+    id INTEGER PRIMARY KEY,
+    -- The discovery key's resource IRI.
+    iri TEXT NOT NULL,
+    -- Reconciliation scope kind: 0=exact (IRI only), 1=depth_one (direct
+    -- children), 2=recursive (full subtree), 3=dir_structure (depth_one
+    -- restricted to Ref+Change, the root-first directory pass).
+    kind INTEGER NOT NULL,
+    -- 1 once materialized from collectBlobs; 0 means it must be re-materialized
+    -- before serving (first use, post-reindex, or repair).
+    materialized INTEGER NOT NULL DEFAULT 0,
+    -- Unix seconds of last access, used to evict idle scopes from the working set.
+    last_access INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (iri, kind)
+);
+
+-- The resolved blob set for each maintained scope.
+CREATE TABLE rbsr_item (
+    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    blob INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+    PRIMARY KEY (scope, blob)
+) WITHOUT ROWID;
+
+-- The scope column is covered by the primary key's leading column; index blob.
+CREATE INDEX rbsr_item_by_blob ON rbsr_item (blob);

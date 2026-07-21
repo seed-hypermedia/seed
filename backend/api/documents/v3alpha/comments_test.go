@@ -95,6 +95,82 @@ func TestComments_Smoke(t *testing.T) {
 	testutil.StructsEqual(want, list).Compare(t, "comment list must match")
 }
 
+func TestGetCommentReplyCount_CountsCommentsNotVersions(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	ctx := context.Background()
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+
+	homeDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Home"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	root, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Root"}}},
+	})
+	require.NoError(t, err)
+
+	reply, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "bob",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		ReplyParent:    root.Id,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Reply"}}},
+	})
+	require.NoError(t, err)
+
+	getCount := func() int64 {
+		res, err := alice.GetCommentReplyCount(ctx, &pb.GetCommentReplyCountRequest{Id: root.Id})
+		require.NoError(t, err)
+		return res.ReplyCount
+	}
+	require.EqualValues(t, 1, getCount())
+
+	// Editing the reply creates a new blob version carrying the same links; the
+	// count must stay per-comment, not per-version. ReplyParent must be passed
+	// on update, or the new version silently loses its thread linkage.
+	_, err = alice.UpdateComment(ctx, &pb.UpdateCommentRequest{
+		Comment: &pb.Comment{
+			Id:            reply.Id,
+			TargetAccount: alice.me.Account.PublicKey.String(),
+			TargetPath:    "",
+			TargetVersion: homeDoc.Version,
+			Author:        bob.Account.PublicKey.String(),
+			ReplyParent:   root.Id,
+			Content:       []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Reply, edited"}}},
+		},
+		SigningKeyName: "bob",
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, getCount(), "an edited reply must count once, not once per version")
+
+	// A deeper reply links to the thread root too: the root's count covers the
+	// whole thread, and every reply still counts exactly once.
+	_, err = alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  alice.me.Account.PublicKey.String(),
+		TargetPath:     "",
+		TargetVersion:  homeDoc.Version,
+		ReplyParent:    reply.Id,
+		Content:        []*pb.BlockNode{{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Deep reply"}}},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 2, getCount(), "the thread root's count must include deep replies")
+}
+
 func TestListCommentsByAuthor(t *testing.T) {
 	t.Parallel()
 

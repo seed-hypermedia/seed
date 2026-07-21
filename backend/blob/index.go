@@ -117,6 +117,53 @@ type Index struct {
 		blobsIndexed atomic.Int64
 		state        atomic.Int32
 	}
+
+	// indexedHook, if set, runs inside the indexing write transaction with the
+	// ids of the blobs just indexed in that transaction. The syncing service
+	// registers it to keep the maintained RBSR index current. Set once at
+	// startup; guarded by hookMu for race-safety against concurrent indexing.
+	hookMu      sync.RWMutex
+	indexedHook func(*sqlite.Conn, []int64) error
+}
+
+// SetIndexedHook registers a callback invoked, inside the indexing write
+// transaction, with the ids of freshly indexed blobs. Pass nil to clear.
+// Intended to be set once during startup before heavy indexing begins.
+func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
+	idx.hookMu.Lock()
+	idx.indexedHook = fn
+	idx.hookMu.Unlock()
+}
+
+// runIndexedHook invokes the registered hook (if any) with the given blob ids.
+// Runs in the caller's transaction so the maintenance commits or rolls back
+// atomically with the blobs themselves.
+//
+// A hook failure is deliberately NOT fatal to the transaction: the hook only
+// maintains the derived RBSR index, which the shadow-verify trickle repairs on
+// drift, whereas failing here would roll back the whole persisted batch — a
+// deterministic hook error would then permanently block those blobs from ever
+// syncing. The error is logged and swallowed, except when the context is done:
+// the transaction is doomed then anyway, so propagating preserves the normal
+// cancellation path. Partial hook writes are safe to commit (INSERT OR IGNORE,
+// per-scope repairs).
+func (idx *Index) runIndexedHook(ctx context.Context, conn *sqlite.Conn, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	idx.hookMu.RLock()
+	fn := idx.indexedHook
+	idx.hookMu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	if err := fn(conn, ids); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", ids), zap.Error(err))
+	}
+	return nil
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
@@ -156,7 +203,7 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 // skipped; the caller is responsible for running propagateVisibilityBatch
 // after the whole batch has been indexed. This is what PutMany uses to
 // coalesce many tiny CTE walks into one walk per space.
-func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
+func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -202,6 +249,7 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 	ictx := newCtx(conn, id, bs, log)
 	ictx.mustTrackUnreads = trackUnreads
 	ictx.writerCache = wc
+	ictx.hookIDs = hookIDs
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -220,6 +268,13 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 		if err := fn(ictx, id, c, data); err != nil {
 			return err
 		}
+	}
+
+	// The blob is now indexed (a stash error would have returned above). Record it
+	// so the indexed hook sees it — including blobs re-indexed by the unstash
+	// cascade below, which reach here through their own nested indexBlob call.
+	if hookIDs != nil {
+		*hookIDs = append(*hookIDs, id)
 	}
 
 	if !deferPropagation {
@@ -1268,6 +1323,14 @@ type indexingCtx struct {
 	// calls (including the reindex cascade); shared by every ictx derived from the
 	// same batch. May be nil (caching disabled). See writerValidityCache.
 	writerCache *writerValidityCache
+
+	// hookIDs, if non-nil, accumulates the ids of every blob indexed in this
+	// transaction — including ones re-indexed by the unstash cascade
+	// (reindexStashedBlobs) — so the caller can pass the full set to the indexed
+	// hook. Without this, a late dependency that unstashes older Refs/Changes
+	// updates the legacy tables but not the maintained RBSR index. Shared across
+	// the cascade via the threaded pointer. May be nil (no accumulation).
+	hookIDs *[]int64
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1887,7 +1950,7 @@ var qLookupRecordID = dqb.Str(`
 	LIMIT 1
 `)
 
-func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache) (err error) {
+func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match).All()
 	defer discard(&err)
 
@@ -1912,7 +1975,7 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 		c := cid.NewCidV1(uint64(codec), hash)
 
 		funcs = append(funcs, func() error {
-			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc)
+			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc, hookIDs)
 		})
 	}
 
