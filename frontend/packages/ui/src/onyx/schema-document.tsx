@@ -23,7 +23,25 @@ import {nameForCid, ONYX_SCHEMAS, schemaForCid, validate} from './onyx-engine'
 import {OnyxSchemaPage} from './onyx-explorer'
 
 const DAG_CBOR_CODE = 0x71
+/** The metadata field naming the schema THIS document conforms to. */
+export const SCHEMA_KEY = 'schema'
+/** The metadata field naming the schema this document's CHILDREN must conform to. */
+export const CHILDREN_SCHEMA_KEY = 'childrenSchema'
+/** The metadata field pointing at a schema blob this document DEFINES. */
 export const SCHEMA_DEFINITION_KEY = 'schemaDefinition'
+
+/**
+ * Metadata keys that are NOT ordinary content fields: the standard header fields
+ * and the three schema-binding fields. Excluded from schema-required rows and
+ * add-field suggestions (they're authored via the header / dedicated UI).
+ */
+export const RESERVED_METADATA_KEYS = new Set<string>([
+  'name',
+  'summary',
+  SCHEMA_KEY,
+  CHILDREN_SCHEMA_KEY,
+  SCHEMA_DEFINITION_KEY,
+])
 
 /** The bare schema CID a document points at via its `schemaDefinition` metadata, or null. */
 export function schemaDefinitionCid(metadata: unknown): string | null {

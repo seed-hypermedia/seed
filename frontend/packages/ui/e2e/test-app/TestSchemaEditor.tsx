@@ -7,6 +7,7 @@ import {useEffect, useRef, useState} from 'react'
 // specifier. Relative imports sidestep that and keep all three consistent.
 import {DocumentMetadataView, type MetadataPatch} from '../../src/document-metadata-view'
 import {schemaCid} from '../../src/onyx/onyx-engine'
+import {useEffectiveDocSchema} from '../../src/onyx/onyx-schema-resolve'
 import {TooltipProvider} from '../../src/tooltip'
 
 /**
@@ -104,6 +105,19 @@ declare global {
   }
 }
 
+/** Inner editor — inside the providers so it can resolve the conformance schema
+ * (from `metadata.schema`) exactly like the real app does. */
+function MetadataEditor({
+  meta,
+  onMetadata,
+}: {
+  meta: Record<string, unknown>
+  onMetadata: (patch: MetadataPatch) => void
+}) {
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(undefined, meta)
+  return <DocumentMetadataView metadata={meta} canEdit conformanceSchema={conformanceSchema} onMetadata={onMetadata} />
+}
+
 export function TestSchemaEditor() {
   const [meta, setMeta] = useState<Record<string, unknown>>(() => window.__initialMeta ?? {name: 'Foo'})
 
@@ -130,11 +144,7 @@ export function TestSchemaEditor() {
           }}
         >
           <div className="test-harness" data-testid="schema-editor-harness">
-            <DocumentMetadataView
-              metadata={meta}
-              canEdit
-              onMetadata={(patch) => setMeta((m) => applyPatch(m, patch))}
-            />
+            <MetadataEditor meta={meta} onMetadata={(patch) => setMeta((m) => applyPatch(m, patch))} />
           </div>
         </UniversalAppProvider>
       </QueryClientProvider>

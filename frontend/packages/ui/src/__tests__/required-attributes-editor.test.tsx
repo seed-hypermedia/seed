@@ -1,14 +1,12 @@
 // @vitest-environment jsdom
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {useState} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {schemaCid} from '../onyx/onyx-engine'
+import {ONYX_SCHEMAS, type OnyxSchema} from '../onyx/onyx-engine'
+import {metadataSchemaOf} from '../onyx/onyx-schema-resolve'
 import {RequiredAttributesEditor} from '../required-attributes-editor'
 import {TooltipProvider} from '../tooltip'
-
-const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
 
 let container: HTMLDivElement
 let root: Root
@@ -26,52 +24,52 @@ afterEach(() => {
 
 /** Controlled wrapper exposing the latest staged patches. */
 let patches: Record<string, unknown>[] = []
-function Harness({initial}: {initial: Record<string, unknown>}) {
+function Harness({schema, initial}: {schema?: OnyxSchema; initial: Record<string, unknown>}) {
   const [meta, setMeta] = useState(initial)
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <RequiredAttributesEditor
-          metadata={meta as any}
-          onMetadata={(patch) => {
-            patches.push(patch)
-            setMeta((m) => ({...m, ...patch}))
-          }}
-        />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <TooltipProvider>
+      <RequiredAttributesEditor
+        conformanceSchema={schema}
+        metadata={meta as any}
+        onMetadata={(patch) => {
+          patches.push(patch)
+          setMeta((m) => ({...m, ...patch}))
+        }}
+      />
+    </TooltipProvider>
   )
 }
 
-const employeeCid = () => schemaCid('example-employee')!
+// The person document requires metadata.surname; its metadata sub-schema is the
+// conformance schema the caller resolves and passes down.
+const personMetaSchema = () => metadataSchemaOf(ONYX_SCHEMAS['example-person-doc'])!
 
 describe('RequiredAttributesEditor', () => {
   beforeEach(() => {
     patches = []
   })
 
-  it('renders nothing when the document has no schema', () => {
+  it('renders nothing when the document has no conformance schema', () => {
     act(() => root.render(<Harness initial={{name: 'X'}} />))
     expect(container.textContent).toBe('')
   })
 
   it('renders nothing when the schema declares no required custom fields', () => {
-    // example-geo has required lat/lng but it is not a *document* schema; a
-    // plain doc with only standard fields + an unknown CID renders nothing.
-    act(() => root.render(<Harness initial={{name: 'X', schemaDefinition: 'ipfs://bogus'}} />))
+    // A schema requiring only standard/header fields yields no required rows.
+    act(() => root.render(<Harness schema={ONYX_SCHEMAS['hypermedia-metadata']} initial={{name: 'X'}} />))
     expect(container.textContent).toBe('')
   })
 
-  it('shows the required custom field (employeeId) as an always-visible row', () => {
-    act(() => root.render(<Harness initial={{name: 'X', schemaDefinition: `ipfs://${employeeCid()}`}} />))
-    // The required field surfaces as a labeled row.
-    expect(container.textContent).toContain('employeeId')
-    // The standard header field name/summary and schemaDefinition are NOT rows here.
-    expect(container.querySelector('[title="schemaDefinition"]')).toBeNull()
+  it('shows the required custom field (surname) as an always-visible row', () => {
+    act(() => root.render(<Harness schema={personMetaSchema()} initial={{name: 'X'}} />))
+    expect(container.textContent).toContain('surname')
+    // The standard/binding fields are NOT rows here.
+    expect(container.querySelector('[title="schema"]')).toBeNull()
+    expect(container.querySelector('[title="name"]')).toBeNull()
   })
 
   it('does not write the seeded value into metadata until edited', () => {
-    act(() => root.render(<Harness initial={{name: 'X', schemaDefinition: `ipfs://${employeeCid()}`}} />))
+    act(() => root.render(<Harness schema={personMetaSchema()} initial={{name: 'X'}} />))
     // Rendering alone stages nothing — the draft is not polluted with a seed.
     expect(patches).toHaveLength(0)
     // The seeded required field renders an editable input wired to onMetadata.

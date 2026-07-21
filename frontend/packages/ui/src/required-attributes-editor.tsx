@@ -1,53 +1,49 @@
-// The required *custom* attributes declared by a document's schema, rendered
-// above the body content in the Content tab. When a document links a schema via
-// `schemaDefinition`, the schema's mandatory fields (beyond the standard
-// name/summary header fields) are shown here as always-visible editable rows —
-// so an author fills them in-place instead of hunting for the Attributes tab.
-// Standard fields (name/summary) live in the header; the schemaDefinition field
-// itself is authored via the schema editor, so both are excluded here.
+// The required *custom* attributes declared by a document's CONFORMANCE schema,
+// rendered above the body content in the Content tab. When a document conforms to
+// a schema (via its `schema` metadata field, or a parent's `childrenSchema`), the
+// schema's mandatory metadata fields (beyond the standard name/summary header
+// fields and the schema-binding fields) are shown here as always-visible editable
+// rows — so an author fills them in-place instead of hunting for the Attributes
+// tab. The caller resolves the schema (see useEffectiveDocSchema) and passes its
+// metadata sub-schema as `conformanceSchema`.
 import {useMemo} from 'react'
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {seedValue} from './onyx/onyx-data-editor'
 import type {OnyxSchema} from './onyx/onyx-engine'
 import {documentMetadataSchema} from './onyx/onyx-metadata-schema-keys'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
-import {SCHEMA_DEFINITION_KEY, schemaDefinitionCid} from './onyx/schema-document'
+import {RESERVED_METADATA_KEYS} from './onyx/schema-document'
 import {FieldRow, METADATA_VALUE_RULES, ValueEditorProvider} from './value-editor'
 
-/** Standard header fields the title/summary inputs already own. */
-const HEADER_FIELDS = new Set(['name', 'summary', SCHEMA_DEFINITION_KEY])
-
 /**
- * Renders the schema's required custom attributes as editable rows. Returns null
- * when the document has no schema, or the schema declares no required custom
- * fields — so callers can drop it in unconditionally.
+ * Renders the conformance schema's required custom attributes as editable rows.
+ * Returns null when the document has no conformance schema, or the schema declares
+ * no required custom fields — so callers can drop it in unconditionally.
  *
- * `metadata` is the document's current (draft-merged) metadata; `onMetadata`
- * stages a single-field patch (the same shape the Attributes tab publishes).
+ * `conformanceSchema` is the resolved metadata schema (base ⊕ type). `metadata` is
+ * the document's current (draft-merged) metadata; `onMetadata` stages a single
+ * field patch (the same shape the Attributes tab publishes).
  */
 export function RequiredAttributesEditor({
+  conformanceSchema,
   metadata,
   onMetadata,
 }: {
+  conformanceSchema: OnyxSchema | undefined
   metadata: HMMetadata | undefined
   onMetadata: (patch: Record<string, unknown>) => void
 }) {
   const current = (metadata ?? {}) as Record<string, unknown>
-  const schemaDefCid = schemaDefinitionCid(current)
-  const seedCids = useMemo(() => (schemaDefCid ? [schemaDefCid] : []), [schemaDefCid])
-  const {byCid} = useOnyxSchemaRegistry(seedCids)
-  const schemaDefSchema = schemaDefCid ? byCid[schemaDefCid] : undefined
 
   const schemaRoot = useMemo(
-    () => (schemaDefSchema ? documentMetadataSchema(schemaDefSchema, {}, byCid) : undefined),
-    [schemaDefSchema, byCid],
+    () => (conformanceSchema ? documentMetadataSchema(conformanceSchema, {}, {}) : undefined),
+    [conformanceSchema],
   )
 
   const requiredKeys = useMemo(
     () =>
       (Array.isArray(schemaRoot?.required) ? (schemaRoot!.required as string[]) : []).filter(
-        (k) => !HEADER_FIELDS.has(k),
+        (k) => !RESERVED_METADATA_KEYS.has(k),
       ),
     [schemaRoot],
   )
