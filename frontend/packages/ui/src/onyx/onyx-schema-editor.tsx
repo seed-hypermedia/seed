@@ -28,10 +28,12 @@ const DAG_CBOR_CODE = 0x71
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'string', label: 'Text'},
+  {kind: 'hm-url', label: 'HM link'},
+  {kind: 'ipfs', label: 'IPFS file'},
   {kind: 'integer', label: 'Whole number'},
   {kind: 'float', label: 'Number'},
   {kind: 'boolean', label: 'Toggle'},
-  {kind: 'link', label: 'IPFS link'},
+  {kind: 'link', label: 'IPLD link'},
   {kind: 'bytes', label: 'Bytes'},
   {kind: 'list', label: 'List'},
   {kind: 'map', label: 'Object'},
@@ -39,16 +41,18 @@ const FIELD_KINDS: {kind: string; label: string}[] = [
 
 /** The kind a property schema declares (best-effort; defaults to text). */
 function propKind(ps: any): string {
+  const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
+  if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
+  if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
   if (ps?.type) return kindOf(ps.type)
-  if (typeof ps?.ref === 'string') {
-    const name = refToName(ps.ref)
-    if (name.startsWith('onyx-')) return name.slice(5)
-  }
+  if (refName?.startsWith('onyx-')) return refName.slice(5)
   return 'string'
 }
 
 /** The property schema for a chosen kind. */
 function kindSchema(kind: string): OnyxSchema {
+  if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
+  if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
   if (kind === 'list') return {type: kindUrl('list'), items: {}}
   if (kind === 'map') return {type: MAP_URL, values: {}}
   return {type: kindUrl(kind)}
