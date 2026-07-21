@@ -38,7 +38,7 @@ import {Tooltip} from './tooltip'
 import {cn} from './utils'
 import {seedValue} from './onyx/onyx-data-editor'
 import {onyxSubschema, useOnyxSchema, useSubschema} from './onyx/onyx-schema-context'
-import {HMEntityField} from './hm-entity-field'
+import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {
   EnumValueSelect,
   literalEnumOptions,
@@ -994,16 +994,9 @@ export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown;
   if (typeof value === 'string') {
     const cid = findIpfsUrlCid(value)
     if (cid) return <IpfsFileTag cid={cid} onOpen={openFile} />
-    if (value.startsWith('hm://') && openUrl) {
-      return (
-        <button
-          type="button"
-          className="text-primary font-mono text-sm break-all hover:underline"
-          onClick={() => openUrl(value)}
-        >
-          {value}
-        </button>
-      )
+    // A hypermedia reference shows the target's title as a clickable pill.
+    if (value.startsWith('hm://')) {
+      return <HMEntityLink url={value} onOpen={openUrl} />
     }
   }
   // A native IPLD link renders as the same tag as an ipfs:// reference.
@@ -1229,6 +1222,7 @@ function StringLeafEditor({
   const sel = useContext(SelectionStateContext)
   const fileUpload = sel?.fileUpload
   const openFile = sel?.openFile
+  const openUrl = sel?.openUrl
   const ipfsFileInputRef = useRef<HTMLInputElement>(null)
   const [editingText, setEditingText] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -1258,7 +1252,7 @@ function StringLeafEditor({
   // being edited as free text (a late-arriving schema must not unmount a
   // focused input — blur wouldn't fire and the draft would be lost).
   if (hmMode && !editingText) {
-    return <HMEntityField value={value} mode={hmMode} onValue={onValue} />
+    return <HMEntityField value={value} mode={hmMode} onValue={onValue} onOpen={openUrl} />
   }
   if (literalOptions && !editingText) {
     return (

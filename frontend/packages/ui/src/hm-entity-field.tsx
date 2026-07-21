@@ -22,17 +22,35 @@ export function HMEntityField({
   value,
   mode,
   onValue,
+  onOpen,
 }: {
   value: string
   mode: 'document' | 'profile'
   onValue: (value: unknown) => void
+  /** Navigate to the referenced document/account when the pill is clicked. */
+  onOpen?: (url: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const unpacked = value ? unpackHmId(value) : null
   const conforms = !!unpacked && (mode === 'document' || !unpacked.path?.length)
 
   if (conforms && !editing) {
-    return <HMEntityDisplay id={unpacked} mode={mode} onEdit={() => setEditing(true)} />
+    return (
+      <div className="flex min-w-0 items-center gap-1">
+        <HMEntityLink url={value} mode={mode} onOpen={onOpen} />
+        <Tooltip content={`Change (${unpacked.id})`}>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label={`Change ${mode === 'profile' ? 'profile' : 'document'}`}
+            className="text-muted-foreground"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+        </Tooltip>
+      </div>
+    )
   }
   return (
     <HMEntitySearchInput
@@ -47,39 +65,41 @@ export function HMEntityField({
   )
 }
 
-function HMEntityDisplay({
-  id,
+/**
+ * A hypermedia reference rendered as a pill showing the target's TITLE (not the
+ * raw URL), clickable to open it when `onOpen` is provided. Used both read-only
+ * (ValueDisplay) and inside the editable HMEntityField.
+ */
+export function HMEntityLink({
+  url,
   mode,
-  onEdit,
+  onOpen,
 }: {
-  id: NonNullable<ReturnType<typeof unpackHmId>>
-  mode: 'document' | 'profile'
-  onEdit: () => void
+  url: string
+  mode?: 'document' | 'profile'
+  onOpen?: (url: string) => void
 }) {
+  const id = url ? unpackHmId(url) : null
   const resource = useResource(id)
   const document = resource.data && 'document' in resource.data ? resource.data.document : undefined
   const title = getMetadataName(document?.metadata) || undefined
-  const Icon = mode === 'profile' ? User : FileText
+  const isProfile = mode === 'profile' || (!!id && !id.path?.length)
+  const Icon = isProfile ? User : FileText
+  const label = title ?? (resource.isLoading ? 'Loading…' : id?.id ?? url)
+
+  const pill = (
+    <span className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
+      <Icon className="text-muted-foreground size-3.5 shrink-0" />
+      <span className={cn('truncate', !title && 'text-muted-foreground font-mono text-xs')}>{label}</span>
+    </span>
+  )
+  if (!id || !onOpen) return pill
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      <span className="bg-accent text-accent-foreground flex min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm">
-        <Icon className="text-muted-foreground size-3.5 shrink-0" />
-        <span className={cn('truncate', !title && 'text-muted-foreground font-mono text-xs')}>
-          {title ?? (resource.isLoading ? 'Loading…' : id.id)}
-        </span>
-      </span>
-      <Tooltip content={`Change (${id.id})`}>
-        <Button
-          variant="ghost"
-          size="iconSm"
-          aria-label={`Change ${mode === 'profile' ? 'profile' : 'document'}`}
-          className="text-muted-foreground"
-          onClick={onEdit}
-        >
-          <Pencil className="size-3.5" />
-        </Button>
-      </Tooltip>
-    </div>
+    <Tooltip content={`Open ${id.id}`}>
+      <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(url)}>
+        {pill}
+      </button>
+    </Tooltip>
   )
 }
 
