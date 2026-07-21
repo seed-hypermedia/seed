@@ -1,15 +1,15 @@
 {
   "name": "Change body",
   "description": "The operations payload of a Change: an operation count hint and the list of ops.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "properties": {
     "opCount": {
-      "ref": "hm://hyper.media/integer"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
     },
     "ops": {
-      "type": "hm://hyper.media/list",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
       "items": {
-        "ref": "hm://seed.hyper.media/op",
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op",
         "args": {
           "Block": {
             "var": "Block"
@@ -20,7 +20,7 @@
   },
   "params": {
     "Block": {
-      "ref": "hm://seed.hyper.media/block"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
     }
   }
 }

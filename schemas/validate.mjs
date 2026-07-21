@@ -15,19 +15,28 @@
 //   - a `map` with `properties` and no `values` is CLOSED: unknown keys are
 //     rejected. With `values`, extra keys must match the `values` schema.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 
-// References are hm:// URLs; local filenames are their dev alias. Each authority
-// maps to a filename prefix. This is the ONLY place the mapping lives.
+// References are hm:// URLs pointing at each schema's published document under
+// the onyx account: hm://<onyx>/<public name>. The public name strips `onyx-`
+// from primitives/meta and keeps hypermedia-/example-. Legacy dev authorities
+// still resolve for back-compat.
+const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
 const urlToFile = (ref) => {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
   if (!m) return ref.endsWith(".json") ? ref : `${ref}.json`;
   const [, auth, name] = m;
+  if (auth === ONYX) {
+    // Public name -> filename: hypermedia-*/example-* are basenames; primitive/
+    // meta names had `onyx-` stripped, so restore it when that file exists.
+    if (existsSync(resolve(DIR, `${name}.json`))) return `${name}.json`;
+    return `onyx-${name}.json`;
+  }
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0];
   return prefix ? `${prefix}${name}.json` : `${name}.json`;
 };
@@ -63,7 +72,7 @@ function typeOf(d) {
 
 // A `type` value is a kind URL (hm://hyper.media/<kind>); read the kind locally
 // off the URL — no fetch needed, so the discriminant stays local.
-const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/;
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/([a-z]+)$`);
 const kindOf = (t) => KIND_URL.exec(t)?.[1] ?? t;
 
 function typeMatches(type, d) {

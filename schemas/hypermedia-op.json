@@ -3,13 +3,13 @@
   "description": "A single CRDT operation inside a Change body — a discriminated union tagged on type.",
   "anyOf": [
     {
-      "ref": "hm://seed.hyper.media/op-set-attributes"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-attributes"
     },
     {
-      "ref": "hm://seed.hyper.media/op-move-blocks"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-move-blocks"
     },
     {
-      "ref": "hm://seed.hyper.media/op-replace-block",
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-replace-block",
       "args": {
         "Block": {
           "var": "Block"
@@ -17,15 +17,15 @@
       }
     },
     {
-      "ref": "hm://seed.hyper.media/op-delete-blocks"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-delete-blocks"
     },
     {
-      "ref": "hm://seed.hyper.media/op-set-key"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-key"
     }
   ],
   "params": {
     "Block": {
-      "ref": "hm://seed.hyper.media/block"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
     }
   }
 }
