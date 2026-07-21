@@ -1,0 +1,6 @@
+{
+  "name": "IPFS link",
+  "description": "A reference to a content-addressed file on IPFS, held as an `ipfs://<cid>` string. `format: ipfs` tells an editor to render it as a file reference — a pill you can open, with upload/paste to set it — not a plain text box.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "format": "ipfs"
+}

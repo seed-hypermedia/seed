@@ -150,8 +150,11 @@ export function DocumentMetadataView({
   const schemaRoot = useMemo(() => {
     const keys = pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys
     const keyRoot = buildSchemaKeyRoot(keys, byCid)
-    if (!conformanceSchema) return keyRoot
-    return documentMetadataSchema(conformanceSchema, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
+    // Always fold in the base document-metadata schema so standard fields keep
+    // their semantic types (e.g. `schema`/`childrenSchema` render as HM-link
+    // pills, `icon`/`cover` as IPFS files) even without a conformance schema; the
+    // conformance schema (if any) adds/refines on top.
+    return documentMetadataSchema(conformanceSchema ?? {}, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
   }, [keysDep, pendingSchemaCid, byCid, conformanceSchema])
 
   // Custom required fields declared by the conformance schema are ALWAYS shown

@@ -1117,8 +1117,16 @@ export function ValueEditor({
         : resolvedSchema?.format === 'hm-url'
           ? ('document' as const)
           : undefined
+    const ipfsMode = resolvedSchema?.format === 'ipfs'
     return (
-      <StringLeafEditor value={value} literalOptions={literalOptions} hmMode={hmMode} onValue={onValue} rules={rules} />
+      <StringLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        hmMode={hmMode}
+        ipfsMode={ipfsMode}
+        onValue={onValue}
+        rules={rules}
+      />
     )
   }
   if (isDagJsonLink(value)) {
@@ -1204,6 +1212,7 @@ function StringLeafEditor({
   value,
   literalOptions,
   hmMode,
+  ipfsMode,
   onValue,
   rules,
 }: {
@@ -1211,22 +1220,23 @@ function StringLeafEditor({
   literalOptions: LiteralOption[] | undefined
   /** Schema format hm-url/hm-profile: search-assisted hypermedia reference input. */
   hmMode?: 'document' | 'profile'
+  /** Schema format ipfs: the value is an `ipfs://<cid>` file reference — offer a
+   * file picker (+ paste) when empty, and the file pill once set. */
+  ipfsMode?: boolean
   onValue: (value: unknown) => void
   rules: ValueEditorRules
 }) {
   const sel = useContext(SelectionStateContext)
   const fileUpload = sel?.fileUpload
   const openFile = sel?.openFile
+  const ipfsFileInputRef = useRef<HTMLInputElement>(null)
   const [editingText, setEditingText] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const canDrop = !!fileUpload && !uploading
   const cid = findIpfsUrlCid(value)
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
+  const uploadAndSet = async (file: File | undefined | null) => {
     if (!file || !fileUpload) return
     setUploading(true)
     try {
@@ -1237,6 +1247,11 @@ function StringLeafEditor({
     } finally {
       setUploading(false)
     }
+  }
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    await uploadAndSet(e.dataTransfer.files?.[0])
   }
 
   // Schema-driven presentations take over only when the field isn't actively
@@ -1283,32 +1298,59 @@ function StringLeafEditor({
       {cid ? (
         <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
       ) : (
-        <CommitOnBlurInput
-          initialValue={value}
-          autoFocus={editingText}
-          placeholder={'Empty Text'}
-          // Save while typing (debounced) so edits persist without blurring.
-          autosave
-          // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
-          normalize={gatewayUrlToIpfs}
-          onFocusChange={(focused) => {
-            // Focus latches free-text mode; blur (which commits) releases it so a
-            // conforming committed value can render as the select again.
-            setEditingText(focused)
-          }}
-          onCommit={(text) => {
-            // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
-            // ({"/": cid}); in metadata it stays an ipfs:// string reference.
-            if (rules.ipld && isIpfsUrlText(text)) {
-              const linkCid = linkCidFromText(text)
-              if (linkCid) {
-                onValue({'/': linkCid})
-                return
+        <div className="flex items-center gap-1">
+          <CommitOnBlurInput
+            initialValue={value}
+            autoFocus={editingText}
+            placeholder={ipfsMode ? 'ipfs:// URL or CID' : 'Empty Text'}
+            // Save while typing (debounced) so edits persist without blurring.
+            autosave
+            // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
+            normalize={gatewayUrlToIpfs}
+            onFocusChange={(focused) => {
+              // Focus latches free-text mode; blur (which commits) releases it so a
+              // conforming committed value can render as the select again.
+              setEditingText(focused)
+            }}
+            onCommit={(text) => {
+              // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
+              // ({"/": cid}); in metadata it stays an ipfs:// string reference.
+              if (rules.ipld && isIpfsUrlText(text)) {
+                const linkCid = linkCidFromText(text)
+                if (linkCid) {
+                  onValue({'/': linkCid})
+                  return
+                }
               }
-            }
-            onValue(text)
-          }}
-        />
+              onValue(text)
+            }}
+          />
+          {/* An ipfs-typed field offers an explicit file picker (drop also works). */}
+          {ipfsMode && fileUpload && (
+            <>
+              <input
+                ref={ipfsFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  void uploadAndSet(file)
+                }}
+              />
+              <Tooltip content="Upload a file to IPFS">
+                <Button
+                  variant="outline"
+                  size="iconSm"
+                  aria-label="Upload file to IPFS"
+                  onClick={() => ipfsFileInputRef.current?.click()}
+                >
+                  <FileUp className="size-4" />
+                </Button>
+              </Tooltip>
+            </>
+          )}
+        </div>
       )}
       {uploading && (
         <div className="bg-background/70 absolute inset-0 flex items-center justify-center gap-2 rounded-md">

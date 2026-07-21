@@ -115,7 +115,16 @@ function MetadataEditor({
   onMetadata: (patch: MetadataPatch) => void
 }) {
   const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(undefined, meta)
-  return <DocumentMetadataView metadata={meta} canEdit conformanceSchema={conformanceSchema} onMetadata={onMetadata} />
+  return (
+    <DocumentMetadataView
+      metadata={meta}
+      canEdit
+      conformanceSchema={conformanceSchema}
+      onMetadata={onMetadata}
+      // A mock uploader so ipfs-typed fields show their file-picker affordance.
+      fileUpload={async () => 'bafyreietestuploadcidxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+    />
+  )
 }
 
 export function TestSchemaEditor() {
