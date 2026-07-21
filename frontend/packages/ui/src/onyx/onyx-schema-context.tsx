@@ -121,7 +121,7 @@ export function useOnyxSchema(): {rootSchema: OnyxSchema; registry: OnyxRegistry
   return useContext(OnyxSchemaContext)
 }
 
-/** Total warning count, for a summary banner. */
+/** Total warning count, for a summary badge. */
 export function useSchemaWarningCount(): number {
   const ctx = useContext(OnyxSchemaContext)
   if (!ctx) return 0
@@ -130,4 +130,21 @@ export function useSchemaWarningCount(): number {
     count += warnings.length
   })
   return count
+}
+
+/** Every schema warning across the tree (root-level first, then by path), for a
+ * summary that lists the actual problems — not just a count. */
+export function useAllSchemaWarnings(): SchemaWarning[] {
+  const ctx = useContext(OnyxSchemaContext)
+  return useMemo(() => {
+    if (!ctx) return EMPTY_WARNINGS
+    const all: SchemaWarning[] = []
+    // Root path ([]) first — that's where "missing required" lands — then the rest.
+    const root = ctx.warningsByPath.get(warningKey([]))
+    if (root) all.push(...root)
+    ctx.warningsByPath.forEach((warnings, key) => {
+      if (key !== warningKey([])) all.push(...warnings)
+    })
+    return all
+  }, [ctx])
 }
