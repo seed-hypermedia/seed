@@ -297,6 +297,19 @@ test.describe('schema editor', () => {
     expect(await meta(page)).toEqual({name: 'Renamed', count: 3})
   })
 
+  test('semantic field types: schema is an HM-link search, icon is an IPFS file input', async ({page}) => {
+    // Even without a conformance schema, the base metadata schema types these
+    // fields — `schema` as an HM link, `icon` as an IPFS file.
+    await openHarness(page, {name: 'X', schema: '', icon: ''})
+
+    // schema (format hm-url) → search-assisted hypermedia reference input.
+    await expect(page.getByPlaceholder('Search documents or paste hm:// URL')).toBeVisible()
+
+    // icon (format ipfs) → file picker + ipfs-aware paste input (not a plain box).
+    await expect(page.getByRole('button', {name: 'Upload file to IPFS'})).toBeVisible()
+    await expect(page.getByPlaceholder('ipfs:// URL or CID')).toBeVisible()
+  })
+
   test('attach-schema bar rejects a non-CID value', async ({page}) => {
     await openHarness(page, {name: 'Foo'})
     await page.getByRole('button', {name: 'Attach schema field'}).click()
