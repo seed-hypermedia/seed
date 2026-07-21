@@ -1,9 +1,9 @@
 {
   "name": "Registry",
   "description": "A map from ids to person links — Map<Link<Person>>.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "values": {
-    "type": "hm://hyper.media/link",
-    "ref": "hm://example.com/person"
+    "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link",
+    "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person"
   }
 }

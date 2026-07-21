@@ -26,12 +26,13 @@ import { sha256 } from "multiformats/hashes/sha2";
 const DIR = dirname(fileURLToPath(import.meta.url));
 const LOCK = resolve(DIR, "schemas.lock.json");
 
-// hm:// URL <-> filename (same authority mapping as validate.mjs / tour.mjs).
-const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
+// Canonical URL = the schema's published-doc URL under the onyx account. The
+// public name strips `onyx-` from primitives/meta; hypermedia-/example- keep it.
+const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const fileToUrl = (file) => {
   const b = file.replace(/\.json$/, "");
-  for (const [p, a] of AUTHORITY) if (b.startsWith(p)) return `hm://${a}/${b.slice(p.length)}`;
-  return b;
+  const publicName = b.startsWith("onyx-") ? b.slice(5) : b;
+  return `hm://${ONYX}/${publicName}`;
 };
 
 async function cidOf(obj) {

@@ -1,35 +1,35 @@
 {
   "name": "Embed block",
   "description": "An embed of another Hypermedia document (an hm:// URL).",
-  "ref": "hm://seed.hyper.media/block-base",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "required": [
     "link"
   ],
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
       "enum": [
         "Embed"
       ]
     },
     "link": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "attributes": {
-      "type": "hm://hyper.media/map",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
       "properties": {
         "childrenType": {
-          "ref": "hm://seed.hyper.media/children-type"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type"
         },
         "columnCount": {
-          "ref": "hm://hyper.media/float"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float"
         },
         "view": {
-          "ref": "hm://seed.hyper.media/embed-view"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-embed-view"
         }
       },
       "values": {
-        "ref": "hm://hyper.media/any"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
   }

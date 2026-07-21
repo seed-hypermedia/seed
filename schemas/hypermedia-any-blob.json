@@ -3,22 +3,22 @@
   "description": "Any Hypermedia CBOR blob — the discriminated union of the six blob types, tagged on the type field.",
   "anyOf": [
     {
-      "ref": "hm://seed.hyper.media/change"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change"
     },
     {
-      "ref": "hm://seed.hyper.media/ref"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ref"
     },
     {
-      "ref": "hm://seed.hyper.media/profile"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-profile"
     },
     {
-      "ref": "hm://seed.hyper.media/comment"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment"
     },
     {
-      "ref": "hm://seed.hyper.media/capability"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-capability"
     },
     {
-      "ref": "hm://seed.hyper.media/contact"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact"
     }
   ]
 }
