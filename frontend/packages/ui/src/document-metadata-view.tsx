@@ -3,7 +3,8 @@ import {Braces, Check, FileCode2, X} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './onyx/onyx-data-editor'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
-import {SCHEMA_DEFINITION_KEY, schemaDefinitionCid} from './onyx/schema-document'
+import {SchemaErrorSummary} from './onyx/onyx-value-editor-schema'
+import {RESERVED_METADATA_KEYS, SCHEMA_DEFINITION_KEY, schemaDefinitionCid} from './onyx/schema-document'
 import {SchemaEditorDialog} from './onyx/onyx-schema-editor'
 import {
   buildSchemaKeyRoot,
@@ -85,6 +86,7 @@ export function DocumentMetadataView({
   metadata,
   canEdit = false,
   onMetadata,
+  conformanceSchema,
   fileUpload,
   openFile,
   onCreateBlob,
@@ -92,6 +94,13 @@ export function DocumentMetadataView({
   metadata?: HMMetadata | null
   canEdit?: boolean
   onMetadata?: (patch: MetadataPatch) => void
+  /**
+   * The resolved metadata schema this document must CONFORM to (from its own
+   * `schema` field, or a parent's `childrenSchema`) — drives required fields and
+   * advisory validation. Resolved by the caller (see useEffectiveDocSchema);
+   * distinct from `schemaDefinition`, which is a schema this document DEFINES.
+   */
+  conformanceSchema?: OnyxSchema
   /** Uploads a file dropped onto a string field to IPFS, returning its CID. */
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
@@ -128,30 +137,31 @@ export function DocumentMetadataView({
   }, [keysDep, pendingSchemaCid, schemaDefCid])
   const {byCid} = useOnyxSchemaRegistry(seedCids)
   const schemaDefSchema = schemaDefCid ? byCid[schemaDefCid] : undefined
-  // The metadata schema that drives field suggestions + advisory validation.
-  // When the document describes a type (has a schemaDefinition), its metadata
-  // EXTENDS the base document-metadata schema (`hypermedia-metadata`): the
-  // standard fields (name/summary/…) are inherited and the document type's own
-  // fields are added — required ones surface as prepopulated chips, optional ones
-  // as add-field suggestions. Kept OPEN (`values: {}`) so the schemaDefinition
-  // field itself and any arbitrary key are still allowed. Without a
-  // schemaDefinition, only schema-keyed (ipfs://) fields drive hints (arbitrary
-  // field names otherwise — the prior behavior). The pending key keeps the
-  // add-field form schema-driven the moment a schema URL is typed as a name.
+  // The metadata schema that drives field suggestions + advisory validation is
+  // the document's CONFORMANCE schema (its `schema`, or a parent's
+  // `childrenSchema`), resolved by the caller and passed as `conformanceSchema`.
+  // Its metadata EXTENDS the base document-metadata schema (`hypermedia-metadata`):
+  // standard fields (name/summary/…) are inherited and the type's own fields
+  // added — required ones surface as always-visible rows. Kept OPEN (`values:{}`)
+  // so the binding fields and any arbitrary key are still allowed. Without a
+  // conformance schema, only schema-keyed (ipfs://) fields drive hints (the prior
+  // behavior). The pending key keeps the add-field form schema-driven the moment
+  // a schema URL is typed as a name.
   const schemaRoot = useMemo(() => {
     const keys = pendingSchemaCid ? [...visibleKeys, `ipfs://${pendingSchemaCid}`] : visibleKeys
     const keyRoot = buildSchemaKeyRoot(keys, byCid)
-    if (!schemaDefSchema) return keyRoot
-    return documentMetadataSchema(schemaDefSchema, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
-  }, [keysDep, pendingSchemaCid, byCid, schemaDefSchema])
+    if (!conformanceSchema) return keyRoot
+    return documentMetadataSchema(conformanceSchema, keyRoot?.properties as Record<string, OnyxSchema>, byCid)
+  }, [keysDep, pendingSchemaCid, byCid, conformanceSchema])
 
-  // Custom required fields declared by the document's schema are ALWAYS shown
-  // (seeded if absent), so the user never has to "add" a mandatory field. The
-  // standard header fields (name/summary) are excluded — they live in the header.
+  // Custom required fields declared by the conformance schema are ALWAYS shown
+  // (seeded if absent), so the user never has to "add" a mandatory field. Header
+  // fields (name/summary) and the schema-binding fields live elsewhere / are
+  // authored specially, so they're excluded from the required rows.
   const requiredKeys = useMemo(
     () =>
       (Array.isArray(schemaRoot?.required) ? (schemaRoot!.required as string[]) : []).filter(
-        (k) => k !== SCHEMA_DEFINITION_KEY && k !== 'name' && k !== 'summary',
+        (k) => !RESERVED_METADATA_KEYS.has(k),
       ),
     [schemaRoot],
   )
@@ -197,6 +207,7 @@ export function DocumentMetadataView({
         <div className="flex flex-col gap-4 py-6">
           {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}
+          {editable && <SchemaErrorSummary />}
           <div className="flex items-center justify-end">
             <div className="flex items-center gap-1">
               {editable && !jsonMode && (
