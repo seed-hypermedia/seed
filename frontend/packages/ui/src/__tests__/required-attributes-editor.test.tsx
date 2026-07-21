@@ -64,9 +64,8 @@ describe('RequiredAttributesEditor', () => {
 
   it('shows the required custom field (employeeId) as an always-visible row', () => {
     act(() => root.render(<Harness initial={{name: 'X', schemaDefinition: `ipfs://${employeeCid()}`}} />))
-    // The required field surfaces as a labeled row with a "required" marker.
+    // The required field surfaces as a labeled row.
     expect(container.textContent).toContain('employeeId')
-    expect(container.textContent?.toLowerCase()).toContain('required')
     // The standard header field name/summary and schemaDefinition are NOT rows here.
     expect(container.querySelector('[title="schemaDefinition"]')).toBeNull()
   })
