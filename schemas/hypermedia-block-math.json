@@ -1,29 +1,29 @@
 {
   "name": "Math block",
   "description": "A block of LaTeX/KaTeX math.",
-  "ref": "hm://seed.hyper.media/block-base",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
       "enum": [
         "Math"
       ]
     },
     "text": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "attributes": {
-      "type": "hm://hyper.media/map",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
       "properties": {
         "childrenType": {
-          "ref": "hm://seed.hyper.media/children-type"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type"
         },
         "columnCount": {
-          "ref": "hm://hyper.media/float"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float"
         }
       },
       "values": {
-        "ref": "hm://hyper.media/any"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
   }

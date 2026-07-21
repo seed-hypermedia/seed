@@ -1,20 +1,20 @@
 {
   "name": "Block (base)",
   "description": "Fields shared by every concrete block type: id, optional revision, and the type discriminator. Concrete blocks extend this.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "id",
     "type"
   ],
   "properties": {
     "id": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "revision": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "type": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
   }
 }

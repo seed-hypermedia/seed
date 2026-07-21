@@ -12,8 +12,8 @@ This document describes the **hypermedia-cid** type — a Hypermedia Network blo
 
 ## Shape
 
-An **alias** of [onyx-link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/onyx-link).
+An **alias** of [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link).
 
 ## Depends on
 
-- [onyx-link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/onyx-link)
+- [link](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link)

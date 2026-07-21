@@ -1,47 +1,47 @@
 {
   "name": "Video block",
   "description": "A video, referenced by a URL.",
-  "ref": "hm://seed.hyper.media/block-base",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "required": [
     "link"
   ],
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
       "enum": [
         "Video"
       ]
     },
     "link": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "attributes": {
-      "type": "hm://hyper.media/map",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
       "properties": {
         "childrenType": {
-          "ref": "hm://seed.hyper.media/children-type"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type"
         },
         "columnCount": {
-          "ref": "hm://hyper.media/float"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float"
         },
         "width": {
-          "ref": "hm://hyper.media/float"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float"
         },
         "name": {
-          "ref": "hm://hyper.media/string"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
         },
         "autoplay": {
-          "ref": "hm://hyper.media/boolean"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
         },
         "loop": {
-          "ref": "hm://hyper.media/boolean"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
         },
         "muted": {
-          "ref": "hm://hyper.media/boolean"
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
         }
       },
       "values": {
-        "ref": "hm://hyper.media/any"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
       }
     }
   }
