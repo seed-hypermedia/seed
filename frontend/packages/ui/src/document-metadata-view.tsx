@@ -267,17 +267,13 @@ export function DocumentMetadataView({
                       className="border-border border-b py-3 last:border-b-0"
                       fieldKey={key}
                       value={value}
-                      badge={
-                        <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
-                          required
-                        </span>
-                      }
+                      // Schema-required fields are always present and cannot be
+                      // removed; their name is fixed by the schema.
+                      canRemove={false}
                       siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
                       onValue={(newValue) => stage({[key]: newValue})}
-                      // Required fields are schema-defined: their name is fixed, and
-                      // "removing" only clears the value (it reappears seeded).
                       onEditField={(_newKey, newValue) => stage({[key]: newValue})}
-                      onRemove={() => stage({[key]: null})}
+                      onRemove={() => {}}
                       rules={METADATA_VALUE_RULES}
                       path={[key]}
                     />
