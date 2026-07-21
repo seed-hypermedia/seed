@@ -5,12 +5,11 @@
  *   1. Every schema blob (schemas/*.json except schemas.lock.json) encoded to
  *      canonical DAG-CBOR and content-addressed. Each computed CID is verified
  *      against schemas/schemas.lock.json; a mismatch fails the run.
- *   2. One Hypermedia document per markdown file in schemas/site/ (102 files):
- *        - home.md          -> root/home document (empty path "")
- *        - <basename>.md     -> path /<basename>
- *      When <basename> is a schema name (schemas/<basename>.json exists), the
- *      document metadata field `schemaDefinition` is set to ipfs://<schemaCID>,
- *      linking the concept document to its schema blob.
+ *   2. One Hypermedia document per schema, from its CO-LOCATED markdown
+ *      (schemas/<name>.md beside schemas/<name>.json), published at path
+ *      /<name> with metadata `schemaDefinition` = ipfs://<schemaCID> — so the
+ *      document IS the referenceable schema (other docs point `schema` at it).
+ *   3. Narrative pages from schemas/site/*.md (home.md -> root path "").
  *
  * Usage:
  *   cd frontend/apps/cli && bun run src/sync-onyx.ts [--dry-run] [--server <url>]
@@ -20,7 +19,7 @@
  * prepMarkdown() below, a port of scratchpad/prep.py.
  */
 
-import {readFileSync, readdirSync} from 'node:fs'
+import {existsSync, readFileSync, readdirSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import * as dagCbor from '@ipld/dag-cbor'
@@ -83,8 +82,7 @@ function alignTable(rows: string[]): string[] {
   for (const r of cells) while (r.length < ncol) r.push('')
 
   const isSep = (r: string[]) =>
-    r.some((c) => c.includes('-')) &&
-    r.every((c) => c === '' || (/-/.test(c) && /^[-:\s]*$/.test(c)))
+    r.some((c) => c.includes('-')) && r.every((c) => c === '' || (/-/.test(c) && /^[-:\s]*$/.test(c)))
 
   const widths = new Array(ncol).fill(0)
   for (const r of cells) {
@@ -285,32 +283,48 @@ async function main() {
   }
   console.log(`Schema blobs: ${schemaBlobs.length} encoded, all CIDs match the lockfile.`)
 
-  // ── 2. Site documents ──
-  const mdFiles = readdirSync(SITE_DIR)
-    .filter((f) => f.endsWith('.md'))
-    .sort()
-
+  // ── 2. Documents ──
   type DocPlan = {
+    dir: string
     file: string
     path: string
     isSchemaDoc: boolean
     schemaDefinition?: string
   }
 
-  const plans: DocPlan[] = mdFiles.map((file) => {
-    const basename = file.replace(/\.md$/, '')
-    const isHome = basename === 'home'
-    const path = isHome ? '' : `/${basename}`
-    const schemaCid = schemaCidByBasename.get(basename)
+  // 2a. Schema docs: the co-located schemas/<name>.md beside each schema. Each is
+  // published at hm://<onyx>/<name> with schemaDefinition = ipfs://<schema CID>,
+  // so the document IS the referenceable schema (others point `schema` here).
+  const missingDocs: string[] = []
+  const schemaPlans: DocPlan[] = [...schemaCidByBasename.keys()].sort().map((basename) => {
+    const file = `${basename}.md`
+    if (!existsSync(resolve(SCHEMAS_DIR, file))) missingDocs.push(file)
     return {
+      dir: SCHEMAS_DIR,
       file,
-      path,
-      isSchemaDoc: !!schemaCid,
-      schemaDefinition: schemaCid ? `ipfs://${schemaCid}` : undefined,
+      path: `/${basename}`,
+      isSchemaDoc: true,
+      schemaDefinition: `ipfs://${schemaCidByBasename.get(basename)}`,
     }
   })
+  if (missingDocs.length) {
+    throw new Error(
+      `Missing co-located schema docs (run \`node scripts/gen-onyx-site.mjs\` to scaffold): ${missingDocs.join(', ')}`,
+    )
+  }
 
-  console.log(`Site documents: ${plans.length} (${plans.filter((p) => p.isSchemaDoc).length} schema docs)`)
+  // 2b. Narrative pages + home: schemas/site/*.md (no schemaDefinition).
+  const narrativePlans: DocPlan[] = readdirSync(SITE_DIR)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+    .map((file) => {
+      const basename = file.replace(/\.md$/, '')
+      return {dir: SITE_DIR, file, path: basename === 'home' ? '' : `/${basename}`, isSchemaDoc: false}
+    })
+
+  const plans: DocPlan[] = [...schemaPlans, ...narrativePlans]
+
+  console.log(`Documents: ${plans.length} (${schemaPlans.length} schema docs + ${narrativePlans.length} narrative)`)
   console.log('')
 
   // ── Dry run: report and exit ──
@@ -337,7 +351,7 @@ async function main() {
 
   let published = 0
   for (const p of plans) {
-    const raw = readFileSync(resolve(SITE_DIR, p.file), 'utf8')
+    const raw = readFileSync(resolve(p.dir, p.file), 'utf8')
     const prepped = prepMarkdown(raw)
     const {ops: contentOps, metadata} = await markdownToOps(prepped)
 
