@@ -1,4 +1,13 @@
-import {AllSelection, EditorState, NodeSelection, Plugin, PluginKey, PluginView, TextSelection} from 'prosemirror-state'
+import {
+  AllSelection,
+  EditorState,
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  PluginView,
+  Selection,
+  TextSelection,
+} from 'prosemirror-state'
 import {Decoration, DecorationSet, EditorView} from 'prosemirror-view'
 import {Node} from 'prosemirror-model'
 
@@ -354,6 +363,24 @@ export class FullBlockSelectionProsemirrorPlugin<
         const domObserver = (view as any).domObserver
         if (domObserver && 'suppressingSelectionUpdates' in domObserver) {
           domObserver.suppressingSelectionUpdates = false
+        }
+
+        // When DOM focus sits OUTSIDE the editor (e.g. in a card title
+        // input), this press moves focus back in, and ProseMirror's focus
+        // handling redraws the active NodeSelection over the caret the
+        // browser just placed — the click appears to do nothing until a
+        // second one. Place the caret in state directly so the focus
+        // transition draws it instead.
+        if (!view.hasFocus() && event instanceof MouseEvent && event.button === 0 && !event.shiftKey && view.editable) {
+          const coords = view.posAtCoords({left: event.clientX, top: event.clientY})
+          if (coords) {
+            try {
+              const $pos = view.state.doc.resolve(coords.pos)
+              view.dispatch(view.state.tr.setSelection(Selection.near($pos)).setMeta('pointer', true))
+            } catch {
+              // Unresolvable position — leave the click to the normal path.
+            }
+          }
         }
       }
       return false

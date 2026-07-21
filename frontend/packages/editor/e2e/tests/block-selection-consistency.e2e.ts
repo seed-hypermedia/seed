@@ -248,6 +248,25 @@ test.describe('Block selection consistency across block types (real editor)', ()
     expect(s.draftOpens).toBe(0)
   })
 
+  test('a single click on a paragraph blurs the focused draft title and places the caret', async ({page}) => {
+    await setupAllBlocks(page)
+    const draftInput = page.locator('[data-id="blk-draft"] input').first()
+    await draftInput.scrollIntoViewIfNeeded()
+    await draftInput.click()
+    await page.waitForTimeout(250)
+
+    const p = page.locator('p:has-text("Last paragraph")').first()
+    await p.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(100)
+    await p.click()
+    await page.waitForTimeout(300)
+
+    const s = await snapshot(page)
+    expect(s.pm.kind, 'ONE click must move the caret out of the title input').toBe('TextSelection(empty)')
+    expect(s.pm.blockId).toBe('p-bottom')
+    expect(s.fullBlockIds, 'the draft card must be deselected').toEqual([])
+  })
+
   test('published card title is a link that navigates on first click without selecting', async ({page}) => {
     await setupAllBlocks(page)
     const titleLink = page.locator('[data-id="blk-embed"] a').first()
