@@ -513,6 +513,135 @@ describe('api service', () => {
     }
   })
 
+  test('lists sessions across every agent for the signed account', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const otherAccount = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      await setDefaultProvider(svc, otherAccount)
+
+      const createAgent = async (keyPair: typeof account, name: string) => {
+        const created = await svc.message(
+          await apisvc.createSignedEnvelope(keyPair, {
+            action: {
+              _: 'CreateAgent',
+              definition: {name, systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+            },
+          }),
+        )
+        if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+        return created.agentId
+      }
+      const createSession = async (keyPair: typeof account, agentId: string, title: string) => {
+        const created = await svc.message(
+          await apisvc.createSignedEnvelope(keyPair, {action: {_: 'CreateSession', agentId, title}}),
+        )
+        if (created._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+        return created.sessionId
+      }
+
+      const researchAgent = await createAgent(account, 'Research')
+      const writingAgent = await createAgent(account, 'Writing')
+      const foreignAgent = await createAgent(otherAccount, 'Someone else')
+
+      const first = await createSession(account, researchAgent, 'First')
+      const second = await createSession(account, writingAgent, 'Second')
+      const third = await createSession(account, researchAgent, 'Third')
+      await createSession(otherAccount, foreignAgent, 'Not mine')
+
+      const all = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
+      expect(all._).toBe('ListSessionsResponse')
+      if (all._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+
+      // Spans agents, excludes other accounts, and carries the agents needed to label each row.
+      expect(all.sessions.map((session) => session.id).sort()).toEqual([first, second, third].sort())
+      expect(all.sessions.every((session) => session.account === all.sessions[0]!.account)).toBe(true)
+      expect(all.agents.map((agent) => agent.definition.name).sort()).toEqual(['Research', 'Writing'])
+      expect(all.nextCursor).toBeUndefined()
+
+      // Newest first.
+      const updatedAts = all.sessions.map((session) => session.updatedAt)
+      expect([...updatedAts].sort((a, b) => b - a)).toEqual(updatedAts)
+
+      const scoped = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId: writingAgent}}),
+      )
+      if (scoped._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(scoped.sessions.map((session) => session.id)).toEqual([second])
+      expect(scoped.agents.map((agent) => agent.id)).toEqual([writingAgent])
+
+      // A short page reports a cursor; following it returns the remainder without duplicates.
+      const page = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', limit: 2}}),
+      )
+      if (page._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(page.sessions).toHaveLength(2)
+      expect(page.nextCursor).toBeDefined()
+
+      const rest = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', cursor: page.nextCursor}}),
+      )
+      if (rest._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      const pagedIds = [...page.sessions, ...rest.sessions].map((session) => session.id)
+      expect(new Set(pagedIds).size).toBe(pagedIds.length)
+      expect(pagedIds.sort()).toEqual([first, second, third].sort())
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('paginates sessions that share an updated_at millisecond without losing rows', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Burst', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      for (const title of ['a', 'b', 'c', 'd', 'e']) {
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'CreateSession', agentId: created.agentId, title},
+          }),
+        )
+      }
+      // Force the exact collision a trigger burst produces: every session updated in the same ms.
+      db.run(`UPDATE sessions SET updated_at = ?`, [1_700_000_000_000])
+
+      const seen: string[] = []
+      let cursor: {updatedBefore: number; idBefore: string} | undefined
+      for (let requests = 0; requests < 10; requests += 1) {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: cursor ? {_: 'ListSessions', limit: 2, cursor} : {_: 'ListSessions', limit: 2},
+          }),
+        )
+        if (response._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+        seen.push(...response.sessions.map((session) => session.id))
+        if (!response.nextCursor) break
+        cursor = response.nextCursor
+      }
+
+      // Every session is reachable exactly once even though all timestamps are identical.
+      expect(seen).toHaveLength(5)
+      expect(new Set(seen).size).toBe(5)
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('deletes an agent and its dependent server data', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

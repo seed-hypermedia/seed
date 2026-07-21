@@ -1,4 +1,12 @@
-import {useAgentLists, useAgentServerHealths, useAgentServerUrls, useAgentWebSocketSubscription} from '@/models/agents'
+import {
+  isLocalAgentServer,
+  LOCAL_AGENT_SERVER_LABEL,
+  useAgentLists,
+  useAgentServerHealths,
+  useAgentServerUrls,
+  useAgentWebSocketSubscription,
+  useLocalAgentServerUrl,
+} from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hostnameStripProtocol} from '@shm/shared'
@@ -17,6 +25,7 @@ function AgentsListPage() {
   const navigate = useNavigate()
   const serverUrlsQuery = useAgentServerUrls()
   const serverUrls = serverUrlsQuery.data || []
+  const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls, selectedAccountId)
   const healthQueries = useAgentServerHealths(serverUrls)
   const providersDialog = useAppDialog(ModelProvidersDialog)
@@ -64,6 +73,10 @@ function AgentsListPage() {
           {serverUrls.map((serverUrl, index) => {
             const health = healthQueries[index]
             const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Offline' : 'Online'
+            const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
+            // The local server is part of the app, so an "online" indicator on it is noise. A
+            // failure still shows, because that is a real problem the user needs to see.
+            const showStatusDot = !isLocal || health?.isError
             return (
               <AgentServerSubscription key={serverUrl} serverUrl={serverUrl} selectedAccountId={selectedAccountId}>
                 <div
@@ -71,20 +84,22 @@ function AgentsListPage() {
                   onClick={() => navigate({key: 'agent-server', serverUrl})}
                 >
                   <div className="flex min-w-0 items-center gap-2">
-                    <SizableText size="xs" className="truncate font-mono">
-                      {hostnameStripProtocol(serverUrl)}
+                    <SizableText size="xs" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
+                      {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
                     </SizableText>
-                    <Tooltip content={status} asChild>
-                      <span
-                        className={`inline-block size-2.5 rounded-full align-middle ${
-                          health?.isLoading
-                            ? 'bg-muted-foreground/40'
-                            : health?.isError
-                              ? 'bg-destructive'
-                              : 'bg-green-500'
-                        } `}
-                      />
-                    </Tooltip>
+                    {showStatusDot ? (
+                      <Tooltip content={status} asChild>
+                        <span
+                          className={`inline-block size-2.5 rounded-full align-middle ${
+                            health?.isLoading
+                              ? 'bg-muted-foreground/40'
+                              : health?.isError
+                                ? 'bg-destructive'
+                                : 'bg-green-500'
+                          } `}
+                        />
+                      </Tooltip>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

@@ -26,7 +26,9 @@ The following are complete enough for local use and should be treated as baselin
 - redacted HM account-key creation/listing and per-agent signing key selection for future write tools;
 - built-in `/agents` session inspector;
 - streaming/subscription diagnostics;
-- shared Agents protocol package consumed by the Bun service and desktop.
+- shared Agents protocol package consumed by the Bun service and desktop;
+- local agents server run as a desktop subprocess, with the desktop's own HM API server as its HM backend;
+- assistant sidebar unified onto agent sessions, spanning every agent on every configured server.
 
 ## Highest priority next steps
 

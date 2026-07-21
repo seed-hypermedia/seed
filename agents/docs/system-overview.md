@@ -18,7 +18,10 @@ provider secrets, create agents, run chat sessions, stream model responses, and 
 
 ```text
 Desktop app
+  ├─ Local agents server subprocess (same artifact as the Docker image)
+  │    configured with the desktop's own HM API server as its hmServerUrl
   ├─ Agents routes: list, detail, session
+  ├─ Assistant sidebar: sessions of any agent on any configured server
   ├─ Provider and create-agent dialogs
   ├─ daemon-backed signing for the selected account
   ├─ signed CBOR HTTP client
@@ -91,7 +94,8 @@ Shared Seed libraries
 ### Agent runtime
 
 - Agent create/list/get/update.
-- Session create/get/message.
+- Session create/get/list/message.
+- Cross-agent session listing (`ListSessions`) with composite keyset pagination.
 - Pi SDK-backed model execution for OpenAI-compatible, Anthropic, and Google provider mappings.
 - Text streaming translated from Pi events into Seed WebSocket partials.
 - Durable user/assistant/error/tool events.
@@ -101,6 +105,10 @@ Shared Seed libraries
 ### Desktop
 
 - Agents list, server, detail, and session routes with sidebar/menu/shortcut integration.
+- Local agents server lifecycle: attaches to an already-running server in development, spawns the bundled binary in a
+  packaged app. See [Desktop agent unification](./desktop-agent-unification.md).
+- Assistant sidebar backed by agent sessions rather than a separate chat runtime, listing sessions from every configured
+  server including the local one.
 - Default and multi-server settings.
 - Provider management dialog for OpenAI/Anthropic/Google records/secrets.
 - Create-agent dialog with configured-provider selection.

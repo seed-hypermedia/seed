@@ -107,6 +107,7 @@ export type UnsignedAgentAction =
   | UpdateAgentTrigger
   | DeleteAgentTrigger
   | CreateSession
+  | ListSessions
   | UpdateSession
   | DeleteSession
   | GetSession
@@ -285,6 +286,35 @@ export type CreateSession = {
   agentId: string
   title?: string
   clientRequestId?: string
+}
+
+/**
+ * Lists sessions for the signed account across every agent on this server, newest first.
+ *
+ * Backs the desktop assistant sidebar, which shows one merged session list spanning all agents on
+ * all configured servers. Without this the client would have to call `ListAgents` and then
+ * `GetAgent` per agent just to enumerate sessions.
+ */
+export type ListSessions = {
+  _: 'ListSessions'
+  /** Restrict to one agent. Omit for every agent on this server. */
+  agentId?: string
+  /** Maximum sessions to return. Server clamps to a sane bound. */
+  limit?: number
+  /** Continue after a previous page. Pass the `nextCursor` from `ListSessionsResponse` verbatim. */
+  cursor?: SessionListCursor
+}
+
+/**
+ * Keyset pagination cursor for `ListSessions`, ordered by `(updatedAt, id)` descending.
+ *
+ * The session id is part of the cursor because sessions can share an `updatedAt` millisecond — a
+ * trigger firing across a batch of activity events creates several at once. A timestamp-only cursor
+ * would skip every tied row past the page boundary, silently losing sessions from the list.
+ */
+export type SessionListCursor = {
+  updatedBefore: number
+  idBefore: string
 }
 
 /** Updates editable session metadata. */
@@ -622,6 +652,17 @@ export type CreateSessionResponse = {
   sessionId: string
 }
 
+/** Successful response for `ListSessions`. */
+export type ListSessionsResponse = {
+  _: 'ListSessionsResponse'
+  /** Sessions ordered by `updatedAt` descending. Each carries its `agentId`. */
+  sessions: SessionInfo[]
+  /** Agents referenced by `sessions`, so clients can label rows without a second round trip. */
+  agents: AgentInfo[]
+  /** Cursor for the next page: pass back as `cursor`. Absent when the list is exhausted. */
+  nextCursor?: SessionListCursor
+}
+
 /** Successful response for `UpdateSession`. */
 export type UpdateSessionResponse = {
   _: 'UpdateSessionResponse'
@@ -685,6 +726,7 @@ export type AgentResponse =
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
   | CreateSessionResponse
+  | ListSessionsResponse
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse

@@ -66,6 +66,8 @@ const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
+const DEFAULT_SESSION_PAGE_SIZE = 50
+const MAX_SESSION_PAGE_SIZE = 200
 
 /** Result of evaluating one activity event against enabled triggers. */
 export type TriggerProcessingResult = {
@@ -217,6 +219,13 @@ export class Service {
           envelope.action.agentId,
           envelope.action.title,
           envelope.action.clientRequestId,
+        )
+      case 'ListSessions':
+        return this.#listSessions(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.limit,
+          envelope.action.cursor,
         )
       case 'UpdateSession':
         return this.#updateSession(verified.accountId, envelope.action.sessionId, envelope.action.title)
@@ -669,6 +678,61 @@ export class Service {
       .all(accountId, agentId)
 
     return {_: 'GetAgentResponse', agent: agentRowToInfo(agent), sessions: this.#sessionRowsToInfo(accountId, sessions)}
+  }
+
+  /**
+   * Lists the account's sessions newest-first across every agent, or one agent when `agentId` is set.
+   *
+   * Returns the referenced agents alongside the sessions so a client rendering a merged, cross-agent
+   * session list can label each row without a follow-up `GetAgent` per session.
+   *
+   * Pagination is keyset on the composite `(updated_at, id)` so that sessions sharing an `updated_at`
+   * millisecond — which triggers produce when one activity batch fires several at once — are not
+   * skipped at a page boundary.
+   */
+  #listSessions(
+    accountId: string,
+    agentId?: string,
+    limit?: number,
+    cursor?: api.SessionListCursor,
+  ): api.ListSessionsResponse {
+    const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
+    const conditions = ['account_id = ?']
+    const params: (string | number)[] = [accountId]
+    if (agentId !== undefined) {
+      conditions.push('agent_id = ?')
+      params.push(normalizeBoundedString(agentId, 'Agent ID', MAX_NAME_BYTES))
+    }
+    if (cursor !== undefined) {
+      if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
+      const updatedBefore = normalizeOptionalPositiveInteger(cursor.updatedBefore, 'Cursor updatedBefore')
+      const idBefore = normalizeBoundedString(cursor.idBefore, 'Cursor idBefore', MAX_NAME_BYTES)
+      conditions.push('(updated_at < ? OR (updated_at = ? AND id < ?))')
+      params.push(updatedBefore, updatedBefore, idBefore)
+    }
+    // Over-fetch by one so we can report whether another page exists without a second COUNT query.
+    params.push(pageSize + 1)
+
+    const rows = this.#db
+      .query<SessionRow, (string | number)[]>(
+        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+         FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
+      )
+      .all(...params)
+
+    const hasMore = rows.length > pageSize
+    const page = hasMore ? rows.slice(0, pageSize) : rows
+    const sessions = this.#sessionRowsToInfo(accountId, page)
+    const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
+    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    const last = page[page.length - 1]
+
+    return {
+      _: 'ListSessionsResponse',
+      sessions,
+      agents,
+      ...(hasMore && last ? {nextCursor: {updatedBefore: last.updated_at, idBefore: last.id}} : {}),
+    }
   }
 
   #updateAgent(accountId: string, agentId: string, rawDefinition: api.AgentDefinition): api.GetAgentResponse {
