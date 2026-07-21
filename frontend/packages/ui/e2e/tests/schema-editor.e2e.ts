@@ -228,7 +228,7 @@ test.describe('schema editor', () => {
 
     // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
-    await expect(page.getByText('surname', {exact: true})).toBeVisible()
+    await expect(page.getByRole('treeitem', {name: /surname/}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
     expect(await meta(page)).toEqual({name: 'X', schema: `${ONYX}/example-person-doc`})
 
@@ -308,6 +308,22 @@ test.describe('schema editor', () => {
     // icon (format ipfs) → file picker + ipfs-aware paste input (not a plain box).
     await expect(page.getByRole('button', {name: 'Upload file to IPFS'})).toBeVisible()
     await expect(page.getByPlaceholder('ipfs:// URL or CID')).toBeVisible()
+  })
+
+  test('validation summary lists the actual errors by field (and ignores null tombstones)', async ({page}) => {
+    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    // Conforms to the person document (requires metadata.surname), which is
+    // absent; `icon: null` is a deletion tombstone, not a real value.
+    await openHarness(page, {name: 'X', schema: `${ONYX}/example-person-doc`, icon: null})
+
+    const alert = page.getByRole('alert')
+    await expect(alert).toBeVisible()
+    // The actual problem is named — the field and what's wrong — not just a count.
+    await expect(alert.getByText('surname', {exact: true})).toBeVisible()
+    await expect(alert.getByText(/is required/)).toBeVisible()
+    // The null tombstone (icon) is treated as absent, not a spurious "got nothing".
+    await expect(alert.getByText(/icon/)).toHaveCount(0)
+    await expect(alert.getByText(/got nothing/)).toHaveCount(0)
   })
 
   test('attach-schema bar rejects a non-CID value', async ({page}) => {
