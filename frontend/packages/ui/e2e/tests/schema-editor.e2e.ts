@@ -326,6 +326,21 @@ test.describe('schema editor', () => {
     await expect(alert.getByText(/got nothing/)).toHaveCount(0)
   })
 
+  test('an HM-link field renders a clickable pill that navigates to the reference', async ({page}) => {
+    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    const target = `${ONYX}/example-employee`
+    // `schema` is an HM link (format hm-url) — a resolvable value shows as a pill.
+    await openHarness(page, {name: 'X', schema: target})
+
+    const row = page.getByRole('treeitem', {name: /^schema/})
+    // The value renders as a pill (rounded-full), NOT the raw URL text box.
+    await expect(row.locator('.rounded-full')).toBeVisible()
+
+    // Clicking the pill navigates to the referenced document.
+    await row.locator('.rounded-full').click()
+    await expect.poll(() => page.evaluate(() => (window as any).__openedUrl)).toBe(target)
+  })
+
   test('attach-schema bar rejects a non-CID value', async ({page}) => {
     await openHarness(page, {name: 'Foo'})
     await page.getByRole('button', {name: 'Attach schema field'}).click()
