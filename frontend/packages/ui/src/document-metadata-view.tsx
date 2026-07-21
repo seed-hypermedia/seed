@@ -40,6 +40,23 @@ import {
  */
 export type MetadataPatch = Record<string, unknown>
 
+/** Deep-remove null values. In metadata a null is a tombstone (deleted/absent),
+ * so for schema validation we strip them: an absent required field then reads as
+ * "required" (not "expected string, got null"), and absent optional fields don't
+ * error at all. */
+function stripNullsDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripNullsDeep)
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {}
+    for (const [key, v] of Object.entries(value)) {
+      if (v === null) continue
+      out[key] = stripNullsDeep(v)
+    }
+    return out
+  }
+  return value
+}
+
 /**
  * Publish ops are generated from the draft metadata without a base document,
  * so a nested key that simply disappears emits no op and its old value would
@@ -116,6 +133,8 @@ export function DocumentMetadataView({
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
   const [editingSchema, setEditingSchema] = useState<OnyxSchema | undefined>(undefined)
   const current = useMemo(() => (metadata ?? {}) as Record<string, unknown>, [metadata])
+  // Null tombstones = absent, so validate against a null-stripped copy.
+  const validationValue = useMemo(() => stripNullsDeep(current), [current])
   const entries = canonicalEntries(current, {hideNull: true})
   const editable = canEdit && !!onMetadata
 
@@ -206,7 +225,7 @@ export function DocumentMetadataView({
       openFile={openFile}
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
-      <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={current}>
+      <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={validationValue}>
         <div className="flex flex-col gap-4 py-6">
           {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}
