@@ -220,32 +220,31 @@ test.describe('schema editor', () => {
     await expect(dialog.getByRole('button', {name: 'JSON'})).toBeVisible()
   })
 
-  test('required field of the document type is an always-visible row; optional fields are add suggestions', async ({
-    page,
-  }) => {
-    await openHarness(page)
-    const cid = await bundledEmployeeCid(page)
-    await openHarness(page, {name: 'X', schemaDefinition: `ipfs://${cid}`})
+  test('required field of the CONFORMANCE schema (metadata.schema) is an always-visible row', async ({page}) => {
+    // A document that conforms to the person document schema (via `schema`, not
+    // schemaDefinition) requires `surname` in its metadata.
+    const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+    await openHarness(page, {name: 'X', schema: `${ONYX}/example-person-doc`})
 
-    // The Employee schema requires employeeId — it renders as an always-visible
+    // `surname` (required by the person document) renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
-    await expect(page.getByText('employeeId', {exact: true})).toBeVisible()
+    await expect(page.getByText('surname', {exact: true})).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
-    expect(await meta(page)).toEqual({name: 'X', schemaDefinition: `ipfs://${cid}`})
+    expect(await meta(page)).toEqual({name: 'X', schema: `${ONYX}/example-person-doc`})
 
     // A required field cannot be removed: its actions menu has no Remove item.
-    await page.getByRole('button', {name: 'Actions for employeeId'}).click()
+    await page.getByRole('button', {name: 'Actions for surname'}).click()
     await expect(page.getByRole('menuitem', {name: 'Edit field'})).toBeVisible()
-    await expect(page.getByRole('menuitem', {name: 'Remove employeeId'})).toHaveCount(0)
+    await expect(page.getByRole('menuitem', {name: 'Remove surname'})).toHaveCount(0)
     await page.keyboard.press('Escape')
 
-    // Optional declared fields are still offered as add-field suggestions, and
-    // the required one is NOT re-offered (it's already shown as a row).
+    // Optional declared fields are offered as add-field suggestions, and the
+    // required one is NOT re-offered (it's already shown as a row).
     await openAddFieldDialog(page)
     const dialog = page.getByRole('dialog', {name: 'Add field'})
     await expect(dialog.getByText('Schema fields')).toBeVisible()
-    await expect(dialog.getByRole('button', {name: 'department', exact: true})).toBeVisible()
-    await expect(dialog.getByRole('button', {name: 'employeeId *'})).toHaveCount(0)
+    await expect(dialog.getByRole('button', {name: 'givenName', exact: true})).toBeVisible()
+    await expect(dialog.getByRole('button', {name: 'surname *'})).toHaveCount(0)
   })
 
   // --- extra coverage: metadata field add / rename / remove ------------------
