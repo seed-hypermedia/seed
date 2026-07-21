@@ -18,7 +18,7 @@ import {
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
-import {HTMLAttributes, useMemo} from 'react'
+import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
@@ -207,6 +207,112 @@ export function useDocumentCardMenuItems(
   ])
 }
 
+/**
+ * Shared container className for card-style document representations
+ * (published {@link DocumentCard} and unpublished draft placeholders alike).
+ */
+export function documentCardContainerClassName({
+  banner = false,
+  hasCover = false,
+}: {banner?: boolean; hasCover?: boolean} = {}) {
+  return cn(
+    'group/item hover:bg-accent dark:hover:bg-accent @container flex w-full overflow-hidden rounded-lg border border-border bg-white shadow-md transition-colors duration-300 dark:bg-black',
+    banner && hasCover && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
+    banner && !hasCover && 'rounded-xl',
+  )
+}
+
+/** Left-hand thumbnail for a document card: wide cover, square icon, or the green doc placeholder. */
+export function DocumentCardThumbnail({
+  coverImage,
+  iconImage,
+  banner = false,
+}: {
+  coverImage?: string
+  iconImage?: string
+  banner?: boolean
+}) {
+  const imageUrl = useImageUrl()
+  if (coverImage) {
+    // Cover image. Banner cards keep a half width cover.
+    // Regular row cards get a rectangle that stretches
+    // vertically to fill the card's row height.
+    return (
+      <div
+        className={cn(
+          'relative m-3 h-24 shrink-0 overflow-hidden rounded-md @md:m-3 @md:h-auto',
+          banner ? '@md:w-1/2' : '@md:w-32',
+        )}
+      >
+        <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
+      </div>
+    )
+  }
+  if (iconImage) {
+    // No cover, but the doc has an icon — render it as a square
+    // thumbnail aligned top-left next to the title.
+    return (
+      <div className="bg-muted m-3 flex aspect-square size-12 shrink-0 items-center justify-center overflow-hidden rounded-md @md:size-14">
+        <img src={imageUrl(iconImage, 'S')} alt="" className="size-full object-cover" />
+      </div>
+    )
+  }
+  // Neither cover nor icon — green doc-icon placeholder.
+  return (
+    <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
+      <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
+    </div>
+  )
+}
+
+/**
+ * Presentational body of a document card: thumbnail, title, summary, badges, and an
+ * actions row. Kept separate from {@link DocumentCard} so unpublished draft placeholders
+ * can render with pixel-identical structure — only their slot contents differ.
+ */
+export function DocumentCardShell({
+  interactive = false,
+  hasCover = false,
+  thumbnail,
+  title,
+  summary,
+  badges,
+  actions,
+}: {
+  interactive?: boolean
+  hasCover?: boolean
+  thumbnail: ReactNode
+  title: ReactNode
+  summary?: ReactNode
+  badges?: ReactNode
+  actions?: ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        'flex max-w-full min-w-0 flex-1 flex-col @md:flex-row',
+        interactive && 'cursor-pointer',
+        // Stack items vertically in narrow containers like grid items.
+        // Switch to horizontal once the card has room.
+        '@md:items-center',
+        hasCover && '@md:items-stretch',
+      )}
+    >
+      {thumbnail}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between">
+        <div className="p-3">
+          {title}
+          {summary}
+        </div>
+        <div className="flex items-center justify-between py-2 pr-2 pl-3">
+          <div className="flex items-center gap-1.5">{badges}</div>
+          {actions}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DocumentCard({
   docId,
   entity,
@@ -247,7 +353,6 @@ export function DocumentCard({
   const highlighter = useHighlighter()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
   const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
-  const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const actions = useDocumentActions()
   const draft = actions.getDraft?.(docId)
@@ -300,11 +405,7 @@ export function DocumentCard({
 
   const sharedProps = {
     ...highlighter(docId),
-    className: cn(
-      'hover:bg-accent dark:hover:bg-accent @container flex w-full overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
-      banner && coverImage && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
-      banner && !coverImage && 'rounded-xl',
-    ),
+    className: documentCardContainerClassName({banner, hasCover: !!coverImage}),
   }
   const titleClassName = cn(
     'text-foreground font-sans leading-tight! font-bold',
@@ -312,117 +413,87 @@ export function DocumentCard({
   )
   const title = resolvedMetadata?.name
   const content = (
-    <>
-      <div
-        className={cn(
-          'flex max-w-full min-w-0 flex-1 flex-col @md:flex-row',
-          navigateProp && 'cursor-pointer',
-          // Stack items vertically in narrow containers like grid items.
-          // Wwitch to horizontal once the card has room.
-          '@md:items-center',
-          coverImage && '@md:items-stretch',
-        )}
-      >
-        {coverImage ? (
-          // Cover image. Banner cards keep a half width cover.
-          // Regular row cards get a rectanglethat stretches
-          // vertically to fill the card's row height.
-          <div
-            className={cn(
-              'relative m-3 h-24 shrink-0 overflow-hidden rounded-md @md:m-3 @md:h-auto',
-              banner ? '@md:w-1/2' : '@md:w-32',
-            )}
+    <DocumentCardShell
+      interactive={navigateProp}
+      hasCover={!!coverImage}
+      thumbnail={<DocumentCardThumbnail coverImage={coverImage} iconImage={iconImage} banner={banner} />}
+      title={
+        titleLinkOnly && linkAttributes.href ? (
+          <a
+            {...linkAttributes}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+            }}
+            onClick={(e) => {
+              e.stopPropagation()
+              routeOnClick?.(e)
+            }}
+            className={cn(titleClassName, 'max-w-full cursor-pointer no-underline hover:underline')}
           >
-            <img className="absolute top-0 left-0 h-full w-full object-cover" src={imageUrl(coverImage, 'L')} alt="" />
-          </div>
-        ) : iconImage ? (
-          // No cover, but the doc has an icon — render it as a square
-          // thumbnail aligned top-left next to the title.
-          <div className="bg-muted m-3 flex aspect-square size-12 shrink-0 items-center justify-center overflow-hidden rounded-md @md:size-14">
-            <img src={imageUrl(iconImage, 'S')} alt="" className="size-full object-cover" />
-          </div>
+            {title}
+          </a>
         ) : (
-          // Neither cover nor icon — green doc-icon placeholder.
-          <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
-            <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
-          </div>
-        )}
-        <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col justify-between')}>
-          <div className="p-3">
-            {titleLinkOnly && linkAttributes.href ? (
-              <a
-                {...linkAttributes}
-                onMouseDown={(e) => {
-                  e.stopPropagation()
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  routeOnClick?.(e)
-                }}
-                className={cn(titleClassName, 'max-w-full cursor-pointer no-underline hover:underline')}
-              >
-                {title}
-              </a>
-            ) : (
-              <p className={titleClassName}>{title}</p>
+          <p className={titleClassName}>{title}</p>
+        )
+      }
+      summary={
+        textContent ? (
+          <p className={cn('text-muted-foreground mt-2 line-clamp-2 font-sans', !banner && 'text-sm')}>{textContent}</p>
+        ) : null
+      }
+      badges={
+        <>
+          {contributorUids && contributorUids.length > 0 && accountsMetadata && (
+            <FacePile accounts={contributorUids} accountsMetadata={accountsMetadata} />
+          )}
+          {!!draftId && <DraftBadge />}
+          {!draftId && isPrivate && <PrivateBadge size="sm" />}
+          {!draftId && headCount > 1 && <MergedBadge count={headCount} size="sm" />}
+        </>
+      }
+      actions={
+        !hideInlineActions ? (
+          <div className="flex items-center gap-1">
+            {actions.onBookmarkToggle && (
+              <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="no-window-drag"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    actions.onBookmarkToggle!(docId)
+                  }}
+                >
+                  {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
+                </Button>
+              </Tooltip>
             )}
-            {textContent && (
-              <p className={cn('text-muted-foreground mt-2 line-clamp-2 font-sans', !banner && 'text-sm')}>
-                {textContent}
-              </p>
+            {commentCount > 0 && (
+              <Tooltip content="View discussions">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="no-window-drag flex items-center gap-1"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    navigate({key: 'comments', id: docId})
+                  }}
+                >
+                  <MessageSquare className="size-3" />
+                  <SizableText size="xs">{commentCount}</SizableText>
+                </Button>
+              </Tooltip>
             )}
-          </div>
-          <div className="flex items-center justify-between py-2 pr-2 pl-3">
-            <div className="flex items-center gap-1.5">
-              {contributorUids && contributorUids.length > 0 && accountsMetadata && (
-                <FacePile accounts={contributorUids} accountsMetadata={accountsMetadata} />
-              )}
-              {!!draftId && <DraftBadge />}
-              {!draftId && isPrivate && <PrivateBadge size="sm" />}
-              {!draftId && headCount > 1 && <MergedBadge count={headCount} size="sm" />}
-            </div>
-            {!hideInlineActions && (
-              <div className="flex items-center gap-1">
-                {actions.onBookmarkToggle && (
-                  <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="no-window-drag"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        actions.onBookmarkToggle!(docId)
-                      }}
-                    >
-                      {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
-                    </Button>
-                  </Tooltip>
-                )}
-                {commentCount > 0 && (
-                  <Tooltip content="View discussions">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="no-window-drag flex items-center gap-1"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        navigate({key: 'comments', id: docId})
-                      }}
-                    >
-                      <MessageSquare className="size-3" />
-                      <SizableText size="xs">{commentCount}</SizableText>
-                    </Button>
-                  </Tooltip>
-                )}
-                {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="top" />}
-              </div>
+            {menuItems.length > 0 && (
+              <OptionsDropdown menuItems={menuItems} align="end" side="top" hiddenUntilItemHover />
             )}
           </div>
-        </div>
-      </div>
-    </>
+        ) : null
+      }
+    />
   )
 
   if (navigateProp && linkProps) {

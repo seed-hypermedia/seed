@@ -18,10 +18,9 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
-import {Node as PMNode} from 'prosemirror-model'
-import {NodeSelection} from 'prosemirror-state'
 import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
+import {selectBlockNodeById} from './block-utils'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
@@ -145,6 +144,13 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         isDiscovering={queryBlock.isLoading}
         prependItems={prependItems}
         bannerContent={bannerContent}
+        // Unlike a standalone embed card (which IS the selectable block),
+        // the cards inside a query block are not individually selectable —
+        // the QUERY block is. So every card links on the FIRST click, in
+        // read and edit mode alike; the whole-card <a> is an interactive
+        // target that all block-selection click paths already skip.
+        // Selecting the query block still works via its padding/frame.
+        navigateCards
       />
     )
   }
@@ -170,7 +176,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }
 
   return (
-    <BlockSelectionWrapper editor={editor} block={block} onSelectionChange={setIsSelected}>
+    <BlockSelectionWrapper editor={editor} block={block} onSelectionChange={setIsSelected} selectOnMouseDown>
       <div
         className="group relative -mx-4 flex flex-col px-4 select-none"
         onFocusCapture={() => setIsFocusedWithin(true)}
@@ -280,13 +286,7 @@ function QuerySettings({
     const view = editor._tiptapEditor?.view
     if (!view) return
     if (popoverState.open) {
-      view.state.doc.descendants((node: PMNode, pos: number) => {
-        if (node.type.name === 'blockNode' && node.attrs?.id === block.id) {
-          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, pos + 1)))
-          return false
-        }
-        return true
-      })
+      selectBlockNodeById(editor, block.id)
     } else {
       view.focus()
     }

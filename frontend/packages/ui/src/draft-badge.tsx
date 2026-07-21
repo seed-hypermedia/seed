@@ -1,4 +1,5 @@
 import {Badge} from './components/badge'
+import {cn} from './utils'
 
 interface DraftBadgeProps {
   className?: string
@@ -6,7 +7,7 @@ interface DraftBadgeProps {
 
 export function DraftBadge({className}: DraftBadgeProps) {
   return (
-    <Badge variant="warning" className={className}>
+    <Badge variant="warning" className={cn('font-sans', className)}>
       Draft
     </Badge>
   )

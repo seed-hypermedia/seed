@@ -93,7 +93,7 @@ export function getLinkMenuItems({
           const {state, schema} = editor._tiptapEditor
           const {selection} = state
           if (!selection.empty) return
-          const node = schema.nodes.embed.create({url: sourceUrl, view: 'Link'}, schema.text(' '))
+          const node = schema.nodes.embed.create({url: sourceUrl, view: 'Link'})
           insertNode(editor, sourceUrl, node)
         },
       },
@@ -136,13 +136,10 @@ export function getLinkMenuItems({
             const {selection} = state
             if (!selection.empty) return
             const hmRef = hmIdToURL(hmId)
-            const node = schema.nodes.embed.create(
-              {
-                url: hmRef,
-                view: 'Content',
-              },
-              schema.text(' '),
-            )
+            const node = schema.nodes.embed.create({
+              url: hmRef,
+              view: 'Content',
+            })
 
             insertNode(editor, sourceUrl || hmRef, node)
           },
@@ -157,7 +154,7 @@ export function getLinkMenuItems({
             const {selection} = state
             if (!selection.empty) return
             const hmRef = hmIdToURL(hmId)
-            const node = schema.nodes.embed.create({url: hmRef, view: 'Link'}, schema.text(' '))
+            const node = schema.nodes.embed.create({url: hmRef, view: 'Link'})
             insertNode(editor, sourceUrl || hmRef, node)
           },
         },
@@ -174,13 +171,10 @@ export function getLinkMenuItems({
             const {selection} = state
             if (!selection.empty) return
             const hmRef = hmIdToURL(hmId)
-            const node = schema.nodes.embed.create(
-              {
-                url: hmRef,
-                view: 'Card',
-              },
-              schema.text(' '),
-            )
+            const node = schema.nodes.embed.create({
+              url: hmRef,
+              view: 'Card',
+            })
 
             insertNode(editor, sourceUrl || hmRef, node)
           },

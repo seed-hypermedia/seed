@@ -1,7 +1,7 @@
 import {Fragment, NodeType, Slice} from '@tiptap/pm/model'
 import {ReplaceStep} from '@tiptap/pm/transform'
 import {Node as PMNode} from 'prosemirror-model'
-import {EditorState, TextSelection} from 'prosemirror-state'
+import {EditorState, NodeSelection, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {Block, BlockIdentifier, BlockSchema, PartialBlock} from '../../../extensions/Blocks/api/blockTypes'
 import {BlockInfo, getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
@@ -131,11 +131,12 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
     )
   } else {
     const selectionPos = state.selection.$from
+    const blockContentBeforePos = blockInfo.blockContent.beforePos
     // use replaceWith to replace the content and the block itself
     // also reset the selection since replacing the block content
     // sets it to the next block.
     state.tr.replaceWith(
-      blockInfo.blockContent.beforePos,
+      blockContentBeforePos,
       blockInfo.blockContent.afterPos,
       newNodeType.createChecked(
         {
@@ -145,7 +146,17 @@ function updateBlockContentNode<BSchema extends BlockSchema>(
         content,
       ),
     )
-    if (keepSelection) state.tr.setSelection(new TextSelection(state.tr.doc.resolve(selectionPos.pos)))
+    if (keepSelection) {
+      state.tr.setSelection(new TextSelection(state.tr.doc.resolve(selectionPos.pos)))
+    } else if (newNodeType.spec.content === '' && newNodeType.spec.selectable) {
+      // Converting to a selectable leaf block (embed/video/file/button/…): the
+      // replaceWith above pushed the selection to the NEXT block, which then
+      // makes insertOrUpdateBlock/selectInsertedBlock target the wrong block.
+      // Instead, node-select the freshly converted block. Map the position
+      // through the transaction so it stays valid after the replace.
+      const selectPos = state.tr.mapping.map(blockContentBeforePos)
+      state.tr.setSelection(NodeSelection.create(state.tr.doc, selectPos))
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import {EditorView} from 'prosemirror-view'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {EventEmitter} from '../../shared/EventEmitter'
 import {BlockSchema} from '../Blocks/api/blockTypes'
+import {fullBlockSelectionPluginKey} from '../FullBlockSelection/FullBlockSelectionPlugin'
 
 /**
  * The state emitted to React subscribers whenever the hovered block changes.
@@ -40,7 +41,19 @@ type BlockHoverActionsEvents = {
   coneDebug: [PredictionConeDebugState | null]
 }
 
+/**
+ * Block content types that never show hover actions in READ mode (mouse
+ * hover). A selected block in editing mode always shows its actions —
+ * selection-driven visibility must be uniform across block types.
+ */
 const SUPPRESSED_BLOCK_CONTENT_TYPES = new Set(['query'])
+
+/** Position/size equality for two (possibly null) DOMRects. */
+function rectsEqual(a: DOMRect | null, b: DOMRect | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
 
 /**
  * Point-in-triangle test using barycentric coordinates.
@@ -166,31 +179,59 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     return blockElement instanceof HTMLElement && this.pmView.dom.contains(blockElement) ? blockElement : null
   }
 
-  private blockStateFromElement(blockElement: HTMLElement): BlockHoverActionsState | null {
+  private blockStateFromElement(
+    blockElement: HTMLElement,
+    opts?: {allowSuppressedTypes?: boolean},
+  ): BlockHoverActionsState | null {
     const blockId = blockElement.getAttribute('data-id')
     const contentElement = this.findDirectContentElement(blockElement)
     const contentType = contentElement?.getAttribute('data-content-type')
 
-    if (!blockId || !contentElement || !contentType || SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
+    if (!blockId || !contentElement || !contentType) {
+      return null
+    }
+    if (!opts?.allowSuppressedTypes && SUPPRESSED_BLOCK_CONTENT_TYPES.has(contentType)) {
       return null
     }
 
     return {show: true, blockId, referenceRect: contentElement.getBoundingClientRect()}
   }
 
-  private blockStateFromBlockId(blockId: string): BlockHoverActionsState | null {
+  private blockStateFromBlockId(
+    blockId: string,
+    opts?: {allowSuppressedTypes?: boolean},
+  ): BlockHoverActionsState | null {
     const blockElement = this.findBlockElementById(blockId)
-    return blockElement ? this.blockStateFromElement(blockElement) : null
+    return blockElement ? this.blockStateFromElement(blockElement, opts) : null
   }
 
+  /**
+   * Editing-mode derivation of the block that should show the action card.
+   *
+   * Single source of truth: when the FullBlockSelection plugin reports exactly
+   * ONE selected block (node selection or full text coverage), the card
+   * follows it, exactly like the outline and the side menu, regardless of DOM
+   * focus. Multi-block selections show no card — its copy-link/comment
+   * actions target a single block, and pinning them to the first block of a
+   * larger selection would silently act on the wrong target. With no block
+   * selection, the card follows a collapsed text cursor while the editor has
+   * focus.
+   */
   private selectionBlockState(): BlockHoverActionsState | null {
-    const {selection} = this.pmView.state
-
-    if (!this.isEditable() || !this.pmView.hasFocus()) {
+    if (!this.isEditable()) {
       return null
     }
 
-    if (!selection.empty && !(selection instanceof NodeSelection)) {
+    const blockIds = fullBlockSelectionPluginKey.getState(this.pmView.state)?.blockIds ?? []
+    if (blockIds.length === 1) {
+      return this.blockStateFromBlockId(blockIds[0]!, {allowSuppressedTypes: true})
+    }
+    if (blockIds.length > 1) {
+      return null
+    }
+
+    const {selection} = this.pmView.state
+    if (!selection.empty || !this.pmView.hasFocus()) {
       return null
     }
 
@@ -286,7 +327,11 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   }
 
   private emitState(state: BlockHoverActionsState) {
-    const sameVisibleBlock = this.currentState.show && state.show && this.currentState.blockId === state.blockId
+    const sameVisibleBlock =
+      this.currentState.show &&
+      state.show &&
+      this.currentState.blockId === state.blockId &&
+      rectsEqual(this.currentState.referenceRect, state.referenceRect)
     const sameHidden = !this.currentState.show && !state.show
 
     if (sameVisibleBlock || sameHidden) {
@@ -296,6 +341,24 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
 
     this.currentState = state
     this.onUpdate(state)
+  }
+
+  /**
+   * Re-derives and re-emits the current state, e.g. after a scroll or layout
+   * change moved the selected block. Unlike the regular update path this also
+   * emits when only the reference rect changed, so positioners can follow.
+   */
+  public refresh() {
+    if (!this.pmView.dom.isConnected) return
+
+    if (this.isEditable()) {
+      this.showState(this.selectionBlockState())
+      return
+    }
+
+    if (this.currentState.show && this.currentState.blockId) {
+      this.showState(this.blockStateFromBlockId(this.currentState.blockId))
+    }
   }
 
   private hide() {
@@ -436,9 +499,19 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    if (!this.frozen) {
-      this.hide()
+    if (this.frozen) {
+      return
     }
+
+    // In editing mode, losing focus doesn't clear a block selection — the
+    // outline stays, so the action card must stay too. Re-derive instead of
+    // hiding; the cursor-follow path hides itself when focus is required.
+    if (this.isEditable()) {
+      this.showState(this.selectionBlockState())
+      return
+    }
+
+    this.hide()
   }
 
   update() {
@@ -498,6 +571,14 @@ export class BlockHoverActionsProsemirrorPlugin<
         return this.view
       },
     })
+  }
+
+  /**
+   * Re-derives and re-emits the current state (including a changed reference
+   * rect) so positioners can follow scroll/layout changes.
+   */
+  public refresh() {
+    this.view?.refresh()
   }
 
   /** Prevent the plugin from hiding the hover card (e.g. while the card itself is hovered). */

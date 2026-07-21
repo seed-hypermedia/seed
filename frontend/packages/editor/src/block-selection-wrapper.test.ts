@@ -1,7 +1,8 @@
 import {Schema} from 'prosemirror-model'
 import {EditorState, NodeSelection, TextSelection} from 'prosemirror-state'
 import {describe, expect, it} from 'vitest'
-import {computeSelected} from './block-selection-wrapper'
+import {isBlockSelected} from './block-selection-wrapper'
+import {FullBlockSelectionProsemirrorPlugin} from './blocknote/core/extensions/FullBlockSelection/FullBlockSelectionPlugin'
 
 const schema = new Schema({
   nodes: {
@@ -27,10 +28,16 @@ const schema = new Schema({
   },
 })
 
+const doc = schema.node('doc', null, [schema.node('blockNode', {id: 'image-block'}, [schema.node('image')])])
+
 function makeEditor(selection: EditorState['selection'], {isEditable = true, hasFocus = false} = {}) {
-  const state = EditorState.create({schema, doc, selection})
+  // Selection state comes from the FullBlockSelection plugin — the same single
+  // source that drives the side-menu block tools and selection decorations.
+  const fullBlockSelection = new FullBlockSelectionProsemirrorPlugin({} as any)
+  const state = EditorState.create({schema, doc, selection, plugins: [fullBlockSelection.plugin]})
   return {
     isEditable,
+    fullBlockSelection,
     _tiptapEditor: {
       view: {
         state,
@@ -40,20 +47,25 @@ function makeEditor(selection: EditorState['selection'], {isEditable = true, has
   } as any
 }
 
-const doc = schema.node('doc', null, [schema.node('blockNode', {id: 'image-block'}, [schema.node('image')])])
-const block = {id: 'image-block'} as any
-
-describe('computeSelected', () => {
+describe('isBlockSelected', () => {
   it('does not select empty media blocks for collapsed text selections', () => {
     const editor = makeEditor(TextSelection.create(doc, 2))
 
-    expect(computeSelected(editor, block)).toBe(false)
+    expect(isBlockSelected(editor, 'image-block')).toBe(false)
   })
 
-  it('selects media blocks for node selections', () => {
+  it('selects media blocks for node selections on the block content', () => {
     const editor = makeEditor(NodeSelection.create(doc, 1))
 
-    expect(computeSelected(editor, block)).toBe(true)
+    expect(isBlockSelected(editor, 'image-block')).toBe(true)
+  })
+
+  // Regression: a NodeSelection can also land on the blockNode itself (e.g.
+  // from programmatic selection); that must count as selected too.
+  it('selects media blocks for node selections on the blockNode wrapper', () => {
+    const editor = makeEditor(NodeSelection.create(doc, 0))
+
+    expect(isBlockSelected(editor, 'image-block')).toBe(true)
   })
 
   // A read-only, unfocused editor's selection is ProseMirror's mandatory
@@ -61,12 +73,12 @@ describe('computeSelected', () => {
   it('ignores the initial node selection in a read-only, unfocused editor', () => {
     const editor = makeEditor(NodeSelection.create(doc, 1), {isEditable: false, hasFocus: false})
 
-    expect(computeSelected(editor, block)).toBe(false)
+    expect(isBlockSelected(editor, 'image-block')).toBe(false)
   })
 
   it('still selects in a read-only editor once it is focused', () => {
     const editor = makeEditor(NodeSelection.create(doc, 1), {isEditable: false, hasFocus: true})
 
-    expect(computeSelected(editor, block)).toBe(true)
+    expect(isBlockSelected(editor, 'image-block')).toBe(true)
   })
 })

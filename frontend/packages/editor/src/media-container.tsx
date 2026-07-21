@@ -30,6 +30,7 @@ interface ContainerProps {
   width?: number | string
   className?: string
   onPress?: (e: Event) => void
+  onMediaMouseDown?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void
   validateFile?: (file: File) => boolean
   onSubmitUrl?: (url: string) => void
   urlMenuLabel?: React.ReactNode
@@ -111,6 +112,7 @@ export const MediaContainer = ({
   width = '100%',
   className,
   onPress,
+  onMediaMouseDown,
   validateFile,
   onSubmitUrl,
   urlMenuLabel,
@@ -121,6 +123,10 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
+  // Card/Link embeds render a self-contained card with its own border+shadow,
+  // so the MediaContainer chrome frame (border + muted bg) would double up.
+  const embedView = isEmbed ? (block.props as {view?: string}).view : undefined
+  const isSelfFramedEmbed = embedView === 'Card' || embedView === 'Link'
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {
@@ -251,16 +257,24 @@ export const MediaContainer = ({
     const view = editor._tiptapEditor?.view
     if (!view) return
 
-    const targetRange = findBlockRangeById(view.state.doc, block.id)
-    const blockContentPos = targetRange?.blockContentBeforePos ?? null
+    // Resolve position once just to gate on grid-container membership. The
+    // dispatch below re-resolves the range AFTER beginEditIfNeeded, because
+    // entering edit mode can synchronously replace the whole doc (draft
+    // content differs from published), invalidating any pre-edit positions.
+    const preEditRange = findBlockRangeById(view.state.doc, block.id)
+    const preEditContentPos = preEditRange?.blockContentBeforePos ?? null
 
-    if (blockContentPos == null) return
+    if (preEditContentPos == null) return
 
-    if (isInGridContainer(view.state, blockContentPos)) return
+    if (isInGridContainer(view.state, preEditContentPos)) return
 
     e.preventDefault()
     e.stopPropagation()
     beginEditIfNeeded()
+
+    const targetRange = findBlockRangeById(view.state.doc, block.id)
+    const blockContentPos = targetRange?.blockContentBeforePos ?? null
+    if (blockContentPos == null) return
 
     if (e.shiftKey) {
       const currentSelection = view.state.selection
@@ -283,6 +297,14 @@ export const MediaContainer = ({
           return
         }
       }
+    }
+
+    // If PM's handleClickOn already node-selected this block's content node on
+    // the same click, skip the redundant re-dispatch.
+    const currentSelection = view.state.selection
+    if (currentSelection instanceof NodeSelection && currentSelection.from === blockContentPos) {
+      view.focus()
+      return
     }
 
     view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, blockContentPos)).scrollIntoView())
@@ -312,6 +334,9 @@ export const MediaContainer = ({
   const mediaProps = {
     ...styleProps,
     ...(isEmbed || !canAuthor ? {} : dragProps),
+    onMouseDown: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      if (onMediaMouseDown) onMediaMouseDown(e)
+    },
     onMouseEnter: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (onHoverIn) onHoverIn()
     },
@@ -375,10 +400,10 @@ export const MediaContainer = ({
           // The dashed border still appears while dragging as a drop target.
           drag
             ? 'border-foreground/20 dark:border-foreground/30 border-2 border-dashed'
-            : mediaType === 'image' || mediaType === 'video'
+            : mediaType === 'image' || mediaType === 'video' || isSelfFramedEmbed
               ? ''
               : 'border-border border-2',
-          editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
+          editor.commentEditor && !drag ? 'bg-black/5 dark:bg-white/10' : isSelfFramedEmbed ? '' : 'bg-muted',
           className ?? block.type,
         )}
         style={{width}}

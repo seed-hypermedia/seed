@@ -17,6 +17,11 @@ vi.mock('@shm/shared/models/use-editor-gate', () => ({
   useEditorGate: () => editorGate,
 }))
 
+const selectBlockNodeById = vi.fn()
+vi.mock('./block-utils', () => ({
+  selectBlockNodeById: (...args: unknown[]) => selectBlockNodeById(...args),
+}))
+
 import {ButtonBlockView} from './button-view'
 
 function makeBlock(overrides: {url?: string; name?: string; alignment?: string} = {}) {
@@ -57,6 +62,7 @@ let root: Root
 
 beforeEach(() => {
   openUrl.mockReset()
+  selectBlockNodeById.mockReset()
   editorGate.canEdit = false
   editorGate.isEditing = false
   container = document.createElement('div')
@@ -106,16 +112,18 @@ describe('ButtonBlockView', () => {
     expect(openUrl).toHaveBeenCalledWith('https://example.com/page')
   })
 
-  it('does not navigate when the editor is in edit mode', () => {
+  it('selects the block instead of navigating when the editor is in edit mode', () => {
     editorGate.canEdit = true
     editorGate.isEditing = true
-    const button = render(makeBlock({url: 'https://example.com/page'}))
+    const editor = makeEditor()
+    const button = render(makeBlock({url: 'https://example.com/page'}), editor)
 
     act(() => {
       button.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
     })
 
     expect(openUrl).not.toHaveBeenCalled()
+    expect(selectBlockNodeById).toHaveBeenCalledWith(editor, 'block-1')
   })
 
   it('does not attach a click handler when no URL is configured', () => {

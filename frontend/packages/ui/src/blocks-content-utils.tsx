@@ -103,6 +103,8 @@ export function DocumentCardGrid({
   isDiscovering,
   prependItems,
   bannerContent,
+  titleLinkOnly,
+  navigateCards,
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
@@ -113,6 +115,10 @@ export function DocumentCardGrid({
   isDiscovering?: boolean
   prependItems?: ReactNode[]
   bannerContent?: ReactNode
+  /** Render card titles as links (hover underline, navigate on first click). */
+  titleLinkOnly?: boolean
+  /** Whether whole cards navigate on click; defaults to true. */
+  navigateCards?: boolean
 }) {
   const columnClasses = useMemo(() => {
     return cn('basis-full', columnCount == 2 && 'sm:basis-1/2', columnCount == 3 && 'sm:basis-1/2 md:basis-1/3')
@@ -128,6 +134,8 @@ export function DocumentCardGrid({
           <DocumentCard
             banner
             entity={null}
+            navigate={navigateCards ?? true}
+            titleLinkOnly={titleLinkOnly}
             docId={firstItem.id}
             metadata={firstItem.metadata}
             visibility={firstItem.visibility}
@@ -153,6 +161,8 @@ export function DocumentCardGrid({
                 <DocumentCard
                   docId={item.id}
                   entity={null}
+                  navigate={navigateCards ?? true}
+                  titleLinkOnly={titleLinkOnly}
                   metadata={item.metadata}
                   visibility={item.visibility}
                   version={item.version}

@@ -86,6 +86,29 @@ vi.mock('@shm/ui/embed-views', () => ({
   BlockEmbedLink: () => <div data-testid="block-embed-link" />,
 }))
 
+// SubdocumentMenu (the Card/Link embed "..." menu) now mounts whenever the card
+// is present so it can reveal on hover; stub its leaf data hooks so it renders a
+// closed dropdown without a QueryClient/route/actions provider.
+vi.mock('@shm/shared/models/entity', () => ({
+  useResource: () => ({data: undefined, isLoading: false, isInitialLoading: false}),
+  useResources: () => [],
+  useAccount: () => ({data: undefined}),
+}))
+
+vi.mock('@shm/shared/document-actions-context', () => ({
+  useDocumentActions: () => ({}),
+}))
+
+vi.mock('@shm/ui/newspaper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shm/ui/newspaper')>()
+  return {...actual, useDocumentCardMenuItems: () => []}
+})
+
+vi.mock('@shm/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shm/shared')>()
+  return {...actual, useRouteLink: () => ({onClick: undefined, href: undefined})}
+})
+
 const resolveHypermediaUrlMock = vi.fn()
 vi.mock('@seed-hypermedia/client', () => ({
   resolveHypermediaUrl: (...args: any[]) => resolveHypermediaUrlMock(...args),
@@ -242,12 +265,27 @@ describe('EmbedBlock card navigation mode', () => {
     },
   )
 
-  it('disables title-only navigation while editing so the first click can select the block', () => {
+  it.each(['Card', 'Link'] as const)(
+    'renders the %s embed options menu while editing so it can reveal on hover',
+    (view) => {
+      renderEmbedBlock({canEdit: true, isEditing: true, view})
+
+      expect(container.querySelector('[aria-label="Subdocument options"]')).toBeTruthy()
+    },
+  )
+
+  it('does not render the embed options menu outside active editing', () => {
+    renderEmbedBlock({canEdit: true, isEditing: false, view: 'Card'})
+
+    expect(container.querySelector('[aria-label="Subdocument options"]')).toBeNull()
+  })
+
+  it('keeps title-link navigation while editing: the title opens on first click, the body selects', () => {
     renderEmbedBlock({canEdit: true, isEditing: true, view: 'Card'})
 
     const card = container.querySelector('[data-testid="block-embed-card"]') as HTMLElement | null
     expect(card).toBeTruthy()
-    expect(card?.dataset.titleLinkOnly).toBe('false')
+    expect(card?.dataset.titleLinkOnly).toBe('true')
     expect(card?.dataset.openOnClick).toBe('false')
     expect(card?.dataset.hideInlineActions).toBe('true')
   })

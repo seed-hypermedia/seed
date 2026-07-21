@@ -1150,7 +1150,12 @@ export const documentMachine = setup({
         {type: 'setEditorReadOnly'},
       ],
       on: {
+        // Already editing: only move the cursor when the event explicitly asks
+        // for a position (e.g. the click-below-content affordance sends 'end').
+        // A bare edit.start re-entry must not clobber the user's current
+        // selection (e.g. a node-selected block) with a stale draft cursor.
         'edit.start': {
+          guard: ({event}) => event.cursorPosition != null,
           actions: ['setPendingEditCursorPosition', 'placeCursorFromPendingOrDraft'],
         },
         'edit.cancel': {

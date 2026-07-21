@@ -85,15 +85,15 @@ describe('heading section selection', () => {
   it('shows the side menu for fully covered heading blocks', () => {
     const editor = createEditor([{id: 'section', type: 'heading', content: 'Heading'}])
     const heading = getBlockInfo(editor, 'section')
-    let latestSideMenuState: {show: boolean; block: {id: string}} | undefined
-    const unsubscribe = editor.sideMenu!.onUpdate((state) => {
-      latestSideMenuState = state
+    // The side menu derives directly from the FullBlockSelection plugin state.
+    let latestBlockIds: string[] | undefined
+    const unsubscribe = editor.fullBlockSelection!.onUpdate(({blockIds}) => {
+      latestBlockIds = blockIds
     })
 
     setTextSelection(editor, heading.blockContent.beforePos + 1, heading.blockContent.afterPos - 1)
 
-    expect(latestSideMenuState?.show).toBe(true)
-    expect(latestSideMenuState?.block.id).toBe('section')
+    expect(latestBlockIds).toEqual(['section'])
 
     unsubscribe()
     editor._tiptapEditor.destroy()
@@ -129,15 +129,15 @@ describe('heading section selection', () => {
       },
     ])
     const child = getBlockInfo(editor, 'child')
-    let latestSideMenuState: {show: boolean; block: {id: string}} | undefined
-    const unsubscribe = editor.sideMenu!.onUpdate((state) => {
-      latestSideMenuState = state
+    // The side menu derives directly from the FullBlockSelection plugin state.
+    let latestBlockIds: string[] | undefined
+    const unsubscribe = editor.fullBlockSelection!.onUpdate(({blockIds}) => {
+      latestBlockIds = blockIds
     })
 
     setTextSelection(editor, child.blockContent.beforePos + 1, child.blockContent.afterPos - 1)
 
-    expect(latestSideMenuState?.show).toBe(true)
-    expect(latestSideMenuState?.block.id).toBe('child')
+    expect(latestBlockIds).toEqual(['child'])
 
     unsubscribe()
     editor._tiptapEditor.destroy()

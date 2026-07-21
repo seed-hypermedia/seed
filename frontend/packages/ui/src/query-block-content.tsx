@@ -20,6 +20,10 @@ export interface QueryBlockContentProps {
   isDiscovering?: boolean
   prependItems?: ReactNode[]
   bannerContent?: ReactNode
+  /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
+  titleLinkOnly?: boolean
+  /** Whether whole cards navigate on click (ignored for the title when titleLinkOnly). */
+  navigateCards?: boolean
 }
 
 export function QueryBlockContent({
@@ -33,6 +37,8 @@ export function QueryBlockContent({
   isDiscovering,
   prependItems,
   bannerContent,
+  titleLinkOnly,
+  navigateCards,
 }: QueryBlockContentProps) {
   if (style === 'Card') {
     return (
@@ -46,6 +52,8 @@ export function QueryBlockContent({
         isDiscovering={isDiscovering}
         prependItems={prependItems}
         bannerContent={bannerContent}
+        titleLinkOnly={titleLinkOnly}
+        navigateCards={navigateCards}
       />
     )
   }
@@ -72,6 +80,8 @@ function QueryBlockCardView({
   isDiscovering,
   prependItems,
   bannerContent,
+  titleLinkOnly,
+  navigateCards,
 }: {
   items: HMDocumentInfo[]
   banner: boolean
@@ -82,6 +92,8 @@ function QueryBlockCardView({
   isDiscovering?: boolean
   prependItems?: ReactNode[]
   bannerContent?: ReactNode
+  titleLinkOnly?: boolean
+  navigateCards?: boolean
 }) {
   const firstItem = banner && !bannerContent ? items[0] : undefined
   const restItems = banner && !bannerContent ? items.slice(1) : items
@@ -99,6 +111,8 @@ function QueryBlockCardView({
       isDiscovering={isDiscovering}
       prependItems={prependItems}
       bannerContent={bannerContent}
+      titleLinkOnly={titleLinkOnly}
+      navigateCards={navigateCards}
     />
   )
 }

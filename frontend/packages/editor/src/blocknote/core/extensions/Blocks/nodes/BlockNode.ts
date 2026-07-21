@@ -417,6 +417,16 @@ export const BlockNode = Node.create<{
       return {
         dom,
         contentDOM: dom,
+        // Attribute mutations on the block wrapper itself are never doc
+        // content: they come from Pragmatic DnD registering drop targets
+        // (data-drop-target-for-element), decoration classes, and our own
+        // update() re-applying attrs. Without this, ProseMirror dirty-marks
+        // the block and RE-PARSES its content from the DOM — which wipes
+        // node views whose DOM doesn't round-trip (e.g. KaTeX math) and
+        // teleports the selection.
+        ignoreMutation: (mutation: MutationRecord) => {
+          return mutation.type === 'attributes' && mutation.target === dom
+        },
         update: (updatedNode, updatedDecorations) => {
           if (updatedNode.type.name !== 'blockNode') return false
 
