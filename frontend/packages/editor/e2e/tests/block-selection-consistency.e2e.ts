@@ -81,7 +81,13 @@ async function clickBlockBody(page: Page, blockId: string) {
     }
   }
   if (!box) throw new Error(`could not measure block ${blockId}`)
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  // Query blocks fill their center with cards, which are LINKS by design
+  // (they navigate on first click) — select via the frame padding instead.
+  if (blockId === 'blk-query') {
+    await page.mouse.click(box.x + 8, box.y + 8)
+  } else {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  }
   await page.waitForTimeout(250)
 }
 
@@ -265,6 +271,36 @@ test.describe('Block selection consistency across block types (real editor)', ()
     expect(s.pm.kind, 'ONE click must move the caret out of the title input').toBe('TextSelection(empty)')
     expect(s.pm.blockId).toBe('p-bottom')
     expect(s.fullBlockIds, 'the draft card must be deselected').toEqual([])
+  })
+
+  test('cards inside a query block link on first click; the frame still selects the block', async ({page}) => {
+    await setupAllBlocks(page)
+
+    // Cards inside a query block are not individually selectable, so the
+    // whole card is a link that navigates on the FIRST click.
+    const card = page.locator('[data-id="blk-query"] a:has-text("QueryDocOne")').first()
+    await card.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(150)
+    await card.click()
+    await page.waitForTimeout(300)
+
+    let s = await page.evaluate(() => ({
+      routes: ((window as any).TEST_OPEN_ROUTE ?? []).length,
+      full: window.TEST_EDITOR.fullBlockIds(),
+    }))
+    expect(s.routes, 'query card must navigate on first click').toBe(1)
+    expect(s.full, 'query card click must not select the query block').toEqual([])
+
+    // The query block itself is still selectable via its frame padding.
+    const content = page.locator('[data-id="blk-query"] [data-content-type="query"]').first()
+    const box = (await content.boundingBox())!
+    await page.mouse.click(box.x + 8, box.y + 8)
+    await page.waitForTimeout(300)
+    s = await page.evaluate(() => ({
+      routes: ((window as any).TEST_OPEN_ROUTE ?? []).length,
+      full: window.TEST_EDITOR.fullBlockIds(),
+    }))
+    expect(s.full).toEqual(['blk-query'])
   })
 
   test('published card title is a link that navigates on first click without selecting', async ({page}) => {

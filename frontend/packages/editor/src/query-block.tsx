@@ -144,11 +144,13 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         isDiscovering={queryBlock.isLoading}
         prependItems={prependItems}
         bannerContent={bannerContent}
-        // Same policy as embed cards: for editors, card titles navigate on
-        // first click (hover underline) while the card body participates in
-        // block selection; pure readers keep whole-card navigation.
-        titleLinkOnly={canEdit}
-        navigateCards={!canEdit}
+        // Unlike a standalone embed card (which IS the selectable block),
+        // the cards inside a query block are not individually selectable —
+        // the QUERY block is. So every card links on the FIRST click, in
+        // read and edit mode alike; the whole-card <a> is an interactive
+        // target that all block-selection click paths already skip.
+        // Selecting the query block still works via its padding/frame.
+        navigateCards
       />
     )
   }

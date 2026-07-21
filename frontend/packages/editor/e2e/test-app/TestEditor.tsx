@@ -118,6 +118,26 @@ function mockDocumentResource(id: any) {
   }
 }
 
+// Minimal HMDocumentInfo entries so query blocks render real DocumentCards.
+function mockQueryDocInfo(name: string) {
+  return {
+    type: 'document',
+    id: {...editModeId, id: `hm://bafy-doc-uid/${name}`, path: [name]},
+    path: [name],
+    authors: [],
+    createTime: {seconds: 0, nanos: 0},
+    updateTime: {seconds: 0, nanos: 0},
+    sortTime: new Date(0),
+    genesis: 'genesis',
+    version: 'v-mock',
+    breadcrumbs: [],
+    activitySummary: {latestCommentId: '', commentCount: 0, latestChangeTime: {seconds: 0, nanos: 0}, isUnread: false},
+    generationInfo: {genesis: 'genesis', generation: 1},
+    metadata: {name},
+    visibility: 'PUBLIC',
+  }
+}
+
 // Mock universal context client for document search tests
 const mockUniversalClient = {
   request: async (method: string, params: any) => {
@@ -129,6 +149,15 @@ const mockUniversalClient = {
     }
     if (method === 'Interaction' || method === 'InteractionSummary') {
       return {comments: 0, children: 0}
+    }
+    if (method === 'QueryBlock') {
+      return {
+        queryTargetName: 'Mock Space',
+        in: editModeId,
+        results: [mockQueryDocInfo('QueryDocOne'), mockQueryDocInfo('QueryDocTwo')],
+        interactionSummaries: {},
+        accountsMetadata: {},
+      }
     }
     // Unknown methods resolve empty rather than throwing so a card render never crashes the harness.
     return null
