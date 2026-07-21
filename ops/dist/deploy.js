@@ -979,7 +979,7 @@ async function promptReleaseChannel(options) {
   return ue({
     message: "Custom Docker image tag",
     initialValue: hasCustomTag ? initialTag : undefined,
-    placeholder: "feature-branch",
+    placeholder: hasCustomTag ? initialTag : "feature-branch",
     validate: validateDockerImageTag
   });
 }
@@ -1387,7 +1387,7 @@ async function runFreshWizard(paths, existing, advanced = false) {
 `), "First-time setup");
   } else {
     ye([
-      "Editing your current configuration. Press Tab to keep existing values, or type to change them.",
+      "Editing your current configuration. Each prompt shows the current value \u2014 press Enter to keep it. Grey suggestions fill in with Tab.",
       "",
       `Configuration: ${paths.configPath}`
     ].join(`
@@ -1448,7 +1448,7 @@ async function runFreshWizard(paths, existing, advanced = false) {
     }),
     email: () => ue({
       message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
-      placeholder: existing?.email || "you@example.com",
+      placeholder: existing ? existing.email || undefined : "you@example.com",
       validate: (v3) => {
         if (v3 && !v3.includes("@"))
           return "Must be a valid email";
@@ -2125,7 +2125,7 @@ async function promptNodeDir(current, shell) {
   const chosen = await ue({
     message: "Node directory \u2014 existing dir reconfigures it; a new/empty dir creates a branch node",
     initialValue: running ?? current.seedDir,
-    placeholder: DEFAULT_DATA_DIR,
+    placeholder: running ?? current.seedDir,
     validate: (v3) => {
       if (!v3)
         return "Required";

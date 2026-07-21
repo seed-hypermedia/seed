@@ -363,7 +363,9 @@ async function promptReleaseChannel(options: {
   return p.text({
     message: 'Custom Docker image tag',
     initialValue: hasCustomTag ? initialTag : undefined,
-    placeholder: 'feature-branch',
+    // The placeholder is also what Tab fills in, so it must be the node's
+    // current tag whenever one exists — never a made-up example over it.
+    placeholder: hasCustomTag ? initialTag : 'feature-branch',
     validate: validateDockerImageTag,
   })
 }
@@ -954,7 +956,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
   } else {
     p.note(
       [
-        'Editing your current configuration. Press Tab to keep existing values, or type to change them.',
+        'Editing your current configuration. Each prompt shows the current value — press Enter to keep it. Grey suggestions fill in with Tab.',
         '',
         `Configuration: ${paths.configPath}`,
       ].join('\n'),
@@ -1022,7 +1024,10 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
       email: () =>
         p.text({
           message: 'Contact email (optional) — lets us notify you about security updates. Not shared publicly.',
-          placeholder: existing?.email || 'you@example.com',
+          // On reconfigure with no stored email, show no suggestion at all:
+          // Tab inserts the placeholder verbatim, and filling in the example
+          // would silently make it the node's real contact address.
+          placeholder: existing ? existing.email || undefined : 'you@example.com',
           validate: (v) => {
             if (v && !v.includes('@')) return 'Must be a valid email'
           },
@@ -1982,7 +1987,9 @@ async function promptNodeDir(current: DeployPaths, shell: ShellRunner): Promise<
   const chosen = await p.text({
     message: 'Node directory — existing dir reconfigures it; a new/empty dir creates a branch node',
     initialValue: running ?? current.seedDir,
-    placeholder: DEFAULT_DATA_DIR,
+    // Same value as the prefill: after clearing the field, the grey suggestion
+    // (and Tab) must restore the current node dir, not the /opt/seed default.
+    placeholder: running ?? current.seedDir,
     validate: (v) => {
       if (!v) return 'Required'
       if (!v.startsWith('/')) return 'Use an absolute path'
