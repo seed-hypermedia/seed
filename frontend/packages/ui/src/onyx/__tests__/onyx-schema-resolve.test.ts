@@ -53,6 +53,12 @@ describe('classifyRef', () => {
   it('an ipfs CID is a direct cid ref', () => {
     expect(classifyRef(`ipfs://${personCid}`)).toEqual({kind: 'cid', cid: personCid})
   })
+  it('a gateway/web URL normalizes to the same schema as its hm:// form', () => {
+    // A pasted or search-picked link often arrives as an https gateway URL.
+    expect(
+      classifyRef(`https://hyper.media/hm/z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-employee`),
+    ).toEqual({kind: 'hm-bundled', name: 'example-employee'})
+  })
   it('empty / junk is none', () => {
     expect(classifyRef('')).toEqual({kind: 'none'})
     expect(classifyRef(null)).toEqual({kind: 'none'})
