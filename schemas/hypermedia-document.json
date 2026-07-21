@@ -4,12 +4,12 @@
   "type": "hm://hyper.media/map",
   "properties": {
     "metadata": {
-      "ref": "hm://seed.hyper.media/metadata"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata"
     },
     "content": {
       "type": "hm://hyper.media/list",
       "items": {
-        "ref": "hm://seed.hyper.media/block-node"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-node"
       }
     }
   }
