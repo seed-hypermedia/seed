@@ -21,10 +21,9 @@ import {toast} from '../toast'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {OnyxDataEditor} from './onyx-data-editor'
-import {kindOf, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
+import {kindOf, kindUrl, MAP_URL, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
-const MAP_URL = 'hm://hyper.media/map'
 
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
@@ -50,9 +49,9 @@ function propKind(ps: any): string {
 
 /** The property schema for a chosen kind. */
 function kindSchema(kind: string): OnyxSchema {
-  if (kind === 'list') return {type: 'hm://hyper.media/list', items: {}}
+  if (kind === 'list') return {type: kindUrl('list'), items: {}}
   if (kind === 'map') return {type: MAP_URL, values: {}}
-  return {type: `hm://hyper.media/${kind}`}
+  return {type: kindUrl(kind)}
 }
 
 /** An empty starter struct schema. */
