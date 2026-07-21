@@ -102,6 +102,7 @@ declare global {
     __schemaCid: (nameOrUrl: string) => string | undefined
     __lastPublishedSchema?: unknown
     __publishedSchemas?: unknown[]
+    __openedUrl?: string
   }
 }
 
@@ -123,6 +124,10 @@ function MetadataEditor({
       onMetadata={onMetadata}
       // A mock uploader so ipfs-typed fields show their file-picker affordance.
       fileUpload={async () => 'bafyreietestuploadcidxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+      // Record navigations so a test can assert an HM-link pill is clickable.
+      openUrl={(url) => {
+        window.__openedUrl = url
+      }}
     />
   )
 }

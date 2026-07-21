@@ -3383,6 +3383,7 @@ function DocumentMetadataPage({
       }}
       fileUpload={fileUpload}
       openFile={openFile}
+      openUrl={openUrl}
       onCreateBlob={onCreateBlob}
     />
   )
