@@ -12,8 +12,8 @@
 // the METADATA sub-schema (document-shaped schemas nest it under `metadata`; flat
 // schemas are the metadata schema themselves), which drives required-field UI.
 import {useMemo} from 'react'
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
-import type {UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {parseCidString} from '../dag-json'
 import {ONYX_SCHEMAS, refToName, resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
@@ -82,8 +82,7 @@ export function useResolvedSchema(ref: string | null | undefined): {schema?: Ony
 
   const schema = cls.kind === 'hm-bundled' ? ONYX_SCHEMAS[cls.name] : cid ? byCid[cid] : undefined
   const isLoading =
-    !schema &&
-    ((cls.kind === 'hm-doc' && (resource.isLoading || !!docSchemaCid)) || (cls.kind === 'cid' && cidLoading))
+    !schema && ((cls.kind === 'hm-doc' && (resource.isLoading || !!docSchemaCid)) || (cls.kind === 'cid' && cidLoading))
 
   return {schema, isLoading}
 }
