@@ -2,15 +2,15 @@
  * sync-onyx.ts — publish the Onyx schema system to Seed Hypermedia.
  *
  * Publishes, under the onyx account (signing key `main`):
- *   1. Every schema blob (schemas/*.json except schemas.lock.json) encoded to
+ *   1. Every schema blob (onyx/*.json except schemas.lock.json) encoded to
  *      canonical DAG-CBOR and content-addressed. Each computed CID is verified
  *      against schemas/schemas.lock.json; a mismatch fails the run.
  *   2. One Hypermedia document per schema, from its CO-LOCATED markdown
- *      (schemas/<name>.md beside schemas/<name>.json), published at its public
+ *      (onyx/<name>.md beside onyx/<name>.json), published at its public
  *      name (onyx- primitives stripped: /map, /string; others prefixed). A TYPE
  *      doc DEFINES a schema (metadata.schemaDefinition = ipfs://<CID>); an
  *      INSTANCE doc ({$type,value}) CONFORMS to one (metadata.schema = $type).
- *   3. Narrative pages from schemas/site/*.md (home.md -> root path "").
+ *   3. Narrative pages from onyx/site/*.md (home.md -> root path "").
  *
  * Usage:
  *   cd frontend/apps/cli && bun run src/sync-onyx.ts [--dry-run] [--server <url>]
@@ -46,7 +46,7 @@ import {createSignerFromKey} from './utils/signer'
 
 const DIR = dirname(fileURLToPath(import.meta.url)) // frontend/apps/cli/src
 const REPO_ROOT = resolve(DIR, '../../../..') // /Users/ericvicenti/Code/Seed
-const SCHEMAS_DIR = resolve(REPO_ROOT, 'schemas')
+const SCHEMAS_DIR = resolve(REPO_ROOT, 'onyx')
 const SITE_DIR = resolve(SCHEMAS_DIR, 'site')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 

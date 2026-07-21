@@ -13,7 +13,7 @@ import {readFileSync, writeFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
 const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-const SRC = 'schemas'
+const SRC = 'onyx'
 
 function toOnyx(url) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(url)
