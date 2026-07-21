@@ -106,6 +106,7 @@ export function DocumentMetadataView({
   conformanceSchema,
   fileUpload,
   openFile,
+  openUrl,
   onCreateBlob,
 }: {
   metadata?: HMMetadata | null
@@ -122,6 +123,8 @@ export function DocumentMetadataView({
   fileUpload?: (file: File) => Promise<string>
   /** Opens an uploaded IPFS file (by CID) in its own dedicated viewer window. */
   openFile?: (cid: string) => void
+  /** Navigates to a hypermedia URL — makes `hm://` reference fields clickable. */
+  openUrl?: (url: string) => void
   /** Opens a blank blob editor (new IPFS object) in its own window. */
   onCreateBlob?: () => void
 }) {
@@ -223,6 +226,7 @@ export function DocumentMetadataView({
       onRedo={editable ? handleRedo : undefined}
       fileUpload={editable ? fileUpload : undefined}
       openFile={openFile}
+      openUrl={openUrl}
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
       <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={validationValue}>
