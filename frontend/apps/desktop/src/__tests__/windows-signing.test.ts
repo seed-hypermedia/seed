@@ -45,12 +45,14 @@ describe('windows signing plan', () => {
 })
 
 describe('windows signing commands', () => {
-  test('signs and verifies packaged Windows app directories', async () => {
+  test('signs and verifies only the packaged app and daemon executables', async () => {
     const commands: WindowsSigningCommand[] = []
 
     await signWindowsPackagePaths(['C:/work/out/Seed-win32-x64'], {
       platform: 'win32',
       env: {CI: 'true', WINDOWS_CODE_SIGNING: 'true', SM_KEYPAIR_ALIAS: 'seed-prod'},
+      packageExecutableName: 'Seed.exe',
+      packageResourceExecutableNames: ['seed-daemon-x86_64-pc-windows-gnu.exe'],
       runCommand: (command) => {
         commands.push(command)
       },
@@ -62,7 +64,7 @@ describe('windows signing commands', () => {
         args: [
           'sign',
           '--keypair-alias=seed-prod',
-          '--input=C:/work/out/Seed-win32-x64',
+          '--input=C:/work/out/Seed-win32-x64/Seed.exe',
           '--simple',
           '--unsigned',
           '--sigalg=SHA256',
@@ -72,9 +74,30 @@ describe('windows signing commands', () => {
       },
       {
         command: 'smctl',
-        args: ['sign', 'verify', '--input=C:/work/out/Seed-win32-x64'],
+        args: ['sign', 'verify', '--input=C:/work/out/Seed-win32-x64/Seed.exe'],
+      },
+      {
+        command: 'smctl',
+        args: [
+          'sign',
+          '--keypair-alias=seed-prod',
+          '--input=C:/work/out/Seed-win32-x64/resources/seed-daemon-x86_64-pc-windows-gnu.exe',
+          '--simple',
+          '--unsigned',
+          '--sigalg=SHA256',
+          '--digalg=SHA256',
+          '--verbose',
+        ],
+      },
+      {
+        command: 'smctl',
+        args: ['sign', 'verify', '--input=C:/work/out/Seed-win32-x64/resources/seed-daemon-x86_64-pc-windows-gnu.exe'],
       },
     ])
+    expect(commands.flatMap((command) => command.args)).not.toContain('C:/work/out/Seed-win32-x64')
+    expect(commands.flatMap((command) => command.args)).not.toContain(
+      '--input=C:/work/out/Seed-win32-x64/resources/libwinpthread-1.dll',
+    )
   })
 
   test('signs only Windows setup executables from make results and preserves the result object', async () => {

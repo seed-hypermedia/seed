@@ -16,6 +16,7 @@ import {signWindowsMakeResults, signWindowsPackagePaths} from './scripts/windows
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
+const packageExecutableName = IS_PROD_DEV ? 'SeedDev.exe' : 'Seed.exe'
 
 const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
@@ -253,7 +254,10 @@ const config: ForgeConfig = {
   hooks: {
     postPackage: async (_config, options) => {
       console.info('PostPackage output paths:', options.outputPaths)
-      await signWindowsPackagePaths(options.outputPaths)
+      await signWindowsPackagePaths(options.outputPaths, {
+        packageExecutableName,
+        packageResourceExecutableNames: [path.basename(daemonBinaryPath)],
+      })
 
       for (const outputPath of options.outputPaths) {
         console.info(`\nListing contents of: ${outputPath}`)

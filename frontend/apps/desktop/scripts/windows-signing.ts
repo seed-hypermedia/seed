@@ -18,6 +18,8 @@ export type WindowsSigningOptions = {
   platform?: NodeJS.Platform | string
   env?: WindowsSigningEnv
   runCommand?: WindowsSigningCommandRunner
+  packageExecutableName?: string
+  packageResourceExecutableNames?: string[]
 }
 
 /** Minimal shape of Electron Forge make results used by the signing hook. */
@@ -58,7 +60,7 @@ export function getWindowsSigningPlan(options: WindowsSigningOptions = {}): Wind
   return {enabled: true, keypairAlias}
 }
 
-/** Signs and verifies packaged Windows app directories before Squirrel artifacts are created. */
+/** Signs and verifies packaged Windows executables before Squirrel artifacts are created. */
 export async function signWindowsPackagePaths(
   outputPaths: string[],
   options: WindowsSigningOptions = {},
@@ -70,7 +72,9 @@ export async function signWindowsPackagePaths(
   }
 
   for (const outputPath of outputPaths) {
-    await signAndVerifyPath(outputPath, plan.keypairAlias, options)
+    for (const targetPath of getWindowsPackageSigningTargets(outputPath, options)) {
+      await signAndVerifyPath(targetPath, plan.keypairAlias, options)
+    }
   }
 }
 
@@ -96,6 +100,23 @@ export async function signWindowsMakeResults<T extends WindowsSigningMakeResult>
   }
 
   return makeResults
+}
+
+function getWindowsPackageSigningTargets(outputPath: string, options: WindowsSigningOptions): string[] {
+  const packageExecutableName = options.packageExecutableName?.trim()
+  if (!packageExecutableName) {
+    throw new Error('Windows package signing requires packageExecutableName')
+  }
+
+  const packageResourceExecutableNames = options.packageResourceExecutableNames ?? []
+  if (packageResourceExecutableNames.length === 0) {
+    throw new Error('Windows package signing requires at least one packageResourceExecutableNames entry')
+  }
+
+  return [
+    path.join(outputPath, packageExecutableName),
+    ...packageResourceExecutableNames.map((fileName) => path.join(outputPath, 'resources', fileName)),
+  ]
 }
 
 async function signAndVerifyPath(
