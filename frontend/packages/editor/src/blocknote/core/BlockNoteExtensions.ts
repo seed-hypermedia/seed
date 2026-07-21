@@ -23,6 +23,7 @@ import {TableCell, TableHeader, TableRow} from '../../tiptap-extension-table'
 import {BackgroundColorMark} from './extensions/BackgroundColor/BackgroundColorMark'
 import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
+import {BlockRevisionInvalidationExtension} from './extensions/BlockRevision/BlockRevisionInvalidation'
 import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
@@ -180,6 +181,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       ...(opts.editor.disableTrailingNode ? [] : [TrailingNode]),
       debugPlugin,
       History,
+      BlockRevisionInvalidationExtension.configure({
+        editor: opts.editor as any,
+      }),
     )
   }
 

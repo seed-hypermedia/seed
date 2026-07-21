@@ -54,6 +54,24 @@ function appendPublishedContent(block: HTMLElement) {
   block.appendChild(content)
 }
 
+function createDocFromEditorDom() {
+  return {
+    descendants: (callback: (node: any) => void | false) => {
+      for (const block of Array.from(editorDom.querySelectorAll('[data-id]'))) {
+        const revision = block.querySelector('[data-revision]')?.getAttribute('data-revision') || ''
+        const shouldStop = callback({
+          type: {name: 'blockNode'},
+          attrs: {id: (block as HTMLElement).dataset.id},
+          forEach: (childCallback: (child: any) => void) => {
+            childCallback({type: {spec: {group: 'block'}}, attrs: {revision}})
+          },
+        })
+        if (shouldStop === false) return
+      }
+    },
+  }
+}
+
 function renderPositioner({
   onCopyBlockLink = () => {},
   onStartComment = () => {},
@@ -79,7 +97,7 @@ function renderPositioner({
   }
   const editor = {
     blockHoverActions: plugin,
-    prosemirrorView: {dom: editorDom, state: {doc}},
+    prosemirrorView: {dom: editorDom, state: {doc: doc ?? createDocFromEditorDom()}},
   } as any
 
   act(() => {
@@ -235,9 +253,10 @@ describe('BlockHoverActionsPositioner', () => {
     expect(container.querySelector('[aria-label="Start comment"]')).toBeNull()
   })
 
-  it('uses a caller-provided referenceable predicate instead of requiring revision attributes', () => {
+  it('shows actions for revised blocks that pass the caller-provided referenceable predicate', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
+    appendPublishedContent(block)
     editorDom.appendChild(block)
 
     renderPositioner({isBlockReferenceable: (blockId) => blockId === 'block-1'})
@@ -248,6 +267,21 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(container.querySelector('[aria-label="Copy block link"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
+  })
+
+  it('requires a current revision even when the caller-provided predicate allows the block', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    editorDom.appendChild(block)
+
+    renderPositioner({isBlockReferenceable: () => true})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    expect(container.querySelector('[aria-label="Copy block link"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).toBeNull()
   })
 
   it('keeps editor focus stable when pressing hover action buttons', () => {

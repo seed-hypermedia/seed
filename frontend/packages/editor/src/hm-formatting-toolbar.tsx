@@ -22,6 +22,7 @@ import {TextSelection} from 'prosemirror-state'
 import {useEffect, useRef, useState} from 'react'
 import {BlockNoteEditor, BlockSpec, getBlockInfoFromSelection, PropSchema, updateGroupCommand} from './blocknote/core'
 import {getNearestBlockOrCellPos} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getReferenceableRevision} from './blocknote/core/extensions/BlockRevision/BlockRevisionInvalidation'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
 import {prosemirrorPosToBlockTextOffset} from './blocknote/core/extensions/RangeSelection/RangeSelectionPlugin'
 import {
@@ -116,17 +117,21 @@ function getSelectionFragment(editor: BlockNoteEditor<any>): {
   if (!blockId) return null
 
   // Find blockContent start position and revision. A missing revision means
-  // the block has not been published yet, so it cannot be referenced.
+  // the block has not been published yet, or has been semantically edited
+  // since publish, so it cannot be referenced.
   let blockContentBeforePos = blockBeforePos
-  let revision = typeof blockNode.attrs?.revision === 'string' ? blockNode.attrs.revision : ''
-  blockNode.forEach((child, offset) => {
-    if (child.type.spec.group === 'block') {
-      blockContentBeforePos = blockBeforePos + offset + 1
-      revision = typeof child.attrs?.revision === 'string' ? child.attrs.revision : revision
-    }
-  })
+  const firstChild = blockNode.firstChild
+  if (blockNode.type?.name === 'tableCell' || blockNode.type?.name === 'tableHeader') {
+    if (firstChild) blockContentBeforePos = blockBeforePos + 1
+  } else {
+    blockNode.forEach((child, offset) => {
+      if (child.type.spec.group === 'block') {
+        blockContentBeforePos = blockBeforePos + offset + 1
+      }
+    })
+  }
 
-  if (!revision) return null
+  if (!getReferenceableRevision(blockNode)) return null
 
   const rangeStart = prosemirrorPosToBlockTextOffset(state.doc, from, blockContentBeforePos)
   const rangeEnd = prosemirrorPosToBlockTextOffset(state.doc, to, blockContentBeforePos)

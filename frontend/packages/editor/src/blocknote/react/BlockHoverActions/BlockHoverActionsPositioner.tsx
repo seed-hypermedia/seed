@@ -7,6 +7,7 @@ import {
   BlockHoverActionsState,
 } from '../../core/extensions/BlockHoverActions/BlockHoverActionsPlugin'
 import {BlockSchema} from '../../core/extensions/Blocks/api/blockTypes'
+import {getReferenceableRevisionByBlockId} from '../../core/extensions/BlockRevision/BlockRevisionInvalidation'
 
 const HOVER_BG_CLASS = 'bn-block-hover-highlight'
 const CARD_OVERLAP_PX = 0
@@ -68,25 +69,7 @@ function getPublishedBlockRevision<BSchema extends BlockSchema>(
   editor: EditorWithHoverActions<BSchema>,
   blockId: string,
 ): string {
-  let revision = ''
-  editor.prosemirrorView?.state?.doc?.descendants?.((node: any) => {
-    if (revision) return false
-    if (node.type?.name !== 'blockNode' || node.attrs?.id !== blockId) return
-    if (typeof node.attrs?.revision === 'string') {
-      revision = node.attrs.revision
-    }
-    node.forEach?.((child: any) => {
-      if (revision) return
-      if (child.type?.spec?.group === 'block' && typeof child.attrs?.revision === 'string') {
-        revision = child.attrs.revision
-      }
-    })
-    return false
-  })
-  if (revision) return revision
-
-  const blockElement = editor.prosemirrorView?.dom?.querySelector(`[data-id="${blockId}"]`) as HTMLElement | null
-  return blockElement?.querySelector('[data-revision]')?.getAttribute('data-revision') || ''
+  return getReferenceableRevisionByBlockId(editor.prosemirrorView.state?.doc, blockId)
 }
 
 export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockSchema>({
@@ -176,9 +159,8 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   // returns below; they tolerate a null blockId while the card is hidden.
   const canReferenceBlock = useMemo(() => {
     if (!hoverState.blockId) return false
-    return isBlockReferenceable
-      ? isBlockReferenceable(hoverState.blockId)
-      : !!getPublishedBlockRevision(editor, hoverState.blockId)
+    const hasCurrentRevision = !!getPublishedBlockRevision(editor, hoverState.blockId)
+    return hasCurrentRevision && (isBlockReferenceable ? isBlockReferenceable(hoverState.blockId) : true)
   }, [hoverState.blockId, editor, isBlockReferenceable])
 
   const supernumberBadge = useMemo(() => {

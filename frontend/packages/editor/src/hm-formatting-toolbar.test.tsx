@@ -135,6 +135,7 @@ function makeEditor() {
 
 function makeBlock(revision?: string) {
   return {
+    type: {name: 'blockNode'},
     attrs: {id: 'block-1'},
     forEach: (callback: (child: any, offset: number) => void) => {
       callback({type: {spec: {group: 'block'}}, attrs: {revision: revision || ''}}, 0)
