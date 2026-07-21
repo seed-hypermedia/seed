@@ -34,16 +34,24 @@ export type RefKind =
   | {kind: 'hm-bundled'; name: string}
   | {kind: 'hm-doc'; url: string}
 
-/** Classify a schema reference without fetching anything. */
+/** Classify a schema reference without fetching anything. Accepts an `hm://`
+ * URL, an ipfs CID, OR a gateway/web URL (`https://host/hm/uid/path`) — the last
+ * is normalized to its `hm://` form so a pasted or search-picked web link
+ * resolves the same as the canonical URL. */
 export function classifyRef(ref: string | null | undefined): RefKind {
-  const s = typeof ref === 'string' ? ref.trim() : ''
+  let s = typeof ref === 'string' ? ref.trim() : ''
   if (!s) return {kind: 'none'}
-  if (s.startsWith('hm://')) {
-    const name = refToName(s)
-    return ONYX_SCHEMAS[name] ? {kind: 'hm-bundled', name} : {kind: 'hm-doc', url: s}
+  if (!s.startsWith('hm://')) {
+    // ipfs:// or a bare CID → a direct blob reference.
+    const cid = bareCid(s)
+    if (cid) return {kind: 'cid', cid}
+    // Otherwise try to read it as a hypermedia id (handles gateway/web URLs).
+    const id = unpackHmId(s)
+    if (!id) return {kind: 'none'}
+    s = `hm://${id.uid}${id.path?.length ? `/${id.path.join('/')}` : ''}`
   }
-  const cid = bareCid(s)
-  return cid ? {kind: 'cid', cid} : {kind: 'none'}
+  const name = refToName(s)
+  return ONYX_SCHEMAS[name] ? {kind: 'hm-bundled', name} : {kind: 'hm-doc', url: s}
 }
 
 /**
