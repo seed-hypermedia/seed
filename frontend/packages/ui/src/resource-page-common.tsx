@@ -150,6 +150,7 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
 import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
+import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
 import {
@@ -3174,7 +3175,7 @@ function PanelContentRenderer({
     case 'metadata':
       return (
         <div className="px-4">
-          <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </div>
       )
     case 'activity':
@@ -3361,9 +3362,11 @@ function HomeDocumentMetadataControls({
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
 function DocumentMetadataPage({
+  docId,
   document,
   fileUpload,
 }: {
+  docId: UnpackedHypermediaId
   document: HMDocument
   fileUpload?: (file: File) => Promise<string>
 }) {
@@ -3375,6 +3378,9 @@ function DocumentMetadataPage({
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // The schema this document conforms to (own `schema`, else parent's
+  // `childrenSchema`) — drives required-field rows + advisory validation.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(docId, metadata)
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
@@ -3386,6 +3392,7 @@ function DocumentMetadataPage({
     <DocumentMetadataView
       metadata={metadata as any}
       canEdit={canEditCurrentRoute}
+      conformanceSchema={conformanceSchema}
       onMetadata={(patch) => {
         if (!canEditCurrentRoute) return
         beginEditIfNeeded()
@@ -3788,7 +3795,7 @@ function MainContent({
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {/* Extra left padding in the main view; the panel render keeps its own. */}
           <div className="pl-4">
-            <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
           </div>
         </PageLayout>
       )
@@ -3965,6 +3972,9 @@ function ContentViewWithOutline({
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],
   )
+  // The schema this document must conform to (own `schema`, else parent's
+  // `childrenSchema`) — drives the always-visible required attributes.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
@@ -4013,6 +4023,7 @@ function ContentViewWithOutline({
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
         {canEdit && (
           <RequiredAttributesEditor
+            conformanceSchema={conformanceSchema}
             metadata={requiredAttrMetadata}
             onMetadata={(patch) => {
               // A published doc isn't editing yet — enter editing first so the
