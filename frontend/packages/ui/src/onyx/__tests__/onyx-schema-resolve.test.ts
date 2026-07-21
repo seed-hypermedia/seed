@@ -1,9 +1,31 @@
 import {describe, expect, it} from 'vitest'
-import {ONYX_SCHEMAS, schemaCid, validate} from '../onyx-engine'
+import {ONYX_SCHEMAS, resolveSchema, schemaCid, validate} from '../onyx-engine'
 import {bareCid, classifyRef, metadataSchemaOf} from '../onyx-schema-resolve'
 
 const ONYX = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const personCid = schemaCid('example-person')!
+
+describe('hypermedia-metadata semantic field formats', () => {
+  // The format that a metadata field's (resolved) schema declares — this is what
+  // the value editor keys off to render the richer HM-link / IPFS-file inputs.
+  const fieldFormat = (key: string) => {
+    const meta = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
+    return resolveSchema(meta.properties![key]).schema.format
+  }
+  it('schema and childrenSchema are HM links (hm-url)', () => {
+    expect(fieldFormat('schema')).toBe('hm-url')
+    expect(fieldFormat('childrenSchema')).toBe('hm-url')
+  })
+  it('icon, cover, and schemaDefinition are IPFS files (ipfs)', () => {
+    expect(fieldFormat('icon')).toBe('ipfs')
+    expect(fieldFormat('cover')).toBe('ipfs')
+    expect(fieldFormat('schemaDefinition')).toBe('ipfs')
+  })
+  it('the format-typed reference schemas are valid Onyx schemas', () => {
+    expect(validate(ONYX_SCHEMAS['onyx-schema'], ONYX_SCHEMAS['hypermedia-hm-url'])).toEqual([])
+    expect(validate(ONYX_SCHEMAS['onyx-schema'], ONYX_SCHEMAS['hypermedia-ipfs'])).toEqual([])
+  })
+})
 
 describe('bareCid', () => {
   it('extracts a DAG-CBOR CID from ipfs:// and bare forms', () => {
