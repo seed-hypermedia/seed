@@ -3,37 +3,37 @@
   "description": "The union of the eleven built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr). This is the strict core Hypermedia defines; anyone can extend it by making a larger union that includes it plus their own block types.",
   "anyOf": [
     {
-      "ref": "hm://seed.hyper.media/block-paragraph"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-paragraph"
     },
     {
-      "ref": "hm://seed.hyper.media/block-heading"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-heading"
     },
     {
-      "ref": "hm://seed.hyper.media/block-code"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-code"
     },
     {
-      "ref": "hm://seed.hyper.media/block-math"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-math"
     },
     {
-      "ref": "hm://seed.hyper.media/block-image"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-image"
     },
     {
-      "ref": "hm://seed.hyper.media/block-video"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-video"
     },
     {
-      "ref": "hm://seed.hyper.media/block-file"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-file"
     },
     {
-      "ref": "hm://seed.hyper.media/block-button"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-button"
     },
     {
-      "ref": "hm://seed.hyper.media/block-embed"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-embed"
     },
     {
-      "ref": "hm://seed.hyper.media/block-web-embed"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-web-embed"
     },
     {
-      "ref": "hm://seed.hyper.media/block-nostr"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-nostr"
     }
   ]
 }

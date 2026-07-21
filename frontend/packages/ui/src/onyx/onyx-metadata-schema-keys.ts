@@ -5,7 +5,7 @@
 // schema-keyed keys are validated against their (inlined) schemas; every other
 // key is accepted (`values: {}` — the empty schema imposes no constraint).
 import {parseCidString} from '../dag-json'
-import {ONYX_SCHEMAS, resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
+import {MAP_URL, ONYX_SCHEMAS, resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -39,7 +39,7 @@ export function buildSchemaKeyRoot(keys: string[], byCid: Record<string, OnyxSch
     if (cid && byCid[cid]) properties[key] = byCid[cid]!
   }
   if (Object.keys(properties).length === 0) return undefined
-  return {type: 'hm://hyper.media/map', properties, values: {}}
+  return {type: MAP_URL, properties, values: {}}
 }
 
 /**
@@ -58,7 +58,7 @@ export function documentMetadataSchema(
   const base = resolveSchema(ONYX_SCHEMAS['hypermedia-metadata']).schema
   const doc = resolveSchema(docTypeSchema, {}, registry).schema
   return {
-    type: 'hm://hyper.media/map',
+    type: MAP_URL,
     properties: {...(base.properties || {}), ...(doc.properties || {}), ...extraProps},
     required: Array.from(new Set<string>([...(base.required || []), ...(doc.required || [])])),
     values: {},

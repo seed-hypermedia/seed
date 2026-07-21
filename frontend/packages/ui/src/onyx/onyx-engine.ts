@@ -14,31 +14,51 @@ export type OnyxSchema = Record<string, any>
  * custom registry to resolve refs that aren't in the bundled standard library. */
 export type OnyxRegistry = Record<string, OnyxSchema>
 
-// References are hm:// URLs; bundled schemas are keyed by their filename alias
-// (no .json). Each authority maps to a filename prefix — the only place the
-// mapping lives (mirrors schemas/validate.mjs AUTHORITY).
-const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/
+// The onyx account under which every schema is PUBLISHED as a document. A schema
+// reference is its published-doc URL: hm://<onyx>/<public name>, where the public
+// name strips the `onyx-` prefix from primitives/meta (map, string, schema…) and
+// keeps the hypermedia-/example- prefix otherwise. Legacy dev-authority URLs
+// (hyper.media / seed.hyper.media / example.com) still resolve for back-compat.
+const ONYX_DID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX_DID})/([a-z]+)$`)
 
 /** hm:// URL (or bare name) -> bundled-schema key (basename, no .json). */
 export function refToName(ref: string): string {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.json$/, '')
   const [, auth = '', name = ''] = m
+  if (auth === ONYX_DID) {
+    // Published-doc URL: the path is the schema's public name. hypermedia-*/
+    // example-* names are basenames as-is; primitive/meta names had their
+    // `onyx-` prefix stripped, so restore it when that's the bundled schema.
+    if (ONYX_SCHEMAS[name]) return name
+    if (ONYX_SCHEMAS[`onyx-${name}`]) return `onyx-${name}`
+    return name
+  }
   const prefix = ONYX_AUTHORITY.find(([, a]) => a === auth)?.[0]
   return prefix ? `${prefix}${name}` : name
 }
 
-/** bundled-schema key (basename) -> canonical hm:// URL, or null if unknown authority. */
+/** bundled-schema key (basename) -> canonical published hm:// URL under the onyx account. */
 export function nameToUrl(name: string): string | null {
-  const entry = ONYX_AUTHORITY.find(([p]) => name.startsWith(p))
-  if (!entry) return null
-  const [prefix, host] = entry
-  return `hm://${host}/${name.slice(prefix.length)}`
+  const publicName = name.startsWith('onyx-') ? name.slice(5) : name
+  return `hm://${ONYX_DID}/${publicName}`
 }
 
-/** Published DAG-CBOR CID for a schema (by basename or hm:// URL), if in the manifest. */
+/** The canonical kind URL for a primitive kind (map, list, string, …). Schemas
+ * authored in-app must use this so they validate against the meta-schema. */
+export function kindUrl(kind: string): string {
+  return `hm://${ONYX_DID}/${kind}`
+}
+
+/** The map kind URL (the shape every struct/metadata schema declares). */
+export const MAP_URL = kindUrl('map')
+
+/** Published DAG-CBOR CID for a schema, by basename or ANY hm:// URL form
+ * (onyx-account or legacy dev-authority) — normalized through the bundle. */
 export function schemaCid(nameOrUrl: string): string | undefined {
-  const url = nameOrUrl.startsWith('hm://') ? nameOrUrl : nameToUrl(nameOrUrl)
+  const name = nameOrUrl.startsWith('hm://') ? refToName(nameOrUrl) : nameOrUrl
+  const url = nameToUrl(name)
   return url ? ONYX_MANIFEST[url] : undefined
 }
 
