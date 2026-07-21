@@ -832,7 +832,7 @@ export function FieldRow({
   rules,
   path,
   className,
-  badge,
+  canRemove = true,
 }: {
   fieldKey: string
   value: unknown
@@ -848,14 +848,23 @@ export function FieldRow({
   rules: ValueEditorRules
   path: ValuePath
   className?: string
-  /** Optional marker rendered next to the field label (e.g. "required"). */
-  badge?: React.ReactNode
+  /**
+   * Whether the field may be removed. `false` (e.g. a schema-required field)
+   * hides the Remove action and disables the selection/keyboard delete.
+   */
+  canRemove?: boolean
 }) {
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
   const onCreateBlob = useContext(SelectionStateContext).onCreateBlob
-  const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
+  // A non-removable field ignores the selection/keyboard delete path too.
+  const handlers: SelectionHandlers = {
+    getValue: () => value,
+    setValue: onValue,
+    remove: canRemove ? onRemove : () => {},
+    rules,
+  }
   // A schema-keyed field (key = the schema's ipfs:// URL) labels itself with
   // the schema's title; the raw key stays available in a tooltip.
   const schemaKeyLabel = useSchemaKeyLabel(fieldKey)
@@ -885,13 +894,17 @@ export function FieldRow({
           },
         ]
       : []),
-    {
-      key: 'remove',
-      label: `Remove ${fieldKey}`,
-      icon: <X className="size-4" />,
-      destructive: true,
-      onClick: onRemove,
-    },
+    ...(canRemove
+      ? [
+          {
+            key: 'remove',
+            label: `Remove ${fieldKey}`,
+            icon: <X className="size-4" />,
+            destructive: true,
+            onClick: onRemove,
+          },
+        ]
+      : []),
   ]
   const {isSelected, rowProps} = useRowSelection(pathId(path), {
     path,
@@ -929,7 +942,6 @@ export function FieldRow({
             </span>
           )}
           {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
-          {badge}
           <SchemaWarningBadge path={path} />
         </div>
         <div className="pl-5">

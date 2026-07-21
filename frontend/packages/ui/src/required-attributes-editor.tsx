@@ -75,14 +75,13 @@ export function RequiredAttributesEditor({
               className="border-border border-b py-3 last:border-b-0"
               fieldKey={key}
               value={value}
-              badge={
-                <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">required</span>
-              }
+              // Schema-required fields are always present and cannot be removed;
+              // their name is fixed by the schema.
+              canRemove={false}
               siblingKeys={requiredKeys.filter((k) => k !== key)}
               onValue={(newValue) => onMetadata({[key]: newValue})}
-              // Schema-defined: the field name is fixed, "remove" only clears it.
               onEditField={(_newKey, newValue) => onMetadata({[key]: newValue})}
-              onRemove={() => onMetadata({[key]: null})}
+              onRemove={() => {}}
               rules={METADATA_VALUE_RULES}
               path={[key]}
             />

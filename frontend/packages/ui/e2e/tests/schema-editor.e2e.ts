@@ -230,9 +230,14 @@ test.describe('schema editor', () => {
     // The Employee schema requires employeeId — it renders as an always-visible
     // required row (seeded if absent), so it never has to be "added".
     await expect(page.getByText('employeeId', {exact: true})).toBeVisible()
-    await expect(page.getByText('required', {exact: true}).first()).toBeVisible()
     // The seeded value is shown but NOT written to the draft (no auto-pollution).
     expect(await meta(page)).toEqual({name: 'X', schemaDefinition: `ipfs://${cid}`})
+
+    // A required field cannot be removed: its actions menu has no Remove item.
+    await page.getByRole('button', {name: 'Actions for employeeId'}).click()
+    await expect(page.getByRole('menuitem', {name: 'Edit field'})).toBeVisible()
+    await expect(page.getByRole('menuitem', {name: 'Remove employeeId'})).toHaveCount(0)
+    await page.keyboard.press('Escape')
 
     // Optional declared fields are still offered as add-field suggestions, and
     // the required one is NOT re-offered (it's already shown as a row).
