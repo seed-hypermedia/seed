@@ -18,6 +18,18 @@
     "siteUrl": {
       "ref": "hm://hyper.media/string"
     },
+    "schema": {
+      "description": "The schema THIS document conforms to (a schema-definition document's hm:// URL, or ipfs://<cid>). Must descend from hm://seed.hyper.media/document.",
+      "ref": "hm://hyper.media/string"
+    },
+    "childrenSchema": {
+      "description": "The schema this document's CHILDREN must conform to (hm:// URL or ipfs://<cid>). Children may declare their own `schema` if it descends from this one.",
+      "ref": "hm://hyper.media/string"
+    },
+    "schemaDefinition": {
+      "description": "This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Other documents reference this document's URL as their `schema`/`childrenSchema`.",
+      "ref": "hm://hyper.media/string"
+    },
     "layout": {
       "type": "hm://hyper.media/string",
       "enum": [
