@@ -20,8 +20,8 @@ const AUTHORITY = [
   ['hypermedia-', 'seed.hyper.media'],
   ['example-', 'example.com'],
 ]
-const SRC = 'schemas'
-const OUT = 'schemas'
+const SRC = 'onyx'
+const OUT = 'onyx'
 
 const files = readdirSync(SRC).filter((f) => f.endsWith('.json') && f !== 'schemas.lock.json')
 const schemas = {}
