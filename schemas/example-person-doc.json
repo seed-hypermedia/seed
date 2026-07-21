@@ -1,0 +1,21 @@
+{
+  "name": "Person document",
+  "description": "A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema extends hm://seed.hyper.media/document and constrains `metadata`. Referenced by other documents via `schema`, and by a directory via `childrenSchema`.",
+  "ref": "hm://seed.hyper.media/document",
+  "properties": {
+    "metadata": {
+      "ref": "hm://seed.hyper.media/metadata",
+      "required": [
+        "surname"
+      ],
+      "properties": {
+        "surname": {
+          "ref": "hm://hyper.media/string"
+        },
+        "givenName": {
+          "ref": "hm://hyper.media/string"
+        }
+      }
+    }
+  }
+}

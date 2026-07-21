@@ -1,0 +1,19 @@
+{
+  "name": "Block node",
+  "description": "A node of the document content tree: a Block plus its ordered child Block nodes. The recursion (children of the same type) expresses arbitrary nesting; a leaf simply omits children.",
+  "type": "hm://hyper.media/map",
+  "required": [
+    "block"
+  ],
+  "properties": {
+    "block": {
+      "ref": "hm://seed.hyper.media/block"
+    },
+    "children": {
+      "type": "hm://hyper.media/list",
+      "items": {
+        "ref": "hm://seed.hyper.media/block-node"
+      }
+    }
+  }
+}
