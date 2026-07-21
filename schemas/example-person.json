@@ -1,27 +1,27 @@
 {
   "name": "Person",
   "description": "A person with a name, age, active flag, home address, and nicknames.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "name"
   ],
   "properties": {
     "name": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "age": {
-      "ref": "hm://hyper.media/integer"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
     },
     "active": {
-      "ref": "hm://hyper.media/boolean"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
     },
     "home": {
-      "ref": "hm://example.com/address"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-address"
     },
     "nicknames": {
-      "type": "hm://hyper.media/list",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
       "items": {
-        "ref": "hm://hyper.media/string"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
       }
     }
   }

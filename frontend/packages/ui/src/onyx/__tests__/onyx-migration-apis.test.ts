@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {isOnyxSchema, ONYX_SCHEMAS, validate} from '../onyx-engine'
+import {isOnyxSchema, kindOf, ONYX_SCHEMAS, validate} from '../onyx-engine'
 import {documentMetadataSchema} from '../onyx-metadata-schema-keys'
 import {onyxSubschema, parseOnyxError} from '../onyx-schema-context'
 import {literalEnumOptions, suggestedFieldType} from '../onyx-value-editor-schema'
@@ -41,7 +41,7 @@ describe('parseOnyxError', () => {
 describe('onyxSubschema', () => {
   it('descends a map to a field and resolves its ref', () => {
     const sub = onyxSubschema(S('example-person'), ['name'], {})
-    expect(sub && sub !== 'unresolved' && sub.type).toBe('hm://hyper.media/string')
+    expect(sub && sub !== 'unresolved' && kindOf(sub.type)).toBe('string')
   })
   it('undefined for an unknown key on a closed struct', () => {
     expect(onyxSubschema(S('example-geo'), ['nope'], {})).toBeUndefined()

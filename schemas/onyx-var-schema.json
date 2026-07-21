@@ -1,19 +1,19 @@
 {
   "name": "Variable schema",
   "description": "A type-variable reference: matches whatever a generic's parameter is bound to. Written { \"var\": \"<name>\" }.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "var"
   ],
   "properties": {
     "var": {
-      "type": "hm://hyper.media/string"
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "name": {
-      "type": "hm://hyper.media/string"
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "description": {
-      "type": "hm://hyper.media/string"
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
   }
 }

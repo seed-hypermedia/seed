@@ -1,7 +1,7 @@
 {
   "name": "Hypermedia blob",
   "description": "The signed base envelope embedded in every Hypermedia CBOR blob: a type discriminator, the signer's public key, a signature, and a timestamp.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "type",
     "signer",
@@ -10,16 +10,16 @@
   ],
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string"
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "signer": {
-      "ref": "hm://seed.hyper.media/principal"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal"
     },
     "sig": {
-      "ref": "hm://seed.hyper.media/signature"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-signature"
     },
     "ts": {
-      "ref": "hm://seed.hyper.media/timestamp"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp"
     }
   }
 }

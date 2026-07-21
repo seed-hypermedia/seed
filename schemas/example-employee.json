@@ -1,16 +1,16 @@
 {
   "name": "Employee",
   "description": "A person, extended with an employee id and department.",
-  "ref": "hm://example.com/person",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-person",
   "required": [
     "employeeId"
   ],
   "properties": {
     "employeeId": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "department": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     }
   }
 }

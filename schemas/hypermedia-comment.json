@@ -1,49 +1,49 @@
 {
   "name": "Comment",
   "description": "A comment on a document version, threaded via threadRoot and replyParent. Its body is a tree of comment blocks.",
-  "ref": "hm://seed.hyper.media/blob",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob",
   "required": [
     "body"
   ],
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
       "enum": [
         "Comment"
       ]
     },
     "id": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "capability": {
-      "ref": "hm://seed.hyper.media/cid"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
     },
     "space": {
-      "ref": "hm://seed.hyper.media/principal"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal"
     },
     "path": {
-      "ref": "hm://hyper.media/string"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
     },
     "version": {
-      "type": "hm://hyper.media/list",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
       "items": {
-        "ref": "hm://seed.hyper.media/cid"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
       }
     },
     "threadRoot": {
-      "ref": "hm://seed.hyper.media/cid"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
     },
     "replyParent": {
-      "ref": "hm://seed.hyper.media/cid"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
     },
     "body": {
-      "type": "hm://hyper.media/list",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
       "items": {
-        "ref": "hm://seed.hyper.media/comment-block"
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment-block"
       }
     },
     "visibility": {
-      "ref": "hm://seed.hyper.media/visibility"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility"
     }
   }
 }

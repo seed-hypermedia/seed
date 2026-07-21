@@ -1,14 +1,14 @@
 {
   "name": "ReplaceBlock op",
   "description": "Replace the content of a block.",
-  "type": "hm://hyper.media/map",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "type",
     "block"
   ],
   "properties": {
     "type": {
-      "type": "hm://hyper.media/string",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
       "enum": [
         "ReplaceBlock"
       ]
@@ -19,7 +19,7 @@
   },
   "params": {
     "Block": {
-      "ref": "hm://seed.hyper.media/block"
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
     }
   }
 }
