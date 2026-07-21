@@ -149,7 +149,7 @@ import {
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
 import {RequiredAttributesEditor} from './required-attributes-editor'
-import {isSchemaDocument, SchemaDocumentHeaderActions} from './onyx/schema-document'
+import {schemaDefinitionCid, SchemaDocumentHeaderActions} from './onyx/schema-document'
 import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
@@ -2654,10 +2654,13 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
-  // A document that describes a type (carries a resolvable `schemaDefinition`)
-  // gets header actions: view the schema, and create a value of that type.
-  const schemaDocActions = isSchemaDocument(document.metadata) ? (
-    <SchemaDocumentHeaderActions metadata={document.metadata} />
+  // A document that DEFINES a type (carries a `schemaDefinition`) gets header
+  // actions: a tag that opens the schema, and a button to create a value of it.
+  // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
+  // (same source the Attributes tab reads).
+  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
+    <SchemaDocumentHeaderActions metadata={headerMetadata} />
   ) : null
   const topBarActions =
     schemaDocActions || documentContentAction ? (
