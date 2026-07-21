@@ -18,9 +18,12 @@ import {Button} from '../button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
 import {dagJsonToIpld} from '../dag-json'
 import {toast} from '../toast'
+import {Tooltip} from '../tooltip'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
-import {nameForCid, ONYX_SCHEMAS, schemaForCid, validate} from './onyx-engine'
+import {nameForCid, schemaForCid, validate} from './onyx-engine'
 import {OnyxSchemaPage} from './onyx-explorer'
+import {OnyxSchemaEditor} from './onyx-schema-editor'
+import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 
 const DAG_CBOR_CODE = 0x71
 /** The metadata field naming the schema THIS document conforms to. */
@@ -106,29 +109,43 @@ function CreateInstance({schema, typeName}: {schema: Record<string, any>; typeNa
   )
 }
 
-/** Header actions for a document that describes a type. Renders nothing otherwise. */
+/**
+ * Header actions for a document that DEFINES a type (has a `schemaDefinition`):
+ *   - a tag-style link that opens the schema (browse its shape),
+ *   - a "Create" button that opens a schema-defined value editor and publishes
+ *     the result as a new content-addressed IPFS blob.
+ * Resolves the schema from the `schemaDefinition` CID via the registry, so it
+ * works for both bundled and user-published schemas. Renders nothing until the
+ * schema resolves.
+ */
 export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
   const cid = schemaDefinitionCid(metadata)
-  const name = cid ? nameForCid(cid) : undefined
-  const schema = cid ? schemaForCid(cid) : undefined
+  const {byCid} = useOnyxSchemaRegistry(cid ? [cid] : [])
+  const bundledName = cid ? nameForCid(cid) : undefined
+  const schema = cid ? byCid[cid] : undefined
   const [viewOpen, setViewOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [viewSlug, setViewSlug] = useState<string | undefined>(name)
-  if (!cid || !name || !schema) return null
-  const isInstantiable = !ONYX_SCHEMAS[name]?.anyOf // a union has no single seed shape
+  const [viewSlug, setViewSlug] = useState<string | undefined>(bundledName)
+  if (!cid) return null
+  const typeName = (typeof schema?.name === 'string' && schema.name) || bundledName || 'Schema'
+  const isInstantiable = !!schema && !schema.anyOf // a union has no single seed shape
 
   return (
     <div className="flex items-center gap-1.5">
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => {
-          setViewSlug(name)
-          setViewOpen(true)
-        }}
-      >
-        <FileCode2 className="mr-1 size-4" /> Schema
-      </Button>
+      {/* Tag-style link: opens the schema. */}
+      <Tooltip content="Open the schema this document defines">
+        <button
+          type="button"
+          className="border-border bg-muted/40 hover:bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
+          onClick={() => {
+            setViewSlug(bundledName)
+            setViewOpen(true)
+          }}
+        >
+          <FileCode2 className="size-3.5" />
+          {typeName}
+        </button>
+      </Tooltip>
       {isInstantiable && (
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-4" /> Create
@@ -138,18 +155,26 @@ export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Schema</DialogTitle>
+            <DialogTitle>{typeName} — schema</DialogTitle>
           </DialogHeader>
-          {viewSlug && <OnyxSchemaPage slug={viewSlug} nav={setViewSlug} />}
+          {viewSlug ? (
+            <OnyxSchemaPage slug={viewSlug} nav={setViewSlug} />
+          ) : schema ? (
+            // A published (non-bundled) schema: show its shape with the struct editor,
+            // read-only (edits don't persist — authoring lives on the Attributes tab).
+            <OnyxSchemaEditor schema={schema} onSchema={() => {}} />
+          ) : (
+            <p className="text-muted-foreground text-sm">Loading schema…</p>
+          )}
         </DialogContent>
       </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create {schema.name || name}</DialogTitle>
+            <DialogTitle>Create {typeName}</DialogTitle>
           </DialogHeader>
-          <CreateInstance schema={schema} typeName={schema.name || name} />
+          {schema && <CreateInstance schema={schema} typeName={typeName} />}
         </DialogContent>
       </Dialog>
     </div>
