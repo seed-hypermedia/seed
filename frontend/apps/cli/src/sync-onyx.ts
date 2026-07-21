@@ -6,9 +6,10 @@
  *      canonical DAG-CBOR and content-addressed. Each computed CID is verified
  *      against schemas/schemas.lock.json; a mismatch fails the run.
  *   2. One Hypermedia document per schema, from its CO-LOCATED markdown
- *      (schemas/<name>.md beside schemas/<name>.json), published at path
- *      /<name> with metadata `schemaDefinition` = ipfs://<schemaCID> — so the
- *      document IS the referenceable schema (other docs point `schema` at it).
+ *      (schemas/<name>.md beside schemas/<name>.json), published at its public
+ *      name (onyx- primitives stripped: /map, /string; others prefixed). A TYPE
+ *      doc DEFINES a schema (metadata.schemaDefinition = ipfs://<CID>); an
+ *      INSTANCE doc ({$type,value}) CONFORMS to one (metadata.schema = $type).
  *   3. Narrative pages from schemas/site/*.md (home.md -> root path "").
  *
  * Usage:
@@ -49,19 +50,19 @@ const SCHEMAS_DIR = resolve(REPO_ROOT, 'schemas')
 const SITE_DIR = resolve(SCHEMAS_DIR, 'site')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
-// hm:// URL <-> filename authority mapping (matches schemas/publish.mjs).
-const AUTHORITY: Array<[string, string]> = [
-  ['onyx-', 'hyper.media'],
-  ['hypermedia-', 'seed.hyper.media'],
-  ['example-', 'example.com'],
-]
+// Every schema is published under the onyx account. Its public name (and the
+// path it's published at) strips `onyx-` from primitives/meta and keeps the
+// hypermedia-/example- prefix (matches schemas/publish.mjs + the engine).
+const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
-/** Map a schema basename (e.g. "example-employee") to its lockfile hm:// URL. */
+/** The published public name of a schema basename (also its document path). */
+function publicName(basename: string): string {
+  return basename.startsWith('onyx-') ? basename.slice(5) : basename
+}
+
+/** Map a schema basename to its lockfile hm:// URL (the onyx-account doc URL). */
 function basenameToLockUrl(basename: string): string {
-  for (const [prefix, authority] of AUTHORITY) {
-    if (basename.startsWith(prefix)) return `hm://${authority}/${basename.slice(prefix.length)}`
-  }
-  return basename
+  return `hm://${ONYX}/${publicName(basename)}`
 }
 
 // ── Markdown pre-processor (port of scratchpad/prep.py) ────────────────────────
@@ -255,11 +256,17 @@ async function main() {
 
   const schemaBlobs: Array<{data: Uint8Array; cid: string}> = []
   const schemaCidByBasename = new Map<string, string>()
+  // Instance files are VALUES, not schemas ({$type, value}) — their document
+  // CONFORMS to a schema (metadata.schema = $type), it does not DEFINE one.
+  const instanceTypeByBasename = new Map<string, string>()
   let mismatches = 0
 
   for (const file of schemaFiles) {
     const basename = file.replace(/\.json$/, '')
     const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
+    if (obj && typeof obj === 'object' && typeof obj.$type === 'string' && 'value' in obj) {
+      instanceTypeByBasename.set(basename, obj.$type)
+    }
     const data = dagCbor.encode(obj)
     const hash = await sha256.digest(data)
     const cid = CID.create(1, dagCbor.code, hash).toString()
@@ -289,7 +296,10 @@ async function main() {
     file: string
     path: string
     isSchemaDoc: boolean
+    /** Set on a TYPE doc: the schema this document DEFINES (ipfs://<cid>). */
     schemaDefinition?: string
+    /** Set on an INSTANCE doc: the schema this document CONFORMS to (its $type). */
+    schema?: string
   }
 
   // 2a. Schema docs: the co-located schemas/<name>.md beside each schema. Each is
@@ -299,12 +309,14 @@ async function main() {
   const schemaPlans: DocPlan[] = [...schemaCidByBasename.keys()].sort().map((basename) => {
     const file = `${basename}.md`
     if (!existsSync(resolve(SCHEMAS_DIR, file))) missingDocs.push(file)
+    const instanceType = instanceTypeByBasename.get(basename)
     return {
       dir: SCHEMAS_DIR,
       file,
-      path: `/${basename}`,
+      path: `/${publicName(basename)}`,
       isSchemaDoc: true,
-      schemaDefinition: `ipfs://${schemaCidByBasename.get(basename)}`,
+      // A value conforms to its type (schema); a type defines one (schemaDefinition).
+      ...(instanceType ? {schema: instanceType} : {schemaDefinition: `ipfs://${schemaCidByBasename.get(basename)}`}),
     }
   })
   if (missingDocs.length) {
@@ -331,7 +343,9 @@ async function main() {
   if (dryRun) {
     for (const p of plans) {
       const label = p.path === '' ? '(home root "")' : p.path
-      if (p.isSchemaDoc) {
+      if (p.schema) {
+        console.log(`  ${label}  ->  schema=${p.schema}  (instance)`)
+      } else if (p.schemaDefinition) {
         console.log(`  ${label}  ->  schemaDefinition=${p.schemaDefinition}`)
       } else {
         console.log(`  ${label}`)
@@ -355,9 +369,11 @@ async function main() {
     const prepped = prepMarkdown(raw)
     const {ops: contentOps, metadata} = await markdownToOps(prepped)
 
-    // Merge frontmatter metadata + inject schemaDefinition when applicable.
+    // Merge frontmatter metadata + inject the schema binding: a TYPE doc DEFINES
+    // a schema (schemaDefinition); an INSTANCE doc CONFORMS to one (schema).
     const mergedMeta: Record<string, unknown> = {...metadata}
     if (p.schemaDefinition) mergedMeta.schemaDefinition = p.schemaDefinition
+    if (p.schema) mergedMeta.schema = p.schema
 
     const ops: DocumentOperation[] = []
     const metaOp = metadataToSetAttributes(mergedMeta)

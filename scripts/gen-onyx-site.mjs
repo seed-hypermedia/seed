@@ -27,16 +27,20 @@ const files = readdirSync(SRC).filter((f) => f.endsWith('.json') && f !== 'schem
 const schemas = {}
 for (const f of files) schemas[f.replace(/\.json$/, '')] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
 
-const KIND_URL = /^hm:\/\/hyper\.media\/([a-z]+)$/
+const ONYX = BASE.replace('hm://', '')
+// The published-doc public name: strip `onyx-` from primitives/meta; keep the rest.
+const publicName = (basename) => (basename.startsWith('onyx-') ? basename.slice(5) : basename)
+const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/([a-z]+)$`)
 const kindOf = (t) => (typeof t === 'string' ? KIND_URL.exec(t)?.[1] ?? t : t)
 function refToName(ref) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.json$/, '')
   const [, auth, name] = m
+  if (auth === ONYX) return schemas[name] ? name : schemas[`onyx-${name}`] ? `onyx-${name}` : name
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0]
   return prefix ? `${prefix}${name}` : name
 }
-const link = (name) => `[${name}](${BASE}/${name})`
+const link = (name) => `[${publicName(name)}](${BASE}/${publicName(name)})`
 
 function collectRefs(node, acc = new Set()) {
   if (!node || typeof node !== 'object') return acc
