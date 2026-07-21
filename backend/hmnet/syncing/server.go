@@ -52,8 +52,9 @@ type blobIndex interface {
 // It has to be further registered with the actual [grpc.Server].
 func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap, maxInboundReconciles int, inboundReconcileWait time.Duration) *Server {
 	// Keep the maintained RBSR index current: every blob indexed (via Put /
-	// PutMany) patches the materialized scopes it joins, in the same write
-	// transaction, so reconciliation serves a fresh set without rebuilding it.
+	// PutMany) patches the materialized scopes it joins, applied asynchronously
+	// right after the indexing transaction commits, so reconciliation serves a
+	// fresh set without rebuilding it and without slowing down writes.
 	index.SetIndexedHook(MaintainRBSRIndex)
 
 	return &Server{

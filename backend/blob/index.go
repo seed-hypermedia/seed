@@ -14,6 +14,7 @@ import (
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
 	"seed/backend/util/unsafeutil"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -118,50 +119,145 @@ type Index struct {
 		state        atomic.Int32
 	}
 
-	// indexedHook, if set, runs inside the indexing write transaction with the
-	// ids of the blobs just indexed in that transaction. The syncing service
-	// registers it to keep the maintained RBSR index current. Set once at
-	// startup; guarded by hookMu for race-safety against concurrent indexing.
+	// indexedHook, if set, is applied asynchronously with the ids of freshly
+	// indexed blobs, shortly after their indexing transaction commits. The
+	// syncing service registers it to keep the maintained RBSR index current.
+	// Set once at startup; guarded by hookMu for race-safety against
+	// concurrent indexing.
 	hookMu      sync.RWMutex
 	indexedHook func(*sqlite.Conn, []int64) error
+
+	// Queue feeding the indexed-hook worker. Blob ids land here after their
+	// indexing transaction commits; a single background goroutine drains them
+	// into short standalone write transactions, so the hook's maintenance work
+	// (recursive CTEs, closure fixpoints) never extends foreground writes like
+	// comment posts or sync batches. hookCond (on hookQueueMu) signals drain
+	// completion for WaitIndexedHook.
+	hookQueueMu  sync.Mutex
+	hookCond     *sync.Cond
+	hookQueue    []int64
+	hookInFlight bool
+	hookNotify   chan struct{}
+	hookWorkerOn sync.Once
 }
 
-// SetIndexedHook registers a callback invoked, inside the indexing write
-// transaction, with the ids of freshly indexed blobs. Pass nil to clear.
-// Intended to be set once during startup before heavy indexing begins.
+// indexedHookBatchSize caps how many blob ids a single hook transaction
+// processes. Mirrors PutMany's batch size, which is the profile the hook's
+// queries are tuned for, and keeps each writer hold short.
+const indexedHookBatchSize = 100
+
+// SetIndexedHook registers a callback applied asynchronously with the ids of
+// freshly indexed blobs, shortly after the transaction that indexed them
+// commits. Pass nil to clear. Intended to be set once during startup before
+// heavy indexing begins.
+//
+// The hook maintains derived state only (the RBSR index), so it runs off the
+// foreground write path on purpose: a slow or failing hook must never delay or
+// roll back the blobs themselves. Failures are logged and dropped; the
+// shadow-verify trickle repairs any resulting drift.
 func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
 	idx.hookMu.Lock()
 	idx.indexedHook = fn
 	idx.hookMu.Unlock()
 }
 
-// runIndexedHook invokes the registered hook (if any) with the given blob ids.
-// Runs in the caller's transaction so the maintenance commits or rolls back
-// atomically with the blobs themselves.
-//
-// A hook failure is deliberately NOT fatal to the transaction: the hook only
-// maintains the derived RBSR index, which the shadow-verify trickle repairs on
-// drift, whereas failing here would roll back the whole persisted batch — a
-// deterministic hook error would then permanently block those blobs from ever
-// syncing. The error is logged and swallowed, except when the context is done:
-// the transaction is doomed then anyway, so propagating preserves the normal
-// cancellation path. Partial hook writes are safe to commit (INSERT OR IGNORE,
-// per-scope repairs).
-func (idx *Index) runIndexedHook(ctx context.Context, conn *sqlite.Conn, ids []int64) error {
+// enqueueIndexedHook hands freshly indexed blob ids to the hook worker.
+// Called after the indexing transaction has committed, so the worker can never
+// observe uncommitted blobs. No-op when no hook is registered.
+func (idx *Index) enqueueIndexedHook(ids []int64) {
 	if len(ids) == 0 {
-		return nil
+		return
 	}
+	idx.hookMu.RLock()
+	registered := idx.indexedHook != nil
+	idx.hookMu.RUnlock()
+	if !registered {
+		return
+	}
+
+	idx.hookWorkerOn.Do(func() { go idx.indexedHookWorker() })
+
+	idx.hookQueueMu.Lock()
+	idx.hookQueue = append(idx.hookQueue, ids...)
+	idx.hookQueueMu.Unlock()
+
+	select {
+	case idx.hookNotify <- struct{}{}:
+	default:
+	}
+}
+
+// indexedHookWorker drains the hook queue for the lifetime of the pool.
+// Exits when the underlying database pool is closed.
+func (idx *Index) indexedHookWorker() {
+	for {
+		select {
+		case <-idx.db.Closed():
+			return
+		case <-idx.hookNotify:
+		}
+
+		for {
+			idx.hookQueueMu.Lock()
+			batch := idx.hookQueue
+			idx.hookQueue = nil
+			idx.hookInFlight = len(batch) > 0
+			if len(batch) == 0 {
+				idx.hookCond.Broadcast()
+				idx.hookQueueMu.Unlock()
+				break
+			}
+			idx.hookQueueMu.Unlock()
+
+			idx.applyIndexedHook(batch)
+		}
+	}
+}
+
+// applyIndexedHook runs the registered hook over ids in chunked standalone
+// write transactions. A failed chunk is logged and dropped: the hook only
+// maintains the derived RBSR index, which the shadow-verify trickle repairs on
+// drift, and its writes are idempotent (INSERT OR IGNORE, per-scope repairs),
+// so retrying or aborting here would only add writer pressure.
+func (idx *Index) applyIndexedHook(ids []int64) {
 	idx.hookMu.RLock()
 	fn := idx.indexedHook
 	idx.hookMu.RUnlock()
 	if fn == nil {
-		return nil
+		return
 	}
-	if err := fn(conn, ids); err != nil {
-		if ctx.Err() != nil {
+
+	for chunk := range slices.Chunk(ids, indexedHookBatchSize) {
+		err := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+			return fn(conn, chunk)
+		})
+		if err != nil {
+			if errors.Is(err, sqlitex.ErrPoolClosed) {
+				return
+			}
+			idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", chunk), zap.Error(err))
+		}
+	}
+}
+
+// WaitIndexedHook blocks until every blob id enqueued for the indexed hook so
+// far has been applied, or ctx is done. Intended for tests that need the
+// asynchronous RBSR maintenance to have caught up with recent Puts.
+func (idx *Index) WaitIndexedHook(ctx context.Context) error {
+	stop := context.AfterFunc(ctx, func() {
+		idx.hookQueueMu.Lock()
+		idx.hookCond.Broadcast()
+		idx.hookQueueMu.Unlock()
+	})
+	defer stop()
+
+	idx.hookQueueMu.Lock()
+	defer idx.hookQueueMu.Unlock()
+	for len(idx.hookQueue) > 0 || idx.hookInFlight {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
-		idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", ids), zap.Error(err))
+		idx.hookCond.Wait()
 	}
 	return nil
 }
@@ -194,7 +290,9 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 		sitePeerResolver: resolver,
 		Domains:          domains,
 		allowlistEntries: make(map[peer.ID]map[string]map[cid.Cid]struct{}),
+		hookNotify:       make(chan struct{}, 1),
 	}
+	idx.hookCond = sync.NewCond(&idx.hookQueueMu)
 	return idx
 }
 

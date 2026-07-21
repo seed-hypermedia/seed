@@ -82,6 +82,11 @@ func TestOutOfOrderCapability_FiresIndexedHookForUnstashed(t *testing.T) {
 
 	require.Equal(t, 0, countStashedBlobs(t, db), "capability must unstash the ref")
 
+	// The hook is applied asynchronously after the indexing transaction
+	// commits; wait for the worker to drain before asserting. WaitIndexedHook
+	// also establishes the happens-before edge for reading hookIDs.
+	require.NoError(t, idx.WaitIndexedHook(t.Context()))
+
 	refID := blobIDForCID(t, db, ref.CID)
 	require.Contains(t, hookIDs, refID, "indexed hook must fire for the blob unstashed by the capability cascade")
 }

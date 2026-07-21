@@ -433,9 +433,10 @@ var qInsertItem = dqb.Str(`
 	WHERE EXISTS (SELECT 1 FROM blobs b WHERE b.id = :blob AND b.size >= 0);`)
 
 // MaintainRBSRIndex is the incremental maintenance hook: it patches the
-// materialized scopes a freshly indexed batch of blobs joins, in the same
-// indexing write transaction (so the patch commits atomically with the blobs).
-// Registered on the index via SetIndexedHook.
+// materialized scopes a freshly indexed batch of blobs joins. Registered on
+// the index via SetIndexedHook, which applies it asynchronously in short
+// standalone write transactions shortly after the blobs commit, so this work
+// never extends foreground writes (comment posts, sync batches).
 //
 // It mirrors every collectBlobs membership edge so the maintained set stays
 // equal to a fresh materialization under live sync, not just the dominant
