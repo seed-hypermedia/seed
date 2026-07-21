@@ -1,13 +1,19 @@
-// Generate a Markdown document for every Onyx schema in schemas/*.json, written
-// to schemas/site/<name>.md. Each doc describes one concept (a type); the sync
-// step (scripts/sync-onyx-seed.mjs) publishes it with a `schemaDefinition`
-// metadata field linking to that schema's IPFS CID. Cross-references become
-// hm:// links under the onyx identity, so the whole tour is one linked site.
+// Scaffold a co-located Markdown doc for every Onyx schema in schemas/*.json,
+// written next to the schema as schemas/<name>.md. Each doc describes one
+// concept (a type); the sync step (frontend/apps/cli/src/sync-onyx.ts) publishes
+// it as hm://<onyx>/<name> with a `schemaDefinition` metadata field linking to
+// that schema's IPFS CID. Cross-references become hm:// links under the onyx
+// identity, so the whole library is one linked site.
 //
-//   node scripts/gen-onyx-site.mjs
-import {readFileSync, writeFileSync, readdirSync} from 'node:fs'
+// The .md files are HAND-AUTHORABLE source: an existing schemas/<name>.md is
+// left untouched (the generator only SCAFFOLDS what's missing). Pass --force to
+// regenerate every doc from the schema (discards manual edits).
+//
+//   node scripts/gen-onyx-site.mjs [--force]
+import {existsSync, readFileSync, writeFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
+const FORCE = process.argv.includes('--force')
 const BASE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const AUTHORITY = [
   ['onyx-', 'hyper.media'],
@@ -15,7 +21,7 @@ const AUTHORITY = [
   ['example-', 'example.com'],
 ]
 const SRC = 'schemas'
-const OUT = 'schemas/site'
+const OUT = 'schemas'
 
 const files = readdirSync(SRC).filter((f) => f.endsWith('.json') && f !== 'schemas.lock.json')
 const schemas = {}
@@ -170,7 +176,9 @@ ${desc}${instanceNote}
 
 ${shapeSection(name, s)}
 ${depLine}`
-  writeFileSync(join(OUT, `${name}.md`), md)
+  const out = join(OUT, `${name}.md`)
+  if (!FORCE && existsSync(out)) continue // never clobber a hand-authored doc
+  writeFileSync(out, md)
   count++
 }
-console.log(`generated ${count} schema docs into ${OUT}/`)
+console.log(`scaffolded ${count} schema doc(s) into ${OUT}/ (${FORCE ? 'forced' : 'skipped existing'})`)
