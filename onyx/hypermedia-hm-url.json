@@ -1,0 +1,6 @@
+{
+  "name": "HM link",
+  "description": "A reference to a Hypermedia document, held as an `hm://` URL string. `format: hm-url` tells an editor to render it as a searchable reference that displays the target's title (a pill), not the raw URL.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "format": "hm-url"
+}
