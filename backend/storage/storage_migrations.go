@@ -67,8 +67,14 @@ var migrations = []migration{
 	// They're derived, incremental acceleration for syncing and re-materialize
 	// lazily, so the migration only needs to create the empty tables. DDL must
 	// stay in lock-step with schema.sql (the migration snapshot test compares).
+	// Drop-first because data dirs fresh-initialized from a pre-merge branch
+	// build already have these tables (from schema.sql) while their VERSION file
+	// predates this migration; the tables hold no durable data, so replacing
+	// them also fixes any stale shape.
 	{Version: "2026-06-09.094401", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS rbsr_item;
+			DROP TABLE IF EXISTS rbsr_scope;
 			CREATE TABLE rbsr_scope (
 			    id INTEGER PRIMARY KEY,
 			    iri TEXT NOT NULL,
