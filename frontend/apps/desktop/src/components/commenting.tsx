@@ -15,7 +15,7 @@ import {
   HMPublishBlobsInput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {CommentEditor} from '@shm/editor/comment-editor'
+import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {queryClient, queryKeys} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
@@ -115,6 +115,7 @@ function CommentBoxImpl(props: {
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
   const pendingBlocksRef = useRef<HMBlockNode[] | null>(null)
   const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
+  const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
   const flushPendingDraftSaveRef = useRef<() => void>(() => {})
 
   const commentDraftQueryKey = [
@@ -383,6 +384,10 @@ function CommentBoxImpl(props: {
     ) => {
       if (isSubmitting) return
 
+      // Content changes are debounced in the editor; flush so latestBlocksRef
+      // holds the final content before reading it below.
+      submitHandleRef.current?.flush()
+
       if (!account) {
         const contentBlocks = latestBlocksRef.current || draft.data?.blocks || []
         if (!contentBlocks.some(hasBlockContent)) return
@@ -476,6 +481,7 @@ function CommentBoxImpl(props: {
       <CommentEditor
         focusOnMount={focusOnMount}
         isReplying={isReplying || !!commentId}
+        submitHandleRef={submitHandleRef}
         handleSubmit={handleSubmit}
         initialBlocks={draft.data?.blocks}
         onContentChange={handleContentChange}

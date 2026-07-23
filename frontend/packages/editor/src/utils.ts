@@ -137,11 +137,49 @@ export function getBlockGroup(
   return undefined
 }
 
+type BlockGroupInfo = {type: string; listLevel: string; start?: number; columnCount?: string}
+
+// Single-pass equivalent of calling getBlockGroup for every block: each block id
+// maps to the first blockChildren descendant (in document order) with a listType.
+export function buildBlockGroupsById(doc: TipTapNode): Map<string, BlockGroupInfo> {
+  const groups = new Map<string, BlockGroupInfo>()
+  const openBlockIds: string[] = []
+
+  function visit(node: TipTapNode) {
+    if (node.attrs.listType && node.type.name === 'blockChildren') {
+      for (const id of openBlockIds) {
+        if (!groups.has(id)) {
+          groups.set(id, {
+            type: node.attrs.listType,
+            start: node.attrs.start,
+            listLevel: node.attrs.listLevel,
+            columnCount: node.attrs.columnCount,
+          })
+        }
+      }
+    }
+    const id: string | undefined = node.attrs.id
+    if (id) openBlockIds.push(id)
+    node.forEach((child) => visit(child))
+    if (id) openBlockIds.pop()
+  }
+
+  doc.firstChild?.forEach((child) => visit(child))
+  return groups
+}
+
 export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editorBlocks: EditorBlock[]): BlockNode[] {
+  if (!editorBlocks) return []
+  const tiptap = editor?._tiptapEditor
+  const groupsById = tiptap ? buildBlockGroupsById(tiptap.state.doc) : new Map<string, BlockGroupInfo>()
+  return blockNodesFromEditorBlocks(editorBlocks, groupsById)
+}
+
+function blockNodesFromEditorBlocks(editorBlocks: EditorBlock[], groupsById: Map<string, BlockGroupInfo>): BlockNode[] {
   if (!editorBlocks) return []
 
   return editorBlocks.map((block: EditorBlock) => {
-    const childGroup = getBlockGroup(editor, block.id)
+    const childGroup = groupsById.get(block.id)
     const serverBlock = editorBlockToHMBlock(block)
     if (childGroup) {
       // @ts-expect-error
@@ -166,7 +204,7 @@ export function serverBlockNodesFromEditorBlocks(editor: BlockNoteEditor, editor
     }
     const blockNode = new BlockNode({
       block: Block.fromJson(serverBlock),
-      children: serverBlockNodesFromEditorBlocks(editor, block.children),
+      children: blockNodesFromEditorBlocks(block.children, groupsById),
     })
     return blockNode
   })
