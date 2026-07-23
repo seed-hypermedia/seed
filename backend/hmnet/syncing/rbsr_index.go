@@ -300,7 +300,7 @@ const qMaterializeReplace = `
 	INSERT OR IGNORE INTO rbsr_item (scope, blob)
 	SELECT :scope, rb.id
 	FROM rbsr_blobs rb
-	JOIN blobs b ON b.id = rb.id
+	JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 	WHERE b.size >= 0;`
 
 var qMaterializeClear = dqb.Str(`DELETE FROM rbsr_item WHERE scope = :scope;`)

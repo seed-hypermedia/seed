@@ -297,7 +297,9 @@ func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
 const redirectAncestorsCTE = `
 	WITH RECURSIVE
 	latest_document_generations AS (
-		SELECT dg.*
+		SELECT
+			dg.resource AS resource,
+			dg.metadata->>'$."$db.redirect".v' AS redirect_iri
 		FROM document_generations dg
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
@@ -312,7 +314,7 @@ const redirectAncestorsCTE = `
 		SELECT r.id, r.iri, ra.depth + 1
 		FROM redirect_ancestors ra
 		JOIN latest_document_generations dg
-			ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+			ON dg.redirect_iri = ra.iri
 		JOIN resources r ON r.id = dg.resource
 		WHERE r.iri != ra.iri
 		AND ra.depth < 16

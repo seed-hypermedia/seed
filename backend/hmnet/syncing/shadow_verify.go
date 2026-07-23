@@ -62,7 +62,7 @@ const (
 const qFreshScopeBlobs = `
 	SELECT rb.id
 	FROM rbsr_blobs rb
-	JOIN blobs b ON b.id = rb.id
+	JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 	WHERE b.size >= 0;`
 
 var qMaintainedScopeBlobs = dqb.Str(`SELECT blob FROM rbsr_item WHERE scope = :scope;`)

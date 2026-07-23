@@ -115,7 +115,7 @@ var qMediaClosure = dqb.Str(`
 	)
 	SELECT m.id
 	FROM media m
-	JOIN blobs b ON b.id = m.id
+	JOIN blobs b INDEXED BY blobs_metadata ON b.id = m.id
 	LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = m.id
 	WHERE stashed_blobs.id IS NULL AND b.size >= 0;`)
 
@@ -287,7 +287,7 @@ var qAgentCapStep = dqb.Str(`
 	INSERT OR IGNORE INTO rbsr_item (scope, blob)
 	SELECT :scope, sb.id
 	FROM structural_blobs sb INDEXED BY capabilities_by_delegate
-	JOIN blobs b ON b.id = sb.id
+	JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
 	LEFT JOIN stashed_blobs s ON s.id = sb.id
 	WHERE sb.type = 'Capability'
 		AND sb.extra_attrs->>'role' = 'AGENT'

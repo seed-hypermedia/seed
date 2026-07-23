@@ -241,7 +241,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		tableStr             = "FROM " + storage.T_StructuralBlobs
 		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
 		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
-		joinLinksStr         = "LEFT JOIN " + storage.ResourceLinks.String() + " ON " + storage.StructuralBlobsID.String() + "=" + storage.ResourceLinksSource.String()
 		leftjoinResourcesStr = "LEFT JOIN " + storage.Resources.String() + " ON " + storage.StructuralBlobsResource.String() + "=" + storage.ResourcesID.String()
 
 		mainCursorColumn = storage.StructuralBlobsTs.String()
@@ -259,9 +258,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		%s
 		%s
 		%s
-		%s
 		WHERE %s %s;
-	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
+	`, selectStr, tableStr, joinIDStr, joinpkStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
 	var refIDs, resources, genesisBlobIDs []string
 	// Count rows returned by the main DB fetch (pre-filter). Used to decide whether to
 	// emit a next-page token even if the deleted/dedup filters shorten the visible page.

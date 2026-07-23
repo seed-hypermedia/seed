@@ -265,6 +265,9 @@ SELECT
   ORDER BY ts ASC
 `)
 
+// The CROSS JOIN forces SQLite to drive the query from the (small, deduped) list of
+// genesis blobs using the index on structural_blobs.genesis_blob, instead of scanning
+// every Ref blob in the database.
 var QGetMovedBlocks = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
@@ -281,12 +284,12 @@ SELECT
       JOIN blobs AS b2
         ON b2.id = a.value
   ) AS heads
-  from structural_blobs sb
+  FROM (SELECT DISTINCT value FROM json_each(:genesisBlobJson)) AS g
+  CROSS JOIN structural_blobs sb ON sb.genesis_blob = g.value
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'
-  AND sb.extra_attrs->>'redirect' != ''
-  AND sb.genesis_blob IN (SELECT value FROM json_each(:genesisBlobJson));
+  AND sb.extra_attrs->>'redirect' != '';
 `)
 
 var qGetFTSByIDs = dqb.Str(`
@@ -315,7 +318,12 @@ fts_data AS (
 	AND blobs.size > 0
 ),
 latest_document_generations AS (
-  SELECT dg.*
+  SELECT
+    dg.resource AS resource,
+    dg.metadata->>'$."$db.redirect".v' AS redirect_iri,
+    dg.metadata AS metadata,
+    dg.heads AS heads,
+    dg.is_deleted AS is_deleted
   FROM document_generations dg
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
@@ -336,7 +344,7 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
   AND f.resource IS NOT NULL
   AND f.resource IN (
     SELECT resource FROM latest_document_generations
-    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+    WHERE redirect_iri IS NOT NULL
   )
 
   UNION ALL
@@ -348,8 +356,8 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
     cr.depth + 1
   FROM comment_resource_chain cr
   JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  JOIN resources target ON target.iri = dg.redirect_iri
+  WHERE dg.redirect_iri IS NOT NULL
   AND target.id != cr.resource
   AND cr.depth < 16
 ),
@@ -508,7 +516,9 @@ matched_fts AS MATERIALIZED (
   LIMIT ?
 ),
 latest_document_generations AS (
-  SELECT dg.*
+  SELECT
+    dg.resource AS resource,
+    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
   FROM document_generations dg
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
@@ -529,7 +539,7 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
   AND sb.resource IS NOT NULL
   AND sb.resource IN (
     SELECT resource FROM latest_document_generations
-    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+    WHERE redirect_iri IS NOT NULL
   )
 
   UNION ALL
@@ -541,8 +551,8 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
     cr.depth + 1
   FROM comment_resource_chain cr
   JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  JOIN resources target ON target.iri = dg.redirect_iri
+  WHERE dg.redirect_iri IS NOT NULL
   AND target.id != cr.resource
   AND cr.depth < 16
 ),
@@ -606,7 +616,9 @@ matched_fts AS MATERIALIZED (
   LIMIT ?
 ),
 latest_document_generations AS (
-  SELECT dg.*
+  SELECT
+    dg.resource AS resource,
+    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
   FROM document_generations dg
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
@@ -626,7 +638,7 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
   AND sb.resource IS NOT NULL
   AND sb.resource IN (
     SELECT resource FROM latest_document_generations
-    WHERE metadata->>'$."$db.redirect".v' IS NOT NULL
+    WHERE redirect_iri IS NOT NULL
   )
 
   UNION ALL
@@ -638,8 +650,8 @@ comment_resource_chain(origin_resource, resource, iri, depth) AS (
     cr.depth + 1
   FROM comment_resource_chain cr
   JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.metadata->>'$."$db.redirect".v'
-  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  JOIN resources target ON target.iri = dg.redirect_iri
+  WHERE dg.redirect_iri IS NOT NULL
   AND target.id != cr.resource
   AND cr.depth < 16
 ),
@@ -2167,7 +2179,9 @@ var qEntitiesLookupID = dqb.Str(`
 const qListMentionsTpl = `
 WITH RECURSIVE
 latest_document_generations AS (
-  SELECT dg.*
+  SELECT
+    dg.resource AS resource,
+    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
   FROM document_generations dg
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
@@ -2177,14 +2191,14 @@ redirect_ancestors(resource, iri, depth) AS (
   FROM resources r
   LEFT JOIN latest_document_generations dg ON dg.resource = r.id
   WHERE r.id = :target
-  AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
+  AND dg.redirect_iri IS NULL
 
   UNION ALL
 
   SELECT r.id, r.iri, ra.depth + 1
   FROM redirect_ancestors ra
   JOIN latest_document_generations dg
-    ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+    ON dg.redirect_iri = ra.iri
   JOIN resources r ON r.id = dg.resource
   WHERE r.iri != ra.iri
   AND ra.depth < 16
@@ -2231,13 +2245,13 @@ SELECT
 	resource_links.type AS link_type,
 	structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'deleted' AS is_deleted
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
+FROM redirect_ancestors ra
+CROSS JOIN resource_links ON resource_links.target = ra.resource
+CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
-WHERE resource_links.target IN (SELECT resource FROM redirect_ancestors)
-AND blobs.id %s :blob_id
+WHERE blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
 AND (:publicOnly = 0 OR pb.id IS NOT NULL)
 GROUP BY source_iri, link_id, target_version, target_fragment

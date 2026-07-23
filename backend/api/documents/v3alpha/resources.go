@@ -86,6 +86,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 
 	resp := &documents.ListCitationsResponse{}
 	var genesisBlobIDs []string
+	seenGenesisBlobs := make(map[int64]struct{})
 	var deletedList []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
@@ -130,7 +131,13 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 				citationType  = stmt.ColumnText(13)
 				isDeleted     = stmt.ColumnText(15) == "1"
 			)
-			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(14), 10))
+			// Zero means NULL genesis blob, which can never match anything in the moved-resources query.
+			if gb := stmt.ColumnInt64(14); gb != 0 {
+				if _, ok := seenGenesisBlobs[gb]; !ok {
+					seenGenesisBlobs[gb] = struct{}{}
+					genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(gb, 10))
+				}
+			}
 			lastCursor.BlobID = stmt.ColumnInt64(10)
 			lastCursor.LinkID = stmt.ColumnInt64(11)
 
@@ -174,20 +181,22 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		return nil, err
 	}
 
-	genesisBlobJSON := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	var movedResources []citationMovedResource
-	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qCitationMovedResources(), func(stmt *sqlite.Stmt) error {
-			movedResources = append(movedResources, citationMovedResource{
-				NewIRI:    stmt.ColumnText(0),
-				OldIRI:    stmt.ColumnText(1),
-				IsDeleted: stmt.ColumnInt(2) == 1,
-			})
-			return nil
-		}, genesisBlobJSON)
-	})
-	if err != nil {
-		return nil, err
+	if len(genesisBlobIDs) > 0 {
+		genesisBlobJSON := "[" + strings.Join(genesisBlobIDs, ",") + "]"
+		err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			return sqlitex.Exec(conn, qCitationMovedResources(), func(stmt *sqlite.Stmt) error {
+				movedResources = append(movedResources, citationMovedResource{
+					NewIRI:    stmt.ColumnText(0),
+					OldIRI:    stmt.ColumnText(1),
+					IsDeleted: stmt.ColumnInt(2) == 1,
+				})
+				return nil
+			}, genesisBlobJSON)
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, movedResource := range movedResources {
 		for i, result := range resp.Citations {
@@ -614,34 +623,27 @@ var qCitationCommentExists = dqb.Str(`
 	LIMIT 1
 `)
 
+// The CROSS JOIN forces SQLite to drive the query from the (small) list of genesis blobs
+// using the index on structural_blobs.genesis_blob, instead of scanning every Ref blob in the database.
 var qCitationMovedResources = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
-  dg.is_deleted,
-  (
-    SELECT json_group_array(
-             json_object(
-               'codec',    b2.codec,
-               'multihash', hex(b2.multihash)
-             )
-           )
-    FROM json_each(dg.heads) AS a
-      JOIN blobs AS b2
-        ON b2.id = a.value
-  ) AS heads
-  from structural_blobs sb
+  dg.is_deleted
+  FROM json_each(:genesisBlobJson) AS g
+  CROSS JOIN structural_blobs sb ON sb.genesis_blob = g.value
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'
-  AND sb.extra_attrs->>'redirect' != ''
-  AND sb.genesis_blob IN (SELECT value FROM json_each(:genesisBlobJson));
+  AND sb.extra_attrs->>'redirect' != '';
 `)
 
 const qListCitationsTpl = `
 WITH RECURSIVE
 latest_document_generations AS (
-  SELECT dg.*
+  SELECT
+    dg.resource AS resource,
+    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
   FROM document_generations dg
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
@@ -651,14 +653,14 @@ redirect_ancestors(resource, iri, depth) AS (
   FROM resources r
   LEFT JOIN latest_document_generations dg ON dg.resource = r.id
   WHERE r.id = :target
-  AND (dg.metadata IS NULL OR dg.metadata->>'$."$db.redirect".v' IS NULL)
+  AND dg.redirect_iri IS NULL
 
   UNION ALL
 
   SELECT r.id, r.iri, ra.depth + 1
   FROM redirect_ancestors ra
   JOIN latest_document_generations dg
-    ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+    ON dg.redirect_iri = ra.iri
   JOIN resources r ON r.id = dg.resource
   WHERE r.iri != ra.iri
   AND ra.depth < 16
@@ -705,13 +707,13 @@ SELECT
 	resource_links.type AS link_type,
 	structural_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'deleted' AS is_deleted
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
+FROM redirect_ancestors ra
+CROSS JOIN resource_links ON resource_links.target = ra.resource
+CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
-WHERE resource_links.target IN (SELECT resource FROM redirect_ancestors)
-AND (blobs.id %s :blob_id OR (blobs.id = :blob_id AND resource_links.id %s :link_id))
+WHERE (blobs.id %s :blob_id OR (blobs.id = :blob_id AND resource_links.id %s :link_id))
 AND structural_blobs.type IN ('Comment')
 AND (:publicOnly = 0 OR pb.id IS NOT NULL)
 GROUP BY source_iri, link_id, target_version, target_fragment

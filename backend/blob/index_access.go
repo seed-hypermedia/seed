@@ -297,13 +297,21 @@ func (idx *Index) GetSpacesByAccount(ctx context.Context, accounts []core.Princi
 		// The resource owner (space) is the signer of the capability.
 		// IMPORTANT: 'del' in extra_attrs is stored as the public_keys.id (integer), not the principal.
 		// We look for WRITER role which grants access to private content.
+		// INDEXED BY pins the partial capabilities index: the 'del' value is served
+		// from the index itself (no per-row JSON parse) and the IN list is
+		// bloom-checked before any main-table row is touched. A plain join on
+		// extra_attrs->>'del' cannot seek the expression index (SQLite only matches
+		// indexed expressions against literals/parameters), hence the IN shape.
 		const q = `
 			SELECT DISTINCT pk_del.principal, pk_author.principal
-			FROM structural_blobs sb
-			JOIN public_keys pk_author ON pk_author.id = sb.author
+			FROM structural_blobs sb INDEXED BY capabilities_by_delegate
 			JOIN public_keys pk_del ON pk_del.id = sb.extra_attrs->>'del'
+			JOIN public_keys pk_author ON pk_author.id = sb.author
 			WHERE sb.type = 'Capability'
-			AND pk_del.principal IN (SELECT unhex(value) FROM json_each(?))
+			AND sb.extra_attrs->>'del' IN (
+				SELECT pk.id FROM json_each(?) AS j
+				JOIN public_keys pk ON pk.principal = unhex(j.value)
+			)
 			AND sb.extra_attrs->>'role' = 'WRITER'
 		`
 
