@@ -35,6 +35,10 @@ import {
   useBlockNote,
   type FormattingToolbarProps,
 } from './blocknote'
+import {
+  citationFragmentHighlightPluginKey,
+  createCitationFragmentHighlightPlugin,
+} from './blocknote/core/extensions/CitationFragmentHighlight/CitationFragmentHighlightPlugin'
 import {insertOrUpdateBlock} from './blocknote/core/extensions/SlashMenu/defaultSlashMenuItems'
 import {useDraftActions} from './draft-actions-context'
 import {FragmentActionsContext, type FragmentActions} from './fragment-actions-context'
@@ -137,6 +141,8 @@ export function DocumentEditor({
   focusBlockId,
   focusBlockRange,
   rootChildrenType,
+  citationFragmentHighlights,
+  onCitationFragmentClick,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -174,6 +180,8 @@ export function DocumentEditor({
 
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
+  const citationFragmentClickRef = useRef(onCitationFragmentClick)
+  citationFragmentClickRef.current = onCitationFragmentClick
 
   const onEditStart = useCallback(
     (cursorPosition?: EditCursorPosition | null) => {
@@ -269,6 +277,12 @@ export function DocumentEditor({
             name: 'hypermedia-link',
             addProseMirrorPlugins() {
               return [createHypermediaDocLinkPlugin({domainResolver: linkExtensionOptions?.domainResolver}).plugin]
+            },
+          }),
+          Extension.create({
+            name: 'citation-fragment-highlight',
+            addProseMirrorPlugins() {
+              return [createCitationFragmentHighlightPlugin(citationFragmentClickRef)]
             },
           }),
           Extension.create({
@@ -617,6 +631,21 @@ export function DocumentEditor({
 
   // Scroll-to-block highlight when focusBlockId / focusBlockRange changes
   useBlockHighlight({editor, focusBlockId, focusBlockRange})
+
+  useEffect(() => {
+    const view = editor._tiptapEditor?.view
+    if (!view) return
+
+    const tr = view.state.tr
+      .setMeta(citationFragmentHighlightPluginKey, {
+        type: citationFragmentHighlights?.length ? 'set' : 'clear',
+        citations: citationFragmentHighlights ?? [],
+        interactive: !isEditing,
+      })
+      .setMeta('addToHistory', false)
+
+    view.dispatch(tr)
+  }, [editor, citationFragmentHighlights, isEditing])
 
   // DOM click listener for click-to-edit in read-only mode
   useReadOnlyClickToEdit({editor, canEditRef, onEditStart, onTextSelectionRef})

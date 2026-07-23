@@ -1,11 +1,42 @@
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {
+  BlockRange,
+  HMBlockChildrenType,
+  HMBlockNode,
+  HMRawCitation,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from './universal-client'
 import type {StateStream} from './utils/stream'
 
 /** Options for block range selection with optional clipboard copy. */
 export type BlockRangeSelectOptions = BlockRange & {
   copyToClipboard?: boolean
+}
+
+/** A normalized ranged citation target rendered as a document text decoration. */
+export type CitationFragmentHighlight = {
+  id: string
+  targetBlockId: string
+  targetRange: {
+    start: number
+    end: number
+  }
+  sourceType: 'document' | 'comment' | 'unknown'
+  sourceId: UnpackedHypermediaId | null
+  sourceDocumentId: UnpackedHypermediaId | null
+  sourceBlockId: string | null
+  sourceCommentId: string | null
+  sourceAuthorUid: string | null
+  targetBlockRevision: string | null
+  raw: HMRawCitation
+}
+
+/** Click payload emitted by the citation fragment highlight editor plugin. */
+export type CitationFragmentClick = {
+  citations: CitationFragmentHighlight[]
+  clientX: number
+  clientY: number
 }
 
 /**
@@ -49,6 +80,10 @@ export type DocumentContentProps = {
   focusBlockId?: string
   /** Optional codepoint range within `focusBlockId` to highlight instead of the whole block. */
   focusBlockRange?: BlockRange | null
+  /** Ranged inbound citations rendered as text fragment highlights. */
+  citationFragmentHighlights?: CitationFragmentHighlight[]
+  /** Called when a citation fragment highlight is clicked. */
+  onCitationFragmentClick?: (event: CitationFragmentClick) => void
   blockCitations?: Record<string, {citations: number; comments: number}> | null
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (

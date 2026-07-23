@@ -159,8 +159,8 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
   // returns below; they tolerate a null blockId while the card is hidden.
   const canReferenceBlock = useMemo(() => {
     if (!hoverState.blockId) return false
-    const hasCurrentRevision = !!getPublishedBlockRevision(editor, hoverState.blockId)
-    return hasCurrentRevision && (isBlockReferenceable ? isBlockReferenceable(hoverState.blockId) : true)
+    if (isBlockReferenceable) return isBlockReferenceable(hoverState.blockId)
+    return !!getPublishedBlockRevision(editor, hoverState.blockId)
   }, [hoverState.blockId, editor, isBlockReferenceable])
 
   const supernumberBadge = useMemo(() => {
@@ -170,7 +170,7 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
     return Array.from(dom.querySelectorAll('.bn-supernumber-badge')).find(
       (badge) => badge instanceof HTMLElement && badge.dataset.blockId === hoverState.blockId,
     ) as HTMLElement | undefined
-  }, [hoverState.blockId, editor, isBlockReferenceable])
+  }, [hoverState.blockId, editor])
 
   if (!hasActions || !hoverState.show || !hoverState.referenceRect || !hoverState.blockId) {
     return null

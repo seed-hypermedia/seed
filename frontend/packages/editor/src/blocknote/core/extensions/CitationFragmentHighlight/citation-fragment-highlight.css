@@ -1,0 +1,35 @@
+.bn-citation-fragment-highlight-interactive {
+  cursor: pointer;
+}
+
+.bn-citation-fragment-overlap-1 {
+  background-color: hsl(var(--warning, 45 100% 65%) / 0.28);
+}
+
+.bn-citation-fragment-highlight-interactive.bn-citation-fragment-overlap-1:hover {
+  background-color: hsl(var(--warning, 45 100% 60%) / 0.38);
+}
+
+.bn-citation-fragment-overlap-2 {
+  background-color: hsl(var(--warning, 45 100% 60%) / 0.42);
+}
+
+.bn-citation-fragment-highlight-interactive.bn-citation-fragment-overlap-2:hover {
+  background-color: hsl(var(--warning, 45 100% 55%) / 0.52);
+}
+
+.bn-citation-fragment-overlap-3 {
+  background-color: hsl(var(--warning, 45 100% 55%) / 0.56);
+}
+
+.bn-citation-fragment-highlight-interactive.bn-citation-fragment-overlap-3:hover {
+  background-color: hsl(var(--warning, 45 100% 50%) / 0.66);
+}
+
+.bn-citation-fragment-overlap-4 {
+  background-color: hsl(var(--warning, 45 100% 50%) / 0.7);
+}
+
+.bn-citation-fragment-highlight-interactive.bn-citation-fragment-overlap-4:hover {
+  background-color: hsl(var(--warning, 45 100% 45%) / 0.8);
+}

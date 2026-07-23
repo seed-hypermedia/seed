@@ -204,7 +204,7 @@ export function createBlockRevisionInvalidationPlugin(editor: BlockNoteEditor<Bl
       for (const {newRange} of changes) {
         const from = Math.max(0, newRange.from - 1)
         const to = Math.min(newState.doc.content.size, newRange.to + 1)
-        for (const [pos, node] of collectContainersInRange(newState.doc, from, to)) {
+        for (const [pos, node] of Array.from(collectContainersInRange(newState.doc, from, to))) {
           candidates.set(pos, node)
         }
       }
@@ -219,7 +219,7 @@ export function createBlockRevisionInvalidationPlugin(editor: BlockNoteEditor<Bl
           const toValue = typeof rawTo === 'number' ? rawTo : (rawFrom as number)
           const from = Math.min(Math.max(fromValue, 0), newState.doc.content.size)
           const to = Math.min(Math.max(toValue, 0), newState.doc.content.size)
-          for (const [containerPos, node] of collectContainersInRange(newState.doc, from - 1, to + 1)) {
+          for (const [containerPos, node] of Array.from(collectContainersInRange(newState.doc, from - 1, to + 1))) {
             candidates.set(containerPos, node)
           }
         }
@@ -230,7 +230,7 @@ export function createBlockRevisionInvalidationPlugin(editor: BlockNoteEditor<Bl
       const tr = newState.tr
       const invertedMapping = transform.mapping.invert()
 
-      for (const [pos, node] of candidates) {
+      for (const [pos, node] of Array.from(candidates)) {
         const key = referenceableKey(node)
         const revision = getReferenceableRevision(node)
         const fingerprint = semanticFingerprint(node)

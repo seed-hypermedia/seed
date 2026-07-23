@@ -269,7 +269,7 @@ describe('BlockHoverActionsPositioner', () => {
     expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
   })
 
-  it('requires a current revision even when the caller-provided predicate allows the block', () => {
+  it('lets the caller-provided predicate allow a block without a current revision', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
     editorDom.appendChild(block)
@@ -280,8 +280,8 @@ describe('BlockHoverActionsPositioner', () => {
       listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
     })
 
-    expect(container.querySelector('[aria-label="Copy block link"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Start comment"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Copy block link"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
   })
 
   it('keeps editor focus stable when pressing hover action buttons', () => {
