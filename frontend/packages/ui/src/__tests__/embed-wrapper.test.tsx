@@ -2,22 +2,30 @@
 import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
+import type {NavRoute} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {EmbedWrapper} from '../embed-wrapper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {routeOnClickMock} = vi.hoisted(() => ({
+const {currentRoute, routeOnClickMock, routeLinkMock} = vi.hoisted(() => ({
+  currentRoute: {
+    value: null as unknown as NavRoute,
+  },
   routeOnClickMock: vi.fn(),
+  routeLinkMock: vi.fn(),
 }))
 
 vi.mock('@shm/shared/routing', () => ({
-  useRouteLink: () => ({href: '#embed-target', onClick: routeOnClickMock}),
+  useRouteLink: (route: unknown) => {
+    routeLinkMock(route)
+    return {href: '#embed-target', onClick: routeOnClickMock}
+  },
 }))
 
 vi.mock('@shm/shared/utils/navigation', () => ({
-  useNavRoute: () => ({key: 'document', id: {id: 'hm://uid-1/doc', uid: 'uid-1', path: ['doc']}}),
+  useNavRoute: () => currentRoute.value,
 }))
 
 vi.mock('../highlight-context', () => ({
@@ -29,6 +37,8 @@ let root: Root
 
 beforeEach(() => {
   routeOnClickMock.mockReset()
+  routeLinkMock.mockReset()
+  currentRoute.value = {key: 'document', id: hmId('uid-1', {path: ['doc']})}
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -82,5 +92,33 @@ describe('EmbedWrapper', () => {
     innerLink?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
 
     expect(routeOnClickMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves an active comments panel while passing a block-ref document embed id unchanged', () => {
+    const panelId = hmId('uid-source', {path: ['source']})
+    const targetId = hmId('uid-target', {
+      path: ['target'],
+      blockRef: 'embedded-block',
+      blockRange: {start: 2, end: 7},
+    })
+    currentRoute.value = {
+      key: 'comments',
+      id: panelId,
+      panel: {key: 'comments', id: panelId, openComment: 'source-comment'},
+    }
+
+    act(() => {
+      root.render(
+        <EmbedWrapper id={targetId} parentBlockId={null} route={{key: 'document', id: targetId}}>
+          embedded content
+        </EmbedWrapper>,
+      )
+    })
+
+    expect(routeLinkMock).toHaveBeenLastCalledWith({
+      key: 'document',
+      id: targetId,
+      panel: {key: 'comments', id: panelId, openComment: 'source-comment'},
+    })
   })
 })

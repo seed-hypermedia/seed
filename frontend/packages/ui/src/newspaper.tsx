@@ -6,7 +6,14 @@ import {
   HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {findFirstBlock, hmId, plainTextOfContent, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {
+  findFirstBlock,
+  hmId,
+  plainTextOfContent,
+  type DocumentRoute,
+  useRouteLink,
+  useUniversalAppContext,
+} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -315,6 +322,7 @@ export function DocumentCardShell({
 
 export function DocumentCard({
   docId,
+  route,
   entity,
   metadata,
   visibility,
@@ -333,6 +341,8 @@ export function DocumentCard({
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
+  /** Optional document route for callers that need to preserve an active panel. */
+  route?: DocumentRoute
   entity: HMResourceFetchResult | null | undefined
   metadata?: HMDocumentInfo['metadata']
   visibility?: HMDocumentInfo['visibility']
@@ -351,7 +361,7 @@ export function DocumentCard({
   relocationOrigin?: DocumentCardActionOrigin
 }) {
   const highlighter = useHighlighter()
-  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
+  const linkProps = useRouteLink(route ?? (docId ? {key: 'document', id: docId} : null))
   const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
   const navigate = useNavigate()
   const actions = useDocumentActions()

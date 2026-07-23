@@ -3,6 +3,7 @@ import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
   getCommentReplyPanelRoute,
+  getCommentsPanelTarget,
   hasUnpublishedDraftForResourceState,
   shouldSuppressMainCommentEditor,
   getRenderedDocumentId,
@@ -311,6 +312,34 @@ describe('getCommentReplyPanelRoute', () => {
       openComment: 'alice/other-comment-tsid',
     })
     expect(panelRoute.id.path).toEqual(['other-doc'])
+  })
+})
+
+describe('getCommentsPanelTarget', () => {
+  const mainDocId = hmId('alice', {path: ['embedded-doc']})
+  const sourceDocId = hmId('alice', {path: ['source-doc']})
+
+  it('uses the comments panel source document and focused comment', () => {
+    const panelRoute: Extract<NavRoute, {key: 'document'}>['panel'] = {
+      key: 'comments',
+      id: sourceDocId,
+      openComment: 'alice/source-comment',
+    }
+
+    expect(getCommentsPanelTarget(mainDocId, panelRoute)).toEqual({
+      docId: sourceDocId,
+      openComment: 'alice/source-comment',
+    })
+  })
+
+  it('uses the main document when no comments panel is open or another panel type is open', () => {
+    expect(getCommentsPanelTarget(mainDocId, null)).toEqual({docId: mainDocId, openComment: undefined})
+    expect(
+      getCommentsPanelTarget(mainDocId, {
+        key: 'activity',
+        id: sourceDocId,
+      }),
+    ).toEqual({docId: mainDocId, openComment: undefined})
   })
 })
 
