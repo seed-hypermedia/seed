@@ -27,7 +27,7 @@ import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe, Undo2} from 'lucide-react'
 import React, {ReactNode, useCallback, useMemo, useState} from 'react'
 import {toast} from 'sonner'
@@ -632,6 +632,40 @@ export function BlockEmbedContentComment({
   openOnClick?: boolean
   isStaleVersion?: boolean
 }) {
+  const currentRoute = useNavRoute()
+  const targetDocId = getCommentTargetId(comment)
+
+  const route = useMemo(() => {
+    if (!targetDocId) return undefined
+
+    const currentDocId =
+      currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'feed'
+        ? currentRoute.id
+        : null
+
+    const isSameDocument =
+      !!currentDocId &&
+      targetDocId.uid === currentDocId.uid &&
+      (targetDocId.path?.join('/') ?? '') === (currentDocId.path?.join('/') ?? '')
+
+    if (isSameDocument) {
+      return {
+        key: 'document' as const,
+        id: targetDocId,
+        panel: {
+          key: 'comments' as const,
+          id,
+          openComment: comment.id,
+        },
+      }
+    }
+    return {
+      key: 'comments' as const,
+      id: targetDocId,
+      openComment: comment.id,
+    }
+  }, [targetDocId, currentRoute, id, comment.id])
+
   return (
     <EmbedWrapper
       viewType={block.attributes?.view}
@@ -639,15 +673,7 @@ export function BlockEmbedContentComment({
       id={id}
       parentBlockId={parentBlockId || ''}
       openOnClick={openOnClick}
-      route={{
-        key: 'document',
-        id: getCommentTargetId(comment)!,
-        panel: {
-          key: 'comments',
-          id,
-          openComment: comment.id,
-        },
-      }}
+      route={route}
     >
       <CommentEmbedHeader
         comment={comment}
