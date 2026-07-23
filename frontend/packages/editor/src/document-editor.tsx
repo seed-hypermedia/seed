@@ -288,12 +288,23 @@ export function DocumentEditor({
           Extension.create({
             name: 'document-select-all',
             priority: 1000,
-            addKeyboardShortcuts() {
-              return {
-                'Mod-a': ({editor}) => {
-                  return selectAllEditorContent(editor)
-                },
-              }
+            addProseMirrorPlugins() {
+              return [
+                new Plugin({
+                  props: {
+                    handleDOMEvents: {
+                      keydown: (view, event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          return selectAllEditorContent({view})
+                        }
+                        return false
+                      },
+                    },
+                  },
+                }),
+              ]
             },
           }),
           Extension.create({
