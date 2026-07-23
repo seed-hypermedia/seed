@@ -367,6 +367,16 @@ export type ActiveView =
   | 'all-documents'
   | 'metadata'
 
+/** Returns the document and focused comment rendered by a comments panel. */
+export function getCommentsPanelTarget(
+  docId: UnpackedHypermediaId,
+  panelRoute: DocumentPanelRoute | null,
+): {docId: UnpackedHypermediaId; openComment?: string} {
+  return panelRoute?.key === 'comments'
+    ? {docId: panelRoute.id ?? docId, openComment: panelRoute.openComment}
+    : {docId, openComment: undefined}
+}
+
 /** Selects the action controls shown for document content. */
 export function getDocumentContentAction({
   activeView,
@@ -1518,6 +1528,7 @@ function DocumentBody({
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
+  const commentsPanelTarget = getCommentsPanelTarget(docId, panelRoute)
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -2437,12 +2448,12 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet isOpen={mobilePanelOpen} title={getPanelTitle(panelKey)} onClose={handlePanelClose}>
             <DiscussionsPageContent
-              docId={docId}
+              docId={commentsPanelTarget.docId}
               showTitle={false}
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
-              openComment={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
+              openComment={commentsPanelTarget.openComment}
               targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
               blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
               blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
@@ -2458,12 +2469,12 @@ function DocumentBody({
                           })
                         : undefined
                     }
-                    docId={docId}
+                    docId={commentsPanelTarget.docId}
                     quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
                     quotingRange={
                       panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
                     }
-                    commentId={panelRoute?.key === 'comments' ? panelRoute.openComment : undefined}
+                    commentId={commentsPanelTarget.openComment}
                     isReplying={
                       panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
                     }
@@ -2733,9 +2744,11 @@ function PanelContentRenderer({
         />
       )
     case 'comments':
+      const commentsPanelTarget = getCommentsPanelTarget(docId, panelRoute)
       return (
         <CommentsPanelContent
-          docId={docId}
+          docId={commentsPanelTarget.docId}
+          openComment={commentsPanelTarget.openComment}
           panelRoute={panelRoute}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
@@ -2758,12 +2771,14 @@ function PanelContentRenderer({
 
 function CommentsPanelContent({
   docId,
+  openComment,
   panelRoute,
   contentMaxWidth,
   targetDomain,
   CommentEditor,
 }: {
   docId: UnpackedHypermediaId
+  openComment?: string
   panelRoute: Extract<DocumentPanelRoute, {key: 'comments'}>
   contentMaxWidth: number
   targetDomain?: string
@@ -2810,7 +2825,7 @@ function CommentsPanelContent({
         showOpenInPanel={false}
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
-        openComment={panelRoute.openComment}
+        openComment={openComment}
         targetBlockId={panelRoute.targetBlockId}
         blockId={panelRoute.blockId}
         blockRange={panelRoute.blockRange}
@@ -2818,15 +2833,15 @@ function CommentsPanelContent({
           CommentEditor ? (
             <CommentEditor
               key={getCommentEditorRouteKey({
-                openComment: panelRoute.openComment,
+                openComment,
                 targetBlockId: panelRoute.targetBlockId,
                 blockRange: panelRoute.blockRange,
               })}
               docId={docId}
               quotingBlockId={panelRoute.targetBlockId}
               quotingRange={extractQuotingRange(panelRoute.blockRange)}
-              commentId={panelRoute.openComment}
-              isReplying={panelRoute.isReplying ?? !!panelRoute.openComment}
+              commentId={openComment}
+              isReplying={panelRoute.isReplying ?? !!openComment}
               replyCommentVersion={panelRoute.replyCommentVersion}
               rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
               focusOnMount

@@ -1,6 +1,6 @@
 import './blocks-content.css'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {NavRoute} from '@shm/shared'
+import {getRoutePanel, type DocumentPanelRoute, type DocumentRoute, type NavRoute} from '@shm/shared'
 import {useRouteLink} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
@@ -19,6 +19,12 @@ function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
   )
 
   return !!interactiveEl && interactiveEl !== embedEl
+}
+
+/** Builds a document route for an embed while retaining the currently active panel. */
+export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: NavRoute): DocumentRoute {
+  const panel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
+  return panel ? {key: 'document', id, panel} : {key: 'document', id}
 }
 
 export function EmbedWrapper({
@@ -47,18 +53,11 @@ export function EmbedWrapper({
   const highlight = useHighlighter()
   const currentRoute = useNavRoute()
 
-  // If current route has a panel, preserve it when navigating to documents
+  // Preserve any active panel when navigating an embed to a document.
   const effectiveRoute = useMemo(() => {
     if (!route) return route
-    // Only modify document routes that don't already have a panel
     if (route.key === 'document' && !route.panel) {
-      // Preserve panel from current document/feed route
-      if (currentRoute.key === 'document' && currentRoute.panel) {
-        return {...route, panel: currentRoute.panel}
-      }
-      if (currentRoute.key === 'feed' && currentRoute.panel) {
-        return {...route, panel: currentRoute.panel}
-      }
+      return getEmbedDocumentRoute(route.id, currentRoute)
     }
     return route
   }, [route, currentRoute])

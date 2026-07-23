@@ -14,6 +14,7 @@ import {
 import {
   abbreviateUid,
   formattedDateMedium,
+  getRoutePanel,
   getCommentTargetId,
   getDocumentTitle,
   RenderResourceProvider,
@@ -27,6 +28,7 @@ import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe, Undo2} from 'lucide-react'
 import React, {ReactNode, useCallback, useMemo, useState} from 'react'
@@ -35,7 +37,7 @@ import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {EmbedWrapper} from './embed-wrapper'
+import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
 import {HMIcon} from './hm-icon'
 import {DocumentNameLink} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
@@ -131,6 +133,8 @@ export function BlockEmbedCard({
   hideInlineActions?: boolean
 }) {
   const id = unpackHmId(block.link) ?? undefined
+  const currentRoute = useNavRoute()
+  const documentRoute = useMemo(() => (id ? getEmbedDocumentRoute(id, currentRoute) : undefined), [id, currentRoute])
   const renderResourceStack = useRenderResourceStack()
   const parentDocumentId = [...renderResourceStack].reverse().find((resource) => resource.kind === 'document')?.id
   const doc = useResource(id, {subscribed: true})
@@ -192,7 +196,7 @@ export function BlockEmbedCard({
       id={id}
       parentBlockId={parentBlockId}
       hideBorder
-      route={{key: 'document', id}}
+      route={documentRoute}
       openOnClick={false}
       viewType="Card"
     >
@@ -202,6 +206,7 @@ export function BlockEmbedCard({
           document: document,
         }}
         docId={id}
+        route={documentRoute}
         accountsMetadata={accountsMetadata}
         navigate={openOnClick && !titleLinkOnly}
         titleLinkOnly={titleLinkOnly}
@@ -251,6 +256,7 @@ function HmLinkEmbed({
   parentBlockId: string | null
   openOnClick: boolean
 }) {
+  const currentRoute = useNavRoute()
   const doc = useResource(id, {subscribed: true})
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const title = getDocumentTitle(document) || abbreviateUid(id.uid)
@@ -259,7 +265,8 @@ function HmLinkEmbed({
     [...renderStack].reverse().find((entry) => entry.kind === 'document' && entry.id.id !== id.id)?.id ?? null
   const isSubdoc = isHmDescendantOf(id, parentDocId)
   const Icon = isSubdoc ? FileTextIcon : FileSymlinkIcon
-  const titleLink = useRouteLink(openOnClick ? null : {key: 'document', id})
+  const documentRoute = useMemo(() => getEmbedDocumentRoute(id, currentRoute), [id, currentRoute])
+  const titleLink = useRouteLink(openOnClick ? null : documentRoute)
   const titleIsLink = !openOnClick && !!titleLink.href
 
   return (
@@ -267,7 +274,7 @@ function HmLinkEmbed({
       id={id}
       parentBlockId={parentBlockId}
       hideBorder
-      route={{key: 'document', id}}
+      route={documentRoute}
       openOnClick={openOnClick}
       viewType="Link"
     >
@@ -634,29 +641,16 @@ export function BlockEmbedContentComment({
 }) {
   const currentRoute = useNavRoute()
   const targetDocId = getCommentTargetId(comment)
+  const activePanel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
 
   const route = useMemo(() => {
     if (!targetDocId) return undefined
 
-    const currentDocId =
-      currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'feed'
-        ? currentRoute.id
-        : null
-
-    const isSameDocument =
-      !!currentDocId &&
-      targetDocId.uid === currentDocId.uid &&
-      (targetDocId.path?.join('/') ?? '') === (currentDocId.path?.join('/') ?? '')
-
-    if (isSameDocument) {
+    if (activePanel) {
       return {
         key: 'document' as const,
         id: targetDocId,
-        panel: {
-          key: 'comments' as const,
-          id,
-          openComment: comment.id,
-        },
+        panel: activePanel,
       }
     }
     return {
@@ -664,7 +658,7 @@ export function BlockEmbedContentComment({
       id: targetDocId,
       openComment: comment.id,
     }
-  }, [targetDocId, currentRoute, id, comment.id])
+  }, [targetDocId, activePanel, comment.id])
 
   return (
     <EmbedWrapper
