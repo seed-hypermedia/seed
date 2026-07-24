@@ -457,6 +457,15 @@ async function main(): Promise<void> {
           key: `account/${event.accountId}`,
           value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
         })
+        // Memory writes happen mid-session with no agent-change event, so also notify
+        // agent-page subscribers watching the Memory tab.
+        if (event.reason === 'agent-memory-changed' && event.agentId) {
+          sendIfSubscribed(ws, `agents/${event.agentId}`, {
+            _: 'change',
+            key: `account/${event.accountId}`,
+            value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
+          })
+        }
       }
     }
   }

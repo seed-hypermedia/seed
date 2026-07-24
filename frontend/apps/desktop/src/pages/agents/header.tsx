@@ -10,6 +10,7 @@ import {ReasoningBadge} from './reasoning-select'
 import {SizableText} from '@shm/ui/text'
 import {
   ArrowLeft,
+  Brain,
   GitBranch,
   MessageSquarePlus,
   MessagesSquare,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 import React, {Fragment, type ReactNode, useRef, useState} from 'react'
 
-export type AgentPageTab = 'sessions' | 'triggers' | 'tools' | 'prompt' | 'settings'
+export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'settings'
 
 export type AgentHeaderInfo = {
   definition: AgentDefinition
@@ -209,6 +210,7 @@ export function AgentHeader({
       icon: GitBranch,
       count: triggersCount || undefined,
     },
+    {key: 'memory' as const, label: 'Memory', tooltip: "Browse and edit the agent's memory files", icon: Brain},
     {key: 'tools' as const, label: 'Tools', tooltip: 'Control tools and signing identities', icon: Wrench},
     {key: 'prompt' as const, label: 'Prompt', tooltip: 'Edit the system prompt', icon: ScrollText},
     {key: 'settings' as const, label: 'Settings', tooltip: 'Edit agent settings', icon: Settings},

@@ -340,7 +340,7 @@ export const agentRouteSchema = z.object({
   key: z.literal('agent'),
   agentId: z.string(),
   serverUrl: z.string().optional(),
-  tab: z.enum(['sessions', 'triggers', 'tools', 'prompt', 'settings']).optional(),
+  tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'settings']).optional(),
   triggerId: z.string().optional(),
 })
 /** Navigation route for one server-hosted agent. */

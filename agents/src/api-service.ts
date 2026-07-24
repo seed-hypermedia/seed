@@ -8,6 +8,7 @@ import {
   type SeedToolMetadata,
 } from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
+import * as agentMemory from '@/agent-memory'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
@@ -221,6 +222,19 @@ export class Service {
         return this.#updateAgentTrigger(verified.accountId, envelope.action.triggerId, envelope.action.patch)
       case 'DeleteAgentTrigger':
         return this.#deleteAgentTrigger(verified.accountId, envelope.action.triggerId)
+      case 'ListAgentMemory':
+        return this.#listAgentMemory(verified.accountId, envelope.action.agentId)
+      case 'ReadAgentMemoryFile':
+        return this.#readAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
+      case 'WriteAgentMemoryFile':
+        return this.#writeAgentMemoryFile(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.path,
+          envelope.action.content,
+        )
+      case 'DeleteAgentMemoryFile':
+        return this.#deleteAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
       case 'CreateSession':
         return this.#createSession(
           verified.accountId,
@@ -805,6 +819,44 @@ export class Service {
     return {_: 'DeleteAgentResponse', agentId}
   }
 
+  /** Returns the memory state directory for an agent owned by the account, or throws 404. */
+  #agentMemoryStateDir(accountId: string, agentId: string): string {
+    const agent = this.#getAgentInfo(accountId, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    return agent.stateDir
+  }
+
+  #listAgentMemory(accountId: string, agentId: string): api.ListAgentMemoryResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(stateDir))
+    return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes}
+  }
+
+  #readAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.ReadAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
+    return {_: 'ReadAgentMemoryFileResponse', agentId, file}
+  }
+
+  #writeAgentMemoryFile(
+    accountId: string,
+    agentId: string,
+    filePath: string,
+    content: string,
+  ): api.WriteAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, filePath, content))
+    this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    return {_: 'WriteAgentMemoryFileResponse', agentId, entry}
+  }
+
+  #deleteAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.DeleteAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(stateDir, filePath))
+    if (result.deleted) this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    return {_: 'DeleteAgentMemoryFileResponse', agentId, path: result.path, deleted: result.deleted}
+  }
+
   #listAgentTriggers(accountId: string, agentId: string): api.ListAgentTriggersResponse {
     this.#requireAgent(accountId, agentId)
     const rows = this.#db
@@ -1174,7 +1226,17 @@ export class Service {
       currentTime: new Date().toISOString(),
       includeTitleToolInstruction: true,
     })
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}`
+    const memoryToolNames = [
+      seedToolRegistry.memory_list.name,
+      seedToolRegistry.memory_read.name,
+      seedToolRegistry.memory_write.name,
+      seedToolRegistry.memory_delete.name,
+    ]
+    const memoryEnabled = (definition.tools ?? []).some((tool) => memoryToolNames.includes(tool))
+    const memoryPrompt = memoryEnabled
+      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content.'
+      : ''
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -1255,6 +1317,9 @@ export class Service {
         definition,
         hmServerUrl: this.#hmServerUrl,
         web: this.#web,
+        stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
+        onMemoryChange: () =>
+          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
@@ -1265,7 +1330,11 @@ export class Service {
             tool === seedToolRegistry.list_activity_feed.name ||
             tool === seedToolRegistry.web_search.name ||
             tool === seedToolRegistry.web_read.name ||
-            tool === seedToolRegistry.write.name,
+            tool === seedToolRegistry.write.name ||
+            tool === seedToolRegistry.memory_list.name ||
+            tool === seedToolRegistry.memory_read.name ||
+            tool === seedToolRegistry.memory_write.name ||
+            tool === seedToolRegistry.memory_delete.name,
         ),
         seedToolRegistry.set_session_title.name,
       ],
@@ -2251,6 +2320,16 @@ async function publishSigningIdentityProfileAndHome(
   })
 }
 
+/** Reraises agent-memory errors as API errors so they carry an HTTP status. */
+function withMemoryErrors<T>(run: () => T): T {
+  try {
+    return run()
+  } catch (error) {
+    if (error instanceof agentMemory.AgentMemoryError) throw new APIError(error.status, error.message)
+    throw error
+  }
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -2990,6 +3069,10 @@ type WriteToolContext = {
 type AgentServicePiToolContext = WriteToolContext & {
   setSessionTitle: (title: string) => api.SessionInfo
   web: WebToolsConfig
+  /** Agent state directory holding the private memory filesystem. */
+  stateDir: string
+  /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
+  onMemoryChange: () => void
 }
 
 type ResolvedAgentSigner = {
@@ -3135,6 +3218,37 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       }
     }),
     defineSeedPiTool(seedToolRegistry.write, (params) => writeHypermedia(context, params)),
+    defineSeedPiTool(seedToolRegistry.memory_list, () => {
+      const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(context.stateDir))
+      const files = entries.filter((entry) => entry.type === 'file')
+      return {
+        summary: files.length
+          ? `Memory holds ${files.length} file${files.length === 1 ? '' : 's'} (${totalBytes} bytes).`
+          : 'Memory is empty.',
+        entries,
+        totalBytes,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_read, (params) => {
+      const input = isRecord(params) ? params : {}
+      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
+      return {summary: `Read ${file.path} (${file.size} bytes).`, ...file}
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_write, (params) => {
+      const input = isRecord(params) ? params : {}
+      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, input.path, input.content))
+      context.onMemoryChange()
+      return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_delete, (params) => {
+      const input = isRecord(params) ? params : {}
+      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, input.path))
+      if (result.deleted) context.onMemoryChange()
+      return {
+        summary: result.deleted ? `Deleted ${result.path}.` : `Nothing existed at ${result.path}.`,
+        ...result,
+      }
+    }),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
       const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
       console.info('[agents/runtime] set_session_title tool called')

@@ -83,6 +83,10 @@ Current `AgentAction` union:
 - `CreateAgentTrigger`
 - `UpdateAgentTrigger`
 - `DeleteAgentTrigger`
+- `ListAgentMemory`
+- `ReadAgentMemoryFile`
+- `WriteAgentMemoryFile`
+- `DeleteAgentMemoryFile`
 - `CreateSession`
 - `ListSessions`
 - `UpdateSession`
@@ -391,6 +395,33 @@ Actions:
 
 All trigger actions verify account ownership through the owning agent/trigger rows. `CreateAgentTrigger` supports the
 same `clientRequestId` idempotency pattern as other create actions.
+
+### Agent memory actions
+
+Each agent owns a private memory filesystem at `<stateDir>/memory`, shared with the `memory_*` session tools and shown
+on the desktop Memory tab. All actions validate agent ownership for the signed account, and every path is a sandboxed
+relative path (no absolute paths, no `..`, symlinks refused).
+
+```ts
+type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number}
+type AgentMemoryFile = {path: string; content: string; size: number; updatedAt: number}
+```
+
+Actions:
+
+- `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}`
+  with every file and directory sorted by path.
+- `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`
+  with the UTF-8 text content.
+- `WriteAgentMemoryFile {agentId, path, content}` returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}` after
+  writing the full file content, creating parent directories as needed. Writes and deletes emit an `account-change`
+  event with reason `agent-memory-changed`, which is also fanned out to `agents/<agentId>` WebSocket subscribers so open
+  Memory tabs refresh.
+- `DeleteAgentMemoryFile {agentId, path}` returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}` and
+  removes a file, or a directory recursively; `deleted` is false when nothing existed.
+
+Limits (see `agents/src/agent-memory.ts`): 1 MiB per file, 100 MiB per agent, 2000 entries, 512-byte paths, 16 levels of
+nesting.
 
 ### `CreateSession`
 

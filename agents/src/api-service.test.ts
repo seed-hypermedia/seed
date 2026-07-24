@@ -108,6 +108,84 @@ describe('api service', () => {
     }
   })
 
+  test('reads and writes agent memory through signed actions', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Memory Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = create.agentId
+
+      const emptyList = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentMemory', agentId}}),
+      )
+      expect(emptyList).toMatchObject({_: 'ListAgentMemoryResponse', agentId, entries: [], totalBytes: 0})
+
+      const write = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'WriteAgentMemoryFile', agentId, path: 'notes/first.md', content: 'remember me'},
+        }),
+      )
+      expect(write).toMatchObject({
+        _: 'WriteAgentMemoryFileResponse',
+        agentId,
+        entry: {path: 'notes/first.md', type: 'file'},
+      })
+      expect(events.some((event) => event.type === 'account-change' && event.reason === 'agent-memory-changed')).toBe(
+        true,
+      )
+
+      const read = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ReadAgentMemoryFile', agentId, path: 'notes/first.md'},
+        }),
+      )
+      expect(read).toMatchObject({
+        _: 'ReadAgentMemoryFileResponse',
+        file: {path: 'notes/first.md', content: 'remember me'},
+      })
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentMemory', agentId}}),
+      )
+      if (listed._ !== 'ListAgentMemoryResponse') throw new Error('unexpected response')
+      expect(listed.entries.map((entry) => `${entry.type}:${entry.path}`)).toEqual(['dir:notes', 'file:notes/first.md'])
+
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'WriteAgentMemoryFile', agentId, path: '../escape.txt', content: 'nope'},
+          }),
+        ),
+      ).rejects.toThrow('Memory path cannot contain ".."')
+      expect(fs.existsSync(path.join(dataDir, 'agents', 'escape.txt'))).toBe(false)
+
+      // Another account cannot touch this agent's memory.
+      const stranger = blobs.generateNobleKeyPair()
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgentMemory', agentId}})),
+      ).rejects.toThrow('Agent not found')
+
+      const remove = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteAgentMemoryFile', agentId, path: 'notes'}}),
+      )
+      expect(remove).toMatchObject({_: 'DeleteAgentMemoryFileResponse', path: 'notes', deleted: true})
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('creates a default user-mention trigger for the agent signing identity', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

@@ -106,6 +106,11 @@ Important columns:
 
 `definition_cbor` encodes `AgentDefinition`.
 
+`state_dir` points at the per-agent directory under the service data dir. Its `memory/` subdirectory is the agent's
+private memory filesystem (see `agents/src/agent-memory.ts`), read and written by both the `memory_*` session tools and
+the signed agent-memory actions. It lives on disk, not in SQLite, and is removed with the rest of `state_dir` when the
+agent is deleted.
+
 Current agent statuses:
 
 - `idle`

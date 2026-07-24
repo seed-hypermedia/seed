@@ -115,15 +115,22 @@ the agent's account immediately starts a session in which it responds. See `sign
 Features:
 
 - metadata/status display;
-- document-style tabs: Sessions (default), Triggers, Tools, Prompt, and Settings;
+- document-style tabs: Sessions (default), Triggers, Memory, Tools, Prompt, and Settings;
 - Sessions tab lists sessions and creates new sessions;
 - Triggers tab lists agent-scoped triggers and creates new triggers;
 - clicking a trigger keeps the user inside the agent page, shows Triggers breadcrumbs, and opens an editable trigger
   detail view;
 - trigger detail shows operational metadata plus the sessions created by that trigger;
+- Memory tab (`pages/agents/memory.tsx`) browses and edits the agent's private memory filesystem: an entry list with
+  per-row delete (two-step inline confirm), a monospace text editor with dirty-state Save/Revert, and a new-file form
+  accepting nested relative paths. It uses the signed `ListAgentMemory` / `ReadAgentMemoryFile` / `WriteAgentMemoryFile`
+  / `DeleteAgentMemoryFile` actions via `useAgentMemory` / `useAgentMemoryFile` / `useWriteAgentMemoryFile` /
+  `useDeleteAgentMemoryFile` in `models/agents.ts`, and refreshes live from `agent-memory-changed` change events when
+  session tools write memory;
 - Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
   publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
-  (`web_search`/`web_read`, which require server-side web backends), and the write group. Tool groups come from
+  (`web_search`/`web_read`, which require server-side web backends), the **memory group**
+  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`), and the write group. Tool groups come from
   `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
 - the Tools tab reflects the connected server's abilities: each group lists its individual member tools, and tools the
   server cannot run are greyed out with an explanation. Availability is read from the server health response (`webTools`

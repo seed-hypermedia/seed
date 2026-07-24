@@ -800,6 +800,79 @@ export function useAgentTrigger(
   })
 }
 
+/** Lists the files and directories in one agent's private memory. */
+export function useAgentMemory(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'memory', serverUrl, accountUid, agentId],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !agentId) return null
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentMemory', agentId}})
+      if (res._ !== 'ListAgentMemoryResponse') throw new Error('Unexpected ListAgentMemory response')
+      return res
+    },
+    enabled: !!serverUrl && !!accountUid && !!agentId,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Reads one file from an agent's private memory. */
+export function useAgentMemoryFile(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+  filePath: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'memory', serverUrl, accountUid, agentId, 'file', filePath],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !agentId || !filePath) return null
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ReadAgentMemoryFile', agentId, path: filePath},
+      })
+      if (res._ !== 'ReadAgentMemoryFileResponse') throw new Error('Unexpected ReadAgentMemoryFile response')
+      return res.file
+    },
+    enabled: !!serverUrl && !!accountUid && !!agentId && !!filePath,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Writes one file into an agent's private memory. */
+export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, path, content}: {agentId: string; path: string; content: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'WriteAgentMemoryFile', agentId, path, content}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'memory'])
+    },
+  })
+}
+
+/** Deletes one file or directory from an agent's private memory. */
+export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentMemoryFile', agentId, path}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'memory'])
+    },
+  })
+}
+
 /** Creates an activity trigger for one agent. */
 export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({

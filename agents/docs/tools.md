@@ -22,6 +22,10 @@ list_activity_feed
 web_search
 web_read
 write
+memory_list
+memory_read
+memory_write
+memory_delete
 ```
 
 `read` is available by default for existing agents whose saved definition omits `tools`. Agents with an explicit `tools`
@@ -216,6 +220,26 @@ Both web tools declare an `outputSchema` in the registry in addition to `inputSc
 backends are configured through its health response (`webTools: {search, readBrowser}`; see `operations.md`). The
 desktop Tools tab uses this to grey out tools the server cannot run, and exposes each tool's exact model-facing
 description and input/output schemas through a per-tool info dialog (see `desktop-ui.md`).
+
+## Memory tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`)
+
+Each agent owns a private persistent filesystem at `<stateDir>/memory`, implemented in `agents/src/agent-memory.ts` and
+shared across all of the agent's sessions. The four memory tools give the model list/read/write/delete access to that
+directory; the signed `ListAgentMemory` / `ReadAgentMemoryFile` / `WriteAgentMemoryFile` / `DeleteAgentMemoryFile`
+actions give the user the same access from the desktop Memory tab, so both sides always see the same files.
+
+Key behavior:
+
+- All paths are relative to the memory root and strictly sandboxed: absolute paths, `..` segments, and null bytes are
+  rejected, resolved paths are verified to stay inside the root, and symlinks are refused for reads/writes and skipped
+  in listings.
+- Files are UTF-8 text. `memory_write` replaces the whole file and creates parent directories automatically; edits are
+  read-modify-write.
+- Limits: 1 MiB per file, 100 MiB per agent, 2000 entries, 512-byte paths, 16 levels of nesting.
+- Tool-driven writes/deletes emit `account-change` (`agent-memory-changed`) events, fanned out to both `account/<id>`
+  and `agents/<agentId>` WebSocket subscribers, so the desktop Memory tab updates live while a session runs.
+- When any memory tool is enabled, the agent system prompt describes the memory filesystem and instructs the model to
+  check memory at task start and store durable learnings as small organized files.
 
 ## `write`
 

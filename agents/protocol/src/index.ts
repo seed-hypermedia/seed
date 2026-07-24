@@ -119,6 +119,10 @@ export type UnsignedAgentAction =
   | CreateAgentTrigger
   | UpdateAgentTrigger
   | DeleteAgentTrigger
+  | ListAgentMemory
+  | ReadAgentMemoryFile
+  | WriteAgentMemoryFile
+  | DeleteAgentMemoryFile
   | CreateSession
   | ListSessions
   | UpdateSession
@@ -292,6 +296,53 @@ export type AgentScheduleTrigger =
   | {kind: 'interval'; every: number; unit: 'minutes' | 'hours'}
   | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
   | {kind: 'once'; runAt: number; timezone?: string}
+
+/** One file or directory inside an agent's private memory filesystem. */
+export type AgentMemoryEntry = {
+  /** Relative path from the agent memory root, always `/`-separated. */
+  path: string
+  type: 'file' | 'dir'
+  /** File size in bytes; 0 for directories. */
+  size: number
+  /** Last modification time in Unix epoch milliseconds. */
+  updatedAt: number
+}
+
+/** Contents of one agent memory file. */
+export type AgentMemoryFile = {
+  path: string
+  content: string
+  size: number
+  updatedAt: number
+}
+
+/** Lists every file and directory in an agent's memory. */
+export type ListAgentMemory = {
+  _: 'ListAgentMemory'
+  agentId: string
+}
+
+/** Reads one UTF-8 text file from an agent's memory. */
+export type ReadAgentMemoryFile = {
+  _: 'ReadAgentMemoryFile'
+  agentId: string
+  path: string
+}
+
+/** Writes one UTF-8 text file into an agent's memory, creating parent directories as needed. */
+export type WriteAgentMemoryFile = {
+  _: 'WriteAgentMemoryFile'
+  agentId: string
+  path: string
+  content: string
+}
+
+/** Deletes one file, or one directory recursively, from an agent's memory. */
+export type DeleteAgentMemoryFile = {
+  _: 'DeleteAgentMemoryFile'
+  agentId: string
+  path: string
+}
 
 /** Creates a chat-like session for an agent. */
 export type CreateSession = {
@@ -664,6 +715,38 @@ export type DeleteAgentTriggerResponse = {
   triggerId: string
 }
 
+/** Successful response for `ListAgentMemory`. */
+export type ListAgentMemoryResponse = {
+  _: 'ListAgentMemoryResponse'
+  agentId: string
+  entries: AgentMemoryEntry[]
+  /** Total bytes across all memory files. */
+  totalBytes: number
+}
+
+/** Successful response for `ReadAgentMemoryFile`. */
+export type ReadAgentMemoryFileResponse = {
+  _: 'ReadAgentMemoryFileResponse'
+  agentId: string
+  file: AgentMemoryFile
+}
+
+/** Successful response for `WriteAgentMemoryFile`. */
+export type WriteAgentMemoryFileResponse = {
+  _: 'WriteAgentMemoryFileResponse'
+  agentId: string
+  entry: AgentMemoryEntry
+}
+
+/** Successful response for `DeleteAgentMemoryFile`. */
+export type DeleteAgentMemoryFileResponse = {
+  _: 'DeleteAgentMemoryFileResponse'
+  agentId: string
+  path: string
+  /** False when nothing existed at the path. */
+  deleted: boolean
+}
+
 /** Successful response for `CreateSession`. */
 export type CreateSessionResponse = {
   _: 'CreateSessionResponse'
@@ -743,6 +826,10 @@ export type AgentResponse =
   | CreateAgentTriggerResponse
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
+  | ListAgentMemoryResponse
+  | ReadAgentMemoryFileResponse
+  | WriteAgentMemoryFileResponse
+  | DeleteAgentMemoryFileResponse
   | CreateSessionResponse
   | ListSessionsResponse
   | UpdateSessionResponse

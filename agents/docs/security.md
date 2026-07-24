@@ -159,6 +159,20 @@ Mitigations present:
 - failures degrade to `tool_result.error` (or a `degraded` flag for partial search), never silent fabrication;
 - no third-party API keys or outbound calls beyond SearXNG, the target site, and the optional Crawl4AI container.
 
+## Agent memory safety
+
+Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory to model-controlled tool input, so path
+handling is strict:
+
+- every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth and
+  length bounded, and the resolved absolute path is re-verified to sit inside `<stateDir>/memory`;
+- symlinks are refused as read/write targets and skipped in listings, so memory operations cannot follow a planted link
+  out of the sandbox;
+- size limits (1 MiB per file, 100 MiB per agent, 2000 entries) bound disk usage from runaway model writes;
+- ownership is checked through the agent row before any filesystem operation, so accounts cannot touch other accounts'
+  memory;
+- memory content is model-visible and user-visible by design; do not store secrets in agent memory.
+
 ## Replay protection status
 
 Implemented:

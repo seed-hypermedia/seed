@@ -174,6 +174,10 @@ export type SeedToolRegistry = {
   web_search: SeedToolMetadata
   web_read: SeedToolMetadata
   write: SeedToolMetadata
+  memory_list: SeedToolMetadata
+  memory_read: SeedToolMetadata
+  memory_write: SeedToolMetadata
+  memory_delete: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
 
@@ -537,6 +541,158 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
+  memory_list: {
+    name: 'memory_list',
+    label: 'List Memory',
+    description:
+      'List every file and directory in your private persistent memory. Memory is a filesystem owned by this agent, shared across all of your sessions and visible to your user. Use it to recall notes, learnings, and state you stored earlier. Call this before reading or writing when you are unsure what already exists.',
+    inputSchema: {type: 'object', additionalProperties: false, properties: {}},
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string', description: 'One-line summary of the memory contents.'},
+        entries: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: {type: 'string', description: 'Relative path from the memory root.'},
+              type: {type: 'string', enum: ['file', 'dir']},
+              size: {type: 'integer', description: 'File size in bytes; 0 for directories.'},
+              updatedAt: {type: 'integer', description: 'Last modification time in Unix epoch milliseconds.'},
+            },
+          },
+        },
+        totalBytes: {type: 'integer'},
+      },
+    },
+    render: {
+      kind: 'generic',
+      label: 'List Memory',
+      color: 'muted',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Output', source: 'output'},
+        {label: 'Input', source: 'input'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_read: {
+    name: 'memory_read',
+    label: 'Read Memory',
+    description:
+      'Read one UTF-8 text file from your private persistent memory by its relative path (for example `notes/project.md`). Use memory_list first when you do not know the exact path.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file to read.'},
+      },
+      required: ['path'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string'},
+        content: {type: 'string', description: 'The full UTF-8 text content of the file.'},
+        size: {type: 'integer'},
+        updatedAt: {type: 'integer'},
+      },
+    },
+    render: {
+      kind: 'read',
+      label: 'Read Memory',
+      color: 'emerald',
+      primaryArg: 'path',
+      summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Content', source: 'output', path: 'content', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_write: {
+    name: 'memory_write',
+    label: 'Write Memory',
+    description:
+      'Write one UTF-8 text file into your private persistent memory, creating parent directories automatically and replacing any existing file at that path. Use this to remember durable notes, learnings, preferences, and state across sessions. Keep files small and organized under descriptive relative paths such as `notes/topic.md`. To append or edit, read the file first and write back the full updated content.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file to write.'},
+        content: {type: 'string', description: 'The full UTF-8 text content to store at the path.'},
+      },
+      required: ['path', 'content'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string'},
+        size: {type: 'integer'},
+        updatedAt: {type: 'integer'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Write Memory',
+      color: 'violet',
+      primaryArg: 'path',
+      summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Content', source: 'input', path: 'content', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_delete: {
+    name: 'memory_delete',
+    label: 'Delete Memory',
+    description:
+      'Delete one file, or one directory recursively, from your private persistent memory. Only delete content that is clearly obsolete or that the user asked you to remove.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file or directory to delete.'},
+      },
+      required: ['path'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string'},
+        deleted: {type: 'boolean'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Delete Memory',
+      color: 'amber',
+      primaryArg: 'path',
+      summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
   set_session_title: {
     name: 'set_session_title',
     label: 'Set Session Title',
@@ -557,9 +713,6 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     hidden: true,
   },
-  // write_file: {},
-  // read_file: {},
-  // exexcute_bash: {},
 }
 
 export type SeedToolName = keyof typeof seedToolRegistry
