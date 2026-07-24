@@ -378,6 +378,15 @@ CREATE VIRTUAL TABLE embeddings USING vec0(
     fts_id int
 );
 
+-- Bookkeeping for the embeddings table: one row per fts entry that has been embedded.
+-- The vec0 virtual table can't be indexed on fts_id, so finding not-yet-embedded
+-- fts entries would require a full scan of the vector table; this table gives that
+-- anti-join an integer primary key to probe instead. Rows are written in the same
+-- transaction as the corresponding embeddings inserts.
+CREATE TABLE embeddings_index (
+    fts_id INTEGER PRIMARY KEY
+);
+
 -- Maintained RBSR fingerprint index.
 -- Each rbsr_scope is one reconciliation scope, identified by its resource IRI
 -- and a single kind enum. The kind flattens what used to be separate recursion

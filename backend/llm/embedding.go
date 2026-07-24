@@ -593,6 +593,9 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 				if err := sqlitex.Exec(conn, qEmbeddingsInsert(), nil, embedding.embeddingQuantized, embedding.ftsID); err != nil {
 					return err
 				}
+				if err := sqlitex.Exec(conn, qEmbeddingsIndexInsert(), nil, embedding.ftsID); err != nil {
+					return err
+				}
 			}
 			return nil
 		}); err != nil {
@@ -645,6 +648,9 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 		}
 		if err := sqlitex.WithTx(conn, func() error {
 			if err := sqlitex.Exec(conn, "delete from embeddings;", nil); err != nil {
+				return err
+			}
+			if err := sqlitex.Exec(conn, "delete from embeddings_index;", nil); err != nil {
 				return err
 			}
 			return nil
@@ -853,18 +859,18 @@ func cosineSimilarityInt8(a, b []int8) float32 {
 	return float32(float64(dot) / (math.Sqrt(float64(normA)) * math.Sqrt(float64(normB))))
 }
 
+// qEmbeddingsPending drives from fts_index (a regular table) and anti-joins
+// against embeddings_index via its integer primary key. The embeddings vec0
+// virtual table can't be indexed on fts_id, so anti-joining it directly forces
+// a full scan of the vector table on every pass; the fts content is only
+// loaded for rows that are actually pending.
 var qEmbeddingsPending = dqb.Str(`
-	WITH pending AS (
-		SELECT rowid
-		FROM fts
-		WHERE type IN ('title', 'document', 'comment', 'profile')
-			AND length(raw_content) > 3
-		EXCEPT
-		SELECT fts_id FROM embeddings
-	)
-	SELECT fts.rowid, fts.raw_content
-	FROM fts
-	JOIN pending ON pending.rowid = fts.rowid
+	SELECT fi.rowid, fts.raw_content
+	FROM fts_index fi
+	JOIN fts ON fts.rowid = fi.rowid
+	WHERE fi.type IN ('title', 'document', 'comment', 'profile')
+	AND NOT EXISTS (SELECT 1 FROM embeddings_index ei WHERE ei.fts_id = fi.rowid)
+	AND length(fts.raw_content) > 3
 	LIMIT ?;
 `)
 
@@ -875,12 +881,17 @@ var qEmbeddableTotalCount = dqb.Str(`
 `)
 
 var qAlreadyEmbeddedCount = dqb.Str(`
-	SELECT COUNT(DISTINCT fts_id) FROM embeddings;
+	SELECT COUNT(*) FROM embeddings_index;
 `)
 
 var qEmbeddingsInsert = dqb.Str(`
 	INSERT INTO embeddings (multilingual_minilm_l12_v2, fts_id)
 	VALUES (vec_int8(?), ?);
+`)
+
+var qEmbeddingsIndexInsert = dqb.Str(`
+	INSERT OR IGNORE INTO embeddings_index (fts_id)
+	VALUES (?);
 `)
 
 // qEmbeddingsSearchUnfiltered searches embeddings without IRI filtering.

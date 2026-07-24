@@ -63,6 +63,24 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Add the embeddings_index bookkeeping table: one row per fts entry that has
+	// been embedded. The vec0 embeddings table can't be indexed on fts_id, so the
+	// embedder's pending scan had to full-scan the vector table on every pass;
+	// this table gives that anti-join an integer primary key to probe. DDL must
+	// stay in lock-step with schema.sql (the migration snapshot test compares).
+	// Drop-first because data dirs fresh-initialized from a pre-merge branch
+	// build already have this table from schema.sql. Backfilled from the
+	// existing embeddings so already-embedded content isn't re-embedded.
+	{Version: "2026-07-24.124310", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS embeddings_index;
+			CREATE TABLE embeddings_index (
+			    fts_id INTEGER PRIMARY KEY
+			);
+			INSERT OR IGNORE INTO embeddings_index (fts_id)
+			SELECT DISTINCT fts_id FROM embeddings WHERE fts_id IS NOT NULL;
+		`))
+	}},
 	// Add the maintained RBSR fingerprint index tables (rbsr_scope / rbsr_item).
 	// They're derived, incremental acceleration for syncing and re-materialize
 	// lazily, so the migration only needs to create the empty tables. DDL must

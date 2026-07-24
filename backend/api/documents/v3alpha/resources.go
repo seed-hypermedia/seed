@@ -667,20 +667,15 @@ redirect_ancestors(resource, iri, depth) AS (
 ),
 changes AS (
 SELECT
-    structural_blobs.genesis_blob,
-	structural_blobs.ts,
+    structural_blobs.genesis_blob AS genesis_blob,
+	structural_blobs.ts AS ts,
     resource_links.id AS link_id,
-    resource_links.is_pinned,
-    blobs.codec,
-    blobs.multihash,
-	blobs.id,
-	public_keys.principal AS author,
+    resource_links.is_pinned AS is_pinned,
+	blobs.id AS id,
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
 	resource_links.extra_attrs->>'f' AS target_fragment,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	resource_links.type,
-	structural_blobs.genesis_blob
+	resource_links.type AS type
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -689,6 +684,29 @@ LEFT JOIN public_blobs pb3 ON pb3.id = blobs.id
 WHERE resource_links.target = :target
 AND structural_blobs.type IN ('Change')
 AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
+),
+citing_blobs AS (
+  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
+         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
+         sb.id AS source_blob
+  FROM changes
+  JOIN structural_blobs sb ON sb.genesis_blob = changes.genesis_blob AND sb.type = 'Ref'
+
+  UNION
+
+  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
+         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
+         sb.id
+  FROM changes
+  JOIN structural_blobs sb ON sb.genesis_blob = changes.id AND sb.type = 'Ref'
+
+  UNION
+
+  SELECT changes.ts, changes.link_id, changes.is_pinned, changes.anchor,
+         changes.target_version, changes.target_fragment, changes.type, changes.genesis_blob,
+         sb.id
+  FROM changes
+  JOIN structural_blobs sb ON sb.id = changes.id AND sb.type = 'Comment'
 )
 SELECT
     (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
@@ -724,27 +742,27 @@ SELECT
     blobs.codec,
     blobs.multihash,
     public_keys.principal AS author,
-    changes.ts,
+    citing_blobs.ts,
     'Ref' AS blob_type,
-    changes.is_pinned,
-    changes.anchor,
-	changes.target_version,
-	changes.target_fragment,
+    citing_blobs.is_pinned,
+    citing_blobs.anchor,
+	citing_blobs.target_version,
+	citing_blobs.target_fragment,
     blobs.id AS blob_id,
-    changes.link_id,
+    citing_blobs.link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	changes.type AS link_type,
-	changes.genesis_blob,
+	citing_blobs.type AS link_type,
+	citing_blobs.genesis_blob,
 	structural_blobs.extra_attrs->>'deleted' AS is_deleted
-FROM structural_blobs
+FROM citing_blobs
+JOIN structural_blobs ON structural_blobs.id = citing_blobs.source_blob
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 LEFT JOIN public_blobs pb2 ON pb2.id = blobs.id
-JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
-AND (blobs.id %s :blob_id OR (blobs.id = :blob_id AND changes.link_id %s :link_id))
+WHERE (blobs.id %s :blob_id OR (blobs.id = :blob_id AND citing_blobs.link_id %s :link_id))
 AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
-GROUP BY resources.iri, changes.link_id, target_version, target_fragment
+GROUP BY resources.iri, citing_blobs.link_id, target_version, target_fragment
 ORDER BY blob_id %s, link_id %s
 LIMIT :page_size + 1;
 `

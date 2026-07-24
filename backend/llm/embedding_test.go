@@ -157,31 +157,39 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 		alreadyEmbeddedText := "this one is already embedded"
 		shortText := "tiny-text"
 
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-			nil, fts1, longText, "document",
-		); err != nil {
-			return err
-		}
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-			nil, fts2, alreadyEmbeddedText, "document",
-		); err != nil {
-			return err
-		}
-		if err := sqlitex.Exec(conn,
-			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
-			nil, fts3, shortText, "title",
-		); err != nil {
-			return err
+		for id, entry := range map[int64][2]string{
+			fts1: {longText, "document"},
+			fts2: {alreadyEmbeddedText, "document"},
+			fts3: {shortText, "title"},
+		} {
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
+				nil, id, entry[0], entry[1],
+			); err != nil {
+				return err
+			}
+			// The indexer always writes fts and fts_index in lockstep;
+			// the pending query drives from fts_index.
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+				nil, id, id*100, fmt.Sprintf("block%d", id), fmt.Sprintf("v%d", id), entry[1], id*1000,
+			); err != nil {
+				return err
+			}
 		}
 		if err := sqlitex.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, "fake-checksum", true); err != nil {
 			return err
 		}
 		// Mark fts2 as already embedded so it must be skipped by pending query.
-		return sqlitex.Exec(conn,
+		if err := sqlitex.Exec(conn,
 			`INSERT INTO embeddings (multilingual_minilm_l12_v2, fts_id) VALUES (vec_int8(?), ?);`,
 			nil, make([]int8, 384), fts2,
+		); err != nil {
+			return err
+		}
+		return sqlitex.Exec(conn,
+			`INSERT INTO embeddings_index (fts_id) VALUES (?);`,
+			nil, fts2,
 		)
 	}))
 
@@ -315,9 +323,17 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 
 	db := storage.MakeTestMemoryDB(t)
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn,
+		if err := sqlitex.Exec(conn,
 			`INSERT INTO fts(rowid, raw_content, type) VALUES (?, ?, ?);`,
 			nil, int64(1), "this is a test document", "document",
+		); err != nil {
+			return err
+		}
+		// The indexer always writes fts and fts_index in lockstep;
+		// the pending query drives from fts_index.
+		return sqlitex.Exec(conn,
+			`INSERT INTO fts_index(rowid, blob_id, block_id, version, type, ts) VALUES (?, ?, ?, ?, ?, ?);`,
+			nil, int64(1), int64(100), "block1", "v1", "document", int64(1000),
 		)
 	}))
 
@@ -776,6 +792,18 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 			nil, emb3, int64(3),
 		); err != nil {
 			return err
+		}
+
+		// Embeddings are always paired with embeddings_index rows; without them
+		// the background indexing loop would consider these entries pending and
+		// re-embed them concurrently with the search queries below.
+		for _, ftsID := range []int64{1, 2, 3} {
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO embeddings_index (fts_id) VALUES (?);`,
+				nil, ftsID,
+			); err != nil {
+				return err
+			}
 		}
 
 		return sqlitex.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, "fake-checksum", true)

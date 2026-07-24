@@ -198,6 +198,18 @@ const (
 	C_EmbeddingsChunksValidity = "embeddings_chunks.validity"
 )
 
+// Table embeddings_index.
+const (
+	EmbeddingsIndex      sqlitegen.Table  = "embeddings_index"
+	EmbeddingsIndexFtsID sqlitegen.Column = "embeddings_index.fts_id"
+)
+
+// Table embeddings_index. Plain strings.
+const (
+	T_EmbeddingsIndex      = "embeddings_index"
+	C_EmbeddingsIndexFtsID = "embeddings_index.fts_id"
+)
+
 // Table embeddings_info.
 const (
 	EmbeddingsInfo      sqlitegen.Table  = "embeddings_info"
@@ -708,6 +720,7 @@ var Schema = sqlitegen.Schema{
 		EmbeddingsChunksRowids:                  {Table: EmbeddingsChunks, SQLType: "BLOB"},
 		EmbeddingsChunksSize:                    {Table: EmbeddingsChunks, SQLType: "INTEGER"},
 		EmbeddingsChunksValidity:                {Table: EmbeddingsChunks, SQLType: "BLOB"},
+		EmbeddingsIndexFtsID:                    {Table: EmbeddingsIndex, SQLType: "INTEGER"},
 		EmbeddingsInfoKey:                       {Table: EmbeddingsInfo, SQLType: "TEXT"},
 		EmbeddingsInfoValue:                     {Table: EmbeddingsInfo, SQLType: "ANY"},
 		EmbeddingsMetadatachunks00Data:          {Table: EmbeddingsMetadatachunks00, SQLType: "BLOB"},
