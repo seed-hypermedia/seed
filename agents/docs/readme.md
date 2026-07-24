@@ -40,8 +40,9 @@ Completed and usable locally:
 - `read` using shared Seed Hypermedia URL resolution;
 - `web_search` and `web_read` web research tools: self-hosted SearXNG search plus a tiered MediaWiki → in-process static
   (Readability + Turndown) → Crawl4AI reader, with no third-party API keys;
-- per-agent persistent memory filesystem: sandboxed `memory_list`/`memory_read`/`memory_write`/`memory_delete` session
-  tools, signed agent-memory actions, and a desktop Memory tab for full user read/write access to the same files;
+- per-agent persistent memory filesystem: sandboxed `memory_*` session tools (list/read/write/delete plus web download
+  and IPFS publish), binary/media file support, signed agent-memory actions, and a desktop Memory tab with editing,
+  media previews, on-demand downloads, local-file upload, URL download, and IPFS publishing;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;

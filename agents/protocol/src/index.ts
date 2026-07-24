@@ -123,6 +123,8 @@ export type UnsignedAgentAction =
   | ReadAgentMemoryFile
   | WriteAgentMemoryFile
   | DeleteAgentMemoryFile
+  | DownloadAgentMemoryFile
+  | UploadAgentMemoryFileToIpfs
   | CreateSession
   | ListSessions
   | UpdateSession
@@ -306,14 +308,23 @@ export type AgentMemoryEntry = {
   size: number
   /** Last modification time in Unix epoch milliseconds. */
   updatedAt: number
+  /** MIME type inferred from the file extension, when recognized. */
+  mimeType?: string
 }
 
-/** Contents of one agent memory file. */
+/** Contents of one agent memory file: UTF-8 text or raw binary bytes. */
 export type AgentMemoryFile = {
   path: string
-  content: string
   size: number
   updatedAt: number
+  /** MIME type inferred from the file extension, when recognized. */
+  mimeType?: string
+  /** How the file content is delivered: `utf8` uses `content`, `binary` uses `data`. */
+  encoding: 'utf8' | 'binary'
+  /** UTF-8 text content, present when `encoding` is `utf8`. */
+  content?: string
+  /** Raw file bytes, present when `encoding` is `binary`. */
+  data?: Uint8Array
 }
 
 /** Lists every file and directory in an agent's memory. */
@@ -322,24 +333,48 @@ export type ListAgentMemory = {
   agentId: string
 }
 
-/** Reads one UTF-8 text file from an agent's memory. */
+/** Reads one file (text or binary) from an agent's memory. */
 export type ReadAgentMemoryFile = {
   _: 'ReadAgentMemoryFile'
   agentId: string
   path: string
 }
 
-/** Writes one UTF-8 text file into an agent's memory, creating parent directories as needed. */
+/**
+ * Writes one file into an agent's memory, creating parent directories as needed. String content is
+ * stored as UTF-8 text; `Uint8Array` content is stored verbatim (e.g. media uploaded from the
+ * Memory tab).
+ */
 export type WriteAgentMemoryFile = {
   _: 'WriteAgentMemoryFile'
   agentId: string
   path: string
-  content: string
+  content: string | Uint8Array
 }
 
 /** Deletes one file, or one directory recursively, from an agent's memory. */
 export type DeleteAgentMemoryFile = {
   _: 'DeleteAgentMemoryFile'
+  agentId: string
+  path: string
+}
+
+/** Downloads a web URL into an agent's memory filesystem. */
+export type DownloadAgentMemoryFile = {
+  _: 'DownloadAgentMemoryFile'
+  agentId: string
+  /** The http(s) URL to download. */
+  url: string
+  /** Target memory path. Omit to store under `downloads/` named from the URL. */
+  path?: string
+}
+
+/**
+ * Uploads one agent memory file to the HM server's IPFS endpoint so it can be referenced from
+ * Hypermedia content by its `ipfs://<cid>` URL.
+ */
+export type UploadAgentMemoryFileToIpfs = {
+  _: 'UploadAgentMemoryFileToIpfs'
   agentId: string
   path: string
 }
@@ -747,6 +782,30 @@ export type DeleteAgentMemoryFileResponse = {
   deleted: boolean
 }
 
+/** Successful response for `DownloadAgentMemoryFile`. */
+export type DownloadAgentMemoryFileResponse = {
+  _: 'DownloadAgentMemoryFileResponse'
+  agentId: string
+  entry: AgentMemoryEntry
+  /** URL actually fetched, after redirects. */
+  finalUrl: string
+  /** Content type reported by the server, when present. */
+  contentType?: string
+}
+
+/** Successful response for `UploadAgentMemoryFileToIpfs`. */
+export type UploadAgentMemoryFileToIpfsResponse = {
+  _: 'UploadAgentMemoryFileToIpfsResponse'
+  agentId: string
+  path: string
+  /** The IPFS content identifier of the uploaded file. */
+  cid: string
+  /** `ipfs://<cid>` URL usable from Hypermedia content. */
+  url: string
+  size: number
+  mimeType?: string
+}
+
 /** Successful response for `CreateSession`. */
 export type CreateSessionResponse = {
   _: 'CreateSessionResponse'
@@ -830,6 +889,8 @@ export type AgentResponse =
   | ReadAgentMemoryFileResponse
   | WriteAgentMemoryFileResponse
   | DeleteAgentMemoryFileResponse
+  | DownloadAgentMemoryFileResponse
+  | UploadAgentMemoryFileToIpfsResponse
   | CreateSessionResponse
   | ListSessionsResponse
   | UpdateSessionResponse

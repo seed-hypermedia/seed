@@ -186,6 +186,106 @@ describe('api service', () => {
     }
   })
 
+  test('handles binary memory files, web downloads, and IPFS uploads via signed actions', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const realFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.example'})
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Media Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['memory_list', 'memory_read', 'memory_write', 'memory_download', 'memory_upload_ipfs'],
+            },
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = create.agentId
+
+      // Binary write + read round trip through the signed actions.
+      const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9])
+      const write = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'WriteAgentMemoryFile', agentId, path: 'media/pic.png', content: pngBytes},
+        }),
+      )
+      expect(write).toMatchObject({
+        _: 'WriteAgentMemoryFileResponse',
+        entry: {path: 'media/pic.png', size: 10, mimeType: 'image/png'},
+      })
+      const read = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ReadAgentMemoryFile', agentId, path: 'media/pic.png'},
+        }),
+      )
+      if (read._ !== 'ReadAgentMemoryFileResponse') throw new Error('unexpected response')
+      expect(read.file.encoding).toBe('binary')
+      expect(Array.from(read.file.data ?? [])).toEqual(Array.from(pngBytes))
+
+      // Web download into memory.
+      globalThis.fetch = (async (url: string | URL | Request) => {
+        if (String(url).includes('cdn.example')) {
+          return new Response(new Uint8Array([1, 2, 3]), {headers: {'content-type': 'image/jpeg'}})
+        }
+        throw new Error(`unexpected fetch: ${String(url)}`)
+      }) as unknown as typeof fetch
+      const download = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'DownloadAgentMemoryFile', agentId, url: 'https://cdn.example/photo.jpg'},
+        }),
+      )
+      expect(download).toMatchObject({
+        _: 'DownloadAgentMemoryFileResponse',
+        entry: {path: 'downloads/photo.jpg', size: 3, mimeType: 'image/jpeg'},
+      })
+
+      // IPFS upload via the HM server endpoint.
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        expect(String(url)).toBe('https://hm.example/ipfs/file-upload')
+        expect(init?.method).toBe('POST')
+        return new Response('bafkTestCid123\n')
+      }) as unknown as typeof fetch
+      const upload = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UploadAgentMemoryFileToIpfs', agentId, path: 'media/pic.png'},
+        }),
+      )
+      expect(upload).toMatchObject({
+        _: 'UploadAgentMemoryFileToIpfsResponse',
+        path: 'media/pic.png',
+        cid: 'bafkTestCid123',
+        url: 'ipfs://bafkTestCid123',
+        mimeType: 'image/png',
+      })
+
+      // The session system prompt automatically lists top-level memory without expanding folders.
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId}}),
+      )
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const loaded = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: session.sessionId}}),
+      )
+      if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(loaded.systemPromptMarkdown).toContain('<memory_files>')
+      expect(loaded.systemPromptMarkdown).toContain('media/ — 1 file')
+      expect(loaded.systemPromptMarkdown).toContain('downloads/ — 1 file')
+      expect(loaded.systemPromptMarkdown).not.toContain('media/pic.png')
+    } finally {
+      globalThis.fetch = realFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('creates a default user-mention trigger for the agent signing identity', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

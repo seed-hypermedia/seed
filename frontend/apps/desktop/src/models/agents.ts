@@ -847,15 +847,53 @@ export function useAgentMemoryFile(
   })
 }
 
-/** Writes one file into an agent's private memory. */
+/** Writes one file (UTF-8 text or binary bytes) into an agent's private memory. */
 export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({agentId, path, content}: {agentId: string; path: string; content: string}) => {
+    mutationFn: async ({agentId, path, content}: {agentId: string; path: string; content: string | Uint8Array}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'WriteAgentMemoryFile', agentId, path, content}})
     },
     onSuccess() {
       invalidateQueries(['agents', 'memory'])
+    },
+  })
+}
+
+/** Downloads a web URL into an agent's private memory on the server. */
+export function useDownloadAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, url, path}: {agentId: string; url: string; path?: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: path
+          ? {_: 'DownloadAgentMemoryFile', agentId, url, path}
+          : {_: 'DownloadAgentMemoryFile', agentId, url},
+      })
+      if (res._ !== 'DownloadAgentMemoryFileResponse') throw new Error('Unexpected DownloadAgentMemoryFile response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'memory'])
+    },
+  })
+}
+
+/** Uploads one agent memory file to IPFS via the HM server, returning its ipfs:// URL. */
+export function useUploadAgentMemoryFileToIpfs(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'UploadAgentMemoryFileToIpfs', agentId, path},
+      })
+      if (res._ !== 'UploadAgentMemoryFileToIpfsResponse')
+        throw new Error('Unexpected UploadAgentMemoryFileToIpfs response')
+      return res
     },
   })
 }

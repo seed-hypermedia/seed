@@ -26,6 +26,8 @@ memory_list
 memory_read
 memory_write
 memory_delete
+memory_download
+memory_upload_ipfs
 ```
 
 `read` is available by default for existing agents whose saved definition omits `tools`. Agents with an explicit `tools`
@@ -221,25 +223,40 @@ backends are configured through its health response (`webTools: {search, readBro
 desktop Tools tab uses this to grey out tools the server cannot run, and exposes each tool's exact model-facing
 description and input/output schemas through a per-tool info dialog (see `desktop-ui.md`).
 
-## Memory tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`)
+## Memory tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`, `memory_download`, `memory_upload_ipfs`)
 
 Each agent owns a private persistent filesystem at `<stateDir>/memory`, implemented in `agents/src/agent-memory.ts` and
-shared across all of the agent's sessions. The four memory tools give the model list/read/write/delete access to that
-directory; the signed `ListAgentMemory` / `ReadAgentMemoryFile` / `WriteAgentMemoryFile` / `DeleteAgentMemoryFile`
-actions give the user the same access from the desktop Memory tab, so both sides always see the same files.
+shared across all of the agent's sessions. The memory tools give the model access to that directory; the signed
+agent-memory actions give the user the same access from the desktop Memory tab, so both sides always see the same real
+files on disk.
 
 Key behavior:
 
 - All paths are relative to the memory root and strictly sandboxed: absolute paths, `..` segments, and null bytes are
   rejected, resolved paths are verified to stay inside the root, and symlinks are refused for reads/writes and skipped
   in listings.
-- Files are UTF-8 text. `memory_write` replaces the whole file and creates parent directories automatically; edits are
-  read-modify-write.
-- Limits: 1 MiB per file, 100 MiB per agent, 2000 entries, 512-byte paths, 16 levels of nesting.
-- Tool-driven writes/deletes emit `account-change` (`agent-memory-changed`) events, fanned out to both `account/<id>`
-  and `agents/<agentId>` WebSocket subscribers, so the desktop Memory tab updates live while a session runs.
+- Files can be UTF-8 text or binary. `memory_write` writes text and replaces the whole file, creating parent directories
+  automatically; edits are read-modify-write. `memory_read` returns text content for text files; for binary files it
+  returns size/MIME metadata only — raw bytes never go to the model.
+- `memory_download` fetches any public http(s) URL (including binary media) into memory, streamed with a hard size cap.
+  When no target path is given the file lands in `downloads/` named from the URL; extension-less paths gain one from the
+  response content type. Same open-fetch policy as `web_read`.
+- `memory_upload_ipfs` uploads one memory file to the HM server's `/ipfs/file-upload` endpoint and returns its
+  `ipfs://<cid>` URL, so the agent can reference stored media from Hypermedia content (documents, avatars) created with
+  the `write` tool. Publishing to IPFS makes the file publicly retrievable.
+- MIME types are inferred from file extensions (`inferMimeType`) for previews, downloads, and IPFS uploads.
+- Limits: 1 MiB per text write, 100 MiB per file (binary/downloads), 1 GiB per agent, 2000 entries, 512-byte paths, 16
+  levels of nesting.
+- Tool-driven writes/downloads/deletes emit `account-change` (`agent-memory-changed`) events, fanned out to both
+  `account/<id>` and `agents/<agentId>` WebSocket subscribers, so the desktop Memory tab updates live while a session
+  runs.
 - When any memory tool is enabled, the agent system prompt describes the memory filesystem and instructs the model to
-  check memory at task start and store durable learnings as small organized files.
+  check memory at task start, store durable learnings as small organized files, and use download/IPFS publishing for web
+  media.
+- Memory-enabled system prompts also automatically embed a `<memory_files>` listing of the top level of memory — root
+  files with sizes and root folders with contained file counts, without expanding subfolder contents — built fresh per
+  run by `summarizeMemoryTopLevel`. The agent starts every session knowing what it has without an explicit `memory_list`
+  call; `memory_list` remains the way to see full nested paths.
 
 ## `write`
 

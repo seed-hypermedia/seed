@@ -178,6 +178,8 @@ export type SeedToolRegistry = {
   memory_read: SeedToolMetadata
   memory_write: SeedToolMetadata
   memory_delete: SeedToolMetadata
+  memory_download: SeedToolMetadata
+  memory_upload_ipfs: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
 
@@ -583,7 +585,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'memory_read',
     label: 'Read Memory',
     description:
-      'Read one UTF-8 text file from your private persistent memory by its relative path (for example `notes/project.md`). Use memory_list first when you do not know the exact path.',
+      'Read one file from your private persistent memory by its relative path (for example `notes/project.md`). Text files return their full content; binary files (media, downloads) return size and MIME metadata only — use memory_upload_ipfs to publish binary files for use in Hypermedia content. Use memory_list first when you do not know the exact path.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -597,8 +599,10 @@ export const seedToolRegistry: SeedToolRegistry = {
       properties: {
         summary: {type: 'string'},
         path: {type: 'string'},
-        content: {type: 'string', description: 'The full UTF-8 text content of the file.'},
+        encoding: {type: 'string', enum: ['utf8', 'binary']},
+        content: {type: 'string', description: 'The full UTF-8 text content; absent for binary files.'},
         size: {type: 'integer'},
+        mimeType: {type: 'string'},
         updatedAt: {type: 'integer'},
       },
     },
@@ -685,6 +689,90 @@ export const seedToolRegistry: SeedToolRegistry = {
       primaryArg: 'path',
       summaryArg: 'path',
       summaryOutputPath: 'summary',
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_download: {
+    name: 'memory_download',
+    label: 'Download to Memory',
+    description:
+      'Download a file from a public http(s) URL into your private persistent memory. Works for any file type including binary media (images, audio, video, PDFs); the file is stored verbatim and can then be previewed by your user on the Memory tab or published with memory_upload_ipfs. Omit path to store the file under downloads/ named from the URL; when the path has no extension, one is added from the response content type. Use this instead of web_read when you need the actual file rather than extracted text.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: {type: 'string', minLength: 1, description: 'The public http(s) URL of the file to download.'},
+        path: {
+          type: 'string',
+          description: 'Optional target memory path such as media/photo.jpg. Defaults to downloads/<url filename>.',
+        },
+      },
+      required: ['url'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string', description: 'The memory path where the file was stored.'},
+        size: {type: 'integer'},
+        mimeType: {type: 'string'},
+        finalUrl: {type: 'string', description: 'The URL actually fetched, after redirects.'},
+        contentType: {type: 'string'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Download to Memory',
+      color: 'violet',
+      primaryArg: 'url',
+      summaryArg: 'url',
+      summaryOutputPath: 'summary',
+      links: [{source: 'input', path: 'url', label: 'Source URL'}],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_upload_ipfs: {
+    name: 'memory_upload_ipfs',
+    label: 'Upload Memory to IPFS',
+    description:
+      'Upload one file from your private persistent memory to IPFS via the Hypermedia server, returning an ipfs://<cid> URL. Use that URL to reference the file from Hypermedia content — for example as an image in a document created with the write tool, or as a profile avatar. Works for binary media downloaded with memory_download as well as text files.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {type: 'string', minLength: 1, description: 'Relative memory path of the file to upload.'},
+      },
+      required: ['path'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string'},
+        cid: {type: 'string', description: 'The IPFS content identifier.'},
+        url: {type: 'string', description: 'ipfs://<cid> URL usable from Hypermedia content.'},
+        size: {type: 'integer'},
+        mimeType: {type: 'string'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Upload Memory to IPFS',
+      color: 'indigo',
+      primaryArg: 'path',
+      summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      links: [{source: 'output', path: 'url', label: 'IPFS file'}],
       details: [
         {label: 'Input', source: 'input'},
         {label: 'Output', source: 'output'},

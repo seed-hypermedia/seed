@@ -23,6 +23,14 @@ Completed:
   group.
 - Unit tests for sandboxing/limits (`src/agent-memory.test.ts`) and a signed-action round-trip test including
   cross-account denial (`src/api-service.test.ts`).
+- Second iteration added binary/media support: files are UTF-8 text or raw bytes (model never receives binary content),
+  `memory_download` streams web files into memory with a 100 MiB cap and content-type-derived naming,
+  `memory_upload_ipfs` publishes memory files through the HM server's `/ipfs/file-upload` endpoint for use in Hypermedia
+  content, matching signed actions (`DownloadAgentMemoryFile`, `UploadAgentMemoryFileToIpfs`) give the user the same
+  powers, and the Memory tab gained media previews, per-file downloads, local-file upload (button and drag-and-drop onto
+  the list or a specific folder row), URL download, and IPFS publishing with copyable `ipfs://` URLs. Memory-enabled
+  system prompts embed an automatic `<memory_files>` top-level listing (root files/folders with file counts, subfolders
+  unexpanded) so agents start sessions already knowing what they remember.
 
 ### Web research tools (`web_search`, `web_read`)
 

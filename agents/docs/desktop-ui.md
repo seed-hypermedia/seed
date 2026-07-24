@@ -122,16 +122,19 @@ Features:
   detail view;
 - trigger detail shows operational metadata plus the sessions created by that trigger;
 - Memory tab (`pages/agents/memory.tsx`) browses and edits the agent's private memory filesystem: an entry list with
-  per-row delete (two-step inline confirm), a monospace text editor with dirty-state Save/Revert, and a new-file form
-  accepting nested relative paths. It uses the signed `ListAgentMemory` / `ReadAgentMemoryFile` / `WriteAgentMemoryFile`
-  / `DeleteAgentMemoryFile` actions via `useAgentMemory` / `useAgentMemoryFile` / `useWriteAgentMemoryFile` /
-  `useDeleteAgentMemoryFile` in `models/agents.ts`, and refreshes live from `agent-memory-changed` change events when
-  session tools write memory;
+  per-row delete (two-step inline confirm) and file sizes, a monospace text editor with dirty-state Save/Revert for text
+  files, inline image/audio/video previews for binary files, an on-demand per-file download button, an **Add file**
+  local-upload button, a **From URL** form that server-side downloads a web file into memory, a **New file** form
+  accepting nested relative paths, and a **Publish to IPFS** button that uploads the file via the HM server and surfaces
+  its copyable `ipfs://<cid>` URL. Files can also be dragged and dropped onto the list (multiple at once): dropping on
+  the list uploads to the memory root, dropping on a folder row uploads into that folder, with drop-target highlighting.
+  It uses the signed agent-memory actions via the memory hooks in `models/agents.ts`, and refreshes live from
+  `agent-memory-changed` change events when session tools write memory;
 - Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
   publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
   (`web_search`/`web_read`, which require server-side web backends), the **memory group**
-  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`), and the write group. Tool groups come from
-  `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
+  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`/`memory_download`/`memory_upload_ipfs`), and the write
+  group. Tool groups come from `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
 - the Tools tab reflects the connected server's abilities: each group lists its individual member tools, and tools the
   server cannot run are greyed out with an explanation. Availability is read from the server health response (`webTools`
   capability flags) via `getToolAvailability`; for example `web_search` is greyed when no SearXNG backend is configured,

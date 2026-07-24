@@ -19,6 +19,8 @@ export const AGENT_MEMORY_TOOL_GROUP = [
   seedToolRegistry.memory_read.name,
   seedToolRegistry.memory_write.name,
   seedToolRegistry.memory_delete.name,
+  seedToolRegistry.memory_download.name,
+  seedToolRegistry.memory_upload_ipfs.name,
 ]
 
 /**
