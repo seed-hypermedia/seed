@@ -4,7 +4,7 @@ import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
-import {getOrCreateSiteHome} from '@/utils/create-site'
+import {useCreateSpaceDialog} from './create-space-dialog'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   HMAccountsMetadata,
@@ -745,7 +745,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
   const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
-  const [isCreatingSite, setIsCreatingSite] = React.useState(false)
+  const createSpaceDialog = useCreateSpaceDialog()
 
   if (!selectedAccountId) return null
 
@@ -810,29 +810,11 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   return (
     <SidebarSection title="My Site">
       <Tooltip content="Create your site to publish documents and share your profile.">
-        <Button
-          className="w-full"
-          variant="default"
-          disabled={isCreatingSite}
-          onClick={async () => {
-            setIsCreatingSite(true)
-            try {
-              const homeId = await getOrCreateSiteHome(selectedAccountId)
-              navigate({
-                key: 'document',
-                id: homeId,
-              })
-            } catch (error) {
-              console.error('Failed to verify site before creating draft:', error)
-              toast.error('Could not verify whether your site already exists. Please try again.')
-            } finally {
-              setIsCreatingSite(false)
-            }
-          }}
-        >
+        <Button className="w-full" variant="default" onClick={() => createSpaceDialog.open()}>
           Create my Site
         </Button>
       </Tooltip>
+      {createSpaceDialog.content}
     </SidebarSection>
   )
 }

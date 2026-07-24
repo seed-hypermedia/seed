@@ -462,6 +462,10 @@ export function useVaultSuccessDialog() {
       dialog.open({variant})
       return
     }
+    if (variant === 'publish-draft') {
+      toast.success('Your space is live! You can change its settings anytime.')
+      return
+    }
     if (variant === 'join') {
       toast.success(`You've joined ${siteName} — you can now comment and participate`)
       return

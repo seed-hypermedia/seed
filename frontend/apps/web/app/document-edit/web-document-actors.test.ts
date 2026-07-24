@@ -1,10 +1,10 @@
-import 'fake-indexeddb/auto'
-import {indexedDB} from 'fake-indexeddb'
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {PublishInput} from '@shm/shared/models/document-machine'
 import type {UniversalClient} from '@shm/shared/universal-client'
+import {indexedDB} from 'fake-indexeddb'
+import 'fake-indexeddb/auto'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -16,7 +16,7 @@ import {
   type CreateWebDocumentMachineDeps,
   type WebEditorAccessor,
 } from './web-document-actors'
-import {_resetWebDocDraftDBForTesting, putWebDocDraft, getWebDocDraft, listWebDocDraftsForDoc} from './web-draft-db'
+import {_resetWebDocDraftDBForTesting, getWebDocDraft, listWebDocDraftsForDoc, putWebDocDraft} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
 
@@ -636,6 +636,79 @@ describe('publishWebDocument', () => {
 
     const finalResourceCall = deps.requestMock.mock.calls.filter((c: any) => c[0] === 'Resource').at(-1)!
     expect(finalResourceCall[1].path).toEqual(['secret-generated-path'])
+  })
+
+  it('first-publish home document bootstraps a genesis Change and Ref, and bases the change on it', async () => {
+    // Web's pending space draft's first publish
+    // A brand-new home document has no genesis on the server,
+    // and PrepareDocumentChange can't bootstrap one.
+    // publishWebDocument must publish a client-signed genesis Change and version Ref
+    // first, then base PrepareDocumentChange on that genesis.
+    const docId = makeDocId(OWNER) // root path [] — home document
+    const after = makeBaselineDoc([], {path: ''})
+
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'welcome')],
+      metadata: {name: 'My Space'},
+      deps: [],
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: [],
+      visibility: 'PUBLIC',
+      cursorPosition: null,
+    })
+
+    let resourceCalls = 0
+    const requestMock = vi.fn(async (key: string) => {
+      if (key === 'PrepareDocumentChange') {
+        return {unsignedChange: createTestUnsignedChangeBytes()}
+      }
+      if (key === 'Resource') {
+        resourceCalls += 1
+        // 1: load editDocument. 2+: post-publish fetch.
+        return resourceCalls === 1 ? ({type: 'not-found'} as any) : ({type: 'document', document: after} as any)
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+
+    const deps = makeDeps({
+      docId,
+      request: requestMock,
+      after,
+      editorBlocks: [
+        {
+          id: 'b1',
+          type: 'paragraph',
+          props: {childrenType: 'Group'},
+          content: [{type: 'text', text: 'welcome'}],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument({...baseInput, documentId: docId}, deps)
+
+    // The genesis bootstrap is the first publish: a Change blob then a Ref blob.
+    const publishCalls = (deps.client.publish as AnyMock).mock.calls
+    expect(publishCalls.length).toBeGreaterThanOrEqual(2)
+    const genesisBlobs = publishCalls[0]![0].blobs
+    const genesisChange = cborDecode(genesisBlobs[0]!.data) as Record<string, unknown>
+    const genesisRef = cborDecode(genesisBlobs[1]!.data) as Record<string, unknown>
+    expect(genesisChange.type).toBe('Change')
+    expect(genesisRef.type).toBe('Ref')
+    // A first-publish Ref points its genesis at the genesis Change itself.
+    const genesisCid = genesisBlobs[0]!.cid
+    expect(String(genesisRef.genesisBlob)).toBe(genesisCid)
+
+    // PrepareDocumentChange must base off the freshly bootstrapped genesis, not
+    // the empty base version it would otherwise use for a doc with no deps.
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    expect(prepareCall[1].baseVersion).toBe(genesisCid)
   })
 
   it('non-owner publish includes capability CID', async () => {

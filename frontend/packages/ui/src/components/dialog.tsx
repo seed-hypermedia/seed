@@ -80,6 +80,38 @@ function DialogContent({
   )
 }
 
+/**
+ * Right-side panel variant of {@link DialogContent}: a full-height panel
+ * pinned to the right edge over a dimmed, blurred backdrop.
+ */
+function DialogSideContent({
+  className,
+  children,
+  contentClassName,
+  style,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  contentClassName?: string
+  style?: React.CSSProperties
+}) {
+  return (
+    <DialogPortal data-slot="dialog-side-portal">
+      <DialogOverlay className="backdrop-blur-sm" />
+      <DialogPrimitive.Content
+        data-slot="dialog-side-content"
+        className={cn(
+          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-8 fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col overflow-hidden shadow-xl duration-200',
+          className,
+        )}
+        style={style}
+        {...props}
+      >
+        <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', contentClassName)}>{children}</div>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+}
+
 function DialogHeader({className, ...props}: React.ComponentProps<'div'>) {
   return (
     <div
@@ -129,6 +161,7 @@ export {
   DialogHeader,
   DialogOverlay,
   DialogPortal,
+  DialogSideContent,
   DialogTitle,
   DialogTrigger,
 }

@@ -27,6 +27,7 @@ import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {createWebHMUrl, entityQueryPathToHmIdPath, extractViewTermFromUrl, hmId, latestId, unpackHmId} from '../utils'
+import {isPendingSpaceUid} from '../utils/pending-space'
 import {
   queryAccount,
   queryCapabilities,
@@ -685,7 +686,9 @@ export function useChanges(id: UnpackedHypermediaId | null | undefined) {
 
 export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery(queryCapabilities(client, id))
+  // Skip the capability lookup for anonymous pending drafts.
+  const targetId = isPendingSpaceUid(id?.uid) ? undefined : id
+  return useQuery(queryCapabilities(client, targetId))
 }
 
 export function useCollaborators(docId: UnpackedHypermediaId) {
@@ -704,7 +707,7 @@ export function useCollaborators(docId: UnpackedHypermediaId) {
   }
 }
 
-export function useSiteMembers(id: UnpackedHypermediaId) {
+export function useSiteMembers(id: UnpackedHypermediaId | null | undefined) {
   const collaborators = useDocumentCollaborators(id)
   const accounts = collaborators.data?.accounts || {}
 

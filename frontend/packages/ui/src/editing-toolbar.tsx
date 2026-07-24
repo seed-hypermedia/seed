@@ -42,6 +42,12 @@ export type EditingToolbarCallbacks = {
    * unpublished child drafts.
    */
   getUnpublishedChildCount?: () => number
+  /**
+   * Intercept the publish action before it reaches the document machine. Return
+   * true when handled to skip the normal publish. Return false/undefined
+   * to publish normally.
+   */
+  onPublishIntercept?: (pathOverride?: string[]) => boolean
 }
 
 /** Dark pill shown top-right while autosave is saving or just saved. */
@@ -344,6 +350,7 @@ export function PublishButtonWithPopover({
   computeFirstPublishPath,
   onGoToVersions,
   getUnpublishedChildCount,
+  onPublishIntercept,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
@@ -384,6 +391,8 @@ export function PublishButtonWithPopover({
   const publishNow = (pathOverride?: string[]) => {
     if (!canPublish) return
     popoverState.onOpenChange(false)
+    // Signed-out drafts hand off to account creation instead of publishing directly.
+    if (onPublishIntercept?.(pathOverride)) return
     send({type: 'edit.start'})
     send({type: 'publish.start', pathOverride})
   }

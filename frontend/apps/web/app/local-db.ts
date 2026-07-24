@@ -1,5 +1,5 @@
-import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 
 function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {
@@ -342,7 +342,12 @@ export interface PendingFollowIntent {
   profileUid: string
 }
 
-export type PendingIntent = PendingCommentIntent | PendingJoinIntent | PendingFollowIntent
+export interface PendingPublishDraftIntent {
+  type: 'publish-draft'
+  draftId: string
+}
+
+export type PendingIntent = PendingCommentIntent | PendingJoinIntent | PendingFollowIntent | PendingPublishDraftIntent
 
 // Zod schemas for validating stored intent data
 const PendingCommentIntentSchema = z.object({
@@ -372,10 +377,16 @@ const PendingFollowIntentSchema = z.object({
   profileUid: z.string(),
 })
 
+const PendingPublishDraftIntentSchema = z.object({
+  type: z.literal('publish-draft'),
+  draftId: z.string(),
+})
+
 const PendingIntentSchema = z.discriminatedUnion('type', [
   PendingCommentIntentSchema,
   PendingJoinIntentSchema,
   PendingFollowIntentSchema,
+  PendingPublishDraftIntentSchema,
 ])
 
 const PENDING_INTENT_KEY = 'pending'

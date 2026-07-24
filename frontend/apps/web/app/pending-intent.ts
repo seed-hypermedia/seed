@@ -15,6 +15,7 @@ export type PendingIntentResult =
   | {type: 'join'; joinStatus: JoinSiteResult}
   | {type: 'follow'}
   | {type: 'comment'; commentUrl: string}
+  | {type: 'publish-draft'; spaceUrl: string}
 
 let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 
@@ -163,6 +164,53 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
     await followProfile(signer, intent.profileUid)
     await clearPendingIntent()
     return {type: 'follow'}
+  }
+
+  if (intent.type === 'publish-draft') {
+    console.log('[processPendingIntent] Publish-draft intent', intent)
+    try {
+      const accountUid = await getCurrentAccountUidWithDelegation()
+      if (!accountUid) {
+        await clearPendingIntent()
+        return {type: 'none'}
+      }
+      const {adoptPendingSpaceDraft} = await import('./document-edit/web-create-space-draft')
+      const {publishWebDocument} = await import('./document-edit/web-document-actors')
+      // Re-key the anonymous home draft to the new account, then publish it.
+      const homeId = await adoptPendingSpaceDraft(intent.draftId, accountUid)
+      if (!homeId) {
+        await clearPendingIntent()
+        return {type: 'none'}
+      }
+      await publishWebDocument(
+        {
+          documentId: homeId,
+          draftId: intent.draftId,
+          deps: [],
+          metadata: {},
+          navigation: undefined,
+          publishAccountUid: accountUid,
+          deletedChildDraftIds: [],
+        },
+        {
+          docId: homeId,
+          getEditor: () => null,
+          client: webUniversalClient,
+          getSigner: (uid) => {
+            if (!webUniversalClient.getSigner) throw new Error('No signer available for publish')
+            return webUniversalClient.getSigner(uid)
+          },
+          getCapabilityCid: () => undefined,
+          onPublishSuccess: () => {},
+        },
+      )
+      await clearPendingIntent()
+      return {type: 'publish-draft', spaceUrl: `/hm/${accountUid}`}
+    } catch (e) {
+      console.error('Failed to process publish-draft intent:', e)
+      await clearPendingIntent()
+      return {type: 'none'}
+    }
   }
 
   if (intent.type === 'comment') {

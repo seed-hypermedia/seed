@@ -4,6 +4,7 @@ import {useUniversalAppContext} from '@shm/shared'
 import {WEB_IS_GATEWAY} from '@shm/shared/constants'
 import {roleCanWrite} from '@shm/shared/models/capabilities'
 import {useCapabilities} from '@shm/shared/models/entity'
+import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {useMemo} from 'react'
 
 /**
@@ -83,7 +84,8 @@ export function resolveWebCanEdit(args: {
 export function useWebCanEdit(docId: UnpackedHypermediaId | null | undefined): WebCanEditResult {
   const userKeyPair = useLocalKeyPair()
   const {origin, originHomeId} = useUniversalAppContext()
-  const capabilities = useCapabilities(docId ?? undefined)
+  // Skip the capability lookup for anonymous pending drafts.
+  const capabilities = useCapabilities(isPendingSpaceUid(docId?.uid) ? undefined : docId ?? undefined)
   const capabilitiesLoading = capabilities.isLoading
 
   return useMemo<WebCanEditResult>(

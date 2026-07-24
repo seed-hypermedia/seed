@@ -137,11 +137,14 @@ export default function AuthCallbackRoute() {
         const intentResult = await processPendingIntent(originHomeId)
 
         let targetUrl = returnUrl
-        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' = 'login'
+        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' | 'publish-draft' = 'login'
 
         if (intentResult.type === 'comment') {
           targetUrl = intentResult.commentUrl
           successVariant = 'comment'
+        } else if (intentResult.type === 'publish-draft') {
+          targetUrl = intentResult.spaceUrl
+          successVariant = 'publish-draft'
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
         } else if (originHomeId?.uid) {
