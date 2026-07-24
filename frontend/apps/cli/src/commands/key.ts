@@ -11,13 +11,12 @@ import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {formatOutput, printError, printSuccess, printInfo, printWarning} from '../output'
 import {generateMnemonic, validateMnemonic, deriveKeyPairFromMnemonic} from '../utils/key-derivation'
 import {
-  listKeys as keyringListKeys,
   getKey as keyringGetKey,
-  getDefaultKey as keyringGetDefaultKey,
   storeKey as keyringStoreKey,
   removeKey as keyringRemoveKey,
   renameKey as keyringRenameKey,
 } from '../utils/keyring'
+import {findDefaultKey, findKey, keyOptions, listAllKeys} from '../utils/keys'
 import {setConfigValue} from '../config'
 import {getOutputFormat, isPretty} from '../index'
 
@@ -100,23 +99,22 @@ export function registerKeyCommands(program: Command) {
 
   key
     .command('list')
-    .description('List stored signing keys')
+    .description('List signing keys from the vault and the OS keyring')
     .action(async (_options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const keys = keyringListKeys(dev)
+        const keys = await listAllKeys(keyOptions(globalOpts))
 
         if (keys.length === 0) {
-          printInfo('No keys stored. Use "seed-cli key generate" to create one.')
+          printInfo('No keys found. Use "seed-cli key generate" to create one.')
           return
         }
 
         if (globalOpts.quiet) {
-          keys.forEach((k) => console.log(`${k.name}\t${k.accountId}`))
+          keys.forEach((k) => console.log(`${k.name}\t${k.accountId}\t${k.source}`))
         } else {
           console.log(formatOutput(keys, format, pretty))
         }
@@ -131,19 +129,21 @@ export function registerKeyCommands(program: Command) {
     .description('Show key information')
     .action(async (nameOrId: string | undefined, _options, cmd) => {
       const globalOpts = cmd.optsWithGlobals()
-      const dev = !!globalOpts.dev
       const format = getOutputFormat(globalOpts)
       const pretty = isPretty(globalOpts)
 
       try {
-        const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
+        const opts = keyOptions(globalOpts)
+        const stored = nameOrId ? await findKey(nameOrId, opts) : await findDefaultKey(opts)
 
         if (!stored) {
           printError(nameOrId ? `Key "${nameOrId}" not found` : 'No keys stored')
           process.exit(1)
         }
 
-        console.log(formatOutput({name: stored.name, accountId: stored.accountId}, format, pretty))
+        console.log(
+          formatOutput({name: stored.name, accountId: stored.accountId, source: stored.source}, format, pretty),
+        )
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
@@ -162,7 +162,15 @@ export function registerKeyCommands(program: Command) {
         const stored = keyringGetKey(nameOrId, dev)
 
         if (!stored) {
-          printError(`Key "${nameOrId}" not found`)
+          const vaultKey = await findKey(nameOrId, keyOptions(globalOpts))
+          if (vaultKey?.source === 'vault') {
+            printError(
+              `Key "${nameOrId}" lives in the vault, which is managed by the Seed desktop app/daemon. ` +
+                'The CLI cannot modify the vault.',
+            )
+          } else {
+            printError(`Key "${nameOrId}" not found`)
+          }
           process.exit(1)
         }
 
@@ -193,6 +201,16 @@ export function registerKeyCommands(program: Command) {
       const dev = !!globalOpts.dev
 
       try {
+        if (!keyringGetKey(currentName, dev)) {
+          const vaultKey = await findKey(currentName, keyOptions(globalOpts))
+          if (vaultKey?.source === 'vault') {
+            printError(
+              `Key "${currentName}" lives in the vault, which is managed by the Seed desktop app/daemon. ` +
+                'The CLI cannot modify the vault.',
+            )
+            process.exit(1)
+          }
+        }
         keyringRenameKey(currentName, newName, dev)
         if (!globalOpts.quiet) printSuccess(`Key "${currentName}" renamed to "${newName}"`)
       } catch (error) {
@@ -209,17 +227,18 @@ export function registerKeyCommands(program: Command) {
       const dev = !!globalOpts.dev
 
       try {
+        const opts = keyOptions(globalOpts)
         if (!nameOrId) {
-          const defaultKey = keyringGetDefaultKey(dev)
+          const defaultKey = await findDefaultKey(opts)
           if (defaultKey) {
-            printInfo(`Default key: ${defaultKey.name} (${defaultKey.accountId})`)
+            printInfo(`Default key: ${defaultKey.name} (${defaultKey.accountId}, ${defaultKey.source})`)
           } else {
             printInfo('No keys stored')
           }
           return
         }
 
-        const stored = keyringGetKey(nameOrId, dev)
+        const stored = await findKey(nameOrId, opts)
         if (!stored) {
           printError(`Key "${nameOrId}" not found`)
           process.exit(1)
@@ -263,7 +282,8 @@ export function registerKeyCommands(program: Command) {
       const dev = !!globalOpts.dev
 
       try {
-        const stored = nameOrId ? keyringGetKey(nameOrId, dev) : keyringGetDefaultKey(dev)
+        const opts = keyOptions(globalOpts)
+        const stored = nameOrId ? await findKey(nameOrId, opts) : await findDefaultKey(opts)
         if (!stored) {
           printError(nameOrId ? `Key "${nameOrId}" not found` : 'No keys stored')
           process.exit(1)

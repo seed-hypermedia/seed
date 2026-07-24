@@ -34,6 +34,7 @@ program
   .option('--pretty', 'Beautify output (colorized JSON/YAML, rendered markdown)')
   .option('-q, --quiet', 'Minimal output')
   .option('--dev', 'Use development environment (alias for --server https://dev.hyper.media + dev keyring)')
+  .option('--vault <path>', 'Path to a daemon/desktop vault.json to read identities from (default: auto-detect)')
 
 // Validate that --dev and --server are not used together. They target separate isolated networks
 // and combining them is always a mistake.
@@ -114,6 +115,7 @@ program
   .command('config')
   .description('Manage CLI configuration')
   .option('--server <url>', 'Set default server URL')
+  .option('--vault-path <path>', 'Set the vault.json path to read identities from')
   .option('--show', 'Show current configuration')
   .action((options, cmd) => {
     const globalOpts = cmd.optsWithGlobals()
@@ -128,6 +130,11 @@ program
     if (options.server) {
       setConfigValue('server', options.server)
       if (!globalOpts.quiet) printSuccess(`Server set to ${options.server}`)
+    }
+
+    if (options.vaultPath) {
+      setConfigValue('vaultPath', options.vaultPath)
+      if (!globalOpts.quiet) printSuccess(`Vault path set to ${options.vaultPath}`)
     }
   })
 

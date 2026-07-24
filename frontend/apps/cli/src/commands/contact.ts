@@ -6,7 +6,7 @@ import type {Command} from 'commander'
 import {createContact, deleteContact, contactRecordIdFromBlob} from '@seed-hypermedia/client'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
-import {resolveKey} from '../utils/keyring'
+import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {createSignerFromKey} from '../utils/signer'
 
 /**
@@ -50,7 +50,7 @@ Examples:
       const client = getClient(globalOpts)
 
       try {
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
 
         const signer = createSignerFromKey(key)
 
@@ -81,7 +81,7 @@ Examples:
       const dev = !!globalOpts.dev
 
       try {
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
         const client = getClient(globalOpts)
         const contactId = await resolveContactId(contactIdOrCid, client.baseUrl)
 

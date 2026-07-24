@@ -1,55 +1,20 @@
-import {xchacha20poly1305} from '@noble/ciphers/chacha.js'
+/**
+ * App-side crypto helpers.
+ *
+ * The vault key-derivation and XChaCha20-Poly1305 primitives live in the
+ * shared client SDK (`@seed-hypermedia/client`) — re-exported here under the
+ * app's historical import path. Only browser-specific helpers (WebAuthn, PRF,
+ * password strength, random generation) are implemented locally.
+ */
+
+export {decrypt, encrypt} from '@seed-hypermedia/client/encryption'
+export {deriveAuthKey, deriveEncryptionKey, deriveSecretCredentialAuthKey} from '@seed-hypermedia/client/vault'
 
 /**
  * Generate a random password salt for Argon2id.
  */
 export function generatePasswordSalt(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(16))
-}
-
-/**
- * Derive a 256-bit key from the root key using HKDF-SHA256.
- */
-async function deriveHKDFKey(rootKey: Uint8Array, info: string): Promise<Uint8Array> {
-  const baseKey = await crypto.subtle.importKey('raw', rootKey.buffer as ArrayBuffer, {name: 'HKDF'}, false, [
-    'deriveBits',
-  ])
-
-  const derived = await crypto.subtle.deriveBits(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt: new Uint8Array(0),
-      info: new TextEncoder().encode(info),
-    },
-    baseKey,
-    256,
-  )
-
-  return new Uint8Array(derived)
-}
-
-const SECRET_CREDENTIAL_AUTH_INFO = 'seed-hypermedia-vault-secret-authentication'
-
-/**
- * Derive the vault encryption key from the root key.
- */
-export async function deriveEncryptionKey(rootKey: Uint8Array): Promise<Uint8Array> {
-  return deriveHKDFKey(rootKey, 'seed-hypermedia-vault-encryption')
-}
-
-/**
- * Derive the password authentication key from the root key.
- */
-export async function deriveAuthKey(rootKey: Uint8Array): Promise<Uint8Array> {
-  return deriveHKDFKey(rootKey, 'seed-hypermedia-vault-authentication')
-}
-
-/**
- * Derive the authentication key for a secret credential from its KEK.
- */
-export async function deriveSecretCredentialAuthKey(secret: Uint8Array): Promise<Uint8Array> {
-  return deriveHKDFKey(secret, SECRET_CREDENTIAL_AUTH_INFO)
 }
 
 /**
@@ -64,36 +29,6 @@ export function generateDEK(): Uint8Array {
  */
 export function generateNonce(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(24))
-}
-
-/**
- * Encrypt data using XChaCha20-Poly1305.
- * Uses the first 256 bits (32 bytes) of the key.
- * Returns nonce prepended to ciphertext.
- */
-export async function encrypt(plaintext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-  const nonce = generateNonce()
-  const keySlice = key.subarray(0, 32)
-  const xc = xchacha20poly1305(keySlice, nonce)
-  const ciphertext = xc.encrypt(plaintext)
-
-  const result = new Uint8Array(nonce.length + ciphertext.length)
-  result.set(nonce)
-  result.set(ciphertext, nonce.length)
-
-  return result
-}
-
-/**
- * Decrypt data using XChaCha20-Poly1305.
- * Expects nonce to be prepended to the ciphertext (first 24 bytes).
- */
-export async function decrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-  const nonce = data.subarray(0, 24)
-  const ciphertext = data.subarray(24)
-  const keySlice = key.subarray(0, 32)
-  const xc = xchacha20poly1305(keySlice, nonce)
-  return xc.decrypt(ciphertext)
 }
 
 /**

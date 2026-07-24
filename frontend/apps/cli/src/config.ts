@@ -15,6 +15,8 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
 export type Config = {
   server?: string
   defaultAccount?: string
+  /** Explicit path to a daemon/desktop vault.json to read identities from. */
+  vaultPath?: string
 }
 
 function ensureConfigDir() {

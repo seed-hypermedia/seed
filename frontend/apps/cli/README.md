@@ -901,8 +901,15 @@ seed-cli capability create --delegate z6MkBot... --role AGENT --path /blog --lab
 
 All key commands live under `seed-cli key <subcommand>`. The `keys` alias also works.
 
-Keys are stored in the **OS keyring** (macOS Keychain / Linux libsecret), shared with the Seed desktop app and Go
-daemon. Keys created in the desktop app are immediately available to the CLI, and vice versa.
+Keys come from two sources:
+
+- **The vault** (`vault.json`) — the encrypted identity store of the Seed desktop app and daemon. The CLI auto-detects
+  it (or use `--vault <path>` / `SEED_VAULT_PATH` / `seed-cli config --vault-path`), unlocks it with the secret in the
+  OS keychain (or `SEED_VAULT_KEK` on headless machines), and can sign with any identity in it. Read-only: the CLI
+  never modifies the vault.
+- **The OS keyring** (macOS Keychain / Linux libsecret) — the legacy store, still used for keys the CLI creates itself.
+
+The vault wins when a name exists in both. `key list` shows each key's `source`. See `docs/KEYS.md` for details.
 
 ### key generate
 
@@ -1015,9 +1022,10 @@ seed-cli key default mykey
 
 **Default key resolution order:**
 
-1. Config `defaultAccount` (set by `key default`)
-2. Key named `main`
-3. First key in the keyring
+1. Config `defaultAccount` (set by `key default`) — vault first, then keyring
+2. Key named `main` — vault first, then keyring
+3. First vault account
+4. First key in the keyring
 
 ---
 
@@ -1365,12 +1373,15 @@ tree:
 
 ### Where Keys Live
 
-Keys are stored in the **OS keyring**, not on disk:
+The desktop app and daemon keep identities in the encrypted **vault** (`vault.json`), which the CLI reads via
+`@seed-hypermedia/client/vault-local`. Keys the CLI creates itself go to the **OS keyring**:
 
 | Platform | Backend                          | CLI tool used |
 | -------- | -------------------------------- | ------------- |
 | macOS    | Keychain                         | `security`    |
 | Linux    | D-Bus Secret Service (libsecret) | `secret-tool` |
+
+The same keychain also holds the vault's unlock secret (service `seed-hypermedia-vault-secret-v2`).
 
 The keyring is shared with the Go daemon and desktop app. Keys registered in any Seed application are available in all
 others.

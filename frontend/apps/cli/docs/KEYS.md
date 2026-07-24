@@ -2,10 +2,76 @@
 
 ## Overview
 
-The Seed CLI stores Ed25519 signing keys in the **OS keyring**, shared with the
-Go daemon. This means keys registered via the desktop app are immediately
-available to the CLI and vice-versa. No daemon needs to be running — the CLI
-reads and writes the keyring directly.
+The Seed CLI reads Ed25519 signing keys from two places:
+
+1. **The vault** (`vault.json`) — the encrypted identity store the daemon and
+   desktop app use. Read-only from the CLI: identities created in the desktop
+   app are available for signing, but the CLI never modifies the vault.
+2. **The OS keyring** — the legacy store, still used for keys the CLI creates
+   itself (`key generate` / `key import`).
+
+When a name or account exists in both, the vault wins (the daemon archives its
+keyring record after migrating, so keyring hits on migrated machines are
+stale).
+
+No daemon needs to be running — the CLI reads the vault file and the keyring
+directly.
+
+## Vault Storage
+
+Since the vault migration (April 2026), the daemon stores signing keys in an
+encrypted file `<data-dir>/vault.json` instead of the OS keyring. On first
+start it migrates existing keyring keys into the vault and renames the old
+keyring record to `seed-daemon-<env>-legacy`.
+
+The CLI looks for the vault in this order:
+
+1. `--vault <path>` global flag
+2. `SEED_VAULT_PATH` environment variable
+3. `vaultPath` in `~/.seed/config.json` (set with `seed-cli config --vault-path <path>`)
+4. Well-known locations:
+   - Desktop app: `~/.config/Seed/daemon/vault.json` (Linux, honors
+     `$XDG_CONFIG_HOME`) or `~/Library/Application Support/Seed/daemon/vault.json`
+     (macOS). With `--dev`, `Seed-dev` instead of `Seed`.
+   - Bare daemon: `~/.mtt/vault.json`
+
+The file is a JSON envelope holding the XChaCha20-Poly1305-encrypted state and
+a wrapped data-encryption key (DEK). The DEK is unwrapped with a 32-byte
+secret (KEK) stored in the OS keychain:
+
+| Field   | Value                                          |
+| ------- | ---------------------------------------------- |
+| Service | `seed-hypermedia-vault-secret-v2`              |
+| Account | `local` (or `<vaultUrl>\|<userId>` for remote) |
+| Value   | JSON bundle `{"credentials":{"": "<base64>"}}` |
+
+### Headless machines (no keychain)
+
+On servers without a Secret Service / keychain, point the CLI at the vault
+file and pass the KEK directly:
+
+```bash
+SEED_VAULT_PATH=/srv/seed/daemon/vault.json \
+SEED_VAULT_KEK="$(base64 < kek.bin)" \
+seed-cli key list
+```
+
+`SEED_VAULT_KEK` (base64, 32 bytes) bypasses the keychain entirely. Treat it
+like a private key.
+
+### Lost keyring / recovery from mnemonic
+
+If your keyring was wiped but you have the mnemonic, re-derive the key — the
+derivation is deterministic (`m/44'/104109'/0'`), so the same words always
+produce the same account:
+
+```bash
+seed-cli key import -n main "word1 word2 ... word24"
+```
+
+The decoding stack lives in the client SDK: `@seed-hypermedia/client/vault`
+(codec) and `@seed-hypermedia/client/vault-local` (discovery + keychain
+unlock), shared with the vault web app.
 
 ## Keyring Storage
 
@@ -149,7 +215,7 @@ The desktop app uses `seed-daemon-dev` when running in development mode
 ## CLI Key Commands
 
 ```bash
-# List all keys in the keyring
+# List all keys (vault + keyring; shows a `source` column)
 seed-cli key list
 
 # Show a specific key by name or account ID
@@ -165,18 +231,24 @@ seed-cli key import --name imported "word1 word2 ... word12"
 # Derive account ID without storing
 seed-cli key derive "word1 word2 ... word12"
 
-# Remove a key
+# Remove a key (keyring only — vault keys are managed by the desktop app/daemon)
 seed-cli key remove mykey --force
 
-# Set default signing key
+# Set default signing key (vault or keyring)
 seed-cli key default mykey
+
+# Read a specific vault file
+seed-cli --vault /path/to/vault.json key list
 ```
 
 ## Implementation Files
 
-| File                          | Purpose                              |
-| ----------------------------- | ------------------------------------ |
-| `src/utils/keyring.ts`        | Cross-platform OS keyring read/write |
-| `src/utils/key-derivation.ts` | BIP-39 / SLIP-10 key derivation      |
-| `src/commands/key.ts`         | CLI key subcommands                  |
-| `src/config.ts`               | Default key config persistence       |
+| File                                              | Purpose                                        |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `src/utils/keys.ts`                               | Unified vault + keyring key resolution         |
+| `src/utils/keyring.ts`                            | Cross-platform OS keyring read/write (legacy)  |
+| `src/utils/key-derivation.ts`                     | BIP-39 / SLIP-10 key derivation                |
+| `src/commands/key.ts`                             | CLI key subcommands                            |
+| `src/config.ts`                                   | Default key / vault path config persistence    |
+| `@seed-hypermedia/client/vault` (SDK)             | Vault envelope + state codec (Go-compatible)   |
+| `@seed-hypermedia/client/vault-local` (SDK)       | Vault discovery, keychain unlock, account list |

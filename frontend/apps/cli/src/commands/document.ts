@@ -26,7 +26,7 @@ import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {getClient, getServerUrl, getOutputFormat, isPretty} from '../index'
 import {formatOutput, renderMarkdown, printError, printSuccess, printInfo, printWarning} from '../output'
 import {documentToMarkdown} from '../markdown'
-import {resolveKey} from '../utils/keyring'
+import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
@@ -359,7 +359,7 @@ export function registerDocumentCommands(program: Command) {
         }
 
         const client = getClient(globalOpts)
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
         const account = options.account || key.accountId
 
         // Resolve file:// links in metadata (cover, icon, logo)
@@ -493,7 +493,7 @@ export function registerDocumentCommands(program: Command) {
 
       try {
         const {id: resourceId, client} = await resolveIdWithClient(id, globalOpts)
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
 
         // For update, only use stdin if -f is explicitly given.
         // Unlike create, update supports metadata-only changes (--name, --summary),
@@ -621,7 +621,7 @@ export function registerDocumentCommands(program: Command) {
 
       try {
         const {id: unpacked, client} = await resolveIdWithClient(id, globalOpts)
-        const key = resolveKey(_options.key, dev)
+        const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', unpacked)
@@ -666,7 +666,7 @@ export function registerDocumentCommands(program: Command) {
       try {
         const {id: sourceUnpacked, client} = await resolveIdWithClient(sourceId, globalOpts)
         const {id: dest} = await resolveIdWithClient(destinationId, globalOpts)
-        const key = resolveKey(_options.key, dev)
+        const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', sourceUnpacked)
@@ -712,7 +712,7 @@ export function registerDocumentCommands(program: Command) {
       try {
         const {id: source, client} = await resolveIdWithClient(sourceId, globalOpts)
         const {id: dest} = await resolveIdWithClient(destinationId, globalOpts)
-        const key = resolveKey(_options.key, dev)
+        const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', source)
@@ -775,7 +775,7 @@ export function registerDocumentCommands(program: Command) {
       try {
         const {id: source, client} = await resolveIdWithClient(id, globalOpts)
         const {id: target} = await resolveIdWithClient(_options.to, globalOpts)
-        const key = resolveKey(_options.key, dev)
+        const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', source)

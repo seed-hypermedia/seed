@@ -49,6 +49,7 @@
     "@noble/ciphers": "^2.1.1",
     "@noble/curves": "^2.0.1",
     "blockstore-core": "^5.0.2",
+    "cborg": "^4.5.8",
     "cheerio": "^1.2.0",
     "core-js": "^3.48.0",
     "hash-wasm": "^4.12.0",

@@ -9,7 +9,7 @@ import type {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedi
 import {unpackHmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
-import {resolveKey} from '../utils/keyring'
+import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {textToBlocks as parseCommentMarkdown} from './comment-blocks'
@@ -81,7 +81,7 @@ export function registerCommentCommands(program: Command) {
 
       try {
         const {id: unpacked, client} = await resolveIdWithClient(targetId, globalOpts)
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
         const text = readCommentText(options)
         const blockRef = unpacked.blockRef
         // Strip the blockRef for the API fetch (server doesn't need it).
@@ -178,7 +178,7 @@ export function registerCommentCommands(program: Command) {
       const client = getClient(globalOpts)
 
       try {
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
         const text = readCommentText(options)
         if (!text.trim()) {
           throw new Error('Comment text cannot be empty.')
@@ -227,7 +227,7 @@ export function registerCommentCommands(program: Command) {
       const client = getClient(globalOpts)
 
       try {
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
 
         // Fetch the comment to get target details
         const existing = await client.request('Comment', commentId)

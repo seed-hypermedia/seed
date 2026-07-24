@@ -7,7 +7,7 @@ import {createCapability} from '@seed-hypermedia/client'
 import type {CapabilityRole} from '@seed-hypermedia/client'
 import {getClient} from '../index'
 import {printError, printSuccess} from '../output'
-import {resolveKey} from '../utils/keyring'
+import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {createSignerFromKey} from '../utils/signer'
 
 export function registerCapabilityCommands(program: Command) {
@@ -43,7 +43,7 @@ Examples:
           throw new Error(`Invalid role "${options.role}". Must be WRITER or AGENT.`)
         }
 
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
 
         const signer = createSignerFromKey(key)
 

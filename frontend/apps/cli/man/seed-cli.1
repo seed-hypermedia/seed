@@ -43,7 +43,11 @@ environment variable\.
 .IP \(bu 2
 \fB\-\-dev\fP: Use the development keyring (\fBseed\-daemon\-dev\fP) instead of the production keyring (\fBseed\-daemon\-main\fP)\. Keys
 .br
-are shared with the local Seed desktop daemon\.
+are shared with the local Seed desktop daemon\. Also selects the \fBSeed\-dev\fP vault location\.
+.IP \(bu 2
+\fB\-\-vault\fP <path>: Path to a daemon/desktop \fBvault\.json\fP to read identities from\. Default: auto\-detect
+.br
+(desktop app data dir, then \fB~/\.mtt/vault\.json\fP)\.
 .IP \(bu 2
 \fB\-V\fP, \fB\-\-version\fP: Print version number and exit\.
 .IP \(bu 2
@@ -447,9 +451,15 @@ Options:
 .RE
 .SS Key Management
 .P
-Keys are stored in the OS keyring, shared with the Seed desktop daemon\. Production keys use the \fBseed\-daemon\-main\fP
+Signing keys come from two sources: the encrypted \fBvault\fP (\fBvault\.json\fP, managed by the Seed desktop
 .br
-keyring; development keys (\fB\-\-dev\fP) use \fBseed\-daemon\-dev\fP\|\.
+app/daemon; read\-only from the CLI) and the legacy OS \fBkeyring\fP\|\. The vault wins when a name exists in both\.
+.br
+Production keyring keys use the \fBseed\-daemon\-main\fP service; development keys (\fB\-\-dev\fP) use
+.br
+\fBseed\-daemon\-dev\fP\|\. The vault unlock secret is read from the OS keychain (service
+.br
+\fBseed\-hypermedia\-vault\-secret\-v2\fP), or from \fBSEED_VAULT_KEK\fP on headless machines\.
 .SS key generate
 .P
 Generate a new signing key from a BIP\-39 mnemonic\.
@@ -482,7 +492,7 @@ Options:
 .RE
 .SS key list
 .P
-List all stored signing keys (name and account ID)\.
+List all signing keys from the vault and the keyring (name, account ID, and source)\.
 .SS key show [nameOrId]
 .P
 Show details for a specific key, or the default key if none given\.
@@ -699,13 +709,23 @@ seed\-cli document update "hm://\.\.\." \\
 \fBSEED_SERVER\fP: Default server URL\. Overrides the built\-in default (\fBhttps://hyper\.media\fP) and the config file value\.
 .br
 The \fB\-\-server\fP flag takes precedence over this variable\.
+.IP \(bu 2
+\fBSEED_VAULT_PATH\fP: Path to the \fBvault\.json\fP file to read identities from\. The \fB\-\-vault\fP flag takes precedence\.
+.IP \(bu 2
+\fBSEED_VAULT_KEK\fP: Base64\-encoded 32\-byte vault unlock secret\. Bypasses the OS keychain — intended for headless
+.br
+machines\. Treat it like a private key\.
 
 .RE
 .SH FILES
 
 .RS 1
 .IP \(bu 2
-\fB~/\.seed/config\.json\fP: CLI configuration (server URL, default account)\.
+\fB~/\.seed/config\.json\fP: CLI configuration (server URL, default account, vault path)\.
+.IP \(bu 2
+\fBvault\.json\fP: Encrypted identity vault written by the daemon/desktop app\. Auto\-detected in the desktop app data
+.br
+dir (\fB~/\.config/Seed/daemon/\fP on Linux, \fB~/Library/Application Support/Seed/daemon/\fP on macOS) or \fB~/\.mtt/\fP\|\.
 .IP \(bu 2
 \fB~/\.seed/keys\.json\fP: Stored signing keys (mnemonics and derived account IDs)\. Created with mode \fB0600\fP (owner
 .br

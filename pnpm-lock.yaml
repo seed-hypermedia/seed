@@ -1468,6 +1468,9 @@ importers:
       blockstore-core:
         specifier: ^5.0.2
         version: 5.0.4
+      cborg:
+        specifier: ^4.5.8
+        version: 4.5.8
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0

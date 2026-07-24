@@ -13,7 +13,11 @@ import {tmpdir, platform} from 'os'
 import path from 'path'
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as ed25519 from '@noble/ed25519'
+import {sha512} from '@noble/hashes/sha512'
 import {base58btc} from 'multiformats/bases/base58'
+
+// @noble/ed25519 requires an explicit sync hash since v2.3.
+ed25519.etc.sha512Sync = (...m) => sha512(ed25519.etc.concatBytes(...m))
 
 const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
 

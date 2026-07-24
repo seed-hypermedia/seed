@@ -9,7 +9,7 @@ import * as blobs from '@shm/shared/blobs'
 import {getClient, getOutputFormat, isPretty} from '../index'
 import {formatOutput, printError, printSuccess} from '../output'
 import {resolveIdWithClient} from '../utils/resolve-id'
-import {resolveKey} from '../utils/keyring'
+import {keyOptions, resolveSigningKey} from '../utils/keys'
 
 export function registerAccountCommands(program: Command) {
   const account = program.command('account').description('Manage accounts (get, list, contacts, profile, capabilities)')
@@ -123,7 +123,7 @@ export function registerAccountCommands(program: Command) {
       const dev = !!globalOpts.dev
 
       try {
-        const key = resolveKey(options.key, dev)
+        const key = await resolveSigningKey(options.key, keyOptions(globalOpts))
         const targetAccount = options.account?.trim() || key.accountId
         const name = options.name.trim()
         const description = options.description?.trim()

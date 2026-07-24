@@ -69,14 +69,19 @@ function readKeyringRaw(serviceName: string): string | null {
 
     throw new Error(`Unsupported platform: ${os}. Only linux and darwin are supported.`)
   } catch (err: unknown) {
+    // secret-tool exits 1 when no item matches; macOS `security` exits 44.
+    // The exit code lives on the error object — it never appears in the message.
+    const status = (err as {status?: number | null})?.status
+    if (status === 1 || status === 44) {
+      return null
+    }
     const msg = err instanceof Error ? err.message : String(err)
     if (
       msg.includes('not found') ||
       msg.includes('No matching') ||
       msg.includes('could not be found') ||
       msg.includes('SecKeychainSearchCopyNext') ||
-      msg.includes('The specified item could not be found') ||
-      msg.includes('status 1')
+      msg.includes('The specified item could not be found')
     ) {
       return null
     }
