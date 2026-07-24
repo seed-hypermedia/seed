@@ -9,6 +9,8 @@ on:
       - 'frontend/apps/cli/src/**'
       - 'frontend/apps/cli/package.json'
       - 'frontend/apps/cli/README.md'
+      - 'frontend/apps/cli/docs/**'
+      - 'frontend/apps/cli/man/**'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +36,8 @@ jobs:
               - 'frontend/apps/cli/src/**'
               - 'frontend/apps/cli/package.json'
               - 'frontend/apps/cli/README.md'
+              - 'frontend/apps/cli/docs/**'
+              - 'frontend/apps/cli/man/**'
 
   publish-client:
     needs: detect-changes
