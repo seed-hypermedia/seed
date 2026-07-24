@@ -286,6 +286,26 @@ describe('api service', () => {
     }
   })
 
+  test('reports the code-execution capability from config and injected executors', () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const enabled = new apisvc.Service(db, dataDir)
+      expect(enabled.codeExecCapability()).toBe(true)
+      const disabled = new apisvc.Service(db, dataDir, {
+        codeExecutor: {
+          enabled: false,
+          execute: async () => {
+            throw new Error('disabled')
+          },
+        },
+      })
+      expect(disabled.codeExecCapability()).toBe(false)
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('creates a default user-mention trigger for the agent signing identity', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

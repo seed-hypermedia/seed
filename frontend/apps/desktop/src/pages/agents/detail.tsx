@@ -53,6 +53,7 @@ import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
 import {
+  AGENT_EXECUTE_CODE_TOOL,
   AGENT_MEMORY_TOOL_GROUP,
   AGENT_READ_TOOL_GROUP,
   AGENT_WEB_TOOL_GROUP,
@@ -419,7 +420,14 @@ function AgentDetailPage({
                   definition={agent.data.agent.definition}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
-                  webCapabilities={serverHealth.data?.webTools}
+                  webCapabilities={
+                    serverHealth.data
+                      ? {
+                          ...(serverHealth.data.webTools ?? {search: true, readBrowser: true}),
+                          codeExec: serverHealth.data.codeExec,
+                        }
+                      : undefined
+                  }
                   onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
                   onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
                   saving={updateAgent.isLoading || createSigningIdentity.isLoading}
@@ -706,6 +714,11 @@ const AGENT_TOOL_OPTIONS = [
     names: AGENT_MEMORY_TOOL_GROUP,
     title: 'Memory',
     description: 'Read and write private files in this agent’s persistent memory, shown on the Memory tab.',
+  },
+  {
+    names: [AGENT_EXECUTE_CODE_TOOL],
+    title: 'Execute code',
+    description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
   },
   {
     names: [seedToolRegistry.write.name],

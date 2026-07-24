@@ -180,6 +180,7 @@ export type SeedToolRegistry = {
   memory_delete: SeedToolMetadata
   memory_download: SeedToolMetadata
   memory_upload_ipfs: SeedToolMetadata
+  execute_code: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
 
@@ -776,6 +777,69 @@ export const seedToolRegistry: SeedToolRegistry = {
       details: [
         {label: 'Input', source: 'input'},
         {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  execute_code: {
+    name: 'execute_code',
+    label: 'Execute Code',
+    description:
+      'Run Python or shell code in an isolated sandbox (a hardware-isolated microVM) with your persistent memory mounted at /workspace, which is also the working directory. Files your code reads and writes under /workspace are the same files as your memory_* tools and your user’s Memory tab, so use this to process, transform, analyze, or generate memory files — parse data, resize or convert media, run computations, and save results. Each call runs in a fresh sandbox: no state (variables, installed packages, processes) survives between calls, so persist anything important as files. Networking is typically disabled inside the sandbox; use memory_download to fetch web files first. Output returns stdout, stderr, the exit code, and which memory files changed.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        language: {
+          type: 'string',
+          enum: ['python', 'shell'],
+          description: 'How to run the code: "python" runs it with the python interpreter, "shell" runs it with sh.',
+        },
+        code: {type: 'string', minLength: 1, description: 'The code to execute.'},
+        timeout_secs: {
+          type: 'integer',
+          minimum: 1,
+          description: 'Optional timeout override in seconds. Defaults to the server limit (typically 60).',
+        },
+      },
+      required: ['language', 'code'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        exitCode: {type: 'integer'},
+        success: {type: 'boolean'},
+        stdout: {type: 'string'},
+        stderr: {type: 'string'},
+        truncated: {type: 'boolean', description: 'True when stdout/stderr was cut to the size limit.'},
+        durationMs: {type: 'integer'},
+        changedFiles: {
+          type: 'array',
+          description: 'Memory files added, modified, or removed by the execution.',
+          items: {
+            type: 'object',
+            properties: {
+              path: {type: 'string'},
+              change: {type: 'string', enum: ['added', 'modified', 'removed']},
+            },
+          },
+        },
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Execute Code',
+      color: 'amber',
+      primaryArg: 'language',
+      summaryArg: 'language',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Code', source: 'input', path: 'code', format: 'markdown'},
+        {label: 'Output', source: 'output', path: 'stdout', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Result', source: 'output'},
       ],
     },
     runtimes: ['agent-service'],

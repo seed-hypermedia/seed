@@ -5,6 +5,22 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Sandboxed code execution (`execute_code`)
+
+Completed:
+
+- Added `agents/src/code-exec.ts`: an injectable executor over the embedded `microsandbox` npm runtime (napi-rs native
+  bindings; libkrun microVMs on macOS/Linux, WHP on Windows — no separate server process). Each call boots a fresh
+  ephemeral, `restricted`-profile sandbox with the agent's memory bind-mounted at `/workspace` as cwd, a guest write
+  quota from the remaining memory budget, capped cpus/memory/timeout/lifetime, and networking disabled by default.
+- `execute_code` tool (python | shell) returns exit code, bounded stdout/stderr, duration, and a `changedFiles` memory
+  diff; changes emit `agent-memory-changed` so the Memory tab refreshes live. System prompt documents the workspace
+  mount and the fresh-sandbox model when the tool is enabled.
+- Config under `exec` (`SEED_AGENTS_EXEC_*`), health `codeExec` capability, desktop Tools-tab "Execute code" group
+  greyed out when the server disables the backend.
+- Unit tests drive a fake SDK (mount/quota/timeout/diff/truncation assertions); verified end-to-end on Apple Silicon
+  with a real microVM run that read and wrote bind-mounted memory files.
+
 ### Per-agent memory filesystem (`memory_*` tools + Memory tab)
 
 Completed:

@@ -25,6 +25,8 @@ File: `agents/src/api-service.ts`
      resolved Markdown;
   2. `seedAssistantSystemPrompt({includeTitleToolInstruction: true})`;
   3. optional `<available_signing_identities>` JSON plus signing instructions when the agent has selected signing keys.
+- When the `execute_code` tool is enabled, `#agentSystemPrompt()` appends sandbox guidance (workspace mount,
+  fresh-sandbox semantics, network posture).
 - When memory tools are enabled, `#agentSystemPrompt()` also appends memory guidance plus an automatic `<memory_files>`
   top-level listing built from the agent's memory directory (`memoryListingPrompt()` / `summarizeMemoryTopLevel()`),
   regenerated for every run.

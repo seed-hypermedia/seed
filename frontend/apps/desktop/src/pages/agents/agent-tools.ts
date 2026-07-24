@@ -35,8 +35,16 @@ export const DEFAULT_AGENT_TOOLS = [
   AGENT_WRITE_TOOL,
 ]
 
-/** Web-backend capabilities a server advertises in its health response. */
-export type AgentServerWebCapabilities = {search: boolean; readBrowser: boolean}
+/** Tool that lets an agent run sandboxed code inside its memory workspace. */
+export const AGENT_EXECUTE_CODE_TOOL = seedToolRegistry.execute_code.name
+
+/** Tool-backend capabilities a server advertises in its health response. */
+export type AgentServerWebCapabilities = {
+  search: boolean
+  readBrowser: boolean
+  /** Sandboxed code execution; undefined on older servers means unknown. */
+  codeExec?: boolean
+}
 
 /**
  * Whether a tool can run on a server with the given web capabilities, plus an optional caveat.
@@ -57,6 +65,9 @@ export function getToolAvailability(
       available: true,
       note: 'Browser rendering is unavailable on this server; reads use direct fetch and the wiki API.',
     }
+  }
+  if (toolName === seedToolRegistry.execute_code.name && caps && caps.codeExec === false) {
+    return {available: false, note: 'Sandboxed code execution is not enabled on this server.'}
   }
   return {available: true}
 }

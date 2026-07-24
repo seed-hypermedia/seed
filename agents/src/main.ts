@@ -149,6 +149,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
         webTools: svc.webToolCapabilities(),
+        codeExec: svc.codeExecCapability(),
       },
       {headers: corsHeaders()},
     )
@@ -473,6 +474,7 @@ async function main(): Promise<void> {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
     web: cfg.web,
+    exec: cfg.exec,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})

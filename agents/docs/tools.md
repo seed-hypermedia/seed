@@ -28,6 +28,7 @@ memory_write
 memory_delete
 memory_download
 memory_upload_ipfs
+execute_code
 ```
 
 `read` is available by default for existing agents whose saved definition omits `tools`. Agents with an explicit `tools`
@@ -257,6 +258,40 @@ Key behavior:
   files with sizes and root folders with contained file counts, without expanding subfolder contents — built fresh per
   run by `summarizeMemoryTopLevel`. The agent starts every session knowing what it has without an explicit `memory_list`
   call; `memory_list` remains the way to see full nested paths.
+
+## `execute_code`
+
+Runs model-written Python or shell code in a hardware-isolated microVM with the agent's memory directory bind-mounted at
+`/workspace` (also the working directory), so sandboxed code reads and writes exactly the files the `memory_*` tools and
+the desktop Memory tab see. Implementation lives in `agents/src/code-exec.ts` on the embedded `microsandbox` runtime
+(libkrun microVMs on macOS/Linux, WHP on Windows; no separate server process). Configuration lives in
+`agents/src/config.ts` under `exec` (see `operations.md`).
+
+Input:
+
+```ts
+type ExecuteCodeInput = {
+  language: 'python' | 'shell'
+  code: string
+  timeout_secs?: number // clamped to [1, 300]
+}
+```
+
+Behavior and safety:
+
+- every call creates a fresh **ephemeral** sandbox (`security: restricted`) with capped CPUs, memory, and lifetime; no
+  state survives between calls, so the prompt instructs the model to persist results as files;
+- the memory mount carries a guest write quota equal to the agent's remaining memory budget (clamped to 1 GiB), so
+  sandboxed code cannot blow past memory limits;
+- networking is disabled inside the sandbox unless `SEED_AGENTS_EXEC_ALLOW_NETWORK=true`; the model is told to fetch web
+  files with `memory_download` first and process them with code;
+- stdout/stderr are truncated to 64 KiB each; the result carries `exitCode`, `success`, `durationMs`, and a
+  `changedFiles` diff (added/modified/removed memory paths from a before/after listing comparison);
+- memory changes made by code emit the same `agent-memory-changed` events as the memory tools, so the Memory tab
+  refreshes live;
+- the SDK loads lazily: servers without virtualization support run normally and the tool fails with a clear
+  backend-unavailable error (or is greyed out when `SEED_AGENTS_EXEC_BACKEND` is unset/off, via the health `codeExec`
+  capability).
 
 ## `write`
 

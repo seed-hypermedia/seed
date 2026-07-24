@@ -126,6 +126,12 @@ Config source: `agents/src/config.ts`.
 | `SEED_AGENTS_SEARXNG_URL`               | _(unset)_              | Self-hosted SearXNG base URL. Enables the `web_search` tool.                 |
 | `SEED_AGENTS_CRAWLER_URL`               | _(unset)_              | Self-hosted Crawl4AI base URL. Enables `web_read` browser-render escalation. |
 | `SEED_AGENTS_CRAWLER_TOKEN`             | _(unset)_              | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9).                     |
+| `SEED_AGENTS_EXEC_BACKEND`              | `microsandbox`         | Code-execution backend for `execute_code`. Set empty/`off` to disable.       |
+| `SEED_AGENTS_EXEC_IMAGE`                | `python`               | OCI image used for execution sandboxes.                                      |
+| `SEED_AGENTS_EXEC_CPUS`                 | `1`                    | Virtual CPUs per execution sandbox.                                          |
+| `SEED_AGENTS_EXEC_MEMORY_MIB`           | `512`                  | Guest memory per execution sandbox (MiB).                                    |
+| `SEED_AGENTS_EXEC_TIMEOUT_SECS`         | `60`                   | Default per-execution timeout (tool may request up to 300s).                 |
+| `SEED_AGENTS_EXEC_ALLOW_NETWORK`        | _(unset)_              | Set `true` to allow outbound network from execution sandboxes.               |
 
 CLI flags override env/defaults:
 
@@ -206,8 +212,22 @@ Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM mini
 host accordingly. The SearXNG + in-process static reader path is lightweight; Crawl4AI is the heavy escalation tier.
 
 The health endpoints (`/api/health`, `/agents/api/health`) report which optional web backends are configured via a
-`webTools: {search, readBrowser}` capability object (derived from `SEED_AGENTS_SEARXNG_URL` /
-`SEED_AGENTS_CRAWLER_URL`). The desktop Tools tab reads this to grey out tools the server cannot run.
+`webTools: {search, readBrowser}` capability object (derived from `SEED_AGENTS_SEARXNG_URL` / `SEED_AGENTS_CRAWLER_URL`)
+plus a `codeExec` boolean (derived from `SEED_AGENTS_EXEC_BACKEND`). The desktop Tools tab reads these to grey out tools
+the server cannot run.
+
+## Code execution backend
+
+The `execute_code` tool uses the embedded `microsandbox` npm runtime — hardware-isolated microVMs with no separate
+server process. Host requirements: Apple Silicon on macOS, KVM on Linux, WHP (Windows Hypervisor Platform) on Windows.
+The runtime and native binaries install with the package; the first execution pulls the configured OCI image (default
+`python`), which takes tens of seconds, after which sandboxes boot in well under a second. Hosts without virtualization
+support keep the tool visible but every call fails with a clear backend-unavailable error; set
+`SEED_AGENTS_EXEC_BACKEND=off` on such hosts to grey the tool out in clients instead.
+
+When the agents service runs inside a container, the container needs access to the host virtualization device (on Linux,
+`--device /dev/kvm`); without it, executions fail with the backend-unavailable error while the rest of the service keeps
+working.
 
 Production deployment of these sidecars on the hosted agent server is handled in the `mintterteam/infrastructure` repo
 (the `seed_infra/agentic` Terraform stack adds the `searxng` and `crawl4ai` containers and wires the env vars), not in
